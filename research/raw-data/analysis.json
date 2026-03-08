@@ -1,0 +1,4119 @@
+{
+  "sets": [
+    {
+      "set_code": "dsk",
+      "card_counts": {
+        "total": 276,
+        "common": 96,
+        "uncommon": 100,
+        "rare": 60,
+        "mythic": 20,
+        "basic_lands": 5,
+        "total_minus_basics": 271
+      },
+      "color_distribution": {
+        "mono_counts": {
+          "U": 41,
+          "W": 41,
+          "G": 42,
+          "B": 42,
+          "R": 41
+        },
+        "multicolor_count": 34,
+        "colorless_count": 13,
+        "total_non_land": 254,
+        "color_pair_distribution": {
+          "RW": 3,
+          "GW": 3,
+          "GR": 3,
+          "BG": 3,
+          "BR": 3,
+          "BU": 4,
+          "UW": 4,
+          "GU": 3,
+          "RU": 3,
+          "BGRUW": 1,
+          "BW": 3,
+          "BGR": 1
+        },
+        "mono_pct": {
+          "W": 16.1,
+          "U": 16.1,
+          "B": 16.5,
+          "R": 16.1,
+          "G": 16.5
+        },
+        "multi_pct": 13.4,
+        "colorless_pct": 5.1,
+        "per_rarity": {
+          "common": {
+            "mono": {
+              "W": 15,
+              "G": 15,
+              "B": 15,
+              "R": 15,
+              "U": 15
+            },
+            "multicolor": 0,
+            "colorless": 5,
+            "total": 80
+          },
+          "uncommon": {
+            "mono": {
+              "G": 15,
+              "R": 15,
+              "U": 15,
+              "B": 15,
+              "W": 15
+            },
+            "multicolor": 20,
+            "colorless": 5,
+            "total": 100
+          },
+          "rare": {
+            "mono": {
+              "G": 8,
+              "U": 8,
+              "R": 7,
+              "B": 8,
+              "W": 8
+            },
+            "multicolor": 12,
+            "colorless": 3,
+            "total": 54
+          },
+          "mythic": {
+            "mono": {
+              "U": 3,
+              "R": 4,
+              "W": 3,
+              "B": 4,
+              "G": 4
+            },
+            "multicolor": 2,
+            "colorless": 0,
+            "total": 20
+          }
+        }
+      },
+      "type_distribution": {
+        "creature": 142,
+        "instant": 23,
+        "sorcery": 25,
+        "enchantment_only": 47,
+        "artifact_only": 17,
+        "land_nonbasic": 17,
+        "land_basic": 5,
+        "planeswalker": 1,
+        "enchantment_creature": 31,
+        "artifact_creature": 17,
+        "creature_pct": 51.4,
+        "instant_pct": 8.3,
+        "sorcery_pct": 9.1,
+        "per_rarity": {
+          "common": {
+            "creature": 46,
+            "instant": 13,
+            "sorcery": 7,
+            "enchantment_only": 11,
+            "artifact_only": 3,
+            "land_nonbasic": 11,
+            "planeswalker": 0,
+            "total": 96
+          },
+          "uncommon": {
+            "creature": 55,
+            "instant": 9,
+            "sorcery": 13,
+            "enchantment_only": 16,
+            "artifact_only": 7,
+            "land_nonbasic": 0,
+            "planeswalker": 0,
+            "total": 100
+          },
+          "rare": {
+            "creature": 29,
+            "instant": 1,
+            "sorcery": 5,
+            "enchantment_only": 13,
+            "artifact_only": 7,
+            "land_nonbasic": 6,
+            "planeswalker": 0,
+            "total": 60
+          },
+          "mythic": {
+            "creature": 12,
+            "instant": 0,
+            "sorcery": 0,
+            "enchantment_only": 7,
+            "artifact_only": 0,
+            "land_nonbasic": 0,
+            "planeswalker": 1,
+            "total": 20
+          }
+        }
+      },
+      "mana_curve": {
+        "distribution": {
+          "cmc_0": {
+            "count": 0,
+            "pct": 0.0
+          },
+          "cmc_1": {
+            "count": 26,
+            "pct": 10.2
+          },
+          "cmc_2": {
+            "count": 66,
+            "pct": 26.0
+          },
+          "cmc_3": {
+            "count": 57,
+            "pct": 22.4
+          },
+          "cmc_4": {
+            "count": 41,
+            "pct": 16.1
+          },
+          "cmc_5": {
+            "count": 27,
+            "pct": 10.6
+          },
+          "cmc_6": {
+            "count": 15,
+            "pct": 5.9
+          },
+          "cmc_7plus": {
+            "count": 22,
+            "pct": 8.7
+          }
+        },
+        "average_cmc": 3.53,
+        "median_cmc": 3.0,
+        "per_color": {
+          "W": {
+            "average_cmc": 3.46,
+            "count": 41,
+            "distribution": {
+              "0": 0,
+              "1": 7,
+              "2": 7,
+              "3": 10,
+              "4": 4,
+              "5": 7,
+              "6": 3,
+              "7": 3
+            }
+          },
+          "U": {
+            "average_cmc": 3.63,
+            "count": 41,
+            "distribution": {
+              "0": 0,
+              "1": 3,
+              "2": 10,
+              "3": 11,
+              "4": 6,
+              "5": 4,
+              "6": 4,
+              "7": 3
+            }
+          },
+          "B": {
+            "average_cmc": 3.9,
+            "count": 42,
+            "distribution": {
+              "0": 0,
+              "1": 3,
+              "2": 9,
+              "3": 10,
+              "4": 7,
+              "5": 5,
+              "6": 3,
+              "7": 5
+            }
+          },
+          "R": {
+            "average_cmc": 3.54,
+            "count": 41,
+            "distribution": {
+              "0": 0,
+              "1": 5,
+              "2": 12,
+              "3": 6,
+              "4": 7,
+              "5": 5,
+              "6": 3,
+              "7": 3
+            }
+          },
+          "G": {
+            "average_cmc": 3.45,
+            "count": 42,
+            "distribution": {
+              "0": 0,
+              "1": 4,
+              "2": 10,
+              "3": 12,
+              "4": 7,
+              "5": 4,
+              "6": 1,
+              "7": 4
+            }
+          }
+        },
+        "per_rarity": {
+          "common": {
+            "average_cmc": 3.39,
+            "count": 80
+          },
+          "uncommon": {
+            "average_cmc": 3.04,
+            "count": 100
+          },
+          "rare": {
+            "average_cmc": 3.81,
+            "count": 54
+          },
+          "mythic": {
+            "average_cmc": 5.8,
+            "count": 20
+          }
+        }
+      },
+      "creature_stats": {
+        "total_creatures": 142,
+        "avg_pt_by_cmc": {
+          "1": {
+            "avg_power": 1.3,
+            "avg_toughness": 1.5,
+            "count": 10
+          },
+          "2": {
+            "avg_power": 1.95,
+            "avg_toughness": 2.08,
+            "count": 39
+          },
+          "3": {
+            "avg_power": 2.82,
+            "avg_toughness": 2.58,
+            "count": 38
+          },
+          "4": {
+            "avg_power": 3.09,
+            "avg_toughness": 3.48,
+            "count": 23
+          },
+          "5": {
+            "avg_power": 3.88,
+            "avg_toughness": 4.56,
+            "count": 16
+          },
+          "6": {
+            "avg_power": 5.09,
+            "avg_toughness": 5.18,
+            "count": 11
+          },
+          "7": {
+            "avg_power": 6.5,
+            "avg_toughness": 6.25,
+            "count": 4
+          },
+          "9": {
+            "avg_power": 9,
+            "avg_toughness": 9,
+            "count": 1
+          }
+        },
+        "top_subtypes": {
+          "Human": 44,
+          "Nightmare": 15,
+          "Survivor": 13,
+          "Toy": 11,
+          "Spirit": 10,
+          "Horror": 9,
+          "Glimmer": 7,
+          "Wizard": 7,
+          "Insect": 6,
+          "Beast": 6,
+          "Assassin": 5,
+          "Warrior": 5,
+          "Avatar": 5,
+          "Elf": 4,
+          "Demon": 4,
+          "Scout": 4,
+          "Scarecrow": 4,
+          "Cleric": 3,
+          "Warlock": 3,
+          "Clown": 3
+        }
+      },
+      "keywords": {
+        "evergreen": {
+          "flying": 19,
+          "trample": 6,
+          "reach": 4,
+          "flash": 11,
+          "haste": 9,
+          "menace": 5,
+          "deathtouch": 4,
+          "vigilance": 8,
+          "lifelink": 5,
+          "ward": 5,
+          "double strike": 2,
+          "defender": 1,
+          "hexproof": 1
+        },
+        "evergreen_by_color": {
+          "flying": {
+            "U": 9,
+            "B": 6,
+            "W": 5
+          },
+          "trample": {
+            "G": 4,
+            "B": 2,
+            "R": 1
+          },
+          "reach": {
+            "G": 3,
+            "B": 1,
+            "R": 1
+          },
+          "flash": {
+            "B": 2,
+            "U": 5,
+            "G": 2,
+            "W": 2
+          },
+          "haste": {
+            "G": 3,
+            "R": 7,
+            "W": 1,
+            "B": 1
+          },
+          "menace": {
+            "R": 4,
+            "B": 2,
+            "U": 1
+          },
+          "deathtouch": {
+            "B": 3,
+            "G": 1,
+            "W": 1
+          },
+          "vigilance": {
+            "G": 2,
+            "U": 5,
+            "W": 1,
+            "R": 1
+          },
+          "lifelink": {
+            "W": 2,
+            "B": 3,
+            "U": 1
+          },
+          "ward": {
+            "W": 2,
+            "B": 3,
+            "G": 1,
+            "R": 1
+          },
+          "double strike": {
+            "W": 2
+          },
+          "defender": {
+            "U": 1
+          }
+        },
+        "evergreen_by_rarity": {
+          "flying": {
+            "mythic": 3,
+            "rare": 3,
+            "common": 5,
+            "uncommon": 8
+          },
+          "trample": {
+            "uncommon": 3,
+            "rare": 2,
+            "common": 1
+          },
+          "reach": {
+            "common": 3,
+            "uncommon": 1
+          },
+          "flash": {
+            "common": 3,
+            "rare": 2,
+            "uncommon": 5,
+            "mythic": 1
+          },
+          "haste": {
+            "rare": 3,
+            "common": 1,
+            "uncommon": 4,
+            "mythic": 1
+          },
+          "menace": {
+            "common": 1,
+            "uncommon": 3,
+            "rare": 1
+          },
+          "deathtouch": {
+            "common": 2,
+            "uncommon": 1,
+            "rare": 1
+          },
+          "vigilance": {
+            "common": 4,
+            "rare": 1,
+            "uncommon": 3
+          },
+          "lifelink": {
+            "rare": 2,
+            "uncommon": 2,
+            "mythic": 1
+          },
+          "ward": {
+            "uncommon": 1,
+            "common": 2,
+            "mythic": 1,
+            "rare": 1
+          },
+          "double strike": {
+            "uncommon": 1,
+            "mythic": 1
+          },
+          "defender": {
+            "common": 1
+          },
+          "hexproof": {
+            "rare": 1
+          }
+        },
+        "set_mechanics": {
+          "manifest": 25,
+          "manifest dread": 25,
+          "survival": 13,
+          "surveil": 12,
+          "eerie": 15,
+          "delirium": 20,
+          "equip": 8,
+          "mountaincycling": 1,
+          "landcycling": 5,
+          "typecycling": 5,
+          "cycling": 5,
+          "enchant": 10,
+          "islandcycling": 1,
+          "mill": 9,
+          "crew": 2,
+          "ninjutsu": 1,
+          "scry": 1,
+          "impending": 5,
+          "treasure": 1,
+          "flashback": 1,
+          "plainscycling": 1,
+          "forestcycling": 1,
+          "swampcycling": 1,
+          "convoke": 1
+        },
+        "set_mechanics_by_color": {
+          "manifest": {
+            "U": 8,
+            "G": 10,
+            "B": 3,
+            "R": 3,
+            "W": 1
+          },
+          "manifest dread": {
+            "U": 8,
+            "G": 10,
+            "B": 3,
+            "R": 3,
+            "W": 1
+          },
+          "survival": {
+            "W": 7,
+            "G": 7,
+            "B": 1
+          },
+          "surveil": {
+            "B": 5,
+            "G": 2,
+            "U": 6,
+            "W": 2
+          },
+          "eerie": {
+            "B": 5,
+            "W": 5,
+            "U": 8,
+            "R": 1
+          },
+          "delirium": {
+            "G": 10,
+            "R": 9,
+            "B": 7
+          },
+          "equip": {
+            "G": 1,
+            "W": 1,
+            "R": 1,
+            "U": 1,
+            "B": 1
+          },
+          "mountaincycling": {
+            "R": 1
+          },
+          "landcycling": {
+            "R": 1,
+            "U": 1,
+            "W": 1,
+            "G": 1,
+            "B": 1
+          },
+          "typecycling": {
+            "R": 1,
+            "U": 1,
+            "W": 1,
+            "G": 1,
+            "B": 1
+          },
+          "cycling": {
+            "R": 1,
+            "U": 1,
+            "W": 1,
+            "G": 1,
+            "B": 1
+          },
+          "enchant": {
+            "B": 3,
+            "U": 3,
+            "W": 3,
+            "G": 1
+          },
+          "islandcycling": {
+            "U": 1
+          },
+          "mill": {
+            "G": 4,
+            "B": 2,
+            "U": 4
+          },
+          "crew": {
+            "G": 1,
+            "W": 1
+          },
+          "ninjutsu": {
+            "B": 1,
+            "U": 1
+          },
+          "scry": {
+            "U": 1,
+            "W": 1
+          },
+          "impending": {
+            "B": 1,
+            "R": 1,
+            "U": 1,
+            "G": 1,
+            "W": 1
+          },
+          "treasure": {
+            "R": 1
+          },
+          "flashback": {
+            "B": 1,
+            "W": 1
+          },
+          "plainscycling": {
+            "W": 1
+          },
+          "forestcycling": {
+            "G": 1
+          },
+          "swampcycling": {
+            "B": 1
+          },
+          "convoke": {
+            "W": 1
+          }
+        },
+        "set_mechanics_by_rarity": {
+          "manifest": {
+            "mythic": 2,
+            "common": 9,
+            "uncommon": 12,
+            "rare": 2
+          },
+          "manifest dread": {
+            "mythic": 2,
+            "common": 9,
+            "uncommon": 12,
+            "rare": 2
+          },
+          "survival": {
+            "common": 2,
+            "uncommon": 8,
+            "rare": 3
+          },
+          "surveil": {
+            "common": 7,
+            "uncommon": 2,
+            "rare": 2,
+            "mythic": 1
+          },
+          "eerie": {
+            "common": 4,
+            "uncommon": 8,
+            "rare": 3
+          },
+          "delirium": {
+            "rare": 6,
+            "uncommon": 9,
+            "common": 4,
+            "mythic": 1
+          },
+          "equip": {
+            "uncommon": 5,
+            "rare": 2,
+            "common": 1
+          },
+          "mountaincycling": {
+            "common": 1
+          },
+          "landcycling": {
+            "common": 5
+          },
+          "typecycling": {
+            "common": 5
+          },
+          "cycling": {
+            "common": 5
+          },
+          "enchant": {
+            "common": 3,
+            "uncommon": 6,
+            "rare": 1
+          },
+          "islandcycling": {
+            "common": 1
+          },
+          "mill": {
+            "uncommon": 3,
+            "rare": 4,
+            "mythic": 1,
+            "common": 1
+          },
+          "crew": {
+            "rare": 2
+          },
+          "ninjutsu": {
+            "mythic": 1
+          },
+          "scry": {
+            "mythic": 1
+          },
+          "impending": {
+            "mythic": 5
+          },
+          "treasure": {
+            "uncommon": 1
+          },
+          "flashback": {
+            "uncommon": 1
+          },
+          "plainscycling": {
+            "common": 1
+          },
+          "forestcycling": {
+            "common": 1
+          },
+          "swampcycling": {
+            "common": 1
+          },
+          "convoke": {
+            "mythic": 1
+          }
+        },
+        "num_set_mechanics": 24,
+        "total_cards_with_set_mechanic": 169,
+        "as_fan": {
+          "flying": 0.811,
+          "trample": 0.227,
+          "reach": 0.343,
+          "flash": 0.496,
+          "haste": 0.274,
+          "menace": 0.211,
+          "deathtouch": 0.255,
+          "vigilance": 0.523,
+          "lifelink": 0.093,
+          "ward": 0.255,
+          "double strike": 0.03,
+          "defender": 0.104,
+          "hexproof": 0.017
+        }
+      },
+      "special_cards": {
+        "legendary_creatures": 19,
+        "legendary_by_rarity": {
+          "uncommon": 3,
+          "rare": 12,
+          "mythic": 4
+        },
+        "planeswalkers": 1,
+        "planeswalker_by_rarity": {
+          "mythic": 1
+        },
+        "sagas": 1,
+        "modal_dfc": 0,
+        "transform_dfc": 0,
+        "equipment": 8,
+        "auras": 10,
+        "vehicles": 2
+      },
+      "removal": {
+        "total_removal": 75,
+        "removal_by_color": {
+          "G": 9,
+          "colorless": 7,
+          "W": 19,
+          "R": 25,
+          "B": 16,
+          "U": 7
+        },
+        "removal_by_rarity": {
+          "common": 27,
+          "uncommon": 34,
+          "rare": 11,
+          "mythic": 3
+        },
+        "counterspells": 3,
+        "combat_tricks": 4
+      },
+      "draft_signals": {
+        "uncommon_multicolor_count": 20,
+        "rare_multicolor_count": 14,
+        "signpost_pair_coverage": {
+          "BG": 2,
+          "BR": 2,
+          "BU": 2,
+          "BW": 2,
+          "GR": 2,
+          "GU": 2,
+          "GW": 2,
+          "RU": 2,
+          "RW": 2,
+          "UW": 2
+        },
+        "signpost_card_names": {
+          "RW": [
+            "Arabella, Abandoned Doll",
+            "Midnight Mayhem"
+          ],
+          "GW": [
+            "Baseball Bat",
+            "Shrewd Storyteller"
+          ],
+          "GR": [
+            "Beastie Beatdown",
+            "Wildfire Wickerfolk"
+          ],
+          "BG": [
+            "Broodspinner",
+            "Drag to the Roots"
+          ],
+          "BR": [
+            "Disturbing Mirth",
+            "Sawblade Skinripper"
+          ],
+          "BU": [
+            "Fear of Infinity",
+            "Skullsnap Nuisance"
+          ],
+          "UW": [
+            "Gremlin Tamer",
+            "Inquisitive Glimmer"
+          ],
+          "GU": [
+            "Growing Dread",
+            "Oblivious Bookworm"
+          ],
+          "RU": [
+            "Intruding Soulrager",
+            "Smoky Lounge // Misty Salon"
+          ],
+          "BW": [
+            "Rite of the Moth",
+            "Shroudstomper"
+          ]
+        },
+        "pairs_covered": 10
+      }
+    },
+    {
+      "set_code": "blb",
+      "card_counts": {
+        "total": 266,
+        "common": 86,
+        "uncommon": 100,
+        "rare": 60,
+        "mythic": 20,
+        "basic_lands": 5,
+        "total_minus_basics": 261
+      },
+      "color_distribution": {
+        "mono_counts": {
+          "R": 41,
+          "B": 40,
+          "U": 41,
+          "G": 41,
+          "W": 40
+        },
+        "multicolor_count": 39,
+        "colorless_count": 9,
+        "total_non_land": 251,
+        "color_pair_distribution": {
+          "RU": 4,
+          "GRW": 1,
+          "GW": 3,
+          "BG": 4,
+          "BR": 4,
+          "GU": 4,
+          "BGU": 1,
+          "GUW": 1,
+          "GR": 4,
+          "UW": 3,
+          "BW": 4,
+          "RW": 3,
+          "BU": 3
+        },
+        "mono_pct": {
+          "W": 15.9,
+          "U": 16.3,
+          "B": 15.9,
+          "R": 16.3,
+          "G": 16.3
+        },
+        "multi_pct": 15.5,
+        "colorless_pct": 3.6,
+        "per_rarity": {
+          "common": {
+            "mono": {
+              "R": 13,
+              "B": 13,
+              "G": 13,
+              "W": 13,
+              "U": 13
+            },
+            "multicolor": 10,
+            "colorless": 4,
+            "total": 79
+          },
+          "uncommon": {
+            "mono": {
+              "B": 16,
+              "G": 16,
+              "R": 16,
+              "W": 16,
+              "U": 16
+            },
+            "multicolor": 10,
+            "colorless": 5,
+            "total": 95
+          },
+          "rare": {
+            "mono": {
+              "R": 9,
+              "U": 9,
+              "W": 8,
+              "B": 8,
+              "G": 10
+            },
+            "multicolor": 13,
+            "colorless": 0,
+            "total": 57
+          },
+          "mythic": {
+            "mono": {
+              "W": 3,
+              "R": 3,
+              "U": 3,
+              "G": 2,
+              "B": 3
+            },
+            "multicolor": 6,
+            "colorless": 0,
+            "total": 20
+          }
+        }
+      },
+      "type_distribution": {
+        "creature": 159,
+        "instant": 34,
+        "sorcery": 27,
+        "enchantment_only": 19,
+        "artifact_only": 11,
+        "land_nonbasic": 10,
+        "land_basic": 5,
+        "planeswalker": 1,
+        "enchantment_creature": 0,
+        "artifact_creature": 2,
+        "creature_pct": 59.8,
+        "instant_pct": 12.8,
+        "sorcery_pct": 10.2,
+        "per_rarity": {
+          "common": {
+            "creature": 49,
+            "instant": 18,
+            "sorcery": 6,
+            "enchantment_only": 2,
+            "artifact_only": 4,
+            "land_nonbasic": 2,
+            "planeswalker": 0,
+            "total": 86
+          },
+          "uncommon": {
+            "creature": 54,
+            "instant": 15,
+            "sorcery": 11,
+            "enchantment_only": 9,
+            "artifact_only": 6,
+            "land_nonbasic": 5,
+            "planeswalker": 0,
+            "total": 100
+          },
+          "rare": {
+            "creature": 42,
+            "instant": 1,
+            "sorcery": 5,
+            "enchantment_only": 8,
+            "artifact_only": 1,
+            "land_nonbasic": 3,
+            "planeswalker": 0,
+            "total": 60
+          },
+          "mythic": {
+            "creature": 14,
+            "instant": 0,
+            "sorcery": 5,
+            "enchantment_only": 0,
+            "artifact_only": 0,
+            "land_nonbasic": 0,
+            "planeswalker": 1,
+            "total": 20
+          }
+        }
+      },
+      "mana_curve": {
+        "distribution": {
+          "cmc_0": {
+            "count": 0,
+            "pct": 0.0
+          },
+          "cmc_1": {
+            "count": 30,
+            "pct": 12.0
+          },
+          "cmc_2": {
+            "count": 82,
+            "pct": 32.7
+          },
+          "cmc_3": {
+            "count": 65,
+            "pct": 25.9
+          },
+          "cmc_4": {
+            "count": 38,
+            "pct": 15.1
+          },
+          "cmc_5": {
+            "count": 26,
+            "pct": 10.4
+          },
+          "cmc_6": {
+            "count": 8,
+            "pct": 3.2
+          },
+          "cmc_7plus": {
+            "count": 2,
+            "pct": 0.8
+          }
+        },
+        "average_cmc": 2.92,
+        "median_cmc": 3.0,
+        "per_color": {
+          "W": {
+            "average_cmc": 2.8,
+            "count": 40,
+            "distribution": {
+              "0": 0,
+              "1": 4,
+              "2": 15,
+              "3": 10,
+              "4": 7,
+              "5": 4,
+              "6": 0,
+              "7": 0
+            }
+          },
+          "U": {
+            "average_cmc": 3.02,
+            "count": 41,
+            "distribution": {
+              "0": 0,
+              "1": 6,
+              "2": 13,
+              "3": 8,
+              "4": 7,
+              "5": 3,
+              "6": 3,
+              "7": 1
+            }
+          },
+          "B": {
+            "average_cmc": 3.1,
+            "count": 40,
+            "distribution": {
+              "0": 0,
+              "1": 5,
+              "2": 12,
+              "3": 10,
+              "4": 5,
+              "5": 5,
+              "6": 2,
+              "7": 1
+            }
+          },
+          "R": {
+            "average_cmc": 2.83,
+            "count": 41,
+            "distribution": {
+              "0": 0,
+              "1": 5,
+              "2": 15,
+              "3": 9,
+              "4": 6,
+              "5": 6,
+              "6": 0,
+              "7": 0
+            }
+          },
+          "G": {
+            "average_cmc": 2.66,
+            "count": 41,
+            "distribution": {
+              "0": 0,
+              "1": 8,
+              "2": 15,
+              "3": 9,
+              "4": 4,
+              "5": 2,
+              "6": 3,
+              "7": 0
+            }
+          }
+        },
+        "per_rarity": {
+          "common": {
+            "average_cmc": 2.84,
+            "count": 79
+          },
+          "uncommon": {
+            "average_cmc": 2.83,
+            "count": 95
+          },
+          "rare": {
+            "average_cmc": 2.67,
+            "count": 57
+          },
+          "mythic": {
+            "average_cmc": 4.45,
+            "count": 20
+          }
+        }
+      },
+      "creature_stats": {
+        "total_creatures": 159,
+        "avg_pt_by_cmc": {
+          "1": {
+            "avg_power": 1.08,
+            "avg_toughness": 1.46,
+            "count": 13
+          },
+          "2": {
+            "avg_power": 1.84,
+            "avg_toughness": 1.93,
+            "count": 45
+          },
+          "3": {
+            "avg_power": 2.35,
+            "avg_toughness": 2.75,
+            "count": 48
+          },
+          "4": {
+            "avg_power": 3.15,
+            "avg_toughness": 3.63,
+            "count": 27
+          },
+          "5": {
+            "avg_power": 4,
+            "avg_toughness": 4.35,
+            "count": 17
+          },
+          "6": {
+            "avg_power": 5.25,
+            "avg_toughness": 4.75,
+            "count": 4
+          },
+          "7": {
+            "avg_power": 5,
+            "avg_toughness": 5,
+            "count": 1
+          },
+          "8": {
+            "avg_power": 6,
+            "avg_toughness": 6,
+            "count": 1
+          }
+        },
+        "top_subtypes": {
+          "Frog": 19,
+          "Wizard": 17,
+          "Warrior": 17,
+          "Warlock": 17,
+          "Lizard": 16,
+          "Rabbit": 15,
+          "Mouse": 15,
+          "Bird": 15,
+          "Rat": 14,
+          "Squirrel": 14,
+          "Raccoon": 14,
+          "Elemental": 14,
+          "Otter": 13,
+          "Soldier": 13,
+          "Bat": 12,
+          "Druid": 11,
+          "Cleric": 10,
+          "Rogue": 9,
+          "Scout": 9,
+          "Bard": 6
+        }
+      },
+      "keywords": {
+        "evergreen": {
+          "vigilance": 13,
+          "reach": 13,
+          "first strike": 2,
+          "lifelink": 1,
+          "trample": 11,
+          "menace": 10,
+          "deathtouch": 5,
+          "flying": 25,
+          "flash": 9,
+          "haste": 6,
+          "ward": 5,
+          "double strike": 1
+        },
+        "evergreen_by_color": {
+          "vigilance": {
+            "U": 4,
+            "G": 4,
+            "W": 6,
+            "R": 1,
+            "B": 2
+          },
+          "first strike": {
+            "R": 1,
+            "W": 1
+          },
+          "lifelink": {
+            "W": 1
+          },
+          "trample": {
+            "G": 7,
+            "W": 1,
+            "R": 5,
+            "B": 1
+          },
+          "menace": {
+            "R": 4,
+            "B": 7,
+            "G": 1,
+            "U": 1
+          },
+          "reach": {
+            "G": 10,
+            "U": 2,
+            "W": 1,
+            "R": 2
+          },
+          "deathtouch": {
+            "B": 5,
+            "G": 1,
+            "U": 1
+          },
+          "flying": {
+            "B": 9,
+            "R": 1,
+            "U": 8,
+            "W": 13
+          },
+          "flash": {
+            "B": 1,
+            "U": 4,
+            "W": 3,
+            "G": 1
+          },
+          "haste": {
+            "R": 6,
+            "W": 1,
+            "U": 1
+          },
+          "ward": {
+            "B": 4,
+            "R": 1,
+            "U": 2,
+            "G": 1
+          },
+          "double strike": {
+            "W": 1
+          }
+        },
+        "evergreen_by_rarity": {
+          "vigilance": {
+            "rare": 4,
+            "uncommon": 5,
+            "mythic": 2,
+            "common": 2
+          },
+          "reach": {
+            "common": 4,
+            "uncommon": 4,
+            "rare": 4,
+            "mythic": 1
+          },
+          "first strike": {
+            "uncommon": 2
+          },
+          "lifelink": {
+            "uncommon": 1
+          },
+          "trample": {
+            "uncommon": 5,
+            "mythic": 2,
+            "common": 2,
+            "rare": 2
+          },
+          "menace": {
+            "rare": 3,
+            "common": 2,
+            "uncommon": 4,
+            "mythic": 1
+          },
+          "deathtouch": {
+            "common": 1,
+            "mythic": 1,
+            "uncommon": 2,
+            "rare": 1
+          },
+          "flying": {
+            "rare": 6,
+            "mythic": 2,
+            "common": 9,
+            "uncommon": 8
+          },
+          "flash": {
+            "uncommon": 7,
+            "rare": 2
+          },
+          "haste": {
+            "rare": 2,
+            "uncommon": 3,
+            "mythic": 1
+          },
+          "ward": {
+            "rare": 2,
+            "uncommon": 1,
+            "mythic": 2
+          },
+          "double strike": {
+            "uncommon": 1
+          }
+        },
+        "set_mechanics": {
+          "food": 10,
+          "changeling": 2,
+          "treasure": 4,
+          "gift": 22,
+          "forage": 7,
+          "offspring": 17,
+          "mill": 5,
+          "scry": 4,
+          "surveil": 11,
+          "prowess": 4,
+          "valiant": 9,
+          "enchant": 4,
+          "fight": 2,
+          "landfall": 1,
+          "threshold": 7,
+          "flashback": 2,
+          "affinity": 2,
+          "equip": 2
+        },
+        "set_mechanics_by_color": {
+          "food": {
+            "G": 4,
+            "W": 1,
+            "B": 4,
+            "R": 1
+          },
+          "treasure": {
+            "W": 1,
+            "R": 2
+          },
+          "gift": {
+            "R": 4,
+            "B": 4,
+            "W": 5,
+            "U": 4,
+            "G": 4
+          },
+          "forage": {
+            "G": 6,
+            "B": 3
+          },
+          "offspring": {
+            "G": 4,
+            "R": 3,
+            "B": 4,
+            "U": 3,
+            "W": 3
+          },
+          "mill": {
+            "G": 2,
+            "B": 3
+          },
+          "scry": {
+            "W": 4,
+            "R": 1
+          },
+          "surveil": {
+            "B": 5,
+            "G": 1,
+            "U": 6
+          },
+          "prowess": {
+            "R": 2,
+            "U": 3
+          },
+          "valiant": {
+            "R": 5,
+            "W": 6
+          },
+          "enchant": {
+            "W": 1,
+            "U": 2,
+            "R": 1
+          },
+          "fight": {
+            "G": 2
+          },
+          "landfall": {
+            "B": 1
+          },
+          "threshold": {
+            "B": 3,
+            "U": 6
+          },
+          "flashback": {
+            "U": 1,
+            "B": 1
+          },
+          "affinity": {
+            "G": 1,
+            "B": 1
+          }
+        },
+        "set_mechanics_by_rarity": {
+          "food": {
+            "common": 6,
+            "uncommon": 3,
+            "rare": 1
+          },
+          "changeling": {
+            "common": 2
+          },
+          "treasure": {
+            "mythic": 2,
+            "uncommon": 1,
+            "rare": 1
+          },
+          "gift": {
+            "uncommon": 11,
+            "rare": 6,
+            "common": 5
+          },
+          "forage": {
+            "uncommon": 3,
+            "rare": 2,
+            "common": 2
+          },
+          "offspring": {
+            "uncommon": 5,
+            "rare": 6,
+            "common": 5,
+            "mythic": 1
+          },
+          "mill": {
+            "common": 2,
+            "mythic": 1,
+            "rare": 1,
+            "uncommon": 1
+          },
+          "scry": {
+            "common": 3,
+            "rare": 1
+          },
+          "surveil": {
+            "common": 6,
+            "mythic": 1,
+            "uncommon": 4
+          },
+          "prowess": {
+            "rare": 1,
+            "mythic": 1,
+            "common": 1,
+            "uncommon": 1
+          },
+          "valiant": {
+            "rare": 2,
+            "uncommon": 4,
+            "common": 3
+          },
+          "enchant": {
+            "uncommon": 2,
+            "rare": 1,
+            "common": 1
+          },
+          "fight": {
+            "uncommon": 1,
+            "common": 1
+          },
+          "landfall": {
+            "rare": 1
+          },
+          "threshold": {
+            "common": 3,
+            "uncommon": 4
+          },
+          "flashback": {
+            "uncommon": 2
+          },
+          "affinity": {
+            "common": 2
+          },
+          "equip": {
+            "uncommon": 2
+          }
+        },
+        "num_set_mechanics": 18,
+        "total_cards_with_set_mechanic": 115,
+        "as_fan": {
+          "vigilance": 0.449,
+          "reach": 0.652,
+          "first strike": 0.06,
+          "lifelink": 0.03,
+          "trample": 0.416,
+          "menace": 0.403,
+          "deathtouch": 0.193,
+          "flying": 1.387,
+          "flash": 0.243,
+          "haste": 0.123,
+          "ward": 0.063,
+          "double strike": 0.03
+        }
+      },
+      "special_cards": {
+        "legendary_creatures": 23,
+        "legendary_by_rarity": {
+          "rare": 12,
+          "mythic": 11
+        },
+        "planeswalkers": 1,
+        "planeswalker_by_rarity": {
+          "mythic": 1
+        },
+        "sagas": 0,
+        "modal_dfc": 0,
+        "transform_dfc": 0,
+        "equipment": 2,
+        "auras": 4,
+        "vehicles": 1
+      },
+      "removal": {
+        "total_removal": 90,
+        "removal_by_color": {
+          "R": 27,
+          "G": 15,
+          "W": 25,
+          "colorless": 5,
+          "B": 14,
+          "U": 12
+        },
+        "removal_by_rarity": {
+          "common": 34,
+          "uncommon": 36,
+          "rare": 14,
+          "mythic": 6
+        },
+        "counterspells": 3,
+        "combat_tricks": 11
+      },
+      "draft_signals": {
+        "uncommon_multicolor_count": 10,
+        "rare_multicolor_count": 19,
+        "signpost_pair_coverage": {
+          "BG": 1,
+          "BR": 1,
+          "BU": 1,
+          "BW": 1,
+          "GR": 1,
+          "GU": 1,
+          "GW": 1,
+          "RU": 1,
+          "RW": 1,
+          "UW": 1
+        },
+        "signpost_card_names": {
+          "GW": [
+            "Burrowguard Mentor"
+          ],
+          "BR": [
+            "Fireglass Mentor"
+          ],
+          "GU": [
+            "Lilysplash Mentor"
+          ],
+          "UW": [
+            "Plumecreed Mentor"
+          ],
+          "RW": [
+            "Seedglaive Mentor"
+          ],
+          "BW": [
+            "Starseer Mentor"
+          ],
+          "RU": [
+            "Stormcatch Mentor"
+          ],
+          "BU": [
+            "Tidecaller Mentor"
+          ],
+          "BG": [
+            "Vinereap Mentor"
+          ],
+          "GR": [
+            "Wandertale Mentor"
+          ]
+        },
+        "pairs_covered": 10
+      }
+    },
+    {
+      "set_code": "otj",
+      "card_counts": {
+        "total": 276,
+        "common": 96,
+        "uncommon": 100,
+        "rare": 60,
+        "mythic": 20,
+        "basic_lands": 5,
+        "total_minus_basics": 271
+      },
+      "color_distribution": {
+        "mono_counts": {
+          "G": 37,
+          "B": 38,
+          "W": 38,
+          "U": 39,
+          "R": 37
+        },
+        "multicolor_count": 51,
+        "colorless_count": 11,
+        "total_non_land": 251,
+        "color_pair_distribution": {
+          "BR": 6,
+          "GRW": 3,
+          "UW": 3,
+          "BG": 6,
+          "BW": 3,
+          "GU": 4,
+          "RU": 5,
+          "RW": 4,
+          "GR": 3,
+          "GW": 5,
+          "BUW": 1,
+          "BU": 3,
+          "GUW": 2,
+          "BRU": 2,
+          "GRU": 1
+        },
+        "mono_pct": {
+          "W": 15.1,
+          "U": 15.5,
+          "B": 15.1,
+          "R": 14.7,
+          "G": 14.7
+        },
+        "multi_pct": 20.3,
+        "colorless_pct": 4.4,
+        "per_rarity": {
+          "common": {
+            "mono": {
+              "B": 15,
+              "G": 15,
+              "W": 15,
+              "U": 15,
+              "R": 15
+            },
+            "multicolor": 0,
+            "colorless": 4,
+            "total": 79
+          },
+          "uncommon": {
+            "mono": {
+              "G": 14,
+              "B": 14,
+              "W": 14,
+              "R": 14,
+              "U": 14
+            },
+            "multicolor": 20,
+            "colorless": 7,
+            "total": 97
+          },
+          "rare": {
+            "mono": {
+              "W": 7,
+              "U": 7,
+              "R": 7,
+              "B": 7,
+              "G": 5
+            },
+            "multicolor": 22,
+            "colorless": 0,
+            "total": 55
+          },
+          "mythic": {
+            "mono": {
+              "W": 2,
+              "G": 3,
+              "U": 3,
+              "B": 2,
+              "R": 1
+            },
+            "multicolor": 9,
+            "colorless": 0,
+            "total": 20
+          }
+        }
+      },
+      "type_distribution": {
+        "creature": 158,
+        "instant": 35,
+        "sorcery": 29,
+        "enchantment_only": 18,
+        "artifact_only": 9,
+        "land_nonbasic": 20,
+        "land_basic": 5,
+        "planeswalker": 2,
+        "enchantment_creature": 0,
+        "artifact_creature": 5,
+        "creature_pct": 57.2,
+        "instant_pct": 12.7,
+        "sorcery_pct": 10.5,
+        "per_rarity": {
+          "common": {
+            "creature": 51,
+            "instant": 16,
+            "sorcery": 8,
+            "enchantment_only": 3,
+            "artifact_only": 1,
+            "land_nonbasic": 12,
+            "planeswalker": 0,
+            "total": 96
+          },
+          "uncommon": {
+            "creature": 55,
+            "instant": 15,
+            "sorcery": 13,
+            "enchantment_only": 8,
+            "artifact_only": 6,
+            "land_nonbasic": 3,
+            "planeswalker": 0,
+            "total": 100
+          },
+          "rare": {
+            "creature": 37,
+            "instant": 3,
+            "sorcery": 8,
+            "enchantment_only": 6,
+            "artifact_only": 1,
+            "land_nonbasic": 5,
+            "planeswalker": 0,
+            "total": 60
+          },
+          "mythic": {
+            "creature": 15,
+            "instant": 1,
+            "sorcery": 0,
+            "enchantment_only": 1,
+            "artifact_only": 1,
+            "land_nonbasic": 0,
+            "planeswalker": 2,
+            "total": 20
+          }
+        }
+      },
+      "mana_curve": {
+        "distribution": {
+          "cmc_0": {
+            "count": 0,
+            "pct": 0.0
+          },
+          "cmc_1": {
+            "count": 32,
+            "pct": 12.7
+          },
+          "cmc_2": {
+            "count": 77,
+            "pct": 30.7
+          },
+          "cmc_3": {
+            "count": 69,
+            "pct": 27.5
+          },
+          "cmc_4": {
+            "count": 39,
+            "pct": 15.5
+          },
+          "cmc_5": {
+            "count": 25,
+            "pct": 10.0
+          },
+          "cmc_6": {
+            "count": 8,
+            "pct": 3.2
+          },
+          "cmc_7plus": {
+            "count": 1,
+            "pct": 0.4
+          }
+        },
+        "average_cmc": 2.9,
+        "median_cmc": 3.0,
+        "per_color": {
+          "W": {
+            "average_cmc": 2.71,
+            "count": 38,
+            "distribution": {
+              "0": 0,
+              "1": 7,
+              "2": 11,
+              "3": 11,
+              "4": 5,
+              "5": 3,
+              "6": 1,
+              "7": 0
+            }
+          },
+          "U": {
+            "average_cmc": 2.87,
+            "count": 39,
+            "distribution": {
+              "0": 0,
+              "1": 6,
+              "2": 11,
+              "3": 9,
+              "4": 8,
+              "5": 5,
+              "6": 0,
+              "7": 0
+            }
+          },
+          "B": {
+            "average_cmc": 2.66,
+            "count": 38,
+            "distribution": {
+              "0": 0,
+              "1": 8,
+              "2": 13,
+              "3": 8,
+              "4": 5,
+              "5": 2,
+              "6": 1,
+              "7": 1
+            }
+          },
+          "R": {
+            "average_cmc": 2.76,
+            "count": 37,
+            "distribution": {
+              "0": 0,
+              "1": 5,
+              "2": 14,
+              "3": 9,
+              "4": 4,
+              "5": 4,
+              "6": 1,
+              "7": 0
+            }
+          },
+          "G": {
+            "average_cmc": 2.95,
+            "count": 37,
+            "distribution": {
+              "0": 0,
+              "1": 5,
+              "2": 12,
+              "3": 9,
+              "4": 5,
+              "5": 3,
+              "6": 3,
+              "7": 0
+            }
+          }
+        },
+        "per_rarity": {
+          "common": {
+            "average_cmc": 2.76,
+            "count": 79
+          },
+          "uncommon": {
+            "average_cmc": 2.91,
+            "count": 97
+          },
+          "rare": {
+            "average_cmc": 2.91,
+            "count": 55
+          },
+          "mythic": {
+            "average_cmc": 3.45,
+            "count": 20
+          }
+        }
+      },
+      "creature_stats": {
+        "total_creatures": 158,
+        "avg_pt_by_cmc": {
+          "1": {
+            "avg_power": 0.89,
+            "avg_toughness": 1.44,
+            "count": 9
+          },
+          "2": {
+            "avg_power": 1.79,
+            "avg_toughness": 2.24,
+            "count": 42
+          },
+          "3": {
+            "avg_power": 2.55,
+            "avg_toughness": 2.64,
+            "count": 53
+          },
+          "4": {
+            "avg_power": 3.43,
+            "avg_toughness": 3.79,
+            "count": 28
+          },
+          "5": {
+            "avg_power": 4.24,
+            "avg_toughness": 4.18,
+            "count": 17
+          },
+          "6": {
+            "avg_power": 5.29,
+            "avg_toughness": 5.29,
+            "count": 7
+          },
+          "7": {
+            "avg_power": 4,
+            "avg_toughness": 2,
+            "count": 1
+          }
+        },
+        "top_subtypes": {
+          "Human": 52,
+          "Rogue": 32,
+          "Mount": 17,
+          "Mercenary": 17,
+          "Warlock": 12,
+          "Plant": 8,
+          "Bird": 7,
+          "Vampire": 6,
+          "Druid": 6,
+          "Scout": 6,
+          "Beast": 5,
+          "Assassin": 5,
+          "Lizard": 4,
+          "Soldier": 4,
+          "Dragon": 3,
+          "Zombie": 3,
+          "Cat": 3,
+          "Goblin": 3,
+          "Pirate": 3,
+          "Warrior": 3
+        }
+      },
+      "keywords": {
+        "evergreen": {
+          "flying": 28,
+          "trample": 11,
+          "flash": 10,
+          "deathtouch": 5,
+          "ward": 6,
+          "menace": 4,
+          "reach": 10,
+          "vigilance": 12,
+          "defender": 2,
+          "haste": 9,
+          "lifelink": 8,
+          "first strike": 2
+        },
+        "evergreen_by_color": {
+          "flying": {
+            "B": 6,
+            "R": 7,
+            "W": 11,
+            "G": 2,
+            "U": 10
+          },
+          "trample": {
+            "B": 3,
+            "R": 5,
+            "G": 6
+          },
+          "flash": {
+            "B": 2,
+            "G": 2,
+            "R": 1,
+            "W": 4,
+            "U": 4
+          },
+          "deathtouch": {
+            "G": 2,
+            "B": 4
+          },
+          "ward": {
+            "W": 1,
+            "G": 2,
+            "R": 1,
+            "U": 2,
+            "B": 1
+          },
+          "menace": {
+            "B": 3,
+            "R": 2,
+            "U": 3
+          },
+          "reach": {
+            "G": 7,
+            "U": 1,
+            "R": 4
+          },
+          "vigilance": {
+            "W": 6,
+            "U": 4,
+            "G": 5
+          },
+          "defender": {
+            "G": 1
+          },
+          "haste": {
+            "R": 7,
+            "G": 3,
+            "W": 1,
+            "U": 1,
+            "B": 1
+          },
+          "lifelink": {
+            "G": 3,
+            "W": 6,
+            "B": 3,
+            "U": 2
+          },
+          "first strike": {
+            "R": 1,
+            "G": 1,
+            "W": 1
+          }
+        },
+        "evergreen_by_rarity": {
+          "flying": {
+            "rare": 8,
+            "mythic": 4,
+            "common": 9,
+            "uncommon": 7
+          },
+          "trample": {
+            "rare": 3,
+            "uncommon": 2,
+            "mythic": 4,
+            "common": 2
+          },
+          "flash": {
+            "common": 6,
+            "mythic": 1,
+            "rare": 2,
+            "uncommon": 1
+          },
+          "deathtouch": {
+            "common": 1,
+            "uncommon": 2,
+            "mythic": 2
+          },
+          "ward": {
+            "common": 1,
+            "uncommon": 3,
+            "rare": 1,
+            "mythic": 1
+          },
+          "menace": {
+            "common": 1,
+            "rare": 3
+          },
+          "reach": {
+            "rare": 2,
+            "common": 3,
+            "uncommon": 4,
+            "mythic": 1
+          },
+          "vigilance": {
+            "common": 4,
+            "rare": 3,
+            "mythic": 2,
+            "uncommon": 3
+          },
+          "defender": {
+            "common": 1,
+            "uncommon": 1
+          },
+          "haste": {
+            "rare": 3,
+            "uncommon": 2,
+            "mythic": 3,
+            "common": 1
+          },
+          "lifelink": {
+            "uncommon": 2,
+            "common": 3,
+            "rare": 2,
+            "mythic": 1
+          },
+          "first strike": {
+            "common": 1,
+            "rare": 1
+          }
+        },
+        "set_mechanics": {
+          "plot": 37,
+          "saddle": 17,
+          "surveil": 9,
+          "equip": 5,
+          "treasure": 15,
+          "landfall": 1,
+          "spree": 21,
+          "mill": 6,
+          "enchant": 3,
+          "scry": 4,
+          "affinity": 1,
+          "prowess": 1,
+          "crew": 2,
+          "investigate": 1,
+          "protection": 1
+        },
+        "set_mechanics_by_color": {
+          "plot": {
+            "G": 11,
+            "W": 5,
+            "B": 5,
+            "R": 9,
+            "U": 12
+          },
+          "saddle": {
+            "U": 1,
+            "W": 6,
+            "R": 3,
+            "B": 2,
+            "G": 8
+          },
+          "equip": {
+            "U": 2,
+            "W": 2
+          },
+          "treasure": {
+            "B": 3,
+            "G": 4,
+            "R": 6
+          },
+          "landfall": {
+            "G": 1
+          },
+          "spree": {
+            "R": 4,
+            "G": 3,
+            "W": 5,
+            "B": 4,
+            "U": 5
+          },
+          "surveil": {
+            "B": 2,
+            "U": 4
+          },
+          "mill": {
+            "U": 1,
+            "B": 2,
+            "G": 3
+          },
+          "enchant": {
+            "R": 1,
+            "G": 1,
+            "U": 1
+          },
+          "scry": {
+            "W": 3,
+            "R": 1
+          },
+          "affinity": {
+            "R": 1
+          },
+          "prowess": {
+            "R": 1,
+            "U": 1
+          },
+          "investigate": {
+            "R": 1,
+            "U": 1
+          },
+          "protection": {
+            "R": 1
+          }
+        },
+        "set_mechanics_by_rarity": {
+          "plot": {
+            "uncommon": 15,
+            "rare": 11,
+            "common": 9,
+            "mythic": 2
+          },
+          "saddle": {
+            "rare": 6,
+            "uncommon": 5,
+            "common": 5,
+            "mythic": 1
+          },
+          "surveil": {
+            "uncommon": 5,
+            "common": 4
+          },
+          "equip": {
+            "mythic": 1,
+            "common": 1,
+            "uncommon": 2,
+            "rare": 1
+          },
+          "treasure": {
+            "common": 6,
+            "uncommon": 5,
+            "mythic": 1,
+            "rare": 3
+          },
+          "landfall": {
+            "mythic": 1
+          },
+          "spree": {
+            "uncommon": 10,
+            "common": 4,
+            "mythic": 1,
+            "rare": 6
+          },
+          "mill": {
+            "uncommon": 2,
+            "common": 2,
+            "rare": 2
+          },
+          "enchant": {
+            "uncommon": 1,
+            "common": 2
+          },
+          "scry": {
+            "rare": 1,
+            "common": 3
+          },
+          "affinity": {
+            "uncommon": 1
+          },
+          "prowess": {
+            "rare": 1
+          },
+          "crew": {
+            "uncommon": 2
+          },
+          "investigate": {
+            "rare": 1
+          },
+          "protection": {
+            "uncommon": 1
+          }
+        },
+        "num_set_mechanics": 15,
+        "total_cards_with_set_mechanic": 124,
+        "as_fan": {
+          "flying": 1.281,
+          "trample": 0.318,
+          "flash": 0.688,
+          "deathtouch": 0.164,
+          "ward": 0.211,
+          "menace": 0.154,
+          "reach": 0.466,
+          "vigilance": 0.557,
+          "defender": 0.134,
+          "haste": 0.214,
+          "lifelink": 0.406,
+          "first strike": 0.121
+        }
+      },
+      "special_cards": {
+        "legendary_creatures": 43,
+        "legendary_by_rarity": {
+          "rare": 22,
+          "mythic": 11,
+          "uncommon": 10
+        },
+        "planeswalkers": 2,
+        "planeswalker_by_rarity": {
+          "mythic": 2
+        },
+        "sagas": 0,
+        "modal_dfc": 0,
+        "transform_dfc": 0,
+        "equipment": 5,
+        "auras": 3,
+        "vehicles": 2
+      },
+      "removal": {
+        "total_removal": 82,
+        "removal_by_color": {
+          "colorless": 13,
+          "G": 12,
+          "B": 16,
+          "R": 28,
+          "W": 19,
+          "U": 6
+        },
+        "removal_by_rarity": {
+          "common": 39,
+          "uncommon": 31,
+          "rare": 9,
+          "mythic": 3
+        },
+        "counterspells": 2,
+        "combat_tricks": 7
+      },
+      "draft_signals": {
+        "uncommon_multicolor_count": 20,
+        "rare_multicolor_count": 31,
+        "signpost_pair_coverage": {
+          "BG": 2,
+          "BR": 2,
+          "BU": 2,
+          "BW": 2,
+          "GR": 2,
+          "GU": 2,
+          "GW": 2,
+          "RU": 2,
+          "RW": 2,
+          "UW": 2
+        },
+        "signpost_card_names": {
+          "BR": [
+            "At Knifepoint",
+            "Vial Smasher, Gleeful Grenadier"
+          ],
+          "BG": [
+            "Badlands Revival",
+            "Honest Rutstein"
+          ],
+          "BW": [
+            "Baron Bertram Graywater",
+            "Ruthless Lawbringer"
+          ],
+          "GR": [
+            "Cactusfolk Sureshot",
+            "Jolene, Plundering Pugilist"
+          ],
+          "GW": [
+            "Congregation Gryff",
+            "Miriam, Herd Whisperer"
+          ],
+          "GU": [
+            "Doc Aurlock, Grizzled Genius",
+            "Make Your Own Luck"
+          ],
+          "RW": [
+            "Ertha Jo, Frontier Mentor",
+            "Form a Posse"
+          ],
+          "BU": [
+            "Intimidation Campaign",
+            "Lazav, Familiar Stranger"
+          ],
+          "UW": [
+            "Jem Lightfoote, Sky Explorer",
+            "Wrangler of the Damned"
+          ],
+          "RU": [
+            "Kraum, Violent Cacophony",
+            "Slick Sequence"
+          ]
+        },
+        "pairs_covered": 10
+      }
+    },
+    {
+      "set_code": "mkm",
+      "card_counts": {
+        "total": 276,
+        "common": 86,
+        "uncommon": 100,
+        "rare": 70,
+        "mythic": 20,
+        "basic_lands": 5,
+        "total_minus_basics": 271
+      },
+      "color_distribution": {
+        "mono_counts": {
+          "W": 36,
+          "G": 36,
+          "B": 36,
+          "U": 37,
+          "R": 37
+        },
+        "multicolor_count": 67,
+        "colorless_count": 8,
+        "total_non_land": 257,
+        "color_pair_distribution": {
+          "RW": 6,
+          "UW": 6,
+          "GR": 6,
+          "BG": 6,
+          "BR": 6,
+          "GW": 6,
+          "BGW": 1,
+          "BU": 6,
+          "RU": 6,
+          "GU": 6,
+          "BGU": 1,
+          "RUW": 1,
+          "GRU": 1,
+          "BW": 6,
+          "BGRUW": 2,
+          "BRW": 1
+        },
+        "mono_pct": {
+          "W": 14.0,
+          "U": 14.4,
+          "B": 14.0,
+          "R": 14.4,
+          "G": 14.0
+        },
+        "multi_pct": 26.1,
+        "colorless_pct": 3.1,
+        "per_rarity": {
+          "common": {
+            "mono": {
+              "B": 13,
+              "G": 13,
+              "W": 13,
+              "U": 13,
+              "R": 13
+            },
+            "multicolor": 10,
+            "colorless": 4,
+            "total": 79
+          },
+          "uncommon": {
+            "mono": {
+              "W": 14,
+              "G": 14,
+              "U": 14,
+              "R": 14,
+              "B": 14
+            },
+            "multicolor": 25,
+            "colorless": 3,
+            "total": 98
+          },
+          "rare": {
+            "mono": {
+              "G": 7,
+              "R": 8,
+              "W": 7,
+              "B": 7,
+              "U": 8
+            },
+            "multicolor": 22,
+            "colorless": 1,
+            "total": 60
+          },
+          "mythic": {
+            "mono": {
+              "W": 2,
+              "U": 2,
+              "R": 2,
+              "B": 2,
+              "G": 2
+            },
+            "multicolor": 10,
+            "colorless": 0,
+            "total": 20
+          }
+        }
+      },
+      "type_distribution": {
+        "creature": 139,
+        "instant": 42,
+        "sorcery": 30,
+        "enchantment_only": 36,
+        "artifact_only": 15,
+        "land_nonbasic": 14,
+        "land_basic": 5,
+        "planeswalker": 1,
+        "enchantment_creature": 0,
+        "artifact_creature": 12,
+        "creature_pct": 50.4,
+        "instant_pct": 15.2,
+        "sorcery_pct": 10.9,
+        "per_rarity": {
+          "common": {
+            "creature": 48,
+            "instant": 17,
+            "sorcery": 8,
+            "enchantment_only": 4,
+            "artifact_only": 2,
+            "land_nonbasic": 2,
+            "planeswalker": 0,
+            "total": 86
+          },
+          "uncommon": {
+            "creature": 49,
+            "instant": 16,
+            "sorcery": 11,
+            "enchantment_only": 17,
+            "artifact_only": 10,
+            "land_nonbasic": 2,
+            "planeswalker": 0,
+            "total": 100
+          },
+          "rare": {
+            "creature": 28,
+            "instant": 7,
+            "sorcery": 11,
+            "enchantment_only": 13,
+            "artifact_only": 2,
+            "land_nonbasic": 10,
+            "planeswalker": 0,
+            "total": 70
+          },
+          "mythic": {
+            "creature": 14,
+            "instant": 2,
+            "sorcery": 0,
+            "enchantment_only": 2,
+            "artifact_only": 1,
+            "land_nonbasic": 0,
+            "planeswalker": 1,
+            "total": 20
+          }
+        }
+      },
+      "mana_curve": {
+        "distribution": {
+          "cmc_0": {
+            "count": 0,
+            "pct": 0.0
+          },
+          "cmc_1": {
+            "count": 31,
+            "pct": 12.1
+          },
+          "cmc_2": {
+            "count": 76,
+            "pct": 29.6
+          },
+          "cmc_3": {
+            "count": 50,
+            "pct": 19.5
+          },
+          "cmc_4": {
+            "count": 46,
+            "pct": 17.9
+          },
+          "cmc_5": {
+            "count": 31,
+            "pct": 12.1
+          },
+          "cmc_6": {
+            "count": 12,
+            "pct": 4.7
+          },
+          "cmc_7plus": {
+            "count": 11,
+            "pct": 4.3
+          }
+        },
+        "average_cmc": 3.23,
+        "median_cmc": 3.0,
+        "per_color": {
+          "W": {
+            "average_cmc": 2.75,
+            "count": 36,
+            "distribution": {
+              "0": 0,
+              "1": 5,
+              "2": 14,
+              "3": 7,
+              "4": 6,
+              "5": 3,
+              "6": 1,
+              "7": 0
+            }
+          },
+          "U": {
+            "average_cmc": 3.0,
+            "count": 37,
+            "distribution": {
+              "0": 0,
+              "1": 5,
+              "2": 11,
+              "3": 10,
+              "4": 5,
+              "5": 3,
+              "6": 2,
+              "7": 1
+            }
+          },
+          "B": {
+            "average_cmc": 3.17,
+            "count": 36,
+            "distribution": {
+              "0": 0,
+              "1": 6,
+              "2": 9,
+              "3": 5,
+              "4": 8,
+              "5": 5,
+              "6": 3,
+              "7": 0
+            }
+          },
+          "R": {
+            "average_cmc": 2.86,
+            "count": 37,
+            "distribution": {
+              "0": 0,
+              "1": 7,
+              "2": 12,
+              "3": 7,
+              "4": 3,
+              "5": 6,
+              "6": 2,
+              "7": 0
+            }
+          },
+          "G": {
+            "average_cmc": 3.19,
+            "count": 36,
+            "distribution": {
+              "0": 0,
+              "1": 7,
+              "2": 7,
+              "3": 9,
+              "4": 7,
+              "5": 3,
+              "6": 1,
+              "7": 2
+            }
+          }
+        },
+        "per_rarity": {
+          "common": {
+            "average_cmc": 3.08,
+            "count": 79
+          },
+          "uncommon": {
+            "average_cmc": 3.12,
+            "count": 98
+          },
+          "rare": {
+            "average_cmc": 3.2,
+            "count": 60
+          },
+          "mythic": {
+            "average_cmc": 4.45,
+            "count": 20
+          }
+        }
+      },
+      "creature_stats": {
+        "total_creatures": 139,
+        "avg_pt_by_cmc": {
+          "1": {
+            "avg_power": 0.89,
+            "avg_toughness": 1.44,
+            "count": 9
+          },
+          "2": {
+            "avg_power": 1.67,
+            "avg_toughness": 1.94,
+            "count": 36
+          },
+          "3": {
+            "avg_power": 2.33,
+            "avg_toughness": 2.74,
+            "count": 27
+          },
+          "4": {
+            "avg_power": 3.21,
+            "avg_toughness": 3.04,
+            "count": 28
+          },
+          "5": {
+            "avg_power": 3.91,
+            "avg_toughness": 4.55,
+            "count": 22
+          },
+          "6": {
+            "avg_power": 4.75,
+            "avg_toughness": 4.42,
+            "count": 12
+          },
+          "7": {
+            "avg_power": 4.75,
+            "avg_toughness": 5,
+            "count": 4
+          },
+          "11": {
+            "avg_power": 2,
+            "avg_toughness": 15,
+            "count": 1
+          }
+        },
+        "top_subtypes": {
+          "Detective": 46,
+          "Human": 27,
+          "Elf": 10,
+          "Vampire": 9,
+          "Rogue": 8,
+          "Assassin": 7,
+          "Goblin": 6,
+          "Citizen": 6,
+          "Merfolk": 5,
+          "Lizard": 5,
+          "Spirit": 4,
+          "Centaur": 4,
+          "Artificer": 4,
+          "Cleric": 3,
+          "Angel": 3,
+          "Construct": 3,
+          "Warrior": 3,
+          "Faerie": 3,
+          "Soldier": 3,
+          "Scout": 3
+        }
+      },
+      "keywords": {
+        "evergreen": {
+          "flying": 32,
+          "vigilance": 11,
+          "double strike": 3,
+          "flash": 7,
+          "lifelink": 4,
+          "ward": 4,
+          "haste": 8,
+          "deathtouch": 4,
+          "indestructible": 1,
+          "trample": 5,
+          "reach": 6,
+          "menace": 5,
+          "defender": 3,
+          "hexproof": 2
+        },
+        "evergreen_by_color": {
+          "flying": {
+            "W": 13,
+            "U": 14,
+            "R": 7,
+            "B": 10,
+            "G": 2
+          },
+          "vigilance": {
+            "R": 4,
+            "W": 7,
+            "U": 4,
+            "G": 3
+          },
+          "double strike": {
+            "R": 2,
+            "W": 1
+          },
+          "flash": {
+            "G": 1,
+            "U": 3,
+            "W": 1,
+            "B": 2
+          },
+          "lifelink": {
+            "W": 4,
+            "B": 1,
+            "G": 1
+          },
+          "ward": {
+            "W": 1,
+            "G": 1,
+            "R": 1,
+            "U": 1,
+            "B": 1
+          },
+          "haste": {
+            "R": 7,
+            "W": 2,
+            "G": 1,
+            "U": 1
+          },
+          "deathtouch": {
+            "G": 2,
+            "B": 3,
+            "U": 1,
+            "W": 1
+          },
+          "indestructible": {
+            "B": 1
+          },
+          "trample": {
+            "R": 4,
+            "B": 1,
+            "G": 1
+          },
+          "reach": {
+            "R": 2,
+            "G": 5,
+            "B": 1,
+            "W": 1
+          },
+          "menace": {
+            "B": 4,
+            "G": 1,
+            "R": 1,
+            "U": 1
+          },
+          "defender": {
+            "U": 1,
+            "W": 1,
+            "G": 1
+          },
+          "hexproof": {
+            "U": 2,
+            "B": 1,
+            "G": 1,
+            "R": 1,
+            "W": 1
+          }
+        },
+        "evergreen_by_rarity": {
+          "flying": {
+            "uncommon": 9,
+            "mythic": 5,
+            "rare": 10,
+            "common": 8
+          },
+          "vigilance": {
+            "mythic": 2,
+            "rare": 5,
+            "common": 2,
+            "uncommon": 2
+          },
+          "double strike": {
+            "mythic": 1,
+            "uncommon": 2
+          },
+          "flash": {
+            "common": 1,
+            "uncommon": 3,
+            "rare": 3
+          },
+          "lifelink": {
+            "mythic": 1,
+            "uncommon": 1,
+            "common": 1,
+            "rare": 1
+          },
+          "ward": {
+            "mythic": 2,
+            "rare": 2
+          },
+          "haste": {
+            "rare": 5,
+            "uncommon": 2,
+            "common": 1
+          },
+          "deathtouch": {
+            "rare": 2,
+            "mythic": 1,
+            "common": 1
+          },
+          "indestructible": {
+            "rare": 1
+          },
+          "trample": {
+            "uncommon": 1,
+            "mythic": 2,
+            "rare": 1,
+            "common": 1
+          },
+          "reach": {
+            "common": 3,
+            "uncommon": 3
+          },
+          "menace": {
+            "rare": 3,
+            "mythic": 1,
+            "common": 1
+          },
+          "defender": {
+            "common": 1,
+            "uncommon": 1,
+            "mythic": 1
+          },
+          "hexproof": {
+            "uncommon": 1,
+            "rare": 1
+          }
+        },
+        "set_mechanics": {
+          "mill": 4,
+          "suspect": 10,
+          "enchant": 9,
+          "disguise": 36,
+          "investigate": 38,
+          "collect evidence": 20,
+          "surveil": 22,
+          "equip": 8,
+          "solved": 12,
+          "cloak": 5,
+          "prowess": 1,
+          "crew": 1,
+          "hexproof from": 1,
+          "landcycling": 1,
+          "basic landcycling": 1,
+          "typecycling": 1,
+          "cycling": 1
+        },
+        "set_mechanics_by_color": {
+          "mill": {
+            "G": 2,
+            "B": 3,
+            "R": 1,
+            "U": 1
+          },
+          "suspect": {
+            "R": 5,
+            "W": 1,
+            "B": 5
+          },
+          "enchant": {
+            "G": 2,
+            "U": 5,
+            "W": 2,
+            "B": 1,
+            "R": 1
+          },
+          "disguise": {
+            "B": 8,
+            "W": 10,
+            "R": 9,
+            "U": 8,
+            "G": 9
+          },
+          "investigate": {
+            "U": 20,
+            "W": 10,
+            "G": 8,
+            "R": 6,
+            "B": 7
+          },
+          "collect evidence": {
+            "G": 8,
+            "U": 7,
+            "B": 4,
+            "R": 2,
+            "W": 1
+          },
+          "surveil": {
+            "B": 6,
+            "U": 4,
+            "R": 1,
+            "W": 2,
+            "G": 2
+          },
+          "equip": {
+            "U": 1,
+            "R": 2,
+            "W": 2,
+            "B": 1,
+            "G": 1
+          },
+          "solved": {
+            "R": 2,
+            "U": 2,
+            "W": 3,
+            "B": 2,
+            "G": 2
+          },
+          "cloak": {
+            "U": 3,
+            "B": 1,
+            "R": 1,
+            "G": 2
+          },
+          "prowess": {
+            "R": 1
+          },
+          "crew": {
+            "R": 1,
+            "U": 1
+          },
+          "hexproof from": {
+            "B": 1,
+            "G": 1,
+            "R": 1,
+            "U": 1,
+            "W": 1
+          },
+          "landcycling": {
+            "G": 1
+          },
+          "basic landcycling": {
+            "G": 1
+          },
+          "typecycling": {
+            "G": 1
+          },
+          "cycling": {
+            "G": 1
+          }
+        },
+        "set_mechanics_by_rarity": {
+          "mill": {
+            "uncommon": 3,
+            "rare": 1
+          },
+          "suspect": {
+            "mythic": 1,
+            "rare": 2,
+            "uncommon": 4,
+            "common": 3
+          },
+          "enchant": {
+            "common": 3,
+            "uncommon": 6
+          },
+          "disguise": {
+            "common": 18,
+            "mythic": 1,
+            "uncommon": 12,
+            "rare": 5
+          },
+          "investigate": {
+            "mythic": 1,
+            "common": 14,
+            "uncommon": 12,
+            "rare": 11
+          },
+          "collect evidence": {
+            "rare": 7,
+            "common": 5,
+            "mythic": 2,
+            "uncommon": 6
+          },
+          "surveil": {
+            "common": 5,
+            "uncommon": 3,
+            "rare": 13,
+            "mythic": 1
+          },
+          "equip": {
+            "uncommon": 7,
+            "common": 1
+          },
+          "solved": {
+            "uncommon": 7,
+            "rare": 5
+          },
+          "cloak": {
+            "rare": 2,
+            "mythic": 2,
+            "uncommon": 1
+          },
+          "prowess": {
+            "rare": 1
+          },
+          "crew": {
+            "mythic": 1
+          },
+          "hexproof from": {
+            "rare": 1
+          },
+          "landcycling": {
+            "common": 1
+          },
+          "basic landcycling": {
+            "common": 1
+          },
+          "typecycling": {
+            "common": 1
+          },
+          "cycling": {
+            "common": 1
+          }
+        },
+        "num_set_mechanics": 17,
+        "total_cards_with_set_mechanic": 171,
+        "as_fan": {
+          "flying": 1.343,
+          "vigilance": 0.364,
+          "double strike": 0.06,
+          "flash": 0.249,
+          "lifelink": 0.161,
+          "ward": 0.029,
+          "haste": 0.248,
+          "deathtouch": 0.145,
+          "indestructible": 0.014,
+          "trample": 0.161,
+          "reach": 0.439,
+          "menace": 0.159,
+          "defender": 0.146,
+          "hexproof": 0.044
+        }
+      },
+      "special_cards": {
+        "legendary_creatures": 22,
+        "legendary_by_rarity": {
+          "mythic": 10,
+          "rare": 12
+        },
+        "planeswalkers": 1,
+        "planeswalker_by_rarity": {
+          "mythic": 1
+        },
+        "sagas": 0,
+        "modal_dfc": 0,
+        "transform_dfc": 0,
+        "equipment": 9,
+        "auras": 9,
+        "vehicles": 1
+      },
+      "removal": {
+        "total_removal": 76,
+        "removal_by_color": {
+          "G": 15,
+          "R": 24,
+          "B": 22,
+          "W": 23,
+          "U": 10,
+          "colorless": 2
+        },
+        "removal_by_rarity": {
+          "common": 24,
+          "rare": 12,
+          "uncommon": 38,
+          "mythic": 2
+        },
+        "counterspells": 2,
+        "combat_tricks": 8
+      },
+      "draft_signals": {
+        "uncommon_multicolor_count": 25,
+        "rare_multicolor_count": 32,
+        "signpost_pair_coverage": {
+          "BG": 2,
+          "BR": 2,
+          "BU": 2,
+          "BW": 2,
+          "GR": 2,
+          "GU": 2,
+          "GW": 2,
+          "RU": 2,
+          "RW": 2,
+          "UW": 2
+        },
+        "signpost_card_names": {
+          "GR": [
+            "Break Out",
+            "Tin Street Gossip"
+          ],
+          "GW": [
+            "Buried in the Garden",
+            "Sumala Sentry"
+          ],
+          "BU": [
+            "Coerced to Kill",
+            "Curious Cadaver"
+          ],
+          "BR": [
+            "Deadly Complication",
+            "Rune-Brand Juggler"
+          ],
+          "RU": [
+            "Detective's Satchel",
+            "Gleaming Geardrake"
+          ],
+          "GU": [
+            "Evidence Examiner",
+            "Repulsive Mutation"
+          ],
+          "BG": [
+            "Insidious Roots",
+            "Kraul Whipcracker"
+          ],
+          "RW": [
+            "Lightning Helix",
+            "Meddling Youths"
+          ],
+          "UW": [
+            "No More Lies",
+            "Private Eye"
+          ],
+          "BW": [
+            "Soul Search",
+            "Wispdrinker Vampire"
+          ]
+        },
+        "pairs_covered": 10
+      }
+    },
+    {
+      "set_code": "lci",
+      "card_counts": {
+        "total": 291,
+        "common": 113,
+        "uncommon": 92,
+        "rare": 64,
+        "mythic": 22,
+        "basic_lands": 5,
+        "total_minus_basics": 286
+      },
+      "color_distribution": {
+        "mono_counts": {
+          "R": 37,
+          "W": 38,
+          "B": 39,
+          "U": 36,
+          "G": 39
+        },
+        "multicolor_count": 25,
+        "colorless_count": 38,
+        "total_non_land": 252,
+        "color_pair_distribution": {
+          "UW": 1,
+          "BG": 3,
+          "BW": 3,
+          "RW": 3,
+          "RU": 3,
+          "GU": 2,
+          "GRW": 1,
+          "GR": 2,
+          "GW": 2,
+          "BR": 2,
+          "BU": 3
+        },
+        "mono_pct": {
+          "W": 15.1,
+          "U": 14.3,
+          "B": 15.5,
+          "R": 14.7,
+          "G": 15.5
+        },
+        "multi_pct": 9.9,
+        "colorless_pct": 15.1,
+        "per_rarity": {
+          "common": {
+            "mono": {
+              "R": 18,
+              "B": 18,
+              "W": 18,
+              "U": 18,
+              "G": 18
+            },
+            "multicolor": 0,
+            "colorless": 11,
+            "total": 101
+          },
+          "uncommon": {
+            "mono": {
+              "B": 12,
+              "W": 12,
+              "R": 12,
+              "G": 12,
+              "U": 12
+            },
+            "multicolor": 9,
+            "colorless": 16,
+            "total": 85
+          },
+          "rare": {
+            "mono": {
+              "W": 7,
+              "U": 6,
+              "G": 7,
+              "R": 6,
+              "B": 8
+            },
+            "multicolor": 9,
+            "colorless": 7,
+            "total": 50
+          },
+          "mythic": {
+            "mono": {
+              "B": 1,
+              "R": 1,
+              "G": 2,
+              "W": 1
+            },
+            "multicolor": 7,
+            "colorless": 4,
+            "total": 16
+          }
+        }
+      },
+      "type_distribution": {
+        "creature": 159,
+        "instant": 23,
+        "sorcery": 24,
+        "enchantment_only": 17,
+        "artifact_only": 44,
+        "land_nonbasic": 34,
+        "land_basic": 5,
+        "planeswalker": 1,
+        "enchantment_creature": 1,
+        "artifact_creature": 27,
+        "creature_pct": 54.6,
+        "instant_pct": 7.9,
+        "sorcery_pct": 8.2,
+        "per_rarity": {
+          "common": {
+            "creature": 60,
+            "instant": 17,
+            "sorcery": 7,
+            "enchantment_only": 5,
+            "artifact_only": 12,
+            "land_nonbasic": 7,
+            "planeswalker": 0,
+            "total": 113
+          },
+          "uncommon": {
+            "creature": 51,
+            "instant": 5,
+            "sorcery": 9,
+            "enchantment_only": 8,
+            "artifact_only": 15,
+            "land_nonbasic": 7,
+            "planeswalker": 0,
+            "total": 92
+          },
+          "rare": {
+            "creature": 32,
+            "instant": 1,
+            "sorcery": 8,
+            "enchantment_only": 4,
+            "artifact_only": 13,
+            "land_nonbasic": 14,
+            "planeswalker": 0,
+            "total": 64
+          },
+          "mythic": {
+            "creature": 16,
+            "instant": 0,
+            "sorcery": 0,
+            "enchantment_only": 0,
+            "artifact_only": 4,
+            "land_nonbasic": 6,
+            "planeswalker": 1,
+            "total": 22
+          }
+        }
+      },
+      "mana_curve": {
+        "distribution": {
+          "cmc_0": {
+            "count": 0,
+            "pct": 0.0
+          },
+          "cmc_1": {
+            "count": 36,
+            "pct": 14.3
+          },
+          "cmc_2": {
+            "count": 77,
+            "pct": 30.6
+          },
+          "cmc_3": {
+            "count": 60,
+            "pct": 23.8
+          },
+          "cmc_4": {
+            "count": 34,
+            "pct": 13.5
+          },
+          "cmc_5": {
+            "count": 23,
+            "pct": 9.1
+          },
+          "cmc_6": {
+            "count": 13,
+            "pct": 5.2
+          },
+          "cmc_7plus": {
+            "count": 9,
+            "pct": 3.6
+          }
+        },
+        "average_cmc": 3.04,
+        "median_cmc": 3.0,
+        "per_color": {
+          "W": {
+            "average_cmc": 2.61,
+            "count": 38,
+            "distribution": {
+              "0": 0,
+              "1": 8,
+              "2": 12,
+              "3": 11,
+              "4": 3,
+              "5": 2,
+              "6": 2,
+              "7": 0
+            }
+          },
+          "U": {
+            "average_cmc": 3.03,
+            "count": 36,
+            "distribution": {
+              "0": 0,
+              "1": 4,
+              "2": 13,
+              "3": 8,
+              "4": 5,
+              "5": 2,
+              "6": 3,
+              "7": 1
+            }
+          },
+          "B": {
+            "average_cmc": 3.31,
+            "count": 39,
+            "distribution": {
+              "0": 0,
+              "1": 4,
+              "2": 10,
+              "3": 11,
+              "4": 6,
+              "5": 4,
+              "6": 2,
+              "7": 2
+            }
+          },
+          "R": {
+            "average_cmc": 3.19,
+            "count": 37,
+            "distribution": {
+              "0": 0,
+              "1": 6,
+              "2": 9,
+              "3": 7,
+              "4": 6,
+              "5": 6,
+              "6": 2,
+              "7": 1
+            }
+          },
+          "G": {
+            "average_cmc": 3.23,
+            "count": 39,
+            "distribution": {
+              "0": 0,
+              "1": 6,
+              "2": 10,
+              "3": 10,
+              "4": 5,
+              "5": 3,
+              "6": 2,
+              "7": 3
+            }
+          }
+        },
+        "per_rarity": {
+          "common": {
+            "average_cmc": 2.96,
+            "count": 101
+          },
+          "uncommon": {
+            "average_cmc": 2.82,
+            "count": 85
+          },
+          "rare": {
+            "average_cmc": 3.22,
+            "count": 50
+          },
+          "mythic": {
+            "average_cmc": 4.19,
+            "count": 16
+          }
+        }
+      },
+      "creature_stats": {
+        "total_creatures": 159,
+        "avg_pt_by_cmc": {
+          "1": {
+            "avg_power": 0.92,
+            "avg_toughness": 1.38,
+            "count": 13
+          },
+          "2": {
+            "avg_power": 2,
+            "avg_toughness": 2.21,
+            "count": 38
+          },
+          "3": {
+            "avg_power": 2.51,
+            "avg_toughness": 2.59,
+            "count": 37
+          },
+          "4": {
+            "avg_power": 3.24,
+            "avg_toughness": 3.48,
+            "count": 25
+          },
+          "5": {
+            "avg_power": 4.31,
+            "avg_toughness": 3.85,
+            "count": 13
+          },
+          "6": {
+            "avg_power": 5.33,
+            "avg_toughness": 5.44,
+            "count": 9
+          },
+          "7": {
+            "avg_power": 3.67,
+            "avg_toughness": 4,
+            "count": 3
+          },
+          "8": {
+            "avg_power": 7.5,
+            "avg_toughness": 7.25,
+            "count": 4
+          }
+        },
+        "top_subtypes": {
+          "Human": 27,
+          "Dinosaur": 27,
+          "Pirate": 15,
+          "Vampire": 13,
+          "Scout": 13,
+          "Spirit": 11,
+          "Gnome": 11,
+          "Merfolk": 11,
+          "Golem": 10,
+          "Warrior": 9,
+          "Soldier": 8,
+          "Cat": 8,
+          "Horror": 7,
+          "//": 7,
+          "Fungus": 7,
+          "God": 6,
+          "Knight": 6,
+          "Goblin": 6,
+          "Land": 5,
+          "Artificer": 5
+        }
+      },
+      "keywords": {
+        "evergreen": {
+          "flying": 25,
+          "ward": 9,
+          "lifelink": 5,
+          "trample": 14,
+          "first strike": 2,
+          "flash": 12,
+          "reach": 4,
+          "deathtouch": 4,
+          "menace": 6,
+          "indestructible": 1,
+          "vigilance": 10,
+          "haste": 4,
+          "double strike": 1,
+          "defender": 1,
+          "hexproof": 1
+        },
+        "evergreen_by_color": {
+          "flying": {
+            "U": 7,
+            "W": 8,
+            "B": 5,
+            "R": 1
+          },
+          "ward": {
+            "U": 3,
+            "W": 4,
+            "B": 1,
+            "G": 2
+          },
+          "trample": {
+            "R": 6,
+            "G": 6,
+            "W": 1,
+            "B": 1
+          },
+          "first strike": {
+            "R": 2
+          },
+          "flash": {
+            "U": 4,
+            "B": 1,
+            "W": 2,
+            "G": 1
+          },
+          "reach": {
+            "G": 3,
+            "R": 1
+          },
+          "deathtouch": {
+            "B": 4,
+            "R": 1
+          },
+          "lifelink": {
+            "B": 2,
+            "W": 1
+          },
+          "menace": {
+            "B": 3,
+            "R": 1,
+            "U": 1
+          },
+          "indestructible": {
+            "R": 1
+          },
+          "vigilance": {
+            "G": 3,
+            "R": 1,
+            "W": 2,
+            "U": 3,
+            "B": 1
+          },
+          "haste": {
+            "G": 2,
+            "R": 3,
+            "W": 1
+          },
+          "double strike": {
+            "W": 1
+          },
+          "defender": {
+            "U": 1
+          }
+        },
+        "evergreen_by_rarity": {
+          "flying": {
+            "rare": 5,
+            "mythic": 6,
+            "uncommon": 7,
+            "common": 7
+          },
+          "ward": {
+            "rare": 5,
+            "uncommon": 2,
+            "common": 1,
+            "mythic": 1
+          },
+          "lifelink": {
+            "mythic": 1,
+            "uncommon": 3,
+            "rare": 1
+          },
+          "trample": {
+            "uncommon": 4,
+            "common": 3,
+            "mythic": 5,
+            "rare": 2
+          },
+          "first strike": {
+            "mythic": 1,
+            "rare": 1
+          },
+          "flash": {
+            "common": 5,
+            "uncommon": 4,
+            "rare": 3
+          },
+          "reach": {
+            "uncommon": 1,
+            "common": 3
+          },
+          "deathtouch": {
+            "common": 1,
+            "rare": 1,
+            "uncommon": 2
+          },
+          "menace": {
+            "common": 2,
+            "rare": 2,
+            "uncommon": 2
+          },
+          "indestructible": {
+            "uncommon": 1
+          },
+          "vigilance": {
+            "mythic": 2,
+            "uncommon": 4,
+            "common": 3,
+            "rare": 1
+          },
+          "haste": {
+            "mythic": 1,
+            "common": 1,
+            "uncommon": 2
+          },
+          "double strike": {
+            "uncommon": 1
+          },
+          "defender": {
+            "common": 1
+          },
+          "hexproof": {
+            "rare": 1
+          }
+        },
+        "set_mechanics": {
+          "transform": 34,
+          "descend": 16,
+          "explore": 25,
+          "treasure": 15,
+          "mill": 12,
+          "scry": 11,
+          "equip": 12,
+          "craft": 19,
+          "discover": 22,
+          "crew": 6,
+          "fathomless descent": 6,
+          "enchant": 7,
+          "fight": 1,
+          "islandcycling": 1,
+          "landcycling": 5,
+          "typecycling": 5,
+          "cycling": 6,
+          "forestcycling": 1,
+          "swampcycling": 1,
+          "battle cry": 1,
+          "mountaincycling": 1,
+          "flashback": 1,
+          "plainscycling": 1,
+          "surveil": 1
+        },
+        "set_mechanics_by_color": {
+          "descend": {
+            "B": 8,
+            "G": 4,
+            "U": 6
+          },
+          "explore": {
+            "B": 3,
+            "W": 4,
+            "U": 8,
+            "G": 10
+          },
+          "treasure": {
+            "R": 10,
+            "B": 1,
+            "U": 1
+          },
+          "mill": {
+            "B": 4,
+            "G": 1,
+            "U": 2
+          },
+          "scry": {
+            "W": 5,
+            "G": 1,
+            "B": 2
+          },
+          "equip": {
+            "B": 1,
+            "W": 1,
+            "R": 2,
+            "G": 2,
+            "U": 1
+          },
+          "discover": {
+            "R": 8,
+            "W": 2,
+            "U": 2,
+            "B": 1,
+            "G": 1
+          },
+          "fathomless descent": {
+            "B": 4,
+            "U": 1,
+            "G": 1
+          },
+          "enchant": {
+            "B": 2,
+            "U": 3,
+            "R": 1,
+            "W": 1
+          },
+          "crew": {
+            "R": 2,
+            "U": 2
+          },
+          "fight": {
+            "G": 1
+          },
+          "islandcycling": {
+            "U": 1
+          },
+          "landcycling": {
+            "U": 1,
+            "G": 1,
+            "B": 1,
+            "R": 1,
+            "W": 1
+          },
+          "typecycling": {
+            "U": 1,
+            "G": 1,
+            "B": 1,
+            "R": 1,
+            "W": 1
+          },
+          "cycling": {
+            "U": 1,
+            "G": 1,
+            "B": 1,
+            "R": 1,
+            "W": 1
+          },
+          "forestcycling": {
+            "G": 1
+          },
+          "swampcycling": {
+            "B": 1
+          },
+          "battle cry": {
+            "W": 1
+          },
+          "mountaincycling": {
+            "R": 1
+          },
+          "flashback": {
+            "U": 1
+          },
+          "plainscycling": {
+            "W": 1
+          },
+          "surveil": {
+            "B": 1
+          }
+        },
+        "set_mechanics_by_rarity": {
+          "transform": {
+            "mythic": 7,
+            "rare": 10,
+            "uncommon": 12,
+            "common": 5
+          },
+          "descend": {
+            "uncommon": 6,
+            "common": 6,
+            "rare": 3,
+            "mythic": 1
+          },
+          "explore": {
+            "rare": 6,
+            "common": 10,
+            "uncommon": 9
+          },
+          "treasure": {
+            "common": 3,
+            "mythic": 1,
+            "rare": 6,
+            "uncommon": 5
+          },
+          "mill": {
+            "common": 6,
+            "rare": 3,
+            "mythic": 1,
+            "uncommon": 2
+          },
+          "scry": {
+            "common": 6,
+            "rare": 3,
+            "uncommon": 2
+          },
+          "equip": {
+            "uncommon": 4,
+            "common": 6,
+            "rare": 2
+          },
+          "craft": {
+            "rare": 4,
+            "uncommon": 9,
+            "common": 5,
+            "mythic": 1
+          },
+          "discover": {
+            "rare": 3,
+            "common": 10,
+            "uncommon": 7,
+            "mythic": 2
+          },
+          "crew": {
+            "uncommon": 3,
+            "rare": 3
+          },
+          "fathomless descent": {
+            "uncommon": 1,
+            "rare": 4,
+            "common": 1
+          },
+          "enchant": {
+            "common": 5,
+            "uncommon": 2
+          },
+          "fight": {
+            "uncommon": 1
+          },
+          "islandcycling": {
+            "common": 1
+          },
+          "landcycling": {
+            "common": 5
+          },
+          "typecycling": {
+            "common": 5
+          },
+          "cycling": {
+            "common": 6
+          },
+          "forestcycling": {
+            "common": 1
+          },
+          "swampcycling": {
+            "common": 1
+          },
+          "battle cry": {
+            "rare": 1
+          },
+          "mountaincycling": {
+            "common": 1
+          },
+          "flashback": {
+            "uncommon": 1
+          },
+          "plainscycling": {
+            "common": 1
+          },
+          "surveil": {
+            "rare": 1
+          }
+        },
+        "num_set_mechanics": 24,
+        "total_cards_with_set_mechanic": 210,
+        "as_fan": {
+          "flying": 0.926,
+          "ward": 0.232,
+          "lifelink": 0.113,
+          "trample": 0.427,
+          "first strike": 0.016,
+          "flash": 0.62,
+          "reach": 0.298,
+          "deathtouch": 0.169,
+          "menace": 0.273,
+          "indestructible": 0.033,
+          "vigilance": 0.412,
+          "haste": 0.154,
+          "double strike": 0.033,
+          "defender": 0.088,
+          "hexproof": 0.016
+        }
+      },
+      "special_cards": {
+        "legendary_creatures": 31,
+        "legendary_by_rarity": {
+          "rare": 9,
+          "mythic": 13,
+          "uncommon": 9
+        },
+        "planeswalkers": 1,
+        "planeswalker_by_rarity": {
+          "mythic": 1
+        },
+        "sagas": 1,
+        "modal_dfc": 0,
+        "transform_dfc": 35,
+        "equipment": 12,
+        "auras": 7,
+        "vehicles": 6
+      },
+      "removal": {
+        "total_removal": 69,
+        "removal_by_color": {
+          "R": 19,
+          "W": 14,
+          "B": 15,
+          "G": 9,
+          "colorless": 12,
+          "U": 5
+        },
+        "removal_by_rarity": {
+          "common": 33,
+          "uncommon": 19,
+          "rare": 15,
+          "mythic": 2
+        },
+        "counterspells": 2,
+        "combat_tricks": 6
+      },
+      "draft_signals": {
+        "uncommon_multicolor_count": 9,
+        "rare_multicolor_count": 16,
+        "signpost_pair_coverage": {
+          "BG": 1,
+          "BR": 1,
+          "BU": 1,
+          "BW": 1,
+          "GR": 1,
+          "GU": 1,
+          "GW": 1,
+          "RU": 1,
+          "RW": 1,
+          "UW": 0
+        },
+        "signpost_card_names": {
+          "BG": [
+            "Akawalli, the Seething Tower"
+          ],
+          "BW": [
+            "Bartolomé del Presidio"
+          ],
+          "RW": [
+            "Caparocti Sunborn"
+          ],
+          "RU": [
+            "Captain Storm, Cosmium Raider"
+          ],
+          "GR": [
+            "Itzquinth, Firstborn of Gishath"
+          ],
+          "GW": [
+            "Kutzil, Malamet Exemplar"
+          ],
+          "GU": [
+            "Nicanzil, Current Conductor"
+          ],
+          "BU": [
+            "Uchbenbak, the Great Mistake"
+          ],
+          "BR": [
+            "Zoyowa Lava-Tongue"
+          ]
+        },
+        "pairs_covered": 9
+      }
+    }
+  ],
+  "cross_set_averages": {
+    "total_cards": {
+      "average": 277,
+      "min": 266,
+      "max": 291,
+      "stdev": 8.9
+    },
+    "commons": {
+      "average": 95.4,
+      "min": 86,
+      "max": 113,
+      "stdev": 11.0
+    },
+    "uncommons": {
+      "average": 98.4,
+      "min": 92,
+      "max": 100,
+      "stdev": 3.6
+    },
+    "rares": {
+      "average": 62.8,
+      "min": 60,
+      "max": 70,
+      "stdev": 4.4
+    },
+    "mythics": {
+      "average": 20.4,
+      "min": 20,
+      "max": 22,
+      "stdev": 0.9
+    },
+    "creature_pct": {
+      "average": 54.7,
+      "min": 50.4,
+      "max": 59.8,
+      "stdev": 3.9
+    },
+    "average_cmc": {
+      "average": 3.1,
+      "min": 2.9,
+      "max": 3.53,
+      "stdev": 0.3
+    },
+    "total_removal": {
+      "average": 78.4,
+      "min": 69,
+      "max": 90,
+      "stdev": 8.0
+    },
+    "legendary_creatures": {
+      "average": 27.6,
+      "min": 19,
+      "max": 43,
+      "stdev": 9.7
+    },
+    "planeswalkers": {
+      "average": 1.2,
+      "min": 1,
+      "max": 2,
+      "stdev": 0.4
+    },
+    "uncommon_signpost_pairs": {
+      "average": 9.8,
+      "min": 9,
+      "max": 10,
+      "stdev": 0.4
+    },
+    "set_mechanics_count": {
+      "average": 19.6,
+      "min": 15,
+      "max": 24,
+      "stdev": 4.2
+    }
+  }
+}

@@ -1,0 +1,334 @@
+{
+  "meta": {
+    "version": "1.0",
+    "generated_from": ["dsk", "blb", "otj", "mkm", "lci"],
+    "generated_date": "2026-03-08",
+    "description": "Target distribution template for a standard MTG set, derived from analysis of 5 recent sets (Duskmourn, Bloomburrow, Outlaws of Thunder Junction, Murders at Karlov Manor, The Lost Caverns of Ixalan)."
+  },
+
+  "set_size": {
+    "total_booster_cards": { "target": 277, "min": 266, "max": 291, "note": "Average of 5 analyzed sets; stdev 8.9" },
+    "basic_lands": { "target": 5, "note": "1 per color, full-art versions optional; consistent across all analyzed sets" }
+  },
+
+  "rarity_distribution": {
+    "common":  { "count": 95, "min": 86, "max": 113, "note": "Avg 95.4; high variance (stdev 11.0) due to LCI having 113 commons" },
+    "uncommon": { "count": 98, "min": 92, "max": 100, "note": "Avg 98.4; very consistent (stdev 3.6)" },
+    "rare":    { "count": 63, "min": 60, "max": 70, "note": "Avg 62.8; MKM had 70 rares, others 60-64" },
+    "mythic":  { "count": 20, "min": 20, "max": 22, "note": "Avg 20.4; extremely consistent (stdev 0.9)" }
+  },
+
+  "color_distribution": {
+    "description": "Percentage of non-land, non-colorless cards per mono-color. Mono-color cards form ~75-81% of non-land cards; multicolor and colorless fill the rest.",
+    "per_color_target_pct": { "W": 15.2, "U": 15.3, "B": 15.4, "R": 15.2, "G": 15.4 },
+    "tolerance_pct": 2,
+    "multicolor_pct": { "target": 17, "min": 10, "max": 26, "note": "Highly set-dependent: LCI=9.9%, MKM=26.1%. Average 17.0%." },
+    "colorless_pct": { "target": 6, "min": 3, "max": 15, "note": "LCI was an outlier at 15.1% due to heavy artifact theme. Typical range 3-5%." },
+    "per_rarity": {
+      "common": {
+        "per_color_count": { "target": 15, "min": 13, "max": 18, "note": "Ranges from 13 (BLB/MKM) to 18 (LCI)" },
+        "multicolor_count": { "target": 4, "min": 0, "max": 10, "note": "DSK/OTJ/LCI had 0; BLB/MKM had 10. Bimodal distribution." },
+        "colorless_count": { "target": 6, "min": 4, "max": 11, "note": "LCI outlier at 11 due to artifact theme" }
+      },
+      "uncommon": {
+        "per_color_count": { "target": 14, "min": 12, "max": 16, "note": "Ranges from 12 (LCI) to 16 (BLB)" },
+        "multicolor_count": { "target": 17, "min": 9, "max": 25, "note": "Includes signpost uncommons; MKM had 25" },
+        "colorless_count": { "target": 7, "min": 3, "max": 16, "note": "LCI outlier at 16 due to artifact theme" }
+      },
+      "rare": {
+        "per_color_count": { "target": 8, "min": 7, "max": 9, "note": "Very consistent across sets" },
+        "multicolor_count": { "target": 16, "min": 9, "max": 22, "note": "OTJ/MKM had 22; LCI had 9" },
+        "colorless_count": { "target": 2, "min": 0, "max": 7, "note": "BLB/OTJ/MKM had 0-1; LCI had 7" }
+      },
+      "mythic": {
+        "per_color_count": { "target": 2, "min": 1, "max": 4, "note": "DSK highest at ~3.6 avg per color; LCI lowest" },
+        "multicolor_count": { "target": 7, "min": 2, "max": 10, "note": "DSK had only 2; MKM had 10" },
+        "colorless_count": { "target": 1, "min": 0, "max": 4, "note": "Only LCI had colorless mythics (4)" }
+      }
+    }
+  },
+
+  "type_distribution": {
+    "creature_pct":           { "target": 54.7, "min": 50.4, "max": 59.8, "note": "Avg across 5 sets; includes enchantment creatures and artifact creatures" },
+    "instant_pct":            { "target": 11.4, "min": 7.9, "max": 15.2, "note": "MKM highest (detective theme = more instants); LCI lowest" },
+    "sorcery_pct":            { "target": 9.8, "min": 8.2, "max": 10.9 },
+    "enchantment_only_pct":   { "target": 10.0, "min": 6.2, "max": 17.0, "note": "DSK highest (17%) due to enchantment theme; OTJ lowest (6.5%)" },
+    "artifact_only_pct":      { "target": 7.0, "min": 3.3, "max": 15.1, "note": "LCI highest (15.1%) due to artifact theme; OTJ lowest (3.3%)" },
+    "land_nonbasic_pct":      { "target": 6.9, "min": 3.8, "max": 11.7, "note": "LCI highest (11.7%); BLB lowest (3.8%)" },
+    "planeswalker_pct":       { "target": 0.4, "min": 0.3, "max": 0.7, "note": "1-2 per set; avg 1.2" },
+    "per_rarity": {
+      "common": {
+        "creature_pct": { "target": 53.2, "min": 47.9, "max": 57.0, "note": "Computed: avg creature/total at common" },
+        "noncreature_spell_pct": { "target": 38.3, "min": 29.2, "max": 43.0, "note": "Instants + sorceries + enchantments + artifacts at common" },
+        "land_pct": { "target": 7.1, "min": 2.3, "max": 12.5, "note": "Includes common nonbasic lands; varies significantly" }
+      },
+      "uncommon": {
+        "creature_pct": { "target": 52.8, "min": 49.0, "max": 55.4, "note": "Very consistent across sets" },
+        "noncreature_spell_pct": { "target": 43.8, "min": 40.2, "max": 54.0, "note": "MKM highest due to detective theme" },
+        "land_pct": { "target": 3.4, "min": 0.0, "max": 7.6, "note": "DSK had 0 uncommon lands" }
+      }
+    }
+  },
+
+  "mana_curve": {
+    "description": "Percentage of non-land cards at each CMC, computed from 5 analyzed sets",
+    "overall": {
+      "cmc_0": { "target_pct": 0.0, "min": 0.0, "max": 0.0, "note": "No CMC-0 cards observed in any of the 5 sets" },
+      "cmc_1": { "target_pct": 12.3, "min": 10.2, "max": 14.3 },
+      "cmc_2": { "target_pct": 29.9, "min": 26.0, "max": 32.7 },
+      "cmc_3": { "target_pct": 23.8, "min": 19.5, "max": 27.5 },
+      "cmc_4": { "target_pct": 15.6, "min": 13.5, "max": 17.9 },
+      "cmc_5": { "target_pct": 10.4, "min": 9.1, "max": 12.1 },
+      "cmc_6": { "target_pct": 4.4, "min": 3.2, "max": 5.9 },
+      "cmc_7plus": { "target_pct": 3.6, "min": 0.4, "max": 8.7, "note": "DSK was an outlier at 8.7% due to horror theme high-cost cards" }
+    },
+    "per_color": {
+      "W": {
+        "average_cmc": { "target": 2.87, "min": 2.61, "max": 3.46 },
+        "note": "White tends to curve lower with efficient small creatures"
+      },
+      "U": {
+        "average_cmc": { "target": 3.11, "min": 2.87, "max": 3.63 },
+        "note": "Blue tends toward middle-range CMC"
+      },
+      "B": {
+        "average_cmc": { "target": 3.23, "min": 2.66, "max": 3.90 },
+        "note": "Black has the widest CMC variance across sets"
+      },
+      "R": {
+        "average_cmc": { "target": 3.04, "min": 2.76, "max": 3.54 },
+        "note": "Red tends to curve lower, aggressive"
+      },
+      "G": {
+        "average_cmc": { "target": 3.10, "min": 2.66, "max": 3.45 },
+        "note": "Green often has higher-CMC creatures for ramp strategies"
+      }
+    },
+    "per_rarity": {
+      "common":  { "average_cmc": { "target": 3.01, "min": 2.76, "max": 3.39 } },
+      "uncommon": { "average_cmc": { "target": 2.94, "min": 2.82, "max": 3.12 } },
+      "rare":    { "average_cmc": { "target": 3.16, "min": 2.67, "max": 3.81 } },
+      "mythic":  { "average_cmc": { "target": 4.47, "min": 3.45, "max": 5.80, "note": "Mythics skew significantly higher in CMC" } }
+    },
+    "average_cmc": { "target": 3.12, "min": 2.90, "max": 3.53, "note": "Excluding lands; stdev 0.3" }
+  },
+
+  "keywords": {
+    "evergreen": {
+      "flying":        { "typical_count": 26, "min": 19, "max": 32, "primary_colors": ["W", "U"], "note": "Most common evergreen keyword by far" },
+      "first_strike":  { "typical_count": 2,  "min": 0,  "max": 3,  "primary_colors": ["W", "R"], "note": "DSK had 0; relatively uncommon in modern sets" },
+      "double_strike": { "typical_count": 1,  "min": 0,  "max": 3,  "primary_colors": ["R", "W"], "note": "OTJ had 0; rare keyword" },
+      "deathtouch":    { "typical_count": 4,  "min": 4,  "max": 5,  "primary_colors": ["B", "G"], "note": "Very consistent count across sets" },
+      "haste":         { "typical_count": 7,  "min": 4,  "max": 9,  "primary_colors": ["R"], "note": "Red gets most haste; some bleeds to G" },
+      "hexproof":      { "typical_count": 1,  "min": 0,  "max": 2,  "primary_colors": ["U", "G"], "note": "Very rare in modern sets; ward has largely replaced it" },
+      "indestructible": { "typical_count": 0, "min": 0,  "max": 1,  "primary_colors": ["W"], "note": "Only MKM and LCI had 1 each; very rare as a keyword" },
+      "lifelink":      { "typical_count": 5,  "min": 1,  "max": 8,  "primary_colors": ["W", "B"], "note": "BLB had only 1; OTJ had 8" },
+      "menace":        { "typical_count": 6,  "min": 4,  "max": 10, "primary_colors": ["B", "R"], "note": "BLB had 10 (animal theme)" },
+      "reach":         { "typical_count": 7,  "min": 4,  "max": 13, "primary_colors": ["G"], "note": "BLB had 13; DSK/LCI had 4" },
+      "trample":       { "typical_count": 9,  "min": 5,  "max": 14, "primary_colors": ["G", "R"], "note": "LCI highest at 14" },
+      "vigilance":     { "typical_count": 11, "min": 8,  "max": 13, "primary_colors": ["W", "G"], "note": "Consistent keyword; W and G primary" },
+      "defender":      { "typical_count": 1,  "min": 0,  "max": 3,  "primary_colors": ["any"], "note": "BLB had 0; MKM had 3" },
+      "flash":         { "typical_count": 10, "min": 7,  "max": 12, "primary_colors": ["U", "G"], "note": "Consistently 7-12 across sets" },
+      "ward":          { "typical_count": 6,  "min": 4,  "max": 9,  "primary_colors": ["U", "W"], "note": "LCI highest at 9; replacing hexproof in modern design" }
+    },
+    "set_mechanics": {
+      "unique_keyword_count": { "target": 20, "min": 15, "max": 24, "note": "Avg 19.6; includes both named mechanics and ability words. Stdev 4.2." },
+      "total_cards_with_set_mechanic": { "target": 158, "min": 115, "max": 210, "note": "Avg 157.8; LCI highest (210), BLB lowest (115)" },
+      "note": "Named set mechanics (like plot, disguise, explore) typically appear on 8-40 cards each, spread across 2-5 colors. Most sets have 3-5 major named mechanics plus several minor returning mechanics."
+    }
+  },
+
+  "special_cards": {
+    "legendary_creatures": { "target": 28, "min": 19, "max": 43, "note": "Avg 27.6; OTJ was an outlier at 43 (western outlaw theme). Stdev 9.7." },
+    "planeswalkers":       { "target": 1, "min": 1, "max": 2, "note": "Avg 1.2; only OTJ had 2. All at mythic rarity." },
+    "nonbasic_lands":      { "target": 19, "min": 10, "max": 34, "note": "Avg 19.0; LCI highest (34) with cave/land theme" },
+    "equipment":           { "target": 7, "min": 2, "max": 12, "note": "Avg 7.2; BLB had only 2; LCI had 12" },
+    "auras":               { "target": 7, "min": 3, "max": 10, "note": "Avg 6.6; DSK had 10; OTJ had 3" },
+    "vehicles":            { "target": 2, "min": 1, "max": 6, "note": "Avg 2.4; LCI had 6; all sets had at least 1" },
+    "sagas":               { "target": 0, "min": 0, "max": 1, "note": "Only DSK and LCI had 1 each; not standard in modern sets" },
+    "modal_dfc":           { "target": 0, "min": 0, "max": 0, "note": "None of the 5 analyzed sets used modal DFCs" },
+    "transform_dfc":       { "target": 7, "min": 0, "max": 35, "note": "Only LCI had transform DFCs (35). Highly set-specific. Default to 0 unless set design calls for it." }
+  },
+
+  "removal_density": {
+    "total_removal_spells": { "target": 78, "min": 69, "max": 90, "note": "Avg 78.4; BLB highest (90); LCI lowest (69). Stdev 8.0." },
+    "common_removal":       { "target": 31, "min": 24, "max": 39, "note": "Avg 31.4; critical for limited play. OTJ highest (39)." },
+    "per_color_minimum":    { "target": 3, "note": "Every color should have at least 3 removal-adjacent effects. Even U (lowest) averaged 8 total removal cards." },
+    "removal_by_color_typical": {
+      "W": { "target": 20, "min": 14, "max": 25, "note": "White removal: exile, destroy tapped/attacking, -X/-X" },
+      "U": { "target": 8, "min": 5, "max": 12, "note": "Blue removal: bounce, counterspells, tap effects" },
+      "B": { "target": 17, "min": 14, "max": 22, "note": "Black removal: destroy, -X/-X, sacrifice" },
+      "R": { "target": 25, "min": 19, "max": 28, "note": "Red removal: damage-based; highest removal color" },
+      "G": { "target": 12, "min": 9, "max": 15, "note": "Green removal: fight, bite, artifact/enchantment destruction" },
+      "colorless": { "target": 8, "min": 2, "max": 13, "note": "Colorless removal from artifacts; varies widely" }
+    },
+    "counterspells":        { "target": 2, "min": 2, "max": 3, "primary_color": "U", "note": "Very consistent: 2-3 per set" },
+    "combat_tricks":        { "target": 7, "min": 4, "max": 11, "note": "Avg 7.2; BLB had 11; DSK had 4" }
+  },
+
+  "draft_archetypes": {
+    "count": 10,
+    "structure": "One archetype per two-color pair",
+    "signpost_uncommons": {
+      "count": { "target": 10, "min": 9, "max": 10 },
+      "description": "One or more multicolor uncommon per color pair that signals the draft archetype. 4 of 5 sets had all 10 pairs covered; LCI covered 9.",
+      "avg_uncommon_multicolor_total": { "target": 17, "min": 9, "max": 25, "note": "Total uncommon multicolor cards; some pairs get 2+ signpost cards" }
+    },
+    "color_pairs": ["WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"],
+    "pairs_covered_avg": 9.8
+  },
+
+  "creature_stats": {
+    "description": "Average power/toughness by CMC across all 5 sets. Use as baseline for creature stat-lines.",
+    "avg_pt_by_cmc": {
+      "1": { "avg_power": 1.0, "avg_toughness": 1.4, "note": "Typical: 1/1, 1/2, 0/3 defenders" },
+      "2": { "avg_power": 1.9, "avg_toughness": 2.1, "note": "Typical: 2/2, 2/1, 1/3" },
+      "3": { "avg_power": 2.5, "avg_toughness": 2.7, "note": "Typical: 3/2, 2/3, 3/3" },
+      "4": { "avg_power": 3.2, "avg_toughness": 3.5, "note": "Typical: 3/3, 4/3, 3/4" },
+      "5": { "avg_power": 4.1, "avg_toughness": 4.3, "note": "Typical: 4/4, 4/5, 5/4" },
+      "6": { "avg_power": 5.1, "avg_toughness": 5.0, "note": "Typical: 5/5, 6/5" },
+      "7": { "avg_power": 4.8, "avg_toughness": 4.9, "note": "Small sample size; some are high-toughness walls" },
+      "8_plus": { "avg_power": 6.8, "avg_toughness": 7.1, "note": "Very rare; typically mythic finishers" }
+    }
+  },
+
+  "as_fan": {
+    "description": "Expected number of copies of a keyword per draft booster pack (10C + 3U + 1R/M). Averaged across 5 sets.",
+    "flying":     { "avg": 1.05, "min": 0.81, "max": 1.39, "note": "Most common keyword in boosters" },
+    "vigilance":  { "avg": 0.46, "min": 0.36, "max": 0.56 },
+    "flash":      { "avg": 0.46, "min": 0.24, "max": 0.69 },
+    "reach":      { "avg": 0.44, "min": 0.30, "max": 0.65 },
+    "trample":    { "avg": 0.31, "min": 0.16, "max": 0.43 },
+    "menace":     { "avg": 0.24, "min": 0.15, "max": 0.40 },
+    "haste":      { "avg": 0.20, "min": 0.12, "max": 0.27 },
+    "deathtouch": { "avg": 0.19, "min": 0.15, "max": 0.26 },
+    "ward":       { "avg": 0.16, "min": 0.03, "max": 0.26 },
+    "lifelink":   { "avg": 0.16, "min": 0.03, "max": 0.41 },
+    "defender":   { "avg": 0.10, "min": 0.09, "max": 0.15 },
+    "first_strike": { "avg": 0.05, "min": 0.0, "max": 0.12 },
+    "double_strike": { "avg": 0.04, "min": 0.0, "max": 0.06 },
+    "hexproof":   { "avg": 0.02, "min": 0.0, "max": 0.04 },
+    "indestructible": { "avg": 0.01, "min": 0.0, "max": 0.03 }
+  },
+
+  "booster_composition": {
+    "draft_booster": {
+      "total_cards": 15,
+      "commons": 10,
+      "uncommons": 3,
+      "rare_or_mythic": 1,
+      "land": 1,
+      "mythic_frequency": "1 in ~7 rare slots",
+      "note": "Classic draft booster format (pre-Play Booster). Recommended for custom set draft."
+    },
+    "play_booster": {
+      "total_cards": 14,
+      "commons": "6-7",
+      "uncommons": 3,
+      "rare_or_mythic": 1,
+      "land": 1,
+      "wildcard": 1,
+      "non_playable": 1,
+      "note": "Current WotC format (since MKM, Feb 2024). More variance per pack."
+    }
+  },
+
+  "set_size_scaling": {
+    "description": "Formulas for scaling the template to different set sizes. All targets above are calibrated to a ~277-card set. Use these ratios to adjust for different total card counts.",
+    "base_set_size": 277,
+    "scaling_rules": {
+      "rarity_distribution": {
+        "method": "proportional",
+        "formula": "new_count = round(base_count * (new_total / 277))",
+        "constraints": [
+          "Mythics should stay in range 15-25 regardless of scaling",
+          "Commons >= 80 to support draft (need enough variety for 10 per pack)",
+          "Uncommons >= 60 to support draft (need enough variety for 3 per pack)",
+          "Rarity counts must sum to total_booster_cards - basic_lands"
+        ],
+        "examples": {
+          "50_card_set": {
+            "total": 50,
+            "common": 17,
+            "uncommon": 18,
+            "rare": 11,
+            "mythic": 4,
+            "note": "V0 prototype. Not draftable but tests generation pipeline."
+          },
+          "150_card_set": {
+            "total": 150,
+            "common": 52,
+            "uncommon": 53,
+            "rare": 34,
+            "mythic": 11,
+            "note": "Small set. Marginal for draft but functional."
+          },
+          "280_card_set": {
+            "total": 280,
+            "common": 96,
+            "uncommon": 99,
+            "rare": 64,
+            "mythic": 21,
+            "note": "Standard full set. Primary target."
+          }
+        }
+      },
+      "color_distribution": {
+        "method": "proportional_per_rarity",
+        "formula": "per_color_count = round(rarity_count * per_color_target_pct / 100)",
+        "constraints": [
+          "Each mono-color should get equal or near-equal card counts (within 1 card)",
+          "Multicolor cards scale with set size but should cover all 10 color pairs",
+          "At uncommon, ensure at least 1 signpost per color pair (minimum 10 multicolor uncommons)"
+        ]
+      },
+      "type_distribution": {
+        "method": "percentage_based",
+        "formula": "type_count = round(total_non_land * type_target_pct / 100)",
+        "constraints": [
+          "Creature percentage should stay within 50-60% regardless of set size",
+          "Every color needs at least 1 removal spell at common (minimum 5 common removal total)",
+          "Planeswalkers: 1 for sets under 200 cards, 1-2 for standard sets"
+        ]
+      },
+      "mana_curve": {
+        "method": "percentage_based",
+        "formula": "cmc_bucket_count = round(total_non_land * cmc_target_pct / 100)",
+        "constraints": [
+          "Average CMC should remain between 2.9 and 3.5",
+          "CMC 2-3 should always be the peak (combined 50%+ of non-land cards)",
+          "At least 10% of non-land cards at CMC 1 for aggro archetypes",
+          "CMC 7+ should not exceed 10% to avoid too many uncastable cards in limited"
+        ]
+      },
+      "keywords": {
+        "method": "proportional",
+        "formula": "keyword_count = round(base_count * (new_total / 277))",
+        "constraints": [
+          "Flying should always be the most common evergreen keyword",
+          "At minimum, each evergreen keyword should appear on at least 1 card in sets of 100+",
+          "Ward count may be 0 in very small sets (under 100 cards)"
+        ]
+      },
+      "removal": {
+        "method": "proportional_with_floor",
+        "formula": "removal_count = max(floor, round(base_count * (new_total / 277)))",
+        "floor": 15,
+        "constraints": [
+          "Minimum 15 removal spells in any draftable set",
+          "Common removal should be at least 40% of total removal",
+          "Each color except U should have at least 2 removal spells; U gets counterspells instead"
+        ]
+      },
+      "special_cards": {
+        "method": "proportional_with_floor",
+        "constraints": [
+          "At least 1 planeswalker in any set of 100+ cards",
+          "Legendary creatures scale roughly linearly but minimum 5 for a draftable set",
+          "Equipment minimum 2 for sets of 100+",
+          "Nonbasic lands minimum 5 for mana fixing in draft"
+        ]
+      }
+    }
+  }
+}

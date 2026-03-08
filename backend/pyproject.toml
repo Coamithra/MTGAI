@@ -1,0 +1,45 @@
+[project]
+name = "mtgai"
+version = "0.1.0"
+description = "AI-powered Magic: The Gathering custom set creator"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.7,<3",
+    "pydantic-settings>=2.3,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "RUF",    # Ruff-specific rules
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["mtgai"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --tb=short"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

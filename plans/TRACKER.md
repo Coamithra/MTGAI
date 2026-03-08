@@ -52,16 +52,16 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > **Outputs**: `research/scripts/scryfall_pull.py`, `research/scripts/analyze_sets.py`, `research/raw-data/{dsk,blb,otj,mkm,lci}/cards.json`, `research/set-design.md`, `research/set-template.json`, `learnings/phase0a.md`
 > **What this does**: Pull card data from 5 recent MTG sets via Scryfall API, analyze distributions (rarity, color, type, mana curve, keywords, removal density, as-fan), and produce a statistical reference document + machine-readable template that Phase 1 consumes to build the set skeleton.
 
-- [ ] **0A-1**: Write Scryfall data pull script. Fetch booster-eligible cards for 5 sets (dsk, blb, otj, mkm, lci) via `api.scryfall.com/cards/search?q=set:xxx+is:booster`. Rate limit 100ms. Handle pagination. Store raw JSON per set.
+- [x] **0A-1**: Write Scryfall data pull script. Fetch booster-eligible cards for 5 sets (dsk, blb, otj, mkm, lci) via `api.scryfall.com/cards/search?q=set:xxx+is:booster`. Rate limit 100ms. Handle pagination. Store raw JSON per set.
   → `research/scripts/scryfall_pull.py`, `research/raw-data/{code}/cards.json`
-- [ ] **0A-2**: Write analysis script. Read raw JSON, compute all metrics from plan Section 4 (card counts, color distribution, type spread, mana curve, creature stats, keyword frequency, removal density, draft archetype signals, booster composition). Output tables + structured JSON.
+- [x] **0A-2**: Write analysis script. Read raw JSON, compute all metrics from plan Section 4 (card counts, color distribution, type spread, mana curve, creature stats, keyword frequency, removal density, draft archetype signals, booster composition). Output tables + structured JSON.
   → `research/scripts/analyze_sets.py`
-- [ ] **0A-3**: Write set design research document. Synthesize data with MTG design philosophy (New World Order, as-fan, color pie, draft archetypes). Structure per plan Section 5.1.
+- [x] **0A-3**: Write set design research document. Synthesize data with MTG design philosophy (New World Order, as-fan, color pie, draft archetypes). Structure per plan Section 5.1.
   → `research/set-design.md`
-- [ ] **0A-4**: Create set template JSON. Machine-readable distribution targets derived from analysis averages. Schema per plan Section 5.2. Include min/max ranges and scaling formulas for different set sizes.
+- [x] **0A-4**: Create set template JSON. Machine-readable distribution targets derived from analysis averages. Schema per plan Section 5.2. Include min/max ranges and scaling formulas for different set sizes.
   → `research/set-template.json`
-- [ ] **0A-5**: Write learnings → `learnings/phase0a.md`
-- [ ] **0A-6**: Verify — cross-check card counts against 2+ independent sources, validate template produces sensible 280-card allocation, confirm all downstream phases have data they need (plan Section 6).
+- [x] **0A-5**: Write learnings → `learnings/phase0a.md`
+- [x] **0A-6**: Verify — cross-check card counts against 2+ independent sources, validate template produces sensible 280-card allocation, confirm all downstream phases have data they need (plan Section 6).
 
 ---
 
@@ -91,17 +91,17 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > **Outputs**: Buildable Python project skeleton with Pydantic models, tests, CI, config system
 > **What this does**: Initialize the monorepo structure, define all data models (Card, Set, Mechanic), set up tooling (uv, Ruff, pytest), CI, and config system. The card schema defined here is the single source of truth for all downstream phases.
 
-- [ ] **0C-1**: Create full directory structure per plan Section 1 (`backend/mtgai/`, `research/`, `learnings/`, `output/`, etc.)
-- [ ] **0C-2**: Write `backend/pyproject.toml` — project config, dependencies (pydantic, pydantic-settings), dev deps (pytest, ruff), ruff config (line-length 100, Python 3.12), pytest config
-- [ ] **0C-3**: Write Pydantic models per plan Section 2 — `enums.py` (Color, Rarity, CardType, CardStatus, CardLayout), `card.py` (Card, CardFace, ManaCost, GenerationAttempt with token tracking fields), `mechanic.py`, `set.py` (Set, SetSkeleton, DraftArchetype)
-- [ ] **0C-4**: Write `config.py` — `MTGAIConfig` using pydantic-settings with paths, LLM settings, print specs, text overflow constants (max chars per field), API keys from env
-- [ ] **0C-5**: Write I/O helpers — `card_io.py` (load/save card/set JSON), `paths.py` (card_slug, path conventions, naming helpers)
-- [ ] **0C-6**: Write test fixtures in `conftest.py` — sample cards (creature, instant, planeswalker, DFC), sample set
-- [ ] **0C-7**: Write tests — model creation/round-trip, status transitions, I/O round-trip, Scryfall field name compatibility
-- [ ] **0C-8**: Write `.gitignore` (ignore output art/renders, keep card JSON) and project `CLAUDE.md` (conventions per plan Section 7)
-- [ ] **0C-9**: Write `.github/workflows/ci.yml` — lint (ruff check + format) + test (pytest) on push/PR
-- [ ] **0C-10**: Run verification — `uv pip install`, `ruff check`, `pytest`, import test, `.gitignore` test (plan Section 9.4)
-- [ ] **0C-11**: Write learnings → `learnings/phase0c.md`
+- [x] **0C-1**: Create full directory structure per plan Section 1 (`backend/mtgai/`, `research/`, `learnings/`, `output/`, etc.)
+- [x] **0C-2**: Write `backend/pyproject.toml` — project config, dependencies (pydantic, pydantic-settings), dev deps (pytest, ruff), ruff config (line-length 100, Python 3.12), pytest config
+- [x] **0C-3**: Write Pydantic models per plan Section 2 — `enums.py` (Color, Rarity, CardType, CardStatus, CardLayout), `card.py` (Card, CardFace, ManaCost, GenerationAttempt with token tracking fields), `mechanic.py`, `set.py` (Set, SetSkeleton, DraftArchetype)
+- [x] **0C-4**: Write `config.py` — `MTGAIConfig` using pydantic-settings with paths, LLM settings, print specs, text overflow constants (max chars per field), API keys from env
+- [x] **0C-5**: Write I/O helpers — `card_io.py` (load/save card/set JSON), `paths.py` (card_slug, path conventions, naming helpers)
+- [x] **0C-6**: Write test fixtures in `conftest.py` — sample cards (creature, instant, planeswalker, DFC), sample set
+- [x] **0C-7**: Write tests — model creation/round-trip, status transitions, I/O round-trip, Scryfall field name compatibility
+- [x] **0C-8**: Write `.gitignore` (ignore output art/renders, keep card JSON) and project `CLAUDE.md` (conventions per plan Section 7)
+- [x] **0C-9**: Write `.github/workflows/ci.yml` — lint (ruff check + format) + test (pytest) on push/PR
+- [x] **0C-10**: Run verification — `uv pip install`, `ruff check`, `pytest`, import test, `.gitignore` test (plan Section 9.4)
+- [x] **0C-11**: Write learnings → `learnings/phase0c.md`
 
 ---
 
@@ -445,4 +445,4 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 
 | Date | Session | Notes |
 |------|---------|-------|
-| | | |
+| 2026-03-08 | 1 | Completed Phase 0A (all 6 tasks) and Phase 0C (all 11 tasks). Phase 0B deferred — requires manual GPU/tool testing. Next: 0D (LLM strategy, needs 0C schema). |

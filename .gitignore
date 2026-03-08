@@ -1,1 +1,45 @@
+# Claude Code
 .claude/
+.mcp.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Output directory (art, renders, print files are binary, not version-controlled)
+output/sets/*/art/
+output/sets/*/renders/
+output/sets/*/print/
+
+# Keep directory structure
+!output/.gitkeep
+!output/sets/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Coverage
+.coverage
+htmlcov/
