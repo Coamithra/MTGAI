@@ -36,6 +36,9 @@ output/sets/*/print/
 !output/.gitkeep
 !output/sets/.gitkeep
 
+# Inspiration / reference PDFs (large binaries)
+inspiration/
+
 # OS files
 .DS_Store
 Thumbs.db
