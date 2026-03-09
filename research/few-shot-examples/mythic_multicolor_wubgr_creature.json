@@ -1,0 +1,16 @@
+{
+  "name": "Atraxa, Grand Unifier",
+  "mana_cost": "{3}{G}{W}{U}{B}",
+  "cmc": 7.0,
+  "colors": ["W", "U", "B", "G"],
+  "color_identity": ["W", "U", "B", "G"],
+  "type_line": "Legendary Creature — Phyrexian Angel",
+  "oracle_text": "Flying, vigilance, deathtouch, lifelink\nWhen Atraxa, Grand Unifier enters the battlefield, reveal the top ten cards of your library. For each card type among them, you may put a card of that type from among them into your hand. Put the rest on the bottom of your library in a random order.",
+  "flavor_text": null,
+  "power": "7",
+  "toughness": "7",
+  "loyalty": null,
+  "rarity": "mythic",
+  "layout": "normal",
+  "design_notes": "The ultimate mythic top-end creature. Demonstrates: (1) stacking multiple keyword abilities on one line (flying, vigilance, deathtouch, lifelink — one from each color), (2) a massive ETB effect that can draw up to 7 cards by card type, (3) the 'reveal' template for library manipulation, (4) how 7-mana creatures need to be game-ending to justify their cost. Four colors but notably missing red, reflected in no haste or damage abilities. Each keyword maps to a color: flying (U/W), vigilance (W), deathtouch (B), lifelink (W/B)."
+}

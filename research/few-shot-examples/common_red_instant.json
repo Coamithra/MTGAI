@@ -1,0 +1,16 @@
+{
+  "name": "Lightning Bolt",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "colors": ["R"],
+  "color_identity": ["R"],
+  "type_line": "Instant",
+  "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "common",
+  "layout": "normal",
+  "design_notes": "The gold standard for efficient red damage. 3 damage for 1 mana defines the absolute ceiling for common direct damage spells. Every red burn spell is evaluated against this benchmark. Teaches that red's identity is efficient, unconditional damage."
+}

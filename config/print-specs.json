@@ -1,0 +1,125 @@
+{
+  "print_service": {
+    "name": "makeplayingcards",
+    "url": "https://www.makeplayingcards.com",
+    "product": "Custom Game Cards (63 x 88mm)",
+    "product_page": "https://www.makeplayingcards.com/design/custom-blank-card.html",
+    "deck_sizes_available": [18, 36, 54, 72, 90, 108, 126, 144, 162, 180, 198, 216, 234, 396, 504, 612],
+    "notes": "Each card can have a unique front and back image. Deck sizes are max-per-deck (e.g., '234' means up to 234 cards). For ~280 cards, use a 396-card deck. For ~1100 cards, use two 612-card decks or split across multiple orders."
+  },
+  "dimensions": {
+    "card_width_mm": 63.0,
+    "card_height_mm": 88.0,
+    "total_width_mm": 69.0,
+    "total_height_mm": 94.0,
+    "bleed_mm": 3.0,
+    "safe_area_inset_mm": 3.0,
+    "corner_radius_mm": 3.0,
+    "notes": "MPC prints at 63x88mm (2.48x3.46 in). Standard MTG cards are 63.5x88.9mm (2.5x3.5 in). The difference is negligible in sleeves."
+  },
+  "resolution": {
+    "dpi": 300,
+    "canvas_width_px": 822,
+    "canvas_height_px": 1122,
+    "bleed_px": 36,
+    "safe_area_width_px": 750,
+    "safe_area_height_px": 1050,
+    "art_box_width_px": 661,
+    "art_box_height_px": 478,
+    "notes": "Canvas = 822x1122 at 300 DPI. Bleed = 36px each side. Safe area = 750x1050 (36px bleed + 36px safe margin = 72px removed from each dimension). Art box is the card illustration area within the MTG frame."
+  },
+  "color": {
+    "working_space": "sRGB",
+    "output_space": "sRGB",
+    "icc_profile": null,
+    "notes": "MPC accepts sRGB. No CMYK conversion needed on our end; MPC handles color management internally."
+  },
+  "file": {
+    "format": "png",
+    "accepted_formats": ["png", "jpg", "tiff", "pdf", "bmp", "gif", "eps"],
+    "max_size_mb": 5,
+    "naming_convention": "{set_code}_{collector_number:03d}_{card_name_slug}.png",
+    "notes": "PNG preferred for lossless quality. JPG acceptable if file size is a concern."
+  },
+  "card_stock": {
+    "code": "S33",
+    "name": "Superior Smooth (Black Core)",
+    "description": "Smooth finish, black core (blocks light), closest to real MTG card feel per r/mpcproxies community consensus.",
+    "alternatives": {
+      "S30": "Standard Smooth — same thickness as MTG cards, slightly lower print quality than S33, cheaper",
+      "S27": "Standard Smooth (economy) — budget option, still acceptable quality",
+      "M31": "Linen (Casino Quality) — textured feel, not like MTG cards but nice for prototypes"
+    },
+    "notes": "S33 is the gold standard for MTG proxies. S30 is a good budget alternative. Avoid M31 if you want MTG feel — it has a casino-card texture."
+  },
+  "card_back": {
+    "supports_custom_back": true,
+    "supports_different_backs": true,
+    "notes": "MPC supports different images for each card back. Select 'Different images' in the card backs step. When using MPC Autofill, card back assignment across entire order can be tricky — may need manual setup."
+  },
+  "upload_workflow": {
+    "method": "web_upload",
+    "steps": [
+      "Select 'Custom Game Cards' product on MPC website",
+      "Choose deck size (e.g., 396 for ~280 cards)",
+      "Select card stock (S33 recommended)",
+      "Under card fronts, select 'Different images'",
+      "Drag and drop card front images or use Upload button (batch upload supported, ~5-10 at a time for reliability)",
+      "Click 'Help me autofill images' to auto-assign uploaded images to card slots",
+      "Under card backs, select 'Different images' and upload backs in matching order",
+      "Review, select packaging, and checkout"
+    ],
+    "automation": {
+      "mpc_autofill": {
+        "url": "https://mpcfill.com/",
+        "github": "https://github.com/chilli-axe/mpc-autofill",
+        "description": "Community tool that automates the drag-and-drop upload process via browser automation. Exports project as XML and drives browser to fill MPC order. Primarily designed for proxy cards from community image databases, but can be adapted for custom images."
+      }
+    },
+    "notes": "For 280 custom cards, manual upload is feasible but tedious (expect 30-60 min). MPC Autofill can speed this up if adapted for local images."
+  },
+  "cost_estimates": {
+    "currency": "USD",
+    "last_updated": "2026-03",
+    "per_card_estimates": {
+      "small_deck_108": 0.31,
+      "medium_deck_234": 0.25,
+      "large_deck_612": 0.20
+    },
+    "draft_set_280_cards": {
+      "deck_size": 396,
+      "card_cost_estimate": 80.0,
+      "shipping_standard_estimate": 15.0,
+      "shipping_express_estimate": 30.0,
+      "subtotal_estimate": 95.0,
+      "vat_21_percent": 0.0,
+      "total_estimate": 95.0,
+      "notes": "VAT may not apply for standard shipping per MPC FAQ ('no import tax and customs duty issues for shipments to EU countries shipped via standard shipping method'). Estimate based on ~$0.20-0.25/card for 396-card deck with S33 stock."
+    },
+    "full_playset_1100_cards": {
+      "deck_configuration": "2x 612-card decks (1224 card slots, ~1100 used)",
+      "card_cost_estimate": 230.0,
+      "shipping_standard_estimate": 25.0,
+      "shipping_express_estimate": 50.0,
+      "subtotal_estimate": 255.0,
+      "vat_21_percent": 0.0,
+      "total_estimate": 255.0,
+      "notes": "Based on community report of $130 for 640 cards shipped (~$0.20/card). Two 612-card decks at ~$115 each. Standard shipping to NL likely avoids VAT per MPC policy."
+    },
+    "test_batch_20_cards": {
+      "deck_size": 36,
+      "card_cost_estimate": 15.0,
+      "shipping_standard_estimate": 10.0,
+      "total_estimate": 25.0,
+      "notes": "Small test order to validate print quality and color accuracy before committing to full set."
+    },
+    "delivery_times": {
+      "standard": "8-10 business days (3 days processing + 5-7 days transit)",
+      "express": "5-6 business days (3 days processing + 2-3 days transit)",
+      "remote_area_add": "3-5 additional days"
+    },
+    "vat_rate": 0.21,
+    "vat_notes": "Netherlands VAT is 21%. MPC FAQ states 'no import tax and customs duty issues for EU shipments via standard shipping.' This likely means MPC handles IOSS (Import One-Stop Shop) for EU orders under EUR 150, or ships from an EU warehouse for standard orders. Confirm at checkout.",
+    "coupon_notes": "MPC frequently offers discount coupons (5-15% off). Check makeplayingcards.com/coupons.aspx before ordering."
+  }
+}

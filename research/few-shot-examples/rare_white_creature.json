@@ -1,0 +1,16 @@
+{
+  "name": "Monastery Mentor",
+  "mana_cost": "{2}{W}",
+  "cmc": 3.0,
+  "colors": ["W"],
+  "color_identity": ["W"],
+  "type_line": "Creature — Human Monk",
+  "oracle_text": "Prowess\nWhenever you cast a noncreature spell, create a 1/1 white Monk creature token with prowess.",
+  "flavor_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "rarity": "rare",
+  "layout": "normal",
+  "design_notes": "A rare creature that generates value over time. Demonstrates the 'build-around' design pattern: rewards you for casting noncreature spells with token generation. The tokens also have prowess, creating exponential scaling. Shows how rares can have more complex triggered abilities than commons/uncommons. The 2/2 body for 3 mana is below rate, but the upside potential is enormous."
+}

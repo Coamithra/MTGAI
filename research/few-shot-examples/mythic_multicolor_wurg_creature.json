@@ -1,0 +1,16 @@
+{
+  "name": "Omnath, Locus of Creation",
+  "mana_cost": "{R}{G}{W}{U}",
+  "cmc": 4.0,
+  "colors": ["R", "G", "W", "U"],
+  "color_identity": ["R", "G", "W", "U"],
+  "type_line": "Legendary Creature — Elemental",
+  "oracle_text": "When Omnath, Locus of Creation enters the battlefield, draw a card.\nLandfall — Whenever a land enters the battlefield under your control, you gain 4 life if this is the first time this ability has resolved this turn. If it's the second time, add {R}{G}{W}{U}. If it's the third time, Omnath deals 4 damage to each opponent and each planeswalker you don't control.",
+  "flavor_text": null,
+  "power": "4",
+  "toughness": "4",
+  "loyalty": null,
+  "rarity": "mythic",
+  "layout": "normal",
+  "design_notes": "A 4-color mythic legendary creature demonstrating maximum color complexity. Shows: (1) four colors in mana cost with no generic mana — extreme color commitment, (2) ETB draw smooths the investment, (3) Landfall is a named ability word (italicized reminder), (4) escalating triggered ability that tracks resolution count within a turn — very complex but mythic-appropriate. Each Landfall tier maps to a color's identity: lifegain (W), mana (all four), damage (R). Peak mythic complexity."
+}

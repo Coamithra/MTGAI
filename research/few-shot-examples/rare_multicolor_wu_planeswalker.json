@@ -1,0 +1,16 @@
+{
+  "name": "Teferi, Time Raveler",
+  "mana_cost": "{1}{W}{U}",
+  "cmc": 3.0,
+  "colors": ["W", "U"],
+  "color_identity": ["W", "U"],
+  "type_line": "Legendary Planeswalker — Teferi",
+  "oracle_text": "Each opponent can cast spells only any time they could cast a sorcery.\n+1: Until your next turn, you may cast sorcery spells as though they had flash.\n\u22123: Return up to one target artifact, creature, or enchantment to its owner's hand. Draw a card.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": "4",
+  "rarity": "rare",
+  "layout": "normal",
+  "design_notes": "A 3-mana planeswalker demonstrating several key patterns: (1) planeswalkers have loyalty instead of power/toughness, (2) abilities are formatted as +N/-N: effect, (3) static abilities on planeswalkers appear before loyalty abilities, (4) the 'Legendary' supertype and 'Planeswalker — Teferi' subtype show naming conventions. The asymmetric static ability (restricting opponents but not you) is a hallmark of powerful planeswalker design."
+}

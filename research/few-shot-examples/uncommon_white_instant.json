@@ -1,0 +1,16 @@
+{
+  "name": "Swords to Plowshares",
+  "mana_cost": "{W}",
+  "cmc": 1.0,
+  "colors": ["W"],
+  "color_identity": ["W"],
+  "type_line": "Instant",
+  "oracle_text": "Exile target creature. Its controller gains life equal to its power.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "uncommon",
+  "layout": "normal",
+  "design_notes": "The most efficient creature removal in the game. Exile (not destroy) for just 1 white mana, with a drawback that gives the opponent life. Demonstrates white's design philosophy: powerful answers that come with a compensating benefit to the opponent. The exile clause prevents graveyard recursion, showing how removal quality varies."
+}

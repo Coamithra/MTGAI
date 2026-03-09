@@ -1,0 +1,16 @@
+{
+  "name": "Hinterland Harbor",
+  "mana_cost": null,
+  "cmc": 0.0,
+  "colors": [],
+  "color_identity": ["U", "G"],
+  "type_line": "Land",
+  "oracle_text": "Hinterland Harbor enters the battlefield tapped unless you control a Forest or an Island.\n{T}: Add {G} or {U}.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "rare",
+  "layout": "normal",
+  "design_notes": "A check land (conditional dual land) demonstrating another dual land pattern: (1) enters untapped conditionally based on controlling specific basic land types, (2) rewards consistent mana bases that include basics, (3) the 'unless' template is the standard way to write conditional ETB tapped effects. Comparing this to Temple of Malice shows how rarity correlates with power — this can enter untapped (rare) while the Temple always enters tapped (uncommon)."
+}

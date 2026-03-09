@@ -1,0 +1,167 @@
+[
+  {
+    "model": "claude-sonnet-4-20250514",
+    "model_label": "Claude Sonnet",
+    "provider": "anthropic",
+    "card_name": "Sentinel of Dawn",
+    "art_prompt": "A majestic angel warrior in gleaming white and gold armor stands atop a stone watchtower at dawn, massive feathered wings spread wide against the rising sun. The angel holds a radiant spear and wears a helm with flowing plumes. Below, two human soldiers in white tabards kneel in reverence, their weapons gleaming in the golden morning light. The scene is bathed in warm sunrise colors - brilliant golds, soft oranges, and pure whites. Dramatic rays of sunlight pierce through clouds behind the angel, creating a divine atmosphere. The composition places the angel prominently in the upper portion, with the soldiers positioned in the lower foreground. Fantasy card game art style, detailed digital painting with sharp details and luminous effects. Aspect ratio approximately 3:2. No text, no words, no letters, no watermark.",
+    "art_description": "A divine angel warrior with spread wings stands on a tower at dawn, overlooking two kneeling soldiers bathed in golden sunlight.",
+    "input_tokens": 280,
+    "output_tokens": 235,
+    "latency_s": 5.9
+  },
+  {
+    "model": "claude-sonnet-4-20250514",
+    "model_label": "Claude Sonnet",
+    "provider": "anthropic",
+    "card_name": "Arcane Dissolution",
+    "art_prompt": "A powerful wizard with flowing blue robes stands with arms outstretched, magical energy swirling around their hands as they counter an incoming spell. Arcane symbols and runes dissolve into sparkling blue particles in the air around them. The background shows a mystical library or tower interior with floating books and scrolls. Ethereal blue and silver light emanates from the wizard's magic, creating dramatic lighting that illuminates ancient tomes and magical artifacts. The scene captures the moment of spell interruption, with wisps of dissolved magic fading into the atmosphere. The color palette emphasizes deep blues, silver, and white magical energy against darker stone backgrounds. Fantasy card game art style, detailed digital painting. Aspect ratio approximately 3:2. No text, no words, no letters, no watermark.",
+    "art_description": "A blue-robed wizard countering a spell with dissolving magical energy and arcane symbols swirling around them in a mystical library setting.",
+    "input_tokens": 257,
+    "output_tokens": 227,
+    "latency_s": 6.28
+  },
+  {
+    "model": "claude-sonnet-4-20250514",
+    "model_label": "Claude Sonnet",
+    "provider": "anthropic",
+    "card_name": "Pyroclastic Surge",
+    "art_prompt": "A devastating volcanic eruption unleashing a massive pyroclastic flow across a mountainous landscape, with superheated ash and debris cascading down rocky slopes in a deadly avalanche of molten rock and gas. The scene captures the moment of explosive impact as the surge engulfs everything in its path - ancient stone structures, twisted trees, and fleeing creatures are consumed by the roiling cloud of destruction. Dramatic lighting with intense oranges, deep reds, and blazing yellows contrasting against dark volcanic ash and smoke. The composition shows the surge from a dynamic angle, emphasizing its overwhelming scale and unstoppable force. Fantasy card game art style, detailed digital painting with cinematic lighting and atmospheric perspective. The mood is catastrophic and awe-inspiring, showcasing raw elemental power. Aspect ratio approximately 3:2. No text, no words, no letters, no watermark.",
+    "art_description": "A catastrophic volcanic pyroclastic surge devastating a landscape with molten debris and superheated gas clouds.",
+    "input_tokens": 270,
+    "output_tokens": 236,
+    "latency_s": 6.28
+  },
+  {
+    "model": "claude-sonnet-4-20250514",
+    "model_label": "Claude Sonnet",
+    "provider": "anthropic",
+    "card_name": "Mossback Titan",
+    "art_prompt": "A colossal ancient beast emerging from a primordial forest, its massive form covered in thick moss, ferns, and small trees growing directly from its rocky hide. The creature has a turtle-like shell merged with stone and earth, with glowing green veins of natural magic pulsing through the moss. Ancient oaks and twisted roots sprout from its back, creating a living ecosystem. The titan's eyes glow with emerald light as it tramples through a misty woodland clearing, leaving deep footprints that instantly bloom with new plant life. Dappled sunlight filters through the canopy above, casting dramatic shadows and highlighting the creature's immense scale. Rich greens, earthy browns, and golden sunbeams dominate the color palette. Fantasy card game art style, detailed digital painting. Aspect ratio 3:2. No text, no words, no letters, no watermark.",
+    "art_description": "A massive moss-covered beast titan with trees and vegetation growing from its rocky shell, striding through an ancient forest.",
+    "input_tokens": 294,
+    "output_tokens": 242,
+    "latency_s": 8.25
+  },
+  {
+    "model": "claude-sonnet-4-20250514",
+    "model_label": "Claude Sonnet",
+    "provider": "anthropic",
+    "card_name": "Twilight Expanse",
+    "art_prompt": "A vast, ethereal landscape at the boundary between day and night, where rolling hills stretch toward a horizon split between golden sunset and deep purple twilight. Ancient stone monoliths emerge from misty grasslands, their surfaces carved with faint runes that glow softly with white and black energy. Wispy clouds drift across a sky painted in gradients of amber, violet, and deep indigo. In the foreground, crystalline formations jut from the earth, some radiating pure white light while others pulse with shadowy darkness. The scene captures the liminal moment between light and shadow, with gentle atmospheric perspective creating depth. Soft, diffused lighting creates a mystical, contemplative mood. Fantasy card game art style, detailed digital painting. No text, no words, no letters, no watermark. Aspect ratio approximately 3:2.",
+    "art_description": "A mystical twilight landscape where light and shadow meet, featuring ancient monoliths and crystal formations that channel both white and black magical energy.",
+    "input_tokens": 248,
+    "output_tokens": 234,
+    "latency_s": 5.88
+  },
+  {
+    "model": "claude-haiku-4-5-20251001",
+    "model_label": "Claude Haiku",
+    "provider": "anthropic",
+    "card_name": "Sentinel of Dawn",
+    "art_prompt": "A majestic white-winged angel warrior stands at the crest of a golden dawn, radiating divine light. She wears gleaming plate armor adorned with celestial symbols, holding a luminous sword pointed skyward. Two smaller angelic soldiers materialize beside her in bursts of holy radiance. The background shows a breaking sunrise with warm golden and pale yellow hues bleeding across a purple-blue sky, with clouds illuminated from within. Ethereal light rays stream downward around the figures. The composition is dynamic and heroic, with the sentinel positioned centrally and slightly elevated. Fantasy card game art style, detailed digital painting. Aspect ratio approximately 3:2, wider than tall. No text, no words, no letters, no watermark.",
+    "art_description": "A radiant angel warrior in golden armor summons divine soldiers as dawn breaks across the sky.",
+    "input_tokens": 280,
+    "output_tokens": 206,
+    "latency_s": 2.9
+  },
+  {
+    "model": "claude-haiku-4-5-20251001",
+    "model_label": "Claude Haiku",
+    "provider": "anthropic",
+    "card_name": "Arcane Dissolution",
+    "art_prompt": "A swirling vortex of ethereal blue and purple magical energy dissolving an incoming spell mid-cast, with shimmering arcane runes fragmenting into wisps of light. The composition shows a magical barrier or shield of crystalline energy dispersing an enemy's attack. Mystical sparkles and flowing ribbons of mana cascade outward from the center point of impact. The background features a subtle cosmic or magical landscape with soft glowing elements. The mood is one of precise magical control and arcane mastery. Use cool blue and purple tones with hints of white and silver highlights. Fantasy card game art style, detailed digital painting, no text, no words, no letters, no watermark. Aspect ratio approximately 3:2.",
+    "art_description": "Ethereal blue magical energy swirls and dissolves an incoming spell in a cascade of arcane light and crystalline barriers.",
+    "input_tokens": 257,
+    "output_tokens": 211,
+    "latency_s": 2.51
+  },
+  {
+    "model": "claude-haiku-4-5-20251001",
+    "model_label": "Claude Haiku",
+    "provider": "anthropic",
+    "card_name": "Pyroclastic Surge",
+    "art_prompt": "A catastrophic explosion of molten lava and superheated flames erupting across a battlefield, engulfing everything in its path. Massive waves of pyroclastic fire surge outward from a central volcanic rupture, with intense orange, red, and yellow flames consuming the landscape. Multiple creatures and figures are caught in the devastating inferno, their silhouettes barely visible through the roiling heat and smoke. The ground cracks and glows with magma beneath the surface. Ash and embers swirl through the air in a chaotic maelstrom. The lighting is dominated by the intense glow of the volcanic explosion, casting dramatic shadows and highlighting the raw destructive power. The mood is apocalyptic and terrifying, emphasizing overwhelming magical devastation. Wide composition showing the scale of destruction across a broad area. Fantasy card game art style, detailed digital painting. No text, no words, no letters, no watermark. Aspect ratio approximately 3:2.",
+    "art_description": "A catastrophic pyroclastic explosion of molten lava and superheated flames engulfing a battlefield and destroying all creatures in its wake.",
+    "input_tokens": 270,
+    "output_tokens": 261,
+    "latency_s": 3.19
+  },
+  {
+    "model": "claude-haiku-4-5-20251001",
+    "model_label": "Claude Haiku",
+    "provider": "anthropic",
+    "card_name": "Mossback Titan",
+    "art_prompt": "A colossal moss-covered beast emerges from an ancient forest, its massive body composed of living stone and verdant vegetation. The creature's back is a sprawling landscape of bioluminescent moss, twisted roots, and crystalline growths that glow with emerald and jade light. Towering trees and lush ferns surround it, their roots intertwining with the titan's limbs. The composition emphasizes the creature's immense scale and primal power, with dynamic perspective showing it dominating the landscape. Dappled sunlight filters through the canopy, casting intricate shadows across weathered stone and glowing flora. The color palette features deep forest greens, earthy browns, luminous jade accents, and natural stone grays. The mood is ancient, powerful, and deeply connected to nature. Fantasy card game art style, detailed digital painting. No text, no words, no letters, no watermark. Aspect ratio approximately 3:2.",
+    "art_description": "A massive stone and moss-covered beast towers above an ancient forest, its back a glowing landscape of vegetation and crystalline growths.",
+    "input_tokens": 294,
+    "output_tokens": 261,
+    "latency_s": 2.93
+  },
+  {
+    "model": "claude-haiku-4-5-20251001",
+    "model_label": "Claude Haiku",
+    "provider": "anthropic",
+    "card_name": "Twilight Expanse",
+    "art_prompt": "A vast, ethereal landscape suspended between day and night, where a luminous twilight sky dominates the composition. The scene depicts a sprawling realm divided by a subtle horizon line\u2014warm golden and amber tones bleeding into deep indigo and violet hues. Massive crystalline formations and floating islands emerge from mist-shrouded terrain below, catching the transitional light. Delicate wisps of magical energy drift through the air, creating an atmosphere of balance between opposing forces. The foreground features intricate magical geometry and arcane symbols subtly woven into the landscape. Soft, diffused lighting creates an otherworldly glow. Fantasy card game art style, detailed digital painting. No text, no words, no letters, no watermark. Aspect ratio 3:2.",
+    "art_description": "A breathtaking twilight realm suspended between opposing forces, with crystalline formations and magical energy floating in an ethereal landscape.",
+    "input_tokens": 248,
+    "output_tokens": 219,
+    "latency_s": 2.46
+  },
+  {
+    "model": "gpt-4o-mini",
+    "model_label": "GPT-4o-mini",
+    "provider": "openai",
+    "card_name": "Sentinel of Dawn",
+    "art_prompt": "A majestic Angel Soldier, the Sentinel of Dawn, gracefully descends from a radiant sky, her wings outstretched, shimmering with golden light. She is adorned in intricate silver armor that reflects the morning sun, with ethereal feathers catching the light. Below her, two small, valiant white Soldier tokens stand at attention, their expressions filled with determination. The background features a breathtaking sunrise, casting warm hues of orange and pink across the clouds, contrasting with the cool blues of the sky. The composition should emphasize the angel's grandeur, with the soldiers appearing small yet heroic. The mood is uplifting and inspiring, evoking a sense of hope and protection. Use a vibrant color palette with whites, golds, and soft pastels. Fantasy card game art style, detailed digital painting. No text, no words, no letters, no watermark. Aspect ratio approximately 3:2.",
+    "art_description": "The art depicts the Sentinel of Dawn, a majestic Angel Soldier, soaring above two brave white Soldier tokens under a radiant sunrise.",
+    "input_tokens": 247,
+    "output_tokens": 217,
+    "latency_s": 5.12
+  },
+  {
+    "model": "gpt-4o-mini",
+    "model_label": "GPT-4o-mini",
+    "provider": "openai",
+    "card_name": "Arcane Dissolution",
+    "art_prompt": "A mystical scene depicting a powerful sorceress casting a shimmering spell of counter magic. She stands confidently at the center of a swirling vortex of arcane energy, her hands raised as ethereal blue and violet light radiates from her fingertips. The background features a stormy sky filled with swirling clouds and flashes of lightning, enhancing the tension and drama of the moment. The foreground is filled with glowing runes and intricate sigils floating around her, representing the spell\u2019s energy. The overall mood is intense and focused, with a color palette dominated by deep blues, purples, and silvers, evoking a sense of mystery and magic. The scene is rendered in a fantasy card game art style, detailed digital painting. No text, no words, no letters, no watermark. Aspect ratio approximately 3:2.",
+    "art_description": "A sorceress conjures a counter spell amidst a whirlwind of arcane energy and stormy skies.",
+    "input_tokens": 230,
+    "output_tokens": 199,
+    "latency_s": 4.45
+  },
+  {
+    "model": "gpt-4o-mini",
+    "model_label": "GPT-4o-mini",
+    "provider": "openai",
+    "card_name": "Pyroclastic Surge",
+    "art_prompt": "A dramatic scene of a powerful volcanic eruption unleashing a fiery surge across a battlefield. In the foreground, molten lava and ash swirl in chaotic patterns, with flames licking the air. Silhouettes of creatures and planeswalkers caught in the surge are depicted in mid-reaction, their forms obscured by smoke and fire. The sky is filled with dark, ominous clouds illuminated by bursts of fiery orange and red, creating a stark contrast against the darker tones of the landscape. The composition should evoke a sense of destruction and urgency, capturing the raw power of fire and earth in a fantasy card game art style, detailed digital painting. No text, no words, no letters, no watermark. Aspect ratio approximately 3:2.",
+    "art_description": "The art depicts a catastrophic volcanic eruption engulfing creatures and planeswalkers in a fiery surge.",
+    "input_tokens": 239,
+    "output_tokens": 180,
+    "latency_s": 4.68
+  },
+  {
+    "model": "gpt-4o-mini",
+    "model_label": "GPT-4o-mini",
+    "provider": "openai",
+    "card_name": "Mossback Titan",
+    "art_prompt": "Create a majestic scene featuring a colossal Mossback Titan, a mythical beast resembling a giant, moss-covered creature with thick, gnarled limbs and vibrant green foliage. The Titan stands proudly in a lush, verdant forest, surrounded by towering ancient trees and a carpet of soft moss. Sunlight filters through the canopy, casting dappled shadows on the ground and illuminating the Titan's intricate textures. The composition should emphasize the creature's size and strength, with a dynamic pose that conveys its trample ability. The color palette should consist of rich greens, earthy browns, and hints of golden sunlight, evoking a sense of magic and vitality. The overall mood should be awe-inspiring and enchanting, capturing the essence of a powerful guardian of the forest. No text, no words, no letters, no watermark. Fantasy card game art style, detailed digital painting. Aspect ratio approximately 3:2.",
+    "art_description": "A colossal Mossback Titan stands in a lush forest, surrounded by ancient trees and illuminated by dappled sunlight.",
+    "input_tokens": 259,
+    "output_tokens": 219,
+    "latency_s": 4.38
+  },
+  {
+    "model": "gpt-4o-mini",
+    "model_label": "GPT-4o-mini",
+    "provider": "openai",
+    "card_name": "Twilight Expanse",
+    "art_prompt": "Create a breathtaking landscape of the Twilight Expanse, a mystical land at dusk. The scene should feature a vast expanse of rolling hills and a shimmering lake reflecting the vibrant hues of twilight, with deep purples, soft blues, and hints of warm oranges and pinks in the sky. Silhouettes of ancient trees with twisted branches frame the lake, while ethereal wisps of fog gently rise from the water's surface. In the foreground, a winding path leads toward the horizon, inviting the viewer to explore this enchanting realm. The overall composition should evoke a sense of tranquility and mystery, with soft, diffused lighting casting gentle shadows. Use a fantasy card game art style, detailed digital painting. No text, no words, no letters, no watermark. Aspect ratio approximately 3:2 (wider than tall).",
+    "art_description": "The art depicts a serene twilight landscape with rolling hills, a shimmering lake, and ancient trees, capturing the mystical essence of the Twilight Expanse.",
+    "input_tokens": 228,
+    "output_tokens": 212,
+    "latency_s": 4.5
+  }
+]

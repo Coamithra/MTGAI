@@ -1,0 +1,454 @@
+[
+  {
+    "batch_size": 1,
+    "success": true,
+    "num_cards_returned": 1,
+    "valid_cards": 1,
+    "cards_with_issues": 0,
+    "input_tokens": 2329,
+    "output_tokens": 392,
+    "total_tokens": 2721,
+    "cost_usd": 0.012867,
+    "cost_per_card_usd": 0.012867,
+    "tokens_per_card": 2721.0,
+    "input_tokens_per_card": 2329.0,
+    "output_tokens_per_card": 392.0,
+    "latency_total_s": 9.31,
+    "latency_per_card_s": 9.31,
+    "parse_error": null,
+    "validation_issues": [],
+    "quality_notes": [],
+    "cards": [
+      {
+        "name": "Thornback Herbalist",
+        "mana_cost": "{1}{G}",
+        "cmc": 2,
+        "colors": [
+          "G"
+        ],
+        "color_identity": [
+          "G"
+        ],
+        "type_line": "Creature — Elf Druid",
+        "oracle_text": "When ~ enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "flavor_text": "Every root knows the path to water, every leaf the way to light.",
+        "power": "1",
+        "toughness": "2",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "A simple green common that provides utility through land searching, which is core to green's color pie. The 1/2 body for 2 mana is slightly below rate, which is appropriate given the enters-the-battlefield value. This supports green's ramp strategy while being simple enough for common. The optional nature prevents it from being mandatory deck thinning in competitive formats."
+      }
+    ]
+  },
+  {
+    "batch_size": 3,
+    "success": true,
+    "num_cards_returned": 3,
+    "valid_cards": 3,
+    "cards_with_issues": 0,
+    "input_tokens": 2402,
+    "output_tokens": 710,
+    "total_tokens": 3112,
+    "cost_usd": 0.017856,
+    "cost_per_card_usd": 0.005952,
+    "tokens_per_card": 1037.3,
+    "input_tokens_per_card": 800.7,
+    "output_tokens_per_card": 236.7,
+    "latency_total_s": 11.88,
+    "latency_per_card_s": 3.96,
+    "parse_error": null,
+    "validation_issues": [],
+    "quality_notes": [],
+    "cards": [
+      {
+        "name": "Temple Guardian",
+        "mana_cost": "{1}{W}",
+        "cmc": 2,
+        "colors": [
+          "W"
+        ],
+        "color_identity": [
+          "W"
+        ],
+        "type_line": "Creature — Human Cleric",
+        "oracle_text": "Vigilance",
+        "flavor_text": "\"The faithful need not fear the darkness, for I stand watch through the longest nights.\"",
+        "power": "2",
+        "toughness": "1",
+        "loyalty": null,
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Simple white common with vigilance. Stats are 2/1 for 2 mana, which is fair for a creature with an evergreen keyword. Vigilance fits white's theme of protection and defense, and the Cleric type supports tribal synergies."
+      },
+      {
+        "name": "Ember Striker",
+        "mana_cost": "{2}{R}",
+        "cmc": 3,
+        "colors": [
+          "R"
+        ],
+        "color_identity": [
+          "R"
+        ],
+        "type_line": "Creature — Goblin Warrior",
+        "oracle_text": "Haste\nWhen ~ enters, ~ deals 1 damage to any target.",
+        "flavor_text": "Strike first, ask questions while running away.",
+        "power": "2",
+        "toughness": "2",
+        "loyalty": null,
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Red common with haste and a small damage trigger on entry. 2/2 for 3 mana with upside is appropriate for common. The damage effect is very red and provides immediate board impact. Goblin Warrior fits red's aggressive tribal themes."
+      },
+      {
+        "name": "Tidepool Scholar",
+        "mana_cost": "{1}{U}",
+        "cmc": 2,
+        "colors": [
+          "U"
+        ],
+        "color_identity": [
+          "U"
+        ],
+        "type_line": "Creature — Merfolk Wizard",
+        "oracle_text": "When ~ enters, scry 1.",
+        "flavor_text": "Every ripple in the water tells a story to those who know how to listen.",
+        "power": "1",
+        "toughness": "3",
+        "loyalty": null,
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Blue common with defensive stats and card selection. 1/3 for 2 mana with scry 1 provides value without being overpowered. Scry is a blue evergreen ability that fits the scholar theme. The defensive statline is appropriate for blue creatures at common."
+      }
+    ]
+  },
+  {
+    "batch_size": 5,
+    "success": true,
+    "num_cards_returned": 5,
+    "valid_cards": 5,
+    "cards_with_issues": 0,
+    "input_tokens": 2392,
+    "output_tokens": 1067,
+    "total_tokens": 3459,
+    "cost_usd": 0.023181,
+    "cost_per_card_usd": 0.004636,
+    "tokens_per_card": 691.8,
+    "input_tokens_per_card": 478.4,
+    "output_tokens_per_card": 213.4,
+    "latency_total_s": 17.35,
+    "latency_per_card_s": 3.47,
+    "parse_error": null,
+    "validation_issues": [],
+    "quality_notes": [],
+    "cards": [
+      {
+        "name": "Steadfast Sentinel",
+        "mana_cost": "{1}{W}",
+        "cmc": 2,
+        "colors": [
+          "W"
+        ],
+        "color_identity": [
+          "W"
+        ],
+        "type_line": "Creature — Human Soldier",
+        "oracle_text": "Vigilance",
+        "flavor_text": "\"My watch does not end with the setting sun.\"",
+        "power": "2",
+        "toughness": "1",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Simple white common with vigilance. 2/1 for 2 mana with upside is appropriate for common white creatures. Vigilance fits white's defensive nature while allowing aggressive play."
+      },
+      {
+        "name": "Tidecaller Apprentice",
+        "mana_cost": "{2}{U}",
+        "cmc": 3,
+        "colors": [
+          "U"
+        ],
+        "color_identity": [
+          "U"
+        ],
+        "type_line": "Creature — Merfolk Wizard",
+        "oracle_text": "When ~ enters, scry 1.",
+        "flavor_text": "The first lesson is learning to listen to the whispers of the waves.",
+        "power": "2",
+        "toughness": "2",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Blue common with card selection. 2/2 for 3 with scry 1 is a fair rate for common. Scry fits blue's information advantage philosophy and provides minor value without being too complex."
+      },
+      {
+        "name": "Crypt Lurker",
+        "mana_cost": "{2}{B}{B}",
+        "cmc": 4,
+        "colors": [
+          "B"
+        ],
+        "color_identity": [
+          "B"
+        ],
+        "type_line": "Creature — Zombie",
+        "oracle_text": "Deathtouch",
+        "flavor_text": "It remembers only hunger and the taste of fear.",
+        "power": "3",
+        "toughness": "2",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Black common with deathtouch. 3/2 deathtouch for 4 mana is appropriately costed for common. The double black requirement makes it more committed to black strategies. Deathtouch is quintessentially black and creates interesting combat decisions."
+      },
+      {
+        "name": "Emberhorn Raider",
+        "mana_cost": "{1}{R}{R}",
+        "cmc": 3,
+        "colors": [
+          "R"
+        ],
+        "color_identity": [
+          "R"
+        ],
+        "type_line": "Creature — Minotaur Warrior",
+        "oracle_text": "Haste",
+        "flavor_text": "The sound of thundering hooves is the last thing many enemies hear.",
+        "power": "3",
+        "toughness": "1",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Red common with haste. 3/1 haste for 3 mana with double red requirement fits red's aggressive philosophy. Glass cannon design with high power but low toughness, typical of red creatures. Haste enables immediate pressure."
+      },
+      {
+        "name": "Thornwood Guardian",
+        "mana_cost": "{3}{G}",
+        "cmc": 4,
+        "colors": [
+          "G"
+        ],
+        "color_identity": [
+          "G"
+        ],
+        "type_line": "Creature — Treefolk",
+        "oracle_text": "Reach",
+        "flavor_text": "The ancient groves have their own ways of dealing with unwelcome visitors.",
+        "power": "2",
+        "toughness": "5",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Green common with reach. 2/5 reach for 4 mana is a defensive creature that can block flyers, fitting green's anti-flying philosophy. High toughness over power reflects green's ability to create durable creatures. Good defensive option for green decks."
+      }
+    ]
+  },
+  {
+    "batch_size": 10,
+    "success": true,
+    "num_cards_returned": 10,
+    "valid_cards": 10,
+    "cards_with_issues": 0,
+    "input_tokens": 2394,
+    "output_tokens": 1950,
+    "total_tokens": 4344,
+    "cost_usd": 0.036432,
+    "cost_per_card_usd": 0.003643,
+    "tokens_per_card": 434.4,
+    "input_tokens_per_card": 239.4,
+    "output_tokens_per_card": 195.0,
+    "latency_total_s": 29.52,
+    "latency_per_card_s": 2.95,
+    "parse_error": null,
+    "validation_issues": [],
+    "quality_notes": [],
+    "cards": [
+      {
+        "name": "Steadfast Squire",
+        "mana_cost": "{1}{W}",
+        "cmc": 2,
+        "colors": [
+          "W"
+        ],
+        "color_identity": [
+          "W"
+        ],
+        "type_line": "Creature — Human Soldier",
+        "oracle_text": "Vigilance",
+        "flavor_text": "\"My watch begins at dawn and ends at dawn.\"",
+        "power": "2",
+        "toughness": "1",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Simple white aggressive creature with vigilance. 2/1 for 2 mana is fair stats with the upside of attacking without tapping."
+      },
+      {
+        "name": "Temple Guardian",
+        "mana_cost": "{3}{W}",
+        "cmc": 4,
+        "colors": [
+          "W"
+        ],
+        "color_identity": [
+          "W"
+        ],
+        "type_line": "Creature — Human Cleric",
+        "oracle_text": "When ~ enters, you gain 2 life.",
+        "flavor_text": "The sacred halls have never known violence while she stands watch.",
+        "power": "2",
+        "toughness": "4",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Defensive white creature with lifegain ETB. 2/4 body is good for blocking, and the lifegain provides incremental value typical of white commons."
+      },
+      {
+        "name": "Tide Pool Scholar",
+        "mana_cost": "{1}{U}",
+        "cmc": 2,
+        "colors": [
+          "U"
+        ],
+        "color_identity": [
+          "U"
+        ],
+        "type_line": "Creature — Merfolk Wizard",
+        "oracle_text": "When ~ enters, scry 1.",
+        "flavor_text": "Every ripple in the water tells a story to those who know how to read it.",
+        "power": "1",
+        "toughness": "2",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Blue creature with card selection. 1/2 for 2 is below rate but scry 1 provides value. Fits blue's philosophy of information and preparation."
+      },
+      {
+        "name": "Stormcrest Sailor",
+        "mana_cost": "{2}{U}",
+        "cmc": 3,
+        "colors": [
+          "U"
+        ],
+        "color_identity": [
+          "U"
+        ],
+        "type_line": "Creature — Human Pirate",
+        "oracle_text": "Flying",
+        "flavor_text": "\"The higher the mast, the farther you can see trouble coming.\"",
+        "power": "2",
+        "toughness": "2",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Vanilla flying creature for blue. 2/2 flying for 3 mana is the standard rate for common flyers. Clean and simple design."
+      },
+      {
+        "name": "Crypt Lurker",
+        "mana_cost": "{B}",
+        "cmc": 1,
+        "colors": [
+          "B"
+        ],
+        "color_identity": [
+          "B"
+        ],
+        "type_line": "Creature — Zombie",
+        "oracle_text": "Deathtouch",
+        "flavor_text": "It remembers only hunger and the way flesh tears.",
+        "power": "1",
+        "toughness": "1",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Aggressive 1-mana creature with deathtouch. 1/1 deathtouch for 1 mana is fair - trades with any creature but dies to most removal."
+      },
+      {
+        "name": "Bone Collector",
+        "mana_cost": "{2}{B}",
+        "cmc": 3,
+        "colors": [
+          "B"
+        ],
+        "color_identity": [
+          "B"
+        ],
+        "type_line": "Creature — Human Warlock",
+        "oracle_text": "When ~ enters, target opponent discards a card.",
+        "flavor_text": "\"The dead have such interesting stories to tell.\"",
+        "power": "2",
+        "toughness": "2",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Black creature with discard effect. 2/2 for 3 is below rate but the ETB provides card advantage, fitting black's disruptive nature."
+      },
+      {
+        "name": "Emberkin Warrior",
+        "mana_cost": "{R}",
+        "cmc": 1,
+        "colors": [
+          "R"
+        ],
+        "color_identity": [
+          "R"
+        ],
+        "type_line": "Creature — Elemental Warrior",
+        "oracle_text": "Haste",
+        "flavor_text": "Born from the mountain's fury, it knows only the need to charge.",
+        "power": "2",
+        "toughness": "1",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Aggressive red 1-drop with haste. 2/1 haste for 1 mana is the classic red aggressive creature template - immediate pressure but fragile."
+      },
+      {
+        "name": "Forge Apprentice",
+        "mana_cost": "{2}{R}",
+        "cmc": 3,
+        "colors": [
+          "R"
+        ],
+        "color_identity": [
+          "R"
+        ],
+        "type_line": "Creature — Goblin Artificer",
+        "oracle_text": "When ~ enters, ~ deals 1 damage to any target.",
+        "flavor_text": "\"Oops\" is the most common word in any goblin workshop.",
+        "power": "2",
+        "toughness": "2",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Red creature with direct damage ETB. 2/2 for 3 with 1 damage to any target provides immediate board impact, fitting red's aggressive and direct nature."
+      },
+      {
+        "name": "Rootbound Tracker",
+        "mana_cost": "{1}{G}",
+        "cmc": 2,
+        "colors": [
+          "G"
+        ],
+        "color_identity": [
+          "G"
+        ],
+        "type_line": "Creature — Elf Scout",
+        "oracle_text": "Reach",
+        "flavor_text": "The canopy is her domain, and nothing passes through unnoticed.",
+        "power": "2",
+        "toughness": "2",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Solid green creature with reach. 2/2 reach for 2 mana is slightly above rate, giving green good defensive utility against flyers while maintaining board presence."
+      },
+      {
+        "name": "Ironwood Behemoth",
+        "mana_cost": "{3}{G}",
+        "cmc": 4,
+        "colors": [
+          "G"
+        ],
+        "color_identity": [
+          "G"
+        ],
+        "type_line": "Creature — Beast",
+        "oracle_text": "Trample",
+        "flavor_text": "When ancient trees take root in its hide, it becomes a living forest.",
+        "power": "4",
+        "toughness": "3",
+        "rarity": "common",
+        "layout": "normal",
+        "design_notes": "Large green creature with trample. 4/3 trample for 4 mana represents green's philosophy of large creatures that can push damage through. Good rate with relevant keyword."
+      }
+    ]
+  }
+]

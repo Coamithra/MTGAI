@@ -1,0 +1,16 @@
+{
+  "content": "{\"name\": \"Vorthak, Death's Sovereign\", \"mana_cost\": \"{3}{B}{B}{B}\", \"cmc\": 6, \"colors\": [\"B\"], \"color_identity\": [\"B\"], \"type_line\": \"Legendary Creature \\u2014 Demon Lord\", \"oracle_text\": \"Flying, menace\\\\nWhen ~ enters, each opponent loses life equal to the number of creatures in their graveyard.\\\\n{2}{B}, Sacrifice a creature: Return target creature card from your graveyard to the battlefield. Activate only as a sorcery.\", \"flavor_text\": \"Death is not an ending, but a recruitment.\", \"power\": \"5\", \"toughness\": \"4\", \"loyalty\": null, \"rarity\": \"mythic\", \"design_notes\": \"This legendary demon lord embodies black's themes of death, sacrifice, and reanimation at mythic power level. The flying/menace combination provides solid evasion befitting a 6-mana threat. The ETB ability scales with game length and graveyard presence, punishing opponents who have lost creatures. The activated ability provides repeatable reanimation but requires investment and sorcery-speed timing to prevent abuse. At 5/4 for 6 mana, the body is appropriately costed when considering the powerful abilities. This design creates interesting decisions around creature sacrifice timing and graveyard management while staying firmly in black's color pie.\"}",
+  "raw_response": {
+    "stop_reason": "tool_use",
+    "model": "claude-sonnet-4-20250514"
+  },
+  "input_tokens": 2307,
+  "output_tokens": 486,
+  "cost_usd": 0.014211,
+  "latency_ms": 9786,
+  "model": "claude-sonnet-4-20250514",
+  "temperature": 1.0,
+  "cache_hit": false,
+  "cache_key": "05c4ebe4cbd3c8c6",
+  "timestamp": "2026-03-09T00:49:07.631931"
+}

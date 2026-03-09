@@ -1,0 +1,16 @@
+{
+  "name": "Lightning Helix",
+  "mana_cost": "{R}{W}",
+  "cmc": 2.0,
+  "colors": ["R", "W"],
+  "color_identity": ["R", "W"],
+  "type_line": "Instant",
+  "oracle_text": "Lightning Helix deals 3 damage to any target and you gain 3 life.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "uncommon",
+  "layout": "normal",
+  "design_notes": "A perfect multicolor design: combines red's direct damage (Lightning Bolt's 3 damage) with white's lifegain. Multicolor cards should feel like a natural blend of both colors' abilities. At 2 mana for 3 damage + 3 life, it's more efficient than either color could achieve alone — the reward for playing two colors. Clean, elegant two-color design."
+}

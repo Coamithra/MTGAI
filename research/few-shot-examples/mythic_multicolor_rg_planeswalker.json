@@ -1,0 +1,16 @@
+{
+  "name": "Wrenn and Six",
+  "mana_cost": "{R}{G}",
+  "cmc": 2.0,
+  "colors": ["R", "G"],
+  "color_identity": ["R", "G"],
+  "type_line": "Legendary Planeswalker — Wrenn",
+  "oracle_text": "+1: Return up to one target land card from your graveyard to your hand.\n\u22121: Wrenn and Six deals 1 damage to any target.\n\u22127: You get an emblem with \"Instant and sorcery cards in your graveyard have retrace.\"",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": "3",
+  "rarity": "mythic",
+  "layout": "normal",
+  "design_notes": "A 2-mana mythic planeswalker — extremely efficient. Demonstrates: (1) low-cost planeswalkers are almost always mythic, (2) the +1 provides incremental value (land recursion = green), (3) the -1 provides interaction (damage = red), (4) ultimate abilities (-7) create emblems — permanent effects that can't be removed. The emblem text uses quotes to define the emblem's rules. Clean design with just three abilities that each do something small but powerful in aggregate."
+}

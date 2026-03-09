@@ -210,26 +210,27 @@ Options:
 Output:
 
 ```
-Set: Echoes of the Void (ETV) — 280 cards
+Set: Echoes of the Void (ETV) — 60 cards (dev set)
 
 Status Pipeline:
-  draft          ████████████░░░░░░░░  42 (15%)
-  validated      ████████░░░░░░░░░░░░  35 (13%)
-  approved       ████████████████████  140 (50%)
-  art_generated  ████████░░░░░░░░░░░░  33 (12%)
-  rendered       ██████░░░░░░░░░░░░░░  20 (7%)
-  print_ready    ██░░░░░░░░░░░░░░░░░░  10 (4%)
+  draft          ████████████░░░░░░░░  9 (15%)
+  validated      ████████░░░░░░░░░░░░  8 (13%)
+  approved       ████████████████████  30 (50%)
+  art_generated  ████████░░░░░░░░░░░░  7 (12%)
+  rendered       ██████░░░░░░░░░░░░░░  4 (7%)
+  print_ready    ██░░░░░░░░░░░░░░░░░░  2 (4%)
 
 Rarity Distribution:
-  Common: 101  Uncommon: 80  Rare: 64  Mythic: 15  Basic Land: 20
+  Common: 20  Uncommon: 15  Rare: 10  Mythic: 4  Basic Land: 5
+  (scales to C:101 U:80 R:64 M:15 BL:20 at full ~280 production)
 
 Color Distribution:
-  W: 52   U: 53   B: 51   R: 54   G: 50   Multi: 40   Colorless: 20
+  W: 11   U: 11   B: 11   R: 12   G: 11   Multi: 8   Colorless: 4
 
 Mana Curve (creatures):
-  1: ████████   16
-  2: ████████████████   32
-  3: ██████████████████████   44
+  1: ████████   4
+  2: ████████████████   7
+  3: ██████████████████████   9
   4: ██████████████   28
   5: ████████   16
   6: ████   8

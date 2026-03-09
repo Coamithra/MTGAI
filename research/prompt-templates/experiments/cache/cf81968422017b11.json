@@ -1,0 +1,16 @@
+{
+  "content": "cache test ok",
+  "raw_response": {
+    "stop_reason": "end_turn",
+    "model": "claude-sonnet-4-20250514"
+  },
+  "input_tokens": 17,
+  "output_tokens": 6,
+  "cost_usd": 0.000141,
+  "latency_ms": 1507,
+  "model": "claude-sonnet-4-20250514",
+  "temperature": 0.0,
+  "cache_hit": false,
+  "cache_key": "cf81968422017b11",
+  "timestamp": "2026-03-09T00:22:20.674956"
+}

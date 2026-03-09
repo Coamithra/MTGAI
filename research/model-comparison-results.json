@@ -1,0 +1,498 @@
+[
+  {
+    "success": true,
+    "card_json": {
+      "name": "Devoted Sentinel",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "colors": [
+        "W"
+      ],
+      "color_identity": [
+        "W"
+      ],
+      "type_line": "Creature \u2014 Human Soldier",
+      "oracle_text": "Vigilance",
+      "flavor_text": "I stand watch so that others may rest in peace.",
+      "power": "2",
+      "toughness": "1",
+      "rarity": "common",
+      "layout": "normal",
+      "design_notes": "A simple white common creature with vigilance, fitting white's color pie perfectly. At 2 mana for a 2/1 with vigilance, it follows the power level guidelines for commons (P+T = 3, which equals CMC + 1, appropriate for a relevant keyword ability). Vigilance is an evergreen keyword that's easy to understand and fits white's defensive nature. The Human Soldier typing is flavorful and mechanically relevant for tribal synergies."
+    },
+    "input_tokens": 2378,
+    "output_tokens": 383,
+    "latency_ms": 8164,
+    "error": null,
+    "raw_response": "[ToolUseBlock(id='toolu_01XzrjFdZpS1XpRTYorWc6Bi', caller=DirectCaller(type='direct'), input={'name': 'Devoted Sentinel', 'mana_cost': '{1}{W}', 'cmc': 2, 'colors': ['W'], 'color_identity': ['W'], 'type_line': 'Creature \u2014 Human Soldier', 'oracle_text': 'Vigilance', 'flavor_text': 'I stand watch so that others may rest in peace.', 'power': '2', 'toughness': '1', 'rarity': 'common', 'layout': 'normal', 'design_notes': \"A simple white common creature with vigilance, fitting white's color pie perfectly. At 2 mana for a 2/1 with vigilance, it follows the power level guidelines for commons (P+T = 3, which equals CMC + 1, appropriate for a relevant keyword ability). Vigilance is an evergreen keyword that's easy to understand and fits white's defensive nature. The Human Soldier typing is flavorful and mechanically relevant for tribal synergies.\"}, name='generate_card', type='tool_use')]",
+    "model_name": "claude-sonnet",
+    "model_id": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
+    "prompt_id": "common_white_creature",
+    "prompt_text": "Generate a white common creature card. CMC 2-3. Simple ability suitable for common (New World Order). Include flavor text."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Temporal Insight",
+      "mana_cost": "{2}{U}",
+      "cmc": 3,
+      "colors": [
+        "U"
+      ],
+      "color_identity": [
+        "U"
+      ],
+      "type_line": "Instant",
+      "oracle_text": "Look at the top four cards of your library. Put two of them into your hand and the rest on the bottom of your library in any order.\\nDraw a card.",
+      "flavor_text": "\"The threads of possibility reveal themselves to those who know how to look.\" \u2014Jace Beleren",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "uncommon",
+      "layout": "normal",
+      "design_notes": "This card provides card selection and advantage at uncommon complexity. The effect lets you see 4 cards, keep the 2 best, and still draws you a card for net +1 card advantage. At 3 mana, this is appropriately costed for blue's card draw and selection abilities. The \"bottom of library in any order\" gives additional control. This fits blue's color pie perfectly - card draw, library manipulation, and no direct interaction with the battlefield. The complexity is moderate with two connected effects, appropriate for uncommon."
+    },
+    "input_tokens": 2377,
+    "output_tokens": 450,
+    "latency_ms": 8449,
+    "error": null,
+    "raw_response": "[ToolUseBlock(id='toolu_01CkJhTndQS6j51KNkpdAyQC', caller=DirectCaller(type='direct'), input={'name': 'Temporal Insight', 'mana_cost': '{2}{U}', 'cmc': 3, 'colors': ['U'], 'color_identity': ['U'], 'type_line': 'Instant', 'oracle_text': 'Look at the top four cards of your library. Put two of them into your hand and the rest on the bottom of your library in any order.\\\\nDraw a card.', 'flavor_text': '\"The threads of possibility reveal themselves to those who know how to look.\" \u2014Jace Beleren', 'power': None, 'toughness': None, 'loyalty': None, 'rarity': 'uncommon', 'layout': 'normal', 'design_notes': 'This card provides card selection and advantage at uncommon complexity. The effect lets you see 4 cards, keep the 2 best, and still draws you a card for net +1 card advantage. At 3 mana, this is appropriately costed for blue\\'s card draw and selection abilities. The \"bottom of library in any order\" gives additional control. This fits blue\\'s color pie perfectly - card draw, library manipulation, and no direct interaction with the battlefield. The complexity is moderate with two connected effects, appropriate for uncommon.'}, name='generate_card', type='tool_use')]",
+    "model_name": "claude-sonnet",
+    "model_id": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
+    "prompt_id": "uncommon_blue_instant",
+    "prompt_text": "Generate a blue uncommon instant spell. CMC 2-4. Can have a moderately complex effect. Include flavor text."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Vorthak, Death's Whisper",
+      "mana_cost": "{2}{B}{B}",
+      "cmc": 4,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Legendary Creature \u2014 Demon Warlock",
+      "oracle_text": "Deathtouch\\nWhenever a creature an opponent controls dies, you may pay {1}{B}. If you do, return target creature card from your graveyard to your hand.\\n{3}{B}{B}, {T}: Destroy target creature. Its controller loses life equal to its mana value.",
+      "flavor_text": "Death is not an ending, but a transaction. I merely negotiate the terms.",
+      "power": "3",
+      "toughness": "4",
+      "loyalty": null,
+      "rarity": "rare",
+      "layout": "normal",
+      "design_notes": "This legendary demon warlock embodies black's core themes of death, sacrifice, and reanimation. The triggered ability creates value from opponents' creatures dying (very black), while the activated ability provides expensive but powerful removal with life loss punishment. The 3/4 deathtouch body is reasonable for 4 mana but not overpowered. The design encourages building around creature death triggers and graveyard value, making it a solid rare build-around commander option. The mana costs prevent it from being oppressive in faster formats while rewarding dedicated black decks."
+    },
+    "input_tokens": 2379,
+    "output_tokens": 502,
+    "latency_ms": 9201,
+    "error": null,
+    "raw_response": "[ToolUseBlock(id='toolu_01EWhzjFZGHdrpH5xUgaCjHQ', caller=DirectCaller(type='direct'), input={'name': \"Vorthak, Death's Whisper\", 'mana_cost': '{2}{B}{B}', 'cmc': 4, 'colors': ['B'], 'color_identity': ['B'], 'type_line': 'Legendary Creature \u2014 Demon Warlock', 'oracle_text': 'Deathtouch\\\\nWhenever a creature an opponent controls dies, you may pay {1}{B}. If you do, return target creature card from your graveyard to your hand.\\\\n{3}{B}{B}, {T}: Destroy target creature. Its controller loses life equal to its mana value.', 'flavor_text': 'Death is not an ending, but a transaction. I merely negotiate the terms.', 'power': '3', 'toughness': '4', 'loyalty': None, 'rarity': 'rare', 'layout': 'normal', 'design_notes': \"This legendary demon warlock embodies black's core themes of death, sacrifice, and reanimation. The triggered ability creates value from opponents' creatures dying (very black), while the activated ability provides expensive but powerful removal with life loss punishment. The 3/4 deathtouch body is reasonable for 4 mana but not overpowered. The design encourages building around creature death triggers and graveyard value, making it a solid rare build-around commander option. The mana costs prevent it from being oppressive in faster formats while rewarding dedicated black decks.\"}, name='generate_card', type='tool_use')]",
+    "model_name": "claude-sonnet",
+    "model_id": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
+    "prompt_id": "rare_black_legendary",
+    "prompt_text": "Generate a black rare legendary creature. CMC 4-6. Should have an impactful ability worthy of rare. Include flavor text."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Kythara, Seer of Storms",
+      "mana_cost": "{2}{U}{R}",
+      "cmc": 4,
+      "colors": [
+        "U",
+        "R"
+      ],
+      "color_identity": [
+        "U",
+        "R"
+      ],
+      "type_line": "Legendary Planeswalker \u2014 Kythara",
+      "oracle_text": "+1: Scry 2, then draw a card. ~ deals 1 damage to any target.\n\u22123: Exile the top four cards of your library. Until end of turn, you may cast instant and sorcery cards from among them. Spells cast this way cost {2} less to cast.\n\u22127: You get an emblem with \"Whenever you cast an instant or sorcery spell, copy it. You may choose new targets for the copy.\"",
+      "loyalty": "4",
+      "flavor_text": "She reads the future in lightning's path and thunder's echo.",
+      "rarity": "mythic",
+      "layout": "normal",
+      "design_notes": "This planeswalker embodies the blue-red identity of instant/sorcery synergy and impulsive spellcasting. The +1 provides incremental value through scry and card draw (blue) plus direct damage (red), making it immediately impactful. The -3 enables explosive turns by giving access to multiple spells at a discount, representing red's impulsive nature and blue's spell mastery. The ultimate creates a game-ending emblem that doubles spell effects. At 4 CMC with 4 starting loyalty, it's competitively costed but requires protection. The abilities scale appropriately for mythic complexity while staying true to both colors' strengths."
+    },
+    "input_tokens": 2391,
+    "output_tokens": 533,
+    "latency_ms": 10427,
+    "error": null,
+    "raw_response": "[ToolUseBlock(id='toolu_01Bouu1k6gVSqnPGVjfBJwGk', caller=DirectCaller(type='direct'), input={'name': 'Kythara, Seer of Storms', 'mana_cost': '{2}{U}{R}', 'cmc': 4, 'colors': ['U', 'R'], 'color_identity': ['U', 'R'], 'type_line': 'Legendary Planeswalker \u2014 Kythara', 'oracle_text': '+1: Scry 2, then draw a card. ~ deals 1 damage to any target.\\n\u22123: Exile the top four cards of your library. Until end of turn, you may cast instant and sorcery cards from among them. Spells cast this way cost {2} less to cast.\\n\u22127: You get an emblem with \"Whenever you cast an instant or sorcery spell, copy it. You may choose new targets for the copy.\"', 'loyalty': '4', 'flavor_text': \"She reads the future in lightning's path and thunder's echo.\", 'rarity': 'mythic', 'layout': 'normal', 'design_notes': \"This planeswalker embodies the blue-red identity of instant/sorcery synergy and impulsive spellcasting. The +1 provides incremental value through scry and card draw (blue) plus direct damage (red), making it immediately impactful. The -3 enables explosive turns by giving access to multiple spells at a discount, representing red's impulsive nature and blue's spell mastery. The ultimate creates a game-ending emblem that doubles spell effects. At 4 CMC with 4 starting loyalty, it's competitively costed but requires protection. The abilities scale appropriately for mythic complexity while staying true to both colors' strengths.\"}, name='generate_card', type='tool_use')]",
+    "model_name": "claude-sonnet",
+    "model_id": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
+    "prompt_id": "mythic_planeswalker",
+    "prompt_text": "Generate a mythic rare planeswalker card. 2-3 colors of your choice. CMC 3-5. Three loyalty abilities (+, -, ultimate). Include starting loyalty."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Moonlit Observatory",
+      "mana_cost": "",
+      "cmc": 0,
+      "colors": [],
+      "color_identity": [
+        "W",
+        "U"
+      ],
+      "type_line": "Land",
+      "oracle_text": "~ enters tapped unless you control two or more other lands.\\n{T}: Add {W} or {U}.\\n{2}{W}{U}, {T}: Scry 2, then draw a card. Activate only as a sorcery.",
+      "flavor_text": "The stars whisper secrets to those patient enough to listen.",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "uncommon",
+      "layout": "normal",
+      "design_notes": "This uncommon dual land provides White/Blue mana with an activated ability that fits both colors' identities - scry (blue) and card draw (blue) with white in the cost for balance. The enters-tapped condition unless you control two other lands encourages slower, more controlling decks typical of W/U strategies. The sorcery-speed restriction prevents it from being too powerful as an instant-speed effect. The mana cost of {2}{W}{U} makes it a significant investment but provides real card advantage for control decks."
+    },
+    "input_tokens": 2375,
+    "output_tokens": 459,
+    "latency_ms": 9813,
+    "error": null,
+    "raw_response": "[ToolUseBlock(id='toolu_01RNLZYprrhcmjH6N8v5i2Sw', caller=DirectCaller(type='direct'), input={'name': 'Moonlit Observatory', 'mana_cost': '', 'cmc': 0, 'colors': [], 'color_identity': ['W', 'U'], 'type_line': 'Land', 'oracle_text': '~ enters tapped unless you control two or more other lands.\\\\n{T}: Add {W} or {U}.\\\\n{2}{W}{U}, {T}: Scry 2, then draw a card. Activate only as a sorcery.', 'flavor_text': 'The stars whisper secrets to those patient enough to listen.', 'power': None, 'toughness': None, 'loyalty': None, 'rarity': 'uncommon', 'layout': 'normal', 'design_notes': \"This uncommon dual land provides White/Blue mana with an activated ability that fits both colors' identities - scry (blue) and card draw (blue) with white in the cost for balance. The enters-tapped condition unless you control two other lands encourages slower, more controlling decks typical of W/U strategies. The sorcery-speed restriction prevents it from being too powerful as an instant-speed effect. The mana cost of {2}{W}{U} makes it a significant investment but provides real card advantage for control decks.\"}, name='generate_card', type='tool_use')]",
+    "model_name": "claude-sonnet",
+    "model_id": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
+    "prompt_id": "uncommon_land",
+    "prompt_text": "Generate an uncommon nonbasic land. Should produce one or two colors of mana with a relevant ability or condition."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Dawnlight Cavalier",
+      "mana_cost": "{2}{W}",
+      "cmc": 3,
+      "colors": [
+        "W"
+      ],
+      "color_identity": [
+        "W"
+      ],
+      "type_line": "Creature \u2014 Human Knight",
+      "oracle_text": "Vigilance",
+      "flavor_text": "Riding at the break of dawn, they bring hope to the weary and light to the lost.",
+      "power": "2",
+      "toughness": "2",
+      "loyalty": null,
+      "rarity": "common",
+      "layout": "normal",
+      "design_notes": "Dawnlight Cavalier is designed as a simple, straightforward common creature with vigilance, a quintessential white ability. The power and toughness are balanced for a 3 CMC common, providing solid stats with a useful keyword ability. The card fits into white's themes of light and protection, appealing to new players with its simplicity and flavor."
+    },
+    "input_tokens": 1391,
+    "output_tokens": 206,
+    "latency_ms": 3026,
+    "error": null,
+    "raw_response": "{\n  \"name\": \"Dawnlight Cavalier\",\n  \"mana_cost\": \"{2}{W}\",\n  \"cmc\": 3,\n  \"colors\": [\"W\"],\n  \"color_identity\": [\"W\"],\n  \"type_line\": \"Creature \u2014 Human Knight\",\n  \"oracle_text\": \"Vigilance\",\n  \"flavor_text\": \"Riding at the break of dawn, they bring hope to the weary and light to the lost.\",\n  \"power\": \"2\",\n  \"toughness\": \"2\",\n  \"loyalty\": null,\n  \"rarity\": \"common\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"Dawnlight Cavalier is designed as a simple, straightforward common creature with vigilance, a quintessential white ability. The power and toughness are balanced for a 3 CMC common, providing solid stats with a useful keyword ability. The card fits into white's themes of light and protection, appealing to new players with its simplicity and flavor.\"\n}",
+    "model_name": "gpt-4o",
+    "model_id": "gpt-4o",
+    "provider": "openai",
+    "prompt_id": "common_white_creature",
+    "prompt_text": "Generate a white common creature card. CMC 2-3. Simple ability suitable for common (New World Order). Include flavor text."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Temporal Confluence",
+      "mana_cost": "{2}{U}{U}",
+      "cmc": 4,
+      "colors": [
+        "U"
+      ],
+      "color_identity": [
+        "U"
+      ],
+      "type_line": "Instant",
+      "oracle_text": "Counter target spell. Its controller puts the top two cards of their library into their graveyard.",
+      "flavor_text": "\"Time is a river, and every ripple can reshape its course.\" \u2014Nara, Temporal Adept",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "uncommon",
+      "layout": "normal",
+      "design_notes": "This card combines blue's ability to counter spells and mill effects to create a versatile tool in control decks. The cost of {2}{U}{U} reflects the power of an unconditional counter with an additional mill effect, making it suitable for uncommon rarity."
+    },
+    "input_tokens": 1388,
+    "output_tokens": 202,
+    "latency_ms": 3347,
+    "error": null,
+    "raw_response": "{\n  \"name\": \"Temporal Confluence\",\n  \"mana_cost\": \"{2}{U}{U}\",\n  \"cmc\": 4,\n  \"colors\": [\"U\"],\n  \"color_identity\": [\"U\"],\n  \"type_line\": \"Instant\",\n  \"oracle_text\": \"Counter target spell. Its controller puts the top two cards of their library into their graveyard.\",\n  \"flavor_text\": \"\\\"Time is a river, and every ripple can reshape its course.\\\" \u2014Nara, Temporal Adept\",\n  \"power\": null,\n  \"toughness\": null,\n  \"loyalty\": null,\n  \"rarity\": \"uncommon\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"This card combines blue's ability to counter spells and mill effects to create a versatile tool in control decks. The cost of {2}{U}{U} reflects the power of an unconditional counter with an additional mill effect, making it suitable for uncommon rarity.\"\n}",
+    "model_name": "gpt-4o",
+    "model_id": "gpt-4o",
+    "provider": "openai",
+    "prompt_id": "uncommon_blue_instant",
+    "prompt_text": "Generate a blue uncommon instant spell. CMC 2-4. Can have a moderately complex effect. Include flavor text."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Vorthos, Shadow Puppeteer",
+      "mana_cost": "{2}{B}{B}{B}",
+      "cmc": 5,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Legendary Creature \u2014 Human Warlock",
+      "oracle_text": "Menace\nWhenever a creature you control dies, you may pay 2 life. If you do, target opponent sacrifices a creature.\n{2}{B}, Sacrifice a creature: Draw a card.",
+      "flavor_text": "\"In the dance of shadows, I pull the strings of fate.\"",
+      "power": "4",
+      "toughness": "4",
+      "loyalty": null,
+      "rarity": "rare",
+      "layout": "normal",
+      "design_notes": "Vorthos, Shadow Puppeteer embodies black's themes of sacrifice, life payment, and forcing opponents to make difficult decisions. The menace ability ensures it remains a threat on the battlefield, while its triggered ability punishes opponents who try to out-attrition you. The activated ability provides card draw at a cost, allowing it to fit into decks focused on sacrifice synergies. The card is balanced by its life payment and inherent vulnerability to removal despite its powerful effects."
+    },
+    "input_tokens": 1390,
+    "output_tokens": 273,
+    "latency_ms": 3982,
+    "error": null,
+    "raw_response": "{\n  \"name\": \"Vorthos, Shadow Puppeteer\",\n  \"mana_cost\": \"{2}{B}{B}{B}\",\n  \"cmc\": 5,\n  \"colors\": [\"B\"],\n  \"color_identity\": [\"B\"],\n  \"type_line\": \"Legendary Creature \u2014 Human Warlock\",\n  \"oracle_text\": \"Menace\\nWhenever a creature you control dies, you may pay 2 life. If you do, target opponent sacrifices a creature.\\n{2}{B}, Sacrifice a creature: Draw a card.\",\n  \"flavor_text\": \"\\\"In the dance of shadows, I pull the strings of fate.\\\"\",\n  \"power\": \"4\",\n  \"toughness\": \"4\",\n  \"loyalty\": null,\n  \"rarity\": \"rare\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"Vorthos, Shadow Puppeteer embodies black's themes of sacrifice, life payment, and forcing opponents to make difficult decisions. The menace ability ensures it remains a threat on the battlefield, while its triggered ability punishes opponents who try to out-attrition you. The activated ability provides card draw at a cost, allowing it to fit into decks focused on sacrifice synergies. The card is balanced by its life payment and inherent vulnerability to removal despite its powerful effects.\"\n}",
+    "model_name": "gpt-4o",
+    "model_id": "gpt-4o",
+    "provider": "openai",
+    "prompt_id": "rare_black_legendary",
+    "prompt_text": "Generate a black rare legendary creature. CMC 4-6. Should have an impactful ability worthy of rare. Include flavor text."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Rhyssa, Nature's Conduit",
+      "mana_cost": "{1}{G}{U}",
+      "cmc": 3,
+      "colors": [
+        "G",
+        "U"
+      ],
+      "color_identity": [
+        "G",
+        "U"
+      ],
+      "type_line": "Legendary Planeswalker \u2014 Rhyssa",
+      "oracle_text": "+1: Untap up to two target lands.\n-2: Draw a card. If you control a creature with flying, draw two cards instead.\n-6: You get an emblem with \"Whenever you cast a creature spell, draw a card and gain 3 life.\"",
+      "flavor_text": "Her connection to the land and sky empowers her allies and enriches her soul.",
+      "power": null,
+      "toughness": null,
+      "loyalty": "3",
+      "rarity": "mythic",
+      "layout": "normal",
+      "design_notes": "Rhyssa represents the harmonious synergy between green's land mana acceleration and blue's card draw. The +1 ability supports mana ramp strategies, while the -2 leverages blue's card advantage with green's flying creatures. The ultimate grants a powerful emblem that encourages creature-heavy decks, fitting well within the GU color identity."
+    },
+    "input_tokens": 1400,
+    "output_tokens": 270,
+    "latency_ms": 4197,
+    "error": null,
+    "raw_response": "{\n  \"name\": \"Rhyssa, Nature's Conduit\",\n  \"mana_cost\": \"{1}{G}{U}\",\n  \"cmc\": 3,\n  \"colors\": [\"G\", \"U\"],\n  \"color_identity\": [\"G\", \"U\"],\n  \"type_line\": \"Legendary Planeswalker \u2014 Rhyssa\",\n  \"oracle_text\": \"+1: Untap up to two target lands.\\n-2: Draw a card. If you control a creature with flying, draw two cards instead.\\n-6: You get an emblem with \\\"Whenever you cast a creature spell, draw a card and gain 3 life.\\\"\",\n  \"flavor_text\": \"Her connection to the land and sky empowers her allies and enriches her soul.\",\n  \"power\": null,\n  \"toughness\": null,\n  \"loyalty\": \"3\",\n  \"rarity\": \"mythic\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"Rhyssa represents the harmonious synergy between green's land mana acceleration and blue's card draw. The +1 ability supports mana ramp strategies, while the -2 leverages blue's card advantage with green's flying creatures. The ultimate grants a powerful emblem that encourages creature-heavy decks, fitting well within the GU color identity.\"\n}",
+    "model_name": "gpt-4o",
+    "model_id": "gpt-4o",
+    "provider": "openai",
+    "prompt_id": "mythic_planeswalker",
+    "prompt_text": "Generate a mythic rare planeswalker card. 2-3 colors of your choice. CMC 3-5. Three loyalty abilities (+, -, ultimate). Include starting loyalty."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Frostfire Crag",
+      "mana_cost": "",
+      "cmc": 0,
+      "colors": [],
+      "color_identity": [
+        "U",
+        "R"
+      ],
+      "type_line": "Land",
+      "oracle_text": "{T}: Add {C}.\n{1}, {T}: Add {U} or {R}. ~ deals 1 damage to you.",
+      "flavor_text": "Where the chill of the heights meets the fury of the flames.",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "uncommon",
+      "layout": "normal",
+      "design_notes": "Frostfire Crag offers a choice of blue or red mana at the cost of a life point, which balances its ability to produce two colors. The initial {C} mana provides flexibility while the damage aspect prevents it from outperforming basic lands. Its dual nature supports Izzet strategies, and the damage cost is thematic for a land combining frost and fire elements."
+    },
+    "input_tokens": 1385,
+    "output_tokens": 225,
+    "latency_ms": 3759,
+    "error": null,
+    "raw_response": "{\n  \"name\": \"Frostfire Crag\",\n  \"mana_cost\": \"\",\n  \"cmc\": 0,\n  \"colors\": [],\n  \"color_identity\": [\"U\", \"R\"],\n  \"type_line\": \"Land\",\n  \"oracle_text\": \"{T}: Add {C}.\\n{1}, {T}: Add {U} or {R}. ~ deals 1 damage to you.\",\n  \"flavor_text\": \"Where the chill of the heights meets the fury of the flames.\",\n  \"power\": null,\n  \"toughness\": null,\n  \"loyalty\": null,\n  \"rarity\": \"uncommon\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"Frostfire Crag offers a choice of blue or red mana at the cost of a life point, which balances its ability to produce two colors. The initial {C} mana provides flexibility while the damage aspect prevents it from outperforming basic lands. Its dual nature supports Izzet strategies, and the damage cost is thematic for a land combining frost and fire elements.\"\n}",
+    "model_name": "gpt-4o",
+    "model_id": "gpt-4o",
+    "provider": "openai",
+    "prompt_id": "uncommon_land",
+    "prompt_text": "Generate an uncommon nonbasic land. Should produce one or two colors of mana with a relevant ability or condition."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Dawnwatch Sentry",
+      "mana_cost": "{2}{W}",
+      "cmc": 3,
+      "colors": [
+        "W"
+      ],
+      "color_identity": [
+        "W"
+      ],
+      "type_line": "Creature \u2014 Human Soldier",
+      "oracle_text": "Vigilance\nWhen ~ enters, create a 1/1 white Soldier creature token.",
+      "flavor_text": "\"In the light of dawn, we stand ready to defend our home.\"",
+      "power": "2",
+      "toughness": "2",
+      "loyalty": null,
+      "rarity": "common",
+      "layout": "normal",
+      "design_notes": "This card is designed as a common creature that provides both a solid body and a token upon entering the battlefield, which fits well within white's theme of creating tokens. The vigilance keyword allows it to defend while still being able to attack, making it versatile in various scenarios. The power and toughness are balanced to ensure it aligns with common creature standards."
+    },
+    "input_tokens": 1391,
+    "output_tokens": 218,
+    "latency_ms": 5268,
+    "error": null,
+    "raw_response": "{\n  \"name\": \"Dawnwatch Sentry\",\n  \"mana_cost\": \"{2}{W}\",\n  \"cmc\": 3,\n  \"colors\": [\"W\"],\n  \"color_identity\": [\"W\"],\n  \"type_line\": \"Creature \u2014 Human Soldier\",\n  \"oracle_text\": \"Vigilance\\nWhen ~ enters, create a 1/1 white Soldier creature token.\",\n  \"flavor_text\": \"\\\"In the light of dawn, we stand ready to defend our home.\\\"\",\n  \"power\": \"2\",\n  \"toughness\": \"2\",\n  \"loyalty\": null,\n  \"rarity\": \"common\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"This card is designed as a common creature that provides both a solid body and a token upon entering the battlefield, which fits well within white's theme of creating tokens. The vigilance keyword allows it to defend while still being able to attack, making it versatile in various scenarios. The power and toughness are balanced to ensure it aligns with common creature standards.\"\n}",
+    "model_name": "gpt-4o-mini",
+    "model_id": "gpt-4o-mini",
+    "provider": "openai",
+    "prompt_id": "common_white_creature",
+    "prompt_text": "Generate a white common creature card. CMC 2-3. Simple ability suitable for common (New World Order). Include flavor text."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Temporal Disruption",
+      "mana_cost": "{2}{U}",
+      "cmc": 3,
+      "colors": [
+        "U"
+      ],
+      "color_identity": [
+        "U"
+      ],
+      "type_line": "Instant",
+      "oracle_text": "Return target nonland permanent to its owner's hand.\nScry 2.",
+      "flavor_text": "\"Time is a river, and I am its master.\"",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "uncommon",
+      "layout": "normal",
+      "design_notes": "This card emphasizes blue's strengths in bounce and card manipulation. The scry effect enhances card selection, fitting blue's theme of foresight and control. The mana cost is balanced for an uncommon, providing utility without being overly powerful, while the flavor text ties into blue's lore of time and mastery."
+    },
+    "input_tokens": 1388,
+    "output_tokens": 197,
+    "latency_ms": 4306,
+    "error": null,
+    "raw_response": "{\n  \"name\": \"Temporal Disruption\",\n  \"mana_cost\": \"{2}{U}\",\n  \"cmc\": 3,\n  \"colors\": [\"U\"],\n  \"color_identity\": [\"U\"],\n  \"type_line\": \"Instant\",\n  \"oracle_text\": \"Return target nonland permanent to its owner's hand.\\nScry 2.\",\n  \"flavor_text\": \"\\\"Time is a river, and I am its master.\\\"\",\n  \"power\": null,\n  \"toughness\": null,\n  \"loyalty\": null,\n  \"rarity\": \"uncommon\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"This card emphasizes blue's strengths in bounce and card manipulation. The scry effect enhances card selection, fitting blue's theme of foresight and control. The mana cost is balanced for an uncommon, providing utility without being overly powerful, while the flavor text ties into blue's lore of time and mastery.\"\n}",
+    "model_name": "gpt-4o-mini",
+    "model_id": "gpt-4o-mini",
+    "provider": "openai",
+    "prompt_id": "uncommon_blue_instant",
+    "prompt_text": "Generate a blue uncommon instant spell. CMC 2-4. Can have a moderately complex effect. Include flavor text."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Veilshadow Tyrant",
+      "mana_cost": "{3}{B}{B}",
+      "cmc": 5,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Legendary Creature \u2014 Zombie Demon",
+      "oracle_text": "Flying\nWhenever ~ attacks, you may sacrifice another creature. If you do, target player discards a card and loses 1 life.\nWhen ~ dies, create two 1/1 black Zombie creature tokens.",
+      "flavor_text": "In the shadows of despair, he reigns, feeding on the remnants of broken dreams.",
+      "power": "5",
+      "toughness": "4",
+      "loyalty": null,
+      "rarity": "rare",
+      "layout": "normal",
+      "design_notes": "Veilshadow Tyrant embodies the themes of sacrifice and resource manipulation common in black. Its ability to force opponents to discard while simultaneously providing a board presence upon death creates impactful decisions for both players. The power level is balanced considering the cost and the abilities, making it a compelling choice in a variety of strategies."
+    },
+    "input_tokens": 1390,
+    "output_tokens": 243,
+    "latency_ms": 4949,
+    "error": null,
+    "raw_response": "{\n  \"name\": \"Veilshadow Tyrant\",\n  \"mana_cost\": \"{3}{B}{B}\",\n  \"cmc\": 5,\n  \"colors\": [\"B\"],\n  \"color_identity\": [\"B\"],\n  \"type_line\": \"Legendary Creature \u2014 Zombie Demon\",\n  \"oracle_text\": \"Flying\\nWhenever ~ attacks, you may sacrifice another creature. If you do, target player discards a card and loses 1 life.\\nWhen ~ dies, create two 1/1 black Zombie creature tokens.\",\n  \"flavor_text\": \"In the shadows of despair, he reigns, feeding on the remnants of broken dreams.\",\n  \"power\": \"5\",\n  \"toughness\": \"4\",\n  \"loyalty\": null,\n  \"rarity\": \"rare\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"Veilshadow Tyrant embodies the themes of sacrifice and resource manipulation common in black. Its ability to force opponents to discard while simultaneously providing a board presence upon death creates impactful decisions for both players. The power level is balanced considering the cost and the abilities, making it a compelling choice in a variety of strategies.\"\n}",
+    "model_name": "gpt-4o-mini",
+    "model_id": "gpt-4o-mini",
+    "provider": "openai",
+    "prompt_id": "rare_black_legendary",
+    "prompt_text": "Generate a black rare legendary creature. CMC 4-6. Should have an impactful ability worthy of rare. Include flavor text."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Elysia, Dreamweaver",
+      "mana_cost": "{3}{U}{G}",
+      "cmc": 5,
+      "colors": [
+        "U",
+        "G"
+      ],
+      "color_identity": [
+        "U",
+        "G"
+      ],
+      "type_line": "Legendary Planeswalker \u2014 Elysia",
+      "oracle_text": "+1: Scry 2, then draw a card.\n-2: Create a 3/3 green Elemental creature token with trample.\n-7: You get an emblem with \"Whenever you cast a creature spell, draw a card.\"",
+      "flavor_text": "In dreams, the realm of possibilities unfolds, where every thought can take form.",
+      "power": null,
+      "toughness": null,
+      "loyalty": "4",
+      "rarity": "mythic",
+      "layout": "normal",
+      "design_notes": "Elysia, Dreamweaver is designed to encourage card advantage and board presence. The +1 ability provides consistent card draw through scrying, fitting the blue color's emphasis on manipulation and knowledge. The -2 ability creates a creature token, showcasing green's connection to nature and creature generation. The ultimate ability offers a powerful long-term benefit, enhancing future creature spells with card draw, emphasizing the synergy between blue and green in a growth-oriented strategy. The overall power level is balanced for a mythic rare, providing impactful abilities without overshadowing iconic staples."
+    },
+    "input_tokens": 1400,
+    "output_tokens": 312,
+    "latency_ms": 7028,
+    "error": null,
+    "raw_response": "{\n  \"name\": \"Elysia, Dreamweaver\",\n  \"mana_cost\": \"{3}{U}{G}\",\n  \"cmc\": 5,\n  \"colors\": [\"U\", \"G\"],\n  \"color_identity\": [\"U\", \"G\"],\n  \"type_line\": \"Legendary Planeswalker \u2014 Elysia\",\n  \"oracle_text\": \"+1: Scry 2, then draw a card.\\n-2: Create a 3/3 green Elemental creature token with trample.\\n-7: You get an emblem with \\\"Whenever you cast a creature spell, draw a card.\\\"\",\n  \"flavor_text\": \"In dreams, the realm of possibilities unfolds, where every thought can take form.\",\n  \"power\": null,\n  \"toughness\": null,\n  \"loyalty\": \"4\",\n  \"rarity\": \"mythic\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"Elysia, Dreamweaver is designed to encourage card advantage and board presence. The +1 ability provides consistent card draw through scrying, fitting the blue color's emphasis on manipulation and knowledge. The -2 ability creates a creature token, showcasing green's connection to nature and creature generation. The ultimate ability offers a powerful long-term benefit, enhancing future creature spells with card draw, emphasizing the synergy between blue and green in a growth-oriented strategy. The overall power level is balanced for a mythic rare, providing impactful abilities without overshadowing iconic staples.\"\n}",
+    "model_name": "gpt-4o-mini",
+    "model_id": "gpt-4o-mini",
+    "provider": "openai",
+    "prompt_id": "mythic_planeswalker",
+    "prompt_text": "Generate a mythic rare planeswalker card. 2-3 colors of your choice. CMC 3-5. Three loyalty abilities (+, -, ultimate). Include starting loyalty."
+  },
+  {
+    "success": true,
+    "card_json": {
+      "name": "Verdant Grove",
+      "mana_cost": "",
+      "cmc": 0,
+      "colors": [
+        "G"
+      ],
+      "color_identity": [
+        "G"
+      ],
+      "type_line": "Land",
+      "oracle_text": "{T}: Add {G}.\n{T}, Sacrifice ~: Create a 2/2 green Wolf creature token with vigilance.",
+      "flavor_text": "The grove breathes life into all who dwell within, fostering a bond between nature and its guardians.",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "uncommon",
+      "layout": "normal",
+      "design_notes": "This land provides a basic green mana source and has a secondary ability to create creature tokens, supporting green's themes of growth and creature generation. The sacrifice cost balances the card's power level by limiting the number of tokens created, ensuring it fits within the uncommon rarity while remaining strong in a creature-focused deck."
+    },
+    "input_tokens": 1385,
+    "output_tokens": 214,
+    "latency_ms": 4211,
+    "error": null,
+    "raw_response": "{\n  \"name\": \"Verdant Grove\",\n  \"mana_cost\": \"\",\n  \"cmc\": 0,\n  \"colors\": [\"G\"],\n  \"color_identity\": [\"G\"],\n  \"type_line\": \"Land\",\n  \"oracle_text\": \"{T}: Add {G}.\\n{T}, Sacrifice ~: Create a 2/2 green Wolf creature token with vigilance.\",\n  \"flavor_text\": \"The grove breathes life into all who dwell within, fostering a bond between nature and its guardians.\",\n  \"power\": null,\n  \"toughness\": null,\n  \"loyalty\": null,\n  \"rarity\": \"uncommon\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"This land provides a basic green mana source and has a secondary ability to create creature tokens, supporting green's themes of growth and creature generation. The sacrifice cost balances the card's power level by limiting the number of tokens created, ensuring it fits within the uncommon rarity while remaining strong in a creature-focused deck.\"\n}",
+    "model_name": "gpt-4o-mini",
+    "model_id": "gpt-4o-mini",
+    "provider": "openai",
+    "prompt_id": "uncommon_land",
+    "prompt_text": "Generate an uncommon nonbasic land. Should produce one or two colors of mana with a relevant ability or condition."
+  }
+]

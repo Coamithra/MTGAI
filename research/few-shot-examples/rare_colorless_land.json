@@ -1,0 +1,16 @@
+{
+  "name": "Fabled Passage",
+  "mana_cost": null,
+  "cmc": 0.0,
+  "colors": [],
+  "color_identity": [],
+  "type_line": "Land",
+  "oracle_text": "{T}, Sacrifice Fabled Passage: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Then if you control four or more lands, untap that land.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "rare",
+  "layout": "normal",
+  "design_notes": "A fetch land variant demonstrating complex land design: (1) sacrifice as an activation cost ({T}, Sacrifice ~:), (2) library searching with shuffle, (3) conditional bonus (four or more lands check) rewards late-game play, (4) empty color_identity because it can find any basic land. Fetch lands are inherently rare because they fix mana perfectly. The tapped clause with conditional untap is a power-level knob that makes this weaker than original fetchlands but still strong."
+}

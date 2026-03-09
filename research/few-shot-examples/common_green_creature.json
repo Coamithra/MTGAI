@@ -1,0 +1,16 @@
+{
+  "name": "Llanowar Elves",
+  "mana_cost": "{G}",
+  "cmc": 1.0,
+  "colors": ["G"],
+  "color_identity": ["G"],
+  "type_line": "Creature — Elf Druid",
+  "oracle_text": "{T}: Add {G}.",
+  "flavor_text": "One bone broken for every twig snapped underfoot.",
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "rarity": "common",
+  "layout": "normal",
+  "design_notes": "The original 1-mana mana dork. Defines green's color identity as the color of mana acceleration. A 1/1 body for 1 mana that taps for mana is the baseline for mana creatures. Creature type 'Elf Druid' shows how type lines encode both race and class."
+}

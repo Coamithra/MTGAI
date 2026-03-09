@@ -1,0 +1,16 @@
+{
+  "content": "{\"name\": \"Forest\", \"mana_cost\": \"\", \"cmc\": 0, \"colors\": [], \"color_identity\": [\"G\"], \"type_line\": \"Basic Land \\u2014 Forest\", \"oracle_text\": \"{T}: Add {G}.\", \"flavor_text\": \"Where ancient roots intertwine with whispered secrets, the heartwood remembers songs older than the stars.\", \"power\": null, \"toughness\": null, \"loyalty\": null, \"rarity\": \"common\", \"design_notes\": \"This is a basic Forest card with standard mana-producing ability. Basic lands always have Green color identity despite having no colored mana in their cost. The flavor text evokes the mystical, ancient nature of forests in Magic's multiverse, emphasizing themes of memory, age, and connection to natural forces. As a basic land at common rarity, it provides the essential mana foundation for Green decks.\"}",
+  "raw_response": {
+    "stop_reason": "tool_use",
+    "model": "claude-sonnet-4-20250514"
+  },
+  "input_tokens": 2305,
+  "output_tokens": 366,
+  "cost_usd": 0.012405,
+  "latency_ms": 6749,
+  "model": "claude-sonnet-4-20250514",
+  "temperature": 1.0,
+  "cache_hit": false,
+  "cache_key": "cd00a5e053d7e370",
+  "timestamp": "2026-03-09T00:50:27.668160"
+}

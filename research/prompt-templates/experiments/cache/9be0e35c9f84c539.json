@@ -1,0 +1,16 @@
+{
+  "content": "{\"cards\": [{\"name\": \"Forge of Fury\", \"mana_cost\": \"{2}{R}{R}\", \"cmc\": 4, \"colors\": [\"R\"], \"color_identity\": [\"R\"], \"type_line\": \"Instant\", \"oracle_text\": \"Choose one \\u2014\\n\\u2022 ~ deals 4 damage to any target.\\n\\u2022 Destroy target artifact. ~ deals 2 damage to that artifact's controller.\\n\\u2022 Target creature gets +3/+0 and gains trample until end of turn.\", \"flavor_text\": \"\\\"The forge shapes more than metal\\u2014it shapes destiny.\\\" \\u2014Kythara, master smith\", \"power\": null, \"toughness\": null, \"loyalty\": null, \"rarity\": \"rare\"}, {\"name\": \"The Worldtree's Awakening\", \"mana_cost\": \"{3}{G}\", \"cmc\": 4, \"colors\": [\"G\"], \"color_identity\": [\"G\"], \"type_line\": \"Enchantment \\u2014 Saga\", \"oracle_text\": \"(As this Saga enters and after your draw step, add a lore counter.)\\nI \\u2014 Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\\nII \\u2014 Put a +1/+1 counter on each creature you control.\\nIII \\u2014 You gain 2 life for each creature you control. Draw a card.\", \"flavor_text\": null, \"power\": null, \"toughness\": null, \"loyalty\": null, \"rarity\": \"rare\"}, {\"name\": \"Crystal Caverns\", \"mana_cost\": \"\", \"cmc\": 0, \"colors\": [], \"color_identity\": [], \"type_line\": \"Land\", \"oracle_text\": \"~ enters tapped.\\n{T}: Add {C}.\\n{3}, {T}: Scry 2.\", \"flavor_text\": \"The crystals within pulse with ancient magic, revealing glimpses of what is to come.\", \"power\": null, \"toughness\": null, \"loyalty\": null, \"rarity\": \"uncommon\"}, {\"name\": \"Forest\", \"mana_cost\": \"\", \"cmc\": 0, \"colors\": [], \"color_identity\": [\"G\"], \"type_line\": \"Basic Land \\u2014 Forest\", \"oracle_text\": \"{T}: Add {G}.\", \"flavor_text\": \"Where ancient oaks whisper secrets to those who know how to listen.\", \"power\": null, \"toughness\": null, \"loyalty\": null, \"rarity\": \"common\"}]}",
+  "raw_response": {
+    "stop_reason": "tool_use",
+    "model": "claude-sonnet-4-20250514"
+  },
+  "input_tokens": 2414,
+  "output_tokens": 723,
+  "cost_usd": 0.018087,
+  "latency_ms": 10310,
+  "model": "claude-sonnet-4-20250514",
+  "temperature": 0.5,
+  "cache_hit": false,
+  "cache_key": "9be0e35c9f84c539",
+  "timestamp": "2026-03-09T00:29:25.065290"
+}

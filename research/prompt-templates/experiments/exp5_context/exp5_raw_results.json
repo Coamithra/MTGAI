@@ -1,0 +1,1472 @@
+{
+  "initial_cards": [
+    {
+      "name": "Moorland Sentinel",
+      "mana_cost": "{2}{W}",
+      "cmc": 3,
+      "colors": [
+        "W"
+      ],
+      "color_identity": [
+        "W"
+      ],
+      "type_line": "Creature — Human Soldier",
+      "oracle_text": "",
+      "flavor_text": "\"The watchtowers of Gavony never sleep, and neither do those who guard them.\"",
+      "power": "2",
+      "toughness": "4",
+      "loyalty": null,
+      "rarity": "common",
+      "design_notes": "Vanilla creature testing restraint. 2/4 body for 3 mana is slightly below the vanilla test (P+T should be CMC+3, so 6 total), but the defensive statline and white's focus on defensive creatures justifies this. Clean, simple design that fills the vanilla slot perfectly."
+    },
+    {
+      "name": "Radiant Pegasus",
+      "mana_cost": "{3}{W}",
+      "cmc": 4,
+      "colors": [
+        "W"
+      ],
+      "color_identity": [
+        "W"
+      ],
+      "type_line": "Creature — Pegasus",
+      "oracle_text": "Flying\nLifelink",
+      "flavor_text": "Its hooves leave trails of golden light across the battlefield.",
+      "power": "2",
+      "toughness": "3",
+      "loyalty": null,
+      "rarity": "common",
+      "design_notes": "Keyword-only creature with two evergreen abilities that are quintessentially white. Flying and lifelink pair well together - evasive threat that gains life. Stats are conservative (5 total for 4 mana) due to having two relevant keywords. Both abilities are firmly in white's slice of the color pie."
+    },
+    {
+      "name": "Righteous Banishment",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "colors": [
+        "W"
+      ],
+      "color_identity": [
+        "W"
+      ],
+      "type_line": "Instant",
+      "oracle_text": "Exile target attacking or blocking creature.",
+      "flavor_text": "\"Justice is swift for those who threaten the innocent.\"",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "uncommon",
+      "design_notes": "White's primary exile-based removal at uncommon. Conditional on the creature being in combat, which is a classic white restriction that encourages defensive play. Efficiently costed at 2 mana because of the meaningful restriction. Fits white's color pie perfectly - exile removal that requires the opponent to be aggressive."
+    },
+    {
+      "name": "Scholarly Insight",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "colors": [
+        "U"
+      ],
+      "color_identity": [
+        "U"
+      ],
+      "type_line": "Instant",
+      "oracle_text": "Draw a card, then scry 1.",
+      "flavor_text": "\"Knowledge is worthless without understanding.\"",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "common",
+      "design_notes": "Classic blue cantrip with a minor additional effect. Draw a card replaces itself, then scry 1 provides card selection. Both effects are firmly in blue's wheelhouse. Appropriately costed at 2 mana for common - more expensive than Opt but provides more value. Tests proper MTG draw templating with the comma separation."
+    },
+    {
+      "name": "Dispel the Weave",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "colors": [
+        "U"
+      ],
+      "color_identity": [
+        "U"
+      ],
+      "type_line": "Instant",
+      "oracle_text": "Counter target noncreature spell unless its controller pays {2}.",
+      "flavor_text": "\"Magic unravels when met with greater understanding.\"",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "uncommon",
+      "design_notes": "Counterspell variant that's narrow (noncreature only) but has a payment option. This creates interesting decision points - hard counter against instants/sorceries/planeswalkers, but gives opponents an out if they have extra mana. Costed aggressively at 2 mana due to the restrictions. Tests proper stack interaction templating with 'unless' clause."
+    },
+    {
+      "name": "Arcane Scrutiny",
+      "mana_cost": "{2}{U}{U}",
+      "cmc": 4,
+      "colors": [
+        "U"
+      ],
+      "color_identity": [
+        "U"
+      ],
+      "type_line": "Sorcery",
+      "oracle_text": "Choose one —\n• Look at the top five cards of your library. Put two into your hand and the rest on the bottom of your library in any order.\n• Draw three cards, then put two cards from your hand on top of your library in any order.",
+      "flavor_text": "\"Knowledge is useless without the wisdom to apply it selectively.\" —Jalira, Master Polymorphist",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "rare"
+    },
+    {
+      "name": "Fatal Strike",
+      "mana_cost": "{2}{B}",
+      "cmc": 3,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Instant",
+      "oracle_text": "Destroy target non-artifact creature.",
+      "flavor_text": "\"Every warrior has a weakness. Finding it is just a matter of patience.\" —Geth, Lord of the Vault",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "common"
+    },
+    {
+      "name": "Crypt Harvester",
+      "mana_cost": "{2}{B}",
+      "cmc": 3,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Creature — Zombie Cleric",
+      "oracle_text": "When ~ enters, mill three cards.\nWhenever a creature card is put into your graveyard from anywhere, you gain 1 life.",
+      "flavor_text": "It tends the dead with the devotion of a gardener nurturing seedlings.",
+      "power": "2",
+      "toughness": "2",
+      "loyalty": null,
+      "rarity": "uncommon"
+    },
+    {
+      "name": "Vorthak, Death's Herald",
+      "mana_cost": "{3}{B}{B}{B}",
+      "cmc": 6,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Legendary Creature — Demon Lord",
+      "oracle_text": "Flying, menace\nWhen ~ enters, each opponent sacrifices a creature.\nAt the beginning of your upkeep, return target creature card from your graveyard to the battlefield. It gains haste until end of turn.",
+      "flavor_text": "Where he walks, the boundary between life and death crumbles to dust.",
+      "power": "6",
+      "toughness": "6",
+      "loyalty": null,
+      "rarity": "mythic"
+    },
+    {
+      "name": "Molten Bolt",
+      "mana_cost": "{1}{R}",
+      "cmc": 2,
+      "colors": [
+        "R"
+      ],
+      "color_identity": [
+        "R"
+      ],
+      "type_line": "Instant",
+      "oracle_text": "~ deals 3 damage to any target.",
+      "flavor_text": "\"Subtlety is for those who lack sufficient firepower.\" —Chandra Nalaar",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "common"
+    }
+  ],
+  "strategies": {
+    "none": {
+      "strategy": "none",
+      "batches": [
+        {
+          "slots": [
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "cards": [
+            {
+              "name": "Embercharge Raider",
+              "mana_cost": "{2}{R}",
+              "cmc": 3,
+              "colors": [
+                "R"
+              ],
+              "color_identity": [
+                "R"
+              ],
+              "type_line": "Creature — Goblin Warrior",
+              "oracle_text": "Haste\nMenace",
+              "flavor_text": "\"Move fast, strike hard, disappear faster.\"",
+              "power": "3",
+              "toughness": "1",
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Aggressive red creature testing the P+T ceiling at common (3+1=4, CMC+1=4, so right at the edge). Haste enables immediate pressure, menace makes it harder to chump block. The 3/1 body trades power for vulnerability, fitting red's aggressive philosophy."
+            },
+            {
+              "name": "Worldfire Ancient",
+              "mana_cost": "{6}{R}{R}",
+              "cmc": 8,
+              "colors": [
+                "R"
+              ],
+              "color_identity": [
+                "R"
+              ],
+              "type_line": "Creature — Dragon",
+              "oracle_text": "Flying, haste\nWhen ~ enters, it deals damage equal to its power to any target.\n{2}{R}: ~ gets +2/+0 until end of turn.",
+              "flavor_text": "It remembers when the world was young and everything burned.",
+              "power": "7",
+              "toughness": "6",
+              "loyalty": null,
+              "rarity": "mythic",
+              "design_notes": "Splashy mythic dragon with immediate board impact and activated ability for late-game mana sink. The ETB ability can remove threats or deal significant player damage. The pump ability scales with available mana. At 8 mana, it needs to be powerful enough to warrant the cost while still being answerable."
+            },
+            {
+              "name": "Verdant Wayfinding",
+              "mana_cost": "{1}{G}",
+              "cmc": 2,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Sorcery",
+              "oracle_text": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+              "flavor_text": "The forest speaks to those who know how to listen.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Simple land search spell testing the standard 'search your library' templating. Costed at 2 mana to avoid being too efficient while remaining playable. Only searches for basics to keep power level appropriate for common. The reveal clause is standard for search effects that put cards into hand."
+            },
+            {
+              "name": "Ironbark Trampler",
+              "mana_cost": "{4}{G}{G}",
+              "cmc": 6,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Creature — Beast",
+              "oracle_text": "Trample",
+              "flavor_text": "Where it walks, the earth trembles and the trees part like grass.",
+              "power": "7",
+              "toughness": "5",
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Testing the common creature P/T ceiling with a 6-mana 7/5. P+T=12, CMC+3=9, so this exceeds the guideline but the high mana cost and single keyword justify it. Trample fits green's philosophy and makes the large body more threatening. The double green in cost reinforces color commitment."
+            },
+            {
+              "name": "Grove Sanctuary",
+              "mana_cost": "{2}{G}",
+              "cmc": 3,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Enchantment",
+              "oracle_text": "Creatures you control with power 4 or greater have trample.\n{1}{G}, {T}: Create a 1/1 green Saproling creature token.",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "uncommon",
+              "design_notes": "Multi-ability enchantment testing static ability + activated ability templating. The static ability rewards playing large creatures (green's specialty), while the activated ability provides incremental value. The tap cost prevents immediate double activation and adds strategic timing decisions. Power level is appropriate for uncommon."
+            }
+          ],
+          "cost_usd": 0.02523,
+          "cache_hit": true,
+          "tokens": {
+            "input": 2470,
+            "output": 1188
+          },
+          "prompt_length": 888
+        },
+        {
+          "slots": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "cards": [
+            {
+              "name": "Skyward Arbitrator",
+              "mana_cost": "{1}{W}{U}",
+              "cmc": 3,
+              "colors": [
+                "W",
+                "U"
+              ],
+              "color_identity": [
+                "W",
+                "U"
+              ],
+              "type_line": "Creature — Bird Wizard",
+              "oracle_text": "Flying\nWhenever ~ attacks, scry 1.\nWhenever you scry, you gain 2 life.",
+              "flavor_text": "\"Each revelation brings clarity and peace in equal measure.\"",
+              "power": "2",
+              "toughness": "2",
+              "loyalty": null,
+              "rarity": "uncommon",
+              "design_notes": "Classic Azorius signpost combining white's lifegain and blue's scry. Flying is a shared keyword. The scry-on-attack triggers card selection, while gaining life from scrying rewards the control player for longer games. Stats are fair for the cost with upside abilities."
+            },
+            {
+              "name": "Bloodthirst Marauder",
+              "mana_cost": "{2}{B}{R}",
+              "cmc": 4,
+              "colors": [
+                "B",
+                "R"
+              ],
+              "color_identity": [
+                "B",
+                "R"
+              ],
+              "type_line": "Creature — Vampire Warrior",
+              "oracle_text": "Haste\nWhenever ~ attacks, you may sacrifice a creature. If you do, ~ gets +2/+0 until end of turn and you draw a card.\nWhenever a creature you control dies, each opponent loses 1 life.",
+              "flavor_text": null,
+              "power": "3",
+              "toughness": "3",
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Rakdos build-around that rewards aggressive sacrifice strategies. Black provides card draw and life drain, red provides haste and temporary power boosts. The death trigger creates inevitability while the attack trigger offers explosive turns. Scales with other creatures and sacrifice outlets."
+            },
+            {
+              "name": "Wayfarer's Compass",
+              "mana_cost": "{2}",
+              "cmc": 2,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Artifact",
+              "oracle_text": "{T}: Add {C}.\n{T}, Sacrifice ~: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+              "flavor_text": "Even the most confident explorers know when to ask for directions.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Simple mana rock that can cash in for land tutoring. Provides mana acceleration early or fixing later. The sacrifice ability is optional utility that doesn't feel mandatory. Clean common design with clear decision points."
+            },
+            {
+              "name": "Temporal Resonance Engine",
+              "mana_cost": "{4}",
+              "cmc": 4,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Artifact",
+              "oracle_text": "{T}: Add {C}{C}.\n{3}, {T}: Target player draws a card, then discards a card.\n{5}, {T}, Sacrifice ~: Take an extra turn after this one.",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Complex artifact with escalating abilities. Mana acceleration, card selection, and ultimate extra turn. Each ability costs more but provides greater effect. The ultimate requires significant investment and telegraphs the threat. Tests multiple activated ability templating and mana costs."
+            },
+            {
+              "name": "Seraph of Divine Retribution",
+              "mana_cost": "{3}{W}{B}",
+              "cmc": 5,
+              "colors": [
+                "W",
+                "B"
+              ],
+              "color_identity": [
+                "W",
+                "B"
+              ],
+              "type_line": "Legendary Planeswalker — Seraph",
+              "oracle_text": "+1: You gain 2 life and each opponent loses 1 life.\n-2: Exile target creature. Its controller gains life equal to its power.\n-7: Return all creature cards from your graveyard to the battlefield. They gain flying and lifelink until end of turn.",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": "4",
+              "rarity": "mythic",
+              "design_notes": "Orzhov planeswalker embodying white's lifegain and black's life drain. Plus protects via incremental advantage. Minus provides premium removal with white's compensation. Ultimate creates a devastating but fair board state. Starting loyalty supports the gameplan without being oppressive."
+            }
+          ],
+          "cost_usd": 0.026058,
+          "cache_hit": true,
+          "tokens": {
+            "input": 2466,
+            "output": 1244
+          },
+          "prompt_length": 888
+        },
+        {
+          "slots": [
+            21,
+            22,
+            23,
+            24
+          ],
+          "cards": [
+            {
+              "name": "Forge of Inspiration",
+              "mana_cost": "{2}{R}{R}",
+              "cmc": 4,
+              "colors": [
+                "R"
+              ],
+              "color_identity": [
+                "R"
+              ],
+              "type_line": "Instant",
+              "oracle_text": "Choose one —\n• ~ deals 4 damage to any target.\n• Create two 1/1 red Goblin creature tokens with haste.\n• Draw two cards, then discard two cards.",
+              "flavor_text": "\"Ideas are like sparks—some ignite, others explode.\"",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Modal instant that showcases red's versatility: direct damage (primary), token creation (tertiary), and impulsive card selection (secondary). Each mode is appropriately costed for 4 mana at rare, offering tactical flexibility while staying in red's color pie."
+            },
+            {
+              "name": "The Wild Hunt",
+              "mana_cost": "{2}{G}{G}",
+              "cmc": 4,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Enchantment — Saga",
+              "oracle_text": "I — Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\nII — Create a 3/3 green Beast creature token.\nIII — Creatures you control get +2/+2 and gain trample until end of turn.",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "A green Saga that tells the story of a primal hunt building to a climactic finale. Chapter I provides mana fixing (green's ramp), Chapter II creates board presence with a reasonable threat, and Chapter III delivers a powerful combat boost with trample. The curve builds naturally and stays firmly in green's wheelhouse."
+            },
+            {
+              "name": "Prismatic Wellspring",
+              "mana_cost": "",
+              "cmc": 0,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Land",
+              "oracle_text": "~ enters tapped.\n{T}: Add {C}.\n{2}, {T}: Add one mana of any color.",
+              "flavor_text": "Where all colors converge, possibility flows eternal.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "uncommon",
+              "design_notes": "A colorless nonbasic land that provides mana fixing at a cost. The activated ability requires additional mana investment, making it a slower but more flexible option for multicolor decks. Enters tapped to prevent it from being too strong for fixing. Appropriate power level for uncommon."
+            },
+            {
+              "name": "Forest",
+              "mana_cost": "",
+              "cmc": 0,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Basic Land — Forest",
+              "oracle_text": "{T}: Add {G}.",
+              "flavor_text": "Ancient roots run deeper than memory, connecting all living things in an endless web of growth.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "A basic Forest with evocative flavor text that captures the interconnectedness and timeless nature of forest ecosystems. The flavor emphasizes growth and connection, core themes of green mana."
+            }
+          ],
+          "cost_usd": 0.021357,
+          "cache_hit": true,
+          "tokens": {
+            "input": 2414,
+            "output": 941
+          },
+          "prompt_length": 746
+        }
+      ],
+      "name_duplicates": [],
+      "similar_effects": [
+        "'Worldfire Ancient' ~ 'Molten Bolt' (86% word overlap)",
+        "'Forge of Inspiration' ~ 'Molten Bolt' (86% word overlap)"
+      ]
+    },
+    "names_only": {
+      "strategy": "names_only",
+      "batches": [
+        {
+          "slots": [
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "cards": [
+            {
+              "name": "Ember Charger",
+              "mana_cost": "{2}{R}",
+              "cmc": 3,
+              "colors": [
+                "R"
+              ],
+              "color_identity": [
+                "R"
+              ],
+              "type_line": "Creature — Horse",
+              "oracle_text": "Haste\nTrample",
+              "flavor_text": "Born from the volcanic forges, it knows no fear and no rest.",
+              "power": "3",
+              "toughness": "2",
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Red common creature testing aggressive statlines with keyword-only design. 3/2 haste trample for 3 mana is slightly above the curve but within acceptable range for red's aggressive philosophy. Trample pairs well with haste for immediate board impact."
+            },
+            {
+              "name": "Skyrender Tyrant",
+              "mana_cost": "{4}{R}{R}",
+              "cmc": 6,
+              "colors": [
+                "R"
+              ],
+              "color_identity": [
+                "R"
+              ],
+              "type_line": "Legendary Creature — Dragon",
+              "oracle_text": "Flying, haste\nWhen ~ enters, it deals 4 damage divided as you choose among any number of targets.\nWhenever ~ attacks, create a 1/1 red Goblin creature token with haste that's tapped and attacking.",
+              "flavor_text": "Where it soars, armies follow in its wake.",
+              "power": "5",
+              "toughness": "4",
+              "loyalty": null,
+              "rarity": "mythic",
+              "design_notes": "Mythic red dragon with multiple abilities creating immediate board impact. ETB damage provides versatility, while attack trigger creates ongoing value and pressure. 5/4 flying haste body is appropriately sized for 6 mana mythic. Multi-target damage and token generation showcase red's aggressive and chaotic nature."
+            },
+            {
+              "name": "Verdant Exploration",
+              "mana_cost": "{1}{G}",
+              "cmc": 2,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Sorcery",
+              "oracle_text": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+              "flavor_text": "Every path through the wilderness leads to new discoveries.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Simple green land search effect testing 'search your library' templating. At 2 mana for a basic land to hand, it's appropriately costed for common ramp. The reveal requirement is standard templating for search effects that put cards into hand rather than play."
+            },
+            {
+              "name": "Ironbark Crusher",
+              "mana_cost": "{4}{G}",
+              "cmc": 5,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Creature — Beast",
+              "oracle_text": "Trample",
+              "flavor_text": "Its footsteps shake the earth, and its charge breaks the enemy line.",
+              "power": "5",
+              "toughness": "4",
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Common green creature testing the P/T ceiling. 5/4 for 5 mana hits the CMC + 4 guideline (barely acceptable for common). Trample is the perfect keyword for a large green creature, enabling damage to get through even when blocked. Simple and clean design focusing on green's strength in large creatures."
+            },
+            {
+              "name": "Symbiotic Growth",
+              "mana_cost": "{2}{G}",
+              "cmc": 3,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Enchantment",
+              "oracle_text": "At the beginning of your upkeep, put a +1/+1 counter on target creature you control.\n{3}{G}, Sacrifice ~: Search your library for a creature card with mana value 3 or less, put it onto the battlefield, then shuffle.",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "uncommon",
+              "design_notes": "Uncommon green enchantment with two abilities testing enchantment templating. Provides ongoing value through +1/+1 counters, plus a sacrifice effect for creature tutoring. The mana value restriction keeps the tutor effect balanced. Multi-ability design appropriate for uncommon complexity level, showcasing green's creature synergies."
+            }
+          ],
+          "cost_usd": 0.02595,
+          "cache_hit": false,
+          "tokens": {
+            "input": 2550,
+            "output": 1220
+          },
+          "prompt_length": 1130
+        },
+        {
+          "slots": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "cards": [
+            {
+              "name": "Astral Enforcer",
+              "mana_cost": "{1}{W}{U}",
+              "cmc": 3,
+              "colors": [
+                "W",
+                "U"
+              ],
+              "color_identity": [
+                "W",
+                "U"
+              ],
+              "type_line": "Creature — Spirit Detective",
+              "oracle_text": "Flying\nWhen ~ enters, exile target nonland permanent until ~ leaves the battlefield.\nWhenever ~ attacks, scry 1.",
+              "flavor_text": "\"Justice sees all, even across the veil of worlds.\"",
+              "power": "2",
+              "toughness": "3",
+              "loyalty": null,
+              "rarity": "uncommon",
+              "design_notes": "Azorius archetype signpost combining white's exile-based removal with blue's flying and scry. The ETB creates tempo advantage while flying and scry provide card selection and evasion. Stats are slightly below curve to account for the powerful enter ability."
+            },
+            {
+              "name": "Bloodpact Tormentor",
+              "mana_cost": "{2}{B}{R}",
+              "cmc": 4,
+              "colors": [
+                "B",
+                "R"
+              ],
+              "color_identity": [
+                "B",
+                "R"
+              ],
+              "type_line": "Creature — Demon Warrior",
+              "oracle_text": "Menace\nWhen ~ enters, each opponent loses 2 life and you draw a card.\n{1}{B}{R}, Sacrifice a creature: ~ deals 3 damage to any target.",
+              "flavor_text": "Power demands sacrifice, and sacrifice demands power.",
+              "power": "3",
+              "toughness": "3",
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Rakdos build-around that rewards aggressive sacrifice strategies. ETB provides immediate value in both colors (life loss and card draw), while the activated ability converts creatures into direct damage. Menace ensures it applies pressure. Build-around potential with sacrifice synergies."
+            },
+            {
+              "name": "Traveler's Compass",
+              "mana_cost": "{2}",
+              "cmc": 2,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Artifact",
+              "oracle_text": "{T}: Add {C}.\n{1}, {T}, Sacrifice ~: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+              "flavor_text": "Every path leads somewhere worth going.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Simple mana rock with land-fixing utility. The sacrifice ability provides mana fixing for multicolor decks at common complexity. Fair rate for the effect - costs mana and the artifact itself to tutor a basic land."
+            },
+            {
+              "name": "Prismatic Engine",
+              "mana_cost": "{4}",
+              "cmc": 4,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Artifact",
+              "oracle_text": "{T}: Add {C}{C}.\n{2}, {T}: Add one mana of any color.\n{5}, {T}: Draw a card, then you may put a land card from your hand onto the battlefield.",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Complex artifact with three activated abilities of increasing cost and power. First ability provides raw mana, second gives color fixing, third provides card advantage and ramp. Each ability uses tap, creating interesting sequencing decisions. High cost balances the versatility."
+            },
+            {
+              "name": "Seraph of Divine Wrath",
+              "mana_cost": "{3}{W}{B}",
+              "cmc": 5,
+              "colors": [
+                "W",
+                "B"
+              ],
+              "color_identity": [
+                "W",
+                "B"
+              ],
+              "type_line": "Legendary Planeswalker — Seraph",
+              "oracle_text": "+1: Exile target creature. Its controller gains life equal to its power.\n-2: Return target creature card from your graveyard to the battlefield. It gains lifelink until end of turn.\n-7: You get an emblem with \"Whenever a creature you control dies, return it to the battlefield under your control at the beginning of the next end step.\"",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": "4",
+              "rarity": "mythic",
+              "design_notes": "Orzhov planeswalker blending white's exile removal with black's reanimation. The +1 removes threats while giving opponent life (white's compensation philosophy). The -2 reanimates with lifelink (white enhancement of black effect). Ultimate creates recursive value engine fitting both colors. Starting loyalty of 4 balances power level."
+            }
+          ],
+          "cost_usd": 0.026688,
+          "cache_hit": false,
+          "tokens": {
+            "input": 2546,
+            "output": 1270
+          },
+          "prompt_length": 1130
+        },
+        {
+          "slots": [
+            21,
+            22,
+            23,
+            24
+          ],
+          "cards": [
+            {
+              "name": "Blazing Confluence",
+              "mana_cost": "{2}{R}{R}",
+              "cmc": 4,
+              "colors": [
+                "R"
+              ],
+              "color_identity": [
+                "R"
+              ],
+              "type_line": "Instant",
+              "oracle_text": "Choose two —\n• ~ deals 3 damage to any target.\n• Destroy target artifact.\n• Target creature gains haste and gets +2/+0 until end of turn.",
+              "flavor_text": "\"Three paths converge in flame, each more destructive than the last.\"",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "A modal red instant that showcases red's versatility - direct damage, artifact destruction, and temporary creature enhancement. The 'choose two' mode provides meaningful decisions and powerful combinations while staying within red's color pie. Costed appropriately for the flexibility at rare."
+            },
+            {
+              "name": "The Verdant Awakening",
+              "mana_cost": "{3}{G}",
+              "cmc": 4,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Enchantment — Saga",
+              "oracle_text": "(As this Saga enters and after your draw step, add a lore counter. Sacrifice after III.)\nI — Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\nII — Put a +1/+1 counter on each creature you control.\nIII — You gain 2 life for each creature you control.",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "A green Saga that tells the story of nature's growth and flourishing. Chapter I provides ramp (green's specialty), Chapter II enhances creatures with +1/+1 counters (green's domain), and Chapter III rewards a wide board with lifegain. The progression feels natural and builds toward a satisfying conclusion."
+            },
+            {
+              "name": "Crystalized Cavern",
+              "mana_cost": "",
+              "cmc": 0,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Land",
+              "oracle_text": "~ enters tapped.\n{T}: Add {C}.\n{3}, {T}: Scry 1, then draw a card.",
+              "flavor_text": "The cavern's walls shimmer with trapped starlight, revealing glimpses of what's to come.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "uncommon",
+              "design_notes": "A colorless utility land that provides card selection and advantage at a significant mana investment. The scry 1 before draw provides meaningful deck manipulation. Enters tapped to balance the powerful activated ability. The high activation cost prevents it from being oppressive while making it a build-around card."
+            },
+            {
+              "name": "Forest",
+              "mana_cost": "",
+              "cmc": 0,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Basic Land — Forest",
+              "oracle_text": "{T}: Add {G}.",
+              "flavor_text": "Ancient roots intertwine beneath the canopy, sharing whispers of seasons long past.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Standard basic Forest with evocative flavor text that captures the timeless, interconnected nature of the forest. The flavor suggests both age and communication between the trees, fitting green's themes of natural harmony and wisdom."
+            }
+          ],
+          "cost_usd": 0.022137,
+          "cache_hit": false,
+          "tokens": {
+            "input": 2494,
+            "output": 977
+          },
+          "prompt_length": 988
+        }
+      ],
+      "name_duplicates": [],
+      "similar_effects": [
+        "'Bloodpact Tormentor' ~ 'Molten Bolt' (100% word overlap)",
+        "'Prismatic Engine' ~ 'Scholarly Insight' (67% word overlap)",
+        "'Seraph of Divine Wrath' ~ 'Vorthak, Death's Herald' (67% word overlap)",
+        "'Blazing Confluence' ~ 'Molten Bolt' (100% word overlap)",
+        "'The Verdant Awakening' ~ 'Scholarly Insight' (67% word overlap)",
+        "'Crystalized Cavern' ~ 'Scholarly Insight' (67% word overlap)"
+      ]
+    },
+    "compressed": {
+      "strategy": "compressed",
+      "batches": [
+        {
+          "slots": [
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "cards": [
+            {
+              "name": "Emberforge Warrior",
+              "mana_cost": "{1}{R}",
+              "cmc": 2,
+              "colors": [
+                "R"
+              ],
+              "color_identity": [
+                "R"
+              ],
+              "type_line": "Creature — Human Warrior",
+              "oracle_text": "Haste\nMenace",
+              "flavor_text": "The forge fires burn in her eyes and fuel her relentless charge.",
+              "power": "2",
+              "toughness": "1",
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Simple aggressive creature with two relevant keywords. 2/1 for 2 with haste and menace follows common power level guidelines - aggressive stats with evasion but fragile. Menace makes it harder to block while haste enables immediate pressure."
+            },
+            {
+              "name": "Inferno Tyrant",
+              "mana_cost": "{4}{R}{R}",
+              "cmc": 6,
+              "colors": [
+                "R"
+              ],
+              "color_identity": [
+                "R"
+              ],
+              "type_line": "Creature — Dragon",
+              "oracle_text": "Flying, trample\nWhen ~ enters, it deals 4 damage to each opponent.\n{2}{R}: ~ gets +3/+0 until end of turn.",
+              "flavor_text": "Its breath turns kingdoms to ash, its wings eclipse the sun.",
+              "power": "6",
+              "toughness": "4",
+              "loyalty": null,
+              "rarity": "mythic",
+              "design_notes": "Splashy mythic dragon with immediate board impact and activated ability for reach. The ETB ability provides guaranteed value, while the pump ability creates decision points and enables lethal attacks. 6/4 flying trample for 6 mana is powerful but fair for mythic level."
+            },
+            {
+              "name": "Verdant Pilgrimage",
+              "mana_cost": "{1}{G}",
+              "cmc": 2,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Sorcery",
+              "oracle_text": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+              "flavor_text": "The ancient paths still remember the way to sacred groves.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Clean land search effect at common. Gets a basic to hand rather than directly into play to avoid complexity issues. 2 mana cost is fair for hand ramp that fixes mana and provides card advantage. Standard templating for library search effects."
+            },
+            {
+              "name": "Ironbark Behemoth",
+              "mana_cost": "{4}{G}{G}",
+              "cmc": 6,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Creature — Beast",
+              "oracle_text": "Trample",
+              "flavor_text": "It moves through the forest like a living avalanche, unstoppable and thunderous.",
+              "power": "8",
+              "toughness": "6",
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Large common creature that tests the upper bounds of common P/T. 8/6 for 6 mana follows the CMC+3 guideline (6+3=9, P+T=14 exceeds slightly but trample-only justifies it). Single keyword keeps complexity low while trample makes the large body relevant."
+            },
+            {
+              "name": "Primal Awakening",
+              "mana_cost": "{2}{G}",
+              "cmc": 3,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Enchantment — Aura",
+              "oracle_text": "Enchant land\nEnchanted land has \"{T}: Add {G}{G}.\"\nAt the beginning of your upkeep, if enchanted land is untapped, you may search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "uncommon",
+              "design_notes": "Multi-ability aura that provides mana acceleration and land ramp. The upkeep trigger creates interesting decisions about tapping the land vs. getting more lands. Requires the land to be untapped to balance the powerful effect. Tests both Aura templating and triggered ability complexity appropriate for uncommon."
+            }
+          ],
+          "cost_usd": 0.026511,
+          "cache_hit": false,
+          "tokens": {
+            "input": 2832,
+            "output": 1201
+          },
+          "prompt_length": 1942
+        },
+        {
+          "slots": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "cards": [
+            {
+              "name": "Skyward Magistrate",
+              "mana_cost": "{1}{W}{U}",
+              "cmc": 3,
+              "colors": [
+                "W",
+                "U"
+              ],
+              "color_identity": [
+                "W",
+                "U"
+              ],
+              "type_line": "Creature — Human Wizard",
+              "oracle_text": "Flying\nWhen ~ enters, you may return target nonland permanent to its owner's hand. If you do, you gain 2 life.",
+              "flavor_text": "\"Justice requires both wisdom and elevation above petty concerns.\"",
+              "power": "2",
+              "toughness": "3",
+              "loyalty": null,
+              "rarity": "uncommon",
+              "design_notes": "Azorius archetype signpost combining white's lifegain and blue's bounce effects. The optional trigger provides flexibility while the flying body supports tempo strategies. Power level appropriate for uncommon gold cards."
+            },
+            {
+              "name": "Torment Fiend",
+              "mana_cost": "{2}{B}{R}",
+              "cmc": 4,
+              "colors": [
+                "B",
+                "R"
+              ],
+              "color_identity": [
+                "B",
+                "R"
+              ],
+              "type_line": "Creature — Demon",
+              "oracle_text": "Menace\nWhen ~ enters, target opponent discards a card and ~ deals 2 damage to that player.\nWhenever an opponent discards a card, ~ gets +2/+0 until end of turn.",
+              "flavor_text": "Pain feeds its hunger, despair fuels its rage.",
+              "power": "3",
+              "toughness": "2",
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Rakdos build-around that rewards discard synergies. Combines black's discard effects with red's aggressive damage. The power boost encourages building around discard effects while providing immediate value."
+            },
+            {
+              "name": "Pilgrim's Staff",
+              "mana_cost": "{2}",
+              "cmc": 2,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Artifact — Equipment",
+              "oracle_text": "Equipped creature gets +1/+1 and has lifelink.\nEquip {1}",
+              "flavor_text": "A beacon of hope for those who walk the righteous path.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Simple equipment that provides a meaningful but not overwhelming bonus. Lifelink is appropriate for common complexity and provides utility across multiple archetypes."
+            },
+            {
+              "name": "Prismatic Conduit",
+              "mana_cost": "{4}",
+              "cmc": 4,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Artifact",
+              "oracle_text": "{T}: Add {C}.\n{2}, {T}: Add one mana of any color.\n{5}, {T}: Draw a card.",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Mana rock that scales from early fixing to late-game card advantage. Multiple activated abilities test complex artifact templating while providing meaningful choices at different game stages."
+            },
+            {
+              "name": "Seraph of Divine Judgment",
+              "mana_cost": "{2}{W}{B}",
+              "cmc": 4,
+              "colors": [
+                "W",
+                "B"
+              ],
+              "color_identity": [
+                "W",
+                "B"
+              ],
+              "type_line": "Legendary Planeswalker — Seraph",
+              "oracle_text": "+1: You gain 2 life and each opponent loses 1 life.\n-2: Exile target creature. Its controller gains life equal to its power.\n-7: You get an emblem with \"Whenever a creature dies, you gain 3 life and draw a card.\"",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": "3",
+              "rarity": "mythic",
+              "design_notes": "Orzhov planeswalker embodying life manipulation themes. Plus ability provides incremental advantage, minus provides premium removal with white's life compensation, and ultimate creates a powerful engine. Starting loyalty balances immediate impact with protection needs."
+            }
+          ],
+          "cost_usd": 0.025719,
+          "cache_hit": false,
+          "tokens": {
+            "input": 2828,
+            "output": 1149
+          },
+          "prompt_length": 1942
+        },
+        {
+          "slots": [
+            21,
+            22,
+            23,
+            24
+          ],
+          "cards": [
+            {
+              "name": "Blazing Ultimatum",
+              "mana_cost": "{2}{R}{R}",
+              "cmc": 4,
+              "colors": [
+                "R"
+              ],
+              "color_identity": [
+                "R"
+              ],
+              "type_line": "Instant",
+              "oracle_text": "Choose two —\n• ~ deals 4 damage to any target.\n• Destroy target artifact.\n• Target creature gains haste and +2/+0 until end of turn.",
+              "flavor_text": "\"Fire answers every question with the same solution.\" —Keral, pyromancer",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Modal red rare instant with classic red effects: burn, artifact destruction, and temporary combat boost. The 'choose two' format makes it flexible and powerful enough for rare. All three modes are solidly in red's color pie. Cost reflects the flexibility of getting two effects."
+            },
+            {
+              "name": "The Verdant Awakening",
+              "mana_cost": "{2}{G}{G}",
+              "cmc": 4,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Enchantment — Saga",
+              "oracle_text": "I — Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\nII — Put two +1/+1 counters on target creature you control.\nIII — Creatures you control get +2/+2 and trample until end of turn.",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Green saga focusing on ramp, +1/+1 counters, and combat enhancement - all core green mechanics. Chapter I provides mana fixing, II builds board presence, III delivers a powerful finisher. The progression from setup to payoff fits saga design philosophy and green's ramp-into-threats strategy."
+            },
+            {
+              "name": "Crystal Caverns",
+              "mana_cost": "",
+              "cmc": 0,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Land",
+              "oracle_text": "~ enters tapped.\n{T}: Add {C}.\n{2}, {T}: Scry 1.",
+              "flavor_text": "Deep beneath the mountains, ancient crystals hold memories of ages past.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "uncommon",
+              "design_notes": "Colorless utility land that enters tapped to balance the scry ability. The scry 1 for {2} + tap is costed appropriately for an uncommon land - useful but not overpowered. Provides colorless mana and card selection utility."
+            },
+            {
+              "name": "Forest",
+              "mana_cost": "",
+              "cmc": 0,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Basic Land — Forest",
+              "oracle_text": "{T}: Add {G}.",
+              "flavor_text": "Where ancient oaks whisper secrets to those who know how to listen.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Standard basic Forest with evocative flavor text. Basic lands are always common and have the standard mana ability. The flavor suggests the mystical, natural wisdom associated with green mana and forest environments."
+            }
+          ],
+          "cost_usd": 0.022443,
+          "cache_hit": false,
+          "tokens": {
+            "input": 2776,
+            "output": 941
+          },
+          "prompt_length": 1800
+        }
+      ],
+      "name_duplicates": [],
+      "similar_effects": [
+        "'Blazing Ultimatum' ~ 'Molten Bolt' (86% word overlap)"
+      ]
+    },
+    "full_color": {
+      "strategy": "full_color",
+      "batches": [
+        {
+          "slots": [
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "cards": [
+            {
+              "name": "Ember Striker",
+              "mana_cost": "{1}{R}",
+              "cmc": 2,
+              "colors": [
+                "R"
+              ],
+              "color_identity": [
+                "R"
+              ],
+              "type_line": "Creature — Goblin Warrior",
+              "oracle_text": "Haste\nMenace",
+              "flavor_text": "Strike fast, strike twice, ask questions later.",
+              "power": "2",
+              "toughness": "1",
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Aggressive 2-drop with haste and menace. P+T = 3 equals CMC, which follows common creature guidelines. Two keywords make it interesting without being complex. Menace pairs well with haste for aggressive strategies."
+            },
+            {
+              "name": "Skyfire Tyrant",
+              "mana_cost": "{5}{R}{R}",
+              "cmc": 7,
+              "colors": [
+                "R"
+              ],
+              "color_identity": [
+                "R"
+              ],
+              "type_line": "Creature — Dragon",
+              "oracle_text": "Flying, trample, haste\nWhenever ~ attacks, it deals damage equal to its power to target creature or planeswalker.\n{R}{R}: ~ gets +2/+0 until end of turn.",
+              "flavor_text": null,
+              "power": "6",
+              "toughness": "4",
+              "loyalty": null,
+              "rarity": "mythic",
+              "design_notes": "Splashy mythic Dragon with multiple abilities. Flying/trample/haste baseline, attack trigger for battlefield control, and activated ability for burst damage. At 7 mana, it's expensive enough to be fair but impactful enough to be mythic-worthy."
+            },
+            {
+              "name": "Seek the Wilds",
+              "mana_cost": "{1}{G}",
+              "cmc": 2,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Sorcery",
+              "oracle_text": "Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+              "flavor_text": "Every path leads somewhere. The wise choose their destination.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Simple ramp spell testing library search templating. Puts land into play tapped to avoid being too powerful at common. Standard 2-mana ramp effect following established patterns like Rampant Growth."
+            },
+            {
+              "name": "Ironbark Behemoth",
+              "mana_cost": "{4}{G}",
+              "cmc": 5,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Creature — Beast",
+              "oracle_text": "Trample",
+              "flavor_text": "Its footsteps echo like thunder, reshaping the very landscape in its wake.",
+              "power": "5",
+              "toughness": "4",
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Large common creature testing power/toughness ceiling. P+T = 9 vs CMC = 5, so P+T exceeds CMC+3 by 1, which is acceptable for a single keyword. Trample is appropriate for large green creatures and helps it connect with opponents."
+            },
+            {
+              "name": "Verdant Awakening",
+              "mana_cost": "{2}{G}",
+              "cmc": 3,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Enchantment",
+              "oracle_text": "Whenever a land enters the battlefield under your control, you gain 1 life.\n{G}, Sacrifice ~: Search your library for a basic land card, put it onto the battlefield, then shuffle.",
+              "flavor_text": "Nature rewards those who tend to its growth.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "uncommon",
+              "design_notes": "Multi-ability enchantment with static enchantment effects. Passive lifegain trigger supports midrange strategies, while activated ability provides utility. The sacrifice cost prevents it from being too repetitive while giving players choices about when to cash it in."
+            }
+          ],
+          "cost_usd": 0.025281,
+          "cache_hit": false,
+          "tokens": {
+            "input": 2727,
+            "output": 1140
+          },
+          "prompt_length": 1570
+        },
+        {
+          "slots": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "cards": [
+            {
+              "name": "Skywatch Inquisitor",
+              "mana_cost": "{1}{W}{U}",
+              "cmc": 3,
+              "colors": [
+                "W",
+                "U"
+              ],
+              "color_identity": [
+                "W",
+                "U"
+              ],
+              "type_line": "Creature — Human Wizard",
+              "oracle_text": "Flying\nWhen ~ enters, exile target nonland permanent until ~ leaves the battlefield.\nWhenever you draw a card during your turn, you gain 1 life.",
+              "flavor_text": "\"Truth and order shine brightest from above the chaos.\"",
+              "power": "2",
+              "toughness": "2",
+              "loyalty": null,
+              "rarity": "uncommon",
+              "design_notes": "Azorius signpost combining white's temporary exile removal with blue's card draw synergy. Flying fits both colors. The exile ability is white-style removal that's temporary (not permanent destruction), while the card draw trigger rewards the blue archetype's strategy. Balanced at 3 mana for a 2/2 flyer with significant upside."
+            },
+            {
+              "name": "Bloodpact Ravager",
+              "mana_cost": "{2}{B}{R}",
+              "cmc": 4,
+              "colors": [
+                "B",
+                "R"
+              ],
+              "color_identity": [
+                "B",
+                "R"
+              ],
+              "type_line": "Creature — Demon Berserker",
+              "oracle_text": "Haste\nWhen ~ enters, you may sacrifice a creature. If you do, ~ deals damage equal to the sacrificed creature's power to any target.\nAt the beginning of your end step, if a creature died this turn, put a +1/+1 counter on ~.",
+              "flavor_text": "It feeds on violence, growing stronger with each life claimed.",
+              "power": "3",
+              "toughness": "2",
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Rakdos build-around that rewards aggressive sacrifice strategies. Black provides the sacrifice theme, red provides haste and direct damage. The end step trigger rewards the aggressive Rakdos gameplan of trading creatures. Creates interesting decisions about when to sacrifice and what to target. Power level appropriate for rare with build-around potential."
+            },
+            {
+              "name": "Wayfarer's Compass",
+              "mana_cost": "{2}",
+              "cmc": 2,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Artifact",
+              "oracle_text": "{T}: Add {C}.\n{1}, {T}: Look at the top card of your library. If it's a land card, you may put it into your hand.",
+              "flavor_text": "\"Even in the darkest wilderness, it points toward hope.\"",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Simple mana rock with utility ability. The second ability helps smooth draws and find lands, which is useful in limited environments. Costed appropriately at 2 mana for a mana rock with minor upside. The land-finding ability is slow enough to not be oppressive but provides meaningful value over time."
+            },
+            {
+              "name": "Chronarch's Observatory",
+              "mana_cost": "{4}",
+              "cmc": 4,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Artifact",
+              "oracle_text": "{T}: Add {C}{C}.\n{2}, {T}: Scry 2, then draw a card.\n{5}, {T}: Take an extra turn after this one.",
+              "flavor_text": "\"Time bends to those who understand its true nature.\"",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Complex artifact with escalating abilities. First ability provides ramp, second provides card selection and advantage, third is a powerful but expensive effect. The extra turn ability is costed high enough to be fair but provides a powerful late-game threat. Each ability has proper tap/cost syntax and the mana costs create interesting resource management decisions."
+            },
+            {
+              "name": "Seraphine, Divine Arbiter",
+              "mana_cost": "{2}{W}{B}",
+              "cmc": 4,
+              "colors": [
+                "W",
+                "B"
+              ],
+              "color_identity": [
+                "W",
+                "B"
+              ],
+              "type_line": "Legendary Planeswalker — Seraphine",
+              "oracle_text": "+1: You gain 3 life and each opponent loses 1 life.\n-2: Exile target creature. Its controller may pay {4}. If they don't, put a 1/1 white Spirit creature token with flying onto the battlefield.\n-7: You get an emblem with \"Whenever a creature dies, you may return target creature card with mana value 3 or less from your graveyard to the battlefield.\"",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": "4",
+              "rarity": "mythic",
+              "design_notes": "Orzhov planeswalker combining white's lifegain and tokens with black's life drain and reanimation. +1 ability provides incremental advantage typical of both colors. -2 gives flexible removal with white's 'taxing' element and token creation. Ultimate creates long-term value engine fitting Orzhov's recursive themes. Starting loyalty and costs are balanced for competitive play."
+            }
+          ],
+          "cost_usd": 0.034071,
+          "cache_hit": false,
+          "tokens": {
+            "input": 4297,
+            "output": 1412
+          },
+          "prompt_length": 5590
+        },
+        {
+          "slots": [
+            21,
+            22,
+            23,
+            24
+          ],
+          "cards": [
+            {
+              "name": "Pyroclastic Eruption",
+              "mana_cost": "{2}{R}{R}",
+              "cmc": 4,
+              "colors": [
+                "R"
+              ],
+              "color_identity": [
+                "R"
+              ],
+              "type_line": "Instant",
+              "oracle_text": "Choose two —\n• ~ deals 4 damage to target creature.\n• ~ deals 2 damage to each creature.\n• ~ deals 3 damage to target player or planeswalker.",
+              "flavor_text": "The mountain's fury knows no bounds.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Modal red instant that offers versatility between single-target removal, board clear, and direct damage. The 'choose two' format tests modal templating while staying in red's wheelhouse of damage-based effects. Costed at 4 mana to be powerful but fair for rare slot."
+            },
+            {
+              "name": "The Wild Awakening",
+              "mana_cost": "{2}{G}",
+              "cmc": 3,
+              "colors": [
+                "G"
+              ],
+              "color_identity": [
+                "G"
+              ],
+              "type_line": "Enchantment — Saga",
+              "oracle_text": "I — Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\nII — Create a 2/2 green Bear creature token.\nIII — Put two +1/+1 counters on each creature you control.",
+              "flavor_text": null,
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "rare",
+              "design_notes": "Green Saga that follows a natural progression: ramp (I), create a threat (II), then pump your team (III). Each chapter represents core green effects - land ramp, creature tokens, and +1/+1 counters. The escalating power level fits Saga design philosophy."
+            },
+            {
+              "name": "Forgotten Sanctum",
+              "mana_cost": "",
+              "cmc": 0,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Land",
+              "oracle_text": "~ enters tapped.\n{T}: Add {C}.\n{3}, {T}: Scry 2.",
+              "flavor_text": "Once a place of worship, now a refuge for the lost and forgotten.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "uncommon",
+              "design_notes": "Colorless utility land that enters tapped and provides colorless mana, with an expensive activated ability for card selection. The scry ability is costed high enough to be fair at uncommon while providing meaningful late-game utility."
+            },
+            {
+              "name": "Forest",
+              "mana_cost": "",
+              "cmc": 0,
+              "colors": [],
+              "color_identity": [],
+              "type_line": "Basic Land — Forest",
+              "oracle_text": "{T}: Add {G}.",
+              "flavor_text": "In the heart of the wilderness, life finds its truest expression.",
+              "power": null,
+              "toughness": null,
+              "loyalty": null,
+              "rarity": "common",
+              "design_notes": "Standard basic Forest with evocative flavor text that captures the essence of green mana and nature's vitality. Basic lands are always common and have the standard mana-producing ability."
+            }
+          ],
+          "cost_usd": 0.021693,
+          "cache_hit": false,
+          "tokens": {
+            "input": 2671,
+            "output": 912
+          },
+          "prompt_length": 1428
+        }
+      ],
+      "name_duplicates": [],
+      "similar_effects": [
+        "'Bloodpact Ravager' ~ 'Molten Bolt' (86% word overlap)",
+        "'Chronarch's Observatory' ~ 'Scholarly Insight' (67% word overlap)",
+        "'Seraphine, Divine Arbiter' ~ 'Righteous Banishment' (67% word overlap)",
+        "'Pyroclastic Eruption' ~ 'Molten Bolt' (71% word overlap)"
+      ]
+    }
+  }
+}

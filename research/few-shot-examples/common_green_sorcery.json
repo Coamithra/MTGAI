@@ -1,0 +1,16 @@
+{
+  "name": "Rampant Growth",
+  "mana_cost": "{1}{G}",
+  "cmc": 2.0,
+  "colors": ["G"],
+  "color_identity": ["G"],
+  "type_line": "Sorcery",
+  "oracle_text": "Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "common",
+  "layout": "normal",
+  "design_notes": "The definitive green ramp spell. Searches library for a basic land and puts it onto the battlefield (not hand), providing true mana acceleration. Being a sorcery prevents instant-speed mana tricks. The land enters tapped to prevent same-turn tempo advantage. Establishes the baseline for 2-mana ramp spells."
+}

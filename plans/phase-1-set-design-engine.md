@@ -65,7 +65,7 @@ class SetConfig:
     code: str                    # e.g., "WTV" (3-letter set code)
     theme: str                   # e.g., "Cosmic horror meets deep-sea exploration"
     flavor_description: str      # 2-3 paragraph world-building blurb
-    card_count: int              # Target card count (default: 271)
+    card_count: int              # Target card count (default: 60 for dev set; ~271 for full production). Uses set-template.json scaling formulas.
     mechanic_count: int          # Number of new mechanics (default: 3, range 2-4)
     reprint_slots: int           # Number of reserved reprint slots (default: ~15-25)
     special_constraints: list[str]  # e.g., ["no planeswalkers", "artifact subtheme in UB"]
@@ -471,7 +471,7 @@ CMC 6: █░░░░░░░░░ 1
     "code": "WTV",
     "theme": "Cosmic horror meets deep-sea exploration",
     "flavor_description": "...",
-    "card_count": 271,
+    "card_count": 60,  // Dev set default; scale to ~271 for production
     "created_at": "2026-03-08T14:00:00Z",
     "version": 1
   },

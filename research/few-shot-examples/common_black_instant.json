@@ -1,0 +1,16 @@
+{
+  "name": "Murder",
+  "mana_cost": "{1}{B}{B}",
+  "cmc": 3.0,
+  "colors": ["B"],
+  "color_identity": ["B"],
+  "type_line": "Instant",
+  "oracle_text": "Destroy target creature.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "common",
+  "layout": "normal",
+  "design_notes": "Clean, unconditional creature removal at common. Black gets the most efficient destroy effects. The double-black in the cost ({1}{B}{B}) shows how mana costs enforce color commitment — you need to be heavily in black to cast this on curve. Three words of oracle text demonstrate ideal common simplicity."
+}

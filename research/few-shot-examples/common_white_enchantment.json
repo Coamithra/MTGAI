@@ -1,0 +1,16 @@
+{
+  "name": "Pacifism",
+  "mana_cost": "{1}{W}",
+  "cmc": 2.0,
+  "colors": ["W"],
+  "color_identity": ["W"],
+  "type_line": "Enchantment — Aura",
+  "oracle_text": "Enchant creature\nEnchanted creature can't attack or block.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "common",
+  "layout": "normal",
+  "design_notes": "The quintessential white removal aura. Demonstrates white's philosophy: it neutralizes threats rather than destroying them outright. Aura enchantments use 'Enchant creature' as the first line of oracle text to specify the target. Simple, clean design at common."
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Temple of Malice",
+  "mana_cost": null,
+  "cmc": 0.0,
+  "colors": [],
+  "color_identity": ["B", "R"],
+  "type_line": "Land",
+  "oracle_text": "Temple of Malice enters the battlefield tapped.\nWhen Temple of Malice enters the battlefield, scry 1.\n{T}: Add {B} or {R}.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "uncommon",
+  "layout": "normal",
+  "design_notes": "A scry land demonstrating land card patterns: (1) lands have no mana_cost (null) and 0 cmc, (2) colors is empty (lands are colorless) but color_identity includes the colors they produce, (3) ETB tapped is the standard drawback for dual lands at uncommon, (4) scry 1 as an ETB trigger provides card selection to compensate for the tempo loss, (5) the tap ability uses {T} symbol followed by mana production. Clean dual land design at the right power level for uncommon."
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Baleful Strix",
+  "mana_cost": "{U}{B}",
+  "cmc": 2.0,
+  "colors": ["U", "B"],
+  "color_identity": ["U", "B"],
+  "type_line": "Artifact Creature — Bird",
+  "oracle_text": "Flying, deathtouch\nWhen Baleful Strix enters the battlefield, draw a card.",
+  "flavor_text": null,
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "rarity": "uncommon",
+  "layout": "normal",
+  "design_notes": "Demonstrates several design principles at once: (1) artifact creatures have both types, (2) keywords like flying and deathtouch go on a single line separated by commas, (3) ETB (enters the battlefield) triggers use 'When ~ enters the battlefield' template, (4) blue provides flying and card draw, black provides deathtouch. A 1/1 with flying+deathtouch+cantrip for 2 mana shows multicolor value."
+}

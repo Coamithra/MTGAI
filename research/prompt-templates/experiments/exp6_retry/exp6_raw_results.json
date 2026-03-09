@@ -1,0 +1,555 @@
+[
+  {
+    "slot": 9,
+    "slot_info": {
+      "color": "B",
+      "rarity": "mythic",
+      "type": "Creature",
+      "complexity": "Multi-ability"
+    },
+    "retry_history": [
+      {
+        "attempt": 0,
+        "card": {
+          "name": "Vorthak, Death's Sovereign",
+          "mana_cost": "{3}{B}{B}{B}",
+          "cmc": 6,
+          "colors": [
+            "B"
+          ],
+          "color_identity": [
+            "B"
+          ],
+          "type_line": "Legendary Creature — Demon Lord",
+          "oracle_text": "Flying, menace\\nWhen ~ enters, each opponent loses life equal to the number of creatures in their graveyard.\\n{2}{B}, Sacrifice a creature: Return target creature card from your graveyard to the battlefield. Activate only as a sorcery.",
+          "flavor_text": "Death is not an ending, but a recruitment.",
+          "power": "5",
+          "toughness": "4",
+          "loyalty": null,
+          "rarity": "mythic",
+          "design_notes": "This legendary demon lord embodies black's themes of death, sacrifice, and reanimation at mythic power level. The flying/menace combination provides solid evasion befitting a 6-mana threat. The ETB ability scales with game length and graveyard presence, punishing opponents who have lost creatures. The activated ability provides repeatable reanimation but requires investment and sorcery-speed timing to prevent abuse. At 5/4 for 6 mana, the body is appropriately costed when considering the powerful abilities. This design creates interesting decisions around creature sacrifice timing and graveyard management while staying firmly in black's color pie."
+        },
+        "scores": {
+          "rules_text_correctness": 5,
+          "mana_cost_appropriateness": 5,
+          "power_level_for_rarity": 5,
+          "flavor_text_quality": 4,
+          "name_creativity": 4,
+          "type_line_correctness": 5,
+          "color_pie_compliance": 5
+        },
+        "failures": [],
+        "avg_score": 4.714285714285714,
+        "cost_usd": 0.014211,
+        "cache_hit": false
+      }
+    ],
+    "converged": true,
+    "retries_needed": 0,
+    "score_improvement": 0.0,
+    "failures_fixed": 0
+  },
+  {
+    "slot": 12,
+    "slot_info": {
+      "color": "R",
+      "rarity": "mythic",
+      "type": "Creature",
+      "complexity": "Multi-ability"
+    },
+    "retry_history": [
+      {
+        "attempt": 0,
+        "card": {
+          "name": "Pyroclast, the World Scorcher",
+          "mana_cost": "{6}{R}{R}",
+          "cmc": 8,
+          "colors": [
+            "R"
+          ],
+          "color_identity": [
+            "R"
+          ],
+          "type_line": "Legendary Creature — Dragon",
+          "oracle_text": "Flying, haste\\nWhen ~ enters, ~ deals 4 damage to each creature and each planeswalker.\\nWhenever ~ attacks, you may pay {2}{R}. If you do, ~ deals 3 damage to target player or planeswalker.\\n{1}{R}: ~ gets +1/+0 until end of turn.",
+          "flavor_text": "Where it soars, the very sky catches fire, and mountains crumble to ash beneath its wings.",
+          "power": "6",
+          "toughness": "6",
+          "loyalty": null,
+          "rarity": "mythic",
+          "design_notes": "This is a splashy mythic dragon that embodies red's destructive philosophy. At 8 mana, it's expensive enough to warrant powerful effects. The enters ability creates a board-sweeping Pyroclasm effect that's red-appropriate, clearing smaller creatures and planeswalkers while potentially leaving ~ alive due to its 6 toughness. The attack trigger provides repeatable reach damage for closing games, fitting red's direct damage identity. The activated ability gives it late-game scaling potential. The 6/6 body with flying and haste provides immediate pressure. Power level is high but appropriate for mythic - it's a game-ending threat that requires significant mana investment."
+        },
+        "scores": {
+          "rules_text_correctness": 5,
+          "mana_cost_appropriateness": 5,
+          "power_level_for_rarity": 5,
+          "flavor_text_quality": 4,
+          "name_creativity": 4,
+          "type_line_correctness": 5,
+          "color_pie_compliance": 5
+        },
+        "failures": [],
+        "avg_score": 4.714285714285714,
+        "cost_usd": 0.014772,
+        "cache_hit": false
+      }
+    ],
+    "converged": true,
+    "retries_needed": 0,
+    "score_improvement": 0.0,
+    "failures_fixed": 0
+  },
+  {
+    "slot": 14,
+    "slot_info": {
+      "color": "G",
+      "rarity": "common",
+      "type": "Creature",
+      "complexity": "Keyword-only"
+    },
+    "retry_history": [
+      {
+        "attempt": 0,
+        "card": {
+          "name": "Ironbark Behemoth",
+          "mana_cost": "{4}{G}{G}",
+          "cmc": 6,
+          "colors": [
+            "G"
+          ],
+          "color_identity": [
+            "G"
+          ],
+          "type_line": "Creature — Beast",
+          "oracle_text": "Trample.",
+          "flavor_text": "Its footsteps shake the earth, and its roar silences the forest. Even the ancient oaks bow before its might.",
+          "power": "6",
+          "toughness": "5",
+          "rarity": "common",
+          "design_notes": "This design tests the common creature power level ceiling. At 6 mana for a 6/5 with trample, it follows the P+T ≤ CMC+5 guideline (11 ≤ 11). Trample is appropriate for Green's big creatures and makes the card relevant in combat. The high mana cost keeps it from being oppressive while providing a solid late-game threat for Green common slots. This represents Green's identity of large creatures that can push through damage."
+        },
+        "scores": {
+          "rules_text_correctness": 5,
+          "mana_cost_appropriateness": 4,
+          "power_level_for_rarity": 5,
+          "flavor_text_quality": 4,
+          "name_creativity": 4,
+          "type_line_correctness": 5,
+          "color_pie_compliance": 5
+        },
+        "failures": [
+          "overstatted_common"
+        ],
+        "avg_score": 4.571428571428571,
+        "cost_usd": 0.01278,
+        "cache_hit": false
+      },
+      {
+        "attempt": 1,
+        "card": {
+          "name": "Ironbark Behemoth",
+          "mana_cost": "{5}{G}{G}",
+          "cmc": 7,
+          "colors": [
+            "G"
+          ],
+          "color_identity": [
+            "G"
+          ],
+          "type_line": "Creature — Beast",
+          "oracle_text": "Trample",
+          "flavor_text": "Its footsteps shake the earth, and its roar silences the forest. Even the ancient oaks bow before its might.",
+          "power": "6",
+          "toughness": "4",
+          "rarity": "common",
+          "design_notes": "Fixed the power level issue by increasing the mana cost to 7 and adjusting toughness to 4. Now P+T = 10, which equals CMC+3 (7+3=10), meeting the common creature guideline exactly. This 7-mana 6/4 with trample represents Green's big creatures at common while staying within New World Order complexity limits. The high cost ensures it's a late-game threat that won't dominate early games."
+        },
+        "scores": {
+          "rules_text_correctness": 5,
+          "mana_cost_appropriateness": 5,
+          "power_level_for_rarity": 5,
+          "flavor_text_quality": 4,
+          "name_creativity": 4,
+          "type_line_correctness": 5,
+          "color_pie_compliance": 5
+        },
+        "failures": [],
+        "avg_score": 4.714285714285714,
+        "cost_usd": 0.013458,
+        "cache_hit": false,
+        "fixed_issues": [
+          "overstatted_common"
+        ],
+        "new_issues": []
+      }
+    ],
+    "converged": true,
+    "retries_needed": 1,
+    "score_improvement": 0.14285714285714324,
+    "failures_fixed": 1
+  },
+  {
+    "slot": 15,
+    "slot_info": {
+      "color": "G",
+      "rarity": "uncommon",
+      "type": "Enchantment",
+      "complexity": "Multi-ability"
+    },
+    "retry_history": [
+      {
+        "attempt": 0,
+        "card": {
+          "name": "Verdant Awakening",
+          "mana_cost": "{2}{G}",
+          "cmc": 3,
+          "colors": [
+            "G"
+          ],
+          "color_identity": [
+            "G"
+          ],
+          "type_line": "Enchantment",
+          "oracle_text": "When ~ enters, create a 1/1 green Saproling creature token.\nCreatures you control with power 2 or less get +1/+1.\n{2}{G}, Sacrifice ~: Search your library for a basic Forest card, put it onto the battlefield tapped, then shuffle.",
+          "flavor_text": "The forest remembers every seed, every sprout, every mighty oak that once was small.",
+          "power": null,
+          "toughness": null,
+          "loyalty": null,
+          "rarity": "uncommon",
+          "design_notes": "This enchantment embodies green's themes of growth, creature support, and ramp. The three abilities work together: the ETB creates a small creature that benefits from the static buff, while the sacrifice ability provides late-game utility and mana fixing. The power 2 restriction prevents this from being oppressive with larger creatures while encouraging a go-wide strategy. The mana cost and rarity are appropriate for an enchantment with multiple utility effects. Green's color pie is respected through creature tokens, +1/+1 effects, and land ramp."
+        },
+        "scores": {
+          "rules_text_correctness": 5,
+          "mana_cost_appropriateness": 5,
+          "power_level_for_rarity": 5,
+          "flavor_text_quality": 4,
+          "name_creativity": 4,
+          "type_line_correctness": 5,
+          "color_pie_compliance": 5
+        },
+        "failures": [],
+        "avg_score": 4.714285714285714,
+        "cost_usd": 0.013995,
+        "cache_hit": false
+      }
+    ],
+    "converged": true,
+    "retries_needed": 0,
+    "score_improvement": 0.0,
+    "failures_fixed": 0
+  },
+  {
+    "slot": 22,
+    "slot_info": {
+      "color": "G",
+      "rarity": "rare",
+      "type": "Enchantment — Saga",
+      "complexity": "Multi-ability"
+    },
+    "retry_history": [
+      {
+        "attempt": 0,
+        "card": {
+          "name": "Verdant Cycle",
+          "mana_cost": "{2}{G}{G}",
+          "cmc": 4,
+          "colors": [
+            "G"
+          ],
+          "color_identity": [
+            "G"
+          ],
+          "type_line": "Enchantment — Saga",
+          "oracle_text": "I — Search your library for a basic land card, reveal it, put it into your hand, then shuffle.\nII — Put a +1/+1 counter on each creature you control.\nIII — You may put a creature card from your hand onto the battlefield. If you do, it gains haste until end of turn.",
+          "flavor_text": "From seed to sprout to mighty oak, nature's eternal dance continues unbroken.",
+          "power": null,
+          "toughness": null,
+          "loyalty": null,
+          "rarity": "rare",
+          "design_notes": "This Saga represents green's themes of growth, ramp, and creature development. Chapter I provides land ramp (classic green). Chapter II strengthens existing creatures with +1/+1 counters (green's creature enhancement). Chapter III allows cheating creatures into play with haste (green can access creatures from hand, and the haste helps the creature be immediately relevant). The mana cost of 2GG makes this a committed green card appropriate for rare complexity. Each chapter scales with the game state - early ramp, mid-game board development, late-game explosive plays."
+        },
+        "scores": {
+          "rules_text_correctness": 5,
+          "mana_cost_appropriateness": 5,
+          "power_level_for_rarity": 5,
+          "flavor_text_quality": 4,
+          "name_creativity": 4,
+          "type_line_correctness": 5,
+          "color_pie_compliance": 5
+        },
+        "failures": [],
+        "avg_score": 4.714285714285714,
+        "cost_usd": 0.01407,
+        "cache_hit": false
+      }
+    ],
+    "converged": true,
+    "retries_needed": 0,
+    "score_improvement": 0.0,
+    "failures_fixed": 0
+  },
+  {
+    "slot": 20,
+    "slot_info": {
+      "color": "WB",
+      "rarity": "mythic",
+      "type": "Planeswalker",
+      "complexity": "Multi-ability"
+    },
+    "retry_history": [
+      {
+        "attempt": 0,
+        "card": {
+          "name": "Seraphim of the Damned",
+          "mana_cost": "{2}{W}{B}",
+          "cmc": 4,
+          "colors": [
+            "W",
+            "B"
+          ],
+          "color_identity": [
+            "W",
+            "B"
+          ],
+          "type_line": "Legendary Planeswalker — Seraphim",
+          "oracle_text": "+1: You gain 2 life and each opponent loses 1 life.\\n0: Exile target creature card from a graveyard. Create a 1/1 white and black Spirit creature token with flying.\\n-6: You get an emblem with \"Whenever a creature you control dies, return it to the battlefield under your control at the beginning of the next end step.\"",
+          "flavor_text": "In death, I found my true calling. In undeath, I serve a higher purpose.",
+          "power": null,
+          "toughness": null,
+          "loyalty": "3",
+          "rarity": "mythic",
+          "design_notes": "This WB planeswalker embodies the duality of life and death. The +1 ability provides incremental value through lifegain (white) and life drain (black). The 0 ability combines graveyard interaction (black) with token creation (white), using exile to prevent abuse. The ultimate creates a powerful emblem that gives recursive value to creature strategies. Starting at 3 loyalty makes it vulnerable but allows immediate impact. The design stays within both colors' pie while creating synergy between WB's shared themes of life, death, and spirits."
+        },
+        "scores": {
+          "rules_text_correctness": 5,
+          "mana_cost_appropriateness": 5,
+          "power_level_for_rarity": 5,
+          "flavor_text_quality": 4,
+          "name_creativity": 4,
+          "type_line_correctness": 5,
+          "color_pie_compliance": 5
+        },
+        "failures": [
+          "missing_period"
+        ],
+        "avg_score": 4.714285714285714,
+        "cost_usd": 0.01455,
+        "cache_hit": false
+      },
+      {
+        "attempt": 1,
+        "card": {
+          "name": "Seraphim of the Damned",
+          "mana_cost": "{2}{W}{B}",
+          "cmc": 4,
+          "colors": [
+            "W",
+            "B"
+          ],
+          "color_identity": [
+            "W",
+            "B"
+          ],
+          "type_line": "Legendary Planeswalker — Seraphim",
+          "oracle_text": "+1: You gain 2 life and each opponent loses 1 life.\n0: Exile target creature card from a graveyard. Create a 1/1 white and black Spirit creature token with flying.\n-6: You get an emblem with \"Whenever a creature you control dies, return it to the battlefield under your control at the beginning of the next end step.\"",
+          "flavor_text": "In death, I found my true calling. In undeath, I serve a higher purpose.",
+          "power": null,
+          "toughness": null,
+          "loyalty": "3",
+          "rarity": "mythic",
+          "design_notes": "This WB planeswalker embodies the duality of life and death. The +1 ability provides incremental value through lifegain (white) and life drain (black). The 0 ability combines graveyard interaction (black) with token creation (white), using exile to prevent abuse. The ultimate creates a powerful emblem that gives recursive value to creature strategies. Starting at 3 loyalty makes it vulnerable but allows immediate impact. The design stays within both colors' pie while creating synergy between WB's shared themes of life, death, and spirits."
+        },
+        "scores": {
+          "rules_text_correctness": 5,
+          "mana_cost_appropriateness": 5,
+          "power_level_for_rarity": 5,
+          "flavor_text_quality": 4,
+          "name_creativity": 4,
+          "type_line_correctness": 5,
+          "color_pie_compliance": 5
+        },
+        "failures": [
+          "missing_period"
+        ],
+        "avg_score": 4.714285714285714,
+        "cost_usd": 0.015582,
+        "cache_hit": false,
+        "fixed_issues": [],
+        "new_issues": []
+      },
+      {
+        "attempt": 2,
+        "card": {
+          "name": "Seraphim of the Damned",
+          "mana_cost": "{2}{W}{B}",
+          "cmc": 4,
+          "colors": [
+            "W",
+            "B"
+          ],
+          "color_identity": [
+            "W",
+            "B"
+          ],
+          "type_line": "Legendary Planeswalker — Seraphim",
+          "oracle_text": "+1: You gain 2 life and each opponent loses 1 life.\n0: Exile target creature card from a graveyard. Create a 1/1 white and black Spirit creature token with flying.\n−6: You get an emblem with \"Whenever a creature you control dies, return it to the battlefield under your control at the beginning of the next end step.\"",
+          "flavor_text": "In death, I found my true calling. In undeath, I serve a higher purpose.",
+          "power": null,
+          "toughness": null,
+          "loyalty": "3",
+          "rarity": "mythic",
+          "design_notes": "This WB planeswalker embodies the duality of life and death. The +1 ability provides incremental value through lifegain (white) and life drain (black). The 0 ability combines graveyard interaction (black) with token creation (white), using exile to prevent abuse. The ultimate creates a powerful emblem that gives recursive value to creature strategies. Starting at 3 loyalty makes it vulnerable but allows immediate impact. The design stays within both colors' pie while creating synergy between WB's shared themes of life, death, and spirits."
+        },
+        "scores": {
+          "rules_text_correctness": 5,
+          "mana_cost_appropriateness": 5,
+          "power_level_for_rarity": 5,
+          "flavor_text_quality": 4,
+          "name_creativity": 4,
+          "type_line_correctness": 5,
+          "color_pie_compliance": 5
+        },
+        "failures": [
+          "missing_period"
+        ],
+        "avg_score": 4.714285714285714,
+        "cost_usd": 0.015576,
+        "cache_hit": false,
+        "fixed_issues": [],
+        "new_issues": []
+      },
+      {
+        "attempt": 3,
+        "card": {
+          "name": "Seraphim of the Damned",
+          "mana_cost": "{2}{W}{B}",
+          "cmc": 4,
+          "colors": [
+            "W",
+            "B"
+          ],
+          "color_identity": [
+            "W",
+            "B"
+          ],
+          "type_line": "Legendary Planeswalker — Seraphim",
+          "oracle_text": "+1: You gain 2 life and each opponent loses 1 life.\n0: Exile target creature card from a graveyard. Create a 1/1 white and black Spirit creature token with flying.\n−6: You get an emblem with \"Whenever a creature you control dies, return it to the battlefield under your control at the beginning of the next end step.\"",
+          "flavor_text": "In death, I found my true calling. In undeath, I serve a higher purpose.",
+          "power": null,
+          "toughness": null,
+          "loyalty": "3",
+          "rarity": "mythic",
+          "design_notes": "This WB planeswalker embodies the duality of life and death. The +1 ability provides incremental value through lifegain (white) and life drain (black). The 0 ability combines graveyard interaction (black) with token creation (white), using exile to prevent abuse. The ultimate creates a powerful emblem that gives recursive value to creature strategies. Starting at 3 loyalty makes it vulnerable but allows immediate impact. The design stays within both colors' pie while creating synergy between WB's shared themes of life, death, and spirits."
+        },
+        "scores": {
+          "rules_text_correctness": 5,
+          "mana_cost_appropriateness": 5,
+          "power_level_for_rarity": 5,
+          "flavor_text_quality": 4,
+          "name_creativity": 4,
+          "type_line_correctness": 5,
+          "color_pie_compliance": 5
+        },
+        "failures": [
+          "missing_period"
+        ],
+        "avg_score": 4.714285714285714,
+        "cost_usd": 0.015582,
+        "cache_hit": false,
+        "fixed_issues": [],
+        "new_issues": []
+      }
+    ],
+    "converged": false,
+    "retries_needed": 3,
+    "score_improvement": 0.0,
+    "failures_fixed": 0
+  },
+  {
+    "slot": 24,
+    "slot_info": {
+      "color": "-",
+      "rarity": "common",
+      "type": "Basic Land — Forest",
+      "complexity": "Flavor text only"
+    },
+    "retry_history": [
+      {
+        "attempt": 0,
+        "card": {
+          "name": "Forest",
+          "mana_cost": "",
+          "cmc": 0,
+          "colors": [],
+          "color_identity": [
+            "G"
+          ],
+          "type_line": "Basic Land — Forest",
+          "oracle_text": "{T}: Add {G}.",
+          "flavor_text": "Where ancient roots intertwine with whispered secrets, the heartwood remembers songs older than the stars.",
+          "power": null,
+          "toughness": null,
+          "loyalty": null,
+          "rarity": "common",
+          "design_notes": "This is a basic Forest card with standard mana-producing ability. Basic lands always have Green color identity despite having no colored mana in their cost. The flavor text evokes the mystical, ancient nature of forests in Magic's multiverse, emphasizing themes of memory, age, and connection to natural forces. As a basic land at common rarity, it provides the essential mana foundation for Green decks."
+        },
+        "scores": {
+          "rules_text_correctness": 5,
+          "mana_cost_appropriateness": 5,
+          "power_level_for_rarity": 5,
+          "flavor_text_quality": 4,
+          "name_creativity": 1,
+          "type_line_correctness": 5,
+          "color_pie_compliance": 5
+        },
+        "failures": [
+          "generic_or_existing_name"
+        ],
+        "avg_score": 4.285714285714286,
+        "cost_usd": 0.012405,
+        "cache_hit": false
+      },
+      {
+        "attempt": 1,
+        "card": {
+          "name": "Whisperwood Grove",
+          "mana_cost": "",
+          "cmc": 0,
+          "colors": [],
+          "color_identity": [
+            "G"
+          ],
+          "type_line": "Basic Land — Forest",
+          "oracle_text": "{T}: Add {G}.",
+          "flavor_text": "Where ancient roots intertwine with whispered secrets, the heartwood remembers songs older than the stars.",
+          "power": null,
+          "toughness": null,
+          "loyalty": null,
+          "rarity": "common",
+          "design_notes": "This is a basic Forest card with a unique, evocative name - Whisperwood Grove. It maintains the standard mana-producing ability of basic lands. Basic lands always have Green color identity despite having no colored mana in their cost. The flavor text evokes the mystical, ancient nature of forests in Magic's multiverse, emphasizing themes of memory, age, and connection to natural forces. As a basic land at common rarity, it provides the essential mana foundation for Green decks while having an original fantasy name that fits MTG's naming conventions."
+        },
+        "scores": {
+          "rules_text_correctness": 5,
+          "mana_cost_appropriateness": 5,
+          "power_level_for_rarity": 5,
+          "flavor_text_quality": 4,
+          "name_creativity": 4,
+          "type_line_correctness": 5,
+          "color_pie_compliance": 5
+        },
+        "failures": [],
+        "avg_score": 4.714285714285714,
+        "cost_usd": 0.013566,
+        "cache_hit": false,
+        "fixed_issues": [
+          "generic_or_existing_name"
+        ],
+        "new_issues": []
+      }
+    ],
+    "converged": true,
+    "retries_needed": 1,
+    "score_improvement": 0.4285714285714288,
+    "failures_fixed": 1
+  }
+]

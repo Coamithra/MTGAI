@@ -1,0 +1,16 @@
+{
+  "content": "{\"cards\": [{\"name\": \"Arcane Scrutiny\", \"mana_cost\": \"{2}{U}{U}\", \"cmc\": 4, \"colors\": [\"U\"], \"color_identity\": [\"U\"], \"type_line\": \"Sorcery\", \"oracle_text\": \"Choose one \\u2014\\n\\u2022 Look at the top five cards of your library. Put two into your hand and the rest on the bottom of your library in any order.\\n\\u2022 Draw three cards, then put two cards from your hand on top of your library in any order.\", \"flavor_text\": \"\\\"Knowledge is useless without the wisdom to apply it selectively.\\\" \\u2014Jalira, Master Polymorphist\", \"power\": null, \"toughness\": null, \"loyalty\": null, \"rarity\": \"rare\"}, {\"name\": \"Fatal Strike\", \"mana_cost\": \"{2}{B}\", \"cmc\": 3, \"colors\": [\"B\"], \"color_identity\": [\"B\"], \"type_line\": \"Instant\", \"oracle_text\": \"Destroy target non-artifact creature.\", \"flavor_text\": \"\\\"Every warrior has a weakness. Finding it is just a matter of patience.\\\" \\u2014Geth, Lord of the Vault\", \"power\": null, \"toughness\": null, \"loyalty\": null, \"rarity\": \"common\"}, {\"name\": \"Crypt Harvester\", \"mana_cost\": \"{2}{B}\", \"cmc\": 3, \"colors\": [\"B\"], \"color_identity\": [\"B\"], \"type_line\": \"Creature \\u2014 Zombie Cleric\", \"oracle_text\": \"When ~ enters, mill three cards.\\nWhenever a creature card is put into your graveyard from anywhere, you gain 1 life.\", \"flavor_text\": \"It tends the dead with the devotion of a gardener nurturing seedlings.\", \"power\": \"2\", \"toughness\": \"2\", \"loyalty\": null, \"rarity\": \"uncommon\"}, {\"name\": \"Vorthak, Death's Herald\", \"mana_cost\": \"{3}{B}{B}{B}\", \"cmc\": 6, \"colors\": [\"B\"], \"color_identity\": [\"B\"], \"type_line\": \"Legendary Creature \\u2014 Demon Lord\", \"oracle_text\": \"Flying, menace\\nWhen ~ enters, each opponent sacrifices a creature.\\nAt the beginning of your upkeep, return target creature card from your graveyard to the battlefield. It gains haste until end of turn.\", \"flavor_text\": \"Where he walks, the boundary between life and death crumbles to dust.\", \"power\": \"6\", \"toughness\": \"6\", \"loyalty\": null, \"rarity\": \"mythic\"}, {\"name\": \"Molten Bolt\", \"mana_cost\": \"{1}{R}\", \"cmc\": 2, \"colors\": [\"R\"], \"color_identity\": [\"R\"], \"type_line\": \"Instant\", \"oracle_text\": \"~ deals 3 damage to any target.\", \"flavor_text\": \"\\\"Subtlety is for those who lack sufficient firepower.\\\" \\u2014Chandra Nalaar\", \"power\": null, \"toughness\": null, \"loyalty\": null, \"rarity\": \"common\"}]}",
+  "raw_response": {
+    "stop_reason": "tool_use",
+    "model": "claude-sonnet-4-20250514"
+  },
+  "input_tokens": 2459,
+  "output_tokens": 919,
+  "cost_usd": 0.021162,
+  "latency_ms": 13188,
+  "model": "claude-sonnet-4-20250514",
+  "temperature": 1.0,
+  "cache_hit": false,
+  "cache_key": "43d59d285f916843",
+  "timestamp": "2026-03-09T00:31:49.361701"
+}

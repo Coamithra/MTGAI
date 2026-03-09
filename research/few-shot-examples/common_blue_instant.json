@@ -1,0 +1,16 @@
+{
+  "name": "Cancel",
+  "mana_cost": "{1}{U}{U}",
+  "cmc": 3.0,
+  "colors": ["U"],
+  "color_identity": ["U"],
+  "type_line": "Instant",
+  "oracle_text": "Counter target spell.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "common",
+  "layout": "normal",
+  "design_notes": "The baseline hard counterspell at common. Three mana for unconditional counter is the modern design benchmark (Counterspell at 2 mana is considered too strong for Standard). Blue's defining mechanic is stack interaction. Like Murder, the double-colored cost enforces color commitment."
+}

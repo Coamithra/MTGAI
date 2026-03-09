@@ -1,0 +1,875 @@
+[
+  {
+    "card_slot": 11,
+    "strategy": "none",
+    "card_name": "Embercharge Raider",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 5,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 12,
+    "strategy": "none",
+    "card_name": "Worldfire Ancient",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 4,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "missing_period",
+      "mythic_creature_not_legendary"
+    ]
+  },
+  {
+    "card_slot": 13,
+    "strategy": "none",
+    "card_name": "Verdant Wayfinding",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 14,
+    "strategy": "none",
+    "card_name": "Ironbark Trampler",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 4,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "overstatted_common"
+    ]
+  },
+  {
+    "card_slot": 15,
+    "strategy": "none",
+    "card_name": "Grove Sanctuary",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 16,
+    "strategy": "none",
+    "card_name": "Skyward Arbitrator",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 5,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 17,
+    "strategy": "none",
+    "card_name": "Bloodthirst Marauder",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 18,
+    "strategy": "none",
+    "card_name": "Wayfarer's Compass",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 19,
+    "strategy": "none",
+    "card_name": "Temporal Resonance Engine",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 20,
+    "strategy": "none",
+    "card_name": "Seraph of Divine Retribution",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 21,
+    "strategy": "none",
+    "card_name": "Forge of Inspiration",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 5,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 22,
+    "strategy": "none",
+    "card_name": "The Wild Hunt",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 23,
+    "strategy": "none",
+    "card_name": "Prismatic Wellspring",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 24,
+    "strategy": "none",
+    "card_name": "Forest",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 1,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "generic_or_existing_name"
+    ]
+  },
+  {
+    "card_slot": 11,
+    "strategy": "names_only",
+    "card_name": "Ember Charger",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 12,
+    "strategy": "names_only",
+    "card_name": "Skyrender Tyrant",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "missing_period"
+    ]
+  },
+  {
+    "card_slot": 13,
+    "strategy": "names_only",
+    "card_name": "Verdant Exploration",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 14,
+    "strategy": "names_only",
+    "card_name": "Ironbark Crusher",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 15,
+    "strategy": "names_only",
+    "card_name": "Symbiotic Growth",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 16,
+    "strategy": "names_only",
+    "card_name": "Astral Enforcer",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 5,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 17,
+    "strategy": "names_only",
+    "card_name": "Bloodpact Tormentor",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 18,
+    "strategy": "names_only",
+    "card_name": "Traveler's Compass",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 19,
+    "strategy": "names_only",
+    "card_name": "Prismatic Engine",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 20,
+    "strategy": "names_only",
+    "card_name": "Seraph of Divine Wrath",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "missing_period"
+    ]
+  },
+  {
+    "card_slot": 21,
+    "strategy": "names_only",
+    "card_name": "Blazing Confluence",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 5,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 22,
+    "strategy": "names_only",
+    "card_name": "The Verdant Awakening",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 23,
+    "strategy": "names_only",
+    "card_name": "Crystalized Cavern",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 24,
+    "strategy": "names_only",
+    "card_name": "Forest",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 1,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "generic_or_existing_name"
+    ]
+  },
+  {
+    "card_slot": 11,
+    "strategy": "compressed",
+    "card_name": "Emberforge Warrior",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 12,
+    "strategy": "compressed",
+    "card_name": "Inferno Tyrant",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 4,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "missing_period",
+      "mythic_creature_not_legendary"
+    ]
+  },
+  {
+    "card_slot": 13,
+    "strategy": "compressed",
+    "card_name": "Verdant Pilgrimage",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 14,
+    "strategy": "compressed",
+    "card_name": "Ironbark Behemoth",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 4,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "overstatted_common"
+    ]
+  },
+  {
+    "card_slot": 15,
+    "strategy": "compressed",
+    "card_name": "Primal Awakening",
+    "scores": {
+      "rules_text_correctness": 4,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "missing_period"
+    ]
+  },
+  {
+    "card_slot": 16,
+    "strategy": "compressed",
+    "card_name": "Skyward Magistrate",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 5,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 17,
+    "strategy": "compressed",
+    "card_name": "Torment Fiend",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 18,
+    "strategy": "compressed",
+    "card_name": "Pilgrim's Staff",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 19,
+    "strategy": "compressed",
+    "card_name": "Prismatic Conduit",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 20,
+    "strategy": "compressed",
+    "card_name": "Seraph of Divine Judgment",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "missing_period"
+    ]
+  },
+  {
+    "card_slot": 21,
+    "strategy": "compressed",
+    "card_name": "Blazing Ultimatum",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 5,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 22,
+    "strategy": "compressed",
+    "card_name": "The Verdant Awakening",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 23,
+    "strategy": "compressed",
+    "card_name": "Crystal Caverns",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 24,
+    "strategy": "compressed",
+    "card_name": "Forest",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 1,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "generic_or_existing_name"
+    ]
+  },
+  {
+    "card_slot": 11,
+    "strategy": "full_color",
+    "card_name": "Ember Striker",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 12,
+    "strategy": "full_color",
+    "card_name": "Skyfire Tyrant",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 4,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "missing_period",
+      "mythic_creature_not_legendary"
+    ]
+  },
+  {
+    "card_slot": 13,
+    "strategy": "full_color",
+    "card_name": "Seek the Wilds",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 14,
+    "strategy": "full_color",
+    "card_name": "Ironbark Behemoth",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 15,
+    "strategy": "full_color",
+    "card_name": "Verdant Awakening",
+    "scores": {
+      "rules_text_correctness": 4,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "old_etb_wording"
+    ]
+  },
+  {
+    "card_slot": 16,
+    "strategy": "full_color",
+    "card_name": "Skywatch Inquisitor",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 5,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 17,
+    "strategy": "full_color",
+    "card_name": "Bloodpact Ravager",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 18,
+    "strategy": "full_color",
+    "card_name": "Wayfarer's Compass",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 5,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 19,
+    "strategy": "full_color",
+    "card_name": "Chronarch's Observatory",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 5,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 20,
+    "strategy": "full_color",
+    "card_name": "Seraphine, Divine Arbiter",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "missing_period"
+    ]
+  },
+  {
+    "card_slot": 21,
+    "strategy": "full_color",
+    "card_name": "Pyroclastic Eruption",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 22,
+    "strategy": "full_color",
+    "card_name": "The Wild Awakening",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 3,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 23,
+    "strategy": "full_color",
+    "card_name": "Forgotten Sanctum",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 4,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": []
+  },
+  {
+    "card_slot": 24,
+    "strategy": "full_color",
+    "card_name": "Forest",
+    "scores": {
+      "rules_text_correctness": 5,
+      "mana_cost_appropriateness": 5,
+      "power_level_for_rarity": 5,
+      "flavor_text_quality": 4,
+      "name_creativity": 1,
+      "type_line_correctness": 5,
+      "color_pie_compliance": 5
+    },
+    "failure_modes": [
+      "generic_or_existing_name"
+    ]
+  }
+]

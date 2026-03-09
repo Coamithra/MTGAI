@@ -1,0 +1,33 @@
+{
+  "name": "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki",
+  "mana_cost": "{2}{R}",
+  "cmc": 3.0,
+  "colors": ["R"],
+  "color_identity": ["R"],
+  "type_line": "Enchantment — Saga // Enchantment Creature — Goblin Shaman",
+  "oracle_text": "(As this Saga enters and after your draw step, add a lore counter. After III, exile this, then return it to the battlefield transformed.)\nI — Create a 2/2 red Goblin Shaman creature token with \"Whenever this creature attacks, create a Treasure token.\"\nII — You may discard up to two cards. If you do, draw that many cards.\nIII — Exile this Saga, then return it to the battlefield transformed.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "rare",
+  "layout": "transform",
+  "card_faces": [
+    {
+      "name": "Fable of the Mirror-Breaker",
+      "mana_cost": "{2}{R}",
+      "type_line": "Enchantment — Saga",
+      "oracle_text": "(As this Saga enters and after your draw step, add a lore counter. After III, exile this, then return it to the battlefield transformed.)\nI — Create a 2/2 red Goblin Shaman creature token with \"Whenever this creature attacks, create a Treasure token.\"\nII — You may discard up to two cards. If you do, draw that many cards.\nIII — Exile this Saga, then return it to the battlefield transformed.",
+      "colors": ["R"]
+    },
+    {
+      "name": "Reflection of Kiki-Jiki",
+      "type_line": "Enchantment Creature — Goblin Shaman",
+      "oracle_text": "{1}, {T}: Create a token that's a copy of another nonlegendary creature you control, except it has haste. Sacrifice it at the beginning of the next end step.",
+      "power": "2",
+      "toughness": "2",
+      "colors": ["R"]
+    }
+  ],
+  "design_notes": "A transform Saga — one of the most complex card types in modern MTG. Demonstrates: (1) double-faced cards with // in the name, (2) Saga chapter abilities formatted as Roman numeral — effect, (3) transform layout uses card_faces array, (4) the back face is a completely different card type (Enchantment Creature). Each chapter provides distinct value (token, card filtering, transformation), showing how Sagas tell a story through mechanics."
+}

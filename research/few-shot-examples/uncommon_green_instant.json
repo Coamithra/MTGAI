@@ -1,0 +1,16 @@
+{
+  "name": "Beast Within",
+  "mana_cost": "{2}{G}",
+  "cmc": 3.0,
+  "colors": ["G"],
+  "color_identity": ["G"],
+  "type_line": "Instant",
+  "oracle_text": "Destroy target permanent. Its controller creates a 3/3 green Beast creature token.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "uncommon",
+  "layout": "normal",
+  "design_notes": "Green's answer to anything — destroys any permanent type, not just creatures. The drawback (opponent gets a 3/3 token) is the balancing factor, similar to Swords to Plowshares giving life. Demonstrates that green can have versatile removal if properly costed with a significant downside. Token creation as a drawback is an elegant design pattern."
+}

@@ -1,0 +1,16 @@
+{
+  "name": "The One Ring",
+  "mana_cost": "{4}",
+  "cmc": 4.0,
+  "colors": [],
+  "color_identity": [],
+  "type_line": "Legendary Artifact",
+  "oracle_text": "Indestructible\nWhen The One Ring enters the battlefield, if you cast it, you gain protection from everything until your next turn.\nAt the beginning of your upkeep, you lose 1 life for each burden counter on The One Ring.\n{T}: Put a burden counter on The One Ring, then draw a card for each burden counter on The One Ring.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "mythic",
+  "layout": "normal",
+  "design_notes": "A mythic artifact demonstrating colorless card design: (1) artifacts use generic mana ({4}), making them playable in any deck, (2) empty colors and color_identity arrays, (3) 'Legendary Artifact' type line, (4) 'Indestructible' keyword, (5) 'if you cast it' clause prevents abuse with reanimation, (6) burden counters create an escalating cost — each activation draws more cards but costs more life. Shows how artifacts can be powerful but must have built-in drawbacks to compensate for universal playability."
+}

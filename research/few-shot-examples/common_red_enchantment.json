@@ -1,0 +1,16 @@
+{
+  "name": "Bitter Reunion",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "colors": ["R"],
+  "color_identity": ["R"],
+  "type_line": "Enchantment",
+  "oracle_text": "When Bitter Reunion enters the battlefield, you may discard a card. If you do, draw two cards.\nSacrifice Bitter Reunion: Creatures you control gain haste until end of turn.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "common",
+  "layout": "normal",
+  "design_notes": "A common enchantment that demonstrates two design patterns: (1) ETB triggered ability with optional discard for card advantage (red's 'rummage' mechanic — discard then draw), (2) sacrifice ability provides a secondary mode. Red gets card filtering (not pure draw) and haste-granting. The enchantment stays on battlefield after ETB, serving as a stored haste effect. Shows how even commons can have two distinct abilities when each is simple on its own."
+}

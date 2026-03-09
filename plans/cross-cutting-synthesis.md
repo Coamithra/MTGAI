@@ -119,7 +119,7 @@
 
 ### 4a. Run Balance Analysis Before Art Generation
 **Source**: Phase 4+5 agent
-**Rationale**: Catch set balance issues before investing in 280+ art pieces. Art is expensive and time-consuming; balance fixes may require adding/removing/changing cards.
+**Rationale**: Catch set balance issues before investing in art generation. Art is expensive and time-consuming; balance fixes may require adding/removing/changing cards. During development this gates the ~60-card dev set; during scale-up (Phase SC) it gates the full ~280-card production run.
 **Current**: Phase 4 runs after Phase 2 (art + rendering).
 **Proposed**: Run Phase 4A+4B (balance + limited analysis) after Phase 1C, BEFORE Phase 2B (art generation). Phase 4C (quality checks) can still run later.
 **Action**: Update dependency graph:

@@ -1,0 +1,16 @@
+{
+  "name": "The Wandering Emperor",
+  "mana_cost": "{2}{W}{W}",
+  "cmc": 4.0,
+  "colors": ["W"],
+  "color_identity": ["W"],
+  "type_line": "Legendary Planeswalker",
+  "oracle_text": "Flash\nAs long as The Wandering Emperor entered the battlefield this turn, you may activate her loyalty abilities any time you could cast an instant.\n+1: Put a +1/+1 counter on up to one target creature. It gains first strike until end of turn.\n\u22121: Create a 2/2 white Samurai creature token with vigilance.\n\u22122: Exile target tapped creature. You gain 2 life.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": "3",
+  "rarity": "mythic",
+  "layout": "normal",
+  "design_notes": "A mythic planeswalker with flash — extremely unusual and defines its mythic status. Demonstrates: (1) flash keyword on a planeswalker enables surprise plays, (2) the conditional instant-speed loyalty activation is a unique static ability, (3) three loyalty abilities at different costs (+1, -1, -2) offer tactical flexibility, (4) the planeswalker subtype can be a title rather than a name. White's identity shown through +1/+1 counters, first strike, tokens with vigilance, and exile-based removal with lifegain."
+}

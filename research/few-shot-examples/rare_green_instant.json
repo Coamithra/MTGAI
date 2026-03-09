@@ -1,0 +1,16 @@
+{
+  "name": "Collected Company",
+  "mana_cost": "{3}{G}",
+  "cmc": 4.0,
+  "colors": ["G"],
+  "color_identity": ["G"],
+  "type_line": "Instant",
+  "oracle_text": "Look at the top six cards of your library. Put up to two creature cards with mana value 3 or less from among them onto the battlefield. Put the rest on the bottom of your library in a random order.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "rare",
+  "layout": "normal",
+  "design_notes": "A powerful rare instant that demonstrates green's creature-centric identity. Shows the template for library-searching effects: look, select, put onto battlefield, then handle the rest. The restriction (creatures with mana value 3 or less) is a deckbuilding constraint that creates interesting decisions. Being an instant means you can deploy creatures at end of opponent's turn — a strong tempo play. Teaches how rares can enable entire deck archetypes."
+}

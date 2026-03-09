@@ -1,0 +1,16 @@
+{
+  "content": "{\"name\": \"Whisperwood Grove\", \"mana_cost\": \"\", \"cmc\": 0, \"colors\": [], \"color_identity\": [\"G\"], \"type_line\": \"Basic Land \\u2014 Forest\", \"oracle_text\": \"{T}: Add {G}.\", \"flavor_text\": \"Where ancient roots intertwine with whispered secrets, the heartwood remembers songs older than the stars.\", \"power\": null, \"toughness\": null, \"loyalty\": null, \"rarity\": \"common\", \"design_notes\": \"This is a basic Forest card with a unique, evocative name - Whisperwood Grove. It maintains the standard mana-producing ability of basic lands. Basic lands always have Green color identity despite having no colored mana in their cost. The flavor text evokes the mystical, ancient nature of forests in Magic's multiverse, emphasizing themes of memory, age, and connection to natural forces. As a basic land at common rarity, it provides the essential mana foundation for Green decks while having an original fantasy name that fits MTG's naming conventions.\"}",
+  "raw_response": {
+    "stop_reason": "tool_use",
+    "model": "claude-sonnet-4-20250514"
+  },
+  "input_tokens": 2507,
+  "output_tokens": 403,
+  "cost_usd": 0.013566,
+  "latency_ms": 5240,
+  "model": "claude-sonnet-4-20250514",
+  "temperature": 0.5,
+  "cache_hit": false,
+  "cache_key": "af9ebf3c196d3639",
+  "timestamp": "2026-03-09T00:50:33.633985"
+}

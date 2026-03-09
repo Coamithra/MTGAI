@@ -1,0 +1,16 @@
+{
+  "content": "{\"name\": \"Pyroclast, the World Scorcher\", \"mana_cost\": \"{6}{R}{R}\", \"cmc\": 8, \"colors\": [\"R\"], \"color_identity\": [\"R\"], \"type_line\": \"Legendary Creature \\u2014 Dragon\", \"oracle_text\": \"Flying, haste\\\\nWhen ~ enters, ~ deals 4 damage to each creature and each planeswalker.\\\\nWhenever ~ attacks, you may pay {2}{R}. If you do, ~ deals 3 damage to target player or planeswalker.\\\\n{1}{R}: ~ gets +1/+0 until end of turn.\", \"flavor_text\": \"Where it soars, the very sky catches fire, and mountains crumble to ash beneath its wings.\", \"power\": \"6\", \"toughness\": \"6\", \"loyalty\": null, \"rarity\": \"mythic\", \"design_notes\": \"This is a splashy mythic dragon that embodies red's destructive philosophy. At 8 mana, it's expensive enough to warrant powerful effects. The enters ability creates a board-sweeping Pyroclasm effect that's red-appropriate, clearing smaller creatures and planeswalkers while potentially leaving ~ alive due to its 6 toughness. The attack trigger provides repeatable reach damage for closing games, fitting red's direct damage identity. The activated ability gives it late-game scaling potential. The 6/6 body with flying and haste provides immediate pressure. Power level is high but appropriate for mythic - it's a game-ending threat that requires significant mana investment.\"}",
+  "raw_response": {
+    "stop_reason": "tool_use",
+    "model": "claude-sonnet-4-20250514"
+  },
+  "input_tokens": 2304,
+  "output_tokens": 524,
+  "cost_usd": 0.014772,
+  "latency_ms": 10745,
+  "model": "claude-sonnet-4-20250514",
+  "temperature": 1.0,
+  "cache_hit": false,
+  "cache_key": "04ab25eaf8a18d66",
+  "timestamp": "2026-03-09T00:49:19.083009"
+}

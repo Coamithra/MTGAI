@@ -1,0 +1,202 @@
+[
+  {
+    "filename": "common_red_instant.json",
+    "card_name": "Lightning Bolt",
+    "rarity": "common",
+    "colors": ["R"],
+    "card_type": "Instant",
+    "use_for": "Simple common spell, direct damage reference. The benchmark for efficient red burn."
+  },
+  {
+    "filename": "common_green_creature.json",
+    "card_name": "Llanowar Elves",
+    "rarity": "common",
+    "colors": ["G"],
+    "card_type": "Creature",
+    "use_for": "Basic mana dork creature. Shows tap ability formatting and Creature type line with race/class."
+  },
+  {
+    "filename": "common_white_enchantment.json",
+    "card_name": "Pacifism",
+    "rarity": "common",
+    "colors": ["W"],
+    "card_type": "Enchantment — Aura",
+    "use_for": "White removal Aura. Demonstrates 'Enchant creature' template and white's non-destructive removal."
+  },
+  {
+    "filename": "common_black_instant.json",
+    "card_name": "Murder",
+    "rarity": "common",
+    "colors": ["B"],
+    "card_type": "Instant",
+    "use_for": "Clean unconditional creature removal. Shows double-colored mana cost for color commitment."
+  },
+  {
+    "filename": "common_blue_instant.json",
+    "card_name": "Cancel",
+    "rarity": "common",
+    "colors": ["U"],
+    "card_type": "Instant",
+    "use_for": "Baseline counterspell at common. Pair with Counterspell to show rarity/power differences."
+  },
+  {
+    "filename": "common_green_sorcery.json",
+    "card_name": "Rampant Growth",
+    "rarity": "common",
+    "colors": ["G"],
+    "card_type": "Sorcery",
+    "use_for": "Green ramp sorcery. Library search template and land-onto-battlefield wording."
+  },
+  {
+    "filename": "common_red_enchantment.json",
+    "card_name": "Bitter Reunion",
+    "rarity": "common",
+    "colors": ["R"],
+    "card_type": "Enchantment",
+    "use_for": "Common enchantment with ETB and sacrifice abilities. Red card filtering (rummage) example."
+  },
+  {
+    "filename": "uncommon_white_instant.json",
+    "card_name": "Swords to Plowshares",
+    "rarity": "uncommon",
+    "colors": ["W"],
+    "card_type": "Instant",
+    "use_for": "Premium white exile removal. Demonstrates drawback-based balancing (opponent gains life)."
+  },
+  {
+    "filename": "uncommon_blue_instant.json",
+    "card_name": "Counterspell",
+    "rarity": "uncommon",
+    "colors": ["U"],
+    "card_type": "Instant",
+    "use_for": "Efficient hard counter. Compare with Cancel to show how 1 mana difference changes power level."
+  },
+  {
+    "filename": "uncommon_green_instant.json",
+    "card_name": "Beast Within",
+    "rarity": "uncommon",
+    "colors": ["G"],
+    "card_type": "Instant",
+    "use_for": "Versatile permanent removal in green. Token creation as downside, 'any permanent' targeting."
+  },
+  {
+    "filename": "uncommon_multicolor_wr_instant.json",
+    "card_name": "Lightning Helix",
+    "rarity": "uncommon",
+    "colors": ["R", "W"],
+    "card_type": "Instant",
+    "use_for": "Clean two-color design blending red damage + white lifegain. Multicolor card template."
+  },
+  {
+    "filename": "uncommon_multicolor_ub_artifact_creature.json",
+    "card_name": "Baleful Strix",
+    "rarity": "uncommon",
+    "colors": ["U", "B"],
+    "card_type": "Artifact Creature",
+    "use_for": "Artifact creature with multiple keywords and ETB. Shows dual-type card and keyword list formatting."
+  },
+  {
+    "filename": "uncommon_multicolor_br_land.json",
+    "card_name": "Temple of Malice",
+    "rarity": "uncommon",
+    "colors": [],
+    "card_type": "Land",
+    "use_for": "Scry land (uncommon dual). Demonstrates land card patterns: null mana_cost, ETB tapped, tap for mana."
+  },
+  {
+    "filename": "rare_white_creature.json",
+    "card_name": "Monastery Mentor",
+    "rarity": "rare",
+    "colors": ["W"],
+    "card_type": "Creature",
+    "use_for": "Build-around rare creature with token generation trigger. Shows rare-level complexity."
+  },
+  {
+    "filename": "rare_multicolor_wu_planeswalker.json",
+    "card_name": "Teferi, Time Raveler",
+    "rarity": "rare",
+    "colors": ["W", "U"],
+    "card_type": "Planeswalker",
+    "use_for": "3-mana planeswalker with static + loyalty abilities. Planeswalker formatting reference."
+  },
+  {
+    "filename": "rare_red_enchantment.json",
+    "card_name": "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki",
+    "rarity": "rare",
+    "colors": ["R"],
+    "card_type": "Enchantment — Saga",
+    "use_for": "Transform Saga card. Shows double-faced card structure, Saga chapter formatting, card_faces array."
+  },
+  {
+    "filename": "rare_green_instant.json",
+    "card_name": "Collected Company",
+    "rarity": "rare",
+    "colors": ["G"],
+    "card_type": "Instant",
+    "use_for": "Rare instant with library manipulation. Shows 'look at top N' template and creature deployment."
+  },
+  {
+    "filename": "rare_colorless_land.json",
+    "card_name": "Fabled Passage",
+    "rarity": "rare",
+    "colors": [],
+    "card_type": "Land",
+    "use_for": "Fetch land variant. Sacrifice cost, library search, conditional untap. Complex land design."
+  },
+  {
+    "filename": "rare_multicolor_ug_land.json",
+    "card_name": "Hinterland Harbor",
+    "rarity": "rare",
+    "colors": [],
+    "card_type": "Land",
+    "use_for": "Check land (conditional dual). 'Enters tapped unless' template. Rare vs uncommon land comparison."
+  },
+  {
+    "filename": "mythic_white_planeswalker.json",
+    "card_name": "The Wandering Emperor",
+    "rarity": "mythic",
+    "colors": ["W"],
+    "card_type": "Planeswalker",
+    "use_for": "Flash planeswalker. Unusual keyword on planeswalker type, multiple loyalty ability options."
+  },
+  {
+    "filename": "mythic_black_creature.json",
+    "card_name": "Sheoldred, the Apocalypse",
+    "rarity": "mythic",
+    "colors": ["B"],
+    "card_type": "Creature",
+    "use_for": "Mythic legendary creature with symmetry-breaking triggers. Keyword + multiple triggered abilities."
+  },
+  {
+    "filename": "mythic_multicolor_wurg_creature.json",
+    "card_name": "Omnath, Locus of Creation",
+    "rarity": "mythic",
+    "colors": ["R", "G", "W", "U"],
+    "card_type": "Creature",
+    "use_for": "4-color mythic legendary. Landfall ability word, escalating triggers, extreme color requirements."
+  },
+  {
+    "filename": "mythic_multicolor_wubgr_creature.json",
+    "card_name": "Atraxa, Grand Unifier",
+    "rarity": "mythic",
+    "colors": ["W", "U", "B", "G"],
+    "card_type": "Creature",
+    "use_for": "4-color mythic with stacked keywords. Multiple keywords on one line, massive ETB, 7-mana top-end."
+  },
+  {
+    "filename": "mythic_multicolor_rg_planeswalker.json",
+    "card_name": "Wrenn and Six",
+    "rarity": "mythic",
+    "colors": ["R", "G"],
+    "card_type": "Planeswalker",
+    "use_for": "2-mana mythic planeswalker. Emblem creation template, efficient planeswalker design."
+  },
+  {
+    "filename": "mythic_colorless_artifact.json",
+    "card_name": "The One Ring",
+    "rarity": "mythic",
+    "colors": [],
+    "card_type": "Artifact",
+    "use_for": "Legendary artifact with counter-based mechanics. Colorless design, escalating cost/benefit, 'if you cast it' clause."
+  }
+]

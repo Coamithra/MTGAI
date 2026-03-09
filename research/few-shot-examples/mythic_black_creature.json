@@ -1,0 +1,16 @@
+{
+  "name": "Sheoldred, the Apocalypse",
+  "mana_cost": "{2}{B}{B}",
+  "cmc": 4.0,
+  "colors": ["B"],
+  "color_identity": ["B"],
+  "type_line": "Legendary Creature — Phyrexian Praetor",
+  "oracle_text": "Deathtouch\nWhenever you draw a card, you gain 2 life.\nWhenever an opponent draws a card, that player loses 2 life.",
+  "flavor_text": null,
+  "power": "4",
+  "toughness": "5",
+  "loyalty": null,
+  "rarity": "mythic",
+  "layout": "normal",
+  "design_notes": "A powerhouse legendary creature showing several patterns: (1) Legendary Creature type line with race and class subtypes (Phyrexian Praetor), (2) keyword ability on its own line before triggered abilities, (3) symmetry-breaking design — rewards your draws, punishes opponent's draws, (4) 4/5 deathtouch for 4 mana is already solid stats, but the triggered abilities push it into mythic territory. Demonstrates how mythics combine efficient bodies with game-warping effects."
+}

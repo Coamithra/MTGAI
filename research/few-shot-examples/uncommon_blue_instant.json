@@ -1,0 +1,16 @@
+{
+  "name": "Counterspell",
+  "mana_cost": "{U}{U}",
+  "cmc": 2.0,
+  "colors": ["U"],
+  "color_identity": ["U"],
+  "type_line": "Instant",
+  "oracle_text": "Counter target spell.",
+  "flavor_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "rarity": "uncommon",
+  "layout": "normal",
+  "design_notes": "The original hard counter. Same text as Cancel but one mana cheaper — that single mana difference is enormous in competitive play. The {U}{U} cost demands heavy blue commitment. Comparing this to Cancel teaches how mana efficiency separates rarity tiers and power levels. Iconic enough to be the namesake of an entire card category."
+}
