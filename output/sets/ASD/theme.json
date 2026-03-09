@@ -1,0 +1,206 @@
+{
+  "name": "Anomalous Descent",
+  "code": "ASD",
+  "theme": "Science-fantasy megadungeon in far-future post-apocalyptic Earth",
+  "flavor_description": "Thousands of years after civilization collapsed, the city of Denethix clings to order at the edge of a wilderness teeming with dinosaurs, moktars, and rogue wizards. Beneath Mount Rendon lies the Anomalous Subsurface Environment — a self-spawning megadungeon that predates humanity, filled with ancient super-science relics, degraded automatons, and things far worse. Adventurers descend seeking fortune. Most don't return.\n\nThe Vizier, a former slave named Koyl Yrenum, rules Denethix through a web of lies — the city's founder Feretha is dead, his brain scooped out and hooked to a machine, but everyone must believe he still lives. The Unyielding Fist enforces order with ancient laser weapons. The Cult of Science worships technology they barely understand. The Society of the Luminous Spark fights slavery by extracting slavers' brains. And deep in the wilderness, the House of Flesh pulses with eldritch horror where Starry Wisdom cultists have transformed a forest mansion into a living sanctum of alien terror.\n\nThe tone is played straight — the gonzo humor lives in flavor text. Banks guarded by 20-foot robots with machine guns. A Head Scientist on 12-foot stilts. Wizards who fly around in giant stone heads that shoot lasers from their eyes. Clockwork cats and dolls made of human teeth. The world takes itself seriously; the absurdity speaks for itself.",
+  "set_size": 60,
+  "mechanic_count": 3,
+  "special_constraints": [
+    "Artifact subtheme — ancient technology, automatons, protonium-metal relics",
+    "One planeswalker only: Jace (visiting from another plane, investigating the ASE)",
+    "Include dinosaurs as creature type (canon to setting)",
+    "Named characters as legendary creatures",
+    "House of Flesh as a card cycle (legendary enchantment/land + cultist creatures)",
+    "Deeper dungeon levels hinted in flavor text but not depicted"
+  ],
+  "legendary_characters": [
+    {
+      "name": "Feretha, the Undying",
+      "colors": ["U", "B"],
+      "role": "Dead wizard-ruler hooked to a machine, brain in a computer. Used as puppet to deter rival wizards.",
+      "rarity": "mythic",
+      "type": "Legendary Creature — Human Wizard"
+    },
+    {
+      "name": "Koyl Yrenum, the Vizier",
+      "colors": ["W", "B"],
+      "role": "Former slave who became de facto ruler of Denethix. Maintains the lie that Feretha lives. Obsessed with city planning.",
+      "rarity": "rare",
+      "type": "Legendary Creature — Human Advisor"
+    },
+    {
+      "name": "Captain Marcus Tyro",
+      "colors": ["R", "W"],
+      "role": "Captain of the Unyielding Fist. Co-conspirator in the Feretha cover-up. Pragmatic military leader.",
+      "rarity": "rare",
+      "type": "Legendary Creature — Human Soldier"
+    },
+    {
+      "name": "Fereyn, Head in the Clouds",
+      "colors": ["U", "R"],
+      "role": "Rival wizard who flies around in a giant detachable stone head with eye lasers. Sends Exterminators to raid.",
+      "rarity": "mythic",
+      "type": "Legendary Creature — Human Wizard"
+    },
+    {
+      "name": "Monsator, the Reaper",
+      "colors": ["B", "G"],
+      "role": "Wizard who commands Cornstalk Warriors from horseback (his draft horse Tess). Controls nearby farmland.",
+      "rarity": "rare",
+      "type": "Legendary Creature — Human Wizard"
+    },
+    {
+      "name": "The Head Scientist",
+      "colors": ["U", "R"],
+      "role": "Leader of the Cult of Science. Towers above crowds on stilts, 12-foot lab coat, prosthetic limbs. Worships ancient tech.",
+      "rarity": "rare",
+      "type": "Legendary Creature — Human Scientist"
+    },
+    {
+      "name": "Terrible Karak",
+      "colors": ["B", "R"],
+      "role": "Bandit king of Chelmsfordshire. Plots robbery and murder when 'feeling frisky'.",
+      "rarity": "uncommon",
+      "type": "Legendary Creature — Human Rogue"
+    },
+    {
+      "name": "Jace, Anomaly Seeker",
+      "colors": ["U"],
+      "role": "Planeswalker visiting from another plane, drawn by the ASE's anomalous magical signature. Investigating the dungeon's mysteries.",
+      "rarity": "mythic",
+      "type": "Legendary Planeswalker — Jace"
+    }
+  ],
+  "notable_cards": [
+    {
+      "name": "Fereyn's Stone Head",
+      "type": "Legendary Artifact — Vehicle",
+      "colors": [],
+      "notes": "Detachable flying vehicle that shoots eye lasers. Crew ability to detach from a creature."
+    },
+    {
+      "name": "The Anomalous Subsurface Environment",
+      "type": "Legendary Land",
+      "colors": [],
+      "notes": "The dungeon itself — 'will without intelligence, embodied in stone'. Taps for colorless, activated abilities representing dungeon exploration."
+    },
+    {
+      "name": "Bank Inviolable",
+      "type": "Land",
+      "colors": [],
+      "notes": "Protected by Custodians of Fiduciary Duty — 20-foot iron-and-gold robots with machine guns."
+    },
+    {
+      "name": "House of Flesh",
+      "type": "Legendary Enchantment",
+      "colors": ["B"],
+      "notes": "Starry Wisdom cultist sanctum. Forest mansion transformed into living eldritch horror. Mysterious purpose."
+    },
+    {
+      "name": "God's Eye",
+      "type": "Artifact",
+      "colors": [],
+      "notes": "Giant black metal circle with a slitted purple eye. Touching it can compel violence."
+    },
+    {
+      "name": "Protonium Lockbox",
+      "type": "Artifact",
+      "colors": [],
+      "notes": "Indestructible container made of protonium-metal."
+    }
+  ],
+  "draft_archetypes": [
+    {
+      "color_pair": "WU",
+      "name": "Ancient Technology",
+      "description": "Control the board with automatons, protonium relics, and ancient machinery. Use artifacts for card advantage and incremental value.",
+      "speed": "control",
+      "faction": "Automatons / Dungeon tech"
+    },
+    {
+      "color_pair": "WB",
+      "name": "Vizier's Regime",
+      "description": "Authoritarian control through sacrifice and taxation. Drain opponents while building an army of loyal subjects. The Vizier's lie holds the city together.",
+      "speed": "midrange",
+      "faction": "The Vizier, Unyielding Fist"
+    },
+    {
+      "color_pair": "WR",
+      "name": "Spark Rebellion",
+      "description": "Aggressive freedom fighters who punch through defenses. Go-wide with rebels and use equipment/weapons to overwhelm. Combat tricks and team buffs.",
+      "speed": "aggro",
+      "faction": "Society of the Luminous Spark, Captain Tyro"
+    },
+    {
+      "color_pair": "WG",
+      "name": "Frontier Settlers",
+      "description": "Build a board of settlers, farmers, and domesticated beasts. Token generation, +1/+1 counters, and go-wide strategies from the villages around Denethix.",
+      "speed": "midrange",
+      "faction": "Villages of Greater Denethix"
+    },
+    {
+      "color_pair": "UB",
+      "name": "Deep Descent",
+      "description": "Delve into the ASE for forbidden knowledge. Mill, graveyard interaction, and card selection. Each descent deeper yields greater power — and greater risk.",
+      "speed": "control",
+      "faction": "Academy of Elevated Thought, Feretha"
+    },
+    {
+      "color_pair": "UR",
+      "name": "Mad Science",
+      "description": "Cast instants and sorceries fueled by poorly understood ancient tech. Spellslinger with artifact synergies. The Cult of Science's experiments gone right (and wrong).",
+      "speed": "midrange",
+      "faction": "Cult of Science, Fereyn"
+    },
+    {
+      "color_pair": "UG",
+      "name": "Dungeon Ecology",
+      "description": "The dungeon's self-maintaining ecosystem: fungal growth, dungeon elementals, and creatures adapted to the deep. +1/+1 counters and creature-based card advantage.",
+      "speed": "midrange",
+      "faction": "Dungeon elementals, vagabond mushrooms"
+    },
+    {
+      "color_pair": "BR",
+      "name": "Raider Warbands",
+      "description": "Aggressive moktar warbands and bandits that sacrifice resources for explosive damage. Attack with reckless abandon, use hypno-weapons, burn everything.",
+      "speed": "aggro",
+      "faction": "Moktars, Terrible Karak, Exterminators"
+    },
+    {
+      "color_pair": "BG",
+      "name": "Twisted Evolution",
+      "description": "Creatures warped by the dungeon's influence and Starry Wisdom corruption. Graveyard recursion, death triggers, and creatures that grow stronger as things die.",
+      "speed": "midrange",
+      "faction": "Morlocks, House of Flesh, mutants"
+    },
+    {
+      "color_pair": "RG",
+      "name": "Prehistoric Fury",
+      "description": "Dinosaurs, giant beasts, and the raw power of the untamed wilderness. Ramp into massive creatures and trample over opposition.",
+      "speed": "midrange",
+      "faction": "Wilderness creatures, Monsator, dinosaurs"
+    }
+  ],
+  "creature_types": {
+    "setting_specific": ["Moktar", "Automaton", "Morlock", "Screechman", "Grunkie", "Peryton"],
+    "standard_mtg": ["Human", "Wizard", "Soldier", "Rogue", "Scientist", "Fungus", "Dinosaur", "Construct", "Zombie", "Skeleton", "Goblin", "Spider", "Ooze", "Elemental", "Horror"]
+  },
+  "flavor_text_guidelines": {
+    "tone": "Deadpan, darkly humorous. The world takes itself seriously; the absurdity speaks for itself.",
+    "themes": [
+      "Bureaucratic absurdity (banks with robot guards, city planning obsession)",
+      "Dungeon exploration danger and wonder",
+      "The lie that holds Denethix together",
+      "Ancient super-science misunderstood as magic",
+      "Hints at deeper dungeon levels",
+      "The dungeon as a living, self-aware entity"
+    ],
+    "sample_quotes": [
+      "The Custodians of Fiduciary Duty occasionally fire on individuals waiting in line, reducing them to a fine red mist. The Bank considers this an acceptable default rate.",
+      "The Head Scientist's 12-foot lab coat is not merely ostentatious. It also conceals the stilts.",
+      "The screams from Level 3 have stopped. That's worse.",
+      "Feretha's decrees have become notably more coherent since his death.",
+      "The dungeon has been accident-free for three thousand, seven hundred, twenty-nine years, eleven months, and two days. A company record!"
+    ]
+  }
+}

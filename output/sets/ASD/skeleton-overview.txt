@@ -1,0 +1,137 @@
+Set Skeleton Overview: Anomalous Descent [ASD]
+Theme: Science-fantasy megadungeon in far-future post-apocalyptic Earth
+Total slots: 60
+
+=== Rarity Distribution ===
+  common    : 21
+  uncommon  : 21
+  rare      : 14
+  mythic    : 4
+
+=== Color Distribution ===
+  W           : 10
+  U           : 10
+  B           : 10
+  R           : 9
+  G           : 9
+  multicolor  : 10
+  colorless   : 2
+
+=== Type Distribution ===
+  creature      : 38
+  instant       : 5
+  sorcery       : 5
+  enchantment   : 10
+  artifact      : 2
+
+Creature %: 63.3%
+Average CMC: 3.15
+
+=== CMC Curve ===
+  CMC 1:   8  ########
+  CMC 2:  17  #################
+  CMC 3:  14  ##############
+  CMC 4:   9  #########
+  CMC 5:   6  ######
+  CMC 6:   3  ###
+  CMC 7:   3  ###
+
+=== Archetype Coverage ===
+  WU: 23 slots
+  WB: 22 slots
+  WR: 21 slots
+  WG: 21 slots
+  UB: 21 slots
+  UR: 19 slots
+  UG: 19 slots
+  BR: 19 slots
+  BG: 19 slots
+  RG: 18 slots
+
+=== Constraint Checks ===
+  [PASS] (HARD) color_balance_common: common color balance: W=4, U=4, B=4, R=4, G=4 (spread=0, tolerance=±0)
+  [PASS] (HARD) color_balance_uncommon: uncommon color balance: W=3, U=3, B=3, R=3, G=3 (spread=0, tolerance=±1)
+  [PASS] (HARD) color_balance_rare: rare color balance: W=2, U=2, B=2, R=2, G=2 (spread=0, tolerance=±1)
+  [PASS] (HARD) color_balance_mythic: mythic color balance: W=1, U=1, B=1, R=0, G=0 (spread=1, tolerance=±1)
+  [PASS] (HARD) overall_creature_density: Overall creature density: 63.3% (min 50%)
+  [PASS] (HARD) creature_density_W_common: W common creature density: 50.0% (min 40%)
+  [PASS] (HARD) creature_density_U_common: U common creature density: 50.0% (min 40%)
+  [PASS] (HARD) creature_density_B_common: B common creature density: 50.0% (min 40%)
+  [PASS] (HARD) creature_density_R_common: R common creature density: 50.0% (min 40%)
+  [PASS] (HARD) creature_density_G_common: G common creature density: 50.0% (min 40%)
+  [PASS] (HARD) signpost_uncommons: Multicolor uncommons: 5 (need >= 5)
+  [PASS] (HARD) rarity_total: Total slots: 60 (expected 60)
+  [PASS] (SOFT) avg_cmc: Average CMC: 3.15 (target 2.9-3.5)
+  [PASS] (SOFT) cmc_coverage: CMC coverage check relaxed for small set
+
+All hard constraints passed: YES
+
+=== Slot Matrix ===
+
+--- COMMON (21) ---
+  B-C-01      creature        CMC=1  mech=vanilla          arch=WB,UB,BR,BG
+  B-C-02      creature        CMC=2  mech=french_vanilla   arch=WB,UB,BR,BG
+  B-C-03      instant         CMC=3  mech=evergreen        arch=WB,UB,BR,BG
+  B-C-04      sorcery         CMC=5  mech=complex          arch=WB,UB,BR,BG
+  G-C-01      creature        CMC=2  mech=vanilla          arch=WG,UG,BG,RG
+  G-C-02      creature        CMC=3  mech=french_vanilla   arch=WG,UG,BG,RG
+  G-C-03      instant         CMC=4  mech=evergreen        arch=WG,UG,BG,RG
+  G-C-04      sorcery         CMC=7  mech=complex          arch=WG,UG,BG,RG
+  R-C-01      creature        CMC=2  mech=vanilla          arch=WR,UR,BR,RG
+  R-C-02      creature        CMC=3  mech=french_vanilla   arch=WR,UR,BR,RG
+  R-C-03      instant         CMC=4  mech=evergreen        arch=WR,UR,BR,RG
+  R-C-04      sorcery         CMC=6  mech=complex          arch=WR,UR,BR,RG
+  U-C-01      creature        CMC=1  mech=vanilla          arch=WU,UB,UR,UG
+  U-C-02      creature        CMC=2  mech=french_vanilla   arch=WU,UB,UR,UG
+  U-C-03      instant         CMC=3  mech=evergreen        arch=WU,UB,UR,UG
+  U-C-04      sorcery         CMC=5  mech=complex          arch=WU,UB,UR,UG
+  W-C-01      creature        CMC=1  mech=vanilla          arch=WU,WB,WR,WG
+  W-C-02      creature        CMC=2  mech=french_vanilla   arch=WU,WB,WR,WG
+  W-C-03      instant         CMC=3  mech=evergreen        arch=WU,WB,WR,WG
+  W-C-04      sorcery         CMC=4  mech=complex          arch=WU,WB,WR,WG
+  X-C-01      artifact        CMC=2  mech=vanilla          arch=-
+
+--- UNCOMMON (21) ---
+  B-U-01      creature        CMC=1  mech=evergreen        arch=WB,UB,BR,BG
+  B-U-02      creature        CMC=3  mech=evergreen        arch=WB,UB,BR,BG
+  B-U-03      enchantment     CMC=5  mech=complex          arch=WB,UB,BR,BG
+  G-U-01      creature        CMC=2  mech=evergreen        arch=WG,UG,BG,RG
+  G-U-02      creature        CMC=4  mech=evergreen        arch=WG,UG,BG,RG
+  G-U-03      enchantment     CMC=7  mech=complex          arch=WG,UG,BG,RG
+  R-U-01      creature        CMC=2  mech=evergreen        arch=WR,UR,BR,RG
+  R-U-02      creature        CMC=4  mech=evergreen        arch=WR,UR,BR,RG
+  R-U-03      enchantment     CMC=6  mech=complex          arch=WR,UR,BR,RG
+  U-U-01      creature        CMC=1  mech=evergreen        arch=WU,UB,UR,UG
+  U-U-02      creature        CMC=3  mech=evergreen        arch=WU,UB,UR,UG
+  U-U-03      enchantment     CMC=5  mech=complex          arch=WU,UB,UR,UG
+  UB-U-01     creature        CMC=3  mech=complex          arch=UB
+  W-U-01      creature        CMC=1  mech=evergreen        arch=WU,WB,WR,WG
+  W-U-02      creature        CMC=3  mech=evergreen        arch=WU,WB,WR,WG
+  W-U-03      enchantment     CMC=4  mech=complex          arch=WU,WB,WR,WG
+  WB-U-01     creature        CMC=2  mech=complex          arch=WB
+  WG-U-01     creature        CMC=2  mech=complex          arch=WG
+  WR-U-01     creature        CMC=2  mech=complex          arch=WR
+  WU-U-01     creature        CMC=2  mech=complex          arch=WU
+  X-U-01      artifact        CMC=3  mech=complex          arch=-
+
+--- RARE (14) ---
+  B-R-01      creature        CMC=2  mech=complex          arch=WB,UB,BR,BG
+  B-R-02      enchantment     CMC=5  mech=complex          arch=WB,UB,BR,BG
+  G-R-01      creature        CMC=2  mech=complex          arch=WG,UG,BG,RG
+  G-R-02      enchantment     CMC=7  mech=complex          arch=WG,UG,BG,RG
+  R-R-01      creature        CMC=2  mech=complex          arch=WR,UR,BR,RG
+  R-R-02      enchantment     CMC=6  mech=complex          arch=WR,UR,BR,RG
+  U-R-01      creature        CMC=1  mech=complex          arch=WU,UB,UR,UG
+  U-R-02      enchantment     CMC=4  mech=complex          arch=WU,UB,UR,UG
+  W-R-01      creature        CMC=1  mech=complex          arch=WU,WB,WR,WG
+  W-R-02      enchantment     CMC=4  mech=complex          arch=WU,WB,WR,WG
+  WB-R-01     creature        CMC=3  mech=complex          arch=WB
+  WG-R-01     creature        CMC=3  mech=complex          arch=WG
+  WR-R-01     creature        CMC=3  mech=complex          arch=WR
+  WU-R-01     creature        CMC=2  mech=complex          arch=WU
+
+--- MYTHIC (4) ---
+  B-M-01      creature        CMC=4  mech=complex          arch=WB,UB,BR,BG
+  U-M-01      creature        CMC=3  mech=complex          arch=WU,UB,UR,UG
+  W-M-01      creature        CMC=2  mech=complex          arch=WU,WB,WR,WG
+  WU-M-01     creature        CMC=5  mech=complex          arch=WU

@@ -1,0 +1,14 @@
+{
+  "name": "Anomalous Descent",
+  "code": "ASD",
+  "theme": "Science-fantasy megadungeon in far-future post-apocalyptic Earth",
+  "flavor_description": "Thousands of years after civilization collapsed, the city of Denethix clings to order at the edge of a wilderness roamed by dinosaurs, moktars, and rogue wizards. Beneath Mount Rendon lies the Anomalous Subsurface Environment — a self-spawning megadungeon filled with ancient super-science relics, degraded automatons, and things far worse. Adventurers descend seeking fortune. Most don't return.",
+  "set_size": 60,
+  "mechanic_count": 3,
+  "special_constraints": [
+    "Artifact subtheme",
+    "One planeswalker (Jace)",
+    "Include dinosaurs",
+    "Named legendary characters from the setting"
+  ]
+}
