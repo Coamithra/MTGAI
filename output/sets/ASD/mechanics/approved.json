@@ -1,0 +1,92 @@
+[
+  {
+    "name": "Salvage",
+    "keyword_type": "keyword_ability",
+    "reminder_text": "(Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+    "colors": ["W", "U", "G"],
+    "complexity": 1,
+    "flavor_connection": "Explorers salvaging useful technology from fallen creatures and broken automatons in the megadungeon depths. The deeper you go, the more you find.",
+    "rarity_range": ["common", "uncommon", "rare", "mythic"],
+    "common_patterns": [
+      "\"Salvage 2\" or \"Salvage 3\" on creature ETB or death triggers",
+      "\"When ~ enters, salvage 2.\"",
+      "\"When ~ dies, salvage 3.\""
+    ],
+    "uncommon_patterns": [
+      "\"Salvage 4\" with additional benefit",
+      "\"When ~ enters, salvage 4. If you put an artifact card into your hand this way, [bonus].\"",
+      "Payoff creatures that care about artifacts entering hand"
+    ],
+    "rare_patterns": [
+      "\"Salvage 6\" or higher",
+      "Repeatable salvage (activated ability)",
+      "\"Whenever you salvage, [powerful effect]\""
+    ],
+    "design_notes": "Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).",
+    "distribution": {
+      "common": 3,
+      "uncommon": 2,
+      "rare": 1,
+      "mythic": 0
+    }
+  },
+  {
+    "name": "Malfunction",
+    "keyword_type": "keyword_ability",
+    "reminder_text": "(This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)",
+    "colors": ["W", "U", "R"],
+    "complexity": 2,
+    "flavor_connection": "Ancient technology is unreliable -- powerful artifacts and constructs glitch, requiring time to recalibrate and function properly. The best relics from the Anomalous Subsurface Environment need coaxing.",
+    "rarity_range": ["common", "uncommon", "rare", "mythic"],
+    "common_patterns": [
+      "\"Malfunction 1\" on above-rate creatures/artifacts",
+      "Simple keyword abilities that work regardless of counters (e.g., vigilance)",
+      "The delay IS the downside -- no special counter interaction at common"
+    ],
+    "uncommon_patterns": [
+      "\"Malfunction 2\" with abilities that activate \"when the last malfunction counter is removed from ~\"",
+      "\"Malfunction 2\" with abilities that require \"~ has no malfunction counters on it\"",
+      "Ways to remove malfunction counters faster (e.g., \"{1}: Remove a malfunction counter from ~\")"
+    ],
+    "rare_patterns": [
+      "\"Malfunction 3\" with very powerful effects",
+      "Cards that benefit from having malfunction counters (e.g., \"~ gets +1/+1 for each malfunction counter on permanents you control\")",
+      "Cards that add malfunction counters to opponents' permanents"
+    ],
+    "design_notes": "Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.",
+    "distribution": {
+      "common": 2,
+      "uncommon": 2,
+      "rare": 1,
+      "mythic": 0
+    }
+  },
+  {
+    "name": "Overclock",
+    "keyword_type": "keyword_action",
+    "reminder_text": "(Exile the top three cards of your library. You may play them until end of turn.)",
+    "colors": ["U", "R", "B"],
+    "complexity": 3,
+    "flavor_connection": "Pushing ancient machinery beyond safe limits yields great power at the risk of resource waste. The Cult of Science experiments recklessly with technology they barely understand.",
+    "rarity_range": ["uncommon", "rare", "mythic"],
+    "common_patterns": [],
+    "uncommon_patterns": [
+      "\"Overclock\" as additional cost on spells -- \"As an additional cost to cast ~, overclock.\"",
+      "Cards that get a bonus \"if you overclocked this turn\"",
+      "Simple overclock triggers on creatures"
+    ],
+    "rare_patterns": [
+      "Repeatable overclock (activated abilities)",
+      "\"Whenever you overclock, [powerful effect]\"",
+      "Cards that reduce the cost/risk of overclocking",
+      "\"Overclock, then [effect based on card types exiled]\""
+    ],
+    "design_notes": "Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.",
+    "distribution": {
+      "common": 0,
+      "uncommon": 2,
+      "rare": 0,
+      "mythic": 1
+    }
+  }
+]

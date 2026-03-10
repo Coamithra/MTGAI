@@ -1,0 +1,468 @@
+[
+  {
+    "name": "Denethix Salvage Crew",
+    "mana_cost": "{2}{W}",
+    "cmc": 3,
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "type_line": "Creature � Human Soldier",
+    "oracle_text": "When ~ enters, salvage 2. (Look at the top 2 cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+    "flavor_text": "\"The city pays us by the pound for metal scraps. They don't ask where we found the blood-soaked ones.\"",
+    "power": "2",
+    "toughness": "2",
+    "rarity": "common",
+    "keywords": [
+      "Salvage"
+    ],
+    "design_notes": "Simple common creature with ETB salvage trigger. The 2/2 for 3 body is slightly below rate to account for the card advantage potential. White gets salvage as it represents organized salvage operations and finding useful tools.",
+    "_mechanic": "salvage",
+    "_scores": {
+      "rules_text": 5.0,
+      "flavor_fit": 5.0,
+      "balance": 5.0,
+      "creativity": 4.8,
+      "overall": 4.94,
+      "issues": []
+    }
+  },
+  {
+    "name": "Undergrowth Scrounger",
+    "mana_cost": "{1}{G}",
+    "cmc": 2,
+    "colors": [
+      "G"
+    ],
+    "color_identity": [
+      "G"
+    ],
+    "type_line": "Creature � Human Scout",
+    "oracle_text": "When ~ dies, salvage 3.",
+    "flavor_text": "She knew every rust-eaten ruin in the wilderness. The wilderness, unfortunately, knew her too.",
+    "power": "2",
+    "toughness": "1",
+    "rarity": "common",
+    "keywords": [
+      "Salvage"
+    ],
+    "design_notes": "Death trigger salvage common. The aggressive 2/1 body for 2 mana is fine since the value comes when it dies. Green gets salvage representing natural adaptation and finding resources in the wild.",
+    "_mechanic": "salvage",
+    "_scores": {
+      "rules_text": 4.5,
+      "flavor_fit": 3.5,
+      "balance": 5.0,
+      "creativity": 4.5,
+      "overall": 4.38,
+      "issues": [
+        "Missing or incorrect salvage reminder text"
+      ]
+    }
+  },
+  {
+    "name": "Protonium Archaeologist",
+    "mana_cost": "{2}{U}",
+    "cmc": 3,
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "type_line": "Creature � Human Scientist",
+    "oracle_text": "When ~ enters, salvage 4.\nArtifact spells you cast cost {1} less to cast.",
+    "flavor_text": "\"The ancients' trash is our treasure. Their treasure is our incomprehensible doom.\"",
+    "power": "1",
+    "toughness": "4",
+    "rarity": "uncommon",
+    "keywords": [
+      "Salvage"
+    ],
+    "design_notes": "Uncommon with artifact synergy - the cost reduction makes found artifacts more playable. The 1/4 defensive body reflects a careful scholar. Blue's salvage represents systematic study and cataloging of ancient technology.",
+    "_mechanic": "salvage",
+    "_scores": {
+      "rules_text": 4.5,
+      "flavor_fit": 5.0,
+      "balance": 5.0,
+      "creativity": 4.8,
+      "overall": 4.81,
+      "issues": [
+        "Missing or incorrect salvage reminder text"
+      ]
+    }
+  },
+  {
+    "name": "Moktar Relic Hunter",
+    "mana_cost": "{3}{G}",
+    "cmc": 4,
+    "colors": [
+      "G"
+    ],
+    "color_identity": [
+      "G"
+    ],
+    "type_line": "Creature � Moktar Scout",
+    "oracle_text": "When ~ enters, salvage 5.\nWhenever you cast an artifact spell, ~ gets +2/+2 until end of turn.",
+    "flavor_text": "Moktars collect shiny things not for trade, but for the joy of hearing them rattle in their pouches.",
+    "power": "3",
+    "toughness": "3",
+    "rarity": "uncommon",
+    "keywords": [
+      "Salvage"
+    ],
+    "design_notes": "Uncommon artifact payoff creature. The temporary pump creates exciting combat scenarios when you cast found artifacts. Moktar is a setting-specific creature type representing the post-human barbarian tribes.",
+    "_mechanic": "salvage",
+    "_scores": {
+      "rules_text": 4.5,
+      "flavor_fit": 5.0,
+      "balance": 5.0,
+      "creativity": 5.0,
+      "overall": 4.88,
+      "issues": [
+        "Missing or incorrect salvage reminder text"
+      ]
+    }
+  },
+  {
+    "name": "Subsurface Expedition Leader",
+    "mana_cost": "{2}{W}{W}",
+    "cmc": 4,
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "type_line": "Creature � Human Soldier",
+    "oracle_text": "When ~ enters, salvage 6.\n{2}{W}, {T}: Salvage 3. Activate only as a sorcery.",
+    "flavor_text": "\"Every expedition needs someone willing to go first into the dark. The job has remarkably high turnover.\"",
+    "power": "3",
+    "toughness": "4",
+    "rarity": "rare",
+    "keywords": [
+      "Salvage"
+    ],
+    "design_notes": "Rare with repeatable salvage via activated ability. The high initial salvage 6 and expensive but powerful activated ability create a powerful build-around card for artifact-based strategies. The sorcery-speed restriction prevents overpowered instant-speed value generation.",
+    "_mechanic": "salvage",
+    "_scores": {
+      "rules_text": 4.5,
+      "flavor_fit": 5.0,
+      "balance": 5.0,
+      "creativity": 4.5,
+      "overall": 4.75,
+      "issues": [
+        "Missing or incorrect salvage reminder text"
+      ]
+    }
+  },
+  {
+    "name": "Defective Labor Drone",
+    "mana_cost": "{1}{W}",
+    "cmc": 2,
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "type_line": "Artifact Creature � Automaton",
+    "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)",
+    "flavor_text": "\"It keeps trying to mine the ceiling. We've explained gravity to it seventeen times.\" �Foreman Krix",
+    "power": "3",
+    "toughness": "2",
+    "keywords": [
+      "Malfunction"
+    ],
+    "rarity": "common",
+    "design_notes": "Common white artifact creature with above-rate stats (3/2 for 2 mana). The malfunction delay balances the aggressive statline. White gets efficient creatures in this set when they have temporal drawbacks.",
+    "_mechanic": "malfunction",
+    "_scores": {
+      "rules_text": 5.0,
+      "flavor_fit": 4.5,
+      "balance": 5.0,
+      "creativity": 4.8,
+      "overall": 4.81,
+      "issues": []
+    }
+  },
+  {
+    "name": "Unstable Welding Unit",
+    "mana_cost": "{2}{R}",
+    "cmc": 3,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Artifact Creature � Construct",
+    "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)\nHaste",
+    "flavor_text": "The sparks it produces are either welding material or a countdown to explosion. Usually both.",
+    "power": "4",
+    "toughness": "2",
+    "keywords": [
+      "Malfunction",
+      "Haste"
+    ],
+    "rarity": "common",
+    "design_notes": "Common red artifact creature with above-rate stats (4/2 haste for 3 mana). Haste helps offset the malfunction delay slightly, but it still enters tapped. Classic red aggressive creature with a meaningful drawback.",
+    "_mechanic": "malfunction",
+    "_scores": {
+      "rules_text": 5.0,
+      "flavor_fit": 4.0,
+      "balance": 5.0,
+      "creativity": 4.8,
+      "overall": 4.69,
+      "issues": []
+    }
+  },
+  {
+    "name": "Salvage Processing Matrix",
+    "mana_cost": "{3}{U}",
+    "cmc": 4,
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "type_line": "Artifact",
+    "oracle_text": "Malfunction 2 (This permanent enters tapped with 2 malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\nWhen the last malfunction counter is removed from ~, salvage 4. (Look at the top 4 cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+    "flavor_text": "Once fully operational, it can sort through debris faster than a dozen scavengers. Getting it operational is the hard part.",
+    "keywords": [
+      "Malfunction",
+      "Salvage"
+    ],
+    "rarity": "uncommon",
+    "design_notes": "Uncommon blue artifact that rewards patience. The salvage 4 payoff when it comes online ties into the set's artifact themes. Two-turn delay makes the payoff appropriately powerful for uncommon.",
+    "_mechanic": "malfunction",
+    "_scores": {
+      "rules_text": 5.0,
+      "flavor_fit": 4.0,
+      "balance": 5.0,
+      "creativity": 5.0,
+      "overall": 4.75,
+      "issues": []
+    }
+  },
+  {
+    "name": "Rampaging Siege Engine",
+    "mana_cost": "{4}{R}",
+    "cmc": 5,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Creature � Construct",
+    "oracle_text": "Malfunction 2 (This permanent enters tapped with 2 malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\nWhen the last malfunction counter is removed from ~, ~ deals 3 damage to any target.\nTrample",
+    "flavor_text": "It takes time to remember which end of itself does the destroying.",
+    "power": "6",
+    "toughness": "4",
+    "keywords": [
+      "Malfunction",
+      "Trample"
+    ],
+    "rarity": "uncommon",
+    "design_notes": "Uncommon red creature with strong stats and a damage trigger when it comes online. The 3 damage bolt provides immediate board impact to compensate for the 2-turn delay. Trample makes it a real threat once active.",
+    "_mechanic": "malfunction",
+    "_scores": {
+      "rules_text": 5.0,
+      "flavor_fit": 4.0,
+      "balance": 5.0,
+      "creativity": 5.0,
+      "overall": 4.75,
+      "issues": []
+    }
+  },
+  {
+    "name": "Experimental Thought Engine",
+    "mana_cost": "{2}{U}{U}",
+    "cmc": 4,
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "type_line": "Artifact Creature � Construct",
+    "oracle_text": "Malfunction 3 (This permanent enters tapped with 3 malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n{2}{U}, {T}: Remove a malfunction counter from target permanent you control.\nWhenever you remove a malfunction counter from a permanent you control, draw a card.",
+    "flavor_text": "\"It's learning to fix itself. And us. And everything else, whether we want it to or not.\" �Dr. Vess",
+    "power": "3",
+    "toughness": "5",
+    "keywords": [
+      "Malfunction"
+    ],
+    "rarity": "rare",
+    "design_notes": "Rare blue build-around that manipulates malfunction counters and provides card draw payoffs. The activated ability lets you accelerate malfunction removal, and the triggered ability rewards any counter manipulation. Creates interesting synergies with other malfunction permanents.",
+    "_mechanic": "malfunction",
+    "_scores": {
+      "rules_text": 5.0,
+      "flavor_fit": 4.5,
+      "balance": 5.0,
+      "creativity": 4.8,
+      "overall": 4.81,
+      "issues": []
+    }
+  },
+  {
+    "name": "Synaptic Overload",
+    "mana_cost": "{1}{U}",
+    "cmc": 2,
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "type_line": "Instant",
+    "oracle_text": "As an additional cost to cast ~, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nCounter target spell. If you overclocked this turn, draw a card.",
+    "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" �Dr. Malleus, Cult of Science",
+    "power": null,
+    "toughness": null,
+    "rarity": "uncommon",
+    "keywords": [
+      "Overclock"
+    ],
+    "design_notes": "Uncommon blue instant using overclock as additional cost with conditional bonus. The base effect (counter spell) is fair for 1U, but the overclock cost gives you card selection plus a bonus card draw if you've already overclocked. Risk/reward of exiling cards balanced against powerful effects.",
+    "_mechanic": "overclock",
+    "_scores": {
+      "rules_text": 5.0,
+      "flavor_fit": 5.0,
+      "balance": 5.0,
+      "creativity": 4.8,
+      "overall": 4.94,
+      "issues": []
+    }
+  },
+  {
+    "name": "Jury-Rigged Berserker",
+    "mana_cost": "{2}{R}",
+    "cmc": 3,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Creature � Human Soldier",
+    "oracle_text": "Haste\nWhenever ~ attacks, if you overclocked this turn, ~ gets +3/+0 and gains trample until end of turn.",
+    "flavor_text": "\"Sir, the combat stimulants are showing a 73% chance of catastrophic organ failure.\" \"Excellent. Deploy immediately.\"",
+    "power": "2",
+    "toughness": "2",
+    "rarity": "uncommon",
+    "keywords": [
+      "Haste",
+      "Overclock"
+    ],
+    "design_notes": "Uncommon red creature with conditional overclock bonus. Vanilla 2/2 haste for 3 is below rate, but becomes a 5/2 trampler if you overclock. Encourages building around overclock effects and rewards aggressive strategies.",
+    "_mechanic": "overclock",
+    "_scores": {
+      "rules_text": 4.5,
+      "flavor_fit": 4.0,
+      "balance": 5.0,
+      "creativity": 4.8,
+      "overall": 4.56,
+      "issues": [
+        "Missing or incorrect overclock reminder text"
+      ]
+    }
+  },
+  {
+    "name": "Vivisector Prime",
+    "mana_cost": "{2}{B}{B}",
+    "cmc": 4,
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "type_line": "Creature � Human Scientist",
+    "oracle_text": "Deathtouch\nWhenever you overclock (exile the top three cards of your library, you may play them until end of turn), each opponent loses 2 life and you gain 2 life.\n{3}{B}: Overclock.",
+    "flavor_text": "\"The human circulatory system has such fascinating failure modes when subjected to protonium exposure.\"",
+    "power": "3",
+    "toughness": "3",
+    "rarity": "rare",
+    "keywords": [
+      "Deathtouch",
+      "Overclock"
+    ],
+    "design_notes": "Rare black creature with 'whenever you overclock' trigger and repeatable overclock. Creates a life-swing engine that rewards overclocking multiple times. The activated ability is expensive enough to be fair but cheap enough to be repeatable.",
+    "_mechanic": "overclock",
+    "_scores": {
+      "rules_text": 5.0,
+      "flavor_fit": 5.0,
+      "balance": 5.0,
+      "creativity": 5.0,
+      "overall": 5.0,
+      "issues": []
+    }
+  },
+  {
+    "name": "Cascade Protocol",
+    "mana_cost": "{3}{R}{R}",
+    "cmc": 5,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Sorcery",
+    "oracle_text": "Overclock, then overclock again. (Exile the top three cards of your library. You may play them until end of turn.)\n~ deals 2 damage to any target for each card exiled with ~ this way.",
+    "flavor_text": "\"The cascade effect exceeded all theoretical parameters. Fortunately, so did the explosion.\" �Final log, Research Station Gamma",
+    "power": null,
+    "toughness": null,
+    "rarity": "rare",
+    "keywords": [
+      "Overclock"
+    ],
+    "design_notes": "Rare red sorcery that overclocks twice, guaranteeing 6 exiled cards and 12 damage. High mana cost balances the powerful effect. Gives you card selection while dealing significant damage, fitting red's aggressive nature.",
+    "_mechanic": "overclock",
+    "_scores": {
+      "rules_text": 5.0,
+      "flavor_fit": 4.0,
+      "balance": 5.0,
+      "creativity": 4.5,
+      "overall": 4.62,
+      "issues": []
+    }
+  },
+  {
+    "name": "Archscientist Vex, the Unbound",
+    "mana_cost": "{2}{U}{R}",
+    "cmc": 4,
+    "colors": [
+      "U",
+      "R"
+    ],
+    "color_identity": [
+      "U",
+      "R"
+    ],
+    "type_line": "Legendary Creature � Human Scientist",
+    "oracle_text": "Flying\nCards exiled with overclock (exile the top three cards of your library, you may play them until end of turn) cost {2} less to cast.\nWhenever you cast a spell exiled with overclock, copy it. You may choose new targets for the copy.",
+    "flavor_text": "\"I have transcended the limitations of sanity, safety, and the laws of thermodynamics.\"",
+    "power": "3",
+    "toughness": "4",
+    "rarity": "mythic",
+    "keywords": [
+      "Flying",
+      "Overclock"
+    ],
+    "design_notes": "Mythic legendary showcasing overclock as a build-around. Cost reduction makes overclocked cards more playable, while copying them provides explosive value. The copy effect works on any spell cast from overclock, creating powerful synergies. Splashy enough for mythic while being a clear overclock payoff.",
+    "_mechanic": "overclock",
+    "_scores": {
+      "rules_text": 5.0,
+      "flavor_fit": 5.0,
+      "balance": 5.0,
+      "creativity": 4.5,
+      "overall": 4.88,
+      "issues": []
+    }
+  }
+]

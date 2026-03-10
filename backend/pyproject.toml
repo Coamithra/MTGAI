@@ -6,6 +6,9 @@ requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.7,<3",
     "pydantic-settings>=2.3,<3",
+    "typer[all]>=0.12",
+    "rich>=13.0",
+    "anthropic>=0.32,<1",
 ]
 
 [project.optional-dependencies]

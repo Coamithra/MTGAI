@@ -168,17 +168,28 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > **Outputs**: `output/sets/<code>/skeleton.json`, `output/sets/<code>/skeleton-overview.txt`, working CLI (list/show/stats), `learnings/phase1a.md`
 > **What this does**: Given a theme, generate the structural backbone — slot allocation matrix (color x rarity x type x CMC), 10 draft archetypes, mechanic slot assignments. Skeleton generator accepts a `set_size` parameter and uses `set-template.json` scaling formulas — default to ~60 cards for development, scale to ~280 for final production. Build the minimal CLI for card review. HUMAN provides the set theme.
 
-- [ ] **1A-1**: HUMAN: Define set theme (name, code, theme description, flavor, constraints). Implement skeleton generator that reads `set-template.json` and produces slot allocation matrix. Must accept `set_size` parameter (default ~60 dev set; uses `set_size_scaling` formulas from template).
-- [ ] **1A-2**: Define 10 draft archetypes (one per color pair) with strategy descriptions
-- [ ] **1A-3**: Assign mechanic slots (which colors/rarities get which mechanics)
-- [ ] **1A-4**: Build CLI `review list` command (Typer + Rich) — filter by color/rarity/type/status/CMC/keyword
-- [ ] **1A-5**: Build CLI `review show <card>` — pretty-printed card detail with history
-- [ ] **1A-6**: Build CLI `review stats` — set statistics dashboard (rarity counts, color distribution, mana curve bars)
-- [ ] **1A-7**: Define full CLI command group structure (Typer), stub Phase 3A commands (approve/reject/flag/compare/export/art/gallery)
-- [ ] **1A-8**: Write unit tests for all skeleton constraints (color balance, rarity totals, type spread, mana curve)
-- [ ] **1A-9**: Generate skeleton for the set → `output/sets/<code>/skeleton.json` + `skeleton-overview.txt`
-- [ ] **1A-10**: HUMAN: Review skeleton via CLI — approve or adjust
-- [ ] **1A-11**: Write learnings → `learnings/phase1a.md`
+- [x] **1A-1**: HUMAN: Define set theme (name, code, theme description, flavor, constraints). Implement skeleton generator that reads `set-template.json` and produces slot allocation matrix. Must accept `set_size` parameter (default ~60 dev set; uses `set_size_scaling` formulas from template).
+  → Theme: "Anomalous Descent" (ASD) — science-fantasy megadungeon in far-future post-apocalyptic Earth. 8 legendary characters, 10 draft archetypes. `backend/mtgai/skeleton/generator.py` (897 lines), `output/sets/ASD/theme.json`, `output/sets/ASD/set-config.json`
+- [x] **1A-2**: Define 10 draft archetypes (one per color pair) with strategy descriptions
+  → All 10 archetypes defined in `output/sets/ASD/theme.json` with color pairs, descriptions, speeds, and factions.
+- [x] **1A-3**: Assign mechanic slots (which colors/rarities get which mechanics)
+  → MechanicTag enum (vanilla/french_vanilla/evergreen/complex) assigned to all skeleton slots. Distribution follows NWO: commons get vanilla/french_vanilla, rares/mythics get complex.
+- [x] **1A-4**: Build CLI `review list` command (Typer + Rich) — filter by color/rarity/type/status/CMC/keyword
+  → `backend/mtgai/review/cli.py` — 7 filter options (--color, --rarity, --type, --cmc, --mechanic, --archetype, --set) + --sort. Color-coded Rich table output.
+- [x] **1A-5**: Build CLI `review show <card>` — pretty-printed card detail with history
+  → `python -m mtgai.review show <slot_id>` — Rich Panel with full slot details. Suggests similar IDs on not-found.
+- [x] **1A-6**: Build CLI `review stats` — set statistics dashboard (rarity counts, color distribution, mana curve bars)
+  → Full dashboard: rarity/color/type tables, CMC curve bar chart, archetype coverage with names, constraint checks. `--detailed` flag for per-color breakdown.
+- [x] **1A-7**: Define full CLI command group structure (Typer), stub Phase 3A commands (approve/reject/flag/compare/export/art/gallery)
+  → `backend/mtgai/review/` — cli.py (Typer app, 10 commands), loaders.py (data loading), formatters.py (Rich formatting). 7 Phase 3A stubs implemented.
+- [x] **1A-8**: Write unit tests for all skeleton constraints (color balance, rarity totals, type spread, mana curve)
+  → `backend/tests/test_skeleton.py` — 75 tests across 14 test classes. Tests models, constraints, generation at 60/100/280 sizes, balance reports, edge cases, save/load round-trip. Fixed color balance bug in `_distribute_colors()`.
+- [x] **1A-9**: Generate skeleton for the set → `output/sets/<code>/skeleton.json` + `skeleton-overview.txt`
+  → `output/sets/ASD/skeleton.json` (60 slots, all constraints pass), `output/sets/ASD/skeleton-overview.txt`
+- [x] **1A-10**: HUMAN: Review skeleton via CLI — approve or adjust
+  → Approved. 60-card dev set structure accepted (21C/21U/14R/4M). R/G having no mythics at dev-set size acknowledged as acceptable for pipeline testing.
+- [x] **1A-11**: Write learnings → `learnings/phase1a.md`
+  → Skeleton generator design, color balance bug fix, CLI architecture, dev-set tradeoffs documented.
 
 ---
 
@@ -189,15 +200,46 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > **Outputs**: Mechanics defined in set metadata, rules text templates, `learnings/phase1b.md`
 > **What this does**: AI-assisted creation of 2-4 set-specific keyword/ability mechanics fitting the theme. Validate against color pie. Define distribution. HUMAN approves each mechanic.
 
-- [ ] **1B-1**: Generate 2-4 set-specific mechanics via LLM (keyword abilities / ability words fitting the set theme)
-- [ ] **1B-2**: Validate mechanics against color pie rules from `research/set-design.md`
-- [ ] **1B-3**: Assign evergreen keywords per color (which color gets flying, deathtouch, etc.)
-- [ ] **1B-4**: Define mechanic distribution across rarities (how many cards per rarity use each mechanic)
-- [ ] **1B-5**: Create rules text templates for each new mechanic (including reminder text)
-- [ ] **1B-6**: HUMAN: Review and approve each mechanic
-- [ ] **1B-7**: Mechanic validation spike — generate 5-10 test cards per custom mechanic using Phase 0E best settings, score against 0E criteria (rules text avg >= 4.0, overall >= 3.5), verify LLM can use novel keywords correctly. If quality is below threshold, iterate on mechanic templates/prompt before Phase 1C.
-- [ ] **1B-8**: HUMAN: Review sample cards — design review checkpoint
-- [ ] **1B-9**: Write learnings → `learnings/phase1b.md`
+- [x] **1B-1**: Generate 2-4 set-specific mechanics via LLM (keyword abilities / ability words fitting the set theme)
+  → 6 candidates generated via Claude Sonnet. 3 selected: **Scavenge X** (W/U/G, complexity 1), **Malfunction N** (W/U/R, complexity 2), **Overclock** (U/R/B, complexity 3). Infrastructure: `backend/mtgai/generation/llm_client.py`, `mechanic_generator.py`.
+- [x] **1B-2**: Validate mechanics against color pie rules from `research/set-design.md`
+  → Color pie validation built into mechanic_generator.py. All 3 approved mechanics pass.
+- [x] **1B-3**: Assign evergreen keywords per color (which color gets flying, deathtouch, etc.)
+  → `output/sets/ASD/mechanics/evergreen-keywords.json`
+- [x] **1B-4**: Define mechanic distribution across rarities (how many cards per rarity use each mechanic)
+  → `output/sets/ASD/mechanics/distribution.json` — 14 mechanic cards (23.3% of 60-card set). Scavenge=6, Malfunction=5, Overclock=3. Mapped to specific skeleton slots.
+- [x] **1B-5**: Create rules text templates for each new mechanic (including reminder text)
+  → `output/sets/ASD/mechanics/approved.json` — full templates with common/uncommon/rare patterns, reminder text, design notes.
+- [x] **1B-6**: HUMAN: Review and approve each mechanic
+  → Approved with refinements: Scavenge X = top-X dig (not tutor), Malfunction N = counter-based delay, Overclock = renamed from Overload to avoid MTG conflict.
+- [x] **1B-7**: Mechanic validation spike — generate 5-10 test cards per custom mechanic using Phase 0E best settings, score against 0E criteria (rules text avg >= 4.0, overall >= 3.5), verify LLM can use novel keywords correctly. If quality is below threshold, iterate on mechanic templates/prompt before Phase 1C.
+  → 15 test cards generated ($0.09). Scores: Scavenge 4.75, Malfunction 4.76, Overclock 4.80. All GO. Results: `output/sets/ASD/mechanics/validation-spike-results.md`, `test-cards.json`.
+- [x] **1B-8**: HUMAN: Review sample cards — design review checkpoint
+  → Human + Opus interactive review of all 15 test cards. Found 9 issue categories across 8 FAIL + 2 WARN cards: keyword name collision (Scavenge exists in MTG), missing reminder text (5 cards), inconsistent capitalization, haste negated by malfunction, "enters tapped" irrelevant on noncreature artifact, redundant conditional (overclock as mandatory cost + "if you overclocked"), kitchen sink design (2 cards), false variability, above-rate balance (12 dmg for 5 mana). Two cards fully redesigned (Synaptic Overload, Cascade Protocol). Originals preserved in `test-cards-original.json`, fixes in `test-cards-revised.json`, ground truth in `human-review-findings.md`.
+- [x] **1B-8a**: Automated review pass validation — calibrate the AI self-critique review loop.
+  **Architecture**: AI1 (generator/Sonnet) generates card → AI2 (reviewer) asks "critically review this card" → AI1 self-critiques → AI2 does sentiment analysis: if AI1 is confident card is good → PASS; if uncertain or flags issues → prod further → loop (max N iterations to prevent cost runaway). After the self-critique loop, AI2 asks a set of **explicit pointed questions** to catch blind spots the self-critique misses.
+  **Calibration process**: Run this loop on `test-cards-original.json` (15 cards, without knowledge of findings). Compare output against `human-review-findings.md` ground truth. Issues the self-critique catches → validated. Issues it misses → become explicit pointed questions added to the review prompt. Target: ≥70% true positive rate on FAIL cards, ≥50% on WARN cards.
+  → Inputs: `output/sets/ASD/mechanics/test-cards-original.json`, `output/sets/ASD/mechanics/approved.json`
+  → Comparison: `output/sets/ASD/mechanics/human-review-findings.md`
+  → Output: `output/sets/ASD/mechanics/auto-review-results.md` (findings + accuracy score + explicit questions list)
+  → Results: FAIL detection 8/8 = 100% (target ≥70%), WARN detection 1/2 = 50% (target ≥50%). Self-critique catches reminder text + keyword nonbos; pointed questions essential for kitchen sink, false variability, enters-tapped irrelevance. Over-sensitive (5-6 false positives). $0.34 cost. Script: `research/scripts/auto_review_calibration.py`.
+- [x] **1B-8b**: Rename "Scavenge" mechanic — name collides with existing MTG keyword (Return to Ravnica, 2012). HUMAN: chose "Salvage". Updated `approved.json`, `distribution.json`, test cards (original/revised/test-cards.json), `validation-spike-results.md`, `human-review-findings.md`. 7 files modified.
+- [x] **1B-8c**: A/B test review-and-revise strategies — find the best AI review loop for Phase 1C.
+  **Plan**: `plans/phase-1b-ab-test.md`
+  **Test set**: 7 cards (2 PASS regression, 5 FAIL/WARN) from `test-cards-original.json`
+  **Strategies** (8 total, 4 Sonnet + 4 Opus mirrors):
+  - S1/S5: Simple — single prompt "critically review, improve or OK"
+  - S2/S6: Iterative — same prompt, loop until OK (max 5 iterations)
+  - S3/S7: Detailed — single prompt with comprehensive checklist + pointed questions
+  - S4/S8: Split — 3 separate passes (templating → mechanics → balance), then combine + revise
+  **Output**: Per-card reports with original card, full conversation log, revised card, cost. → `output/sets/ASD/mechanics/ab-test/<strategy>/`
+  **Evaluation**: HUMAN reviews revised cards for quality, regression, overnerfing, cost efficiency.
+  **Budget**: ~$10-19 total across all 8 strategies.
+  → **Results**: $3.83 total. Key finding: Sonnet cannot reason about mandatory-cost-as-conditional patterns (missed redundant conditional on Synaptic Overload across all 4 strategies). Opus catches it reliably. S7 (Detailed/Opus) best overall: perfect regression safety, caught all major issues, no overnerfing on mythic. S4 (Split/Sonnet) best Sonnet strategy. Encoding issue (U+FFFD instead of em dash) in test data added noise but didn't change conclusions. Script: `research/scripts/ab-test/run_strategy.py`.
+- [x] **1B-8d**: HUMAN: Pick winning strategy from A/B test results. Document choice and rationale.
+  → **Winner: Hybrid** — S4 (Split/Sonnet) for primary review + Opus sanity check for balance outliers. S4 had best Sonnet quality ($0.032/card) with good regression safety and strong fixes on Cards 14/15, but one disqualifying balance miss (Card 11 → {U} counterspell). S6 (Iterative/Opus) was only fully satisfactory strategy ($0.145/card) but expensive and oscillation-prone. Hybrid approach: Split/Sonnet catches templating + most design issues cheaply, then a light Opus pass catches flagrant balance problems. Exact hybrid design to be finalized in Phase 1C implementation.
+- [x] **1B-9**: Write learnings → `learnings/phase1b.md`
+  → Updated with A/B test results, strategy comparison table, Sonnet vs Opus findings, hybrid winner rationale, cost update ($4.35 total Phase 1B).
 
 ---
 
@@ -488,3 +530,8 @@ SC (SCALE-UP ~280)  ←── full production run through proven pipeline
 | 2026-03-09 | 4 | Phase 0E: 9/10 tasks done. T=1.0, FS=0, compressed context, tool_use. 4.73/5.0 confirmation. ~$1.42 spent on all experiments. Total API spend to date: ~$1.57. Awaiting HUMAN GO/NO-GO decision. Next: 0E-gate (human), then Phase 1A. |
 | 2026-03-09 | 5 | Phase 0B: COMPLETE (all 9 tasks). Flux.1-dev selected for image gen (research-based, validate in Phase 2A). Render prototype upgraded with project fonts + mana symbols (7ms/card). All print specs locked. Next: 0E-gate (human GO/NO-GO), then Phase 1A. |
 | 2026-03-09 | 6 | Phase 0E: COMPLETE — HUMAN GO decision. Added mechanic validation spike to 1B-7, Opus for planeswalkers/sagas in 1C. Adopted dev set approach (~60 cards) through all pipeline phases, with Phase SC (Scale-Up) for full ~280-card production. Updated TRACKER, phase-1, phase-3, cross-cutting-synthesis plans. Next: Phase 1A (set skeleton — HUMAN defines theme). |
+| 2026-03-09 | 7 | Phase 1A: COMPLETE (all 11 tasks). Skeleton generator (897 lines), CLI review tool (Typer + Rich: list/show/stats + 7 Phase 3A stubs), 75 unit tests. Set: "Anomalous Descent" (ASD), 60-card dev set, all constraints pass. Fixed color balance remainder bug. $0 API cost. Next: Phase 1B (Mechanic Designer). |
+| 2026-03-09 | 8 | Phase 1B: 7/9 tasks done. 3 mechanics approved: Scavenge X (W/U/G, dig for artifacts), Malfunction N (W/U/R, delayed power), Overclock (U/R/B, exile-and-play). LLM infra built (llm_client.py, mechanic_generator.py). Validation spike: 15 test cards, all GO (avg 4.77/5). $0.09 API cost. **BLOCKED on 1B-8**: human flagged issues with test card templating — revisit next session. |
+| 2026-03-09 | 9 | Phase 1B-8: COMPLETE. Interactive human+Opus review of all 15 test cards found 9 issue categories across 8 FAIL + 2 WARN cards. Key findings: (1) "Scavenge" name collision with existing MTG keyword — needs rename, (2) haste negated by malfunction enters-tapped, (3) redundant conditional on Synaptic Overload hid broken power level, (4) Cascade Protocol 12 dmg for 5 mana wildly above rate + false variability, (5) missing reminder text on 5 cards. Two cards fully redesigned. Defined AI review architecture: AI1 self-critique → AI2 sentiment analysis → prod if uncertain → explicit pointed questions for blind spots. Added 1B-8a (calibration test) and 1B-8b (Scavenge rename). Files: `test-cards-original.json`, `test-cards-revised.json`, `human-review-findings.md`. Next: 1B-8a (run automated review calibration), 1B-8b (rename Scavenge). |
+| 2026-03-09 | 10 | Phase 1B: 1B-8a/8b complete. Automated review calibration: FAIL detection 100% (8/8), WARN detection 50% (1/2). "Scavenge" renamed to "Salvage". Review loop has false positive problem (4/5 PASS cards flagged). Designed A/B test plan for 8 review-and-revise strategies. Next: 1B-8c (run A/B tests), 1B-8d (human picks winner), 1B-9 (learnings). |
+| 2026-03-10 | 11 | Phase 1B: 1B-8c/8d complete. A/B tested 8 review strategies (4 Sonnet + 4 Opus) on 7 test cards, $3.83 total. Key findings: (1) Sonnet can't reason about mandatory-cost-as-conditional, (2) Sonnet doesn't understand malfunction-as-downside or R=Red, (3) Detailed analysis helps detection but hurts revision (Opus S7 identified but didn't fix balance), (4) Split approach best for Sonnet, (5) Iterative Opus only fully satisfactory but expensive + oscillation-prone. Winner: Hybrid (S4 Split/Sonnet + Opus sanity check). Encoding issue (U+FFFD) in test data noted. Next: 1B-9 (learnings), then Phase 1C. |

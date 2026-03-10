@@ -1,1 +1,4 @@
-"""CLI review tools. Minimal version in Phase 1A, expanded in Phase 3A."""
+"""CLI review tools for inspecting skeleton slots, cards, and set statistics.
+
+Entry point: `python -m mtgai.review`
+"""

@@ -1,0 +1,336 @@
+[
+  {
+    "name": "Scavenge",
+    "keyword_type": "keyword_ability",
+    "reminder_text": "(If this would die, you may exile it instead. If you do, search your library for an artifact.)",
+    "colors": [
+      "W",
+      "U",
+      "G"
+    ],
+    "complexity": 1,
+    "flavor_connection": "Explorers salvaging useful technology from fallen creatures and broken automatons in the dungeon depths.",
+    "design_rationale": "Simple mechanic that creates value from creature death, supports artifact themes, and provides library filtering. Works well at common with clean reminder text.",
+    "common_patterns": [
+      "Scavenge (basic effect)",
+      "Creature dies \u2192 exile instead \u2192 search for artifact with mana value 1 or less",
+      "Creature dies \u2192 exile instead \u2192 search for Equipment"
+    ],
+    "uncommon_patterns": [
+      "Scavenge with size restriction (mana value 2 or less)",
+      "Scavenge that puts artifact directly into play",
+      "Scavenge with additional bonus when triggered"
+    ],
+    "rare_patterns": [
+      "Scavenge without restrictions",
+      "Scavenge that searches for specific powerful artifacts",
+      "Repeated scavenge effects or scavenge that triggers off other creatures"
+    ],
+    "example_cards": [
+      {
+        "name": "Dungeon Scrounger",
+        "mana_cost": "1G",
+        "type_line": "Creature \u2014 Human Scout",
+        "oracle_text": "Scavenge (If this would die, you may exile it instead. If you do, search your library for an artifact card with mana value 1 or less, reveal it, put it into your hand, then shuffle.)",
+        "power": "2",
+        "toughness": "1",
+        "rarity": "common"
+      },
+      {
+        "name": "Tech Salvage Automaton",
+        "mana_cost": "2U",
+        "type_line": "Artifact Creature \u2014 Construct",
+        "oracle_text": "When Tech Salvage Automaton enters the battlefield, scavenge. (Search your library for an artifact card with mana value 2 or less, reveal it, put it into your hand, then shuffle.)\nScavenge",
+        "power": "1",
+        "toughness": "4",
+        "rarity": "uncommon"
+      },
+      {
+        "name": "Master Archaeologist",
+        "mana_cost": "2WW",
+        "type_line": "Creature \u2014 Human Cleric",
+        "oracle_text": "Whenever a creature you control with scavenge dies, you may pay {1}. If you do, that creature's scavenge ability triggers an additional time.\nScavenge",
+        "power": "3",
+        "toughness": "3",
+        "rarity": "rare"
+      }
+    ]
+  },
+  {
+    "name": "Descend",
+    "keyword_type": "ability_word",
+    "reminder_text": "(This triggers if a permanent entered your graveyard from the battlefield this turn.)",
+    "colors": [
+      "U",
+      "B",
+      "G"
+    ],
+    "complexity": 2,
+    "flavor_connection": "The deeper you venture into the dungeon, the more dangerous and rewarding it becomes. Loss fuels discovery.",
+    "design_rationale": "Rewards incremental advantage and creates interesting sequencing decisions. Different from existing 'descend' by tracking any permanent, not just permanents in graveyard.",
+    "common_patterns": [
+      "Descend \u2014 Draw a card",
+      "Descend \u2014 This creature gets +1/+1 until end of turn",
+      "Descend \u2014 Gain 2 life"
+    ],
+    "uncommon_patterns": [
+      "Descend \u2014 Create a token",
+      "Descend \u2014 Return target card from graveyard to hand",
+      "Descend \u2014 Deal damage to any target"
+    ],
+    "rare_patterns": [
+      "Descend \u2014 Search library for specific card type",
+      "Descend \u2014 Multiple triggers with different thresholds",
+      "Descend \u2014 Permanent beneficial effects"
+    ],
+    "example_cards": [
+      {
+        "name": "Depth Walker",
+        "mana_cost": "2B",
+        "type_line": "Creature \u2014 Human Rogue",
+        "oracle_text": "Descend \u2014 Whenever Depth Walker attacks, if a permanent entered your graveyard from the battlefield this turn, defending player loses 2 life.",
+        "power": "2",
+        "toughness": "3",
+        "rarity": "common"
+      },
+      {
+        "name": "Subsurface Oracle",
+        "mana_cost": "1UB",
+        "type_line": "Creature \u2014 Human Wizard",
+        "oracle_text": "Descend \u2014 At the beginning of your end step, if a permanent entered your graveyard from the battlefield this turn, you may pay {2}. If you do, return target creature card from your graveyard to your hand.",
+        "power": "1",
+        "toughness": "3",
+        "rarity": "uncommon"
+      },
+      {
+        "name": "Anomalous Depths",
+        "mana_cost": "2UG",
+        "type_line": "Enchantment",
+        "oracle_text": "Descend \u2014 At the beginning of your upkeep, if a permanent entered your graveyard from the battlefield last turn, draw a card.\nDescend \u2014 Whenever a creature enters the battlefield under your control, if two or more permanents entered your graveyard from the battlefield this turn, put a +1/+1 counter on it.",
+        "rarity": "rare"
+      }
+    ]
+  },
+  {
+    "name": "Malfunction",
+    "keyword_type": "keyword_ability",
+    "reminder_text": "(This permanent enters tapped. Remove a malfunction counter at the beginning of your upkeep.)",
+    "colors": [
+      "W",
+      "U",
+      "R"
+    ],
+    "complexity": 2,
+    "flavor_connection": "Ancient technology is unreliable. Artifacts and constructs glitch, requiring time to recalibrate and function properly.",
+    "design_rationale": "Balances powerful effects with timing cost. Creates deck-building tension between power level and consistency. Unique to artifact-heavy environment.",
+    "common_patterns": [
+      "Malfunction 1 (enters with one counter, tapped)",
+      "Artifact creature with malfunction 2",
+      "Equipment with malfunction 1"
+    ],
+    "uncommon_patterns": [
+      "Malfunction 2-3 with powerful activated abilities",
+      "Ways to remove malfunction counters faster",
+      "Malfunction with enter-the-battlefield effects"
+    ],
+    "rare_patterns": [
+      "High malfunction count with game-changing effects",
+      "Permanents that benefit from having malfunction counters",
+      "Mass malfunction counter removal"
+    ],
+    "example_cards": [
+      {
+        "name": "Glitching Servo",
+        "mana_cost": "1W",
+        "type_line": "Artifact Creature \u2014 Construct",
+        "oracle_text": "Malfunction 1 (This permanent enters the battlefield tapped with a malfunction counter. Remove a malfunction counter at the beginning of your upkeep.)\nVigilance",
+        "power": "2",
+        "toughness": "3",
+        "rarity": "common"
+      },
+      {
+        "name": "Unstable Power Core",
+        "mana_cost": "2R",
+        "type_line": "Artifact",
+        "oracle_text": "Malfunction 2\n{T}: Add {C}{C}{C}.\n{1}, {T}: Deal 2 damage to any target.",
+        "rarity": "uncommon"
+      },
+      {
+        "name": "Ancient War Engine",
+        "mana_cost": "5",
+        "type_line": "Artifact Creature \u2014 Construct",
+        "oracle_text": "Malfunction 3\nTrample, vigilance, haste\nWhenever Ancient War Engine attacks, it deals 2 damage to each opponent.",
+        "power": "6",
+        "toughness": "6",
+        "rarity": "rare"
+      }
+    ]
+  },
+  {
+    "name": "Augment",
+    "keyword_type": "keyword_ability",
+    "reminder_text": "({1}: Attach an Equipment you control to this creature. Augment only as a sorcery.)",
+    "colors": [
+      "W",
+      "R",
+      "G"
+    ],
+    "complexity": 1,
+    "flavor_connection": "Survivors modify themselves with scavenged tech and bio-augmentations to survive the harsh post-apocalyptic world.",
+    "design_rationale": "Simple creature-focused mechanic that creates Equipment synergies and interesting combat decisions. Easy to understand, works with existing cards.",
+    "common_patterns": [
+      "Augment (basic ability)",
+      "When this creature becomes augmented, [small bonus]",
+      "Augment costs {2} instead of {1}"
+    ],
+    "uncommon_patterns": [
+      "Multiple augment activations per turn",
+      "Bonuses that scale with number of equipments attached",
+      "Augment triggers that create value"
+    ],
+    "rare_patterns": [
+      "Free augment abilities",
+      "Augment that can attach any equipment from graveyard/library",
+      "Creatures that create equipment when augmented"
+    ],
+    "example_cards": [
+      {
+        "name": "Frontier Scout",
+        "mana_cost": "1G",
+        "type_line": "Creature \u2014 Human Scout",
+        "oracle_text": "Augment ({1}: Attach an Equipment you control to this creature. Augment only as a sorcery.)\nWhenever an Equipment becomes attached to Frontier Scout, it gets +1/+1 until end of turn.",
+        "power": "2",
+        "toughness": "1",
+        "rarity": "common"
+      },
+      {
+        "name": "Cybernetic Warrior",
+        "mana_cost": "2RW",
+        "type_line": "Creature \u2014 Human Soldier",
+        "oracle_text": "Augment\nAs long as Cybernetic Warrior is equipped, it has first strike and gets +1/+0 for each Equipment attached to it.",
+        "power": "2",
+        "toughness": "3",
+        "rarity": "uncommon"
+      },
+      {
+        "name": "Master Augmenter",
+        "mana_cost": "1WW",
+        "type_line": "Creature \u2014 Human Artificer",
+        "oracle_text": "Augment costs {0} for creatures you control.\nWhenever you augment a creature, create a Weapon token. (It's a colorless Equipment artifact with \"Equipped creature gets +1/+0\" and equip {1}.)",
+        "power": "2",
+        "toughness": "3",
+        "rarity": "rare"
+      }
+    ]
+  },
+  {
+    "name": "Overload",
+    "keyword_type": "keyword_action",
+    "reminder_text": "(To overload, exile the top three cards of your library. You may play them this turn.)",
+    "colors": [
+      "U",
+      "R",
+      "B"
+    ],
+    "complexity": 3,
+    "flavor_connection": "Pushing ancient machinery beyond safe limits yields great power at the risk of catastrophic system failure and resource waste.",
+    "design_rationale": "High-risk, high-reward mechanic for spells and activated abilities. Creates explosive turns and card advantage, but with real downside risk.",
+    "common_patterns": [
+      "Instant/Sorcery with 'Overload' as additional cost",
+      "Overload 2 (exile two cards instead of three)",
+      "Simple overload effects on cheap spells"
+    ],
+    "uncommon_patterns": [
+      "Creatures with overload abilities",
+      "Overload with additional restrictions or benefits",
+      "Overload that cares about specific card types exiled"
+    ],
+    "rare_patterns": [
+      "Repeatable overload abilities",
+      "Overload effects that scale with cards exiled",
+      "Permanents that benefit from overloading"
+    ],
+    "example_cards": [
+      {
+        "name": "Power Surge",
+        "mana_cost": "1R",
+        "type_line": "Instant",
+        "oracle_text": "Power Surge deals 3 damage to any target.\nOverload (To overload, exile the top three cards of your library. You may play them this turn.) \u2014 If you overload, Power Surge deals 5 damage instead.",
+        "rarity": "common"
+      },
+      {
+        "name": "Unstable Researcher",
+        "mana_cost": "2U",
+        "type_line": "Creature \u2014 Human Wizard",
+        "oracle_text": "{2}{U}, {T}: Draw a card.\n{4}{U}, {T}: Draw two cards, then overload.",
+        "power": "1",
+        "toughness": "4",
+        "rarity": "uncommon"
+      },
+      {
+        "name": "Catastrophic Experiment",
+        "mana_cost": "3BR",
+        "type_line": "Sorcery",
+        "oracle_text": "Overload, then overload again. (Exile the top six cards of your library. You may play them this turn.)\nDeals damage to each creature equal to the number of cards exiled this way.",
+        "rarity": "rare"
+      }
+    ]
+  },
+  {
+    "name": "Jury-rig",
+    "keyword_type": "keyword_ability",
+    "reminder_text": "({2}: Attach target Equipment to this creature. It becomes an Aura with enchant creature.)",
+    "colors": [
+      "R",
+      "G",
+      "B"
+    ],
+    "complexity": 2,
+    "flavor_connection": "Desperate survivors permanently fuse scavenged equipment to themselves in crude but effective bio-mechanical augmentations.",
+    "design_rationale": "Transforms Equipment into permanent attachments, creating interesting sacrifice/risk decisions. Supports both Equipment and Enchantment themes.",
+    "common_patterns": [
+      "Jury-rig (basic ability)",
+      "When this becomes jury-rigged, [small bonus]",
+      "Jury-rig costs {3} instead of {2}"
+    ],
+    "uncommon_patterns": [
+      "Multiple jury-rig activations",
+      "Jury-rig abilities that grant additional benefits",
+      "Creatures that get bigger based on jury-rigged equipment"
+    ],
+    "rare_patterns": [
+      "Free jury-rig abilities",
+      "Jury-rig from graveyard or library",
+      "Creatures that create equipment to jury-rig"
+    ],
+    "example_cards": [
+      {
+        "name": "Wasteland Scavenger",
+        "mana_cost": "2R",
+        "type_line": "Creature \u2014 Human Barbarian",
+        "oracle_text": "Jury-rig ({2}: Attach target Equipment to this creature. It becomes an Aura with enchant creature and loses its other abilities.)\nWhenever an Equipment becomes jury-rigged to Wasteland Scavenger, it gets +2/+0 until end of turn.",
+        "power": "3",
+        "toughness": "2",
+        "rarity": "common"
+      },
+      {
+        "name": "Cybernetic Mutant",
+        "mana_cost": "1BG",
+        "type_line": "Creature \u2014 Human Mutant",
+        "oracle_text": "Jury-rig\nCybernetic Mutant gets +1/+1 for each Equipment jury-rigged to it.\n{B}{G}: Regenerate Cybernetic Mutant.",
+        "power": "1",
+        "toughness": "1",
+        "rarity": "uncommon"
+      },
+      {
+        "name": "Fusion Prototype",
+        "mana_cost": "2RG",
+        "type_line": "Creature \u2014 Construct Mutant",
+        "oracle_text": "When Fusion Prototype enters the battlefield, create two Scrap tokens. (They're colorless Equipment artifacts with equip {1}.)\nJury-rig costs {0}.\nWhenever you jury-rig an Equipment, Fusion Prototype gets +2/+2 and gains trample until end of turn.",
+        "power": "2",
+        "toughness": "2",
+        "rarity": "rare"
+      }
+    ]
+  }
+]

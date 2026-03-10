@@ -207,6 +207,13 @@ def _distribute_colors(rarity: str, count: int, set_size: int) -> list[dict]:
     per_color = mono_total // 5
     remainder = mono_total - per_color * 5
 
+    # At common the color-balance constraint requires ±0 spread, so any
+    # remainder that would make one color larger than another must be moved
+    # to the colorless bucket instead.
+    if rarity == "common" and remainder > 0:
+        colorless += remainder
+        remainder = 0
+
     # Distribute mono-color: each color gets per_color, spread remainder
     for i, c in enumerate(COLORS):
         n = per_color + (1 if i < remainder else 0)

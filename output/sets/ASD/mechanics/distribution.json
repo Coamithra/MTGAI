@@ -1,0 +1,170 @@
+{
+  "meta": {
+    "set_code": "ASD",
+    "set_size": 60,
+    "total_mechanic_cards": 14,
+    "mechanic_density_pct": 23.3,
+    "notes": "Conservative distribution for 60-card dev set. ~23% of cards carry a set mechanic."
+  },
+  "salvage": {
+    "total": 6,
+    "by_rarity": {
+      "common": 3,
+      "uncommon": 2,
+      "rare": 1,
+      "mythic": 0
+    },
+    "by_color": {
+      "W": 1,
+      "U": 1,
+      "G": 2,
+      "WU": 1,
+      "WG": 1
+    },
+    "slot_assignments": [
+      {
+        "slot_id": "W-C-04",
+        "color": "W",
+        "rarity": "common",
+        "card_type": "sorcery",
+        "mechanic_usage": "When this spell resolves, salvage 2. Simple common sorcery with salvage as the main effect.",
+        "salvage_x": 2
+      },
+      {
+        "slot_id": "U-C-04",
+        "color": "U",
+        "rarity": "common",
+        "card_type": "sorcery",
+        "mechanic_usage": "Salvage 3 as ETB-style effect on a sorcery. Draw/filter variant.",
+        "salvage_x": 3
+      },
+      {
+        "slot_id": "G-C-02",
+        "color": "G",
+        "rarity": "common",
+        "card_type": "creature",
+        "mechanic_usage": "\"When ~ enters, salvage 2.\" Simple creature with salvage ETB trigger.",
+        "salvage_x": 2
+      },
+      {
+        "slot_id": "WU-U-01",
+        "color": "multicolor",
+        "rarity": "uncommon",
+        "card_type": "creature",
+        "mechanic_usage": "WU signpost uncommon. \"When ~ enters, salvage 4. If you put an artifact card into your hand this way, draw a card.\" Ties salvage to the WU Ancient Technology archetype.",
+        "salvage_x": 4
+      },
+      {
+        "slot_id": "WG-U-01",
+        "color": "multicolor",
+        "rarity": "uncommon",
+        "card_type": "creature",
+        "mechanic_usage": "WG signpost uncommon. \"When ~ enters, salvage 4.\" Payoff for Frontier Settlers archetype finding artifact tools.",
+        "salvage_x": 4
+      },
+      {
+        "slot_id": "G-R-01",
+        "color": "G",
+        "rarity": "rare",
+        "card_type": "creature",
+        "mechanic_usage": "Repeatable salvage. \"{T}: Salvage 6.\" Powerful artifact-finding engine at rare.",
+        "salvage_x": 6
+      }
+    ]
+  },
+  "malfunction": {
+    "total": 5,
+    "by_rarity": {
+      "common": 2,
+      "uncommon": 2,
+      "rare": 1,
+      "mythic": 0
+    },
+    "by_color": {
+      "W": 1,
+      "U": 1,
+      "R": 1,
+      "colorless": 1,
+      "WR": 1
+    },
+    "slot_assignments": [
+      {
+        "slot_id": "W-C-02",
+        "color": "W",
+        "rarity": "common",
+        "card_type": "creature",
+        "mechanic_usage": "\"Malfunction 1\" on an above-rate 2-drop creature with vigilance. Enters tapped with 1 counter, still has vigilance while malfunctioning.",
+        "malfunction_n": 1
+      },
+      {
+        "slot_id": "X-C-01",
+        "color": "colorless",
+        "rarity": "common",
+        "card_type": "artifact",
+        "mechanic_usage": "\"Malfunction 1\" on a common artifact. Simple mana rock or utility artifact that enters tapped with a counter. Flavorful fit for ancient tech.",
+        "malfunction_n": 1
+      },
+      {
+        "slot_id": "R-U-01",
+        "color": "R",
+        "rarity": "uncommon",
+        "card_type": "creature",
+        "mechanic_usage": "\"Malfunction 2\" creature. \"When the last malfunction counter is removed from ~, deal 3 damage to any target.\" Reward for waiting.",
+        "malfunction_n": 2
+      },
+      {
+        "slot_id": "WR-U-01",
+        "color": "multicolor",
+        "rarity": "uncommon",
+        "card_type": "creature",
+        "mechanic_usage": "WR signpost uncommon. \"Malfunction 2. {1}: Remove a malfunction counter from ~.\" Aggressive stats with a way to speed up activation. Ties into Spark Rebellion archetype.",
+        "malfunction_n": 2
+      },
+      {
+        "slot_id": "U-R-01",
+        "color": "U",
+        "rarity": "rare",
+        "card_type": "creature",
+        "mechanic_usage": "\"Malfunction 3\" with a powerful payoff. \"~ has hexproof as long as it has a malfunction counter on it. When the last malfunction counter is removed, draw three cards.\" High complexity, high reward.",
+        "malfunction_n": 3
+      }
+    ]
+  },
+  "overclock": {
+    "total": 3,
+    "by_rarity": {
+      "common": 0,
+      "uncommon": 2,
+      "rare": 0,
+      "mythic": 1
+    },
+    "by_color": {
+      "U": 1,
+      "R": 1,
+      "B": 1
+    },
+    "slot_assignments": [
+      {
+        "slot_id": "UB-U-01",
+        "color": "multicolor",
+        "rarity": "uncommon",
+        "card_type": "creature",
+        "mechanic_usage": "UB signpost uncommon. \"When ~ enters, overclock. You may cast instant and sorcery cards exiled this way until end of your next turn.\" Extended window for UB's control gameplan."
+      },
+      {
+        "slot_id": "R-U-03",
+        "color": "R",
+        "rarity": "uncommon",
+        "card_type": "enchantment",
+        "mechanic_usage": "\"Whenever you cast a noncreature spell, if you overclocked this turn, ~ deals 2 damage to each opponent.\" Payoff enchantment for the UR Mad Science archetype."
+      },
+      {
+        "slot_id": "B-M-01",
+        "color": "B",
+        "rarity": "mythic",
+        "card_type": "creature",
+        "mechanic_usage": "Mythic creature with repeatable overclock. \"{2}{B}, {T}: Overclock. Whenever you overclock, each opponent loses 2 life and you gain 2 life.\" Powerful engine card."
+      }
+    ]
+  }
+}
