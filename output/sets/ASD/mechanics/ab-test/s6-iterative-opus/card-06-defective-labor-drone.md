@@ -10,7 +10,7 @@
   "colors": [
     "W"
   ],
-  "type_line": "Artifact Creature \u00ef\u00bf\u00bd Automaton",
+  "type_line": "Artifact Creature \u00e2\u20ac\u201d Automaton",
   "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)",
   "power": "3",
   "toughness": "2",
@@ -18,7 +18,7 @@
   "keywords": [
     "Malfunction"
   ],
-  "flavor_text": "\"It keeps trying to mine the ceiling. We've explained gravity to it seventeen times.\" \u00ef\u00bf\u00bdForeman Krix"
+  "flavor_text": "\"It keeps trying to mine the ceiling. We've explained gravity to it seventeen times.\" \u00e2\u20ac\u201dForeman Krix"
 }
 ```
 
@@ -48,11 +48,11 @@
 > Card to review:
 > Name: Defective Labor Drone
 > Mana Cost: {1}{W}
-> Type: Artifact Creature ï¿½ Automaton
+> Type: Artifact Creature â€” Automaton
 > Rarity: common
 > Oracle Text: Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)
 > P/T: 3/2
-> Flavor Text: "It keeps trying to mine the ceiling. We've explained gravity to it seventeen times." ï¿½Foreman Krix
+> Flavor Text: "It keeps trying to mine the ceiling. We've explained gravity to it seventeen times." â€”Foreman Krix
 > 
 > Critically review this card and provide an improved version based on your findings. If the card is fine, return it unchanged with verdict OK.
 
@@ -66,14 +66,14 @@
   "mana_cost": "{1}{W}",
   "type_line": "Artifact Creature \u2014 Automaton",
   "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)",
+  "rarity": "common",
   "power": "3",
   "toughness": "2",
-  "rarity": "common",
   "flavor_text": "\"It keeps trying to mine the ceiling. We've explained gravity to it seventeen times.\" \u2014Foreman Krix"
 }
 ```
 
-*Tokens: 1128 in / 294 out — $0.0390*
+*Tokens: 1396 in / 294 out — $0.0143*
 
 ## C) Revised Card
 
@@ -85,6 +85,6 @@ No changes (OK)
 ## D) Cost
 
 - API calls: 1
-- Input tokens: 1128
+- Input tokens: 1396
 - Output tokens: 294
-- Cost: $0.0390
+- Cost: $0.0143

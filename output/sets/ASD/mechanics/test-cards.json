@@ -9,7 +9,7 @@
     "color_identity": [
       "W"
     ],
-    "type_line": "Creature � Human Soldier",
+    "type_line": "Creature — Human Soldier",
     "oracle_text": "When ~ enters, salvage 2. (Look at the top 2 cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
     "flavor_text": "\"The city pays us by the pound for metal scraps. They don't ask where we found the blood-soaked ones.\"",
     "power": "2",
@@ -39,7 +39,7 @@
     "color_identity": [
       "G"
     ],
-    "type_line": "Creature � Human Scout",
+    "type_line": "Creature — Human Scout",
     "oracle_text": "When ~ dies, salvage 3.",
     "flavor_text": "She knew every rust-eaten ruin in the wilderness. The wilderness, unfortunately, knew her too.",
     "power": "2",
@@ -71,7 +71,7 @@
     "color_identity": [
       "U"
     ],
-    "type_line": "Creature � Human Scientist",
+    "type_line": "Creature — Human Scientist",
     "oracle_text": "When ~ enters, salvage 4.\nArtifact spells you cast cost {1} less to cast.",
     "flavor_text": "\"The ancients' trash is our treasure. Their treasure is our incomprehensible doom.\"",
     "power": "1",
@@ -103,7 +103,7 @@
     "color_identity": [
       "G"
     ],
-    "type_line": "Creature � Moktar Scout",
+    "type_line": "Creature — Moktar Scout",
     "oracle_text": "When ~ enters, salvage 5.\nWhenever you cast an artifact spell, ~ gets +2/+2 until end of turn.",
     "flavor_text": "Moktars collect shiny things not for trade, but for the joy of hearing them rattle in their pouches.",
     "power": "3",
@@ -135,7 +135,7 @@
     "color_identity": [
       "W"
     ],
-    "type_line": "Creature � Human Soldier",
+    "type_line": "Creature — Human Soldier",
     "oracle_text": "When ~ enters, salvage 6.\n{2}{W}, {T}: Salvage 3. Activate only as a sorcery.",
     "flavor_text": "\"Every expedition needs someone willing to go first into the dark. The job has remarkably high turnover.\"",
     "power": "3",
@@ -167,9 +167,9 @@
     "color_identity": [
       "W"
     ],
-    "type_line": "Artifact Creature � Automaton",
+    "type_line": "Artifact Creature — Automaton",
     "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)",
-    "flavor_text": "\"It keeps trying to mine the ceiling. We've explained gravity to it seventeen times.\" �Foreman Krix",
+    "flavor_text": "\"It keeps trying to mine the ceiling. We've explained gravity to it seventeen times.\" —Foreman Krix",
     "power": "3",
     "toughness": "2",
     "keywords": [
@@ -197,7 +197,7 @@
     "color_identity": [
       "R"
     ],
-    "type_line": "Artifact Creature � Construct",
+    "type_line": "Artifact Creature — Construct",
     "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)\nHaste",
     "flavor_text": "The sparks it produces are either welding material or a countdown to explosion. Usually both.",
     "power": "4",
@@ -257,7 +257,7 @@
     "color_identity": [
       "R"
     ],
-    "type_line": "Creature � Construct",
+    "type_line": "Creature — Construct",
     "oracle_text": "Malfunction 2 (This permanent enters tapped with 2 malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\nWhen the last malfunction counter is removed from ~, ~ deals 3 damage to any target.\nTrample",
     "flavor_text": "It takes time to remember which end of itself does the destroying.",
     "power": "6",
@@ -288,9 +288,9 @@
     "color_identity": [
       "U"
     ],
-    "type_line": "Artifact Creature � Construct",
+    "type_line": "Artifact Creature — Construct",
     "oracle_text": "Malfunction 3 (This permanent enters tapped with 3 malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n{2}{U}, {T}: Remove a malfunction counter from target permanent you control.\nWhenever you remove a malfunction counter from a permanent you control, draw a card.",
-    "flavor_text": "\"It's learning to fix itself. And us. And everything else, whether we want it to or not.\" �Dr. Vess",
+    "flavor_text": "\"It's learning to fix itself. And us. And everything else, whether we want it to or not.\" —Dr. Vess",
     "power": "3",
     "toughness": "5",
     "keywords": [
@@ -320,7 +320,7 @@
     ],
     "type_line": "Instant",
     "oracle_text": "As an additional cost to cast ~, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nCounter target spell. If you overclocked this turn, draw a card.",
-    "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" �Dr. Malleus, Cult of Science",
+    "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" —Dr. Malleus, Cult of Science",
     "power": null,
     "toughness": null,
     "rarity": "uncommon",
@@ -348,7 +348,7 @@
     "color_identity": [
       "R"
     ],
-    "type_line": "Creature � Human Soldier",
+    "type_line": "Creature — Human Soldier",
     "oracle_text": "Haste\nWhenever ~ attacks, if you overclocked this turn, ~ gets +3/+0 and gains trample until end of turn.",
     "flavor_text": "\"Sir, the combat stimulants are showing a 73% chance of catastrophic organ failure.\" \"Excellent. Deploy immediately.\"",
     "power": "2",
@@ -381,7 +381,7 @@
     "color_identity": [
       "B"
     ],
-    "type_line": "Creature � Human Scientist",
+    "type_line": "Creature — Human Scientist",
     "oracle_text": "Deathtouch\nWhenever you overclock (exile the top three cards of your library, you may play them until end of turn), each opponent loses 2 life and you gain 2 life.\n{3}{B}: Overclock.",
     "flavor_text": "\"The human circulatory system has such fascinating failure modes when subjected to protonium exposure.\"",
     "power": "3",
@@ -414,7 +414,7 @@
     ],
     "type_line": "Sorcery",
     "oracle_text": "Overclock, then overclock again. (Exile the top three cards of your library. You may play them until end of turn.)\n~ deals 2 damage to any target for each card exiled with ~ this way.",
-    "flavor_text": "\"The cascade effect exceeded all theoretical parameters. Fortunately, so did the explosion.\" �Final log, Research Station Gamma",
+    "flavor_text": "\"The cascade effect exceeded all theoretical parameters. Fortunately, so did the explosion.\" —Final log, Research Station Gamma",
     "power": null,
     "toughness": null,
     "rarity": "rare",
@@ -444,7 +444,7 @@
       "U",
       "R"
     ],
-    "type_line": "Legendary Creature � Human Scientist",
+    "type_line": "Legendary Creature — Human Scientist",
     "oracle_text": "Flying\nCards exiled with overclock (exile the top three cards of your library, you may play them until end of turn) cost {2} less to cast.\nWhenever you cast a spell exiled with overclock, copy it. You may choose new targets for the copy.",
     "flavor_text": "\"I have transcended the limitations of sanity, safety, and the laws of thermodynamics.\"",
     "power": "3",

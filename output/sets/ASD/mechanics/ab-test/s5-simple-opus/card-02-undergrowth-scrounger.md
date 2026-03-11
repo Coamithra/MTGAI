@@ -10,7 +10,7 @@
   "colors": [
     "G"
   ],
-  "type_line": "Creature \u00ef\u00bf\u00bd Human Scout",
+  "type_line": "Creature \u00e2\u20ac\u201d Human Scout",
   "oracle_text": "When ~ dies, salvage 3.",
   "power": "2",
   "toughness": "1",
@@ -48,7 +48,7 @@
 > Card to review:
 > Name: Undergrowth Scrounger
 > Mana Cost: {1}{G}
-> Type: Creature ï¿½ Human Scout
+> Type: Creature â€” Human Scout
 > Rarity: common
 > Oracle Text: When ~ dies, salvage 3.
 > P/T: 2/1
@@ -59,29 +59,9 @@
 **Tool call result:**
 ```json
 {
-  "name": "Undergrowth Scrounger",
-  "mana_cost": "{1}{G}",
-  "type_line": "Creature \u2014 Human Scout",
-  "oracle_text": "When Undergrowth Scrounger dies, salvage 3.",
-  "rarity": "common",
-  "power": "2",
-  "toughness": "1",
-  "flavor_text": "She knew every rust-eaten ruin in the wilderness. The wilderness, unfortunately, knew her too.",
-  "changed": true,
-  "verdict": "REVISED",
-  "issues_found": [
-    "Using card name placeholder '~' instead of full card name",
-    "Type line has invalid character '\u00ef\u00bf\u00bd' instead of proper em dash"
-  ]
-}
-```
-
-*Tokens: 1089 in / 298 out — $0.0387*
-
-## C) Revised Card
-
-```json
-{
+  "changed": false,
+  "verdict": "OK",
+  "issues_found": [],
   "name": "Undergrowth Scrounger",
   "mana_cost": "{1}{G}",
   "type_line": "Creature \u2014 Human Scout",
@@ -93,13 +73,18 @@
 }
 ```
 
+*Tokens: 1359 in / 264 out — $0.0134*
+
+## C) Revised Card
+
+No changes (OK)
+
 **Changes made:**
-- Using card name placeholder '~' instead of full card name
-- Type line has invalid character 'ï¿½' instead of proper em dash
+- None
 
 ## D) Cost
 
 - API calls: 1
-- Input tokens: 1089
-- Output tokens: 298
-- Cost: $0.0387
+- Input tokens: 1359
+- Output tokens: 264
+- Cost: $0.0134

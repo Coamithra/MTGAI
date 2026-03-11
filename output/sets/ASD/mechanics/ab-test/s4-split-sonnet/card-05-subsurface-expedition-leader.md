@@ -10,7 +10,7 @@
   "colors": [
     "W"
   ],
-  "type_line": "Creature \u00ef\u00bf\u00bd Human Soldier",
+  "type_line": "Creature \u00e2\u20ac\u201d Human Soldier",
   "oracle_text": "When ~ enters, salvage 6.\n{2}{W}, {T}: Salvage 3. Activate only as a sorcery.",
   "power": "3",
   "toughness": "4",
@@ -48,7 +48,7 @@
 > Card:
 > Name: Subsurface Expedition Leader
 > Mana Cost: {2}{W}{W}
-> Type: Creature ï¿½ Human Soldier
+> Type: Creature â€” Human Soldier
 > Rarity: rare
 > Oracle Text: When ~ enters, salvage 6.
 > {2}{W}, {T}: Salvage 3. Activate only as a sorcery.
@@ -64,25 +64,25 @@
 > List any templating issues found, or say "PASS" if the templating is correct.
 
 **Response:**
-> Looking at this card, I found one templating issue:
+> Here are the issues found:
 > 
-> **ISSUE FOUND:**
+> **Reminder Text Missing**
 > 
-> 1. **Missing reminder text**: The custom mechanic "salvage" is missing its reminder text on both instances. According to your specifications, custom mechanics should include reminder text in parentheses on their first use. Since this appears to be the first use of salvage on this card, both instances should include the reminder text: "(Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)"
+> Salvage appears twice on this card. Per the submission guidelines, reminder text is required on its first use. The first instance ("When ~ enters, salvage 6.") lacks reminder text. The second instance on the activated ability correctly omits it, but the first must include it.
 > 
-> The corrected oracle text should read:
-> ```
-> When ~ enters, salvage 6. (Look at the top 6 cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)
-> {2}{W}, {T}: Salvage 3.
-> ```
+> **Salvage Scaling Violation**
 > 
-> All other templating appears correct:
-> - Keyword capitalization is consistent (lowercase "salvage")
-> - The activated ability template is correct
-> - The sorcery-speed restriction is properly templated
-> - The keyword ability usage follows MTG conventions
+> The guidelines specify salvage 6+ at rare/mythic, so "salvage 6" on the triggered ability is acceptable for rare. However, the activated ability uses "salvage 3," which is listed as a common-level scaling (2–3). This is not strictly a rules templating error, but it is worth flagging as a potential design inconsistency — using a below-rate salvage value on an activated ability of a rare card may be intentional (the activation cost gates it), but it should be confirmed as deliberate.
+> 
+> **"When ~ enters" Templating**
+> 
+> Current MtG templating convention following the 2023/2024 rules update uses "When [This card's name] enters" rather than "When [This card's name] enters the battlefield." The tilde shorthand (~) is used in card editors but should be replaced with the full card name in final oracle text. Confirm your editor substitutes ~ correctly.
+> 
+> **No Other Issues Found**
+> 
+> Keyword capitalization (Salvage) is consistent. The "Activate only as a sorcery" restriction is correctly templated. P/T and mana cost formatting appear correct.
 
-*Tokens: 560 in / 258 out — $0.0056*
+*Tokens: 558 in / 342 out — $0.0068*
 
 ### Step 2: Pass 2 — Mechanics review
 
@@ -108,7 +108,7 @@
 > Card:
 > Name: Subsurface Expedition Leader
 > Mana Cost: {2}{W}{W}
-> Type: Creature ï¿½ Human Soldier
+> Type: Creature â€” Human Soldier
 > Rarity: rare
 > Oracle Text: When ~ enters, salvage 6.
 > {2}{W}, {T}: Salvage 3. Activate only as a sorcery.
@@ -125,27 +125,30 @@
 > List any design issues found, or say "PASS" if the design is sound.
 
 **Response:**
-> Looking at this card design:
+> ## Design Review: Subsurface Expedition Leader
 > 
-> **Keyword nonbos:** None. Both salvage abilities work together synergistically.
+> ### Keyword Nonbos
+> No keyword conflicts. The activated ability's "activate only as a sorcery" restriction is standard and doesn't conflict with anything on the card.
 > 
-> **Conditionals:** The activated ability has "Activate only as a sorcery" - this is a real restriction that can be false during opponents' turns, combat, etc.
+> ### Conditional Check
+> No conditionals present.
 > 
-> **Kitchen sink design:** No. Both effects use the same mechanic (salvage) at different scales, creating a cohesive artifact-tutoring theme.
+> ### Kitchen Sink Check
+> Both abilities do the same thing (Salvage), just at different scales and contexts. ETB Salvage 6 is the headline payoff; the activated ability is a repeatable, smaller version. These are thematically and mechanically unified around the same action. **Not kitchen sink.**
 > 
-> **Variable effects:** The variability is real - salvage 6 vs salvage 3 provides meaningfully different selection power and card advantage.
+> ### Variability Check
+> Salvage 6 is fixed. Salvage 3 is fixed. No false variability.
 > 
-> **Focused purpose:** Yes. Clear artifact-matters commander/value engine with escalating salvage effects.
+> ### Focused Purpose
+> Clear and focused: this card is an artifact-tutor engine. The ETB is a strong immediate payoff (Salvage 6 at rare is within the stated scaling guidelines), and the activated ability provides ongoing card selection. The "Expedition Leader" flavor supports the "dig for resources" mechanical identity cleanly.
 > 
-> **Design Issues Found:**
+> ### Other Flags
+> - **Power level note:** Salvage 6 on a 3/4 body for {2}{W}{W} is quite strong. Salvage 6 effectively digs through more than 10% of a 60-card deck for an artifact. Worth playtesting for being over-rate, though rare status supports this.
+> - The activated ability cost ({2}{W}{T}) is reasonable as a sorcery-speed sink.
 > 
-> 1. **Salvage scaling violation:** The card uses salvage 6, but your design notes specify salvage scaling as "6+ at rare/mythic." At exactly 6, this sits at the minimum threshold. Consider salvage 7+ to feel more appropriately rare-level impactful.
-> 
-> 2. **Color pie concern:** White is listed as a salvage color, but tutoring artifacts isn't typically a white effect. White usually gets equipment tutoring specifically, not general artifact tutoring. This might be pushing white's slice of the color pie unless the set establishes this as acceptable.
-> 
-> Otherwise, the mechanical design is sound with good synergy between effects and appropriate complexity for rare.
+> **PASS**
 
-*Tokens: 569 in / 311 out — $0.0064*
+*Tokens: 567 in / 345 out — $0.0069*
 
 ### Step 3: Pass 3 — Balance review
 
@@ -171,7 +174,7 @@
 > Card:
 > Name: Subsurface Expedition Leader
 > Mana Cost: {2}{W}{W}
-> Type: Creature ï¿½ Human Soldier
+> Type: Creature â€” Human Soldier
 > Rarity: rare
 > Oracle Text: When ~ enters, salvage 6.
 > {2}{W}, {T}: Salvage 3. Activate only as a sorcery.
@@ -187,27 +190,33 @@
 > State whether the balance is PASS, or describe the specific balance issue with card comparisons.
 
 **Response:**
-> Looking at **Subsurface Expedition Leader** as a 4-mana rare white creature:
+> ## Power Level Analysis: Subsurface Expedition Leader
 > 
-> **Power Level Analysis:**
-> - 3/4 body for 4 mana is below rate but reasonable for a utility creature
-> - ETB Salvage 6 provides significant card selection and potential card advantage
-> - Repeatable Salvage 3 for {2}{W}, T creates long-term value engine
-> - Double white in cost suggests this is meant for dedicated white or artifact-heavy decks
+> ### Breaking Down the Card
 > 
-> **Comparable Cards:**
-> - **Ranger-Captain of Eos** (1WW, 3/3): Tutors for specific creatures, has Flash protection ability - clearly more powerful
-> - **Recruiter of the Guard** (2W, 1/1): Tutors any creature with power ≤2, much smaller body but more reliable tutor
-> - **Palace Jailer** (2WW, 2/2): Draws cards via monarch, smaller body but guaranteed card draw vs. conditional artifact finding
+> **4 mana, 3/4 body** — solid baseline (comparable to Inspiring Overseer's efficiency tier)
 > 
-> **Balance Assessment:**
-> The card sits in an interesting spot. Salvage 6 on ETB is quite powerful card selection (looking at 6 cards is substantial), but it's conditional on finding artifacts. The activated ability creates a repeatable engine, which is valuable in longer games.
+> **ETB Salvage 6:** Look at top 6, put an artifact into hand. At rare, this is appropriate scaling per the mechanic's own rules. This is essentially a 4-mana 3/4 that tutors an artifact into hand on entry. That's strong but not broken — it's conditional (needs artifacts in top 6) and puts you no net cards ahead (you're not drawing, you're filtering).
 > 
-> However, compared to other 4-mana white rares that provide card advantage, this feels appropriately powered. It's not as immediately impactful as Ranger-Captain's tutor + protection, but offers more long-term value. The double white requirement and artifact-dependency provide meaningful deckbuilding constraints.
+> **{2}{W}, T: Salvage 3 (sorcery speed):** A repeatable activated ability at 3 mana, sorcery-only, tapped. This is meaningfully slow and telegraphed.
 > 
-> **PASS** - The power level is appropriate for a 4-mana rare. The card provides good value without being oppressive, has clear deckbuilding requirements, and fits well within the power band of similar white utility creatures at rare.
+> ---
+> 
+> ### Comparisons
+> 
+> - **Recruiter of the Guard** (3 mana, 1/1, tutors a creature to hand): Strictly better tutor effect for one less mana, though creature-restricted. Expedition Leader compares favorably in body, less favorably in tutor precision.
+> - **Stoneforge Mystic** (2 mana, 1/2, tutors any equipment): Cheaper, more precise, has equipment-play ability. Expedition Leader's body and ETB are less explosive but less broken.
+> - **Oswald Fiddlebender** (2 mana, 1/1, repeatable artifact tutor): More powerful activated ability, worse body. Expedition Leader's activated ability is weaker but the ETB compensates.
+> 
+> ---
+> 
+> ### Assessment
+> 
+> The card is appropriately costed. Salvage 6 on ETB at 4 mana is strong but conditional, and the repeatable ability is intentionally taxed (3 mana + tap + sorcery). The 3/4 body is fair for four mana in white.
+> 
+> **PASS**
 
-*Tokens: 591 in / 415 out — $0.0080*
+*Tokens: 589 in / 453 out — $0.0086*
 
 ### Step 4: Pass 4 — Revision (combining all feedback)
 
@@ -233,7 +242,7 @@
 > Original card:
 > Name: Subsurface Expedition Leader
 > Mana Cost: {2}{W}{W}
-> Type: Creature ï¿½ Human Soldier
+> Type: Creature â€” Human Soldier
 > Rarity: rare
 > Oracle Text: When ~ enters, salvage 6.
 > {2}{W}, {T}: Salvage 3. Activate only as a sorcery.
@@ -241,61 +250,70 @@
 > Flavor Text: "Every expedition needs someone willing to go first into the dark. The job has remarkably high turnover."
 > 
 > Issues found:
-> - Templating: Looking at this card, I found one templating issue:
+> - Templating: Here are the issues found:
 > 
-> **ISSUE FOUND:**
+> **Reminder Text Missing**
 > 
-> 1. **Missing reminder text**: The custom mechanic "salvage" is missing its reminder text on both instances. According to your specifications, custom mechanics should include reminder text in parentheses on their first use. Since this appears to be the first use of salvage on this card, both instances should include the reminder text: "(Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)"
+> Salvage appears twice on this card. Per the submission guidelines, reminder text is required on its first use. The first instance ("When ~ enters, salvage 6.") lacks reminder text. The second instance on the activated ability correctly omits it, but the first must include it.
 > 
-> The corrected oracle text should read:
-> ```
-> When ~ enters, salvage 6. (Look at the top 6 cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)
-> {2}{W}, {T}: Salvage 3.
-> ```
+> **Salvage Scaling Violation**
 > 
-> All other templating appears correct:
-> - Keyword capitalization is consistent (lowercase "salvage")
-> - The activated ability template is correct
-> - The sorcery-speed restriction is properly templated
-> - The keyword ability usage follows MTG conventions
-> - Mechanics: Looking at this card design:
+> The guidelines specify salvage 6+ at rare/mythic, so "salvage 6" on the triggered ability is acceptable for rare. However, the activated ability uses "salvage 3," which is listed as a common-level scaling (2–3). This is not strictly a rules templating error, but it is worth flagging as a potential design inconsistency — using a below-rate salvage value on an activated ability of a rare card may be intentional (the activation cost gates it), but it should be confirmed as deliberate.
 > 
-> **Keyword nonbos:** None. Both salvage abilities work together synergistically.
+> **"When ~ enters" Templating**
 > 
-> **Conditionals:** The activated ability has "Activate only as a sorcery" - this is a real restriction that can be false during opponents' turns, combat, etc.
+> Current MtG templating convention following the 2023/2024 rules update uses "When [This card's name] enters" rather than "When [This card's name] enters the battlefield." The tilde shorthand (~) is used in card editors but should be replaced with the full card name in final oracle text. Confirm your editor substitutes ~ correctly.
 > 
-> **Kitchen sink design:** No. Both effects use the same mechanic (salvage) at different scales, creating a cohesive artifact-tutoring theme.
+> **No Other Issues Found**
 > 
-> **Variable effects:** The variability is real - salvage 6 vs salvage 3 provides meaningfully different selection power and card advantage.
+> Keyword capitalization (Salvage) is consistent. The "Activate only as a sorcery" restriction is correctly templated. P/T and mana cost formatting appear correct.
+> - Mechanics: ## Design Review: Subsurface Expedition Leader
 > 
-> **Focused purpose:** Yes. Clear artifact-matters commander/value engine with escalating salvage effects.
+> ### Keyword Nonbos
+> No keyword conflicts. The activated ability's "activate only as a sorcery" restriction is standard and doesn't conflict with anything on the card.
 > 
-> **Design Issues Found:**
+> ### Conditional Check
+> No conditionals present.
 > 
-> 1. **Salvage scaling violation:** The card uses salvage 6, but your design notes specify salvage scaling as "6+ at rare/mythic." At exactly 6, this sits at the minimum threshold. Consider salvage 7+ to feel more appropriately rare-level impactful.
+> ### Kitchen Sink Check
+> Both abilities do the same thing (Salvage), just at different scales and contexts. ETB Salvage 6 is the headline payoff; the activated ability is a repeatable, smaller version. These are thematically and mechanically unified around the same action. **Not kitchen sink.**
 > 
-> 2. **Color pie concern:** White is listed as a salvage color, but tutoring artifacts isn't typically a white effect. White usually gets equipment tutoring specifically, not general artifact tutoring. This might be pushing white's slice of the color pie unless the set establishes this as acceptable.
+> ### Variability Check
+> Salvage 6 is fixed. Salvage 3 is fixed. No false variability.
 > 
-> Otherwise, the mechanical design is sound with good synergy between effects and appropriate complexity for rare.
-> - Balance: Looking at **Subsurface Expedition Leader** as a 4-mana rare white creature:
+> ### Focused Purpose
+> Clear and focused: this card is an artifact-tutor engine. The ETB is a strong immediate payoff (Salvage 6 at rare is within the stated scaling guidelines), and the activated ability provides ongoing card selection. The "Expedition Leader" flavor supports the "dig for resources" mechanical identity cleanly.
 > 
-> **Power Level Analysis:**
-> - 3/4 body for 4 mana is below rate but reasonable for a utility creature
-> - ETB Salvage 6 provides significant card selection and potential card advantage
-> - Repeatable Salvage 3 for {2}{W}, T creates long-term value engine
-> - Double white in cost suggests this is meant for dedicated white or artifact-heavy decks
+> ### Other Flags
+> - **Power level note:** Salvage 6 on a 3/4 body for {2}{W}{W} is quite strong. Salvage 6 effectively digs through more than 10% of a 60-card deck for an artifact. Worth playtesting for being over-rate, though rare status supports this.
+> - The activated ability cost ({2}{W}{T}) is reasonable as a sorcery-speed sink.
 > 
-> **Comparable Cards:**
-> - **Ranger-Captain of Eos** (1WW, 3/3): Tutors for specific creatures, has Flash protection ability - clearly more powerful
-> - **Recruiter of the Guard** (2W, 1/1): Tutors any creature with power ≤2, much smaller body but more reliable tutor
-> - **Palace Jailer** (2WW, 2/2): Draws cards via monarch, smaller body but guaranteed card draw vs. conditional artifact finding
+> **PASS**
+> - Balance: ## Power Level Analysis: Subsurface Expedition Leader
 > 
-> **Balance Assessment:**
-> The card sits in an interesting spot. Salvage 6 on ETB is quite powerful card selection (looking at 6 cards is substantial), but it's conditional on finding artifacts. The activated ability creates a repeatable engine, which is valuable in longer games.
+> ### Breaking Down the Card
 > 
-> However, compared to other 4-mana white rares that provide card advantage, this feels appropriately powered. It's not as immediately impactful as Ranger-Captain's tutor + protection, but offers more long-term value. The double white requirement and artifact-dependency provide meaningful deckbuilding constraints.
+> **4 mana, 3/4 body** — solid baseline (comparable to Inspiring Overseer's efficiency tier)
 > 
-> **PASS** - The power level is appropriate for a 4-mana rare. The card provides good value without being oppressive, has clear deckbuilding requirements, and fits well within the power band of similar white utility creatures at rare.
+> **ETB Salvage 6:** Look at top 6, put an artifact into hand. At rare, this is appropriate scaling per the mechanic's own rules. This is essentially a 4-mana 3/4 that tutors an artifact into hand on entry. That's strong but not broken — it's conditional (needs artifacts in top 6) and puts you no net cards ahead (you're not drawing, you're filtering).
+> 
+> **{2}{W}, T: Salvage 3 (sorcery speed):** A repeatable activated ability at 3 mana, sorcery-only, tapped. This is meaningfully slow and telegraphed.
+> 
+> ---
+> 
+> ### Comparisons
+> 
+> - **Recruiter of the Guard** (3 mana, 1/1, tutors a creature to hand): Strictly better tutor effect for one less mana, though creature-restricted. Expedition Leader compares favorably in body, less favorably in tutor precision.
+> - **Stoneforge Mystic** (2 mana, 1/2, tutors any equipment): Cheaper, more precise, has equipment-play ability. Expedition Leader's body and ETB are less explosive but less broken.
+> - **Oswald Fiddlebender** (2 mana, 1/1, repeatable artifact tutor): More powerful activated ability, worse body. Expedition Leader's activated ability is weaker but the ETB compensates.
+> 
+> ---
+> 
+> ### Assessment
+> 
+> The card is appropriately costed. Salvage 6 on ETB at 4 mana is strong but conditional, and the repeatable ability is intentionally taxed (3 mana + tap + sorcery). The 3/4 body is fair for four mana in white.
+> 
+> **PASS**
 > 
 > Produce a revised version that fixes all identified issues while preserving the card's core identity and purpose. Do not change things that weren't flagged as issues. If all reviews said PASS, return the card unchanged with verdict OK.
 
@@ -305,22 +323,21 @@
   "changed": true,
   "verdict": "REVISED",
   "issues_found": [
-    "Missing reminder text for salvage mechanic",
-    "Salvage scaling at minimum threshold (consider 7+ for rare impact)",
-    "Color pie concern with white artifact tutoring"
+    "Reminder text missing on first instance of Salvage in the triggered ability.",
+    "Tilde (~) replaced with full card name in oracle text per final card formatting conventions."
   ],
   "name": "Subsurface Expedition Leader",
   "mana_cost": "{2}{W}{W}",
   "type_line": "Creature \u2014 Human Soldier",
-  "oracle_text": "When Subsurface Expedition Leader enters, salvage 7. (Look at the top 7 cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n{2}{W}, {T}: Salvage 3.",
+  "oracle_text": "When Subsurface Expedition Leader enters, salvage 6. (Look at the top six cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n{2}{W}, {T}: Salvage 3. Activate only as a sorcery.",
   "rarity": "rare",
   "power": "3",
   "toughness": "4",
-  "flavor_text": "Every expedition needs someone willing to go first into the dark. The job has remarkably high turnover."
+  "flavor_text": "\"Every expedition needs someone willing to go first into the dark. The job has remarkably high turnover.\""
 }
 ```
 
-*Tokens: 2126 in / 358 out — $0.0117*
+*Tokens: 2553 in / 366 out — $0.0131*
 
 ## C) Revised Card
 
@@ -329,22 +346,21 @@
   "name": "Subsurface Expedition Leader",
   "mana_cost": "{2}{W}{W}",
   "type_line": "Creature \u2014 Human Soldier",
-  "oracle_text": "When Subsurface Expedition Leader enters, salvage 7. (Look at the top 7 cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n{2}{W}, {T}: Salvage 3.",
+  "oracle_text": "When Subsurface Expedition Leader enters, salvage 6. (Look at the top six cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n{2}{W}, {T}: Salvage 3. Activate only as a sorcery.",
   "rarity": "rare",
   "power": "3",
   "toughness": "4",
-  "flavor_text": "Every expedition needs someone willing to go first into the dark. The job has remarkably high turnover."
+  "flavor_text": "\"Every expedition needs someone willing to go first into the dark. The job has remarkably high turnover.\""
 }
 ```
 
 **Changes made:**
-- Missing reminder text for salvage mechanic
-- Salvage scaling at minimum threshold (consider 7+ for rare impact)
-- Color pie concern with white artifact tutoring
+- Reminder text missing on first instance of Salvage in the triggered ability.
+- Tilde (~) replaced with full card name in oracle text per final card formatting conventions.
 
 ## D) Cost
 
 - API calls: 4
-- Input tokens: 3846
-- Output tokens: 1342
-- Cost: $0.0317
+- Input tokens: 4267
+- Output tokens: 1506
+- Cost: $0.0354

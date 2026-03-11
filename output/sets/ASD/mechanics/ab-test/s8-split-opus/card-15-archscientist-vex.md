@@ -11,7 +11,7 @@
     "U",
     "R"
   ],
-  "type_line": "Legendary Creature \u00ef\u00bf\u00bd Human Scientist",
+  "type_line": "Legendary Creature \u00e2\u20ac\u201d Human Scientist",
   "oracle_text": "Flying\nCards exiled with overclock (exile the top three cards of your library, you may play them until end of turn) cost {2} less to cast.\nWhenever you cast a spell exiled with overclock, copy it. You may choose new targets for the copy.",
   "power": "3",
   "toughness": "4",
@@ -50,7 +50,7 @@
 > Card:
 > Name: Archscientist Vex, the Unbound
 > Mana Cost: {2}{U}{R}
-> Type: Legendary Creature ï¿½ Human Scientist
+> Type: Legendary Creature â€” Human Scientist
 > Rarity: mythic
 > Oracle Text: Flying
 > Cards exiled with overclock (exile the top three cards of your library, you may play them until end of turn) cost {2} less to cast.
@@ -67,35 +67,44 @@
 > List any templating issues found, or say "PASS" if the templating is correct.
 
 **Response:**
-> The templating has several issues:
+> Here are the templating issues I found:
 > 
-> 1. **"Overclock" needs to be properly formatted as a keyword action.** The current reminder text is formatted incorrectly. It should read:
->    - "Cards you overclock cost {2} less to cast." (where overclock would have its reminder text on first use)
->    
-> 2. **The reminder text for overclock should be properly formatted.** It should read:
->    - "(To overclock, exile the top three cards of your library. You may play them until end of turn.)"
+> ---
 > 
-> 3. **"Cards exiled with overclock" is non-standard templating.** This should reference the action more directly. Standard templating would be something like "Cards you overclock" or "Cards exiled this way" if referring to a specific overclock instance.
+> **Issue 1: Overclock reminder text should not be embedded inline in a static ability.**
 > 
-> 4. **The second ability needs clarification.** It should specify "a spell from exile" or "a spell you overclocked" for clarity.
+> The current text places the full overclock reminder text parenthetically inside the static ability sentence, which is not how keyword actions work in MTG templating. A keyword action (like overclock) is used as a verb in sentences that tell you to perform it (e.g., "overclock" as an instruction). It should not be defined mid-sentence inside a static ability that merely references cards exiled by the action.
 > 
-> The corrected oracle text should read:
+> The card has no ability that actually instructs you to **perform** overclock. It only references cards that were exiled by overclock from other sources. The reminder text for overclock belongs on the card that tells you to overclock, not on a card that passively references it.
 > 
-> ```
-> Flying
-> Cards you overclock cost {2} less to cast. (To overclock, exile the top three cards of your library. You may play them until end of turn.)
-> Whenever you cast a spell from exile, if you overclocked it, copy that spell. You may choose new targets for the copy.
-> ```
+> **Fix:** Remove the inline reminder text from the static ability. If you want reminder text for overclock on this card (for clarity at mythic), add it after an ability that actually uses the keyword action, or include a brief italicized note. The static ability should read cleanly:
 > 
-> Or alternatively:
+> > Cards you've exiled by overclocking cost {2} less to cast.
 > 
-> ```
-> Flying
-> Overclock costs you pay cost {2} less. (To overclock, exile the top three cards of your library. You may play them until end of turn.)
-> Whenever you cast a spell from exile, if it was exiled by an overclock effect, copy that spell. You may choose new targets for the copy.
-> ```
+> or
+> 
+> > Spells you cast from exile that were exiled with overclock cost {2} less to cast.
+> 
+> **Issue 2: "Cards exiled with overclock cost {2} less to cast" — imprecise templating.**
+> 
+> This doesn't specify "you" as the controller/owner, and "cards" should clarify they are being cast as "spells." Standard templating for cost reduction references spells you cast. Compare Goblin Electromancer or Helm of Awakening.
+> 
+> **Suggested wording:**
+> > Spells you cast from among cards you've exiled by overclocking cost {2} less to cast.
+> 
+> **Issue 3: "Whenever you cast a spell exiled with overclock, copy it" — minor precision.**
+> 
+> This should say "a spell from among cards exiled by overclocking" or similar, to clearly tie into the keyword action's past results. Also, the copy trigger needs to handle the distinction between permanent spells and non-permanent spells — copying a permanent spell creates a token, while copying an instant/sorcery creates a copy on the stack. Current templating works for instants/sorceries but you may want to restrict it (as printed cards like Thousand-Year Storm do) or leave it open intentionally.
+> 
+> **Issue 4: Capitalization — "overclock" in the oracle text.**
+> 
+> In oracle text, keyword actions are not capitalized mid-sentence (correct as written). However, the reminder text parenthetical starts with a lowercase letter after an opening parenthesis mid-sentence, which is standard — this part is fine.
+> 
+> ---
+> 
+> **Summary:** The main problems are embedding overclock's reminder text inside a passive/static ability rather than on an ability that performs the action, and the cost-reduction line needing tighter templating to specify "spells you cast" and connect to the overclock exile zone properly.
 
-*Tokens: 595 in / 374 out — $0.0370*
+*Tokens: 592 in / 679 out — $0.0199*
 
 ### Step 2: Pass 2 — Mechanics review
 
@@ -121,7 +130,7 @@
 > Card:
 > Name: Archscientist Vex, the Unbound
 > Mana Cost: {2}{U}{R}
-> Type: Legendary Creature ï¿½ Human Scientist
+> Type: Legendary Creature â€” Human Scientist
 > Rarity: mythic
 > Oracle Text: Flying
 > Cards exiled with overclock (exile the top three cards of your library, you may play them until end of turn) cost {2} less to cast.
@@ -139,32 +148,30 @@
 > List any design issues found, or say "PASS" if the design is sound.
 
 **Response:**
-> Looking at this card, I need to check for design issues:
+> I need to analyze this card carefully against the checklist and general design principles.
+> 
+> **Keyword Nonbos:** Flying on a UR Legendary Scientist feels tacked on but isn't a nonbo mechanically. No issues here.
+> 
+> **Conditional Analysis:** The abilities trigger off "cards exiled with overclock" — but the card itself has no way to overclock. It has the reminder text parenthetically, but that's just a reminder of what overclock does, not an activated or triggered ability that performs overclock. The card is entirely dependent on other cards in your deck to do anything beyond being a 3/4 flyer for 4. This is acceptable for a build-around mythic legendary, but worth flagging that the reminder text inclusion is slightly misleading — it looks like the card itself overclocks.
+> 
+> **Kitchen Sink Check:** Three abilities — Flying, cost reduction for overclock cards, and copying overclock spells. Flying feels unrelated to the overclock theme. The cost reduction and copy trigger are synergistic and focused. **Flying reads as kitchen sink filler** to boost the card's power rather than serving the mechanical identity.
+> 
+> **Variability Check:** The cost reduction is always {2}, the copy is always one copy — no false variability issues.
+> 
+> **Focused Purpose:** The overclock synergy package (cost reduction + copy) is a clear, focused build-around. That part is excellent.
+> 
+> **Additional Issues:**
+> 
+> - **Power level concern:** Cost reduction of {2} AND copying every overclock spell is extremely explosive. Overclock exiles 3 cards; if even two are castable, you're getting massive mana savings plus free copies. This is a two-card-combo-level payoff that likely warps games immediately.
+> - **The copy trigger on lands:** Overclock says "play," so you can play lands. "Whenever you cast a spell" correctly excludes lands, which is fine.
+> - **Reminder text in oracle text** is unconventional formatting — overclock isn't a keyword this card possesses, so the inline reminder text is awkward.
 > 
 > **Design Issues Found:**
 > 
-> 1. **Parenthetical Reminder Text in Oracle Text**: The overclock reminder text "(exile the top three cards of your library, you may play them until end of turn)" should not appear in the oracle text of a mythic rare card. At mythic, keyword abilities should appear without reminder text, especially for a complex mechanic like overclock.
-> 
-> 2. **Kitchen Sink Design**: While the three abilities (flying, cost reduction, copying) all support an "overclock matters" theme, the card is doing a lot:
->    - Evasive body with flying
->    - Cost reduction for overclocked cards
->    - Copying overclocked spells
->    
->    This borders on kitchen sink design, though it's arguably focused enough around the overclock theme to be acceptable.
-> 
-> 3. **Memory Issues**: This creates a complex board state where players need to track:
->    - Which exiled cards were exiled with overclock vs other effects
->    - The cost reduction applying to those specific cards
->    - Multiple copies of spells
-> 
-> **Additional Observations:**
-> - The 3/4 flying body for 4 mana is already a decent rate before the abilities
-> - The cost reduction + copying creates explosive turns that could be problematic
-> - The design strongly pushes players to overclock repeatedly, which aligns well with the UR color pair
-> 
-> **Verdict:** The reminder text issue definitely needs to be fixed. The complexity and power level concerns are notable but may be acceptable for a mythic rare build-around commander.
+> 1. **Kitchen sink — Flying is unrelated filler** that doesn't serve the overclock theme.
+> 2. **The card doesn't itself overclock**, making it purely parasitic on other sources, yet the formatting somewhat obscures this.
 
-*Tokens: 604 in / 350 out — $0.0353*
+*Tokens: 601 in / 519 out — $0.0160*
 
 ### Step 3: Pass 3 — Balance review
 
@@ -190,7 +197,7 @@
 > Card:
 > Name: Archscientist Vex, the Unbound
 > Mana Cost: {2}{U}{R}
-> Type: Legendary Creature ï¿½ Human Scientist
+> Type: Legendary Creature â€” Human Scientist
 > Rarity: mythic
 > Oracle Text: Flying
 > Cards exiled with overclock (exile the top three cards of your library, you may play them until end of turn) cost {2} less to cast.
@@ -207,33 +214,41 @@
 > State whether the balance is PASS, or describe the specific balance issue with card comparisons.
 
 **Response:**
-> **FAIL** - This card is significantly overpowered for its mana cost, even at mythic rare.
+> # Balance Analysis: Archscientist Vex, the Unbound
 > 
-> **Power Level Issues:**
+> ## Card Breakdown
 > 
-> 1. **Stats vs Similar Cards**: At 4 mana for a 3/4 flyer, this already has an efficient body. Compare to:
->    - [[Crackling Drake]] (UURR) - 4 mana for a */* flyer that draws a card
->    - [[Niv-Mizzet, Parun]] (UUURRR) - 6 mana for a 5/5 flyer with powerful abilities
->    - [[Galazeth Prismari]] (2UR) - 4 mana for a 3/4 flyer with artifact synergy
+> 4 mana (2UR) for a 3/4 flyer is already a solid body. The card then provides **two** extremely powerful static/triggered abilities that stack on the overclock mechanic:
 > 
-> 2. **Ability Power**: The combination of cost reduction AND copying is exponentially powerful:
->    - Cost reduction of 2 makes this effectively ramp you by 6 mana per overclock activation
->    - Copying every spell cast this way doubles that value
->    - This can easily generate 10+ mana worth of value in a single turn
+> 1. **Cost reduction of {2}** on all overclocked cards
+> 2. **Copy every spell cast from overclock**
 > 
-> 3. **Comparison to Similar Effects**:
->    - [[Baral, Chief of Compliance]] - 2 mana for just 1 mana cost reduction on instants/sorceries
->    - [[Goblin Electromancer]] - 2 mana for just 1 mana cost reduction
->    - [[God-Eternal Kefnet]] - 4 mana for copying only the first instant/sorcery drawn each turn
+> ## Key Concern: The Abilities Stack Multiplicatively
 > 
-> **Specific Balance Concerns:**
-> - Turn 5: Overclock, cast 3 spells for free/cheap, get 3 copies = potentially 6 spells in one turn
-> - The permanent cost reduction makes this backbreaking with any overclock effects
-> - No restriction on spell types means this works with permanents, creating overwhelming board states
+> The cost reduction makes it trivial to chain overclocked spells, and **every single one gets copied**. This isn't "cast one big spell and copy it" — this is "cast potentially 2-3 spells from each overclock activation, and copy ALL of them."
 > 
-> **Recommendation**: Either remove the cost reduction OR the copying effect, not both. Even then, the remaining ability might need to be toned down (copy only instants/sorceries, or reduce cost by only 1).
+> With a single overclock activation (3 cards exiled), a realistic turn looks like:
+> - Cast a 3-mana spell for {1} → get a copy (2 spells)
+> - Cast a 2-mana spell for {0} → get a copy (2 more spells)
+> - That's 4 spells worth of value from one overclock trigger, plus Vex is still on board.
+> 
+> ## Comparisons
+> 
+> | Card | Cost | What it does |
+> |---|---|---|
+> | **Archmage Emeritus** | 2UU | Draws a card per spell — no copying, no cost reduction |
+> | **Double Vision** | 3RR | Copies first instant/sorcery per turn — 5 mana enchantment, once per turn |
+> | **Goblin Electromancer** | UR | Cost reduction only, 2/2 body, no copying |
+> 
+> Vex is essentially **Goblin Electromancer + Double Vision (without the once-per-turn limit)** on a 3/4 flying body for 4 mana. Double Vision alone costs 5 mana and is limited to once per turn.
+> 
+> ## Verdict
+> 
+> **BALANCE ISSUE — The copy ability should be limited to once per turn.**
+> 
+> The cost reduction alone is a strong mythic ability. Unlimited copying on top of it creates degenerate turns too easily. Adding "the first spell you cast from exile each turn" to the copy trigger would preserve the mythic build-around excitement while preventing the card from being a one-turn-kill engine the moment any overclock source is activated.
 
-*Tokens: 626 in / 488 out — $0.0460*
+*Tokens: 623 in / 546 out — $0.0168*
 
 ### Step 4: Pass 4 — Revision (combining all feedback)
 
@@ -259,7 +274,7 @@
 > Original card:
 > Name: Archscientist Vex, the Unbound
 > Mana Cost: {2}{U}{R}
-> Type: Legendary Creature ï¿½ Human Scientist
+> Type: Legendary Creature â€” Human Scientist
 > Rarity: mythic
 > Oracle Text: Flying
 > Cards exiled with overclock (exile the top three cards of your library, you may play them until end of turn) cost {2} less to cast.
@@ -268,82 +283,97 @@
 > Flavor Text: "I have transcended the limitations of sanity, safety, and the laws of thermodynamics."
 > 
 > Issues found:
-> - Templating: The templating has several issues:
+> - Templating: Here are the templating issues I found:
 > 
-> 1. **"Overclock" needs to be properly formatted as a keyword action.** The current reminder text is formatted incorrectly. It should read:
->    - "Cards you overclock cost {2} less to cast." (where overclock would have its reminder text on first use)
->    
-> 2. **The reminder text for overclock should be properly formatted.** It should read:
->    - "(To overclock, exile the top three cards of your library. You may play them until end of turn.)"
+> ---
 > 
-> 3. **"Cards exiled with overclock" is non-standard templating.** This should reference the action more directly. Standard templating would be something like "Cards you overclock" or "Cards exiled this way" if referring to a specific overclock instance.
+> **Issue 1: Overclock reminder text should not be embedded inline in a static ability.**
 > 
-> 4. **The second ability needs clarification.** It should specify "a spell from exile" or "a spell you overclocked" for clarity.
+> The current text places the full overclock reminder text parenthetically inside the static ability sentence, which is not how keyword actions work in MTG templating. A keyword action (like overclock) is used as a verb in sentences that tell you to perform it (e.g., "overclock" as an instruction). It should not be defined mid-sentence inside a static ability that merely references cards exiled by the action.
 > 
-> The corrected oracle text should read:
+> The card has no ability that actually instructs you to **perform** overclock. It only references cards that were exiled by overclock from other sources. The reminder text for overclock belongs on the card that tells you to overclock, not on a card that passively references it.
 > 
-> ```
-> Flying
-> Cards you overclock cost {2} less to cast. (To overclock, exile the top three cards of your library. You may play them until end of turn.)
-> Whenever you cast a spell from exile, if you overclocked it, copy that spell. You may choose new targets for the copy.
-> ```
+> **Fix:** Remove the inline reminder text from the static ability. If you want reminder text for overclock on this card (for clarity at mythic), add it after an ability that actually uses the keyword action, or include a brief italicized note. The static ability should read cleanly:
 > 
-> Or alternatively:
+> > Cards you've exiled by overclocking cost {2} less to cast.
 > 
-> ```
-> Flying
-> Overclock costs you pay cost {2} less. (To overclock, exile the top three cards of your library. You may play them until end of turn.)
-> Whenever you cast a spell from exile, if it was exiled by an overclock effect, copy that spell. You may choose new targets for the copy.
-> ```
-> - Mechanics: Looking at this card, I need to check for design issues:
+> or
+> 
+> > Spells you cast from exile that were exiled with overclock cost {2} less to cast.
+> 
+> **Issue 2: "Cards exiled with overclock cost {2} less to cast" — imprecise templating.**
+> 
+> This doesn't specify "you" as the controller/owner, and "cards" should clarify they are being cast as "spells." Standard templating for cost reduction references spells you cast. Compare Goblin Electromancer or Helm of Awakening.
+> 
+> **Suggested wording:**
+> > Spells you cast from among cards you've exiled by overclocking cost {2} less to cast.
+> 
+> **Issue 3: "Whenever you cast a spell exiled with overclock, copy it" — minor precision.**
+> 
+> This should say "a spell from among cards exiled by overclocking" or similar, to clearly tie into the keyword action's past results. Also, the copy trigger needs to handle the distinction between permanent spells and non-permanent spells — copying a permanent spell creates a token, while copying an instant/sorcery creates a copy on the stack. Current templating works for instants/sorceries but you may want to restrict it (as printed cards like Thousand-Year Storm do) or leave it open intentionally.
+> 
+> **Issue 4: Capitalization — "overclock" in the oracle text.**
+> 
+> In oracle text, keyword actions are not capitalized mid-sentence (correct as written). However, the reminder text parenthetical starts with a lowercase letter after an opening parenthesis mid-sentence, which is standard — this part is fine.
+> 
+> ---
+> 
+> **Summary:** The main problems are embedding overclock's reminder text inside a passive/static ability rather than on an ability that performs the action, and the cost-reduction line needing tighter templating to specify "spells you cast" and connect to the overclock exile zone properly.
+> - Mechanics: I need to analyze this card carefully against the checklist and general design principles.
+> 
+> **Keyword Nonbos:** Flying on a UR Legendary Scientist feels tacked on but isn't a nonbo mechanically. No issues here.
+> 
+> **Conditional Analysis:** The abilities trigger off "cards exiled with overclock" — but the card itself has no way to overclock. It has the reminder text parenthetically, but that's just a reminder of what overclock does, not an activated or triggered ability that performs overclock. The card is entirely dependent on other cards in your deck to do anything beyond being a 3/4 flyer for 4. This is acceptable for a build-around mythic legendary, but worth flagging that the reminder text inclusion is slightly misleading — it looks like the card itself overclocks.
+> 
+> **Kitchen Sink Check:** Three abilities — Flying, cost reduction for overclock cards, and copying overclock spells. Flying feels unrelated to the overclock theme. The cost reduction and copy trigger are synergistic and focused. **Flying reads as kitchen sink filler** to boost the card's power rather than serving the mechanical identity.
+> 
+> **Variability Check:** The cost reduction is always {2}, the copy is always one copy — no false variability issues.
+> 
+> **Focused Purpose:** The overclock synergy package (cost reduction + copy) is a clear, focused build-around. That part is excellent.
+> 
+> **Additional Issues:**
+> 
+> - **Power level concern:** Cost reduction of {2} AND copying every overclock spell is extremely explosive. Overclock exiles 3 cards; if even two are castable, you're getting massive mana savings plus free copies. This is a two-card-combo-level payoff that likely warps games immediately.
+> - **The copy trigger on lands:** Overclock says "play," so you can play lands. "Whenever you cast a spell" correctly excludes lands, which is fine.
+> - **Reminder text in oracle text** is unconventional formatting — overclock isn't a keyword this card possesses, so the inline reminder text is awkward.
 > 
 > **Design Issues Found:**
 > 
-> 1. **Parenthetical Reminder Text in Oracle Text**: The overclock reminder text "(exile the top three cards of your library, you may play them until end of turn)" should not appear in the oracle text of a mythic rare card. At mythic, keyword abilities should appear without reminder text, especially for a complex mechanic like overclock.
+> 1. **Kitchen sink — Flying is unrelated filler** that doesn't serve the overclock theme.
+> 2. **The card doesn't itself overclock**, making it purely parasitic on other sources, yet the formatting somewhat obscures this.
+> - Balance: # Balance Analysis: Archscientist Vex, the Unbound
 > 
-> 2. **Kitchen Sink Design**: While the three abilities (flying, cost reduction, copying) all support an "overclock matters" theme, the card is doing a lot:
->    - Evasive body with flying
->    - Cost reduction for overclocked cards
->    - Copying overclocked spells
->    
->    This borders on kitchen sink design, though it's arguably focused enough around the overclock theme to be acceptable.
+> ## Card Breakdown
 > 
-> 3. **Memory Issues**: This creates a complex board state where players need to track:
->    - Which exiled cards were exiled with overclock vs other effects
->    - The cost reduction applying to those specific cards
->    - Multiple copies of spells
+> 4 mana (2UR) for a 3/4 flyer is already a solid body. The card then provides **two** extremely powerful static/triggered abilities that stack on the overclock mechanic:
 > 
-> **Additional Observations:**
-> - The 3/4 flying body for 4 mana is already a decent rate before the abilities
-> - The cost reduction + copying creates explosive turns that could be problematic
-> - The design strongly pushes players to overclock repeatedly, which aligns well with the UR color pair
+> 1. **Cost reduction of {2}** on all overclocked cards
+> 2. **Copy every spell cast from overclock**
 > 
-> **Verdict:** The reminder text issue definitely needs to be fixed. The complexity and power level concerns are notable but may be acceptable for a mythic rare build-around commander.
-> - Balance: **FAIL** - This card is significantly overpowered for its mana cost, even at mythic rare.
+> ## Key Concern: The Abilities Stack Multiplicatively
 > 
-> **Power Level Issues:**
+> The cost reduction makes it trivial to chain overclocked spells, and **every single one gets copied**. This isn't "cast one big spell and copy it" — this is "cast potentially 2-3 spells from each overclock activation, and copy ALL of them."
 > 
-> 1. **Stats vs Similar Cards**: At 4 mana for a 3/4 flyer, this already has an efficient body. Compare to:
->    - [[Crackling Drake]] (UURR) - 4 mana for a */* flyer that draws a card
->    - [[Niv-Mizzet, Parun]] (UUURRR) - 6 mana for a 5/5 flyer with powerful abilities
->    - [[Galazeth Prismari]] (2UR) - 4 mana for a 3/4 flyer with artifact synergy
+> With a single overclock activation (3 cards exiled), a realistic turn looks like:
+> - Cast a 3-mana spell for {1} → get a copy (2 spells)
+> - Cast a 2-mana spell for {0} → get a copy (2 more spells)
+> - That's 4 spells worth of value from one overclock trigger, plus Vex is still on board.
 > 
-> 2. **Ability Power**: The combination of cost reduction AND copying is exponentially powerful:
->    - Cost reduction of 2 makes this effectively ramp you by 6 mana per overclock activation
->    - Copying every spell cast this way doubles that value
->    - This can easily generate 10+ mana worth of value in a single turn
+> ## Comparisons
 > 
-> 3. **Comparison to Similar Effects**:
->    - [[Baral, Chief of Compliance]] - 2 mana for just 1 mana cost reduction on instants/sorceries
->    - [[Goblin Electromancer]] - 2 mana for just 1 mana cost reduction
->    - [[God-Eternal Kefnet]] - 4 mana for copying only the first instant/sorcery drawn each turn
+> | Card | Cost | What it does |
+> |---|---|---|
+> | **Archmage Emeritus** | 2UU | Draws a card per spell — no copying, no cost reduction |
+> | **Double Vision** | 3RR | Copies first instant/sorcery per turn — 5 mana enchantment, once per turn |
+> | **Goblin Electromancer** | UR | Cost reduction only, 2/2 body, no copying |
 > 
-> **Specific Balance Concerns:**
-> - Turn 5: Overclock, cast 3 spells for free/cheap, get 3 copies = potentially 6 spells in one turn
-> - The permanent cost reduction makes this backbreaking with any overclock effects
-> - No restriction on spell types means this works with permanents, creating overwhelming board states
+> Vex is essentially **Goblin Electromancer + Double Vision (without the once-per-turn limit)** on a 3/4 flying body for 4 mana. Double Vision alone costs 5 mana and is limited to once per turn.
 > 
-> **Recommendation**: Either remove the cost reduction OR the copying effect, not both. Even then, the remaining ability might need to be toned down (copy only instants/sorceries, or reduce cost by only 1).
+> ## Verdict
+> 
+> **BALANCE ISSUE — The copy ability should be limited to once per turn.**
+> 
+> The cost reduction alone is a strong mythic ability. Unlimited copying on top of it creates degenerate turns too easily. Adding "the first spell you cast from exile each turn" to the copy trigger would preserve the mythic build-around excitement while preventing the card from being a one-turn-kill engine the moment any overclock source is activated.
 > 
 > Produce a revised version that fixes all identified issues while preserving the card's core identity and purpose. Do not change things that weren't flagged as issues. If all reviews said PASS, return the card unchanged with verdict OK.
 
@@ -353,23 +383,24 @@
   "changed": true,
   "verdict": "REVISED",
   "issues_found": [
-    "Incorrect templating of overclock reminder text in oracle text",
-    "Reminder text should not appear on mythic rare cards",
-    "Card is significantly overpowered with both cost reduction AND copying effects",
-    "The combination creates explosive turns generating 10+ mana of value"
+    "Templating: Overclock reminder text embedded inline in a static ability that doesn't perform overclock \u2014 reminder text belongs on cards that instruct you to overclock, not on passive references",
+    "Templating: Cost reduction line doesn't specify 'spells you cast' or connect properly to the overclock exile zone",
+    "Templating: Copy trigger needs tighter wording to reference cards exiled by overclocking",
+    "Mechanics: Flying is kitchen sink filler unrelated to the overclock theme",
+    "Balance: Unlimited copying of ALL overclock spells combined with {2} cost reduction is far too explosive \u2014 should be limited to once per turn"
   ],
   "name": "Archscientist Vex, the Unbound",
   "mana_cost": "{2}{U}{R}",
   "type_line": "Legendary Creature \u2014 Human Scientist",
-  "oracle_text": "Flying\nWhenever you cast a spell from exile, if it was exiled by an overclock effect, copy that spell. You may choose new targets for the copy.",
   "rarity": "mythic",
+  "oracle_text": "Spells you cast from among cards you've exiled by overclocking cost {2} less to cast.\nWhenever you cast the first spell each turn from among cards you've exiled by overclocking, copy it. You may choose new targets for the copy.",
   "power": "3",
   "toughness": "4",
-  "flavor_text": "I have transcended the limitations of sanity, safety, and the laws of thermodynamics."
+  "flavor_text": "\"I have transcended the limitations of sanity, safety, and the laws of thermodynamics.\""
 }
 ```
 
-*Tokens: 2389 in / 353 out — $0.0623*
+*Tokens: 3190 in / 459 out — $0.0274*
 
 ## C) Revised Card
 
@@ -378,23 +409,24 @@
   "name": "Archscientist Vex, the Unbound",
   "mana_cost": "{2}{U}{R}",
   "type_line": "Legendary Creature \u2014 Human Scientist",
-  "oracle_text": "Flying\nWhenever you cast a spell from exile, if it was exiled by an overclock effect, copy that spell. You may choose new targets for the copy.",
+  "oracle_text": "Spells you cast from among cards you've exiled by overclocking cost {2} less to cast.\nWhenever you cast the first spell each turn from among cards you've exiled by overclocking, copy it. You may choose new targets for the copy.",
   "rarity": "mythic",
   "power": "3",
   "toughness": "4",
-  "flavor_text": "I have transcended the limitations of sanity, safety, and the laws of thermodynamics."
+  "flavor_text": "\"I have transcended the limitations of sanity, safety, and the laws of thermodynamics.\""
 }
 ```
 
 **Changes made:**
-- Incorrect templating of overclock reminder text in oracle text
-- Reminder text should not appear on mythic rare cards
-- Card is significantly overpowered with both cost reduction AND copying effects
-- The combination creates explosive turns generating 10+ mana of value
+- Templating: Overclock reminder text embedded inline in a static ability that doesn't perform overclock — reminder text belongs on cards that instruct you to overclock, not on passive references
+- Templating: Cost reduction line doesn't specify 'spells you cast' or connect properly to the overclock exile zone
+- Templating: Copy trigger needs tighter wording to reference cards exiled by overclocking
+- Mechanics: Flying is kitchen sink filler unrelated to the overclock theme
+- Balance: Unlimited copying of ALL overclock spells combined with {2} cost reduction is far too explosive — should be limited to once per turn
 
 ## D) Cost
 
 - API calls: 4
-- Input tokens: 4214
-- Output tokens: 1565
-- Cost: $0.1806
+- Input tokens: 5006
+- Output tokens: 2203
+- Cost: $0.0801

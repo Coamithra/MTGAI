@@ -16,7 +16,7 @@
   "keywords": [
     "Overclock"
   ],
-  "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u00ef\u00bf\u00bdDr. Malleus, Cult of Science"
+  "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u00e2\u20ac\u201dDr. Malleus, Cult of Science"
 }
 ```
 
@@ -50,7 +50,7 @@
 > Rarity: uncommon
 > Oracle Text: As an additional cost to cast ~, overclock. (Exile the top three cards of your library. You may play them until end of turn.)
 > Counter target spell. If you overclocked this turn, draw a card.
-> Flavor Text: "The prototype neural interface worked perfectly. The subject's brain, however, did not." ï¿½Dr. Malleus, Cult of Science
+> Flavor Text: "The prototype neural interface worked perfectly. The subject's brain, however, did not." â€”Dr. Malleus, Cult of Science
 > 
 > Critically review this card and provide an improved version based on your findings. If the card is fine, return it unchanged with verdict OK.
 
@@ -59,43 +59,1669 @@
 {
   "changed": true,
   "verdict": "REVISED",
-  "issues_found": [
-    "Overclock is being used as an additional cost rather than as a keyword action",
-    "The condition 'If you overclocked this turn' creates unnecessary complexity and tracking issues",
-    "The card design doesn't align with overclock's intended high risk/reward nature"
-  ],
+  "issues_found": "[\"MECHANICAL CONTRADICTION \u2014 Overclock is defined as a keyword *action* (like Scry or Surveil), meaning it is something you *do* as an effect, not a cost you can pay. Using it as 'an additional cost to cast ~' misuses the keyword type. Costs should be resource expenditures (mana, life, sacrificing permanents, etc.); Overclock's exile-3-cards effect is far too complex and swingy to function as a cost.\", \"SELF-REFERENTIAL CONDITION IS TRIVIALLY TRUE \u2014 The bonus clause 'If you overclocked this turn, draw a card' is always true, because Overclock is mandatory (it IS the additional cost/effect tied to casting this card). The conditional adds no real decision or gameplay texture; the draw is essentially unconditional. Either remove the condition and just say 'draw a card,' or make the condition reference something external.\", \"COLOR IDENTITY IS CONSISTENT \u2014 Overclock is a U/R/B mechanic and the card is {1}{U} (blue), so that is fine.\", \"RARITY/COMPLEXITY CHECK \u2014 Overclock is restricted to uncommon+. This card is uncommon, so that rule is satisfied.\", \"OVERCLOCK AS MANDATORY ADDITIONAL COST IS DANGEROUS DESIGN \u2014 Forcing the opponent to know you exiled 3 cards before the counterspell resolves is fine, but making Overclock mandatory removes all agency and makes the card extremely swingy (exile lands = bad, exile gas = great). A better pattern is to make Overclock optional and reward doing so, which is more in line with the set's design note of 'high risk/reward.'\", \"FLAVOR TEXT ENCODING ISSUE \u2014 The flavor text contains a garbled character (\u00e2\u20ac\") which is a UTF-8 mojibake for an em dash (\u2014). This must be corrected.\"]",
   "name": "Synaptic Overload",
-  "mana_cost": "{2}{U}",
+  "mana_cost": "{1}{U}",
   "type_line": "Instant",
-  "oracle_text": "Counter target spell.\nOverclock. (Exile the top three cards of your library. You may play them until end of turn.)",
+  "oracle_text": "Counter target spell.\nOverclock. If you do, draw a card. (Exile the top three cards of your library. You may play them until end of turn.)",
   "rarity": "uncommon",
   "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u2014Dr. Malleus, Cult of Science"
 }
 ```
 
-*Tokens: 1123 in / 304 out — $0.0079*
+*Tokens: 1395 in / 695 out — $0.0146*
 
 ## C) Revised Card
 
 ```json
 {
   "name": "Synaptic Overload",
-  "mana_cost": "{2}{U}",
+  "mana_cost": "{1}{U}",
   "type_line": "Instant",
-  "oracle_text": "Counter target spell.\nOverclock. (Exile the top three cards of your library. You may play them until end of turn.)",
+  "oracle_text": "Counter target spell.\nOverclock. If you do, draw a card. (Exile the top three cards of your library. You may play them until end of turn.)",
   "rarity": "uncommon",
   "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u2014Dr. Malleus, Cult of Science"
 }
 ```
 
 **Changes made:**
-- Overclock is being used as an additional cost rather than as a keyword action
-- The condition 'If you overclocked this turn' creates unnecessary complexity and tracking issues
-- The card design doesn't align with overclock's intended high risk/reward nature
+- [
+- "
+- M
+- E
+- C
+- H
+- A
+- N
+- I
+- C
+- A
+- L
+-  
+- C
+- O
+- N
+- T
+- R
+- A
+- D
+- I
+- C
+- T
+- I
+- O
+- N
+-  
+- —
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- i
+- s
+-  
+- d
+- e
+- f
+- i
+- n
+- e
+- d
+-  
+- a
+- s
+-  
+- a
+-  
+- k
+- e
+- y
+- w
+- o
+- r
+- d
+-  
+- *
+- a
+- c
+- t
+- i
+- o
+- n
+- *
+-  
+- (
+- l
+- i
+- k
+- e
+-  
+- S
+- c
+- r
+- y
+-  
+- o
+- r
+-  
+- S
+- u
+- r
+- v
+- e
+- i
+- l
+- )
+- ,
+-  
+- m
+- e
+- a
+- n
+- i
+- n
+- g
+-  
+- i
+- t
+-  
+- i
+- s
+-  
+- s
+- o
+- m
+- e
+- t
+- h
+- i
+- n
+- g
+-  
+- y
+- o
+- u
+-  
+- *
+- d
+- o
+- *
+-  
+- a
+- s
+-  
+- a
+- n
+-  
+- e
+- f
+- f
+- e
+- c
+- t
+- ,
+-  
+- n
+- o
+- t
+-  
+- a
+-  
+- c
+- o
+- s
+- t
+-  
+- y
+- o
+- u
+-  
+- c
+- a
+- n
+-  
+- p
+- a
+- y
+- .
+-  
+- U
+- s
+- i
+- n
+- g
+-  
+- i
+- t
+-  
+- a
+- s
+-  
+- '
+- a
+- n
+-  
+- a
+- d
+- d
+- i
+- t
+- i
+- o
+- n
+- a
+- l
+-  
+- c
+- o
+- s
+- t
+-  
+- t
+- o
+-  
+- c
+- a
+- s
+- t
+-  
+- ~
+- '
+-  
+- m
+- i
+- s
+- u
+- s
+- e
+- s
+-  
+- t
+- h
+- e
+-  
+- k
+- e
+- y
+- w
+- o
+- r
+- d
+-  
+- t
+- y
+- p
+- e
+- .
+-  
+- C
+- o
+- s
+- t
+- s
+-  
+- s
+- h
+- o
+- u
+- l
+- d
+-  
+- b
+- e
+-  
+- r
+- e
+- s
+- o
+- u
+- r
+- c
+- e
+-  
+- e
+- x
+- p
+- e
+- n
+- d
+- i
+- t
+- u
+- r
+- e
+- s
+-  
+- (
+- m
+- a
+- n
+- a
+- ,
+-  
+- l
+- i
+- f
+- e
+- ,
+-  
+- s
+- a
+- c
+- r
+- i
+- f
+- i
+- c
+- i
+- n
+- g
+-  
+- p
+- e
+- r
+- m
+- a
+- n
+- e
+- n
+- t
+- s
+- ,
+-  
+- e
+- t
+- c
+- .
+- )
+- ;
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+- '
+- s
+-  
+- e
+- x
+- i
+- l
+- e
+- -
+- 3
+- -
+- c
+- a
+- r
+- d
+- s
+-  
+- e
+- f
+- f
+- e
+- c
+- t
+-  
+- i
+- s
+-  
+- f
+- a
+- r
+-  
+- t
+- o
+- o
+-  
+- c
+- o
+- m
+- p
+- l
+- e
+- x
+-  
+- a
+- n
+- d
+-  
+- s
+- w
+- i
+- n
+- g
+- y
+-  
+- t
+- o
+-  
+- f
+- u
+- n
+- c
+- t
+- i
+- o
+- n
+-  
+- a
+- s
+-  
+- a
+-  
+- c
+- o
+- s
+- t
+- .
+- "
+- ,
+-  
+- "
+- S
+- E
+- L
+- F
+- -
+- R
+- E
+- F
+- E
+- R
+- E
+- N
+- T
+- I
+- A
+- L
+-  
+- C
+- O
+- N
+- D
+- I
+- T
+- I
+- O
+- N
+-  
+- I
+- S
+-  
+- T
+- R
+- I
+- V
+- I
+- A
+- L
+- L
+- Y
+-  
+- T
+- R
+- U
+- E
+-  
+- —
+-  
+- T
+- h
+- e
+-  
+- b
+- o
+- n
+- u
+- s
+-  
+- c
+- l
+- a
+- u
+- s
+- e
+-  
+- '
+- I
+- f
+-  
+- y
+- o
+- u
+-  
+- o
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+- e
+- d
+-  
+- t
+- h
+- i
+- s
+-  
+- t
+- u
+- r
+- n
+- ,
+-  
+- d
+- r
+- a
+- w
+-  
+- a
+-  
+- c
+- a
+- r
+- d
+- '
+-  
+- i
+- s
+-  
+- a
+- l
+- w
+- a
+- y
+- s
+-  
+- t
+- r
+- u
+- e
+- ,
+-  
+- b
+- e
+- c
+- a
+- u
+- s
+- e
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- i
+- s
+-  
+- m
+- a
+- n
+- d
+- a
+- t
+- o
+- r
+- y
+-  
+- (
+- i
+- t
+-  
+- I
+- S
+-  
+- t
+- h
+- e
+-  
+- a
+- d
+- d
+- i
+- t
+- i
+- o
+- n
+- a
+- l
+-  
+- c
+- o
+- s
+- t
+- /
+- e
+- f
+- f
+- e
+- c
+- t
+-  
+- t
+- i
+- e
+- d
+-  
+- t
+- o
+-  
+- c
+- a
+- s
+- t
+- i
+- n
+- g
+-  
+- t
+- h
+- i
+- s
+-  
+- c
+- a
+- r
+- d
+- )
+- .
+-  
+- T
+- h
+- e
+-  
+- c
+- o
+- n
+- d
+- i
+- t
+- i
+- o
+- n
+- a
+- l
+-  
+- a
+- d
+- d
+- s
+-  
+- n
+- o
+-  
+- r
+- e
+- a
+- l
+-  
+- d
+- e
+- c
+- i
+- s
+- i
+- o
+- n
+-  
+- o
+- r
+-  
+- g
+- a
+- m
+- e
+- p
+- l
+- a
+- y
+-  
+- t
+- e
+- x
+- t
+- u
+- r
+- e
+- ;
+-  
+- t
+- h
+- e
+-  
+- d
+- r
+- a
+- w
+-  
+- i
+- s
+-  
+- e
+- s
+- s
+- e
+- n
+- t
+- i
+- a
+- l
+- l
+- y
+-  
+- u
+- n
+- c
+- o
+- n
+- d
+- i
+- t
+- i
+- o
+- n
+- a
+- l
+- .
+-  
+- E
+- i
+- t
+- h
+- e
+- r
+-  
+- r
+- e
+- m
+- o
+- v
+- e
+-  
+- t
+- h
+- e
+-  
+- c
+- o
+- n
+- d
+- i
+- t
+- i
+- o
+- n
+-  
+- a
+- n
+- d
+-  
+- j
+- u
+- s
+- t
+-  
+- s
+- a
+- y
+-  
+- '
+- d
+- r
+- a
+- w
+-  
+- a
+-  
+- c
+- a
+- r
+- d
+- ,
+- '
+-  
+- o
+- r
+-  
+- m
+- a
+- k
+- e
+-  
+- t
+- h
+- e
+-  
+- c
+- o
+- n
+- d
+- i
+- t
+- i
+- o
+- n
+-  
+- r
+- e
+- f
+- e
+- r
+- e
+- n
+- c
+- e
+-  
+- s
+- o
+- m
+- e
+- t
+- h
+- i
+- n
+- g
+-  
+- e
+- x
+- t
+- e
+- r
+- n
+- a
+- l
+- .
+- "
+- ,
+-  
+- "
+- C
+- O
+- L
+- O
+- R
+-  
+- I
+- D
+- E
+- N
+- T
+- I
+- T
+- Y
+-  
+- I
+- S
+-  
+- C
+- O
+- N
+- S
+- I
+- S
+- T
+- E
+- N
+- T
+-  
+- —
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- i
+- s
+-  
+- a
+-  
+- U
+- /
+- R
+- /
+- B
+-  
+- m
+- e
+- c
+- h
+- a
+- n
+- i
+- c
+-  
+- a
+- n
+- d
+-  
+- t
+- h
+- e
+-  
+- c
+- a
+- r
+- d
+-  
+- i
+- s
+-  
+- {
+- 1
+- }
+- {
+- U
+- }
+-  
+- (
+- b
+- l
+- u
+- e
+- )
+- ,
+-  
+- s
+- o
+-  
+- t
+- h
+- a
+- t
+-  
+- i
+- s
+-  
+- f
+- i
+- n
+- e
+- .
+- "
+- ,
+-  
+- "
+- R
+- A
+- R
+- I
+- T
+- Y
+- /
+- C
+- O
+- M
+- P
+- L
+- E
+- X
+- I
+- T
+- Y
+-  
+- C
+- H
+- E
+- C
+- K
+-  
+- —
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- i
+- s
+-  
+- r
+- e
+- s
+- t
+- r
+- i
+- c
+- t
+- e
+- d
+-  
+- t
+- o
+-  
+- u
+- n
+- c
+- o
+- m
+- m
+- o
+- n
+- +
+- .
+-  
+- T
+- h
+- i
+- s
+-  
+- c
+- a
+- r
+- d
+-  
+- i
+- s
+-  
+- u
+- n
+- c
+- o
+- m
+- m
+- o
+- n
+- ,
+-  
+- s
+- o
+-  
+- t
+- h
+- a
+- t
+-  
+- r
+- u
+- l
+- e
+-  
+- i
+- s
+-  
+- s
+- a
+- t
+- i
+- s
+- f
+- i
+- e
+- d
+- .
+- "
+- ,
+-  
+- "
+- O
+- V
+- E
+- R
+- C
+- L
+- O
+- C
+- K
+-  
+- A
+- S
+-  
+- M
+- A
+- N
+- D
+- A
+- T
+- O
+- R
+- Y
+-  
+- A
+- D
+- D
+- I
+- T
+- I
+- O
+- N
+- A
+- L
+-  
+- C
+- O
+- S
+- T
+-  
+- I
+- S
+-  
+- D
+- A
+- N
+- G
+- E
+- R
+- O
+- U
+- S
+-  
+- D
+- E
+- S
+- I
+- G
+- N
+-  
+- —
+-  
+- F
+- o
+- r
+- c
+- i
+- n
+- g
+-  
+- t
+- h
+- e
+-  
+- o
+- p
+- p
+- o
+- n
+- e
+- n
+- t
+-  
+- t
+- o
+-  
+- k
+- n
+- o
+- w
+-  
+- y
+- o
+- u
+-  
+- e
+- x
+- i
+- l
+- e
+- d
+-  
+- 3
+-  
+- c
+- a
+- r
+- d
+- s
+-  
+- b
+- e
+- f
+- o
+- r
+- e
+-  
+- t
+- h
+- e
+-  
+- c
+- o
+- u
+- n
+- t
+- e
+- r
+- s
+- p
+- e
+- l
+- l
+-  
+- r
+- e
+- s
+- o
+- l
+- v
+- e
+- s
+-  
+- i
+- s
+-  
+- f
+- i
+- n
+- e
+- ,
+-  
+- b
+- u
+- t
+-  
+- m
+- a
+- k
+- i
+- n
+- g
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- m
+- a
+- n
+- d
+- a
+- t
+- o
+- r
+- y
+-  
+- r
+- e
+- m
+- o
+- v
+- e
+- s
+-  
+- a
+- l
+- l
+-  
+- a
+- g
+- e
+- n
+- c
+- y
+-  
+- a
+- n
+- d
+-  
+- m
+- a
+- k
+- e
+- s
+-  
+- t
+- h
+- e
+-  
+- c
+- a
+- r
+- d
+-  
+- e
+- x
+- t
+- r
+- e
+- m
+- e
+- l
+- y
+-  
+- s
+- w
+- i
+- n
+- g
+- y
+-  
+- (
+- e
+- x
+- i
+- l
+- e
+-  
+- l
+- a
+- n
+- d
+- s
+-  
+- =
+-  
+- b
+- a
+- d
+- ,
+-  
+- e
+- x
+- i
+- l
+- e
+-  
+- g
+- a
+- s
+-  
+- =
+-  
+- g
+- r
+- e
+- a
+- t
+- )
+- .
+-  
+- A
+-  
+- b
+- e
+- t
+- t
+- e
+- r
+-  
+- p
+- a
+- t
+- t
+- e
+- r
+- n
+-  
+- i
+- s
+-  
+- t
+- o
+-  
+- m
+- a
+- k
+- e
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- o
+- p
+- t
+- i
+- o
+- n
+- a
+- l
+-  
+- a
+- n
+- d
+-  
+- r
+- e
+- w
+- a
+- r
+- d
+-  
+- d
+- o
+- i
+- n
+- g
+-  
+- s
+- o
+- ,
+-  
+- w
+- h
+- i
+- c
+- h
+-  
+- i
+- s
+-  
+- m
+- o
+- r
+- e
+-  
+- i
+- n
+-  
+- l
+- i
+- n
+- e
+-  
+- w
+- i
+- t
+- h
+-  
+- t
+- h
+- e
+-  
+- s
+- e
+- t
+- '
+- s
+-  
+- d
+- e
+- s
+- i
+- g
+- n
+-  
+- n
+- o
+- t
+- e
+-  
+- o
+- f
+-  
+- '
+- h
+- i
+- g
+- h
+-  
+- r
+- i
+- s
+- k
+- /
+- r
+- e
+- w
+- a
+- r
+- d
+- .
+- '
+- "
+- ,
+-  
+- "
+- F
+- L
+- A
+- V
+- O
+- R
+-  
+- T
+- E
+- X
+- T
+-  
+- E
+- N
+- C
+- O
+- D
+- I
+- N
+- G
+-  
+- I
+- S
+- S
+- U
+- E
+-  
+- —
+-  
+- T
+- h
+- e
+-  
+- f
+- l
+- a
+- v
+- o
+- r
+-  
+- t
+- e
+- x
+- t
+-  
+- c
+- o
+- n
+- t
+- a
+- i
+- n
+- s
+-  
+- a
+-  
+- g
+- a
+- r
+- b
+- l
+- e
+- d
+-  
+- c
+- h
+- a
+- r
+- a
+- c
+- t
+- e
+- r
+-  
+- (
+- â
+- €
+- "
+- )
+-  
+- w
+- h
+- i
+- c
+- h
+-  
+- i
+- s
+-  
+- a
+-  
+- U
+- T
+- F
+- -
+- 8
+-  
+- m
+- o
+- j
+- i
+- b
+- a
+- k
+- e
+-  
+- f
+- o
+- r
+-  
+- a
+- n
+-  
+- e
+- m
+-  
+- d
+- a
+- s
+- h
+-  
+- (
+- —
+- )
+- .
+-  
+- T
+- h
+- i
+- s
+-  
+- m
+- u
+- s
+- t
+-  
+- b
+- e
+-  
+- c
+- o
+- r
+- r
+- e
+- c
+- t
+- e
+- d
+- .
+- "
+- ]
 
 ## D) Cost
 
 - API calls: 1
-- Input tokens: 1123
-- Output tokens: 304
-- Cost: $0.0079
+- Input tokens: 1395
+- Output tokens: 695
+- Cost: $0.0146

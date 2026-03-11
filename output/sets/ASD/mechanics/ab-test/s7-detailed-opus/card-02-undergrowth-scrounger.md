@@ -10,7 +10,7 @@
   "colors": [
     "G"
   ],
-  "type_line": "Creature \u00ef\u00bf\u00bd Human Scout",
+  "type_line": "Creature \u00e2\u20ac\u201d Human Scout",
   "oracle_text": "When ~ dies, salvage 3.",
   "power": "2",
   "toughness": "1",
@@ -48,7 +48,7 @@
 > Card to review:
 > Name: Undergrowth Scrounger
 > Mana Cost: {1}{G}
-> Type: Creature ï¿½ Human Scout
+> Type: Creature â€” Human Scout
 > Rarity: common
 > Oracle Text: When ~ dies, salvage 3.
 > P/T: 2/1
@@ -81,37 +81,84 @@
 > Provide your detailed analysis for each criterion.
 
 **Response:**
-> ## Undergrowth Scrounger Review
+> ## Card Review: Undergrowth Scrounger
 > 
-> ### Templating & Rules Text:
-> **FAIL** - Missing reminder text for salvage. As a common card introducing a custom mechanic, it must include reminder text on first use. The oracle text should read:
-> "When Undergrowth Scrounger dies, salvage 3. *(Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)*"
+> ---
 > 
-> ### Keyword Interactions:
-> **PASS** - No keyword conflicts. The death trigger works cleanly with salvage.
+> ### Templating & Rules Text
 > 
-> ### Balance:
-> **PASS** - Well-balanced for common. Comparable cards:
-> - **Elvish Visionary** (1G, 1/1, draws a card on ETB) - Similar card advantage but immediate
-> - **Doomed Traveler** (W, 1/1, leaves a 1/1 flyer on death) - Similar death value
-> - **Wild Mongrel** (1G, 2/2, requires discard to pump) - Similar body, different utility
+> **Is the oracle text valid MTG rules text?**
+> PASS — "When ~ dies, salvage 3." is clean, correct triggered ability templating. Dies triggers are well-established.
 > 
-> A 2/1 for 1G that potentially draws a card on death is strong but fair at common. The conditionality of salvage (must find an artifact) and the death requirement balance the aggressive body.
+> **Does every custom mechanic have reminder text on first use?**
+> **ISSUE** — At common, salvage should include its reminder text. The card as written shows only "salvage 3" with no reminder text parenthetical. It should read:
 > 
-> ### Design:
-> **PASS** - Focused, elegant design. The card serves a clear purpose: an aggressive early creature that provides late-game value when it dies. The salvage 3 creates meaningful variance - you might find an artifact, you might not. This encourages interesting deckbuilding decisions around artifact density. The death trigger also creates combat decisions for both players.
+> > When ~ dies, salvage 3. *(Look at the top 3 cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)*
 > 
-> ### Color Pie:
-> **PASS** - Green gets efficient small creatures and library manipulation. While artifact-matters is more typically blue/white/red, green can interact with artifacts (see Naturalize effects), and salvage in green represents scavenging/natural reclamation themes. The death trigger also fits green's cycle-of-life philosophy.
+> **Is capitalization consistent?**
+> PASS — "salvage" appears mid-sentence and is lowercase, which is correct for keyword actions (compare: "scry 2", "surveil 3").
 > 
-> ### Additional Notes:
-> - The flavor text excellently captures the danger/reward theme
-> - Good introductory common for the salvage mechanic
-> - The Human Scout typing is flavorful and mechanically relevant
+> **Does the card use current MTG templating?**
+> PASS — No enters-the-battlefield effects are present; "dies" is current templating.
 > 
-> **Overall Assessment:** Strong common design that needs only the reminder text correction.
+> ---
+> 
+> ### Keyword Interactions
+> 
+> **Are there any keywords negated or made useless by other abilities?**
+> PASS — No conflicting interactions. The death trigger and salvage work independently and logically together.
+> 
+> **If there's a conditional, can the condition actually be false?**
+> PASS — The only condition is "dies," which is a standard trigger that can naturally be true or false depending on game events. No always-on issue.
+> 
+> ---
+> 
+> ### Balance
+> 
+> **Is power level appropriate for mana cost and rarity?**
+> 
+> PASS — A 2/1 for {1}{G} is a slightly below-rate baseline (compare **Elvish Visionary** at 1/1 that draws a card on ETB, or **Satyr Wayfinder** at 1/1 that fills the graveyard and finds a land). The death trigger is notably weaker than an ETB trigger because:
+> 
+> - It requires the creature to die (not guaranteed, and opponent controls timing somewhat).
+> - Salvage 3 only digs for *artifacts*, which is narrower than drawing a card.
+> - Looking at 3 cards at common is within the stated scaling (2–3).
+> 
+> This compares favorably to something like **Mire Triton** (2-mana 2/1, deathtouch, self-mill on ETB) — Undergrowth Scrounger trades deathtouch and guaranteed value for a conditional, narrow dig. Feels appropriately powered for common.
+> 
+> ---
+> 
+> ### Design
+> 
+> **Does the card have a focused purpose?**
+> PASS — Very focused. It's a cheap body that provides artifact-related card selection as a consolation prize on death. Clean, single-purpose common design.
+> 
+> **Is variability real?**
+> PASS — Salvage 3 always looks at exactly 3 cards, but the outcome genuinely varies based on library composition. You might hit zero artifacts or one, creating real variance.
+> 
+> **Does the card create interesting gameplay decisions?**
+> PASS — Modest but real. The opponent has a decision about whether to kill it (granting the salvage trigger) or leave it alive. The controller may make favorable attacks knowing the death payoff. For a common, this is an appropriate level of decision-making.
+> 
+> ---
+> 
+> ### Color Pie
+> 
+> **Are all abilities appropriate for this card's color(s)?**
+> PASS — Green is listed as a salvage color (W, U, G). Green commonly has death triggers on creatures (e.g., **Yavimaya Elder**). Green frequently tutors or digs for specific card types. A Human Scout creature type in green is standard.
+> 
+> ---
+> 
+> ### Additional Notes
+> 
+> - **Flavor text** is excellent for a common — evocative, concise, and tonally appropriate for the set's theme.
+> - **Creature type Human Scout** fits well for a green creature that scrounges through ruins.
+> - Minor consideration: at common in limited, this card's value is directly tied to the density of artifacts in the set. If the set has a healthy artifact count, this is a nice role-player; if not, it's a vanilla 2/1 with flavor text. Ensure as-fan supports this.
+> 
+> ---
+> 
+> ### Final Verdict
+> **Mostly clean. One fix required:** Add reminder text for salvage. Otherwise, this is a well-designed, appropriately powered common that supports the set's artifact themes without overcomplicating the board at common rarity.
 
-*Tokens: 773 in / 526 out — $0.0510*
+*Tokens: 770 in / 1029 out — $0.0296*
 
 ### Step 2: Submit revised card based on review
 
@@ -121,42 +168,89 @@
 > Original card:
 > Name: Undergrowth Scrounger
 > Mana Cost: {1}{G}
-> Type: Creature ï¿½ Human Scout
+> Type: Creature â€” Human Scout
 > Rarity: common
 > Oracle Text: When ~ dies, salvage 3.
 > P/T: 2/1
 > Flavor Text: She knew every rust-eaten ruin in the wilderness. The wilderness, unfortunately, knew her too.
 > 
 > Review findings:
-> ## Undergrowth Scrounger Review
+> ## Card Review: Undergrowth Scrounger
 > 
-> ### Templating & Rules Text:
-> **FAIL** - Missing reminder text for salvage. As a common card introducing a custom mechanic, it must include reminder text on first use. The oracle text should read:
-> "When Undergrowth Scrounger dies, salvage 3. *(Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)*"
+> ---
 > 
-> ### Keyword Interactions:
-> **PASS** - No keyword conflicts. The death trigger works cleanly with salvage.
+> ### Templating & Rules Text
 > 
-> ### Balance:
-> **PASS** - Well-balanced for common. Comparable cards:
-> - **Elvish Visionary** (1G, 1/1, draws a card on ETB) - Similar card advantage but immediate
-> - **Doomed Traveler** (W, 1/1, leaves a 1/1 flyer on death) - Similar death value
-> - **Wild Mongrel** (1G, 2/2, requires discard to pump) - Similar body, different utility
+> **Is the oracle text valid MTG rules text?**
+> PASS — "When ~ dies, salvage 3." is clean, correct triggered ability templating. Dies triggers are well-established.
 > 
-> A 2/1 for 1G that potentially draws a card on death is strong but fair at common. The conditionality of salvage (must find an artifact) and the death requirement balance the aggressive body.
+> **Does every custom mechanic have reminder text on first use?**
+> **ISSUE** — At common, salvage should include its reminder text. The card as written shows only "salvage 3" with no reminder text parenthetical. It should read:
 > 
-> ### Design:
-> **PASS** - Focused, elegant design. The card serves a clear purpose: an aggressive early creature that provides late-game value when it dies. The salvage 3 creates meaningful variance - you might find an artifact, you might not. This encourages interesting deckbuilding decisions around artifact density. The death trigger also creates combat decisions for both players.
+> > When ~ dies, salvage 3. *(Look at the top 3 cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)*
 > 
-> ### Color Pie:
-> **PASS** - Green gets efficient small creatures and library manipulation. While artifact-matters is more typically blue/white/red, green can interact with artifacts (see Naturalize effects), and salvage in green represents scavenging/natural reclamation themes. The death trigger also fits green's cycle-of-life philosophy.
+> **Is capitalization consistent?**
+> PASS — "salvage" appears mid-sentence and is lowercase, which is correct for keyword actions (compare: "scry 2", "surveil 3").
 > 
-> ### Additional Notes:
-> - The flavor text excellently captures the danger/reward theme
-> - Good introductory common for the salvage mechanic
-> - The Human Scout typing is flavorful and mechanically relevant
+> **Does the card use current MTG templating?**
+> PASS — No enters-the-battlefield effects are present; "dies" is current templating.
 > 
-> **Overall Assessment:** Strong common design that needs only the reminder text correction.
+> ---
+> 
+> ### Keyword Interactions
+> 
+> **Are there any keywords negated or made useless by other abilities?**
+> PASS — No conflicting interactions. The death trigger and salvage work independently and logically together.
+> 
+> **If there's a conditional, can the condition actually be false?**
+> PASS — The only condition is "dies," which is a standard trigger that can naturally be true or false depending on game events. No always-on issue.
+> 
+> ---
+> 
+> ### Balance
+> 
+> **Is power level appropriate for mana cost and rarity?**
+> 
+> PASS — A 2/1 for {1}{G} is a slightly below-rate baseline (compare **Elvish Visionary** at 1/1 that draws a card on ETB, or **Satyr Wayfinder** at 1/1 that fills the graveyard and finds a land). The death trigger is notably weaker than an ETB trigger because:
+> 
+> - It requires the creature to die (not guaranteed, and opponent controls timing somewhat).
+> - Salvage 3 only digs for *artifacts*, which is narrower than drawing a card.
+> - Looking at 3 cards at common is within the stated scaling (2–3).
+> 
+> This compares favorably to something like **Mire Triton** (2-mana 2/1, deathtouch, self-mill on ETB) — Undergrowth Scrounger trades deathtouch and guaranteed value for a conditional, narrow dig. Feels appropriately powered for common.
+> 
+> ---
+> 
+> ### Design
+> 
+> **Does the card have a focused purpose?**
+> PASS — Very focused. It's a cheap body that provides artifact-related card selection as a consolation prize on death. Clean, single-purpose common design.
+> 
+> **Is variability real?**
+> PASS — Salvage 3 always looks at exactly 3 cards, but the outcome genuinely varies based on library composition. You might hit zero artifacts or one, creating real variance.
+> 
+> **Does the card create interesting gameplay decisions?**
+> PASS — Modest but real. The opponent has a decision about whether to kill it (granting the salvage trigger) or leave it alive. The controller may make favorable attacks knowing the death payoff. For a common, this is an appropriate level of decision-making.
+> 
+> ---
+> 
+> ### Color Pie
+> 
+> **Are all abilities appropriate for this card's color(s)?**
+> PASS — Green is listed as a salvage color (W, U, G). Green commonly has death triggers on creatures (e.g., **Yavimaya Elder**). Green frequently tutors or digs for specific card types. A Human Scout creature type in green is standard.
+> 
+> ---
+> 
+> ### Additional Notes
+> 
+> - **Flavor text** is excellent for a common — evocative, concise, and tonally appropriate for the set's theme.
+> - **Creature type Human Scout** fits well for a green creature that scrounges through ruins.
+> - Minor consideration: at common in limited, this card's value is directly tied to the density of artifacts in the set. If the set has a healthy artifact count, this is a nice role-player; if not, it's a vanilla 2/1 with flavor text. Ensure as-fan supports this.
+> 
+> ---
+> 
+> ### Final Verdict
+> **Mostly clean. One fix required:** Add reminder text for salvage. Otherwise, this is a well-designed, appropriately powered common that supports the set's artifact themes without overcomplicating the board at common rarity.
 
 **Tool call result:**
 ```json
@@ -164,20 +258,20 @@
   "changed": true,
   "verdict": "REVISED",
   "issues_found": [
-    "Missing reminder text for salvage mechanic on common card"
+    "Missing reminder text for the custom keyword 'salvage' at common rarity."
   ],
   "name": "Undergrowth Scrounger",
   "mana_cost": "{1}{G}",
   "type_line": "Creature \u2014 Human Scout",
-  "oracle_text": "When Undergrowth Scrounger dies, salvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+  "oracle_text": "When ~ dies, salvage 3. (Look at the top 3 cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+  "rarity": "common",
   "power": "2",
   "toughness": "1",
-  "rarity": "common",
   "flavor_text": "She knew every rust-eaten ruin in the wilderness. The wilderness, unfortunately, knew her too."
 }
 ```
 
-*Tokens: 1304 in / 315 out — $0.0432*
+*Tokens: 2077 in / 316 out — $0.0183*
 
 ## C) Revised Card
 
@@ -186,7 +280,7 @@
   "name": "Undergrowth Scrounger",
   "mana_cost": "{1}{G}",
   "type_line": "Creature \u2014 Human Scout",
-  "oracle_text": "When Undergrowth Scrounger dies, salvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+  "oracle_text": "When ~ dies, salvage 3. (Look at the top 3 cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
   "rarity": "common",
   "power": "2",
   "toughness": "1",
@@ -195,11 +289,11 @@
 ```
 
 **Changes made:**
-- Missing reminder text for salvage mechanic on common card
+- Missing reminder text for the custom keyword 'salvage' at common rarity.
 
 ## D) Cost
 
 - API calls: 2
-- Input tokens: 2077
-- Output tokens: 841
-- Cost: $0.0942
+- Input tokens: 2847
+- Output tokens: 1345
+- Cost: $0.0479

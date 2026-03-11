@@ -16,7 +16,7 @@
   "keywords": [
     "Overclock"
   ],
-  "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u00ef\u00bf\u00bdDr. Malleus, Cult of Science"
+  "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u00e2\u20ac\u201dDr. Malleus, Cult of Science"
 }
 ```
 
@@ -50,7 +50,7 @@
 > Rarity: uncommon
 > Oracle Text: As an additional cost to cast ~, overclock. (Exile the top three cards of your library. You may play them until end of turn.)
 > Counter target spell. If you overclocked this turn, draw a card.
-> Flavor Text: "The prototype neural interface worked perfectly. The subject's brain, however, did not." ï¿½Dr. Malleus, Cult of Science
+> Flavor Text: "The prototype neural interface worked perfectly. The subject's brain, however, did not." â€”Dr. Malleus, Cult of Science
 > 
 > Check:
 > - Is the oracle text valid MTG rules text using current templating conventions?
@@ -61,24 +61,37 @@
 > List any templating issues found, or say "PASS" if the templating is correct.
 
 **Response:**
-> Several templating issues found:
+> Here are the templating issues I found:
 > 
-> 1. **"As an additional cost to cast ~"** - The tilde (~) should be replaced with "this spell" in modern templating.
+> ---
 > 
-> 2. **"If you overclocked this turn"** - This doesn't work as written. Overclock isn't a player action that can be tracked this way. The card seems to want to check if you overclocked as part of casting this spell, but the templating doesn't support that.
+> **1. "Overclock" as an additional cost vs. keyword action templating conflict**
 > 
-> 3. **Reminder text placement** - While the reminder text for overclock is included, the current wording creates a rules problem. The way it's written, you overclock as an additional cost, then the spell checks if you overclocked this turn, which is redundant and doesn't work with the cost/effect structure.
+> Overclock is defined as a keyword action (like scry or surveil), but here it's being used as an additional cost. Keyword actions describe game actions, not costs. The phrase "As an additional cost to cast ~, overclock" doesn't work cleanly because keyword actions aren't structured as costs—they are things that happen, not things you pay.
 > 
-> 4. **Flavor text** - The special character "ï¿½" appears instead of an em dash before "Dr. Malleus"
+> If overclock is always an additional cost on this card, the templating should spell out the cost explicitly or reframe it. Compare how "As an additional cost to cast this spell, discard a card" works—"discard" is an action you perform as a cost. "Overclock" *could* function this way, but the reminder text says "You may play them until end of turn," which creates a tension: you're performing the exile as a cost (before the spell resolves), but the "may play" permission is a lingering effect that isn't naturally part of a cost.
 > 
-> Suggested fix for the mechanical issue:
-> - Option 1: "Counter target spell. Draw a card." (Since you always overclock to cast this)
-> - Option 2: Make overclock part of the effect rather than a cost
-> - Option 3: Create a different trigger condition that actually varies
+> **Suggested rewrite** (keeping overclock as a keyword action that happens on resolution or as an ETB-style trigger would be cleaner, but if you want it as a cost):
 > 
-> The current design tries to create a conditional that will always be true, which is poor templating.
+> > Counter target spell.
+> > When you cast this spell, overclock. *(Exile the top three cards of your library. You may play them until end of turn.)*
+> > If you overclocked this turn, draw a card.
+> 
+> Or restructure overclock as a cost-based keyword ability rather than a keyword action.
+> 
+> **2. "If you overclocked this turn" — tracking issue**
+> 
+> This condition checks whether you overclocked this turn, but since overclock is the additional cost *of this very spell*, you will always have overclocked this turn when this resolves. This makes the condition meaningless — you always draw a card. If the intent is for this to be a bonus when you've overclocked from *another* source, the self-overclock still triggers it. Either the condition is flavor-only (which MTG avoids) or the design needs adjusting.
+> 
+> **3. Minor: Flavor text encoding**
+> 
+> The dash before "Dr. Malleus" shows as `â€"` — this is a character encoding issue. It should be an em dash (—).
+> 
+> ---
+> 
+> **Verdict: NOT A PASS** — the primary issue is the keyword action being used in an additional-cost slot, which creates a rules/templating mismatch, plus the always-true conditional.
 
-*Tokens: 567 in / 296 out — $0.0307*
+*Tokens: 565 in / 568 out — $0.0170*
 
 ### Step 2: Pass 2 — Mechanics review
 
@@ -108,7 +121,7 @@
 > Rarity: uncommon
 > Oracle Text: As an additional cost to cast ~, overclock. (Exile the top three cards of your library. You may play them until end of turn.)
 > Counter target spell. If you overclocked this turn, draw a card.
-> Flavor Text: "The prototype neural interface worked perfectly. The subject's brain, however, did not." ï¿½Dr. Malleus, Cult of Science
+> Flavor Text: "The prototype neural interface worked perfectly. The subject's brain, however, did not." â€”Dr. Malleus, Cult of Science
 > 
 > Check:
 > - Are there any keyword nonbos (keywords negated by other abilities on the card)?
@@ -120,25 +133,30 @@
 > List any design issues found, or say "PASS" if the design is sound.
 
 **Response:**
-> Looking at this card's design:
+> I need to analyze this card carefully.
 > 
-> **Design Issues Found:**
+> **Synaptic Overload** — {1}{U} Instant, Overclock as additional cost, Counter target spell, draw a card if you overclocked this turn.
 > 
-> 1. **Conditional Always True**: The biggest issue is that "If you overclocked this turn" will ALWAYS be true when this spell resolves. Since overclock is an additional cost to cast this spell, you must overclock to cast it, meaning the conditional is meaningless. The card effectively reads "Counter target spell. Draw a card." with extra steps.
+> ## Issue Found: The Conditional Is Always True
 > 
-> 2. **Unclear Timing Interaction**: The reminder text says you can play the exiled cards "until end of turn," but this is an instant that could be cast during an opponent's turn. If cast during an opponent's turn, you'd have a very narrow window to play those cards (only instants/cards with flash before your turn begins).
+> The card requires Overclock **as an additional cost to cast it**. This means every time you successfully cast this spell, you have overclocked this turn. The condition "If you overclocked this turn" is therefore always true when this spell resolves (barring the extremely narrow case where someone else cast a copy of your spell without paying the additional cost, which is not a realistic design consideration at uncommon).
 > 
-> 3. **Memory Issues**: While not a complete dealbreaker, having to track three exiled cards that can be played creates memory issues, especially when combined with drawing a card from the spell itself.
+> This is **fake variability**. The draw-a-card clause reads like it could be conditional, but in practice it's just "Counter target spell. Draw a card." — making it a strictly better Cancel variant at {1}{U}, which is a significant rate concern on top of the Overclock upside.
 > 
-> **Suggested Fix:**
-> The card should either:
-> - Remove the conditional entirely and just say "Counter target spell. Draw a card."
-> - Change the condition to something that can actually vary (e.g., "If you control an artifact, draw a card")
-> - Make overclock an optional ability rather than a cost
+> ## Additional Concern: Rate
 > 
-> The current design has a fundamental flaw where the conditional check is pointless, making the card read more complex than it actually is.
+> A {1}{U} counterspell that always draws a card is extremely strong. The Overclock "cost" is nominally a downside (risking milling three cards), but it's actually significant upside — you get to play those three exiled cards until end of turn. So this card is paying a "cost" that is itself a benefit, then always drawing a card. That's a lot of value stapled onto a cheap counterspell.
+> 
+> ## Recommendations
+> 
+> Either:
+> 1. **Remove the additional cost** and make overclock happen on resolution (so the condition can be false if the spell is copied/countered/etc., or matters if you overclocked from another source earlier), or
+> 2. **Remove the conditional** and just say "draw a card" for honesty, then re-evaluate the rate, or
+> 3. **Increase the mana cost** significantly if you want all three elements.
+> 
+> **Not a pass.**
 
-*Tokens: 576 in / 308 out — $0.0317*
+*Tokens: 574 in / 431 out — $0.0136*
 
 ### Step 3: Pass 3 — Balance review
 
@@ -168,7 +186,7 @@
 > Rarity: uncommon
 > Oracle Text: As an additional cost to cast ~, overclock. (Exile the top three cards of your library. You may play them until end of turn.)
 > Counter target spell. If you overclocked this turn, draw a card.
-> Flavor Text: "The prototype neural interface worked perfectly. The subject's brain, however, did not." ï¿½Dr. Malleus, Cult of Science
+> Flavor Text: "The prototype neural interface worked perfectly. The subject's brain, however, did not." â€”Dr. Malleus, Cult of Science
 > 
 > Check:
 > - Is the power level appropriate for the mana cost AND rarity?
@@ -179,43 +197,43 @@
 > State whether the balance is PASS, or describe the specific balance issue with card comparisons.
 
 **Response:**
-> Looking at Synaptic Overload, I need to evaluate a 2-mana counterspell with significant additional costs and benefits.
+> # Balance Review: Synaptic Overload
 > 
-> **Comparison to similar cards:**
-> - **Counterspell** (UU) - The gold standard 2-mana counter
-> - **Negate** (1U) - 2-mana conditional counter
-> - **Memory Lapse** (1U) - 2-mana counter that puts on top of library
-> - **Arcane Denial** (1U) - 2-mana counter with symmetrical card draw
+> ## Card Analysis
+> **{1}{U} Instant — Counterspell + conditional cantrip, with mandatory Overclock as additional cost**
 > 
-> **Analysis:**
-> This card has several key components:
-> 1. Base effect: 2-mana unconditional counterspell (already strong)
-> 2. Additional cost: Overclock (exile top 3 cards)
-> 3. Bonus: Draw a card if you overclocked this turn
+> The key question: What is the actual cost/benefit here?
 > 
-> The overclock cost is significant - you're exiling 3 cards from your library, which could include important spells you need. However, you can play those cards this turn, which partially mitigates the downside.
+> **True cost:** {1}{U} + exile top 3 cards of your library (mandatory, as additional cost)
+> **True benefit:** Counter target spell + draw a card (the "if you overclocked this turn" is always true since it's a mandatory additional cost) + access to play 3 exiled cards this turn
 > 
-> The "if you overclocked this turn" clause is interesting - it rewards you for overclocking multiple times in a turn, not just with this spell.
+> ## Comparisons
 > 
-> **Power Level Assessment:**
-> This is essentially a 2-mana unconditional counterspell that:
-> - Costs you 3 cards from library (significant downside)
-> - But lets you play those 3 cards this turn (significant upside)
-> - Can net you card advantage if you overclock multiple times
+> | Card | Cost | Effect |
+> |------|------|--------|
+> | **Counterspell** | {U}{U} | Counter target spell |
+> | **Cancel** | {1}{U}{U} | Counter target spell |
+> | **Neutralize** | {1}{U}{U} | Counter target spell, cycling {2} |
+> | **Dissolve** | {1}{U}{U} | Counter target spell, scry 1 |
 > 
-> The card is very swingy - if you can play 1-2 of the exiled cards, you've turned a downside into massive upside. The draw trigger further rewards aggressive overclocking strategies.
+> ## Assessment
 > 
-> **Verdict: BALANCE ISSUE**
+> This is a **hard counter at {1}{U} that always draws a card AND gives you impulse access to 3 additional cards.** The overclock "cost" is functionally upside here — you're not paying mana for it, and on your opponent's turn you still get their entire end step plus your full next turn to play those cards.
 > 
-> This card is too powerful for uncommon. Getting an unconditional 2-mana counterspell with potential card advantage is approaching rare territory. The overclock "cost" can easily become an advantage if you hit playable cards. Compare to **Counterspell** itself, which wasn't printed at uncommon in modern sets until very recently, and this has significant upside potential.
+> A {1}{U} hard counterspell that cantrips is already above **Counterspell** in practical terms (easier mana, replaces itself). Stapling on pseudo-card-advantage from the overclock makes this significantly stronger than anything at uncommon — arguably stronger than most rare counterspells.
 > 
-> Suggested fixes:
-> 1. Make it cost {U}{U} instead of {1}{U}
-> 2. Remove the card draw clause
-> 3. Make it conditional (noncreature spells only)
-> 4. Move to rare
+> The self-mill "risk" of overclock is negligible in a deck built for it and the card is net +3 card access beyond the counter.
+> 
+> ## Recommendation
+> 
+> **FAIL — significantly above rate.**
+> 
+> A {1}{U} unconditional counter that cantrips needs no additional upside. Either:
+> - Raise cost to **{1}{U}{U}** (matching Dissolve's rate but with better upside and real downside), or
+> - Make the counter conditional (e.g., "counter target noncreature spell"), or
+> - Remove the draw-a-card clause entirely (overclock access is already the reward).
 
-*Tokens: 598 in / 541 out — $0.0495*
+*Tokens: 596 in / 536 out — $0.0164*
 
 ### Step 4: Pass 4 — Revision (combining all feedback)
 
@@ -245,77 +263,95 @@
 > Rarity: uncommon
 > Oracle Text: As an additional cost to cast ~, overclock. (Exile the top three cards of your library. You may play them until end of turn.)
 > Counter target spell. If you overclocked this turn, draw a card.
-> Flavor Text: "The prototype neural interface worked perfectly. The subject's brain, however, did not." ï¿½Dr. Malleus, Cult of Science
+> Flavor Text: "The prototype neural interface worked perfectly. The subject's brain, however, did not." â€”Dr. Malleus, Cult of Science
 > 
 > Issues found:
-> - Templating: Several templating issues found:
+> - Templating: Here are the templating issues I found:
 > 
-> 1. **"As an additional cost to cast ~"** - The tilde (~) should be replaced with "this spell" in modern templating.
+> ---
 > 
-> 2. **"If you overclocked this turn"** - This doesn't work as written. Overclock isn't a player action that can be tracked this way. The card seems to want to check if you overclocked as part of casting this spell, but the templating doesn't support that.
+> **1. "Overclock" as an additional cost vs. keyword action templating conflict**
 > 
-> 3. **Reminder text placement** - While the reminder text for overclock is included, the current wording creates a rules problem. The way it's written, you overclock as an additional cost, then the spell checks if you overclocked this turn, which is redundant and doesn't work with the cost/effect structure.
+> Overclock is defined as a keyword action (like scry or surveil), but here it's being used as an additional cost. Keyword actions describe game actions, not costs. The phrase "As an additional cost to cast ~, overclock" doesn't work cleanly because keyword actions aren't structured as costs—they are things that happen, not things you pay.
 > 
-> 4. **Flavor text** - The special character "ï¿½" appears instead of an em dash before "Dr. Malleus"
+> If overclock is always an additional cost on this card, the templating should spell out the cost explicitly or reframe it. Compare how "As an additional cost to cast this spell, discard a card" works—"discard" is an action you perform as a cost. "Overclock" *could* function this way, but the reminder text says "You may play them until end of turn," which creates a tension: you're performing the exile as a cost (before the spell resolves), but the "may play" permission is a lingering effect that isn't naturally part of a cost.
 > 
-> Suggested fix for the mechanical issue:
-> - Option 1: "Counter target spell. Draw a card." (Since you always overclock to cast this)
-> - Option 2: Make overclock part of the effect rather than a cost
-> - Option 3: Create a different trigger condition that actually varies
+> **Suggested rewrite** (keeping overclock as a keyword action that happens on resolution or as an ETB-style trigger would be cleaner, but if you want it as a cost):
 > 
-> The current design tries to create a conditional that will always be true, which is poor templating.
-> - Mechanics: Looking at this card's design:
+> > Counter target spell.
+> > When you cast this spell, overclock. *(Exile the top three cards of your library. You may play them until end of turn.)*
+> > If you overclocked this turn, draw a card.
 > 
-> **Design Issues Found:**
+> Or restructure overclock as a cost-based keyword ability rather than a keyword action.
 > 
-> 1. **Conditional Always True**: The biggest issue is that "If you overclocked this turn" will ALWAYS be true when this spell resolves. Since overclock is an additional cost to cast this spell, you must overclock to cast it, meaning the conditional is meaningless. The card effectively reads "Counter target spell. Draw a card." with extra steps.
+> **2. "If you overclocked this turn" — tracking issue**
 > 
-> 2. **Unclear Timing Interaction**: The reminder text says you can play the exiled cards "until end of turn," but this is an instant that could be cast during an opponent's turn. If cast during an opponent's turn, you'd have a very narrow window to play those cards (only instants/cards with flash before your turn begins).
+> This condition checks whether you overclocked this turn, but since overclock is the additional cost *of this very spell*, you will always have overclocked this turn when this resolves. This makes the condition meaningless — you always draw a card. If the intent is for this to be a bonus when you've overclocked from *another* source, the self-overclock still triggers it. Either the condition is flavor-only (which MTG avoids) or the design needs adjusting.
 > 
-> 3. **Memory Issues**: While not a complete dealbreaker, having to track three exiled cards that can be played creates memory issues, especially when combined with drawing a card from the spell itself.
+> **3. Minor: Flavor text encoding**
 > 
-> **Suggested Fix:**
-> The card should either:
-> - Remove the conditional entirely and just say "Counter target spell. Draw a card."
-> - Change the condition to something that can actually vary (e.g., "If you control an artifact, draw a card")
-> - Make overclock an optional ability rather than a cost
+> The dash before "Dr. Malleus" shows as `â€"` — this is a character encoding issue. It should be an em dash (—).
 > 
-> The current design has a fundamental flaw where the conditional check is pointless, making the card read more complex than it actually is.
-> - Balance: Looking at Synaptic Overload, I need to evaluate a 2-mana counterspell with significant additional costs and benefits.
+> ---
 > 
-> **Comparison to similar cards:**
-> - **Counterspell** (UU) - The gold standard 2-mana counter
-> - **Negate** (1U) - 2-mana conditional counter
-> - **Memory Lapse** (1U) - 2-mana counter that puts on top of library
-> - **Arcane Denial** (1U) - 2-mana counter with symmetrical card draw
+> **Verdict: NOT A PASS** — the primary issue is the keyword action being used in an additional-cost slot, which creates a rules/templating mismatch, plus the always-true conditional.
+> - Mechanics: I need to analyze this card carefully.
 > 
-> **Analysis:**
-> This card has several key components:
-> 1. Base effect: 2-mana unconditional counterspell (already strong)
-> 2. Additional cost: Overclock (exile top 3 cards)
-> 3. Bonus: Draw a card if you overclocked this turn
+> **Synaptic Overload** — {1}{U} Instant, Overclock as additional cost, Counter target spell, draw a card if you overclocked this turn.
 > 
-> The overclock cost is significant - you're exiling 3 cards from your library, which could include important spells you need. However, you can play those cards this turn, which partially mitigates the downside.
+> ## Issue Found: The Conditional Is Always True
 > 
-> The "if you overclocked this turn" clause is interesting - it rewards you for overclocking multiple times in a turn, not just with this spell.
+> The card requires Overclock **as an additional cost to cast it**. This means every time you successfully cast this spell, you have overclocked this turn. The condition "If you overclocked this turn" is therefore always true when this spell resolves (barring the extremely narrow case where someone else cast a copy of your spell without paying the additional cost, which is not a realistic design consideration at uncommon).
 > 
-> **Power Level Assessment:**
-> This is essentially a 2-mana unconditional counterspell that:
-> - Costs you 3 cards from library (significant downside)
-> - But lets you play those 3 cards this turn (significant upside)
-> - Can net you card advantage if you overclock multiple times
+> This is **fake variability**. The draw-a-card clause reads like it could be conditional, but in practice it's just "Counter target spell. Draw a card." — making it a strictly better Cancel variant at {1}{U}, which is a significant rate concern on top of the Overclock upside.
 > 
-> The card is very swingy - if you can play 1-2 of the exiled cards, you've turned a downside into massive upside. The draw trigger further rewards aggressive overclocking strategies.
+> ## Additional Concern: Rate
 > 
-> **Verdict: BALANCE ISSUE**
+> A {1}{U} counterspell that always draws a card is extremely strong. The Overclock "cost" is nominally a downside (risking milling three cards), but it's actually significant upside — you get to play those three exiled cards until end of turn. So this card is paying a "cost" that is itself a benefit, then always drawing a card. That's a lot of value stapled onto a cheap counterspell.
 > 
-> This card is too powerful for uncommon. Getting an unconditional 2-mana counterspell with potential card advantage is approaching rare territory. The overclock "cost" can easily become an advantage if you hit playable cards. Compare to **Counterspell** itself, which wasn't printed at uncommon in modern sets until very recently, and this has significant upside potential.
+> ## Recommendations
 > 
-> Suggested fixes:
-> 1. Make it cost {U}{U} instead of {1}{U}
-> 2. Remove the card draw clause
-> 3. Make it conditional (noncreature spells only)
-> 4. Move to rare
+> Either:
+> 1. **Remove the additional cost** and make overclock happen on resolution (so the condition can be false if the spell is copied/countered/etc., or matters if you overclocked from another source earlier), or
+> 2. **Remove the conditional** and just say "draw a card" for honesty, then re-evaluate the rate, or
+> 3. **Increase the mana cost** significantly if you want all three elements.
+> 
+> **Not a pass.**
+> - Balance: # Balance Review: Synaptic Overload
+> 
+> ## Card Analysis
+> **{1}{U} Instant — Counterspell + conditional cantrip, with mandatory Overclock as additional cost**
+> 
+> The key question: What is the actual cost/benefit here?
+> 
+> **True cost:** {1}{U} + exile top 3 cards of your library (mandatory, as additional cost)
+> **True benefit:** Counter target spell + draw a card (the "if you overclocked this turn" is always true since it's a mandatory additional cost) + access to play 3 exiled cards this turn
+> 
+> ## Comparisons
+> 
+> | Card | Cost | Effect |
+> |------|------|--------|
+> | **Counterspell** | {U}{U} | Counter target spell |
+> | **Cancel** | {1}{U}{U} | Counter target spell |
+> | **Neutralize** | {1}{U}{U} | Counter target spell, cycling {2} |
+> | **Dissolve** | {1}{U}{U} | Counter target spell, scry 1 |
+> 
+> ## Assessment
+> 
+> This is a **hard counter at {1}{U} that always draws a card AND gives you impulse access to 3 additional cards.** The overclock "cost" is functionally upside here — you're not paying mana for it, and on your opponent's turn you still get their entire end step plus your full next turn to play those cards.
+> 
+> A {1}{U} hard counterspell that cantrips is already above **Counterspell** in practical terms (easier mana, replaces itself). Stapling on pseudo-card-advantage from the overclock makes this significantly stronger than anything at uncommon — arguably stronger than most rare counterspells.
+> 
+> The self-mill "risk" of overclock is negligible in a deck built for it and the card is net +3 card access beyond the counter.
+> 
+> ## Recommendation
+> 
+> **FAIL — significantly above rate.**
+> 
+> A {1}{U} unconditional counter that cantrips needs no additional upside. Either:
+> - Raise cost to **{1}{U}{U}** (matching Dissolve's rate but with better upside and real downside), or
+> - Make the counter conditional (e.g., "counter target noncreature spell"), or
+> - Remove the draw-a-card clause entirely (overclock access is already the reward).
 > 
 > Produce a revised version that fixes all identified issues while preserving the card's core identity and purpose. Do not change things that weren't flagged as issues. If all reviews said PASS, return the card unchanged with verdict OK.
 
@@ -324,47 +360,661 @@
 {
   "changed": true,
   "verdict": "REVISED",
-  "issues_found": [
-    "Tilde (~) should be replaced with 'this spell'",
-    "Conditional 'if you overclocked this turn' is always true and meaningless",
-    "Flavor text has corrupted character instead of em dash",
-    "Too powerful for uncommon - unconditional 2-mana counter with upside"
-  ],
+  "issues_found": "[\"Overclock is a keyword action but was templated as an additional cost, creating a rules mismatch since keyword actions aren't structured as costs and the 'may play until end of turn' permission doesn't fit as part of a cost.\", \"The 'if you overclocked this turn' conditional is always true since overclock is mandatory on this spell, making it fake variability \u2014 it always draws a card.\", \"A {1}{U} unconditional counterspell that always cantrips AND grants impulse access to 3 cards is massively above rate, stronger than most rare counterspells.\", \"Flavor text has encoding corruption: '\u00e2\u20ac\"' should be an em dash (\u2014).\"]",
   "name": "Synaptic Overload",
-  "mana_cost": "{U}{U}",
+  "mana_cost": "{1}{U}{U}",
   "type_line": "Instant",
-  "oracle_text": "As an additional cost to cast this spell, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nCounter target spell. Draw a card.",
+  "oracle_text": "Counter target spell.\nWhen you cast this spell, overclock. (Exile the top three cards of your library. You may play them until end of turn.)",
   "rarity": "uncommon",
+  "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u2014Dr. Malleus, Cult of Science",
   "power": null,
-  "toughness": null,
-  "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u2014Dr. Malleus, Cult of Science"
+  "toughness": null
 }
 ```
 
-*Tokens: 2294 in / 364 out — $0.0617*
+*Tokens: 2954 in / 445 out — $0.0259*
 
 ## C) Revised Card
 
 ```json
 {
   "name": "Synaptic Overload",
-  "mana_cost": "{U}{U}",
+  "mana_cost": "{1}{U}{U}",
   "type_line": "Instant",
-  "oracle_text": "As an additional cost to cast this spell, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nCounter target spell. Draw a card.",
+  "oracle_text": "Counter target spell.\nWhen you cast this spell, overclock. (Exile the top three cards of your library. You may play them until end of turn.)",
   "rarity": "uncommon",
   "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u2014Dr. Malleus, Cult of Science"
 }
 ```
 
 **Changes made:**
-- Tilde (~) should be replaced with 'this spell'
-- Conditional 'if you overclocked this turn' is always true and meaningless
-- Flavor text has corrupted character instead of em dash
-- Too powerful for uncommon - unconditional 2-mana counter with upside
+- [
+- "
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- i
+- s
+-  
+- a
+-  
+- k
+- e
+- y
+- w
+- o
+- r
+- d
+-  
+- a
+- c
+- t
+- i
+- o
+- n
+-  
+- b
+- u
+- t
+-  
+- w
+- a
+- s
+-  
+- t
+- e
+- m
+- p
+- l
+- a
+- t
+- e
+- d
+-  
+- a
+- s
+-  
+- a
+- n
+-  
+- a
+- d
+- d
+- i
+- t
+- i
+- o
+- n
+- a
+- l
+-  
+- c
+- o
+- s
+- t
+- ,
+-  
+- c
+- r
+- e
+- a
+- t
+- i
+- n
+- g
+-  
+- a
+-  
+- r
+- u
+- l
+- e
+- s
+-  
+- m
+- i
+- s
+- m
+- a
+- t
+- c
+- h
+-  
+- s
+- i
+- n
+- c
+- e
+-  
+- k
+- e
+- y
+- w
+- o
+- r
+- d
+-  
+- a
+- c
+- t
+- i
+- o
+- n
+- s
+-  
+- a
+- r
+- e
+- n
+- '
+- t
+-  
+- s
+- t
+- r
+- u
+- c
+- t
+- u
+- r
+- e
+- d
+-  
+- a
+- s
+-  
+- c
+- o
+- s
+- t
+- s
+-  
+- a
+- n
+- d
+-  
+- t
+- h
+- e
+-  
+- '
+- m
+- a
+- y
+-  
+- p
+- l
+- a
+- y
+-  
+- u
+- n
+- t
+- i
+- l
+-  
+- e
+- n
+- d
+-  
+- o
+- f
+-  
+- t
+- u
+- r
+- n
+- '
+-  
+- p
+- e
+- r
+- m
+- i
+- s
+- s
+- i
+- o
+- n
+-  
+- d
+- o
+- e
+- s
+- n
+- '
+- t
+-  
+- f
+- i
+- t
+-  
+- a
+- s
+-  
+- p
+- a
+- r
+- t
+-  
+- o
+- f
+-  
+- a
+-  
+- c
+- o
+- s
+- t
+- .
+- "
+- ,
+-  
+- "
+- T
+- h
+- e
+-  
+- '
+- i
+- f
+-  
+- y
+- o
+- u
+-  
+- o
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+- e
+- d
+-  
+- t
+- h
+- i
+- s
+-  
+- t
+- u
+- r
+- n
+- '
+-  
+- c
+- o
+- n
+- d
+- i
+- t
+- i
+- o
+- n
+- a
+- l
+-  
+- i
+- s
+-  
+- a
+- l
+- w
+- a
+- y
+- s
+-  
+- t
+- r
+- u
+- e
+-  
+- s
+- i
+- n
+- c
+- e
+-  
+- o
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- i
+- s
+-  
+- m
+- a
+- n
+- d
+- a
+- t
+- o
+- r
+- y
+-  
+- o
+- n
+-  
+- t
+- h
+- i
+- s
+-  
+- s
+- p
+- e
+- l
+- l
+- ,
+-  
+- m
+- a
+- k
+- i
+- n
+- g
+-  
+- i
+- t
+-  
+- f
+- a
+- k
+- e
+-  
+- v
+- a
+- r
+- i
+- a
+- b
+- i
+- l
+- i
+- t
+- y
+-  
+- —
+-  
+- i
+- t
+-  
+- a
+- l
+- w
+- a
+- y
+- s
+-  
+- d
+- r
+- a
+- w
+- s
+-  
+- a
+-  
+- c
+- a
+- r
+- d
+- .
+- "
+- ,
+-  
+- "
+- A
+-  
+- {
+- 1
+- }
+- {
+- U
+- }
+-  
+- u
+- n
+- c
+- o
+- n
+- d
+- i
+- t
+- i
+- o
+- n
+- a
+- l
+-  
+- c
+- o
+- u
+- n
+- t
+- e
+- r
+- s
+- p
+- e
+- l
+- l
+-  
+- t
+- h
+- a
+- t
+-  
+- a
+- l
+- w
+- a
+- y
+- s
+-  
+- c
+- a
+- n
+- t
+- r
+- i
+- p
+- s
+-  
+- A
+- N
+- D
+-  
+- g
+- r
+- a
+- n
+- t
+- s
+-  
+- i
+- m
+- p
+- u
+- l
+- s
+- e
+-  
+- a
+- c
+- c
+- e
+- s
+- s
+-  
+- t
+- o
+-  
+- 3
+-  
+- c
+- a
+- r
+- d
+- s
+-  
+- i
+- s
+-  
+- m
+- a
+- s
+- s
+- i
+- v
+- e
+- l
+- y
+-  
+- a
+- b
+- o
+- v
+- e
+-  
+- r
+- a
+- t
+- e
+- ,
+-  
+- s
+- t
+- r
+- o
+- n
+- g
+- e
+- r
+-  
+- t
+- h
+- a
+- n
+-  
+- m
+- o
+- s
+- t
+-  
+- r
+- a
+- r
+- e
+-  
+- c
+- o
+- u
+- n
+- t
+- e
+- r
+- s
+- p
+- e
+- l
+- l
+- s
+- .
+- "
+- ,
+-  
+- "
+- F
+- l
+- a
+- v
+- o
+- r
+-  
+- t
+- e
+- x
+- t
+-  
+- h
+- a
+- s
+-  
+- e
+- n
+- c
+- o
+- d
+- i
+- n
+- g
+-  
+- c
+- o
+- r
+- r
+- u
+- p
+- t
+- i
+- o
+- n
+- :
+-  
+- '
+- â
+- €
+- "
+- '
+-  
+- s
+- h
+- o
+- u
+- l
+- d
+-  
+- b
+- e
+-  
+- a
+- n
+-  
+- e
+- m
+-  
+- d
+- a
+- s
+- h
+-  
+- (
+- —
+- )
+- .
+- "
+- ]
 
 ## D) Cost
 
 - API calls: 4
-- Input tokens: 4035
-- Output tokens: 1509
-- Cost: $0.1737
+- Input tokens: 4689
+- Output tokens: 1980
+- Cost: $0.0729

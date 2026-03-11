@@ -10,7 +10,7 @@
   "colors": [
     "G"
   ],
-  "type_line": "Creature \u00ef\u00bf\u00bd Human Scout",
+  "type_line": "Creature \u00e2\u20ac\u201d Human Scout",
   "oracle_text": "When ~ dies, salvage 3.",
   "power": "2",
   "toughness": "1",
@@ -48,7 +48,7 @@
 > Card to review:
 > Name: Undergrowth Scrounger
 > Mana Cost: {1}{G}
-> Type: Creature ï¿½ Human Scout
+> Type: Creature â€” Human Scout
 > Rarity: common
 > Oracle Text: When ~ dies, salvage 3.
 > P/T: 2/1
@@ -61,23 +61,19 @@
 {
   "changed": true,
   "verdict": "REVISED",
-  "issues_found": [
-    "Salvage 3 is above the common scaling guidelines (should be 2-3)",
-    "Type line has encoding issue with corrupted character",
-    "Power/toughness may be slightly pushed for a 2-mana common with upside"
-  ],
+  "issues_found": "[\"Salvage scaling violation: Salvage 3 is defined as uncommon-level (4-5 at uncommon, 2-3 at common). Salvage 3 sits at the top of the common range, which is technically allowed, but the trigger condition (on death) makes this significantly harder to control than a static or ETB trigger, which arguably warrants keeping it at Salvage 2 for common to avoid power/complexity creep.\", \"Trigger timing concern: A death trigger on a 2/1 for {1}{G} that replaces itself with an artifact from the top 3 cards is quite efficient. Salvage 2 is the safer and more appropriate common rate for a death-trigger payoff on a statted-up body.\", \"Type line encoding issue: 'Creature \u00e2\u20ac\" Human Scout' contains a mojibake/encoding artifact (\u00e2\u20ac\") instead of the correct em-dash (\u2014). Type line should read 'Creature \u2014 Human Scout'.\"]",
   "name": "Undergrowth Scrounger",
   "mana_cost": "{1}{G}",
   "type_line": "Creature \u2014 Human Scout",
-  "oracle_text": "When Undergrowth Scrounger dies, salvage 2.",
+  "oracle_text": "When Undergrowth Scrounger dies, salvage 2. (Look at the top two cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+  "rarity": "common",
   "power": "2",
   "toughness": "1",
-  "rarity": "common",
   "flavor_text": "She knew every rust-eaten ruin in the wilderness. The wilderness, unfortunately, knew her too."
 }
 ```
 
-*Tokens: 1089 in / 318 out — $0.0080*
+*Tokens: 1360 in / 524 out — $0.0119*
 
 ### Step 2: Iteration 2
 
@@ -105,7 +101,7 @@
 > Mana Cost: {1}{G}
 > Type: Creature — Human Scout
 > Rarity: common
-> Oracle Text: When Undergrowth Scrounger dies, salvage 2.
+> Oracle Text: When Undergrowth Scrounger dies, salvage 2. (Look at the top two cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)
 > P/T: 2/1
 > Flavor Text: She knew every rust-eaten ruin in the wilderness. The wilderness, unfortunately, knew her too.
 > 
@@ -120,15 +116,15 @@
   "name": "Undergrowth Scrounger",
   "mana_cost": "{1}{G}",
   "type_line": "Creature \u2014 Human Scout",
-  "oracle_text": "When Undergrowth Scrounger dies, salvage 2.",
+  "oracle_text": "When Undergrowth Scrounger dies, salvage 2. (Look at the top two cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+  "rarity": "common",
   "power": "2",
   "toughness": "1",
-  "rarity": "common",
   "flavor_text": "She knew every rust-eaten ruin in the wilderness. The wilderness, unfortunately, knew her too."
 }
 ```
 
-*Tokens: 1091 in / 264 out — $0.0072*
+*Tokens: 1402 in / 302 out — $0.0087*
 
 ## C) Revised Card
 
@@ -140,6 +136,6 @@ No changes (OK)
 ## D) Cost
 
 - API calls: 2
-- Input tokens: 2180
-- Output tokens: 582
-- Cost: $0.0153
+- Input tokens: 2762
+- Output tokens: 826
+- Cost: $0.0207

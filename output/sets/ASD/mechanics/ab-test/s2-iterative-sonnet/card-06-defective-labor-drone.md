@@ -10,7 +10,7 @@
   "colors": [
     "W"
   ],
-  "type_line": "Artifact Creature \u00ef\u00bf\u00bd Automaton",
+  "type_line": "Artifact Creature \u00e2\u20ac\u201d Automaton",
   "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)",
   "power": "3",
   "toughness": "2",
@@ -18,7 +18,7 @@
   "keywords": [
     "Malfunction"
   ],
-  "flavor_text": "\"It keeps trying to mine the ceiling. We've explained gravity to it seventeen times.\" \u00ef\u00bf\u00bdForeman Krix"
+  "flavor_text": "\"It keeps trying to mine the ceiling. We've explained gravity to it seventeen times.\" \u00e2\u20ac\u201dForeman Krix"
 }
 ```
 
@@ -48,11 +48,11 @@
 > Card to review:
 > Name: Defective Labor Drone
 > Mana Cost: {1}{W}
-> Type: Artifact Creature ï¿½ Automaton
+> Type: Artifact Creature â€” Automaton
 > Rarity: common
 > Oracle Text: Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)
 > P/T: 3/2
-> Flavor Text: "It keeps trying to mine the ceiling. We've explained gravity to it seventeen times." ï¿½Foreman Krix
+> Flavor Text: "It keeps trying to mine the ceiling. We've explained gravity to it seventeen times." â€”Foreman Krix
 > 
 > Critically review this card and provide an improved version based on your findings. If the card is fine, return it unchanged with verdict OK.
 
@@ -61,22 +61,19 @@
 {
   "changed": true,
   "verdict": "REVISED",
-  "issues_found": [
-    "Corrupted character encoding in type line and flavor text",
-    "Missing em dash in flavor text attribution"
-  ],
+  "issues_found": "[\"Encoding artifact: Type line contains '\u00e2\u20ac\"' instead of the proper em dash '\u2014'.\", \"Malfunction 1 scaling check: N=1 is correct for common rarity \u2014 OK.\", \"Color check: White is listed as a valid color for Malfunction \u2014 OK.\", \"Complexity check: Malfunction is Complexity 2; common rarity is allowed per design notes \u2014 OK.\", \"Stats check: 3/2 for {1}{W} with an enters-tapped drawback is intentionally above-rate per Malfunction design note \u2014 OK. However, a vanilla 3/2 for {1}{W} with only Malfunction 1 (i.e., only tapped for one turn) is arguably too strong even with the drawback. A {1}{W} creature is typically a 2/2 or 2/1 at common. With Malfunction 1 (only one missed attack/block), a 3/2 body is extremely pushed \u2014 this is a Savannah Lions that's just tapped on entry. Consider reducing to 3/1 or 2/2 to preserve balance without neutering the mechanic showcase.\", \"Oracle text: Reminder text is present and correctly matches the Malfunction mechanic definition \u2014 OK.\"]",
   "name": "Defective Labor Drone",
   "mana_cost": "{1}{W}",
   "type_line": "Artifact Creature \u2014 Automaton",
   "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)",
-  "power": "3",
-  "toughness": "2",
   "rarity": "common",
+  "power": "3",
+  "toughness": "1",
   "flavor_text": "\"It keeps trying to mine the ceiling. We've explained gravity to it seventeen times.\" \u2014Foreman Krix"
 }
 ```
 
-*Tokens: 1128 in / 316 out — $0.0081*
+*Tokens: 1397 in / 580 out — $0.0129*
 
 ### Step 2: Iteration 2
 
@@ -105,7 +102,7 @@
 > Type: Artifact Creature — Automaton
 > Rarity: common
 > Oracle Text: Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)
-> P/T: 3/2
+> P/T: 3/1
 > Flavor Text: "It keeps trying to mine the ceiling. We've explained gravity to it seventeen times." —Foreman Krix
 > 
 > Critically review this card and provide an improved version based on your findings. If the card is fine, return it unchanged with verdict OK.
@@ -120,14 +117,14 @@
   "mana_cost": "{1}{W}",
   "type_line": "Artifact Creature \u2014 Automaton",
   "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)",
-  "power": "3",
-  "toughness": "2",
   "rarity": "common",
+  "power": "3",
+  "toughness": "1",
   "flavor_text": "\"It keeps trying to mine the ceiling. We've explained gravity to it seventeen times.\" \u2014Foreman Krix"
 }
 ```
 
-*Tokens: 1119 in / 294 out — $0.0078*
+*Tokens: 1393 in / 294 out — $0.0086*
 
 ## C) Revised Card
 
@@ -139,6 +136,6 @@ No changes (OK)
 ## D) Cost
 
 - API calls: 2
-- Input tokens: 2247
-- Output tokens: 610
-- Cost: $0.0159
+- Input tokens: 2790
+- Output tokens: 874
+- Cost: $0.0215

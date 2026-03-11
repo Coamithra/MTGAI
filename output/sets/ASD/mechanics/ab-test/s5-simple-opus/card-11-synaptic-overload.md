@@ -16,7 +16,7 @@
   "keywords": [
     "Overclock"
   ],
-  "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u00ef\u00bf\u00bdDr. Malleus, Cult of Science"
+  "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u00e2\u20ac\u201dDr. Malleus, Cult of Science"
 }
 ```
 
@@ -50,7 +50,7 @@
 > Rarity: uncommon
 > Oracle Text: As an additional cost to cast ~, overclock. (Exile the top three cards of your library. You may play them until end of turn.)
 > Counter target spell. If you overclocked this turn, draw a card.
-> Flavor Text: "The prototype neural interface worked perfectly. The subject's brain, however, did not." ï¿½Dr. Malleus, Cult of Science
+> Flavor Text: "The prototype neural interface worked perfectly. The subject's brain, however, did not." â€”Dr. Malleus, Cult of Science
 > 
 > Critically review this card and provide an improved version based on your findings. If the card is fine, return it unchanged with verdict OK.
 
@@ -58,48 +58,46 @@
 ```json
 {
   "changed": true,
-  "verdict": "UNFIXABLE",
+  "verdict": "REVISED",
   "issues_found": [
-    "The card fundamentally misunderstands how overclock works - it's not a cost but an action that happens when you cast the spell",
-    "The 'if you overclocked this turn' condition doesn't make sense since overclock happens as part of casting this spell",
-    "The wording 'As an additional cost to cast ~, overclock' is incorrect templating for a keyword action",
-    "The card needs to be redesigned to properly integrate the overclock mechanic"
+    "Overclock is a keyword action, not a keyword ability. It should not be used as 'an additional cost to cast' \u2014 keyword actions are performed as part of an effect, not as costs. The current templating treats it like an additional cost, but the reminder text says 'You may play them until end of turn,' which is an effect, not a cost structure. It should be written as a spell effect that instructs you to overclock.",
+    "The conditional 'If you overclocked this turn' is awkward and has no clean rules meaning \u2014 overclock exiles cards and lets you play them, but there's no game state marker for 'having overclocked.' This needs to be restructured so the overclock happens as part of the spell's resolution, and the draw is a natural follow-up.",
+    "At {1}{U} for an unconditional counterspell + overclock (exile 3, play them until end of turn) + draw a card, this is significantly above rate. Cancel is {1}{U}{U} for a vanilla counter. Even at uncommon, a 2-mana hard counter that also generates card advantage (draw + access to 3 exiled cards) is too strong. Bumping to {1}{U}{U} is appropriate.",
+    "Minor: Flavor text has encoding artifacts (\u00e2\u20ac\" instead of em dash). Should use proper em dash (\u2014)."
   ],
   "name": "Synaptic Overload",
-  "mana_cost": "{1}{U}",
+  "mana_cost": "{1}{U}{U}",
   "type_line": "Instant",
-  "oracle_text": "As an additional cost to cast ~, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nCounter target spell. If you overclocked this turn, draw a card.",
+  "oracle_text": "Counter target spell. Overclock, then draw a card. (Exile the top three cards of your library. You may play them until end of turn.)",
   "rarity": "uncommon",
-  "power": null,
-  "toughness": null,
   "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u2014Dr. Malleus, Cult of Science"
 }
 ```
 
-*Tokens: 1123 in / 416 out — $0.0480*
+*Tokens: 1394 in / 558 out — $0.0209*
 
 ## C) Revised Card
 
 ```json
 {
   "name": "Synaptic Overload",
-  "mana_cost": "{1}{U}",
+  "mana_cost": "{1}{U}{U}",
   "type_line": "Instant",
-  "oracle_text": "As an additional cost to cast ~, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nCounter target spell. If you overclocked this turn, draw a card.",
+  "oracle_text": "Counter target spell. Overclock, then draw a card. (Exile the top three cards of your library. You may play them until end of turn.)",
   "rarity": "uncommon",
   "flavor_text": "\"The prototype neural interface worked perfectly. The subject's brain, however, did not.\" \u2014Dr. Malleus, Cult of Science"
 }
 ```
 
 **Changes made:**
-- The card fundamentally misunderstands how overclock works - it's not a cost but an action that happens when you cast the spell
-- The 'if you overclocked this turn' condition doesn't make sense since overclock happens as part of casting this spell
-- The wording 'As an additional cost to cast ~, overclock' is incorrect templating for a keyword action
-- The card needs to be redesigned to properly integrate the overclock mechanic
+- Overclock is a keyword action, not a keyword ability. It should not be used as 'an additional cost to cast' — keyword actions are performed as part of an effect, not as costs. The current templating treats it like an additional cost, but the reminder text says 'You may play them until end of turn,' which is an effect, not a cost structure. It should be written as a spell effect that instructs you to overclock.
+- The conditional 'If you overclocked this turn' is awkward and has no clean rules meaning — overclock exiles cards and lets you play them, but there's no game state marker for 'having overclocked.' This needs to be restructured so the overclock happens as part of the spell's resolution, and the draw is a natural follow-up.
+- At {1}{U} for an unconditional counterspell + overclock (exile 3, play them until end of turn) + draw a card, this is significantly above rate. Cancel is {1}{U}{U} for a vanilla counter. Even at uncommon, a 2-mana hard counter that also generates card advantage (draw + access to 3 exiled cards) is too strong. Bumping to {1}{U}{U} is appropriate.
+- Minor: Flavor text has encoding artifacts (â€" instead of em dash). Should use proper em dash (—).
 
 ## D) Cost
 
 - API calls: 1
-- Input tokens: 1123
-- Output tokens: 416
-- Cost: $0.0480
+- Input tokens: 1394
+- Output tokens: 558
+- Cost: $0.0209

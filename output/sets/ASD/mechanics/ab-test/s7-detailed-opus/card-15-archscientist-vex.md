@@ -11,7 +11,7 @@
     "U",
     "R"
   ],
-  "type_line": "Legendary Creature \u00ef\u00bf\u00bd Human Scientist",
+  "type_line": "Legendary Creature \u00e2\u20ac\u201d Human Scientist",
   "oracle_text": "Flying\nCards exiled with overclock (exile the top three cards of your library, you may play them until end of turn) cost {2} less to cast.\nWhenever you cast a spell exiled with overclock, copy it. You may choose new targets for the copy.",
   "power": "3",
   "toughness": "4",
@@ -50,7 +50,7 @@
 > Card to review:
 > Name: Archscientist Vex, the Unbound
 > Mana Cost: {2}{U}{R}
-> Type: Legendary Creature ï¿½ Human Scientist
+> Type: Legendary Creature â€” Human Scientist
 > Rarity: mythic
 > Oracle Text: Flying
 > Cards exiled with overclock (exile the top three cards of your library, you may play them until end of turn) cost {2} less to cast.
@@ -85,58 +85,54 @@
 > Provide your detailed analysis for each criterion.
 
 **Response:**
-> ## Card Review: Archscientist Vex, the Unbound
+> # Card Review: Archscientist Vex, the Unbound
 > 
-> ### Templating & Rules Text:
-> **ISSUE** - The overclock reminder text needs proper punctuation and capitalization. It should read: "(Exile the top three cards of your library. You may play them until end of turn.)" with a period after "turn" and capital "E" at the start.
+> ## Templating & Rules Text
 > 
-> **ISSUE** - The cost reduction ability needs clearer templating. Current Oracle text would be: "Spells you cast from among cards exiled with overclock cost {2} less to cast." The current wording "Cards exiled with overclock" is ambiguous about when the cost reduction applies.
+> **Oracle text validity:** ISSUE — The card has a significant templating problem. Overclock is defined as a keyword *action* (something you actively do), but the card never actually instructs you to perform it. The text "Cards exiled with overclock" references the results of overclocking, but there's no ability that says "Overclock" as an action. Compare to how a card like Prosper, Tome-Bound works: it has a triggered ability that exiles cards, then a separate ability that triggers off playing them. Vex needs an activated or triggered ability that says something like "At the beginning of your upkeep, overclock" or "{T}: Overclock." As written, the cost reduction and copy abilities are dead text because no overclock ever happens from this card alone. The card is essentially a 3/4 flyer for 4 that does nothing else unless you have *other* overclock cards — which is a bizarre mythic design. This needs a fundamental restructure.
 > 
-> **PASS** - Capitalization is otherwise consistent
-> **PASS** - Uses current templating standards
+> **Reminder text on first use:** PASS — Overclock has reminder text on its first appearance in the oracle text.
 > 
-> ### Keyword Interactions:
-> **PASS** - Flying works independently of other abilities
-> **PASS** - No conflicting or negated keywords present
-> **PASS** - The overclock trigger condition can naturally be false (when you're not casting from overclock exile)
+> **Capitalization:** ISSUE — "overclock" in the second ability ("Whenever you cast a spell exiled with overclock") should maintain consistent formatting. More critically, the reminder text is parenthetical inside the first ability in a way that's extremely awkward to parse. The reminder text for the keyword action should appear after the ability that *performs* the overclock, not embedded in a static ability that references its results.
 > 
-> ### Balance:
-> **CONCERNING** - This is extremely powerful for 4 mana at mythic. Let me compare:
+> **Current templating:** PASS — No "enters the battlefield" issues present.
 > 
-> - **Feather, the Redeemed** (1RW, 3/4 flying) - Similar stats but provides card advantage differently
-> - **Niv-Mizzet, Parun** (UUURRR, 5/5 flying) - More expensive but similar "value engine" role
-> - **Arclight Phoenix** (3R, 3/2 flying haste) - Less immediate impact
+> ## Keyword Interactions
 > 
-> Vex provides:
-> 1. Efficient 3/4 flying body for 4 mana
-> 2. Cost reduction on overclocked spells (effectively ramping 2 mana per spell)
-> 3. Free copies of every overclocked spell
+> **Negated/useless keywords:** PASS — Flying is independently useful and not contradicted.
 > 
-> This is likely too strong. Playing 3 spells from overclock with Vex out generates 6 mana of discount AND 3 free spell copies. This seems above the power level of most 4-mana mythics.
+> **Conditional abilities:** ISSUE — As discussed above, the condition "exiled with overclock" can *never be true* from this card's own abilities. If the intent is to synergize with other overclock cards in the deck, this is a build-around payoff, not a self-contained mythic legend. This needs to be flagged either way.
 > 
-> ### Design:
-> **PASS** - Has a focused purpose: overclock synergy commander
-> **PASS** - Creates interesting decisions about when to overclock and sequencing
-> **MINOR ISSUE** - The combination of cost reduction AND copying might be one effect too many for clean gameplay
+> ## Balance
 > 
-> ### Color Pie:
-> **PASS** - Flying is primary in blue
-> **PASS** - Cost reduction is primary in blue
-> **PASS** - Copying spells is primary in blue/red
-> **PASS** - The overclock synergy fits the UR spellslinger identity
+> **Power level assessment:** CRITICAL ISSUE — If we assume the card is redesigned to actually grant overclock (e.g., "At the beginning of combat on your turn, overclock"), the combination of {2} cost reduction AND copying every spell cast from exile is *extremely* pushed. Let's compare:
 > 
-> ### Additional Notes:
-> 1. This card essentially demands you build around overclock, which is good for a mythic legendary
-> 2. The memory issues of tracking which exiled cards get the discount could be problematic in paper
-> 3. Consider if both the cost reduction AND copying are necessary - one might be sufficient for an exciting build-around
+> - **Mizzix of the Izmagnus** (4 mana UR legend): Cost reduction that builds gradually and requires setup.
+> - **Double Vision** (5 mana, enchantment): Copies first instant/sorcery per turn, once only.
+> - **Prosper, Tome-Bound** (4 mana): Exiles one card per turn, generates one treasure — modest incremental value.
 > 
-> ### Recommendation:
-> The card needs templating fixes and is likely too powerful. Consider either:
-> - Removing the cost reduction and keeping just the copy effect
-> - Increasing the mana cost to {3}{U}{R} 
-> - Making the copy effect triggered only once per turn
+> Vex would overclock (3 cards exiled), reduce their costs by {2} each, AND copy every single one. That's potentially casting 3 spells at massive discounts with free copies in a single turn — six effective spells. This is a repeatable, game-ending engine at 4 mana on a body with evasion. Even at mythic, this is far beyond rate. The copy ability should at minimum be limited to "the first spell you cast from exile each turn" or the cost reduction should be removed entirely.
+> 
+> **3/4 flying body:** The stats alone are reasonable for {2}{U}{R}, which makes the suite of abilities feel like pure upside stapled onto an already-playable creature.
+> 
+> ## Design
+> 
+> **Focused purpose vs. kitchen sink:** ISSUE — The card has four distinct elements: flying, cost reduction for overclock, copying overclock spells, and (implicitly needed) an overclock source. The cost reduction and copying are thematically linked but mechanically they stack into a degenerate combo rather than creating tension. There's no interesting decision point — you always overclock, you always cast everything you can, and everything gets copied. There is no reason to *not* do any of these things.
+> 
+> **Gameplay decisions:** ISSUE — The card lacks meaningful tension. Compare to Prosper, where you must decide whether to play the exiled card or your hand cards. Here, cost reduction actively removes the tension overclock is supposed to create (risk of losing cards you can't afford).
+> 
+> ## Color Pie
+> 
+> **Flying:** PASS — Appropriate for U/R.
+> **Cost reduction:** PASS — Blue and red both get cost reduction.
+> **Copying spells:** PASS — Core red/blue (Izzet) territory.
+> **Overclock (impulse draw):** PASS — U/R per design notes.
+> 
+> ## Summary
+> 
+> **This card needs a redesign.** The two most critical issues are: (1) it never actually performs overclock, making most of its text non-functional in isolation, and (2) if it did overclock, the combination of cost reduction plus unconditional copying on a repeatable engine creates a power level far exceeding mythic norms at four mana. I'd recommend adding a triggered overclock ability, removing the cost reduction, and limiting the copy to once per turn.
 
-*Tokens: 835 in / 733 out — $0.0675*
+*Tokens: 832 in / 1179 out — $0.0336*
 
 ### Step 2: Submit revised card based on review
 
@@ -146,7 +142,7 @@
 > Original card:
 > Name: Archscientist Vex, the Unbound
 > Mana Cost: {2}{U}{R}
-> Type: Legendary Creature ï¿½ Human Scientist
+> Type: Legendary Creature â€” Human Scientist
 > Rarity: mythic
 > Oracle Text: Flying
 > Cards exiled with overclock (exile the top three cards of your library, you may play them until end of turn) cost {2} less to cast.
@@ -155,79 +151,76 @@
 > Flavor Text: "I have transcended the limitations of sanity, safety, and the laws of thermodynamics."
 > 
 > Review findings:
-> ## Card Review: Archscientist Vex, the Unbound
+> # Card Review: Archscientist Vex, the Unbound
 > 
-> ### Templating & Rules Text:
-> **ISSUE** - The overclock reminder text needs proper punctuation and capitalization. It should read: "(Exile the top three cards of your library. You may play them until end of turn.)" with a period after "turn" and capital "E" at the start.
+> ## Templating & Rules Text
 > 
-> **ISSUE** - The cost reduction ability needs clearer templating. Current Oracle text would be: "Spells you cast from among cards exiled with overclock cost {2} less to cast." The current wording "Cards exiled with overclock" is ambiguous about when the cost reduction applies.
+> **Oracle text validity:** ISSUE — The card has a significant templating problem. Overclock is defined as a keyword *action* (something you actively do), but the card never actually instructs you to perform it. The text "Cards exiled with overclock" references the results of overclocking, but there's no ability that says "Overclock" as an action. Compare to how a card like Prosper, Tome-Bound works: it has a triggered ability that exiles cards, then a separate ability that triggers off playing them. Vex needs an activated or triggered ability that says something like "At the beginning of your upkeep, overclock" or "{T}: Overclock." As written, the cost reduction and copy abilities are dead text because no overclock ever happens from this card alone. The card is essentially a 3/4 flyer for 4 that does nothing else unless you have *other* overclock cards — which is a bizarre mythic design. This needs a fundamental restructure.
 > 
-> **PASS** - Capitalization is otherwise consistent
-> **PASS** - Uses current templating standards
+> **Reminder text on first use:** PASS — Overclock has reminder text on its first appearance in the oracle text.
 > 
-> ### Keyword Interactions:
-> **PASS** - Flying works independently of other abilities
-> **PASS** - No conflicting or negated keywords present
-> **PASS** - The overclock trigger condition can naturally be false (when you're not casting from overclock exile)
+> **Capitalization:** ISSUE — "overclock" in the second ability ("Whenever you cast a spell exiled with overclock") should maintain consistent formatting. More critically, the reminder text is parenthetical inside the first ability in a way that's extremely awkward to parse. The reminder text for the keyword action should appear after the ability that *performs* the overclock, not embedded in a static ability that references its results.
 > 
-> ### Balance:
-> **CONCERNING** - This is extremely powerful for 4 mana at mythic. Let me compare:
+> **Current templating:** PASS — No "enters the battlefield" issues present.
 > 
-> - **Feather, the Redeemed** (1RW, 3/4 flying) - Similar stats but provides card advantage differently
-> - **Niv-Mizzet, Parun** (UUURRR, 5/5 flying) - More expensive but similar "value engine" role
-> - **Arclight Phoenix** (3R, 3/2 flying haste) - Less immediate impact
+> ## Keyword Interactions
 > 
-> Vex provides:
-> 1. Efficient 3/4 flying body for 4 mana
-> 2. Cost reduction on overclocked spells (effectively ramping 2 mana per spell)
-> 3. Free copies of every overclocked spell
+> **Negated/useless keywords:** PASS — Flying is independently useful and not contradicted.
 > 
-> This is likely too strong. Playing 3 spells from overclock with Vex out generates 6 mana of discount AND 3 free spell copies. This seems above the power level of most 4-mana mythics.
+> **Conditional abilities:** ISSUE — As discussed above, the condition "exiled with overclock" can *never be true* from this card's own abilities. If the intent is to synergize with other overclock cards in the deck, this is a build-around payoff, not a self-contained mythic legend. This needs to be flagged either way.
 > 
-> ### Design:
-> **PASS** - Has a focused purpose: overclock synergy commander
-> **PASS** - Creates interesting decisions about when to overclock and sequencing
-> **MINOR ISSUE** - The combination of cost reduction AND copying might be one effect too many for clean gameplay
+> ## Balance
 > 
-> ### Color Pie:
-> **PASS** - Flying is primary in blue
-> **PASS** - Cost reduction is primary in blue
-> **PASS** - Copying spells is primary in blue/red
-> **PASS** - The overclock synergy fits the UR spellslinger identity
+> **Power level assessment:** CRITICAL ISSUE — If we assume the card is redesigned to actually grant overclock (e.g., "At the beginning of combat on your turn, overclock"), the combination of {2} cost reduction AND copying every spell cast from exile is *extremely* pushed. Let's compare:
 > 
-> ### Additional Notes:
-> 1. This card essentially demands you build around overclock, which is good for a mythic legendary
-> 2. The memory issues of tracking which exiled cards get the discount could be problematic in paper
-> 3. Consider if both the cost reduction AND copying are necessary - one might be sufficient for an exciting build-around
+> - **Mizzix of the Izmagnus** (4 mana UR legend): Cost reduction that builds gradually and requires setup.
+> - **Double Vision** (5 mana, enchantment): Copies first instant/sorcery per turn, once only.
+> - **Prosper, Tome-Bound** (4 mana): Exiles one card per turn, generates one treasure — modest incremental value.
 > 
-> ### Recommendation:
-> The card needs templating fixes and is likely too powerful. Consider either:
-> - Removing the cost reduction and keeping just the copy effect
-> - Increasing the mana cost to {3}{U}{R} 
-> - Making the copy effect triggered only once per turn
+> Vex would overclock (3 cards exiled), reduce their costs by {2} each, AND copy every single one. That's potentially casting 3 spells at massive discounts with free copies in a single turn — six effective spells. This is a repeatable, game-ending engine at 4 mana on a body with evasion. Even at mythic, this is far beyond rate. The copy ability should at minimum be limited to "the first spell you cast from exile each turn" or the cost reduction should be removed entirely.
+> 
+> **3/4 flying body:** The stats alone are reasonable for {2}{U}{R}, which makes the suite of abilities feel like pure upside stapled onto an already-playable creature.
+> 
+> ## Design
+> 
+> **Focused purpose vs. kitchen sink:** ISSUE — The card has four distinct elements: flying, cost reduction for overclock, copying overclock spells, and (implicitly needed) an overclock source. The cost reduction and copying are thematically linked but mechanically they stack into a degenerate combo rather than creating tension. There's no interesting decision point — you always overclock, you always cast everything you can, and everything gets copied. There is no reason to *not* do any of these things.
+> 
+> **Gameplay decisions:** ISSUE — The card lacks meaningful tension. Compare to Prosper, where you must decide whether to play the exiled card or your hand cards. Here, cost reduction actively removes the tension overclock is supposed to create (risk of losing cards you can't afford).
+> 
+> ## Color Pie
+> 
+> **Flying:** PASS — Appropriate for U/R.
+> **Cost reduction:** PASS — Blue and red both get cost reduction.
+> **Copying spells:** PASS — Core red/blue (Izzet) territory.
+> **Overclock (impulse draw):** PASS — U/R per design notes.
+> 
+> ## Summary
+> 
+> **This card needs a redesign.** The two most critical issues are: (1) it never actually performs overclock, making most of its text non-functional in isolation, and (2) if it did overclock, the combination of cost reduction plus unconditional copying on a repeatable engine creates a power level far exceeding mythic norms at four mana. I'd recommend adding a triggered overclock ability, removing the cost reduction, and limiting the copy to once per turn.
 
 **Tool call result:**
 ```json
 {
-  "name": "Archscientist Vex, the Unbound",
-  "mana_cost": "{2}{U}{R}",
-  "type_line": "Legendary Creature \u2014 Human Scientist",
-  "oracle_text": "Flying\nSpells you cast from among cards exiled with overclock cost {2} less to cast. (Exile the top three cards of your library. You may play them until end of turn.)\nWhenever you cast a spell from among cards exiled with overclock, copy it. You may choose new targets for the copy.",
-  "power": "3",
-  "toughness": "4",
-  "rarity": "mythic",
-  "flavor_text": "I have transcended the limitations of sanity, safety, and the laws of thermodynamics.",
   "changed": true,
   "verdict": "REVISED",
   "issues_found": [
-    "Overclock reminder text needed proper punctuation and capitalization",
-    "Cost reduction ability needed clearer templating to specify 'Spells you cast from among cards exiled with overclock'",
-    "Copy trigger needed similar templating update for clarity"
-  ]
+    "Overclock is defined as a keyword action but the card never instructs you to perform it \u2014 no triggered or activated ability says 'overclock', making the cost reduction and copy abilities dead text in isolation.",
+    "Reminder text for overclock is awkwardly embedded inside a static ability rather than after the ability that performs the overclock action.",
+    "If overclock were added, the combination of {2} cost reduction AND unconditional copying of every spell cast from exile is extremely pushed for 4 mana \u2014 far beyond rate even at mythic.",
+    "Card lacks meaningful gameplay tension: cost reduction removes the risk/reward inherent in overclock's temporary exile, and there's no decision point since you always want to cast and copy everything."
+  ],
+  "name": "Archscientist Vex, the Unbound",
+  "mana_cost": "{2}{U}{R}",
+  "type_line": "Legendary Creature \u2014 Human Scientist",
+  "oracle_text": "Flying\nAt the beginning of combat on your turn, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nWhenever you cast the first spell each turn from among cards you own in exile, copy it. You may choose new targets for the copy.",
+  "rarity": "mythic",
+  "power": "3",
+  "toughness": "4",
+  "flavor_text": "\"I have transcended the limitations of sanity, safety, and the laws of thermodynamics.\""
 }
 ```
 
-*Tokens: 1573 in / 384 out — $0.0524*
+*Tokens: 2288 in / 480 out — $0.0234*
 
 ## C) Revised Card
 
@@ -236,22 +229,23 @@
   "name": "Archscientist Vex, the Unbound",
   "mana_cost": "{2}{U}{R}",
   "type_line": "Legendary Creature \u2014 Human Scientist",
-  "oracle_text": "Flying\nSpells you cast from among cards exiled with overclock cost {2} less to cast. (Exile the top three cards of your library. You may play them until end of turn.)\nWhenever you cast a spell from among cards exiled with overclock, copy it. You may choose new targets for the copy.",
+  "oracle_text": "Flying\nAt the beginning of combat on your turn, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nWhenever you cast the first spell each turn from among cards you own in exile, copy it. You may choose new targets for the copy.",
   "rarity": "mythic",
   "power": "3",
   "toughness": "4",
-  "flavor_text": "I have transcended the limitations of sanity, safety, and the laws of thermodynamics."
+  "flavor_text": "\"I have transcended the limitations of sanity, safety, and the laws of thermodynamics.\""
 }
 ```
 
 **Changes made:**
-- Overclock reminder text needed proper punctuation and capitalization
-- Cost reduction ability needed clearer templating to specify 'Spells you cast from among cards exiled with overclock'
-- Copy trigger needed similar templating update for clarity
+- Overclock is defined as a keyword action but the card never instructs you to perform it — no triggered or activated ability says 'overclock', making the cost reduction and copy abilities dead text in isolation.
+- Reminder text for overclock is awkwardly embedded inside a static ability rather than after the ability that performs the overclock action.
+- If overclock were added, the combination of {2} cost reduction AND unconditional copying of every spell cast from exile is extremely pushed for 4 mana — far beyond rate even at mythic.
+- Card lacks meaningful gameplay tension: cost reduction removes the risk/reward inherent in overclock's temporary exile, and there's no decision point since you always want to cast and copy everything.
 
 ## D) Cost
 
 - API calls: 2
-- Input tokens: 2408
-- Output tokens: 1117
-- Cost: $0.1199
+- Input tokens: 3120
+- Output tokens: 1659
+- Cost: $0.0571

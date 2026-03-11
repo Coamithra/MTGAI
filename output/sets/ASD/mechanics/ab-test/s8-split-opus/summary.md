@@ -2,7 +2,7 @@
 
 ## Description
 
-Three separate review passes (templating, mechanics, balance) followed by a single revision call combining all feedback. Four API calls per card. Using Opus.
+Three separate review passes (templating, mechanics, balance) followed by a single revision call combining all feedback. Four API calls per card. Using Opus 4.6.
 
 ## Quick Results
 
@@ -13,28 +13,33 @@ Three separate review passes (templating, mechanics, balance) followed by a sing
 
 | Card | Verdict | Issues Found | Changed | Cost |
 |------|---------|-------------|---------|------|
-| 2. Undergrowth Scrounger | OK | None | No | $0.1313 |
-| 5. Subsurface Expedition Leader | REVISED | Missing reminder text for salvage mechanic; Encoding issue with creature type line (contained garbled characters); Ca... | Yes | $0.1655 |
-| 6. Defective Labor Drone | REVISED | Character encoding errors in type line and flavor text attribution; Incorrect punctuation in malfunction reminder tex... | Yes | $0.1414 |
-| 7. Unstable Welding Unit | REVISED | Missing reminder text for Malfunction; Character encoding error in type line; Keyword nonbo between haste and Malfunc... | Yes | $0.1462 |
-| 11. Synaptic Overload | REVISED | Tilde (~) should be replaced with 'this spell'; Conditional 'if you overclocked this turn' is always true and meaning... | Yes | $0.1737 |
-| 14. Cascade Protocol | REVISED | Missing reminder text on first overclock instance; Incorrect self-reference with ~ in damage clause; Pseudo-variable ... | Yes | $0.1699 |
-| 15. Archscientist Vex, the Unbound | REVISED | Incorrect templating of overclock reminder text in oracle text; Reminder text should not appear on mythic rare cards;... | Yes | $0.1806 |
+| 2. Undergrowth Scrounger | REVISED | Missing reminder text for salvage keyword. Custom mechanics must include reminder text in parentheses on first use. T... | Yes | $0.0534 |
+| 5. Subsurface Expedition Leader | REVISED | Missing reminder text on first use of salvage keyword | Yes | $0.0572 |
+| 6. Defective Labor Drone | OK | None | No | $0.0500 |
+| 7. Unstable Welding Unit | REVISED | Haste is a keyword nonbo with Malfunction 1: the creature enters tapped, so Haste is dead text on the turn it's cast.... | Yes | $0.0564 |
+| 11. Synaptic Overload | REVISED | [; "; O | Yes | $0.0729 |
+| 14. Cascade Protocol | REVISED | Fake variability: Overclock always exiles exactly 3, so double overclock always exiles 6, meaning the 'for each card ... | Yes | $0.0743 |
+| 15. Archscientist Vex, the Unbound | REVISED | Templating: Overclock reminder text embedded inline in a static ability that doesn't perform overclock — reminder tex... | Yes | $0.0801 |
 
 ## Total Cost
 
 - API calls: 28
-- Total tokens: 27141 in / 9354 out
-- Total cost: $1.1087
+- Total tokens: 30853 in / 11603 out
+- Total cost: $0.4443
 
 ## Human Evaluation
 
-- **Card 02**: OK.
-- **Card 05**: Don't mind the mana cost increase, sure.
-- **Card 06**: Got hit with the needless nerf bat again. Now a 2/2 for {1}{W} _with a downside_. Poor.
-- **Card 07**: Haste replaced with other relevant ability. Good fix.
-- **Card 11**: Turned into {U}{U} which is still too strong even for a regular counterspell (the classic Counterspell is no longer printed because it's too strong, so tacking on card draw and overclock is insane). Fail. Disqualified.
-- **Card 14**: Just plain 6 for 5 with double overclock. Don't like it (same as earlier).
-- **Card 15**: Changed to just copying. We've seen this before and it's fine.
+| Card | Verdict | Human Assessment |
+|------|---------|-----------------|
+| 2. Undergrowth Scrounger | REVISED | Fine |
+| 5. Subsurface Expedition Leader | REVISED | Fine |
+| 6. Defective Labor Drone | OK | Fine |
+| 7. Unstable Welding Unit | REVISED | Good — menace, catches the nonbo |
+| 11. Synaptic Overload | REVISED | Good — just counter+overclock now, removed draw. Luck or methodology? |
+| 14. Cascade Protocol | REVISED | **SOFT FAIL** — 6-for-5 still too good. Detected "illusory variance" in analysis but left the wording in the revision |
+| 15. Archscientist Vex, the Unbound | REVISED | Fine — 2 less P/T, copies first overclock only, lost flying to compensate for strong ability |
 
-**Verdict: FAIL.** The {U}{U} counterspell + draw + overclock is unacceptable. Also very verbose (4 API calls per card at Opus pricing = $1.11 for 7 cards, nearly as expensive as Iterative/Opus). Split doesn't help Opus the way it helped Sonnet — Opus already reasons well in a single pass, so splitting just adds cost without proportional quality gain.
+**Score: 6/7 acceptable (1 soft failure)**
+- Card 14: analysis correctly identified fake variability but revision didn't follow through — analysis ≠ action pattern again
+- Card 11: best single-pass fix across all strategies (removed draw). Split may have helped by isolating balance pass
+- Second-best score alongside S6, but different failure modes (S6: false OK on 7, S8: soft fail on 14)

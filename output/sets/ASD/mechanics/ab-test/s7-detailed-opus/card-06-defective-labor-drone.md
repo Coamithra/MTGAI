@@ -10,7 +10,7 @@
   "colors": [
     "W"
   ],
-  "type_line": "Artifact Creature \u00ef\u00bf\u00bd Automaton",
+  "type_line": "Artifact Creature \u00e2\u20ac\u201d Automaton",
   "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)",
   "power": "3",
   "toughness": "2",
@@ -18,7 +18,7 @@
   "keywords": [
     "Malfunction"
   ],
-  "flavor_text": "\"It keeps trying to mine the ceiling. We've explained gravity to it seventeen times.\" \u00ef\u00bf\u00bdForeman Krix"
+  "flavor_text": "\"It keeps trying to mine the ceiling. We've explained gravity to it seventeen times.\" \u00e2\u20ac\u201dForeman Krix"
 }
 ```
 
@@ -48,11 +48,11 @@
 > Card to review:
 > Name: Defective Labor Drone
 > Mana Cost: {1}{W}
-> Type: Artifact Creature ï¿½ Automaton
+> Type: Artifact Creature â€” Automaton
 > Rarity: common
 > Oracle Text: Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)
 > P/T: 3/2
-> Flavor Text: "It keeps trying to mine the ceiling. We've explained gravity to it seventeen times." ï¿½Foreman Krix
+> Flavor Text: "It keeps trying to mine the ceiling. We've explained gravity to it seventeen times." â€”Foreman Krix
 > 
 > Review this card thoroughly. At minimum, check every criterion below (state PASS or describe the issue for each), but also flag anything else you notice.
 > 
@@ -81,40 +81,76 @@
 > Provide your detailed analysis for each criterion.
 
 **Response:**
-> **Templating & Rules Text:**
-> - **Oracle text validity:** PASS - The text is valid MTG rules text.
-> - **Custom mechanic reminder text:** PASS - Malfunction has its reminder text on first use.
-> - **Capitalization:** PASS - "Malfunction" is properly capitalized at the start of the ability.
-> - **Current templating:** PASS - Uses "enters tapped" which is current templating.
+> ## Card Review: Defective Labor Drone
 > 
-> **Keyword Interactions:**
-> - **Keyword conflicts:** PASS - No keyword conflicts. The card has no other keywords that would be negated by entering tapped.
-> - **Conditional checks:** PASS - No conditional abilities present.
+> ---
 > 
-> **Balance:**
-> - **Power level:** PASS - This is appropriately powered for a common. As a 3/2 for {1}{W} with Malfunction 1, it's comparable to:
->   - Isamaru, Hound of Konda (legendary 2/2 for {W})
->   - Savannah Lions (2/1 for {W})
->   - Elite Vanguard (2/1 for {W})
->   
->   The card is intentionally above-rate (getting +1/+1 over typical 2-mana 3/2s like Traveling Minister), with the drawback being it enters tapped and can't attack/block until turn 3. This aligns with the design note that malfunction cards should be above-rate.
+> ### Templating & Rules Text
 > 
-> **Design:**
-> - **Focused purpose:** PASS - The card has a clear, focused design: an efficient beater with a tempo drawback.
-> - **Variable effects:** PASS - No variable effects present.
-> - **Gameplay decisions:** PASS - Creates interesting sequencing decisions. Players must decide when to deploy this versus holding it for a better moment, and opponents can plan around the known untap timing.
+> **Oracle text validity:** PASS. The oracle text is valid MTG rules text. A creature with a keyword ability and reminder text, plus power/toughness, is completely standard.
 > 
-> **Color Pie:**
-> - **Color appropriateness:** PASS - White gets efficient small creatures, and the design document confirms Malfunction is in white's slice of the mechanic. Being an artifact creature also fits white's occasional artifact synergies.
+> **Reminder text on first use:** PASS. Malfunction 1 includes its full reminder text in parentheses.
 > 
-> **Additional Notes:**
-> - The flavor text is excellent and helps sell the "malfunction" concept in a humorous way.
-> - Being an artifact creature provides good synergy with the set's Salvage mechanic.
-> - The common rarity is appropriate for the complexity level and limited environment impact.
+> **Capitalization:** PASS. "Malfunction 1" is capitalized at the start of the ability line, and the reminder text follows standard parenthetical formatting.
 > 
-> **Overall:** This is a well-designed common that serves its role perfectly - an efficient threat with clear timing drawbacks that creates interesting gameplay decisions while remaining simple enough for common rarity.
+> **Current templating ("enters" not "enters the battlefield"):** PASS. The reminder text uses "enters tapped," which is consistent with current post-MOM templating conventions.
+> 
+> ---
+> 
+> ### Keyword Interactions
+> 
+> **Keywords negating each other:** PASS. No conflicting keywords. The creature has no haste, vigilance, or other abilities that would be undermined by entering tapped.
+> 
+> **Conditional always true/false:** PASS. No conditionals on this card. Malfunction 1 means the counter removal trigger fires exactly once and is relevant — it's not a dead trigger.
+> 
+> ---
+> 
+> ### Balance
+> 
+> **Power level for mana cost and rarity:** PASS — well-calibrated.
+> 
+> A vanilla 3/2 for {1}{W} is already slightly above the common baseline (compare **Glory Seeker** at 2/2 for {1}{W}, or **Daring Skyjek** at 3/1). The malfunction 1 drawback — entering tapped and being unable to attack or block on the turn it arrives, effectively losing one full tempo cycle — is a real cost at common, especially in aggressive white decks that want to curve out.
+> 
+> Comparable cards:
+> - **Expedition Envoy** (1/1 for {W}, no drawback) — Drone hits much harder but a full turn later.
+> - **Isamaru, Hound of Konda** (2/2 for {W}, legendary) — similar efficient body philosophy.
+> - **Blade of the Sixth Pride** (3/1 for {1}{W}, vanilla common) — Drone is arguably better statistically (3/2 vs 3/1) but the tempo loss balances it.
+> 
+> The design note says malfunction cards are intentionally above-rate, and a 3/2 for 2 with a one-turn delay feels like exactly the right amount of "above-rate" at common. It's strong but not format-warping.
+> 
+> ---
+> 
+> ### Design
+> 
+> **Focused purpose:** PASS. This is a clean, elegant common. One keyword, one purpose: an efficient beater with a tempo drawback. No kitchen-sink problem whatsoever.
+> 
+> **Variability:** PASS. No variable effects. Malfunction 1 always plays out identically (one counter, one upkeep trigger), which is ideal for common complexity.
+> 
+> **Interesting gameplay decisions:** PASS. The decision point is meaningful — do you play this on turn 2 knowing it can't block or attack until turn 3 and you're exposed, or do you hold it for a safer moment? In aggressive matchups, the vulnerability window matters. In slower matchups, you're happy to run it out early. This is exactly the kind of low-complexity, real-decision common that makes limited formats good.
+> 
+> ---
+> 
+> ### Color Pie
+> 
+> **Abilities appropriate for white:** PASS. White gets efficient small creatures at common routinely. Malfunction is listed as a W/U/R mechanic. An artifact creature typed as Automaton is flavorful and appropriate for the set's apparent artifact theme.
+> 
+> ---
+> 
+> ### Additional Notes
+> 
+> **Flavor text:** Excellent. Genuinely funny, reinforces the "defective" concept, and gives world-building through the named character Foreman Krix. Great common flavor text.
+> 
+> **Creature type:** Automaton is a supported creature type (used in Brothers' War and elsewhere). PASS.
+> 
+> **Artifact creature consideration:** Being an artifact creature is a minor upside in an artifact-themed set (synergy with Salvage, artifact-matters cards). This is worth monitoring across the set to make sure artifact creature density at common doesn't make artifact synergies too free, but on this individual card it's completely fine.
+> 
+> ---
+> 
+> ### Final Verdict
+> 
+> **Excellent common design.** Clean, flavorful, mechanically sound, and well-balanced. This is the kind of card that teaches players the malfunction mechanic with minimal complexity while creating real gameplay tension. No changes recommended.
 
-*Tokens: 812 in / 580 out — $0.0557*
+*Tokens: 807 in / 1027 out — $0.0297*
 
 ### Step 2: Submit revised card based on review
 
@@ -124,45 +160,81 @@
 > Original card:
 > Name: Defective Labor Drone
 > Mana Cost: {1}{W}
-> Type: Artifact Creature ï¿½ Automaton
+> Type: Artifact Creature â€” Automaton
 > Rarity: common
 > Oracle Text: Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)
 > P/T: 3/2
-> Flavor Text: "It keeps trying to mine the ceiling. We've explained gravity to it seventeen times." ï¿½Foreman Krix
+> Flavor Text: "It keeps trying to mine the ceiling. We've explained gravity to it seventeen times." â€”Foreman Krix
 > 
 > Review findings:
-> **Templating & Rules Text:**
-> - **Oracle text validity:** PASS - The text is valid MTG rules text.
-> - **Custom mechanic reminder text:** PASS - Malfunction has its reminder text on first use.
-> - **Capitalization:** PASS - "Malfunction" is properly capitalized at the start of the ability.
-> - **Current templating:** PASS - Uses "enters tapped" which is current templating.
+> ## Card Review: Defective Labor Drone
 > 
-> **Keyword Interactions:**
-> - **Keyword conflicts:** PASS - No keyword conflicts. The card has no other keywords that would be negated by entering tapped.
-> - **Conditional checks:** PASS - No conditional abilities present.
+> ---
 > 
-> **Balance:**
-> - **Power level:** PASS - This is appropriately powered for a common. As a 3/2 for {1}{W} with Malfunction 1, it's comparable to:
->   - Isamaru, Hound of Konda (legendary 2/2 for {W})
->   - Savannah Lions (2/1 for {W})
->   - Elite Vanguard (2/1 for {W})
->   
->   The card is intentionally above-rate (getting +1/+1 over typical 2-mana 3/2s like Traveling Minister), with the drawback being it enters tapped and can't attack/block until turn 3. This aligns with the design note that malfunction cards should be above-rate.
+> ### Templating & Rules Text
 > 
-> **Design:**
-> - **Focused purpose:** PASS - The card has a clear, focused design: an efficient beater with a tempo drawback.
-> - **Variable effects:** PASS - No variable effects present.
-> - **Gameplay decisions:** PASS - Creates interesting sequencing decisions. Players must decide when to deploy this versus holding it for a better moment, and opponents can plan around the known untap timing.
+> **Oracle text validity:** PASS. The oracle text is valid MTG rules text. A creature with a keyword ability and reminder text, plus power/toughness, is completely standard.
 > 
-> **Color Pie:**
-> - **Color appropriateness:** PASS - White gets efficient small creatures, and the design document confirms Malfunction is in white's slice of the mechanic. Being an artifact creature also fits white's occasional artifact synergies.
+> **Reminder text on first use:** PASS. Malfunction 1 includes its full reminder text in parentheses.
 > 
-> **Additional Notes:**
-> - The flavor text is excellent and helps sell the "malfunction" concept in a humorous way.
-> - Being an artifact creature provides good synergy with the set's Salvage mechanic.
-> - The common rarity is appropriate for the complexity level and limited environment impact.
+> **Capitalization:** PASS. "Malfunction 1" is capitalized at the start of the ability line, and the reminder text follows standard parenthetical formatting.
 > 
-> **Overall:** This is a well-designed common that serves its role perfectly - an efficient threat with clear timing drawbacks that creates interesting gameplay decisions while remaining simple enough for common rarity.
+> **Current templating ("enters" not "enters the battlefield"):** PASS. The reminder text uses "enters tapped," which is consistent with current post-MOM templating conventions.
+> 
+> ---
+> 
+> ### Keyword Interactions
+> 
+> **Keywords negating each other:** PASS. No conflicting keywords. The creature has no haste, vigilance, or other abilities that would be undermined by entering tapped.
+> 
+> **Conditional always true/false:** PASS. No conditionals on this card. Malfunction 1 means the counter removal trigger fires exactly once and is relevant — it's not a dead trigger.
+> 
+> ---
+> 
+> ### Balance
+> 
+> **Power level for mana cost and rarity:** PASS — well-calibrated.
+> 
+> A vanilla 3/2 for {1}{W} is already slightly above the common baseline (compare **Glory Seeker** at 2/2 for {1}{W}, or **Daring Skyjek** at 3/1). The malfunction 1 drawback — entering tapped and being unable to attack or block on the turn it arrives, effectively losing one full tempo cycle — is a real cost at common, especially in aggressive white decks that want to curve out.
+> 
+> Comparable cards:
+> - **Expedition Envoy** (1/1 for {W}, no drawback) — Drone hits much harder but a full turn later.
+> - **Isamaru, Hound of Konda** (2/2 for {W}, legendary) — similar efficient body philosophy.
+> - **Blade of the Sixth Pride** (3/1 for {1}{W}, vanilla common) — Drone is arguably better statistically (3/2 vs 3/1) but the tempo loss balances it.
+> 
+> The design note says malfunction cards are intentionally above-rate, and a 3/2 for 2 with a one-turn delay feels like exactly the right amount of "above-rate" at common. It's strong but not format-warping.
+> 
+> ---
+> 
+> ### Design
+> 
+> **Focused purpose:** PASS. This is a clean, elegant common. One keyword, one purpose: an efficient beater with a tempo drawback. No kitchen-sink problem whatsoever.
+> 
+> **Variability:** PASS. No variable effects. Malfunction 1 always plays out identically (one counter, one upkeep trigger), which is ideal for common complexity.
+> 
+> **Interesting gameplay decisions:** PASS. The decision point is meaningful — do you play this on turn 2 knowing it can't block or attack until turn 3 and you're exposed, or do you hold it for a safer moment? In aggressive matchups, the vulnerability window matters. In slower matchups, you're happy to run it out early. This is exactly the kind of low-complexity, real-decision common that makes limited formats good.
+> 
+> ---
+> 
+> ### Color Pie
+> 
+> **Abilities appropriate for white:** PASS. White gets efficient small creatures at common routinely. Malfunction is listed as a W/U/R mechanic. An artifact creature typed as Automaton is flavorful and appropriate for the set's apparent artifact theme.
+> 
+> ---
+> 
+> ### Additional Notes
+> 
+> **Flavor text:** Excellent. Genuinely funny, reinforces the "defective" concept, and gives world-building through the named character Foreman Krix. Great common flavor text.
+> 
+> **Creature type:** Automaton is a supported creature type (used in Brothers' War and elsewhere). PASS.
+> 
+> **Artifact creature consideration:** Being an artifact creature is a minor upside in an artifact-themed set (synergy with Salvage, artifact-matters cards). This is worth monitoring across the set to make sure artifact creature density at common doesn't make artifact synergies too free, but on this individual card it's completely fine.
+> 
+> ---
+> 
+> ### Final Verdict
+> 
+> **Excellent common design.** Clean, flavorful, mechanically sound, and well-balanced. This is the kind of card that teaches players the malfunction mechanic with minimal complexity while creating real gameplay tension. No changes recommended.
 
 **Tool call result:**
 ```json
@@ -181,7 +253,7 @@
 }
 ```
 
-*Tokens: 1397 in / 294 out — $0.0430*
+*Tokens: 2111 in / 294 out — $0.0179*
 
 ## C) Revised Card
 
@@ -193,6 +265,6 @@ No changes (OK)
 ## D) Cost
 
 - API calls: 2
-- Input tokens: 2209
-- Output tokens: 874
-- Cost: $0.0987
+- Input tokens: 2918
+- Output tokens: 1321
+- Cost: $0.0476

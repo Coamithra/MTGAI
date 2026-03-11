@@ -10,7 +10,7 @@
   "colors": [
     "W"
   ],
-  "type_line": "Creature \u00ef\u00bf\u00bd Human Soldier",
+  "type_line": "Creature \u00e2\u20ac\u201d Human Soldier",
   "oracle_text": "When ~ enters, salvage 6.\n{2}{W}, {T}: Salvage 3. Activate only as a sorcery.",
   "power": "3",
   "toughness": "4",
@@ -48,7 +48,7 @@
 > Card to review:
 > Name: Subsurface Expedition Leader
 > Mana Cost: {2}{W}{W}
-> Type: Creature ï¿½ Human Soldier
+> Type: Creature â€” Human Soldier
 > Rarity: rare
 > Oracle Text: When ~ enters, salvage 6.
 > {2}{W}, {T}: Salvage 3. Activate only as a sorcery.
@@ -63,46 +63,48 @@
   "changed": true,
   "verdict": "REVISED",
   "issues_found": [
-    "Missing reminder text for salvage keyword ability",
-    "Card name doesn't match mechanic (salvage is about finding artifacts, not exploring)",
-    "P/T seems high for the cost and abilities"
+    "Salvage 6 on ETB is appropriate for rare per the scaling guidelines (6+ at rare/mythic) \u2014 this is fine.",
+    "Salvage 3 on the activated ability is slightly below the uncommon floor (4-5) but as a repeatable ability on a rare card, the value of 3 is reasonable for balance. However, since this is a rare card and the ability costs {2}{W} + tap + sorcery speed (significant restrictions), bumping to Salvage 4 would better match the rare identity and feel more rewarding for the investment.",
+    "The sorcery-speed restriction and tap cost on the activated ability already provide sufficient tempo cost, so Salvage 4 on a repeatable ability remains balanced at rare.",
+    "No mechanical errors found \u2014 Salvage is correctly used as a keyword ability with a number, and the card is in-color (W) for Salvage."
   ],
-  "name": "Salvage Corps Captain",
+  "name": "Subsurface Expedition Leader",
   "mana_cost": "{2}{W}{W}",
   "type_line": "Creature \u2014 Human Soldier",
-  "oracle_text": "When Salvage Corps Captain enters, salvage 6. (Look at the top six cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n{2}{W}, {T}: Salvage 3. Activate only as a sorcery.",
-  "power": "2",
-  "toughness": "4",
+  "oracle_text": "When ~ enters, salvage 6.\n{2}{W}, {T}: Salvage 4. Activate only as a sorcery.",
   "rarity": "rare",
-  "flavor_text": "Every expedition needs someone willing to go first into the dark. The job has remarkably high turnover."
+  "power": "3",
+  "toughness": "4",
+  "flavor_text": "\"Every expedition needs someone willing to go first into the dark. The job has remarkably high turnover.\""
 }
 ```
 
-*Tokens: 1116 in / 365 out — $0.0441*
+*Tokens: 1386 in / 488 out — $0.0191*
 
 ## C) Revised Card
 
 ```json
 {
-  "name": "Salvage Corps Captain",
+  "name": "Subsurface Expedition Leader",
   "mana_cost": "{2}{W}{W}",
   "type_line": "Creature \u2014 Human Soldier",
-  "oracle_text": "When Salvage Corps Captain enters, salvage 6. (Look at the top six cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n{2}{W}, {T}: Salvage 3. Activate only as a sorcery.",
+  "oracle_text": "When ~ enters, salvage 6.\n{2}{W}, {T}: Salvage 4. Activate only as a sorcery.",
   "rarity": "rare",
-  "power": "2",
+  "power": "3",
   "toughness": "4",
-  "flavor_text": "Every expedition needs someone willing to go first into the dark. The job has remarkably high turnover."
+  "flavor_text": "\"Every expedition needs someone willing to go first into the dark. The job has remarkably high turnover.\""
 }
 ```
 
 **Changes made:**
-- Missing reminder text for salvage keyword ability
-- Card name doesn't match mechanic (salvage is about finding artifacts, not exploring)
-- P/T seems high for the cost and abilities
+- Salvage 6 on ETB is appropriate for rare per the scaling guidelines (6+ at rare/mythic) — this is fine.
+- Salvage 3 on the activated ability is slightly below the uncommon floor (4-5) but as a repeatable ability on a rare card, the value of 3 is reasonable for balance. However, since this is a rare card and the ability costs {2}{W} + tap + sorcery speed (significant restrictions), bumping to Salvage 4 would better match the rare identity and feel more rewarding for the investment.
+- The sorcery-speed restriction and tap cost on the activated ability already provide sufficient tempo cost, so Salvage 4 on a repeatable ability remains balanced at rare.
+- No mechanical errors found — Salvage is correctly used as a keyword ability with a number, and the card is in-color (W) for Salvage.
 
 ## D) Cost
 
 - API calls: 1
-- Input tokens: 1116
-- Output tokens: 365
-- Cost: $0.0441
+- Input tokens: 1386
+- Output tokens: 488
+- Cost: $0.0191

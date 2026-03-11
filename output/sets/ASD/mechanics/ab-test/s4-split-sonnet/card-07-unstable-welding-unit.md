@@ -10,7 +10,7 @@
   "colors": [
     "R"
   ],
-  "type_line": "Artifact Creature \u00ef\u00bf\u00bd Construct",
+  "type_line": "Artifact Creature \u00e2\u20ac\u201d Construct",
   "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)\nHaste",
   "power": "4",
   "toughness": "2",
@@ -49,7 +49,7 @@
 > Card:
 > Name: Unstable Welding Unit
 > Mana Cost: {2}{R}
-> Type: Artifact Creature ï¿½ Construct
+> Type: Artifact Creature â€” Construct
 > Rarity: common
 > Oracle Text: Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)
 > Haste
@@ -65,24 +65,32 @@
 > List any templating issues found, or say "PASS" if the templating is correct.
 
 **Response:**
-> Looking at this card, I found one templating issue:
+> ## Review: Unstable Welding Unit
 > 
-> **ISSUE FOUND:**
+> ### Malfunction Reminder Text
+> The reminder text present on the card matches the defined reminder text for Malfunction 1. ✓
 > 
-> 1. **Missing reminder text for Haste**: Since this is a common card and uses the custom mechanic Malfunction (which includes reminder text), the established convention for this set appears to include reminder text for mechanics. The keyword ability "haste" should include its reminder text: "(This creature can attack and {T} as soon as it comes under your control.)"
+> ### Mechanic Usage
+> Only Malfunction is used; Salvage and Overclock do not appear. No issues there. ✓
 > 
-> **Other observations:**
-> - Malfunction 1 reminder text is correctly included and properly templated
-> - Keyword capitalization is correct (Malfunction capitalized, haste lowercase)
-> - The Malfunction mechanic is being used correctly as a keyword ability
-> - Oracle text follows current MTG templating conventions
-> - The card fits the design parameters (common rarity, Malfunction 1, red color)
+> ### Keyword Capitalization
+> - "Malfunction 1" — correct ✓
+> - "Haste" — correct ✓
 > 
-> **Corrected Oracle Text:**
-> Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)
-> Haste (This creature can attack and {T} as soon as it comes under your control.)
+> ### Rules Text Order
+> In MTG templating, static/triggered abilities and keyword abilities with reminder text are typically listed before other keyword abilities when the reminder text is present. However, the more relevant convention here is that **Haste should be listed before Malfunction**, or at minimum, intrinsic keyword abilities (Haste) are conventionally listed **before** triggered/complex keyword abilities. Actually, the more standard ordering places simpler keyword abilities first, then more complex ones. Listing Haste after Malfunction is a minor ordering issue — **Haste should precede Malfunction** by standard MTG keyword ordering conventions.
+> 
+> ### Other Flags
+> - The card is **Common** with Malfunction 1 — consistent with the design note (1 at common). ✓
+> - Red Malfunction is permitted by color notes. ✓
+> - A 4/2 with Haste at {2}{R} that enters tapped for one turn is a **design/balance note**, not a templating issue, but it's intentionally above-rate per the design spec. ✓
+> 
+> ---
+> 
+> ### Issues Found:
+> 1. **Ability ordering**: "Haste" should appear before "Malfunction 1" per MTG templating conventions (simpler keywords precede complex keyword abilities with reminder text).
 
-*Tokens: 566 in / 261 out — $0.0056*
+*Tokens: 564 in / 399 out — $0.0077*
 
 ### Step 2: Pass 2 — Mechanics review
 
@@ -108,7 +116,7 @@
 > Card:
 > Name: Unstable Welding Unit
 > Mana Cost: {2}{R}
-> Type: Artifact Creature ï¿½ Construct
+> Type: Artifact Creature â€” Construct
 > Rarity: common
 > Oracle Text: Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)
 > Haste
@@ -125,25 +133,28 @@
 > List any design issues found, or say "PASS" if the design is sound.
 
 **Response:**
-> Looking at this design systematically:
+> ## Design Review: Unstable Welding Unit
 > 
-> **Keyword nonbos:** Yes, there's a significant nonbo here. Malfunction causes the creature to enter tapped, but haste specifically allows creatures to attack the turn they enter. Since the creature enters tapped with a malfunction counter, haste provides no benefit on the turn it enters play. The creature can't attack until it untaps during your next upkeep anyway.
+> ### Keyword Nonbo Check
 > 
-> **Conditional evaluation:** The malfunction mechanic isn't conditional - it always enters with 1 counter and removes it during upkeep.
+> **Malfunction + Haste: Partial nonbo.**
 > 
-> **Kitchen sink design:** No - just two abilities that should work together but don't.
+> Haste's primary value is attacking or using tap abilities the turn a creature enters the battlefield. Malfunction 1 causes the creature to enter **tapped**, which means Haste is completely negated on the turn it enters — the turn Haste matters most. The creature will be ready to attack on the following turn regardless of whether it has Haste, because Malfunction 1 resolves at the beginning of that upkeep.
 > 
-> **Variable effects:** Malfunction 1 is fixed, not variable.
+> Haste effectively does nothing on this card. It reads as flavorful (it's fast and unstable!) but functionally provides zero mechanical benefit in nearly all game states.
 > 
-> **Focused purpose:** The design appears to want an aggressive creature that comes online quickly after a brief delay, but the execution undermines this purpose.
+> ### Other Checks
 > 
-> **Design Issues Found:**
-> - **Keyword nonbo**: Haste is negated by entering tapped via Malfunction, making haste completely irrelevant until the creature is no longer malfunctioning
-> - **Missed design opportunity**: The flavor suggests this should be an aggressive creature that's eager to attack but temporarily disabled - the mechanics should support this rather than work against each other
+> - **Conditional always false?** N/A — no conditional.
+> - **Kitchen sink?** No, only two keywords.
+> - **Variable effects?** N/A.
+> - **Focused purpose?** Yes — above-rate aggressive beater with a tempo delay cost, which is clean Malfunction design.
 > 
-> **Suggestion:** Consider replacing haste with an ability that's relevant while tapped/malfunctioning, or modify malfunction to not include "enters tapped" for this specific card.
+> ### Summary
+> 
+> **One design issue:** Haste is a dead keyword. A 4/2 for {2}{R} that enters tapped will attack on turn 4 with or without Haste. Consider replacing Haste with a more relevant ability (e.g., **Trample**, a triggered ETB effect, or simply no second keyword), or bumping stats slightly and removing Haste entirely.
 
-*Tokens: 575 in / 315 out — $0.0065*
+*Tokens: 573 in / 338 out — $0.0068*
 
 ### Step 3: Pass 3 — Balance review
 
@@ -169,7 +180,7 @@
 > Card:
 > Name: Unstable Welding Unit
 > Mana Cost: {2}{R}
-> Type: Artifact Creature ï¿½ Construct
+> Type: Artifact Creature â€” Construct
 > Rarity: common
 > Oracle Text: Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)
 > Haste
@@ -185,30 +196,33 @@
 > State whether the balance is PASS, or describe the specific balance issue with card comparisons.
 
 **Response:**
-> Looking at **Unstable Welding Unit**:
+> ## Unstable Welding Unit — Balance Analysis
 > 
-> **Power Level Analysis:**
-> - 3 mana for a 4/2 haste creature is significantly above the normal rate
-> - The malfunction 1 drawback means it enters tapped and can't attack until turn 4 (assuming played on turn 3)
-> - This creates an interesting tension: you get an above-rate body, but with meaningful tempo loss
+> ### The Card in Context
+> - **{2}{R}**, Common, Artifact Creature, 4/2 with Haste and Malfunction 1
+> - Malfunction 1 means it enters tapped and can't attack turn 3. It attacks freely from turn 4 onward.
 > 
-> **Comparisons to existing cards:**
-> 1. **Goblin Chainwhirler** (RRR) - 3/3 first strike with upside, but requires heavy red commitment
-> 2. **Kargan Dragonlord** (2R) - 3/3 trample with modal flexibility
-> 3. **Suspicious Stowaway** (1U) - 1/1 that transforms into a 2/2 with significant upside
+> ---
 > 
-> For common 3-mana creatures, we typically see 3/3s or 2/4s with minor upside, or slightly smaller bodies with meaningful abilities.
+> ### Comparisons
 > 
-> **Assessment:**
-> The card follows the stated design philosophy correctly - malfunction cards are intentionally above-rate with the delayed entry as the primary cost. A 4/2 haste for 3 mana would normally be pushed even for uncommon, but the malfunction 1 creates a real deck-building and tempo consideration.
+> **Goblin Heelcutter** ({3}{R}, Common) — 3/2 with Dash {2}{R}, giving haste temporarily. A 4/2 with haste permanently is a strictly better statline for less mana.
 > 
-> At common, this creates clear gameplay decisions: the opponent gets a full turn cycle to prepare for a 4/2 hasty threat, while the controller must evaluate whether the rate is worth the tempo loss.
+> **Brazen Scourge** ({1}{R}{R}, Uncommon) — 3/3 with Haste. At uncommon, costs the same effective mana, is 3/3 vs 4/2 (roughly comparable), and has no drawback.
 > 
-> The design is clean and the power level, while high, is appropriately gated by the malfunction mechanic.
+> **Viashino Pyromancer** ({1}{R}, Common) — 2/1 with a bonus ETB. Far weaker statline.
 > 
-> **PASS** - The power level is appropriate given the malfunction drawback and stated design intention for the mechanic.
+> ---
+> 
+> ### Assessment
+> 
+> **PASS.**
+> 
+> Malfunction 1 on a 4/2 Haste is above-rate by design, and the delayed entry is a real tempo cost — you're paying 3 mana on turn 3 to get an attacker on turn 4, effectively making it behave closer to a 4-mana creature on entry. By the time it attacks, the board has developed and a 4/2 is solid but not format-warping. The haste becomes relevant primarily in topdeck/late-game situations.
+> 
+> The Brazen Scourge comparison at uncommon confirms the statline is aggressive but not out of line for Malfunction's intended above-rate philosophy at common.
 
-*Tokens: 597 in / 407 out — $0.0079*
+*Tokens: 595 in / 412 out — $0.0080*
 
 ### Step 4: Pass 4 — Revision (combining all feedback)
 
@@ -234,7 +248,7 @@
 > Original card:
 > Name: Unstable Welding Unit
 > Mana Cost: {2}{R}
-> Type: Artifact Creature ï¿½ Construct
+> Type: Artifact Creature â€” Construct
 > Rarity: common
 > Oracle Text: Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)
 > Haste
@@ -242,61 +256,75 @@
 > Flavor Text: The sparks it produces are either welding material or a countdown to explosion. Usually both.
 > 
 > Issues found:
-> - Templating: Looking at this card, I found one templating issue:
+> - Templating: ## Review: Unstable Welding Unit
 > 
-> **ISSUE FOUND:**
+> ### Malfunction Reminder Text
+> The reminder text present on the card matches the defined reminder text for Malfunction 1. ✓
 > 
-> 1. **Missing reminder text for Haste**: Since this is a common card and uses the custom mechanic Malfunction (which includes reminder text), the established convention for this set appears to include reminder text for mechanics. The keyword ability "haste" should include its reminder text: "(This creature can attack and {T} as soon as it comes under your control.)"
+> ### Mechanic Usage
+> Only Malfunction is used; Salvage and Overclock do not appear. No issues there. ✓
 > 
-> **Other observations:**
-> - Malfunction 1 reminder text is correctly included and properly templated
-> - Keyword capitalization is correct (Malfunction capitalized, haste lowercase)
-> - The Malfunction mechanic is being used correctly as a keyword ability
-> - Oracle text follows current MTG templating conventions
-> - The card fits the design parameters (common rarity, Malfunction 1, red color)
+> ### Keyword Capitalization
+> - "Malfunction 1" — correct ✓
+> - "Haste" — correct ✓
 > 
-> **Corrected Oracle Text:**
-> Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)
-> Haste (This creature can attack and {T} as soon as it comes under your control.)
-> - Mechanics: Looking at this design systematically:
+> ### Rules Text Order
+> In MTG templating, static/triggered abilities and keyword abilities with reminder text are typically listed before other keyword abilities when the reminder text is present. However, the more relevant convention here is that **Haste should be listed before Malfunction**, or at minimum, intrinsic keyword abilities (Haste) are conventionally listed **before** triggered/complex keyword abilities. Actually, the more standard ordering places simpler keyword abilities first, then more complex ones. Listing Haste after Malfunction is a minor ordering issue — **Haste should precede Malfunction** by standard MTG keyword ordering conventions.
 > 
-> **Keyword nonbos:** Yes, there's a significant nonbo here. Malfunction causes the creature to enter tapped, but haste specifically allows creatures to attack the turn they enter. Since the creature enters tapped with a malfunction counter, haste provides no benefit on the turn it enters play. The creature can't attack until it untaps during your next upkeep anyway.
+> ### Other Flags
+> - The card is **Common** with Malfunction 1 — consistent with the design note (1 at common). ✓
+> - Red Malfunction is permitted by color notes. ✓
+> - A 4/2 with Haste at {2}{R} that enters tapped for one turn is a **design/balance note**, not a templating issue, but it's intentionally above-rate per the design spec. ✓
 > 
-> **Conditional evaluation:** The malfunction mechanic isn't conditional - it always enters with 1 counter and removes it during upkeep.
+> ---
 > 
-> **Kitchen sink design:** No - just two abilities that should work together but don't.
+> ### Issues Found:
+> 1. **Ability ordering**: "Haste" should appear before "Malfunction 1" per MTG templating conventions (simpler keywords precede complex keyword abilities with reminder text).
+> - Mechanics: ## Design Review: Unstable Welding Unit
 > 
-> **Variable effects:** Malfunction 1 is fixed, not variable.
+> ### Keyword Nonbo Check
 > 
-> **Focused purpose:** The design appears to want an aggressive creature that comes online quickly after a brief delay, but the execution undermines this purpose.
+> **Malfunction + Haste: Partial nonbo.**
 > 
-> **Design Issues Found:**
-> - **Keyword nonbo**: Haste is negated by entering tapped via Malfunction, making haste completely irrelevant until the creature is no longer malfunctioning
-> - **Missed design opportunity**: The flavor suggests this should be an aggressive creature that's eager to attack but temporarily disabled - the mechanics should support this rather than work against each other
+> Haste's primary value is attacking or using tap abilities the turn a creature enters the battlefield. Malfunction 1 causes the creature to enter **tapped**, which means Haste is completely negated on the turn it enters — the turn Haste matters most. The creature will be ready to attack on the following turn regardless of whether it has Haste, because Malfunction 1 resolves at the beginning of that upkeep.
 > 
-> **Suggestion:** Consider replacing haste with an ability that's relevant while tapped/malfunctioning, or modify malfunction to not include "enters tapped" for this specific card.
-> - Balance: Looking at **Unstable Welding Unit**:
+> Haste effectively does nothing on this card. It reads as flavorful (it's fast and unstable!) but functionally provides zero mechanical benefit in nearly all game states.
 > 
-> **Power Level Analysis:**
-> - 3 mana for a 4/2 haste creature is significantly above the normal rate
-> - The malfunction 1 drawback means it enters tapped and can't attack until turn 4 (assuming played on turn 3)
-> - This creates an interesting tension: you get an above-rate body, but with meaningful tempo loss
+> ### Other Checks
 > 
-> **Comparisons to existing cards:**
-> 1. **Goblin Chainwhirler** (RRR) - 3/3 first strike with upside, but requires heavy red commitment
-> 2. **Kargan Dragonlord** (2R) - 3/3 trample with modal flexibility
-> 3. **Suspicious Stowaway** (1U) - 1/1 that transforms into a 2/2 with significant upside
+> - **Conditional always false?** N/A — no conditional.
+> - **Kitchen sink?** No, only two keywords.
+> - **Variable effects?** N/A.
+> - **Focused purpose?** Yes — above-rate aggressive beater with a tempo delay cost, which is clean Malfunction design.
 > 
-> For common 3-mana creatures, we typically see 3/3s or 2/4s with minor upside, or slightly smaller bodies with meaningful abilities.
+> ### Summary
 > 
-> **Assessment:**
-> The card follows the stated design philosophy correctly - malfunction cards are intentionally above-rate with the delayed entry as the primary cost. A 4/2 haste for 3 mana would normally be pushed even for uncommon, but the malfunction 1 creates a real deck-building and tempo consideration.
+> **One design issue:** Haste is a dead keyword. A 4/2 for {2}{R} that enters tapped will attack on turn 4 with or without Haste. Consider replacing Haste with a more relevant ability (e.g., **Trample**, a triggered ETB effect, or simply no second keyword), or bumping stats slightly and removing Haste entirely.
+> - Balance: ## Unstable Welding Unit — Balance Analysis
 > 
-> At common, this creates clear gameplay decisions: the opponent gets a full turn cycle to prepare for a 4/2 hasty threat, while the controller must evaluate whether the rate is worth the tempo loss.
+> ### The Card in Context
+> - **{2}{R}**, Common, Artifact Creature, 4/2 with Haste and Malfunction 1
+> - Malfunction 1 means it enters tapped and can't attack turn 3. It attacks freely from turn 4 onward.
 > 
-> The design is clean and the power level, while high, is appropriately gated by the malfunction mechanic.
+> ---
 > 
-> **PASS** - The power level is appropriate given the malfunction drawback and stated design intention for the mechanic.
+> ### Comparisons
+> 
+> **Goblin Heelcutter** ({3}{R}, Common) — 3/2 with Dash {2}{R}, giving haste temporarily. A 4/2 with haste permanently is a strictly better statline for less mana.
+> 
+> **Brazen Scourge** ({1}{R}{R}, Uncommon) — 3/3 with Haste. At uncommon, costs the same effective mana, is 3/3 vs 4/2 (roughly comparable), and has no drawback.
+> 
+> **Viashino Pyromancer** ({1}{R}, Common) — 2/1 with a bonus ETB. Far weaker statline.
+> 
+> ---
+> 
+> ### Assessment
+> 
+> **PASS.**
+> 
+> Malfunction 1 on a 4/2 Haste is above-rate by design, and the delayed entry is a real tempo cost — you're paying 3 mana on turn 3 to get an attacker on turn 4, effectively making it behave closer to a 4-mana creature on entry. By the time it attacks, the board has developed and a 4/2 is solid but not format-warping. The haste becomes relevant primarily in topdeck/late-game situations.
+> 
+> The Brazen Scourge comparison at uncommon confirms the statline is aggressive but not out of line for Malfunction's intended above-rate philosophy at common.
 > 
 > Produce a revised version that fixes all identified issues while preserving the card's core identity and purpose. Do not change things that weren't flagged as issues. If all reviews said PASS, return the card unchanged with verdict OK.
 
@@ -306,21 +334,21 @@
   "changed": true,
   "verdict": "REVISED",
   "issues_found": [
-    "Missing reminder text for Haste at common rarity",
-    "Keyword nonbo between Malfunction (enters tapped) and haste (irrelevant while tapped)"
+    "Ability ordering: Haste should appear before Malfunction 1 per MTG templating conventions (simpler keywords precede complex keyword abilities with reminder text).",
+    "Haste is a dead keyword: Malfunction 1 causes the creature to enter tapped, completely negating Haste on the turn it enters. Haste provides zero mechanical benefit. Replaced with Trample to preserve aggressive identity while being functionally relevant."
   ],
   "name": "Unstable Welding Unit",
   "mana_cost": "{2}{R}",
   "type_line": "Artifact Creature \u2014 Construct",
-  "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)\nWhen Unstable Welding Unit has no malfunction counters on it, it gains haste.",
+  "oracle_text": "Trample\nMalfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)",
+  "rarity": "common",
   "power": "4",
   "toughness": "2",
-  "rarity": "common",
   "flavor_text": "The sparks it produces are either welding material or a countdown to explosion. Usually both."
 }
 ```
 
-*Tokens: 2131 in / 348 out — $0.0116*
+*Tokens: 2568 in / 388 out — $0.0135*
 
 ## C) Revised Card
 
@@ -329,7 +357,7 @@
   "name": "Unstable Welding Unit",
   "mana_cost": "{2}{R}",
   "type_line": "Artifact Creature \u2014 Construct",
-  "oracle_text": "Malfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)\nWhen Unstable Welding Unit has no malfunction counters on it, it gains haste.",
+  "oracle_text": "Trample\nMalfunction 1 (This permanent enters tapped with 1 malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)",
   "rarity": "common",
   "power": "4",
   "toughness": "2",
@@ -338,12 +366,12 @@
 ```
 
 **Changes made:**
-- Missing reminder text for Haste at common rarity
-- Keyword nonbo between Malfunction (enters tapped) and haste (irrelevant while tapped)
+- Ability ordering: Haste should appear before Malfunction 1 per MTG templating conventions (simpler keywords precede complex keyword abilities with reminder text).
+- Haste is a dead keyword: Malfunction 1 causes the creature to enter tapped, completely negating Haste on the turn it enters. Haste provides zero mechanical benefit. Replaced with Trample to preserve aggressive identity while being functionally relevant.
 
 ## D) Cost
 
 - API calls: 4
-- Input tokens: 3869
-- Output tokens: 1331
-- Cost: $0.0316
+- Input tokens: 4300
+- Output tokens: 1537
+- Cost: $0.0360

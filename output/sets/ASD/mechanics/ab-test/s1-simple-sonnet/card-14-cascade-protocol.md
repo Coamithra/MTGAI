@@ -16,7 +16,7 @@
   "keywords": [
     "Overclock"
   ],
-  "flavor_text": "\"The cascade effect exceeded all theoretical parameters. Fortunately, so did the explosion.\" \u00ef\u00bf\u00bdFinal log, Research Station Gamma"
+  "flavor_text": "\"The cascade effect exceeded all theoretical parameters. Fortunately, so did the explosion.\" \u00e2\u20ac\u201dFinal log, Research Station Gamma"
 }
 ```
 
@@ -50,7 +50,7 @@
 > Rarity: rare
 > Oracle Text: Overclock, then overclock again. (Exile the top three cards of your library. You may play them until end of turn.)
 > ~ deals 2 damage to any target for each card exiled with ~ this way.
-> Flavor Text: "The cascade effect exceeded all theoretical parameters. Fortunately, so did the explosion." ï¿½Final log, Research Station Gamma
+> Flavor Text: "The cascade effect exceeded all theoretical parameters. Fortunately, so did the explosion." â€”Final log, Research Station Gamma
 > 
 > Critically review this card and provide an improved version based on your findings. If the card is fine, return it unchanged with verdict OK.
 
@@ -59,21 +59,17 @@
 {
   "changed": true,
   "verdict": "REVISED",
-  "issues_found": [
-    "Incorrect reminder text - should not appear after 'overclock again'",
-    "Wording confusion - 'with ~ this way' is unclear since overclock doesn't involve the spell itself",
-    "Power level concern - 6 cards for 5 mana with 12 damage potential may be too strong"
-  ],
+  "issues_found": "[\"REMINDER TEXT ERROR: The reminder text only reflects a single Overclock, but the card performs Overclock twice. The reminder should either be omitted (since the keyword is used twice and explained inline) or updated to reflect the full double-Overclock effect (exiling 6 cards total). Standard MTG templating omits reminder text when a keyword appears more than once or when the effect is elaborated in the card text itself.\", \"DAMAGE CALCULATION AMBIGUITY: 'for each card exiled with ~ this way' is redundant/ambiguous. Since Overclock always exiles exactly 3 cards per instance and this card Overclocks twice, the exile count is always exactly 6. The phrase 'this way' is non-standard templating. Should reference the specific Overclock instances clearly, e.g. 'for each card exiled this way'.\", \"FLAVOR TEXT ENCODING: The flavor text contains a garbled character ('\u00e2\u20ac\"') which is a UTF-8 encoding artifact for an em dash ('\u2014'). This must be corrected.\", \"POWER LEVEL NOTE (non-blocking): Overclocking twice exiles 6 cards and always deals exactly 12 damage to any target for 5 mana at sorcery speed. This is an extremely strong rate (near one-shot potential). This is likely intentional for a rare, but warrants awareness \u2014 the fixed 12 damage makes the spell highly deterministic and potentially too reliable for competitive balance. Consider whether the damage should be tied to cards *cast* rather than cards *exiled* to introduce meaningful risk, per the Overclock design philosophy of 'high risk/reward'.\"]",
   "name": "Cascade Protocol",
   "mana_cost": "{3}{R}{R}",
   "type_line": "Sorcery",
-  "oracle_text": "Overclock, then overclock again. (Exile the top three cards of your library. You may play them until end of turn.)\nCascade Protocol deals 1 damage to any target for each card exiled this turn by overclocking.",
+  "oracle_text": "Overclock, then overclock again. (Exile the top three cards of your library. You may play them until end of turn. Then do it again.)\nCascade Protocol deals 2 damage to any target for each card exiled this way.",
   "rarity": "rare",
   "flavor_text": "\"The cascade effect exceeded all theoretical parameters. Fortunately, so did the explosion.\" \u2014Final log, Research Station Gamma"
 }
 ```
 
-*Tokens: 1120 in / 335 out — $0.0084*
+*Tokens: 1392 in / 655 out — $0.0140*
 
 ## C) Revised Card
 
@@ -82,20 +78,1533 @@
   "name": "Cascade Protocol",
   "mana_cost": "{3}{R}{R}",
   "type_line": "Sorcery",
-  "oracle_text": "Overclock, then overclock again. (Exile the top three cards of your library. You may play them until end of turn.)\nCascade Protocol deals 1 damage to any target for each card exiled this turn by overclocking.",
+  "oracle_text": "Overclock, then overclock again. (Exile the top three cards of your library. You may play them until end of turn. Then do it again.)\nCascade Protocol deals 2 damage to any target for each card exiled this way.",
   "rarity": "rare",
   "flavor_text": "\"The cascade effect exceeded all theoretical parameters. Fortunately, so did the explosion.\" \u2014Final log, Research Station Gamma"
 }
 ```
 
 **Changes made:**
-- Incorrect reminder text - should not appear after 'overclock again'
-- Wording confusion - 'with ~ this way' is unclear since overclock doesn't involve the spell itself
-- Power level concern - 6 cards for 5 mana with 12 damage potential may be too strong
+- [
+- "
+- R
+- E
+- M
+- I
+- N
+- D
+- E
+- R
+-  
+- T
+- E
+- X
+- T
+-  
+- E
+- R
+- R
+- O
+- R
+- :
+-  
+- T
+- h
+- e
+-  
+- r
+- e
+- m
+- i
+- n
+- d
+- e
+- r
+-  
+- t
+- e
+- x
+- t
+-  
+- o
+- n
+- l
+- y
+-  
+- r
+- e
+- f
+- l
+- e
+- c
+- t
+- s
+-  
+- a
+-  
+- s
+- i
+- n
+- g
+- l
+- e
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+- ,
+-  
+- b
+- u
+- t
+-  
+- t
+- h
+- e
+-  
+- c
+- a
+- r
+- d
+-  
+- p
+- e
+- r
+- f
+- o
+- r
+- m
+- s
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- t
+- w
+- i
+- c
+- e
+- .
+-  
+- T
+- h
+- e
+-  
+- r
+- e
+- m
+- i
+- n
+- d
+- e
+- r
+-  
+- s
+- h
+- o
+- u
+- l
+- d
+-  
+- e
+- i
+- t
+- h
+- e
+- r
+-  
+- b
+- e
+-  
+- o
+- m
+- i
+- t
+- t
+- e
+- d
+-  
+- (
+- s
+- i
+- n
+- c
+- e
+-  
+- t
+- h
+- e
+-  
+- k
+- e
+- y
+- w
+- o
+- r
+- d
+-  
+- i
+- s
+-  
+- u
+- s
+- e
+- d
+-  
+- t
+- w
+- i
+- c
+- e
+-  
+- a
+- n
+- d
+-  
+- e
+- x
+- p
+- l
+- a
+- i
+- n
+- e
+- d
+-  
+- i
+- n
+- l
+- i
+- n
+- e
+- )
+-  
+- o
+- r
+-  
+- u
+- p
+- d
+- a
+- t
+- e
+- d
+-  
+- t
+- o
+-  
+- r
+- e
+- f
+- l
+- e
+- c
+- t
+-  
+- t
+- h
+- e
+-  
+- f
+- u
+- l
+- l
+-  
+- d
+- o
+- u
+- b
+- l
+- e
+- -
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- e
+- f
+- f
+- e
+- c
+- t
+-  
+- (
+- e
+- x
+- i
+- l
+- i
+- n
+- g
+-  
+- 6
+-  
+- c
+- a
+- r
+- d
+- s
+-  
+- t
+- o
+- t
+- a
+- l
+- )
+- .
+-  
+- S
+- t
+- a
+- n
+- d
+- a
+- r
+- d
+-  
+- M
+- T
+- G
+-  
+- t
+- e
+- m
+- p
+- l
+- a
+- t
+- i
+- n
+- g
+-  
+- o
+- m
+- i
+- t
+- s
+-  
+- r
+- e
+- m
+- i
+- n
+- d
+- e
+- r
+-  
+- t
+- e
+- x
+- t
+-  
+- w
+- h
+- e
+- n
+-  
+- a
+-  
+- k
+- e
+- y
+- w
+- o
+- r
+- d
+-  
+- a
+- p
+- p
+- e
+- a
+- r
+- s
+-  
+- m
+- o
+- r
+- e
+-  
+- t
+- h
+- a
+- n
+-  
+- o
+- n
+- c
+- e
+-  
+- o
+- r
+-  
+- w
+- h
+- e
+- n
+-  
+- t
+- h
+- e
+-  
+- e
+- f
+- f
+- e
+- c
+- t
+-  
+- i
+- s
+-  
+- e
+- l
+- a
+- b
+- o
+- r
+- a
+- t
+- e
+- d
+-  
+- i
+- n
+-  
+- t
+- h
+- e
+-  
+- c
+- a
+- r
+- d
+-  
+- t
+- e
+- x
+- t
+-  
+- i
+- t
+- s
+- e
+- l
+- f
+- .
+- "
+- ,
+-  
+- "
+- D
+- A
+- M
+- A
+- G
+- E
+-  
+- C
+- A
+- L
+- C
+- U
+- L
+- A
+- T
+- I
+- O
+- N
+-  
+- A
+- M
+- B
+- I
+- G
+- U
+- I
+- T
+- Y
+- :
+-  
+- '
+- f
+- o
+- r
+-  
+- e
+- a
+- c
+- h
+-  
+- c
+- a
+- r
+- d
+-  
+- e
+- x
+- i
+- l
+- e
+- d
+-  
+- w
+- i
+- t
+- h
+-  
+- ~
+-  
+- t
+- h
+- i
+- s
+-  
+- w
+- a
+- y
+- '
+-  
+- i
+- s
+-  
+- r
+- e
+- d
+- u
+- n
+- d
+- a
+- n
+- t
+- /
+- a
+- m
+- b
+- i
+- g
+- u
+- o
+- u
+- s
+- .
+-  
+- S
+- i
+- n
+- c
+- e
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- a
+- l
+- w
+- a
+- y
+- s
+-  
+- e
+- x
+- i
+- l
+- e
+- s
+-  
+- e
+- x
+- a
+- c
+- t
+- l
+- y
+-  
+- 3
+-  
+- c
+- a
+- r
+- d
+- s
+-  
+- p
+- e
+- r
+-  
+- i
+- n
+- s
+- t
+- a
+- n
+- c
+- e
+-  
+- a
+- n
+- d
+-  
+- t
+- h
+- i
+- s
+-  
+- c
+- a
+- r
+- d
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+- s
+-  
+- t
+- w
+- i
+- c
+- e
+- ,
+-  
+- t
+- h
+- e
+-  
+- e
+- x
+- i
+- l
+- e
+-  
+- c
+- o
+- u
+- n
+- t
+-  
+- i
+- s
+-  
+- a
+- l
+- w
+- a
+- y
+- s
+-  
+- e
+- x
+- a
+- c
+- t
+- l
+- y
+-  
+- 6
+- .
+-  
+- T
+- h
+- e
+-  
+- p
+- h
+- r
+- a
+- s
+- e
+-  
+- '
+- t
+- h
+- i
+- s
+-  
+- w
+- a
+- y
+- '
+-  
+- i
+- s
+-  
+- n
+- o
+- n
+- -
+- s
+- t
+- a
+- n
+- d
+- a
+- r
+- d
+-  
+- t
+- e
+- m
+- p
+- l
+- a
+- t
+- i
+- n
+- g
+- .
+-  
+- S
+- h
+- o
+- u
+- l
+- d
+-  
+- r
+- e
+- f
+- e
+- r
+- e
+- n
+- c
+- e
+-  
+- t
+- h
+- e
+-  
+- s
+- p
+- e
+- c
+- i
+- f
+- i
+- c
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- i
+- n
+- s
+- t
+- a
+- n
+- c
+- e
+- s
+-  
+- c
+- l
+- e
+- a
+- r
+- l
+- y
+- ,
+-  
+- e
+- .
+- g
+- .
+-  
+- '
+- f
+- o
+- r
+-  
+- e
+- a
+- c
+- h
+-  
+- c
+- a
+- r
+- d
+-  
+- e
+- x
+- i
+- l
+- e
+- d
+-  
+- t
+- h
+- i
+- s
+-  
+- w
+- a
+- y
+- '
+- .
+- "
+- ,
+-  
+- "
+- F
+- L
+- A
+- V
+- O
+- R
+-  
+- T
+- E
+- X
+- T
+-  
+- E
+- N
+- C
+- O
+- D
+- I
+- N
+- G
+- :
+-  
+- T
+- h
+- e
+-  
+- f
+- l
+- a
+- v
+- o
+- r
+-  
+- t
+- e
+- x
+- t
+-  
+- c
+- o
+- n
+- t
+- a
+- i
+- n
+- s
+-  
+- a
+-  
+- g
+- a
+- r
+- b
+- l
+- e
+- d
+-  
+- c
+- h
+- a
+- r
+- a
+- c
+- t
+- e
+- r
+-  
+- (
+- '
+- â
+- €
+- "
+- '
+- )
+-  
+- w
+- h
+- i
+- c
+- h
+-  
+- i
+- s
+-  
+- a
+-  
+- U
+- T
+- F
+- -
+- 8
+-  
+- e
+- n
+- c
+- o
+- d
+- i
+- n
+- g
+-  
+- a
+- r
+- t
+- i
+- f
+- a
+- c
+- t
+-  
+- f
+- o
+- r
+-  
+- a
+- n
+-  
+- e
+- m
+-  
+- d
+- a
+- s
+- h
+-  
+- (
+- '
+- —
+- '
+- )
+- .
+-  
+- T
+- h
+- i
+- s
+-  
+- m
+- u
+- s
+- t
+-  
+- b
+- e
+-  
+- c
+- o
+- r
+- r
+- e
+- c
+- t
+- e
+- d
+- .
+- "
+- ,
+-  
+- "
+- P
+- O
+- W
+- E
+- R
+-  
+- L
+- E
+- V
+- E
+- L
+-  
+- N
+- O
+- T
+- E
+-  
+- (
+- n
+- o
+- n
+- -
+- b
+- l
+- o
+- c
+- k
+- i
+- n
+- g
+- )
+- :
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+- i
+- n
+- g
+-  
+- t
+- w
+- i
+- c
+- e
+-  
+- e
+- x
+- i
+- l
+- e
+- s
+-  
+- 6
+-  
+- c
+- a
+- r
+- d
+- s
+-  
+- a
+- n
+- d
+-  
+- a
+- l
+- w
+- a
+- y
+- s
+-  
+- d
+- e
+- a
+- l
+- s
+-  
+- e
+- x
+- a
+- c
+- t
+- l
+- y
+-  
+- 1
+- 2
+-  
+- d
+- a
+- m
+- a
+- g
+- e
+-  
+- t
+- o
+-  
+- a
+- n
+- y
+-  
+- t
+- a
+- r
+- g
+- e
+- t
+-  
+- f
+- o
+- r
+-  
+- 5
+-  
+- m
+- a
+- n
+- a
+-  
+- a
+- t
+-  
+- s
+- o
+- r
+- c
+- e
+- r
+- y
+-  
+- s
+- p
+- e
+- e
+- d
+- .
+-  
+- T
+- h
+- i
+- s
+-  
+- i
+- s
+-  
+- a
+- n
+-  
+- e
+- x
+- t
+- r
+- e
+- m
+- e
+- l
+- y
+-  
+- s
+- t
+- r
+- o
+- n
+- g
+-  
+- r
+- a
+- t
+- e
+-  
+- (
+- n
+- e
+- a
+- r
+-  
+- o
+- n
+- e
+- -
+- s
+- h
+- o
+- t
+-  
+- p
+- o
+- t
+- e
+- n
+- t
+- i
+- a
+- l
+- )
+- .
+-  
+- T
+- h
+- i
+- s
+-  
+- i
+- s
+-  
+- l
+- i
+- k
+- e
+- l
+- y
+-  
+- i
+- n
+- t
+- e
+- n
+- t
+- i
+- o
+- n
+- a
+- l
+-  
+- f
+- o
+- r
+-  
+- a
+-  
+- r
+- a
+- r
+- e
+- ,
+-  
+- b
+- u
+- t
+-  
+- w
+- a
+- r
+- r
+- a
+- n
+- t
+- s
+-  
+- a
+- w
+- a
+- r
+- e
+- n
+- e
+- s
+- s
+-  
+- —
+-  
+- t
+- h
+- e
+-  
+- f
+- i
+- x
+- e
+- d
+-  
+- 1
+- 2
+-  
+- d
+- a
+- m
+- a
+- g
+- e
+-  
+- m
+- a
+- k
+- e
+- s
+-  
+- t
+- h
+- e
+-  
+- s
+- p
+- e
+- l
+- l
+-  
+- h
+- i
+- g
+- h
+- l
+- y
+-  
+- d
+- e
+- t
+- e
+- r
+- m
+- i
+- n
+- i
+- s
+- t
+- i
+- c
+-  
+- a
+- n
+- d
+-  
+- p
+- o
+- t
+- e
+- n
+- t
+- i
+- a
+- l
+- l
+- y
+-  
+- t
+- o
+- o
+-  
+- r
+- e
+- l
+- i
+- a
+- b
+- l
+- e
+-  
+- f
+- o
+- r
+-  
+- c
+- o
+- m
+- p
+- e
+- t
+- i
+- t
+- i
+- v
+- e
+-  
+- b
+- a
+- l
+- a
+- n
+- c
+- e
+- .
+-  
+- C
+- o
+- n
+- s
+- i
+- d
+- e
+- r
+-  
+- w
+- h
+- e
+- t
+- h
+- e
+- r
+-  
+- t
+- h
+- e
+-  
+- d
+- a
+- m
+- a
+- g
+- e
+-  
+- s
+- h
+- o
+- u
+- l
+- d
+-  
+- b
+- e
+-  
+- t
+- i
+- e
+- d
+-  
+- t
+- o
+-  
+- c
+- a
+- r
+- d
+- s
+-  
+- *
+- c
+- a
+- s
+- t
+- *
+-  
+- r
+- a
+- t
+- h
+- e
+- r
+-  
+- t
+- h
+- a
+- n
+-  
+- c
+- a
+- r
+- d
+- s
+-  
+- *
+- e
+- x
+- i
+- l
+- e
+- d
+- *
+-  
+- t
+- o
+-  
+- i
+- n
+- t
+- r
+- o
+- d
+- u
+- c
+- e
+-  
+- m
+- e
+- a
+- n
+- i
+- n
+- g
+- f
+- u
+- l
+-  
+- r
+- i
+- s
+- k
+- ,
+-  
+- p
+- e
+- r
+-  
+- t
+- h
+- e
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- d
+- e
+- s
+- i
+- g
+- n
+-  
+- p
+- h
+- i
+- l
+- o
+- s
+- o
+- p
+- h
+- y
+-  
+- o
+- f
+-  
+- '
+- h
+- i
+- g
+- h
+-  
+- r
+- i
+- s
+- k
+- /
+- r
+- e
+- w
+- a
+- r
+- d
+- '
+- .
+- "
+- ]
 
 ## D) Cost
 
 - API calls: 1
-- Input tokens: 1120
-- Output tokens: 335
-- Cost: $0.0084
+- Input tokens: 1392
+- Output tokens: 655
+- Cost: $0.0140

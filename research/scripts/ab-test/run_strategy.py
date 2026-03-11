@@ -4,9 +4,10 @@
 Usage:
     uv run --directory backend python research/scripts/ab-test/run_strategy.py <strategy_number>
 
-    strategy_number: 1-8
+    strategy_number: 1-9
     1=Simple/Sonnet, 2=Iterative/Sonnet, 3=Detailed/Sonnet, 4=Split/Sonnet
     5=Simple/Opus,   6=Iterative/Opus,   7=Detailed/Opus,   8=Split/Opus
+    9=Council/Opus (3 independent reviewers + consensus synthesizer)
 """
 
 import json
@@ -17,18 +18,18 @@ from pathlib import Path
 
 from anthropic import Anthropic
 
-# ── Config ────────────────────────────────────────────────────────────────────
+# -- Config --------------------------------------------------------------------
 
 ROOT = Path("C:/Programming/MTGAI")
 CARDS_PATH = ROOT / "output/sets/ASD/mechanics/test-cards-original.json"
 OUTPUT_BASE = ROOT / "output/sets/ASD/mechanics/ab-test"
 
-SONNET = "claude-sonnet-4-20250514"
-OPUS = "claude-opus-4-20250514"
+SONNET = "claude-sonnet-4-6"
+OPUS = "claude-opus-4-6"
 
 PRICING = {  # USD per million tokens
     SONNET: {"input": 3.0, "output": 15.0},
-    OPUS: {"input": 15.0, "output": 75.0},
+    OPUS: {"input": 5.0, "output": 25.0},
 }
 
 STRATEGIES = {
@@ -36,10 +37,11 @@ STRATEGIES = {
     2: {"name": "s2-iterative-sonnet", "model": SONNET, "type": "iterative"},
     3: {"name": "s3-detailed-sonnet", "model": SONNET, "type": "detailed"},
     4: {"name": "s4-split-sonnet", "model": SONNET, "type": "split"},
-    5: {"name": "s5-simple-opus", "model": OPUS, "type": "simple"},
-    6: {"name": "s6-iterative-opus", "model": OPUS, "type": "iterative"},
-    7: {"name": "s7-detailed-opus", "model": OPUS, "type": "detailed"},
-    8: {"name": "s8-split-opus", "model": OPUS, "type": "split"},
+    5: {"name": "s5-simple-opus", "model": OPUS, "type": "simple", "effort": "max"},
+    6: {"name": "s6-iterative-opus", "model": OPUS, "type": "iterative", "effort": "max"},
+    7: {"name": "s7-detailed-opus", "model": OPUS, "type": "detailed", "effort": "max"},
+    8: {"name": "s8-split-opus", "model": OPUS, "type": "split", "effort": "max"},
+    9: {"name": "s9-council-opus", "model": OPUS, "type": "council", "effort": "max"},
 }
 
 # 0-based indices into test-cards-original.json
@@ -135,10 +137,15 @@ STRATEGY_DESCS = {
         "Three separate review passes (templating, mechanics, balance) followed by "
         "a single revision call combining all feedback. Four API calls per card."
     ),
+    "council": (
+        "Three independent reviewers each analyze the card separately (same prompt). "
+        "A fourth synthesizer identifies issues with 2-of-3 consensus and produces "
+        "the final revision. Four API calls per card."
+    ),
 }
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# -- Helpers -------------------------------------------------------------------
 
 def load_env():
     env_path = ROOT / ".env"
@@ -197,19 +204,32 @@ def tool_result_to_card(result, original):
     }
 
 
-# ── API calls ─────────────────────────────────────────────────────────────────
+# -- API calls -----------------------------------------------------------------
 
-def call_with_tool(client, model, system, user, max_tokens=8192):
-    """API call with forced tool_use. Returns (tool_input, text_parts, usage)."""
-    resp = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        temperature=1.0,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-        tools=[REVISED_CARD_TOOL],
-        tool_choice={"type": "tool", "name": "submit_revised_card"},
-    )
+def call_with_tool(client, model, system, user, max_tokens=8192, effort=None):
+    """API call with forced tool_use. Returns (tool_input, text_parts, usage, thinking_parts).
+
+    Note: thinking is incompatible with forced tool_choice, so no thinking blocks
+    are produced here. Effort still applies (deeper reasoning without explicit
+    thinking output).
+    """
+    kwargs = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "temperature": 1.0,
+        "system": system,
+        "messages": [{"role": "user", "content": user}],
+        "tools": [REVISED_CARD_TOOL],
+        "tool_choice": {"type": "tool", "name": "submit_revised_card"},
+    }
+    if effort:
+        kwargs["output_config"] = {"effort": effort}
+    resp = client.messages.create(**kwargs)
+    if resp.stop_reason == "max_tokens":
+        raise RuntimeError(
+            f"Response hit max_tokens limit ({max_tokens}). "
+            f"Output was truncated — increase max_tokens or simplify the prompt."
+        )
     text_parts = [b.text for b in resp.content if b.type == "text"]
     tool_input = None
     for b in resp.content:
@@ -217,26 +237,56 @@ def call_with_tool(client, model, system, user, max_tokens=8192):
             tool_input = b.input
     if tool_input is None:
         raise ValueError("No tool_use block in response")
-    return tool_input, text_parts, resp.usage
+    return tool_input, text_parts, resp.usage, []
 
 
-def call_text(client, model, system, user, max_tokens=4096):
-    """API call for text response. Returns (text, usage)."""
-    resp = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        temperature=1.0,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
+def call_text(client, model, system, user, max_tokens=8192, effort=None):
+    """API call for text response. Returns (text, usage, thinking_parts).
+
+    Thinking is disabled here — the explicit text analysis IS the reasoning,
+    so adaptive thinking would just add redundant cost (thinking tokens are
+    billed as output tokens).
+    """
+    kwargs = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "temperature": 1.0,
+        "system": system,
+        "messages": [{"role": "user", "content": user}],
+    }
+    if effort:
+        kwargs["output_config"] = {"effort": effort}
+    resp = client.messages.create(**kwargs)
+    if resp.stop_reason == "max_tokens":
+        raise RuntimeError(
+            f"Response hit max_tokens limit ({max_tokens}). "
+            f"Output was truncated — increase max_tokens or simplify the prompt."
+        )
     text = "\n".join(b.text for b in resp.content if b.type == "text")
-    return text, resp.usage
+    return text, resp.usage, []
 
 
-# ── Strategy implementations ──────────────────────────────────────────────────
+def _make_step(description, prompt, response="", tool_result=None,
+               input_tokens=0, output_tokens=0, thinking=""):
+    """Build a step dict for logging."""
+    step = {
+        "description": description,
+        "prompt": prompt,
+        "response": response,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+    }
+    if tool_result is not None:
+        step["tool_result"] = tool_result
+    if thinking:
+        step["thinking"] = thinking
+    return step
+
+
+# -- Strategy implementations -------------------------------------------------
 # Each returns (steps: list[dict], result: dict)
 
-def run_simple(client, card, model, _mech_text):
+def run_simple(client, card, model, _mech_text, effort=None):
     system = (
         'You are a senior Magic: The Gathering card designer reviewing cards '
         'for the set "Anomalous Descent."'
@@ -249,19 +299,20 @@ Card to review:
 Critically review this card and provide an improved version based on your \
 findings. If the card is fine, return it unchanged with verdict OK."""
 
-    tool_input, text_parts, usage = call_with_tool(client, model, system, user)
-    steps = [{
-        "description": "Review and revise (single pass)",
-        "prompt": user,
-        "response": "\n".join(text_parts) if text_parts else "",
-        "tool_result": tool_input,
-        "input_tokens": usage.input_tokens,
-        "output_tokens": usage.output_tokens,
-    }]
+    tool_input, text_parts, usage, thinking = call_with_tool(
+        client, model, system, user, effort=effort
+    )
+    steps = [_make_step(
+        "Review and revise (single pass)", user,
+        response="\n".join(text_parts) if text_parts else "",
+        tool_result=tool_input,
+        input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
+        thinking="\n".join(thinking),
+    )]
     return steps, tool_input
 
 
-def run_iterative(client, card, model, _mech_text):
+def run_iterative(client, card, model, _mech_text, effort=None):
     system = (
         'You are a senior Magic: The Gathering card designer reviewing cards '
         'for the set "Anomalous Descent."'
@@ -279,15 +330,16 @@ Card to review:
 Critically review this card and provide an improved version based on your \
 findings. If the card is fine, return it unchanged with verdict OK."""
 
-        tool_input, text_parts, usage = call_with_tool(client, model, system, user)
-        steps.append({
-            "description": f"Iteration {i + 1}",
-            "prompt": user,
-            "response": "\n".join(text_parts) if text_parts else "",
-            "tool_result": tool_input,
-            "input_tokens": usage.input_tokens,
-            "output_tokens": usage.output_tokens,
-        })
+        tool_input, text_parts, usage, thinking = call_with_tool(
+            client, model, system, user, effort=effort
+        )
+        steps.append(_make_step(
+            f"Iteration {i + 1}", user,
+            response="\n".join(text_parts) if text_parts else "",
+            tool_result=tool_input,
+            input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
+            thinking="\n".join(thinking),
+        ))
         result = tool_input
 
         if tool_input.get("verdict") == "OK":
@@ -299,7 +351,7 @@ findings. If the card is fine, return it unchanged with verdict OK."""
     return steps, result
 
 
-def run_detailed(client, card, model, _mech_text):
+def run_detailed(client, card, model, _mech_text, effort=None):
     """Two-step: detailed text analysis, then tool submission."""
     system = (
         'You are a senior Magic: The Gathering card designer reviewing cards '
@@ -349,14 +401,16 @@ does it always resolve to the same value?
 
 Provide your detailed analysis for each criterion."""
 
-    review_text, review_usage = call_text(client, model, system, review_prompt)
-    steps = [{
-        "description": "Detailed review analysis",
-        "prompt": review_prompt,
-        "response": review_text,
-        "input_tokens": review_usage.input_tokens,
-        "output_tokens": review_usage.output_tokens,
-    }]
+    review_text, review_usage, review_thinking = call_text(
+        client, model, system, review_prompt, effort=effort
+    )
+    steps = [_make_step(
+        "Detailed review analysis", review_prompt,
+        response=review_text,
+        input_tokens=review_usage.input_tokens,
+        output_tokens=review_usage.output_tokens,
+        thinking="\n".join(review_thinking),
+    )]
 
     time.sleep(1)
 
@@ -370,20 +424,22 @@ Original card:
 Review findings:
 {review_text}"""
 
-    tool_input, text_parts, tool_usage = call_with_tool(client, model, system, revision_prompt)
-    steps.append({
-        "description": "Submit revised card based on review",
-        "prompt": revision_prompt,
-        "response": "\n".join(text_parts) if text_parts else "",
-        "tool_result": tool_input,
-        "input_tokens": tool_usage.input_tokens,
-        "output_tokens": tool_usage.output_tokens,
-    })
+    tool_input, text_parts, tool_usage, tool_thinking = call_with_tool(
+        client, model, system, revision_prompt, effort=effort
+    )
+    steps.append(_make_step(
+        "Submit revised card based on review", revision_prompt,
+        response="\n".join(text_parts) if text_parts else "",
+        tool_result=tool_input,
+        input_tokens=tool_usage.input_tokens,
+        output_tokens=tool_usage.output_tokens,
+        thinking="\n".join(tool_thinking),
+    ))
 
     return steps, tool_input
 
 
-def run_split(client, card, model, _mech_text):
+def run_split(client, card, model, _mech_text, effort=None):
     steps = []
     findings = {}
 
@@ -406,14 +462,13 @@ reminder text in parentheses on its first use?
 
 List any templating issues found, or say "PASS" if the templating is correct."""
 
-    text1, usage1 = call_text(client, model, sys1, usr1)
-    steps.append({
-        "description": "Pass 1 — Templating review",
-        "prompt": usr1,
-        "response": text1,
-        "input_tokens": usage1.input_tokens,
-        "output_tokens": usage1.output_tokens,
-    })
+    text1, usage1, thinking1 = call_text(client, model, sys1, usr1, effort=effort)
+    steps.append(_make_step(
+        "Pass 1 — Templating review", usr1,
+        response=text1,
+        input_tokens=usage1.input_tokens, output_tokens=usage1.output_tokens,
+        thinking="\n".join(thinking1),
+    ))
     findings["templating"] = text1
     time.sleep(1)
 
@@ -436,14 +491,13 @@ Check:
 
 List any design issues found, or say "PASS" if the design is sound."""
 
-    text2, usage2 = call_text(client, model, sys2, usr2)
-    steps.append({
-        "description": "Pass 2 — Mechanics review",
-        "prompt": usr2,
-        "response": text2,
-        "input_tokens": usage2.input_tokens,
-        "output_tokens": usage2.output_tokens,
-    })
+    text2, usage2, thinking2 = call_text(client, model, sys2, usr2, effort=effort)
+    steps.append(_make_step(
+        "Pass 2 — Mechanics review", usr2,
+        response=text2,
+        input_tokens=usage2.input_tokens, output_tokens=usage2.output_tokens,
+        thinking="\n".join(thinking2),
+    ))
     findings["mechanics"] = text2
     time.sleep(1)
 
@@ -468,14 +522,13 @@ mythics to rare power level.
 State whether the balance is PASS, or describe the specific balance issue \
 with card comparisons."""
 
-    text3, usage3 = call_text(client, model, sys3, usr3)
-    steps.append({
-        "description": "Pass 3 — Balance review",
-        "prompt": usr3,
-        "response": text3,
-        "input_tokens": usage3.input_tokens,
-        "output_tokens": usage3.output_tokens,
-    })
+    text3, usage3, thinking3 = call_text(client, model, sys3, usr3, effort=effort)
+    steps.append(_make_step(
+        "Pass 3 — Balance review", usr3,
+        response=text3,
+        input_tokens=usage3.input_tokens, output_tokens=usage3.output_tokens,
+        thinking="\n".join(thinking3),
+    ))
     findings["balance"] = text3
     time.sleep(1)
 
@@ -499,20 +552,93 @@ the card's core identity and purpose. Do not change things that weren't \
 flagged as issues. If all reviews said PASS, return the card unchanged \
 with verdict OK."""
 
-    tool_input, text_parts, usage4 = call_with_tool(client, model, sys4, usr4)
-    steps.append({
-        "description": "Pass 4 — Revision (combining all feedback)",
-        "prompt": usr4,
-        "response": "\n".join(text_parts) if text_parts else "",
-        "tool_result": tool_input,
-        "input_tokens": usage4.input_tokens,
-        "output_tokens": usage4.output_tokens,
-    })
+    tool_input, text_parts, usage4, thinking4 = call_with_tool(
+        client, model, sys4, usr4, effort=effort
+    )
+    steps.append(_make_step(
+        "Pass 4 — Revision (combining all feedback)", usr4,
+        response="\n".join(text_parts) if text_parts else "",
+        tool_result=tool_input,
+        input_tokens=usage4.input_tokens, output_tokens=usage4.output_tokens,
+        thinking="\n".join(thinking4),
+    ))
 
     return steps, tool_input
 
 
-# ── Report generation ─────────────────────────────────────────────────────────
+def run_council(client, card, model, _mech_text, effort=None):
+    """Council of 3 independent reviewers + 1 consensus synthesizer."""
+    system = (
+        'You are a senior Magic: The Gathering card designer reviewing cards '
+        'for the set "Anomalous Descent."'
+    )
+    review_prompt = f"""{MECHANIC_DEFS}
+
+Card to review:
+{format_card(card)}
+
+Critically review this card. List any issues you find with templating, \
+mechanics, balance, design, or color pie. If the card is fine, say \
+"No issues found." Be specific about each issue."""
+
+    steps = []
+    reviews = []
+
+    # 3 independent reviewers (same prompt, independent calls)
+    for i in range(3):
+        text, usage, thinking = call_text(
+            client, model, system, review_prompt, effort=effort
+        )
+        steps.append(_make_step(
+            f"Reviewer {i + 1} analysis", review_prompt,
+            response=text,
+            input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
+            thinking="\n".join(thinking),
+        ))
+        reviews.append(text)
+        time.sleep(1)
+
+    # Synthesizer: aggregate with 2-of-3 consensus, then revise
+    synth_system = (
+        "You are a senior MTG card designer. You have received 3 independent "
+        "reviews of the same card. Identify issues that at least 2 out of 3 "
+        "reviewers agree on. Only fix issues with consensus — ignore issues "
+        "raised by only 1 reviewer."
+    )
+    synth_prompt = f"""{MECHANIC_DEFS}
+
+Original card:
+{format_card(card)}
+
+--- Reviewer 1 ---
+{reviews[0]}
+
+--- Reviewer 2 ---
+{reviews[1]}
+
+--- Reviewer 3 ---
+{reviews[2]}
+
+Based on the consensus of these 3 reviews (issues raised by at least 2 \
+reviewers), produce a revised version of the card. If no issues have \
+consensus, return the card unchanged with verdict OK. Only fix issues that \
+at least 2 reviewers agree on."""
+
+    tool_input, text_parts, usage, thinking = call_with_tool(
+        client, model, synth_system, synth_prompt, effort=effort
+    )
+    steps.append(_make_step(
+        "Synthesizer — consensus revision", synth_prompt,
+        response="\n".join(text_parts) if text_parts else "",
+        tool_result=tool_input,
+        input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
+        thinking="\n".join(thinking),
+    ))
+
+    return steps, tool_input
+
+
+# -- Report generation ---------------------------------------------------------
 
 def write_card_report(out_dir, card_idx, card, strategy_name, model, steps, result):
     """Write per-card markdown report. Returns (total_in, total_out, total_cost)."""
@@ -534,6 +660,13 @@ def write_card_report(out_dir, card_idx, card, strategy_name, model, steps, resu
         for pline in step["prompt"].split("\n"):
             lines.append(f"> {pline}")
         lines.append("")
+
+        if step.get("thinking"):
+            lines.append("**Thinking:**")
+            lines.append("<details><summary>Click to expand thinking</summary>\n")
+            for tline in step["thinking"].split("\n"):
+                lines.append(f"> {tline}")
+            lines.append("\n</details>\n")
 
         if step.get("response"):
             lines.append("**Response:**")
@@ -588,7 +721,7 @@ def write_card_report(out_dir, card_idx, card, strategy_name, model, steps, resu
 
 def write_summary(out_dir, strategy_name, model, strategy_type, card_results):
     """Write summary markdown report. Returns total_cost."""
-    model_label = "Opus" if "opus" in model else "Sonnet"
+    model_label = "Opus 4.6" if "opus" in model else "Sonnet 4.6"
     desc = f"{STRATEGY_DESCS[strategy_type]} Using {model_label}."
 
     lines = [f"# Strategy: {strategy_name}\n"]
@@ -630,7 +763,10 @@ def write_summary(out_dir, strategy_name, model, strategy_type, card_results):
         total_in += n_in
         total_out += n_out
 
-        lines.append(f"| {card_num}. {name} | {verdict} | {issues_str} | {changed} | ${cost:.4f} |")
+        lines.append(
+            f"| {card_num}. {name} | {verdict} | {issues_str} "
+            f"| {changed} | ${cost:.4f} |"
+        )
 
     total_cost = calc_cost(model, total_in, total_out)
     lines.append(f"\n## Total Cost\n")
@@ -642,10 +778,10 @@ def write_summary(out_dir, strategy_name, model, strategy_type, card_results):
     return total_cost
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# -- Main ----------------------------------------------------------------------
 
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in [str(i) for i in range(1, 9)]:
+    if len(sys.argv) != 2 or sys.argv[1] not in [str(i) for i in range(1, 10)]:
         print(__doc__)
         sys.exit(1)
 
@@ -654,9 +790,11 @@ def main():
     strategy_name = config["name"]
     model = config["model"]
     strategy_type = config["type"]
+    effort = config.get("effort")
 
-    model_label = "Opus" if "opus" in model else "Sonnet"
-    print(f"=== Strategy {strategy_num}: {strategy_name} ({model_label}) ===\n")
+    model_label = "Opus 4.6" if "opus" in model else "Sonnet 4.6"
+    effort_label = f", effort={effort}" if effort else ""
+    print(f"=== Strategy {strategy_num}: {strategy_name} ({model_label}{effort_label}) ===\n")
 
     load_env()
     client = Anthropic()
@@ -672,6 +810,7 @@ def main():
         "iterative": run_iterative,
         "detailed": run_detailed,
         "split": run_split,
+        "council": run_council,
     }[strategy_type]
 
     card_results = []
@@ -680,7 +819,7 @@ def main():
         print(f"  Card {card_num}: {card['name']}...", end=" ", flush=True)
 
         try:
-            steps, result = runner(client, card, model, MECHANIC_DEFS)
+            steps, result = runner(client, card, model, MECHANIC_DEFS, effort=effort)
             card_results.append((card_idx, card, steps, result))
 
             tok_in, tok_out, cost = write_card_report(

@@ -60,35 +60,75 @@ These are failure modes the LLM generator consistently produces but doesn't catc
 
 ## A/B test: Review-and-revise strategies (1B-8c/8d)
 
+### Round 1 (session 11) — Opus 4.0, no effort parameter
+
 Tested 8 strategies (4 Sonnet + 4 Opus) on 7 test cards with known human verdicts. $3.83 total cost.
 
-### Strategies tested
 | # | Type | Model | Cost | Human Verdict |
 |---|------|-------|------|---------------|
-| S1 | Simple | Sonnet | $0.06 | DISQUALIFIED — R!=Red confusion, malfunction blindness |
-| S2 | Iterative | Sonnet | $0.22 | DISQUALIFIED — goes off the rails, design erosion |
-| S3 | Detailed | Sonnet | $0.15 | FAIL — tenuous balance grasp |
-| S4 | Split | Sonnet | $0.23 | PROMISING — one disqualifying outlier ({U} counterspell) |
-| S5 | Simple | Opus | $0.31 | OK — one miss (Card 14 balance) |
-| S6 | Iterative | Opus | $1.02 | SATISFACTORY — all acceptable, expensive + oscillation |
-| S7 | Detailed | Opus | $0.74 | FAIL — identifies but doesn't fix balance issues |
-| S8 | Split | Opus | $1.11 | FAIL — {U}{U} counterspell unacceptable |
+| S1 | Simple | Sonnet 4.0 | $0.06 | DISQUALIFIED — R!=Red confusion, malfunction blindness |
+| S2 | Iterative | Sonnet 4.0 | $0.22 | DISQUALIFIED — goes off the rails, design erosion |
+| S3 | Detailed | Sonnet 4.0 | $0.15 | FAIL — tenuous balance grasp |
+| S4 | Split | Sonnet 4.0 | $0.23 | PROMISING — one disqualifying outlier ({U} counterspell) |
+| S5 | Simple | Opus 4.0 | $0.31 | OK — one miss (Card 14 balance) |
+| S6 | Iterative | Opus 4.0 | $1.02 | SATISFACTORY — all acceptable, expensive + oscillation |
+| S7 | Detailed | Opus 4.0 | $0.74 | FAIL — identifies but doesn't fix balance issues |
+| S8 | Split | Opus 4.0 | $1.11 | FAIL — {U}{U} counterspell unacceptable |
 
-### Winner: Hybrid (S4 Split/Sonnet + Opus sanity check)
-- S4 (Split/Sonnet) for primary review: good regression safety, good templating/design fixes, $0.032/card
-- Light Opus pass as sanity check: catch flagrant balance problems that Sonnet misses
-- Exact hybrid design to be finalized in Phase 1C
+**Winner (provisional): Hybrid** — S4 (Split/Sonnet) + Opus sanity check for balance outliers.
+
+### Round 2 (session 12) — Opus 4.6, effort=max, +S9 council
+
+**Why rerun:** Round 1 used Opus 4.0 (`claude-opus-4-20250514`, $15/$75) — two generations behind current Opus 4.6 (`claude-opus-4-6`, $5/$25). 3x price difference invalidates all Round 1 Opus cost/benefit analysis. Sonnet also updated to 4.6 (`claude-sonnet-4-6`, $3/$15 — same price as 4.0).
+
+**Changes from Round 1:**
+- Updated model IDs: Opus 4.6, Sonnet 4.6
+- Added `effort: "max"` (API `output_config`) for all Opus strategies — Opus-only feature
+- Added S9: Council strategy (3 independent Opus reviewers + consensus synthesizer)
+- Removed `thinking` from all calls — incompatible with `tool_choice: force`, redundant for text analysis (thinking tokens billed as output, and explicit analysis text IS the reasoning)
+- Increased `max_tokens` from 4096 to 8192 for text calls
+- Added truncation guard: `stop_reason == "max_tokens"` raises `RuntimeError`
+- Fixed U+FFFD encoding bug in test cards (em dashes restored)
+
+**S9 Council design:**
+- 3 independent `call_text` reviewers analyze the card with the same prompt (no cross-contamination)
+- 1 `call_with_tool` synthesizer receives all 3 reviews + the card, applies 2-of-3 consensus filter
+- Only issues flagged by 2+ reviewers are acted on → reduces false positives
+- 4 API calls per card
+
+**Round 2 results (complete):**
+
+| # | Type | Model | Cost | Score | Key failure |
+|---|------|-------|------|-------|-------------|
+| S1 | Simple | Sonnet 4.6 | $0.09 | 4/7 | Missed nonbo, balance ×2 |
+| S2 | Iterative | Sonnet 4.6 | $0.34 | 6/7 | 1 disqualifying (Card 7 nonbo) |
+| S3 | Detailed | Sonnet 4.6 | $0.37 | 5/7 | Balance (Cards 11+14) |
+| S4 | Split | Sonnet 4.6 | $0.27 | 5/7 | Balance (Cards 11+14) |
+| S5 | Simple | Opus 4.6 max | $0.13 | 4/7 | Missed nonbo (!), balance ×2 |
+| S6 | Iterative | Opus 4.6 max | $0.42 | **6/7** | False OK on Card 7 |
+| S7 | Detailed | Opus 4.6 max | $0.37 | 5/7 | Balance (Cards 11+14) |
+| S8 | Split | Opus 4.6 max | $0.44 | **6/7** | Soft fail Card 14 |
+| S9 | Council | Opus 4.6 max | $0.49 | **6/7** | Card 14 creative but rules-broken |
+
+**Observations:**
+- Simple prompts miss nonbos even on Opus — S5 OK'd haste+malfunction just like S1
+- Detailed/split prompts catch nonbos but single-pass undernerfs balance
+- Iteration fixes balance via multiple passes but can't fix false OKs
+- Council produces most creative fixes — S9 Card 11 matched human's own redesign
+- Council creativity cuts both ways: Card 14 was an ambitious but rules-broken concept
+- The detailed prompt advantage is just one sentence: "List any issues with templating, mechanics, balance, design, or color pie." The full S7 checklist was mostly superfluous.
+- Analysis ≠ action: S7 detected everything but produced worst Opus fixes
 
 ### Key findings — Sonnet vs Opus
 
-**Sonnet limitations (consistent across all 4 strategies):**
+**Sonnet limitations (consistent across all strategies and model versions):**
 1. Cannot reason about mandatory-cost-as-conditional patterns (Card 11: overclock is mandatory additional cost, so "if you overclocked" is always true — Sonnet says it CAN be false)
 2. Doesn't understand malfunction as a downside (nerfs clean malfunction cards because it sees above-rate stats without recognizing the tempo cost)
 3. Confuses color abbreviations (R != Red in mechanic definitions)
 4. Balance execution is poor even when issues are identified
 
 **Opus limitations:**
-1. Expensive (5x Sonnet pricing)
+1. ~~Expensive (5x Sonnet pricing)~~ Now ~1.7x Sonnet pricing with 4.6 ($5/$25 vs $3/$15)
 2. Iterative approach causes oscillation ("too strong" → "too weak" → "too strong")
 3. Detailed analysis can HURT revision — S7 correctly identified Card 11 as overpowered but didn't change it (got lost in templating fixes)
 4. Still misses some balance issues (Card 14: 6 damage for 5 mana + double overclock)
@@ -97,19 +137,47 @@ Tested 8 strategies (4 Sonnet + 4 Opus) on 7 test cards with known human verdict
 
 1. **Splitting helps Sonnet dramatically**: S4 (Split) produced the best Sonnet results. Focused prompts per domain (templating, mechanics, balance) work better than one big prompt.
 2. **Splitting doesn't help Opus**: Opus already reasons well in single passes. Splitting just adds cost.
-3. **Iteration helps Opus, hurts Sonnet**: Opus self-corrects across iterations (S6 satisfactory). Sonnet drifts further from the original with each iteration (S2 goes off the rails).
+3. **Iteration helps Opus, hurts Sonnet**: Opus self-corrects across iterations (S6 satisfactory). Sonnet drifts further from the original with each iteration (S2 goes off the rails in Round 1, but 6/7 in Round 2 with Sonnet 4.6).
 4. **Detailed checklists help detection, hurt execution**: Both S3 and S7 identified more issues but produced worse revisions. Too much context → conservative fixes.
 5. **Analysis ≠ action**: The biggest surprise. S7 (Detailed/Opus) had the best analytical output but the worst fix quality among Opus strategies. Correctly diagnosing a problem doesn't mean the model will fix it.
+6. **Council consensus reduces false positives AND boosts creativity**: S9 caught the haste+malfunction nonbo that Sonnet consistently misses. More surprisingly, the synthesizer produced the most creative fixes (Card 11 matched human's own redesign). Multiple perspectives seem to give the synthesizer "permission" to make bolder changes.
+7. **The minimal "detailed" nudge**: The only prompt difference between S5/S6 (simple) and S7+ (detailed) that matters is one sentence: "List any issues with templating, mechanics, balance, design, or color pie." The full S7 checklist was mostly restating what Opus already knows.
+8. **Strong generation > cheap review**: The best way to minimize review cost is a strong initial generation prompt+model. Don't generate with Haiku if you'll spend a fortune fixing afterwards.
 
-### Confounding factor: encoding
-The test data (`test-cards-original.json`) had U+FFFD (Unicode Replacement Character) instead of em dashes in type lines and flavor text. This caused every strategy to flag encoding issues, adding noise. Strategies that handled clean cards correctly despite the encoding noise (S4, S7) demonstrated robustness.
+### API learnings
+
+1. **Thinking + forced `tool_choice` incompatible**: API returns 400 "Thinking may not be enabled when tool_choice forces tool use." Use `effort` parameter instead for tool calls.
+2. **Thinking is redundant for explicit analysis calls**: When the prompt asks "analyze this card and explain your reasoning," the model's text output IS the reasoning. Thinking adds a second reasoning pass billed as output tokens — pure waste.
+3. **`effort: "max"` is Opus-only**: API parameter `output_config: {"effort": "max"}`. Lower levels ("low"/"medium"/"high") available for all models.
+4. **Truncation is silent failure**: `stop_reason == "max_tokens"` means the response was cut off. Must check and raise an error — otherwise you get partial/broken JSON or incomplete analysis.
+5. **Model version matters for cost**: Opus 4.0 ($15/$75) → Opus 4.6 ($5/$25) = 3x cheaper. Always verify model IDs match latest available.
+
+### Confounding factors
+- **Encoding (Round 1 only)**: Test data had U+FFFD instead of em dashes — fixed before Round 2.
+- **Thinking token waste (Round 2, initial runs)**: S3, S4, S7, S8 initially had thinking enabled, eating into token budget and causing truncation. Fixed and rerun in session 13.
+- **Small sample**: 7 test cards, single run per strategy. Results are directional, not statistically significant.
+
+### Winning strategy: Tiered council+iteration hybrid
+
+**C/U cards**: Council-style prompt (single reviewer with category nudge: "List any issues with templating, mechanics, balance, design, or color pie") + iteration (continue conversation, loop until OK or max N).
+
+**R/M cards**: Full council (3 independent Opus reviewers + consensus synthesizer) + iteration.
+
+**Token optimizations**:
+1. Only include mechanic defs relevant to the card
+2. Skip synthesis if all 3 council reviewers say OK
+3. Use Anthropic prompt caching — batch by mechanic to maximize cache hits
+4. Continue conversation for iteration instead of fresh context each loop (saves resending system prompt + mechanic defs)
+
+**Estimated review cost**: ~$0.10/card C/U, ~$0.11/card R/M → ~$6-7 for 60-card dev set.
 
 ## Cost
 - Mechanic generation: ~$0.09
 - Validation spike (15 test cards): ~$0.09
 - Automated review calibration: ~$0.34
-- A/B test (8 strategies × 7 cards): ~$3.83
-- **Total Phase 1B: ~$4.35**
+- A/B test Round 1 (8 strategies × 7 cards, Opus 4.0): ~$3.83
+- A/B test Round 2 (S1-S9 complete, Opus 4.6): ~$4.42
+- **Total Phase 1B: ~$8.77**
 
 ## Files produced
 - `backend/mtgai/generation/llm_client.py` — LLM client with tool_use
@@ -122,18 +190,15 @@ The test data (`test-cards-original.json`) had U+FFFD (Unicode Replacement Chara
 - `output/sets/ASD/mechanics/human-review-findings.md` — ground truth for review calibration
 - `output/sets/ASD/mechanics/auto-review-results.md` — automated review calibration results
 - `output/sets/ASD/mechanics/validation-spike-results.md` — spike quantitative results
-- `output/sets/ASD/mechanics/ab-test/` — 8 strategy directories with per-card reports + summaries
+- `output/sets/ASD/mechanics/ab-test/` — 9 strategy directories with per-card reports + summaries
 - `research/scripts/auto_review_calibration.py` — automated review calibration script
 - `research/scripts/mechanic_validation_spike.py` — mechanic test card generator
-- `research/scripts/ab-test/run_strategy.py` — A/B test runner (all 8 strategies)
+- `research/scripts/ab-test/run_strategy.py` — A/B test runner (9 strategies, updated for Opus 4.6 + effort + truncation guard)
 
 ## What to watch for in Phase 1C
-- **Hybrid review pipeline design:**
-  1. S4 Split/Sonnet reviews all cards individually (~$0.032/card)
-  2. Opus batch sanity check — single prompt with ALL revised cards: "Flag any with flagrant balance, mechanics, or wording issues." Returns only flagged card names + what's wrong. (~$0.50-1.00 per batch)
-  3. S6 Iterative/Opus — only for the flagged subset (~$0.145/card, estimated 10-20% of cards)
-  - Estimated cost for 60-card dev set: ~$4. For 280-card full set: ~$15-20.
+- **Review pipeline** (tiered council+iteration hybrid): See "Winning strategy" above. Implementation goes in Phase 4A+4B; 1C uses heuristic validators only.
+- **Strong generation matters most**: Use good prompts + capable models for initial card generation. Preventing issues is far cheaper than detecting and fixing them. Include the 8 pointed questions as preventive guidance in generation prompts.
 - **Extensive review logs are essential**: Every AI review must produce a detailed log (prompt sent, full AI response, tool call result, cost) similar to the A/B test card reports. Without these, you can't diagnose bad reasoning (e.g., R!=Red confusion) or iterate on prompts. Store per-card review logs alongside card JSON in `output/sets/<code>/reviews/`.
-- Fix U+FFFD encoding in card data before production generation
+- ~~Fix U+FFFD encoding in card data before production generation~~ DONE (session 12)
 - The pointed questions list should evolve as new failure modes are discovered
-- For complex card types (planeswalkers, sagas), skip Sonnet entirely and go straight to Opus review
+- For complex card types (planeswalkers, sagas), skip Sonnet entirely and go straight to Opus generation AND review

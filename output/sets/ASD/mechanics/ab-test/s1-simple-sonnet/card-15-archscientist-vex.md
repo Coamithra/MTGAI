@@ -11,7 +11,7 @@
     "U",
     "R"
   ],
-  "type_line": "Legendary Creature \u00ef\u00bf\u00bd Human Scientist",
+  "type_line": "Legendary Creature \u00e2\u20ac\u201d Human Scientist",
   "oracle_text": "Flying\nCards exiled with overclock (exile the top three cards of your library, you may play them until end of turn) cost {2} less to cast.\nWhenever you cast a spell exiled with overclock, copy it. You may choose new targets for the copy.",
   "power": "3",
   "toughness": "4",
@@ -50,7 +50,7 @@
 > Card to review:
 > Name: Archscientist Vex, the Unbound
 > Mana Cost: {2}{U}{R}
-> Type: Legendary Creature ï¿½ Human Scientist
+> Type: Legendary Creature â€” Human Scientist
 > Rarity: mythic
 > Oracle Text: Flying
 > Cards exiled with overclock (exile the top three cards of your library, you may play them until end of turn) cost {2} less to cast.
@@ -65,23 +65,19 @@
 {
   "changed": true,
   "verdict": "REVISED",
-  "issues_found": [
-    "Overclock reminder text incorrectly placed in oracle text instead of being separate",
-    "Oracle text formatting needs cleanup for clarity",
-    "Card power level may be too high for mythic - both cost reduction and copying is very strong"
-  ],
+  "issues_found": "[\"Overclock reminder text is duplicated inline in the oracle text. Since Overclock is a keyword action for the set, it should appear as the keyword alone (with reminder text handled in the reminder text field or templated separately), not spelled out mid-sentence.\", \"The cost reduction of {2} combined with free copies of every spell cast from exile is likely too powerful at mythic \u2014 cost reduction + copy is a pushed combination that could break parity with even other mythic legends. Reducing to {1} less is safer and still impactful.\", \"Type line encoding issue: 'Legendary Creature \u00e2\u20ac\" Human Scientist' contains a UTF-8 mojibake em-dash (\u00e2\u20ac\") that should be a clean em dash (\u2014).\", \"Flavor text is charming and appropriate \u2014 no issue there.\", \"Flying on a 3/4 for {2}{U}{R} is already above rate before considering abilities; with cost reduction and copy, the card may be too efficient. Reducing power to 3/3 adds a small balancing lever.\", \"Oracle text should reference the keyword 'Overclock' without re-stating the reminder text inline, per standard Magic templating rules.\"]",
   "name": "Archscientist Vex, the Unbound",
   "mana_cost": "{2}{U}{R}",
   "type_line": "Legendary Creature \u2014 Human Scientist",
-  "oracle_text": "Flying\nSpells you cast from exile cost {1} less to cast.\nWhenever you cast a spell from exile, if it was exiled by overclocking, copy it. You may choose new targets for the copy.",
-  "power": "3",
-  "toughness": "4",
+  "oracle_text": "Flying\nSpells you cast that were exiled by Overclock cost {1} less to cast.\nWhenever you cast a spell that was exiled by Overclock, copy it. You may choose new targets for the copy.",
   "rarity": "mythic",
-  "flavor_text": "I have transcended the limitations of sanity, safety, and the laws of thermodynamics."
+  "power": "3",
+  "toughness": "3",
+  "flavor_text": "\"I have transcended the limitations of sanity, safety, and the laws of thermodynamics.\""
 }
 ```
 
-*Tokens: 1151 in / 357 out — $0.0088*
+*Tokens: 1422 in / 572 out — $0.0128*
 
 ## C) Revised Card
 
@@ -90,22 +86,1102 @@
   "name": "Archscientist Vex, the Unbound",
   "mana_cost": "{2}{U}{R}",
   "type_line": "Legendary Creature \u2014 Human Scientist",
-  "oracle_text": "Flying\nSpells you cast from exile cost {1} less to cast.\nWhenever you cast a spell from exile, if it was exiled by overclocking, copy it. You may choose new targets for the copy.",
+  "oracle_text": "Flying\nSpells you cast that were exiled by Overclock cost {1} less to cast.\nWhenever you cast a spell that was exiled by Overclock, copy it. You may choose new targets for the copy.",
   "rarity": "mythic",
   "power": "3",
-  "toughness": "4",
-  "flavor_text": "I have transcended the limitations of sanity, safety, and the laws of thermodynamics."
+  "toughness": "3",
+  "flavor_text": "\"I have transcended the limitations of sanity, safety, and the laws of thermodynamics.\""
 }
 ```
 
 **Changes made:**
-- Overclock reminder text incorrectly placed in oracle text instead of being separate
-- Oracle text formatting needs cleanup for clarity
-- Card power level may be too high for mythic - both cost reduction and copying is very strong
+- [
+- "
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- r
+- e
+- m
+- i
+- n
+- d
+- e
+- r
+-  
+- t
+- e
+- x
+- t
+-  
+- i
+- s
+-  
+- d
+- u
+- p
+- l
+- i
+- c
+- a
+- t
+- e
+- d
+-  
+- i
+- n
+- l
+- i
+- n
+- e
+-  
+- i
+- n
+-  
+- t
+- h
+- e
+-  
+- o
+- r
+- a
+- c
+- l
+- e
+-  
+- t
+- e
+- x
+- t
+- .
+-  
+- S
+- i
+- n
+- c
+- e
+-  
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+-  
+- i
+- s
+-  
+- a
+-  
+- k
+- e
+- y
+- w
+- o
+- r
+- d
+-  
+- a
+- c
+- t
+- i
+- o
+- n
+-  
+- f
+- o
+- r
+-  
+- t
+- h
+- e
+-  
+- s
+- e
+- t
+- ,
+-  
+- i
+- t
+-  
+- s
+- h
+- o
+- u
+- l
+- d
+-  
+- a
+- p
+- p
+- e
+- a
+- r
+-  
+- a
+- s
+-  
+- t
+- h
+- e
+-  
+- k
+- e
+- y
+- w
+- o
+- r
+- d
+-  
+- a
+- l
+- o
+- n
+- e
+-  
+- (
+- w
+- i
+- t
+- h
+-  
+- r
+- e
+- m
+- i
+- n
+- d
+- e
+- r
+-  
+- t
+- e
+- x
+- t
+-  
+- h
+- a
+- n
+- d
+- l
+- e
+- d
+-  
+- i
+- n
+-  
+- t
+- h
+- e
+-  
+- r
+- e
+- m
+- i
+- n
+- d
+- e
+- r
+-  
+- t
+- e
+- x
+- t
+-  
+- f
+- i
+- e
+- l
+- d
+-  
+- o
+- r
+-  
+- t
+- e
+- m
+- p
+- l
+- a
+- t
+- e
+- d
+-  
+- s
+- e
+- p
+- a
+- r
+- a
+- t
+- e
+- l
+- y
+- )
+- ,
+-  
+- n
+- o
+- t
+-  
+- s
+- p
+- e
+- l
+- l
+- e
+- d
+-  
+- o
+- u
+- t
+-  
+- m
+- i
+- d
+- -
+- s
+- e
+- n
+- t
+- e
+- n
+- c
+- e
+- .
+- "
+- ,
+-  
+- "
+- T
+- h
+- e
+-  
+- c
+- o
+- s
+- t
+-  
+- r
+- e
+- d
+- u
+- c
+- t
+- i
+- o
+- n
+-  
+- o
+- f
+-  
+- {
+- 2
+- }
+-  
+- c
+- o
+- m
+- b
+- i
+- n
+- e
+- d
+-  
+- w
+- i
+- t
+- h
+-  
+- f
+- r
+- e
+- e
+-  
+- c
+- o
+- p
+- i
+- e
+- s
+-  
+- o
+- f
+-  
+- e
+- v
+- e
+- r
+- y
+-  
+- s
+- p
+- e
+- l
+- l
+-  
+- c
+- a
+- s
+- t
+-  
+- f
+- r
+- o
+- m
+-  
+- e
+- x
+- i
+- l
+- e
+-  
+- i
+- s
+-  
+- l
+- i
+- k
+- e
+- l
+- y
+-  
+- t
+- o
+- o
+-  
+- p
+- o
+- w
+- e
+- r
+- f
+- u
+- l
+-  
+- a
+- t
+-  
+- m
+- y
+- t
+- h
+- i
+- c
+-  
+- —
+-  
+- c
+- o
+- s
+- t
+-  
+- r
+- e
+- d
+- u
+- c
+- t
+- i
+- o
+- n
+-  
+- +
+-  
+- c
+- o
+- p
+- y
+-  
+- i
+- s
+-  
+- a
+-  
+- p
+- u
+- s
+- h
+- e
+- d
+-  
+- c
+- o
+- m
+- b
+- i
+- n
+- a
+- t
+- i
+- o
+- n
+-  
+- t
+- h
+- a
+- t
+-  
+- c
+- o
+- u
+- l
+- d
+-  
+- b
+- r
+- e
+- a
+- k
+-  
+- p
+- a
+- r
+- i
+- t
+- y
+-  
+- w
+- i
+- t
+- h
+-  
+- e
+- v
+- e
+- n
+-  
+- o
+- t
+- h
+- e
+- r
+-  
+- m
+- y
+- t
+- h
+- i
+- c
+-  
+- l
+- e
+- g
+- e
+- n
+- d
+- s
+- .
+-  
+- R
+- e
+- d
+- u
+- c
+- i
+- n
+- g
+-  
+- t
+- o
+-  
+- {
+- 1
+- }
+-  
+- l
+- e
+- s
+- s
+-  
+- i
+- s
+-  
+- s
+- a
+- f
+- e
+- r
+-  
+- a
+- n
+- d
+-  
+- s
+- t
+- i
+- l
+- l
+-  
+- i
+- m
+- p
+- a
+- c
+- t
+- f
+- u
+- l
+- .
+- "
+- ,
+-  
+- "
+- T
+- y
+- p
+- e
+-  
+- l
+- i
+- n
+- e
+-  
+- e
+- n
+- c
+- o
+- d
+- i
+- n
+- g
+-  
+- i
+- s
+- s
+- u
+- e
+- :
+-  
+- '
+- L
+- e
+- g
+- e
+- n
+- d
+- a
+- r
+- y
+-  
+- C
+- r
+- e
+- a
+- t
+- u
+- r
+- e
+-  
+- â
+- €
+- "
+-  
+- H
+- u
+- m
+- a
+- n
+-  
+- S
+- c
+- i
+- e
+- n
+- t
+- i
+- s
+- t
+- '
+-  
+- c
+- o
+- n
+- t
+- a
+- i
+- n
+- s
+-  
+- a
+-  
+- U
+- T
+- F
+- -
+- 8
+-  
+- m
+- o
+- j
+- i
+- b
+- a
+- k
+- e
+-  
+- e
+- m
+- -
+- d
+- a
+- s
+- h
+-  
+- (
+- â
+- €
+- "
+- )
+-  
+- t
+- h
+- a
+- t
+-  
+- s
+- h
+- o
+- u
+- l
+- d
+-  
+- b
+- e
+-  
+- a
+-  
+- c
+- l
+- e
+- a
+- n
+-  
+- e
+- m
+-  
+- d
+- a
+- s
+- h
+-  
+- (
+- —
+- )
+- .
+- "
+- ,
+-  
+- "
+- F
+- l
+- a
+- v
+- o
+- r
+-  
+- t
+- e
+- x
+- t
+-  
+- i
+- s
+-  
+- c
+- h
+- a
+- r
+- m
+- i
+- n
+- g
+-  
+- a
+- n
+- d
+-  
+- a
+- p
+- p
+- r
+- o
+- p
+- r
+- i
+- a
+- t
+- e
+-  
+- —
+-  
+- n
+- o
+-  
+- i
+- s
+- s
+- u
+- e
+-  
+- t
+- h
+- e
+- r
+- e
+- .
+- "
+- ,
+-  
+- "
+- F
+- l
+- y
+- i
+- n
+- g
+-  
+- o
+- n
+-  
+- a
+-  
+- 3
+- /
+- 4
+-  
+- f
+- o
+- r
+-  
+- {
+- 2
+- }
+- {
+- U
+- }
+- {
+- R
+- }
+-  
+- i
+- s
+-  
+- a
+- l
+- r
+- e
+- a
+- d
+- y
+-  
+- a
+- b
+- o
+- v
+- e
+-  
+- r
+- a
+- t
+- e
+-  
+- b
+- e
+- f
+- o
+- r
+- e
+-  
+- c
+- o
+- n
+- s
+- i
+- d
+- e
+- r
+- i
+- n
+- g
+-  
+- a
+- b
+- i
+- l
+- i
+- t
+- i
+- e
+- s
+- ;
+-  
+- w
+- i
+- t
+- h
+-  
+- c
+- o
+- s
+- t
+-  
+- r
+- e
+- d
+- u
+- c
+- t
+- i
+- o
+- n
+-  
+- a
+- n
+- d
+-  
+- c
+- o
+- p
+- y
+- ,
+-  
+- t
+- h
+- e
+-  
+- c
+- a
+- r
+- d
+-  
+- m
+- a
+- y
+-  
+- b
+- e
+-  
+- t
+- o
+- o
+-  
+- e
+- f
+- f
+- i
+- c
+- i
+- e
+- n
+- t
+- .
+-  
+- R
+- e
+- d
+- u
+- c
+- i
+- n
+- g
+-  
+- p
+- o
+- w
+- e
+- r
+-  
+- t
+- o
+-  
+- 3
+- /
+- 3
+-  
+- a
+- d
+- d
+- s
+-  
+- a
+-  
+- s
+- m
+- a
+- l
+- l
+-  
+- b
+- a
+- l
+- a
+- n
+- c
+- i
+- n
+- g
+-  
+- l
+- e
+- v
+- e
+- r
+- .
+- "
+- ,
+-  
+- "
+- O
+- r
+- a
+- c
+- l
+- e
+-  
+- t
+- e
+- x
+- t
+-  
+- s
+- h
+- o
+- u
+- l
+- d
+-  
+- r
+- e
+- f
+- e
+- r
+- e
+- n
+- c
+- e
+-  
+- t
+- h
+- e
+-  
+- k
+- e
+- y
+- w
+- o
+- r
+- d
+-  
+- '
+- O
+- v
+- e
+- r
+- c
+- l
+- o
+- c
+- k
+- '
+-  
+- w
+- i
+- t
+- h
+- o
+- u
+- t
+-  
+- r
+- e
+- -
+- s
+- t
+- a
+- t
+- i
+- n
+- g
+-  
+- t
+- h
+- e
+-  
+- r
+- e
+- m
+- i
+- n
+- d
+- e
+- r
+-  
+- t
+- e
+- x
+- t
+-  
+- i
+- n
+- l
+- i
+- n
+- e
+- ,
+-  
+- p
+- e
+- r
+-  
+- s
+- t
+- a
+- n
+- d
+- a
+- r
+- d
+-  
+- M
+- a
+- g
+- i
+- c
+-  
+- t
+- e
+- m
+- p
+- l
+- a
+- t
+- i
+- n
+- g
+-  
+- r
+- u
+- l
+- e
+- s
+- .
+- "
+- ]
 
 ## D) Cost
 
 - API calls: 1
-- Input tokens: 1151
-- Output tokens: 357
-- Cost: $0.0088
+- Input tokens: 1422
+- Output tokens: 572
+- Cost: $0.0128

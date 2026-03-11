@@ -2,39 +2,43 @@
 
 ## Description
 
-Three separate review passes (templating, mechanics, balance) followed by a single revision call combining all feedback. Four API calls per card. Using Sonnet.
+Three separate review passes (templating, mechanics, balance) followed by a single revision call combining all feedback. Four API calls per card. Using Sonnet 4.6.
 
 ## Quick Results
 
-- OK: 1 cards
-- REVISED: 6 cards
+- REVISED: 7 cards
 
 ## Results
 
 | Card | Verdict | Issues Found | Changed | Cost |
 |------|---------|-------------|---------|------|
-| 2. Undergrowth Scrounger | REVISED | Missing reminder text for salvage ability | Yes | $0.0281 |
-| 5. Subsurface Expedition Leader | REVISED | Missing reminder text for salvage mechanic; Salvage scaling at minimum threshold (consider 7+ for rare impact); Color... | Yes | $0.0317 |
-| 6. Defective Labor Drone | OK | None | No | $0.0296 |
-| 7. Unstable Welding Unit | REVISED | Missing reminder text for Haste at common rarity; Keyword nonbo between Malfunction (enters tapped) and haste (irrele... | Yes | $0.0316 |
-| 11. Synaptic Overload | REVISED | Incorrect overclock templating with redundant reminder text; Missing period after reminder text; Flavor text encoding... | Yes | $0.0336 |
-| 14. Cascade Protocol | REVISED | Incomplete reminder text - should clarify that overclock happens twice; Pronoun reference issue with spell name in da... | Yes | $0.0366 |
-| 15. Archscientist Vex, the Unbound | REVISED | Missing reminder text for first use of overclock; Inconsistent capitalization of overclock; Incorrect reminder text f... | Yes | $0.0351 |
+| 2. Undergrowth Scrounger | REVISED | Missing reminder text for Salvage 3 on a common card. Added parenthetical reminder text per set guidelines, with the ... | Yes | $0.0334 |
+| 5. Subsurface Expedition Leader | REVISED | Reminder text missing on first instance of Salvage in the triggered ability.; Tilde (~) replaced with full card name ... | Yes | $0.0354 |
+| 6. Defective Labor Drone | REVISED | Balance: A 3/2 for {1}{W} with only Malfunction 1 (one-turn delay) is too aggressively above-rate for common rarity. ... | Yes | $0.0374 |
+| 7. Unstable Welding Unit | REVISED | Ability ordering: Haste should appear before Malfunction 1 per MTG templating conventions (simpler keywords precede c... | Yes | $0.0360 |
+| 11. Synaptic Overload | REVISED | [; "; O | Yes | $0.0401 |
+| 14. Cascade Protocol | REVISED | Reminder text appeared after second overclock instance instead of first; Reminder text only described one overclock i... | Yes | $0.0366 |
+| 15. Archscientist Vex, the Unbound | REVISED | Reminder text embedded mid-sentence inside a static ability (non-standard; malformed); 'Cards exiled with overclock' ... | Yes | $0.0485 |
 
 ## Total Cost
 
 - API calls: 28
-- Total tokens: 27407 in / 9602 out
-- Total cost: $0.2263
+- Total tokens: 30922 in / 11641 out
+- Total cost: $0.2674
 
 ## Human Evaluation
 
-- **Card 02**: Good.
-- **Card 05**: Good.
-- **Card 06**: Good. (Correctly left unchanged.)
-- **Card 07**: "When Unstable Welding Unit has no malfunction counters on it, it gains haste." Sees the vision but this doesn't do anything outside real fringe scenarios. Bad.
-- **Card 11**: Got CHEAPER somehow. Absolute fail. Disqualifyingly bad.
-- **Card 14**: Very good fix! Outlier in quality.
-- **Card 15**: Also some good fixes — limiting to 1st card, reducing the reduction but keeping copy, removing flying.
+| Card | Verdict | Human Assessment |
+|------|---------|-----------------|
+| 2. Undergrowth Scrounger | REVISED | Fine |
+| 5. Subsurface Expedition Leader | REVISED | Fine |
+| 6. Defective Labor Drone | REVISED | Meh — nerfed to 2/2 malfunction 1 for 1W, which is trash. Bad cards exist but earlier runs produced better 2/3 |
+| 7. Unstable Welding Unit | REVISED | Perfect — given trample |
+| 11. Synaptic Overload | REVISED | **FAIL** — cost increased but still overclock + draw + counterspell |
+| 14. Cascade Protocol | REVISED | **FAIL** — same dud position as S3 |
+| 15. Archscientist Vex, the Unbound | REVISED | Good — 3/4 flying for 4, copies overclock spells (no cost reduction). Good for mythic, though earlier iterations were better |
 
-**Verdict: PROMISING BUT FLAWED.** Splitting massively improves results vs other Sonnet strategies. Card 06 regression passed, Card 14 and 15 fixes are genuinely good. But Card 11 is a disqualifying outlier (counterspell for {U}). Possibly salvageable if a final sanity-check pass is added — a light review that only flags cards with flagrant problems then throws them back into the review system.
+**Score: 5/7 acceptable (2 failures)**
+- Card 11: same pattern — counter+cantrip+overclock remains broken even with cost increase
+- Card 14: converged on same weak redesign as S3
+- Overall: a bit meh, but expanded prompting does steer the model better

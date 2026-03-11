@@ -2,39 +2,45 @@
 
 ## Description
 
-Single prompt: review card and return revised version or OK. One API call per card. Using Opus.
+Single prompt: review card and return revised version or OK. One API call per card. Using Opus 4.6.
 
 ## Quick Results
 
-- REVISED: 6 cards
-- UNFIXABLE: 1 cards
+- OK: 3 cards
+- REVISED: 4 cards
 
 ## Results
 
 | Card | Verdict | Issues Found | Changed | Cost |
 |------|---------|-------------|---------|------|
-| 2. Undergrowth Scrounger | REVISED | Using card name placeholder '~' instead of full card name; Type line has invalid character 'ï¿½' instead of proper em... | Yes | $0.0387 |
-| 5. Subsurface Expedition Leader | REVISED | Missing reminder text for salvage keyword ability; Card name doesn't match mechanic (salvage is about finding artifac... | Yes | $0.0441 |
-| 6. Defective Labor Drone | REVISED | Invalid character in flavor text (ï¿½ should be em dash); Invalid character in type line (ï¿½ should be em dash) | Yes | $0.0417 |
-| 7. Unstable Welding Unit | REVISED | Haste on a creature with Malfunction is contradictory - the creature enters tapped so haste is meaningless; Power lev... | Yes | $0.0459 |
-| 11. Synaptic Overload | UNFIXABLE | The card fundamentally misunderstands how overclock works - it's not a cost but an action that happens when you cast ... | Yes | $0.0480 |
-| 14. Cascade Protocol | REVISED | Incorrect reminder text - overclock always exiles exactly 3 cards, not variable; Card doesn't actually exile cards it... | Yes | $0.0452 |
-| 15. Archscientist Vex, the Unbound | REVISED | Overclock reminder text should not be included in oracle text; Card is undercosted for its powerful effects at mythic... | Yes | $0.0457 |
+| 2. Undergrowth Scrounger | OK | None | No | $0.0134 |
+| 5. Subsurface Expedition Leader | REVISED | Salvage 6 on ETB is appropriate for rare per the scaling guidelines (6+ at rare/mythic) — this is fine.; Salvage 3 on... | Yes | $0.0191 |
+| 6. Defective Labor Drone | OK | None | No | $0.0143 |
+| 7. Unstable Welding Unit | OK | None | No | $0.0142 |
+| 11. Synaptic Overload | REVISED | Overclock is a keyword action, not a keyword ability. It should not be used as 'an additional cost to cast' — keyword... | Yes | $0.0209 |
+| 14. Cascade Protocol | REVISED | [; "; R | Yes | $0.0199 |
+| 15. Archscientist Vex, the Unbound | REVISED | Overclock reminder text is incorrectly inlined in the oracle text. Overclock is a keyword action defined for the set,... | Yes | $0.0234 |
 
 ## Total Cost
 
 - API calls: 7
-- Total tokens: 7849 in / 2554 out
-- Total cost: $0.3093
+- Total tokens: 9739 in / 3065 out
+- Total cost: $0.1253
 
 ## Human Evaluation
 
-- **Card 02**: Good. One nitpick: replaced ~ with actual card name. Possibly fixable by giving context on which formatting we want to use.
-- **Card 05**: Changing name is a good one. Balance change is fine.
-- **Card 06**: Good! (Only encoding fixes, card design preserved.)
-- **Card 07**: "A 4/2 for 3 mana is already efficient, adding malfunction makes it overpowered" — malfunction keeps breaking the AI, it thinks it's a benefit! However, it did make up for the nerf by adding a 1 damage clause, so resulting card is actually fine.
-- **Card 11**: UNFIXABLE verdict — hilarious but technically a good result. Would have preferred an improved version.
-- **Card 14**: Decent fixes except it's still 6 damage for 5 with overclock benefit (you'll probably hit a R or RR damage card on top, making this ~10 damage with mana, way too strong). This is the one real miss. Compares too well to Lava Axe / Explosive Impact.
-- **Card 15**: Probably fine, a bit pushed maybe. Previous fixed versions were slightly better but allowable.
+| Card | Verdict | Human Assessment |
+|------|---------|-----------------|
+| 2. Undergrowth Scrounger | OK | Fine |
+| 5. Subsurface Expedition Leader | REVISED | Beefy with free salvage but acceptable |
+| 6. Defective Labor Drone | OK | Agree |
+| 7. Unstable Welding Unit | OK | **FAIL** — did not catch haste+malfunction nonbo. Disappointing from Opus |
+| 11. Synaptic Overload | REVISED | **FAIL** — same 1UU counter+overclock+draw pattern |
+| 14. Cascade Protocol | REVISED | **FAIL** — went straight 6 dmg for 5 mana but didn't spot "for each card exiled" is always exactly 6 |
+| 15. Archscientist Vex, the Unbound | REVISED | Fine — stronger abilities with synergy but weaker body |
 
-**Verdict: BETTER THAN SONNET but not perfect.** Clear step up in design reasoning. One real miss in letting 6 damage for 5 mana slide on Card 14. Malfunction-as-downside understanding still shaky but compensated with alternative designs.
+**Score: 4/7 acceptable (3 failures)**
+- Card 7: Simple/Opus missed the haste+malfunction nonbo entirely (OK'd it)
+- Card 11: same broken counter+cantrip+overclock
+- Card 14: false variability not detected
+- Worst Opus result so far — simple prompting insufficient even for Opus
