@@ -1,0 +1,124 @@
+{
+  "batch_index": 2,
+  "slot_ids": [
+    "B-U-02",
+    "B-U-03",
+    "B-R-01",
+    "B-R-02",
+    "B-M-01"
+  ],
+  "slot_count": 5,
+  "card_count_returned": 5,
+  "model": "claude-opus-4-6",
+  "temperature": 1.0,
+  "effort": "max",
+  "input_tokens": 3809,
+  "output_tokens": 1884,
+  "cost_usd": 0.198435,
+  "latency_s": 39.84,
+  "stop_reason": "tool_use",
+  "timestamp": "2026-03-12T23:31:33.259300+00:00",
+  "raw_cards": [
+    {
+      "name": "Luminous Spark Extractor",
+      "mana_cost": "{2}{B}",
+      "cmc": 3,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Creature — Human Assassin",
+      "oracle_text": "When ~ enters, target opponent discards a card. If that card was a creature card, create a 1/1 colorless Construct artifact creature token.",
+      "flavor_text": "\"We don't kill slavers. We simply... repurpose them.\"\n—Kessa, Spark operative",
+      "power": "2",
+      "toughness": "2",
+      "loyalty": null,
+      "rarity": "uncommon",
+      "design_notes": "Black uncommon at CMC 3. A 2/2 for 3 with a discard ETB is a solid but fair uncommon — compare Burglar Rat (common, weaker) and Raider's Wake (uncommon, stronger). The conditional token creation adds value without being too complex. The Construct token ties into the set's super-science theme and the Society of the Luminous Spark's brain-extraction lore. P+T=4 <= 3+3=6, well within budget. Discard is core black, token creation is secondary."
+    },
+    {
+      "name": "Subsurface Harvest",
+      "mana_cost": "{3}{B}{B}",
+      "cmc": 5,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Enchantment",
+      "oracle_text": "Whenever a creature you control dies, you may pay 1 life. If you do, draw a card.\nAt the beginning of your end step, if three or more creatures died this turn, create a 4/4 black Horror creature token.",
+      "flavor_text": "The dungeon feeds on the dead. It always has.",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "uncommon",
+      "design_notes": "Black uncommon enchantment at CMC 5. The first ability is a classic black sacrifice-for-value engine — paying life to draw cards is deeply black (compare Phyrexian Arena, Dark Prophecy). The life cost prevents it from being free card draw. The second ability rewards sacrifice-heavy strategies with a big payoff token, but requires real setup: three creatures dying in one turn demands either a board wipe or dedicated sacrifice outlets. At 5 mana, it's a midgame engine that asks you to build around it. The Horror token ties into the megadungeon's eldritch spawning theme."
+    },
+    {
+      "name": "Koyl Yrenum, the Vizier",
+      "mana_cost": "{1}{B}",
+      "cmc": 2,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Legendary Creature — Human Advisor",
+      "oracle_text": "Whenever another creature dies, you may pay {1}. If you do, look at the top two cards of target opponent's library. Put one into their graveyard and the other back on top.\nSacrifice another creature: ~ gains hexproof and indestructible until end of turn.",
+      "flavor_text": "Feretha still rules Denethix. Everyone knows this. Everyone.",
+      "power": "1",
+      "toughness": "3",
+      "loyalty": null,
+      "rarity": "rare",
+      "design_notes": "The Vizier who rules through deception — mechanically, he manipulates information (opponents' libraries) and protects himself by sacrificing others. A 1/3 for 2 is defensive, fitting an advisor who hides behind others. The first ability is a repeatable Surveil-for-opponents on death triggers, costing {1} each time to prevent it from being free — it fuels mill strategies and gives information advantage. The sacrifice ability is flavorful self-preservation: Koyl will always throw someone else under the bus. Both abilities together create tension: you want creatures to die (for value) but also need them alive (for protection). Complex but cohesive at rare."
+    },
+    {
+      "name": "The Brain Engine",
+      "mana_cost": "{3}{B}{B}",
+      "cmc": 5,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Legendary Enchantment — Artifact",
+      "oracle_text": "Whenever a nontoken creature you control dies, exile it with a charge counter on ~.\n{2}{B}, {T}, Remove three charge counters from ~: Return target creature card from exile to the battlefield under your control. It's a black Zombie in addition to its other colors and types.",
+      "flavor_text": "Feretha's body sat on the throne. His brain hung in the basement, dreaming of a city it no longer controlled.",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "rare",
+      "design_notes": "A legendary enchantment artifact representing the machine keeping Feretha's brain alive — and the broader super-science of brain extraction in the setting. It stockpiles dead creatures (exiling them to track via charge counters) then reanimates from exile, not graveyard, which is a distinctive twist. Requiring 3 charge counters means you need three creatures to die before you get one back — this is a slow engine, not a combo piece. The Zombie typing adds black flavor. The tap requirement means one activation per turn. At 5 mana with a 3-death investment before payoff, this is powerful but appropriately slow for a rare build-around. Raise dead from exile is black's reanimation wheelhouse."
+    },
+    {
+      "name": "Apex of the Subsurface",
+      "mana_cost": "{2}{B}{B}",
+      "cmc": 4,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Legendary Creature — Horror",
+      "oracle_text": "Deathtouch\nWhenever a creature dealt damage by ~ this turn dies, exile it. You may cast creature spells from among cards exiled with ~ by paying life equal to their mana value rather than paying their mana cost.\nWhenever you cast a spell this way, each opponent loses 2 life.",
+      "flavor_text": "It was here before Mount Rendon. Before humanity. It will be here after.",
+      "power": "4",
+      "toughness": "4",
+      "loyalty": null,
+      "rarity": "mythic",
+      "design_notes": "The mythic horror lurking at the bottom of the Anomalous Subsurface Environment. A 4/4 deathtouch for 4 is already a strong creature, but the real power is the reanimation-from-exile ability. Deathtouch ensures any creature it fights or blocks dies, feeding the exile zone. Then you can cast those exiled creatures by paying life — deeply black, reminiscent of Bolas's Citadel and Reanimate. The 2-life drain on each cast offsets some of the life payment and pressures opponents. This creates a mythic play pattern: it kills things, eats them, and lets you deploy them. Life payment creates meaningful tension — you can't recklessly cast everything. The 'dealt damage by ~' clause means it needs to be in combat or fighting, not just existing. Powerful, splashy, and quintessentially black."
+    }
+  ],
+  "prompts": {
+    "system_prompt": "You are an expert Magic: The Gathering card designer with deep knowledge of game mechanics, color pie philosophy, and competitive balance.\n\nYour task is to design original MTG cards and return them as valid JSON. Follow these rules precisely.\n\n## MTG Rules Reference\n\n### Evergreen Keywords\nFlying, First strike, Double strike, Deathtouch, Trample, Vigilance, Haste, Lifelink, Reach, Menace, Hexproof, Flash, Defender, Indestructible, Ward {N}.\n\n### Common Keyword Actions\nDestroy, Exile, Sacrifice, Scry N, Mill N, Fight, Create token, Counter, Draw.\n\n### Rules Text Patterns\n- Self-reference: Always use ~ for the card's own name. Write \"When ~ enters\" not \"When this creature enters\" or \"When [Card Name] enters\".\n- Triggered abilities: \"When ~ enters, ...\", \"Whenever ~ attacks, ...\", \"At the beginning of your upkeep, ...\", \"When ~ dies, ...\"\n- Activated abilities: \"{cost}: {effect}\" — e.g., \"{T}: Add {G}.\" or \"{2}{B}, Sacrifice a creature: Draw a card.\"\n- Static abilities: Keyword on its own line, or \"Other creatures you control get +1/+1.\"\n- Modal spells: \"Choose one —\\n* Effect A.\\n* Effect B.\"\n- Mana symbols: {W} white, {U} blue, {B} black, {R} red, {G} green, {C} colorless, {X} variable, {T} tap.\n\n### Mana Cost Format\nGeneric mana first, then WUBRG order: {2}{W}{U} is correct, {W}{2}{U} is wrong. X costs come first: {X}{R}{R}.\n\n## Color Pie\n\n- **White (W)**: Lifegain, small creatures, tokens, exile-based removal, enchantments, vigilance, flying (small). Cannot draw cards without restriction.\n- **Blue (U)**: Card draw, counterspells, bounce, flying (large), mill, scry, flash. Cannot destroy permanents directly.\n- **Black (B)**: Creature destruction, discard, drain life, deathtouch, menace, raise dead, sacrifice-for-value. Pays life as a cost.\n- **Red (R)**: Direct damage (burn), haste, temporary power boosts, artifact destruction, impulsive draw (exile top, cast this turn). Cannot gain life or destroy enchantments.\n- **Green (G)**: Large creatures, mana ramp, trample, fight-based removal, +1/+1 counters, enchantment/artifact destruction, reach. Cannot deal direct damage to players.\n\n## New World Order (Complexity by Rarity)\n\n- **Common**: Simple. One keyword ability OR one short text ability. No complex board interactions. Creatures should have clean stats.\n- **Uncommon**: Moderate. Up to two abilities or one complex ability. Signpost multicolor uncommons define draft archetypes.\n- **Rare**: Complex allowed. Splashy effects, build-around potential, powerful legendaries.\n- **Mythic**: Spectacular and unique. Planeswalkers, game-changing effects, iconic creatures.\n\n### Power Level Guidelines\n- Common creatures: P + T should not exceed CMC + 3. Extra stats require a drawback.\n- Removal at common should be conditional or expensive. Unconditional removal starts at uncommon.\n- Card draw at common: 1 card only, with a condition or at sorcery speed.\n\n## Output Format\n\nReturn valid JSON matching this schema:\n\n{\n  \"name\": \"string — original name, not an existing MTG card\",\n  \"mana_cost\": \"string — e.g., '{2}{W}{U}'\",\n  \"cmc\": \"number — converted mana cost total (X counts as 0)\",\n  \"colors\": [\"W\", \"U\", \"B\", \"R\", \"G\"] — subset matching mana_cost colors,\n  \"color_identity\": [\"W\", \"U\", \"B\", \"R\", \"G\"] — colors from mana_cost AND oracle_text mana symbols,\n  \"type_line\": \"string — e.g., 'Creature — Human Wizard' or 'Legendary Enchantment'\",\n  \"oracle_text\": \"string — rules text using ~ for self-reference. Separate abilities with \\\\n\",\n  \"flavor_text\": \"string or null — evocative in-world flavor\",\n  \"power\": \"string or null — required for creatures, e.g., '3' or '*'\",\n  \"toughness\": \"string or null — required for creatures\",\n  \"loyalty\": \"string or null — required for planeswalkers\",\n  \"rarity\": \"common | uncommon | rare | mythic\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"string — explain your design intent, color pie reasoning, and power level choices\"\n}\n\n### Field Rules\n- power and toughness are strings (to support */*, X/X, etc.).\n- cmc must equal the total mana value of mana_cost (each {W},{U},{B},{R},{G},{C} = 1, each {N} = N, {X} = 0).\n- colors must exactly match the colored mana symbols in mana_cost. A card with mana_cost \"{2}{R}\" has colors [\"R\"].\n- color_identity includes colors from both mana_cost and any mana symbols in oracle_text.\n- Separate multiple abilities in oracle_text with \\n (newline).\n- Include flavor_text for most cards. Omit it only if rules text is very long.\n\n## Constraints\n\n- DO NOT use silver-border or un-set mechanics (no dice rolling, no subgames, no breaking the fourth wall).\n- DO NOT reference real-world people, places, brands, or events.\n- DO NOT reuse existing MTG card names. All names must be original.\n- DO NOT use the card's actual name in oracle_text — always use ~ as self-reference.\n- DO NOT create cards that are strictly better than iconic staples at the same rarity and cost.\n- DO NOT put reminder text in oracle_text unless specifically requested. Reminder text goes in a separate field if needed.",
+    "system_prompt_length": 5007,
+    "user_prompt": "## Set: Anomalous Descent\n\nTheme: Science-fantasy megadungeon in far-future post-apocalyptic Earth\n\nThousands of years after civilization collapsed, the city of Denethix clings to order at the edge of a wilderness teeming with dinosaurs, moktars, and rogue wizards. Beneath Mount Rendon lies the Anomalous Subsurface Environment — a self-spawning megadungeon that predates humanity, filled with ancient super-science relics, degraded automatons, and things far worse. Adventurers descend seeking fortune. Most don't return.\n\nThe Vizier, a former slave named Koyl Yrenum, rules Denethix through a web of lies — the city's founder Feretha is dead, his brain scooped out and hooked to a machine, but everyone must believe he still lives. The Unyielding Fist enforces order with ancient laser weapons. The Cult of Science worships technology they barely understand. The Society of the Luminous Spark fights slavery by extracting slavers' brains. And deep in the wilderness, the House of Flesh pulses with eldritch horror where Starry Wisdom cultists have transformed a forest mansion into a living sanctum of alien terror.\n\nThe tone is played straight — the gonzo humor lives in flavor text. Banks guarded by 20-foot robots with machine guns. A Head Scientist on 12-foot stilts. Wizards who fly around in giant stone heads that shoot lasers from their eyes. Clockwork cats and dolls made of human teeth. The world takes itself seriously; the absurdity speaks for itself.\n\nFlavor text tone: Deadpan, darkly humorous. The world takes itself seriously; the absurdity speaks for itself.\n\n---\n\n## Custom Mechanics for This Set\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Preventive Design Checklist (read before designing each card)\n\n1. **No keyword nonbos.** Do NOT give a creature haste if it enters tapped (e.g. via Malfunction). Do NOT give flying to a creature with defender unless the card explicitly cares about it.\n2. **Reminder text on first use.** The FIRST time a custom mechanic keyword (Salvage, Malfunction, Overclock) appears in a card's oracle text, follow it with reminder text in parentheses. Subsequent uses on the same card omit it.\n3. **Meaningful conditionals only.** If an effect says \"if you [did X] this turn\" but X is a mandatory cost of the same spell, the condition is always true and therefore pointless. Remove the conditional or make the trigger come from a separate source.\n4. **Respect rarity power budgets.** Common creatures: P+T <= CMC+3. Commons get one keyword OR one short text ability, not both. Unconditional removal starts at uncommon. Card draw at common is 1 card with a condition.\n5. **Single purpose, not kitchen sink.** Each card should do ONE thing well. Do not pile unrelated effects onto a single card.\n6. **Real variability only.** If damage/effect scales with a count, the count must actually vary in normal gameplay. \"Deal damage equal to cards exiled\" where the exile count is always fixed = fake variability.\n7. **No keyword name collisions.** Do NOT use \"Scavenge\" (existing RTR keyword) or \"Overload\" (existing RTR keyword). Our mechanics are Salvage, Malfunction, and Overclock.\n8. **Relevant enters-tapped only.** \"Enters tapped\" is irrelevant on a noncreature, non-vehicle permanent with no tap abilities. Only add it where it creates a real tempo cost.\n\n---\n\n**Cards already in the set** (do NOT duplicate names or effects):\n- Subsurface Scavenger ({B}) — Creature — Human Rogue — \n- Fist Enforcer ({1}{B}) — Creature — Human Soldier — Menace\n- Dungeon Rot ({2}{B}) — Instant — Target creature gets -3/-3 until end of turn.\n- Plunder the Catacombs ({4}{B}) — Sorcery — Return up to two target creature cards from your graveyard t...\n- Toothwork Familiar ({B}) — Creature — Construct — When ~ dies, each opponent loses 1 life and you gain 1 life.\n\n**Color distribution so far**: {'W': 0, 'U': 0, 'B': 5, 'R': 0, 'G': 0}\n**Total cards**: 5\n\n---\n\nGenerate exactly 5 card(s):\n\nCard 1: Black uncommon creature, CMC ~3\nCard 2: Black uncommon enchantment, CMC ~5, mechanic: complex\nCard 3: Black rare creature, CMC ~2, mechanic: complex\nCard 4: Black rare enchantment, CMC ~5, mechanic: complex\nCard 5: Black mythic creature, CMC ~4, mechanic: complex",
+    "user_prompt_length": 4831
+  }
+}

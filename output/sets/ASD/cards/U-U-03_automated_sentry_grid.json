@@ -1,0 +1,58 @@
+{
+  "id": null,
+  "name": "Automated Sentry Grid",
+  "layout": "normal",
+  "mana_cost": "{3}{U}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 5.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Enchantment",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Whenever a creature an opponent controls attacks, tap it. It doesn't untap during its controller's next untap step unless its controller pays {2}.\nWhenever an artifact enters under your control, scry 1.",
+  "flavor_text": "The grid was designed to protect something. After ten thousand years, it no longer remembers what.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "U-U-03",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:34:42.737931Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 1041,
+      "output_tokens": 381,
+      "cost_usd": 0.044196,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Blue uncommon enchantment at CMC 5. A defensive pillow-fort effect that feels like ancient security technology. The tap-and-freeze effect is a blue staple (Frost Titan, Dungeon Geists lineage) but spread across all attackers at a steep 5-mana investment. The {2} opt-out prevents total lockdown and gives opponents meaningful choices. The artifact-scry rider ties it into the set's artifact subtheme without being too powerful — scry 1 is minor enough to not dominate. At 5 mana, this is a late-game stabilizer, not an oppressive lock piece.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "U-U-03",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:34:42.737931Z",
+  "updated_at": null
+}

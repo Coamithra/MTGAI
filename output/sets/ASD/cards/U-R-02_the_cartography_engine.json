@@ -1,0 +1,60 @@
+{
+  "id": null,
+  "name": "The Cartography Engine",
+  "layout": "normal",
+  "mana_cost": "{2}{U}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Legendary Enchantment — Artifact",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "At the beginning of your upkeep, salvage 4. (Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.).\nWhenever an artifact enters under your control, you may pay {1}. If you do, draw a card.",
+  "flavor_text": null,
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "U-R-02",
+  "rarity": "rare",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:34:42.742930Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Oracle text contains what looks like reminder text: \"(Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+      ],
+      "input_tokens": 1041,
+      "output_tokens": 381,
+      "cost_usd": 0.044196,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Blue rare enchantment-artifact at CMC 4. A powerful engine card that defines the Cult of Science archetype. Salvage 4 every upkeep digs deep for artifacts, and the second ability converts those found artifacts into card advantage — but requires mana investment ({1} per draw), preventing it from being free value. The two abilities create a virtuous loop: salvage finds artifacts, playing artifacts draws cards, drawing cards finds more fuel. At 4 mana with no immediate board impact, it's vulnerable to aggressive strategies. The legendary supertype prevents stacking. Enchantment-Artifact typing is flavorful (ancient technology) and makes it vulnerable to both enchantment and artifact removal, providing counterplay.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "U-R-02",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:34:42.742930Z",
+  "updated_at": null
+}

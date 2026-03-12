@@ -1,0 +1,61 @@
+{
+  "id": null,
+  "name": "Moktar War-Screamer",
+  "layout": "normal",
+  "mana_cost": "{2}{R}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "R"
+  ],
+  "color_identity": [
+    "R"
+  ],
+  "type_line": "Creature — Moktar Berserker",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Haste\nWhenever ~ attacks, it gets +1/+0 until end of turn for each other attacking creature.",
+  "flavor_text": "The moktars have no word for \"retreat.\" They also have no word for \"planning,\" \"subtlety,\" or \"indoors.\"",
+  "reminder_text": null,
+  "power": "3",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "R-U-02",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:33:31.806471Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 1160,
+      "output_tokens": 362,
+      "cost_usd": 0.04455,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Red uncommon attacker that rewards going wide. 4 CMC for a 3/2 haste is below rate on its own (P+T = 5, CMC+3 = 7, well within budget), but the scaling attack bonus makes it a legitimate threat in aggressive decks. The bonus is genuinely variable — depends on board state and attack decisions. Fits the Moktar Raider/warband flavor. Haste is fine here since no Malfunction. Two abilities (haste + triggered) is appropriate for uncommon.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "R-U-02",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:33:31.806471Z",
+  "updated_at": null
+}

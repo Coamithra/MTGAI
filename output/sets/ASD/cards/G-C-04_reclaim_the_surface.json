@@ -1,0 +1,60 @@
+{
+  "id": null,
+  "name": "Reclaim the Surface",
+  "layout": "normal",
+  "mana_cost": "{5}{G}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 7.0,
+  "colors": [
+    "G"
+  ],
+  "color_identity": [
+    "G"
+  ],
+  "type_line": "Sorcery",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Destroy target artifact and target enchantment.\nCreate two 4/4 green Dinosaur creature tokens with trample.",
+  "flavor_text": "Nature does not reclaim. It was never gone.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "G-C-04",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:32:01.701636Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Common has 2 keyword abilities; NWO suggests at most 1"
+      ],
+      "input_tokens": 811,
+      "output_tokens": 292,
+      "cost_usd": 0.034113,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Green common sorcery at CMC 7 with a complex effect for common. At 7 mana this is a top-end common that does something splashy — destroying an artifact and an enchantment (both firmly in green's color pie) while also creating two 4/4 tramplers. The dual removal plus token creation is complex for common but justified at this high mana cost, where it serves as a big payoff in limited. Each target is required, so it's dead without both an artifact and enchantment target, which is a real deckbuilding/timing constraint that balances the power. Fits the theme of the wilderness overtaking ancient technology.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "G-C-04",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:32:01.701636Z",
+  "updated_at": null
+}

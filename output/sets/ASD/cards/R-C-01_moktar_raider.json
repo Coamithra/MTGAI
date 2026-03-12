@@ -1,0 +1,61 @@
+{
+  "id": null,
+  "name": "Moktar Raider",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "R"
+  ],
+  "color_identity": [
+    "R"
+  ],
+  "type_line": "Creature — Moktar Warrior",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "",
+  "flavor_text": "The moktars don't raid Denethix because they hate civilization. They raid it because the granaries are right there.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "R-C-01",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:33:00.264877Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 902,
+      "output_tokens": 279,
+      "cost_usd": 0.034491,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Clean red common vanilla. A 2/2 for 2 is the baseline for a common creature — no frills, just a solid body. P+T=4, CMC+3=5, well within budget. Moktars are a key creature type in the setting as wilderness raiders, making this a natural flavor fit for red's aggressive identity.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "R-C-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:33:00.264877Z",
+  "updated_at": null
+}

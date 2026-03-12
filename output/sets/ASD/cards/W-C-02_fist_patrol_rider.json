@@ -1,0 +1,61 @@
+{
+  "id": null,
+  "name": "Fist Patrol Rider",
+  "layout": "normal",
+  "mana_cost": "{1}{W}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Creature — Human Soldier",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Vigilance",
+  "flavor_text": "\"Sleep is a luxury. Alertness is a duty.\"\n—Unyielding Fist field manual",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "W-C-02",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:35:26.454331Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 1050,
+      "output_tokens": 299,
+      "cost_usd": 0.038229,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "French vanilla 2-drop with vigilance, white's signature evergreen keyword. 2/2 vigilance for 2 is a well-established common statline (P+T=4, CMC+3=5, within budget). Vigilance is the quintessential white keyword and plays well at common — simple to track and rewards both attacking and defending. Flavor connects to the Unyielding Fist enforcers of Denethix.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "W-C-02",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:35:26.454331Z",
+  "updated_at": null
+}

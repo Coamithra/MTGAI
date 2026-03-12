@@ -1,0 +1,64 @@
+{
+  "slot_id": "B-M-01",
+  "card_name": "Apex of the Subsurface",
+  "attempt": 1,
+  "model": "claude-opus-4-6",
+  "input_tokens": 761,
+  "output_tokens": 376,
+  "cost_usd": 0.039687,
+  "latency_s": 7.97,
+  "stop_reason": "tool_use",
+  "timestamp": "2026-03-12T23:31:33.271821+00:00",
+  "raw_card_data": {
+    "name": "Apex of the Subsurface",
+    "mana_cost": "{2}{B}{B}",
+    "cmc": 4,
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "type_line": "Legendary Creature — Horror",
+    "oracle_text": "Deathtouch\nWhenever a creature dealt damage by ~ this turn dies, exile it. You may cast creature spells from among cards exiled with ~ by paying life equal to their mana value rather than paying their mana cost.\nWhenever you cast a spell this way, each opponent loses 2 life.",
+    "flavor_text": "It was here before Mount Rendon. Before humanity. It will be here after.",
+    "power": "4",
+    "toughness": "4",
+    "loyalty": null,
+    "rarity": "mythic",
+    "design_notes": "The mythic horror lurking at the bottom of the Anomalous Subsurface Environment. A 4/4 deathtouch for 4 is already a strong creature, but the real power is the reanimation-from-exile ability. Deathtouch ensures any creature it fights or blocks dies, feeding the exile zone. Then you can cast those exiled creatures by paying life — deeply black, reminiscent of Bolas's Citadel and Reanimate. The 2-life drain on each cast offsets some of the life payment and pressures opponents. This creates a mythic play pattern: it kills things, eats them, and lets you deploy them. Life payment creates meaningful tension — you can't recklessly cast everything. The 'dealt damage by ~' clause means it needs to be in combat or fighting, not just existing. Powerful, splashy, and quintessentially black.",
+    "set_code": "ASD",
+    "collector_number": "B-M-01",
+    "layout": "normal"
+  },
+  "validation_errors": [
+    {
+      "validator": "type_check",
+      "severity": "MANUAL",
+      "field": "power/toughness",
+      "message": "Non-creature card has power and/or toughness set",
+      "suggestion": "Remove power/toughness from non-creature cards.",
+      "error_code": "type_check.noncreature_has_pt"
+    },
+    {
+      "validator": "type_check",
+      "severity": "MANUAL",
+      "field": "card_types",
+      "message": "Card has power/toughness but 'Creature' is not in card_types",
+      "suggestion": "Card has power/toughness but 'Creature' is not in card_types.",
+      "error_code": "type_check.pt_without_creature"
+    }
+  ],
+  "validation_error_count": 2,
+  "validation_error_summary": [
+    "[MANUAL] type_check.power/toughness: Non-creature card has power and/or toughness set",
+    "[MANUAL] type_check.card_types: Card has power/toughness but 'Creature' is not in card_types"
+  ],
+  "applied_fixes": [],
+  "applied_fix_count": 0,
+  "prompts": {
+    "system_prompt_length": 5007,
+    "user_prompt_length": 4831,
+    "user_prompt": "## Set: Anomalous Descent\n\nTheme: Science-fantasy megadungeon in far-future post-apocalyptic Earth\n\nThousands of years after civilization collapsed, the city of Denethix clings to order at the edge of a wilderness teeming with dinosaurs, moktars, and rogue wizards. Beneath Mount Rendon lies the Anomalous Subsurface Environment — a self-spawning megadungeon that predates humanity, filled with ancient super-science relics, degraded automatons, and things far worse. Adventurers descend seeking fortune. Most don't return.\n\nThe Vizier, a former slave named Koyl Yrenum, rules Denethix through a web of lies — the city's founder Feretha is dead, his brain scooped out and hooked to a machine, but everyone must believe he still lives. The Unyielding Fist enforces order with ancient laser weapons. The Cult of Science worships technology they barely understand. The Society of the Luminous Spark fights slavery by extracting slavers' brains. And deep in the wilderness, the House of Flesh pulses with eldritch horror where Starry Wisdom cultists have transformed a forest mansion into a living sanctum of alien terror.\n\nThe tone is played straight — the gonzo humor lives in flavor text. Banks guarded by 20-foot robots with machine guns. A Head Scientist on 12-foot stilts. Wizards who fly around in giant stone heads that shoot lasers from their eyes. Clockwork cats and dolls made of human teeth. The world takes itself seriously; the absurdity speaks for itself.\n\nFlavor text tone: Deadpan, darkly humorous. The world takes itself seriously; the absurdity speaks for itself.\n\n---\n\n## Custom Mechanics for This Set\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Preventive Design Checklist (read before designing each card)\n\n1. **No keyword nonbos.** Do NOT give a creature haste if it enters tapped (e.g. via Malfunction). Do NOT give flying to a creature with defender unless the card explicitly cares about it.\n2. **Reminder text on first use.** The FIRST time a custom mechanic keyword (Salvage, Malfunction, Overclock) appears in a card's oracle text, follow it with reminder text in parentheses. Subsequent uses on the same card omit it.\n3. **Meaningful conditionals only.** If an effect says \"if you [did X] this turn\" but X is a mandatory cost of the same spell, the condition is always true and therefore pointless. Remove the conditional or make the trigger come from a separate source.\n4. **Respect rarity power budgets.** Common creatures: P+T <= CMC+3. Commons get one keyword OR one short text ability, not both. Unconditional removal starts at uncommon. Card draw at common is 1 card with a condition.\n5. **Single purpose, not kitchen sink.** Each card should do ONE thing well. Do not pile unrelated effects onto a single card.\n6. **Real variability only.** If damage/effect scales with a count, the count must actually vary in normal gameplay. \"Deal damage equal to cards exiled\" where the exile count is always fixed = fake variability.\n7. **No keyword name collisions.** Do NOT use \"Scavenge\" (existing RTR keyword) or \"Overload\" (existing RTR keyword). Our mechanics are Salvage, Malfunction, and Overclock.\n8. **Relevant enters-tapped only.** \"Enters tapped\" is irrelevant on a noncreature, non-vehicle permanent with no tap abilities. Only add it where it creates a real tempo cost.\n\n---\n\n**Cards already in the set** (do NOT duplicate names or effects):\n- Subsurface Scavenger ({B}) — Creature — Human Rogue — \n- Fist Enforcer ({1}{B}) — Creature — Human Soldier — Menace\n- Dungeon Rot ({2}{B}) — Instant — Target creature gets -3/-3 until end of turn.\n- Plunder the Catacombs ({4}{B}) — Sorcery — Return up to two target creature cards from your graveyard t...\n- Toothwork Familiar ({B}) — Creature — Construct — When ~ dies, each opponent loses 1 life and you gain 1 life.\n\n**Color distribution so far**: {'W': 0, 'U': 0, 'B': 5, 'R': 0, 'G': 0}\n**Total cards**: 5\n\n---\n\nGenerate exactly 5 card(s):\n\nCard 1: Black uncommon creature, CMC ~3\nCard 2: Black uncommon enchantment, CMC ~5, mechanic: complex\nCard 3: Black rare creature, CMC ~2, mechanic: complex\nCard 4: Black rare enchantment, CMC ~5, mechanic: complex\nCard 5: Black mythic creature, CMC ~4, mechanic: complex"
+  }
+}

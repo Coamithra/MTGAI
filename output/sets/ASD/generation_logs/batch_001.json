@@ -1,0 +1,124 @@
+{
+  "batch_index": 1,
+  "slot_ids": [
+    "B-C-01",
+    "B-C-02",
+    "B-C-03",
+    "B-C-04",
+    "B-U-01"
+  ],
+  "slot_count": 5,
+  "card_count_returned": 5,
+  "model": "claude-opus-4-6",
+  "temperature": 1.0,
+  "effort": "max",
+  "input_tokens": 3595,
+  "output_tokens": 1445,
+  "cost_usd": 0.1623,
+  "latency_s": 29.43,
+  "stop_reason": "tool_use",
+  "timestamp": "2026-03-12T23:30:53.402754+00:00",
+  "raw_cards": [
+    {
+      "name": "Subsurface Scavenger",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Creature — Human Rogue",
+      "oracle_text": "",
+      "flavor_text": "The first level of the dungeon is picked clean. The second level picks back.",
+      "power": "1",
+      "toughness": "1",
+      "loyalty": null,
+      "rarity": "common",
+      "design_notes": "Black 1-mana vanilla creature. A 1/1 for B is the standard baseline — clean, simple, fills the curve for limited. P+T=2, well within CMC+3=4 budget. The flavor captures a Denethix dungeon-diver scraping by on the megadungeon's upper levels."
+    },
+    {
+      "name": "Fist Enforcer",
+      "mana_cost": "{1}{B}",
+      "cmc": 2,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Creature — Human Soldier",
+      "oracle_text": "Menace",
+      "flavor_text": "The Unyielding Fist doesn't ask questions. The laser rifles discourage them.",
+      "power": "2",
+      "toughness": "1",
+      "loyalty": null,
+      "rarity": "common",
+      "design_notes": "French vanilla black common at CMC 2. A 2/1 menace for 1B is a solid aggressive two-drop — P+T=3, within the CMC+3=5 budget. Menace is a primary black keyword and fits the Unyielding Fist thematically: enforcers that are hard to block because nobody wants to stand in front of them. The fragile toughness balances the evasion."
+    },
+    {
+      "name": "Dungeon Rot",
+      "mana_cost": "{2}{B}",
+      "cmc": 3,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Instant",
+      "oracle_text": "Target creature gets -3/-3 until end of turn.",
+      "flavor_text": "The deeper halls breathe something that isn't air. Exposed flesh darkens, softens, and sloughs away in minutes.",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "common",
+      "design_notes": "Black common conditional removal. -3/-3 at instant speed for 3 mana is a clean, well-established rate for common removal — it kills most small and midsize creatures but can't touch the biggest threats, keeping it appropriately conditional for common. Comparable to Disfigure's bigger sibling or Grasp of Darkness at a fairer cost. Straightforward, one-line rules text per NWO common guidelines."
+    },
+    {
+      "name": "Plunder the Catacombs",
+      "mana_cost": "{4}{B}",
+      "cmc": 5,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Sorcery",
+      "oracle_text": "Return up to two target creature cards from your graveyard to your hand. Each opponent loses 2 life.",
+      "flavor_text": "\"Loot the dead, sell what you can, and pray whatever killed them moved on.\" —Denethix Descent Guild handbook",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "common",
+      "design_notes": "Black common sorcery at CMC 5 with a more complex effect per the brief. This combines two core black effects — raise dead (returning creatures from graveyard) and life drain — into a single coherent card about plundering the dungeon's depths. Returning two creatures at sorcery speed for 5 mana is fair; the 2 life loss to each opponent adds value without being the primary mode. The two effects are thematically unified (descending into the catacombs and returning with spoils, leaving death in your wake) rather than being a kitchen-sink design. Appropriate complexity for a common sorcery — two related effects, no tracking or board complexity."
+    },
+    {
+      "name": "Toothwork Familiar",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "colors": [
+        "B"
+      ],
+      "color_identity": [
+        "B"
+      ],
+      "type_line": "Creature — Construct",
+      "oracle_text": "When ~ dies, each opponent loses 1 life and you gain 1 life.",
+      "flavor_text": "Forty-seven teeth, none of them from the same mouth. It chittered when it walked and screamed when it broke.",
+      "power": "1",
+      "toughness": "1",
+      "loyalty": null,
+      "rarity": "uncommon",
+      "design_notes": "Black uncommon 1-drop with a death trigger. A 1/1 for B that drains 1 on death is a useful role-player — it trades profitably, discourages attacks, and synergizes with sacrifice themes (common in black). The drain-on-death is a classic black effect that rewards the creature dying, fitting the dungeon's attrition theme. P+T=2, well under budget. At uncommon it's a clean build-around piece for sacrifice or aristocrats strategies without being oppressive. The flavor references the set's clockwork dolls made of human teeth — a perfectly normal thing to find in the Anomalous Subsurface Environment."
+    }
+  ],
+  "prompts": {
+    "system_prompt": "You are an expert Magic: The Gathering card designer with deep knowledge of game mechanics, color pie philosophy, and competitive balance.\n\nYour task is to design original MTG cards and return them as valid JSON. Follow these rules precisely.\n\n## MTG Rules Reference\n\n### Evergreen Keywords\nFlying, First strike, Double strike, Deathtouch, Trample, Vigilance, Haste, Lifelink, Reach, Menace, Hexproof, Flash, Defender, Indestructible, Ward {N}.\n\n### Common Keyword Actions\nDestroy, Exile, Sacrifice, Scry N, Mill N, Fight, Create token, Counter, Draw.\n\n### Rules Text Patterns\n- Self-reference: Always use ~ for the card's own name. Write \"When ~ enters\" not \"When this creature enters\" or \"When [Card Name] enters\".\n- Triggered abilities: \"When ~ enters, ...\", \"Whenever ~ attacks, ...\", \"At the beginning of your upkeep, ...\", \"When ~ dies, ...\"\n- Activated abilities: \"{cost}: {effect}\" — e.g., \"{T}: Add {G}.\" or \"{2}{B}, Sacrifice a creature: Draw a card.\"\n- Static abilities: Keyword on its own line, or \"Other creatures you control get +1/+1.\"\n- Modal spells: \"Choose one —\\n* Effect A.\\n* Effect B.\"\n- Mana symbols: {W} white, {U} blue, {B} black, {R} red, {G} green, {C} colorless, {X} variable, {T} tap.\n\n### Mana Cost Format\nGeneric mana first, then WUBRG order: {2}{W}{U} is correct, {W}{2}{U} is wrong. X costs come first: {X}{R}{R}.\n\n## Color Pie\n\n- **White (W)**: Lifegain, small creatures, tokens, exile-based removal, enchantments, vigilance, flying (small). Cannot draw cards without restriction.\n- **Blue (U)**: Card draw, counterspells, bounce, flying (large), mill, scry, flash. Cannot destroy permanents directly.\n- **Black (B)**: Creature destruction, discard, drain life, deathtouch, menace, raise dead, sacrifice-for-value. Pays life as a cost.\n- **Red (R)**: Direct damage (burn), haste, temporary power boosts, artifact destruction, impulsive draw (exile top, cast this turn). Cannot gain life or destroy enchantments.\n- **Green (G)**: Large creatures, mana ramp, trample, fight-based removal, +1/+1 counters, enchantment/artifact destruction, reach. Cannot deal direct damage to players.\n\n## New World Order (Complexity by Rarity)\n\n- **Common**: Simple. One keyword ability OR one short text ability. No complex board interactions. Creatures should have clean stats.\n- **Uncommon**: Moderate. Up to two abilities or one complex ability. Signpost multicolor uncommons define draft archetypes.\n- **Rare**: Complex allowed. Splashy effects, build-around potential, powerful legendaries.\n- **Mythic**: Spectacular and unique. Planeswalkers, game-changing effects, iconic creatures.\n\n### Power Level Guidelines\n- Common creatures: P + T should not exceed CMC + 3. Extra stats require a drawback.\n- Removal at common should be conditional or expensive. Unconditional removal starts at uncommon.\n- Card draw at common: 1 card only, with a condition or at sorcery speed.\n\n## Output Format\n\nReturn valid JSON matching this schema:\n\n{\n  \"name\": \"string — original name, not an existing MTG card\",\n  \"mana_cost\": \"string — e.g., '{2}{W}{U}'\",\n  \"cmc\": \"number — converted mana cost total (X counts as 0)\",\n  \"colors\": [\"W\", \"U\", \"B\", \"R\", \"G\"] — subset matching mana_cost colors,\n  \"color_identity\": [\"W\", \"U\", \"B\", \"R\", \"G\"] — colors from mana_cost AND oracle_text mana symbols,\n  \"type_line\": \"string — e.g., 'Creature — Human Wizard' or 'Legendary Enchantment'\",\n  \"oracle_text\": \"string — rules text using ~ for self-reference. Separate abilities with \\\\n\",\n  \"flavor_text\": \"string or null — evocative in-world flavor\",\n  \"power\": \"string or null — required for creatures, e.g., '3' or '*'\",\n  \"toughness\": \"string or null — required for creatures\",\n  \"loyalty\": \"string or null — required for planeswalkers\",\n  \"rarity\": \"common | uncommon | rare | mythic\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"string — explain your design intent, color pie reasoning, and power level choices\"\n}\n\n### Field Rules\n- power and toughness are strings (to support */*, X/X, etc.).\n- cmc must equal the total mana value of mana_cost (each {W},{U},{B},{R},{G},{C} = 1, each {N} = N, {X} = 0).\n- colors must exactly match the colored mana symbols in mana_cost. A card with mana_cost \"{2}{R}\" has colors [\"R\"].\n- color_identity includes colors from both mana_cost and any mana symbols in oracle_text.\n- Separate multiple abilities in oracle_text with \\n (newline).\n- Include flavor_text for most cards. Omit it only if rules text is very long.\n\n## Constraints\n\n- DO NOT use silver-border or un-set mechanics (no dice rolling, no subgames, no breaking the fourth wall).\n- DO NOT reference real-world people, places, brands, or events.\n- DO NOT reuse existing MTG card names. All names must be original.\n- DO NOT use the card's actual name in oracle_text — always use ~ as self-reference.\n- DO NOT create cards that are strictly better than iconic staples at the same rarity and cost.\n- DO NOT put reminder text in oracle_text unless specifically requested. Reminder text goes in a separate field if needed.",
+    "system_prompt_length": 5007,
+    "user_prompt": "## Set: Anomalous Descent\n\nTheme: Science-fantasy megadungeon in far-future post-apocalyptic Earth\n\nThousands of years after civilization collapsed, the city of Denethix clings to order at the edge of a wilderness teeming with dinosaurs, moktars, and rogue wizards. Beneath Mount Rendon lies the Anomalous Subsurface Environment — a self-spawning megadungeon that predates humanity, filled with ancient super-science relics, degraded automatons, and things far worse. Adventurers descend seeking fortune. Most don't return.\n\nThe Vizier, a former slave named Koyl Yrenum, rules Denethix through a web of lies — the city's founder Feretha is dead, his brain scooped out and hooked to a machine, but everyone must believe he still lives. The Unyielding Fist enforces order with ancient laser weapons. The Cult of Science worships technology they barely understand. The Society of the Luminous Spark fights slavery by extracting slavers' brains. And deep in the wilderness, the House of Flesh pulses with eldritch horror where Starry Wisdom cultists have transformed a forest mansion into a living sanctum of alien terror.\n\nThe tone is played straight — the gonzo humor lives in flavor text. Banks guarded by 20-foot robots with machine guns. A Head Scientist on 12-foot stilts. Wizards who fly around in giant stone heads that shoot lasers from their eyes. Clockwork cats and dolls made of human teeth. The world takes itself seriously; the absurdity speaks for itself.\n\nFlavor text tone: Deadpan, darkly humorous. The world takes itself seriously; the absurdity speaks for itself.\n\n---\n\n## Custom Mechanics for This Set\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Preventive Design Checklist (read before designing each card)\n\n1. **No keyword nonbos.** Do NOT give a creature haste if it enters tapped (e.g. via Malfunction). Do NOT give flying to a creature with defender unless the card explicitly cares about it.\n2. **Reminder text on first use.** The FIRST time a custom mechanic keyword (Salvage, Malfunction, Overclock) appears in a card's oracle text, follow it with reminder text in parentheses. Subsequent uses on the same card omit it.\n3. **Meaningful conditionals only.** If an effect says \"if you [did X] this turn\" but X is a mandatory cost of the same spell, the condition is always true and therefore pointless. Remove the conditional or make the trigger come from a separate source.\n4. **Respect rarity power budgets.** Common creatures: P+T <= CMC+3. Commons get one keyword OR one short text ability, not both. Unconditional removal starts at uncommon. Card draw at common is 1 card with a condition.\n5. **Single purpose, not kitchen sink.** Each card should do ONE thing well. Do not pile unrelated effects onto a single card.\n6. **Real variability only.** If damage/effect scales with a count, the count must actually vary in normal gameplay. \"Deal damage equal to cards exiled\" where the exile count is always fixed = fake variability.\n7. **No keyword name collisions.** Do NOT use \"Scavenge\" (existing RTR keyword) or \"Overload\" (existing RTR keyword). Our mechanics are Salvage, Malfunction, and Overclock.\n8. **Relevant enters-tapped only.** \"Enters tapped\" is irrelevant on a noncreature, non-vehicle permanent with no tap abilities. Only add it where it creates a real tempo cost.\n\n---\n\nGenerate exactly 5 card(s):\n\nCard 1: Black common creature, CMC ~1, vanilla (no abilities or keyword-only)\nCard 2: Black common creature, CMC ~2, french vanilla (one evergreen keyword only)\nCard 3: Black common instant, CMC ~3\nCard 4: Black common sorcery, CMC ~5, mechanic: complex\nCard 5: Black uncommon creature, CMC ~1",
+    "user_prompt_length": 4268
+  }
+}

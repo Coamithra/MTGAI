@@ -1,0 +1,58 @@
+{
+  "id": null,
+  "name": "Edict of Continuity",
+  "layout": "normal",
+  "mana_cost": "{2}{W}{W}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Enchantment",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Whenever one or more creatures you control die, create a 1/1 white Human Soldier creature token.\nWhenever an artifact you control is put into a graveyard from the battlefield, you may return it to its owner's hand.",
+  "flavor_text": "Denethix endures. Its people are replaced. Its machines, repaired.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "W-U-03",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:36:02.223142Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 1080,
+      "output_tokens": 365,
+      "cost_usd": 0.043578,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "White uncommon enchantment at CMC 4. Two related triggered abilities that reward attrition strategies — creatures dying make tokens (white's bread and butter), and artifacts going to the graveyard can be recouped. The creature trigger only makes one token regardless of how many die at once, preventing combo abuse with board wipes. The artifact recursion requires the artifact to actually hit the graveyard (not exile), keeping it fair. Both halves support white's role as the 'civilization endures' color in this set. Complex enough for uncommon but each piece is individually simple.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "W-U-03",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:36:02.223142Z",
+  "updated_at": null
+}

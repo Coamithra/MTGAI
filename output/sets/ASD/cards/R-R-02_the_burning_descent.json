@@ -1,0 +1,60 @@
+{
+  "id": null,
+  "name": "The Burning Descent",
+  "layout": "normal",
+  "mana_cost": "{4}{R}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 6.0,
+  "colors": [
+    "R"
+  ],
+  "color_identity": [
+    "R"
+  ],
+  "type_line": "Enchantment",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "At the beginning of your upkeep, overclock. (Exile the top three cards of your library. You may play them until end of turn.).\nWhenever you play a card exiled with ~, ~ deals 2 damage to each opponent.",
+  "flavor_text": "The deeper you go, the hotter it gets. Most explorers assume that's geology.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "R-R-02",
+  "rarity": "rare",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:33:31.814475Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Oracle text contains what looks like reminder text: \"(Exile the top three cards of your library. You may play them until end of turn.)\""
+      ],
+      "input_tokens": 1160,
+      "output_tokens": 362,
+      "cost_usd": 0.04455,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "A red rare enchantment showcasing the Overclock mechanic. Every upkeep you exile 3 cards and get to play them that turn — a relentless engine that churns through your library. The 2-damage trigger per card played from exile rewards you for actually casting what you find, turning the overclock into a damage clock. At 6 CMC this is a late-game inevitability engine: 3 cards per turn with up to 6 damage if you play them all. The risk is real — you're exiling cards permanently, and anything you can't play is lost forever. This creates genuine tension around deck construction (low curve helps) and mana management. Overclock's first appearance in the set, so reminder text is included.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "R-R-02",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:33:31.814475Z",
+  "updated_at": null
+}

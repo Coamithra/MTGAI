@@ -1,0 +1,61 @@
+{
+  "id": null,
+  "name": "Fist Enforcer",
+  "layout": "normal",
+  "mana_cost": "{1}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Creature — Human Soldier",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Menace",
+  "flavor_text": "The Unyielding Fist doesn't ask questions. The laser rifles discourage them.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "1",
+  "loyalty": null,
+  "collector_number": "B-C-02",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:30:53.417778Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 719,
+      "output_tokens": 289,
+      "cost_usd": 0.03246,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "French vanilla black common at CMC 2. A 2/1 menace for 1B is a solid aggressive two-drop — P+T=3, within the CMC+3=5 budget. Menace is a primary black keyword and fits the Unyielding Fist thematically: enforcers that are hard to block because nobody wants to stand in front of them. The fragile toughness balances the evasion.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "B-C-02",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:30:53.417778Z",
+  "updated_at": null
+}

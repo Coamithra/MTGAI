@@ -1,0 +1,61 @@
+{
+  "id": null,
+  "name": "Subsurface Surveyor",
+  "layout": "normal",
+  "mana_cost": "{U}",
+  "mana_cost_parsed": null,
+  "cmc": 1.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Creature — Human Scout",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "",
+  "flavor_text": "\"The first rule of the descent: count your steps. The second rule: count them again when nothing adds up.\"",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "U-C-01",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:34:03.970599Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 1012,
+      "output_tokens": 318,
+      "cost_usd": 0.039081,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Blue common vanilla at CMC 1. A 1/2 for {U} is a clean, on-rate defensive body — comparable to Merfolk of the Pearl Trident's 1/1 but shifted to favor toughness, which fits blue's defensive common creature profile. P+T = 3 = CMC(1)+2, well within the CMC+3 budget. The Scout type fits the dungeon-exploration theme. No abilities keeps it NWO-clean at common.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "U-C-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:34:03.970599Z",
+  "updated_at": null
+}

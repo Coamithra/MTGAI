@@ -279,11 +279,13 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 - [x] **1C-val6**: `color_pie.py` — 24-category ability-to-color lookup table. All MANUAL (flags for LLM review).
 - [x] **1C-val7**: Severity refactor — renamed HARD/SOFT to AUTO/MANUAL. AUTO errors are deterministically fixed post-validation (17 registered auto-fixers). MANUAL errors feed structured retry prompts to the LLM. Auto-fix registry with lazy loading, `validate_card_from_raw()` returns `(card, errors, applied_fixes)`.
   → 8 validator modules, ~50 distinct checks, 17 auto-fixers, 73 tests. Runner + auto-fix system + feedback formatter in `__init__.py`.
-- [ ] **1C-gen**: Implement card generation pipeline — LLM calls (tool use / function calling for structured output), batch of 5, validation chain, retry with specific feedback, escalate after 3 failures. Generation prompts must include the 8 pointed questions from 1B as preventive design guidance + use full color names (not abbreviations) to avoid Sonnet's R≠Red confusion.
-- [ ] **1C-common**: Generate dev set commons (~20 cards). Batch by color.
-- [ ] **1C-uncommon**: Generate dev set uncommons (~15 cards). Include signpost multicolor uncommons.
-- [ ] **1C-rare**: Generate dev set rares (~10 cards). More complex — may need single-card generation for some.
-- [ ] **1C-mythic**: Generate dev set mythics (~4 cards). Include 1 planeswalker, legendary creatures. Use Opus for planeswalkers and sagas (complex templating justifies higher cost).
+- [x] **1C-gen**: Implement card generation pipeline — LLM calls (tool use / function calling for structured output), batch of 5, validation chain, auto-fix AUTO errors, MANUAL errors ride along as metadata for Phase 4A+4B review. Generation prompts include 8 pointed questions from 1B as preventive design guidance + full color names. Uses Opus 4.6 with effort=max for all generation. Extensive per-batch and per-card logging.
+  → `backend/mtgai/generation/card_generator.py` (pipeline), `backend/mtgai/generation/prompts.py` (prompt construction), `backend/mtgai/generation/llm_client.py` (API client with effort param). Also fixed `validation/schema.py` to parse `type_line` → `card_types`/`supertypes`/`subtypes` (eliminated 76 false positive MANUAL warnings).
+- [x] **1C-common**: Generated 21 commons across W/U/B/R/G. All validated + auto-fixed.
+- [x] **1C-uncommon**: Generated 21 uncommons including multicolor signpost uncommons.
+- [x] **1C-rare**: Generated 14 rares. All single-batch (no single-card fallback needed).
+- [x] **1C-mythic**: Generated 4 mythics (all Opus 4.6 + effort=max). Includes legendary creatures.
+  → All 60 cards generated in one pipeline run: 16 batches, $2.78 total, 7.4 minutes, zero failures. 42/60 clean, 18 auto-fixes applied (12 missing periods, 4 WUBRG ordering, 1 keyword comma, 1 ETB outdated), 30 real MANUAL warnings stored for Phase 4A+4B review. Cards saved to `output/sets/ASD/cards/`, logs to `output/sets/ASD/generation_logs/`.
 - [ ] **1C-reprint-research**: Analyze reprint patterns in the 5 reference sets (`research/raw-data/{dsk,blb,otj,mkm,lci}/cards.json`). The Scryfall data has `reprint` fields but Phase 0A never analyzed them. Determine:
   - Reprint count and percentage per set, broken down by rarity
   - What roles reprints typically fill (removal, mana fixing, combat tricks, generic utility, etc.)

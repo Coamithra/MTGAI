@@ -1,0 +1,58 @@
+{
+  "id": null,
+  "name": "Sanctioned Exile",
+  "layout": "normal",
+  "mana_cost": "{2}{W}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Instant",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Exile target creature with power 4 or greater.",
+  "flavor_text": "\"By order of the Vizier, you are remanded to the subsurface. Permanently.\"\n—Fist Commandant Drel",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "W-C-03",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:35:26.457834Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 1050,
+      "output_tokens": 299,
+      "cost_usd": 0.038229,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Conditional exile-based removal, squarely in white's color pie. At 3 mana and restricted to power 4+, this is appropriately costed for common — it handles big threats but can't answer small utility creatures or tokens. Comparable to Angelic Purge or Reprisal variants. The 'power 4 or greater' restriction keeps it conditional per NWO common removal guidelines. Instant speed is a slight premium but justified by the narrow targeting. Flavor ties to Denethix's authoritarian government exiling undesirables into the megadungeon.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "W-C-03",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:35:26.457834Z",
+  "updated_at": null
+}

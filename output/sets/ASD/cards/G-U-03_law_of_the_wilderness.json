@@ -1,0 +1,58 @@
+{
+  "id": null,
+  "name": "Law of the Wilderness",
+  "layout": "normal",
+  "mana_cost": "{5}{G}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 7.0,
+  "colors": [
+    "G"
+  ],
+  "color_identity": [
+    "G"
+  ],
+  "type_line": "Enchantment",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "When ~ enters, destroy all artifacts and enchantments other than ~.\nCreatures you control get +2/+2 and have trample.\nWhenever an artifact or enchantment an opponent controls is put into a graveyard from the battlefield, create a 3/3 green Dinosaur creature token.",
+  "flavor_text": "Civilization is a brief interruption.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "G-U-03",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:32:31.446482Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 1048,
+      "output_tokens": 361,
+      "cost_usd": 0.0428175,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "A splashy uncommon finisher at CMC 7 that captures green's philosophy of nature reclaiming technology. The ETB is a green-appropriate Shatterstorm/Tranquility hybrid. The anthem + trample is a classic green payoff for going wide. The token creation punishes opponents who try to rebuild with artifacts/enchantments after the sweep. At 7 mana this is a draft-viable top-end bomb that's powerful but appropriately costed. All three abilities are thematically unified: nature destroys civilization, empowers creatures, and grows from the ruins.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "G-U-03",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:32:31.446482Z",
+  "updated_at": null
+}

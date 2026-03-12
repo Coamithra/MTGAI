@@ -1,0 +1,58 @@
+{
+  "id": null,
+  "name": "The Vizier's Decree",
+  "layout": "normal",
+  "mana_cost": "{2}{W}{W}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Enchantment",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "When ~ enters, exile target creature an opponent controls until ~ leaves the battlefield.\nWhenever a creature enters under an opponent's control, that creature doesn't untap during its controller's next untap step unless that player pays {2}.",
+  "flavor_text": "\"Feretha's will is absolute. His voice is mine. His law is everything.\"\n—Koyl Yrenum",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "W-R-02",
+  "rarity": "rare",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:36:02.237710Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 1080,
+      "output_tokens": 365,
+      "cost_usd": 0.043578,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "White rare enchantment at CMC 4. Combines two white effects — Oblivion Ring-style conditional removal and a taxing effect on opponent's new creatures. The Banishing Light effect ties removal to the enchantment's survival, giving opponents counterplay. The tax effect slows opponents deploying threats but doesn't prevent them — pay 2 or your creature enters effectively tapped. This captures the Vizier's authoritarian control of Denethix. Both abilities are firmly in white's color pie (removal via exile, taxing effects). Strong but answerable — destroying the enchantment frees the exiled creature and ends the tax.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "W-R-02",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:36:02.237710Z",
+  "updated_at": null
+}

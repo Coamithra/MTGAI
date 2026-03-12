@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Koyl Yrenum, the Vizier",
+  "layout": "normal",
+  "mana_cost": "{1}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Legendary Creature — Human Advisor",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Whenever another creature dies, you may pay {1}. If you do, look at the top two cards of target opponent's library. Put one into their graveyard and the other back on top.\nhexproof, indestructible",
+  "flavor_text": "Feretha still rules Denethix. Everyone knows this. Everyone.",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "B-R-01",
+  "rarity": "rare",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:31:33.268313Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types",
+        "Card is B but has \"hexproof\" which is primarily U/G",
+        "Card is B but has \"indestructible\" which is primarily W"
+      ],
+      "input_tokens": 761,
+      "output_tokens": 376,
+      "cost_usd": 0.039687,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "The Vizier who rules through deception — mechanically, he manipulates information (opponents' libraries) and protects himself by sacrificing others. A 1/3 for 2 is defensive, fitting an advisor who hides behind others. The first ability is a repeatable Surveil-for-opponents on death triggers, costing {1} each time to prevent it from being free — it fuels mill strategies and gives information advantage. The sacrifice ability is flavorful self-preservation: Koyl will always throw someone else under the bus. Both abilities together create tension: you want creatures to die (for value) but also need them alive (for protection). Complex but cohesive at rare.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "B-R-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:31:33.268313Z",
+  "updated_at": null
+}

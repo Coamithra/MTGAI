@@ -1,0 +1,62 @@
+{
+  "id": null,
+  "name": "Cult Relic-Bearer",
+  "layout": "normal",
+  "mana_cost": "{W}",
+  "mana_cost_parsed": null,
+  "cmc": 1.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Creature — Human Cleric",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Whenever you cast an artifact spell, ~ gets +1/+0 and gains vigilance until end of turn.\n{2}{W}, {T}, Sacrifice ~: Salvage 5. (Look at the top five cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.).",
+  "flavor_text": "\"Every relic is a prayer answered by the ancients.\"",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "W-R-01",
+  "rarity": "rare",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:36:02.233622Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types",
+        "Oracle text contains what looks like reminder text: \"(Look at the top five cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+      ],
+      "input_tokens": 1080,
+      "output_tokens": 365,
+      "cost_usd": 0.043578,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "White rare at CMC 1. A 1/2 for W is fair baseline. The artifact-cast trigger gives it early relevance in artifact-heavy decks as an aggressive body that gains vigilance. The sacrifice ability provides a late-game option — pay 3 total mana, tap and sac to salvage 5, which is deep digging for a 1-drop. The sacrifice cost ensures it's a one-shot effect and creates tension between keeping the body and cashing it in. Salvage 5 at rare is within the scaling guidelines. Supports WU artifacts archetype.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "W-R-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:36:02.233622Z",
+  "updated_at": null
+}

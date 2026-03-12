@@ -1,0 +1,62 @@
+{
+  "id": null,
+  "name": "Subsurface Cartographer",
+  "layout": "normal",
+  "mana_cost": "{2}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Creature — Human Wizard",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Flying\nWhenever ~ deals combat damage to a player, salvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.).",
+  "flavor_text": "\"Level four is plasma conduits. Level five is the screaming. I haven't mapped level six. Nobody maps level six.\"",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "U-U-02",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:34:42.734486Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types",
+        "Oracle text contains what looks like reminder text: \"(Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+      ],
+      "input_tokens": 1041,
+      "output_tokens": 381,
+      "cost_usd": 0.044196,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Blue uncommon creature at CMC 3. A 2/2 flyer for 3 is a clean Limited body — slightly below rate to account for the salvage trigger. Flying ensures it can connect for the combat damage trigger, making salvage 3 a meaningful reward for attacking. Supports both the UW Ancient Technology and UG Dinosaur/Artifact archetypes by filtering for artifacts. P+T (4) = CMC+1, well within budget. Two abilities (flying + triggered salvage) is appropriate uncommon complexity.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "U-U-02",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:34:42.734486Z",
+  "updated_at": null
+}

@@ -1,0 +1,64 @@
+{
+  "id": null,
+  "name": "The Custodian Eternal",
+  "layout": "normal",
+  "mana_cost": "{3}{W}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 5.0,
+  "colors": [
+    "W",
+    "U"
+  ],
+  "color_identity": [
+    "W",
+    "U"
+  ],
+  "type_line": "Legendary Artifact Creature — Construct",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Flying, vigilance\nWhenever ~ or another artifact enters under your control, exile target nonland permanent an opponent controls until ~ leaves the battlefield.\nWhen ~ dies, salvage 6. (Look at the top six cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.).",
+  "flavor_text": "It was old when the world was young.",
+  "reminder_text": null,
+  "power": "4",
+  "toughness": "5",
+  "loyalty": null,
+  "collector_number": "WU-M-01",
+  "rarity": "mythic",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:37:26.175655Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types",
+        "Oracle text contains what looks like reminder text: \"(Look at the top six cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+      ],
+      "input_tokens": 2042,
+      "output_tokens": 413,
+      "cost_usd": 0.061635,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Mythic capstone for the WU Ancient Technology archetype. A 4/5 flying vigilance for 5 is a strong but fair body. The core ability is an Oblivion Ring-style repeatable exile tied to artifact ETBs — each artifact you play temporarily removes a nonland permanent. This is white's exile-based removal married to blue's artifact affinity, creating a powerful board-control engine that rewards artifact-dense decks. The exile is tied to the Custodian leaving, so all exiled cards return if it's removed — a meaningful counterplay window that prevents it from being oppressive. The death trigger (salvage 6) ensures you recover momentum if your opponent does answer it, finding another artifact threat to continue your gameplan. Flying + vigilance means it attacks and defends simultaneously, befitting an ancient guardian. P+T of 9 at CMC 5 is within mythic budget. The card is spectacular but answerable — removal returns all exiled permanents, creating dramatic swings in both directions.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "WU-M-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:37:26.175655Z",
+  "updated_at": null
+}

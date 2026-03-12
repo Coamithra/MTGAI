@@ -1,0 +1,58 @@
+{
+  "id": null,
+  "name": "Raider's Bounty",
+  "layout": "normal",
+  "mana_cost": "{4}{R}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 6.0,
+  "colors": [
+    "R"
+  ],
+  "color_identity": [
+    "R"
+  ],
+  "type_line": "Enchantment",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Whenever a creature you control deals combat damage to a player, exile the top card of your library. You may play it until end of turn.\nAt the beginning of your end step, ~ deals 2 damage to you for each card exiled with ~ that wasn't played this turn. Then remove all cards exiled with ~ from the game.",
+  "flavor_text": "\"Take everything. Carry what you can. Burn the rest.\"",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "R-U-03",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:33:31.809475Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 1160,
+      "output_tokens": 362,
+      "cost_usd": 0.04455,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "A red uncommon enchantment that creates impulsive draw off combat damage — core red mechanic. The complexity comes from the risk/reward tension: each connecting creature gives you a card to play, but unplayed cards punish you with 2 damage each at end step. This encourages careful sequencing — attack with only as many creatures as you can use cards for. At 6 CMC it's a late-game value engine that demands an aggressive board to function. The self-damage prevents it from being free value and keeps it firmly in red's 'reckless impulse' space. 'Remove from the game' clause prevents tracking nightmares across multiple turns.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "R-U-03",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:33:31.809475Z",
+  "updated_at": null
+}

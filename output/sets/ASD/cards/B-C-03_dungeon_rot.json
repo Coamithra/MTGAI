@@ -1,0 +1,58 @@
+{
+  "id": null,
+  "name": "Dungeon Rot",
+  "layout": "normal",
+  "mana_cost": "{2}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Instant",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Target creature gets -3/-3 until end of turn.",
+  "flavor_text": "The deeper halls breathe something that isn't air. Exposed flesh darkens, softens, and sloughs away in minutes.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "B-C-03",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:30:53.419779Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 719,
+      "output_tokens": 289,
+      "cost_usd": 0.03246,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Black common conditional removal. -3/-3 at instant speed for 3 mana is a clean, well-established rate for common removal — it kills most small and midsize creatures but can't touch the biggest threats, keeping it appropriately conditional for common. Comparable to Disfigure's bigger sibling or Grasp of Darkness at a fairer cost. Straightforward, one-line rules text per NWO common guidelines.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "B-C-03",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:30:53.419779Z",
+  "updated_at": null
+}

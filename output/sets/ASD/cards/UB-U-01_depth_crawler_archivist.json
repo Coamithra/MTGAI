@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Depth Crawler Archivist",
+  "layout": "normal",
+  "mana_cost": "{1}{U}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "U",
+    "B"
+  ],
+  "color_identity": [
+    "U",
+    "B"
+  ],
+  "type_line": "Creature — Human Rogue",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "When ~ enters, mill three cards.\\nWhenever one or more creature cards are put into your graveyard from your library, draw a card and you lose 1 life.",
+  "flavor_text": "\"Level four had a library once. Now it has teeth. I took notes on both.\"",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "UB-U-01",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:34:55.790774Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 5352,
+      "output_tokens": 521,
+      "cost_usd": 0.119355,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "UB signpost uncommon for the Deep Descent archetype. The ETB mill 3 immediately fuels graveyard strategies and has a good chance of triggering the draw ability on entry. The triggered ability rewards continued milling from any source — self-mill spells, other creatures, etc. — creating a payoff engine for the archetype. The 'one or more' batching prevents it from drawing multiple cards off a single mill effect, keeping it fair. The life loss is the 'greater risk' the archetype promises and is squarely in black's color pie (paying life for cards). A 2/2 for 3 is below rate on stats, justified by the card advantage potential. Mill is shared UB territory, draw-for-life is black, making this a clean color pie fit. At uncommon, two abilities are appropriate and the interaction between them is the kind of synergy signpost uncommons should telegraph.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "UB-U-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:34:55.790774Z",
+  "updated_at": null
+}

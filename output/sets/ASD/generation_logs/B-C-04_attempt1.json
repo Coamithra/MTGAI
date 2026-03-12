@@ -1,0 +1,44 @@
+{
+  "slot_id": "B-C-04",
+  "card_name": "Plunder the Catacombs",
+  "attempt": 1,
+  "model": "claude-opus-4-6",
+  "input_tokens": 719,
+  "output_tokens": 289,
+  "cost_usd": 0.03246,
+  "latency_s": 5.89,
+  "stop_reason": "tool_use",
+  "timestamp": "2026-03-12T23:30:53.420778+00:00",
+  "raw_card_data": {
+    "name": "Plunder the Catacombs",
+    "mana_cost": "{4}{B}",
+    "cmc": 5,
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "type_line": "Sorcery",
+    "oracle_text": "Return up to two target creature cards from your graveyard to your hand. Each opponent loses 2 life.",
+    "flavor_text": "\"Loot the dead, sell what you can, and pray whatever killed them moved on.\" —Denethix Descent Guild handbook",
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "rarity": "common",
+    "design_notes": "Black common sorcery at CMC 5 with a more complex effect per the brief. This combines two core black effects — raise dead (returning creatures from graveyard) and life drain — into a single coherent card about plundering the dungeon's depths. Returning two creatures at sorcery speed for 5 mana is fair; the 2 life loss to each opponent adds value without being the primary mode. The two effects are thematically unified (descending into the catacombs and returning with spoils, leaving death in your wake) rather than being a kitchen-sink design. Appropriate complexity for a common sorcery — two related effects, no tracking or board complexity.",
+    "set_code": "ASD",
+    "collector_number": "B-C-04",
+    "layout": "normal"
+  },
+  "validation_errors": [],
+  "validation_error_count": 0,
+  "validation_error_summary": [],
+  "applied_fixes": [],
+  "applied_fix_count": 0,
+  "prompts": {
+    "system_prompt_length": 5007,
+    "user_prompt_length": 4268,
+    "user_prompt": "## Set: Anomalous Descent\n\nTheme: Science-fantasy megadungeon in far-future post-apocalyptic Earth\n\nThousands of years after civilization collapsed, the city of Denethix clings to order at the edge of a wilderness teeming with dinosaurs, moktars, and rogue wizards. Beneath Mount Rendon lies the Anomalous Subsurface Environment — a self-spawning megadungeon that predates humanity, filled with ancient super-science relics, degraded automatons, and things far worse. Adventurers descend seeking fortune. Most don't return.\n\nThe Vizier, a former slave named Koyl Yrenum, rules Denethix through a web of lies — the city's founder Feretha is dead, his brain scooped out and hooked to a machine, but everyone must believe he still lives. The Unyielding Fist enforces order with ancient laser weapons. The Cult of Science worships technology they barely understand. The Society of the Luminous Spark fights slavery by extracting slavers' brains. And deep in the wilderness, the House of Flesh pulses with eldritch horror where Starry Wisdom cultists have transformed a forest mansion into a living sanctum of alien terror.\n\nThe tone is played straight — the gonzo humor lives in flavor text. Banks guarded by 20-foot robots with machine guns. A Head Scientist on 12-foot stilts. Wizards who fly around in giant stone heads that shoot lasers from their eyes. Clockwork cats and dolls made of human teeth. The world takes itself seriously; the absurdity speaks for itself.\n\nFlavor text tone: Deadpan, darkly humorous. The world takes itself seriously; the absurdity speaks for itself.\n\n---\n\n## Custom Mechanics for This Set\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Preventive Design Checklist (read before designing each card)\n\n1. **No keyword nonbos.** Do NOT give a creature haste if it enters tapped (e.g. via Malfunction). Do NOT give flying to a creature with defender unless the card explicitly cares about it.\n2. **Reminder text on first use.** The FIRST time a custom mechanic keyword (Salvage, Malfunction, Overclock) appears in a card's oracle text, follow it with reminder text in parentheses. Subsequent uses on the same card omit it.\n3. **Meaningful conditionals only.** If an effect says \"if you [did X] this turn\" but X is a mandatory cost of the same spell, the condition is always true and therefore pointless. Remove the conditional or make the trigger come from a separate source.\n4. **Respect rarity power budgets.** Common creatures: P+T <= CMC+3. Commons get one keyword OR one short text ability, not both. Unconditional removal starts at uncommon. Card draw at common is 1 card with a condition.\n5. **Single purpose, not kitchen sink.** Each card should do ONE thing well. Do not pile unrelated effects onto a single card.\n6. **Real variability only.** If damage/effect scales with a count, the count must actually vary in normal gameplay. \"Deal damage equal to cards exiled\" where the exile count is always fixed = fake variability.\n7. **No keyword name collisions.** Do NOT use \"Scavenge\" (existing RTR keyword) or \"Overload\" (existing RTR keyword). Our mechanics are Salvage, Malfunction, and Overclock.\n8. **Relevant enters-tapped only.** \"Enters tapped\" is irrelevant on a noncreature, non-vehicle permanent with no tap abilities. Only add it where it creates a real tempo cost.\n\n---\n\nGenerate exactly 5 card(s):\n\nCard 1: Black common creature, CMC ~1, vanilla (no abilities or keyword-only)\nCard 2: Black common creature, CMC ~2, french vanilla (one evergreen keyword only)\nCard 3: Black common instant, CMC ~3\nCard 4: Black common sorcery, CMC ~5, mechanic: complex\nCard 5: Black uncommon creature, CMC ~1"
+  }
+}

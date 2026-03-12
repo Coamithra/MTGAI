@@ -1,0 +1,64 @@
+{
+  "id": null,
+  "name": "Cult Savant",
+  "layout": "normal",
+  "mana_cost": "{U}",
+  "mana_cost_parsed": null,
+  "cmc": 1.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Creature — Human Artificer",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Whenever you cast an artifact spell, draw a card, then discard a card.\n{3}{U}, {T}, Sacrifice ~: Return target artifact card from your graveyard to the battlefield. It gains malfunction 2. (It enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.).",
+  "flavor_text": "\"I understand this device completely. The runes mean 'warranty void if opened.'\"",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "collector_number": "U-R-01",
+  "rarity": "rare",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:34:42.740930Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types",
+        "Oracle text contains what looks like reminder text: \"(It enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\"",
+        "Malfunction already causes the permanent to enter tapped — explicit 'enters tapped' is redundant",
+        "Card is U but has \"reanimation\" which is primarily B"
+      ],
+      "input_tokens": 1041,
+      "output_tokens": 381,
+      "cost_usd": 0.044196,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Blue rare creature at CMC 1. A build-around 1-drop for the Cult of Science archetype. The loot-on-artifact-cast ability is efficient card filtering that rewards artifact-heavy builds without raw card advantage — you always discard. The activated ability is a powerful late-game reanimation effect for artifacts, gated behind significant costs (4 mana, tap, sacrifice) and the malfunction 2 tempo penalty. Malfunction is in-color for blue and creates meaningful delay. The sacrifice cost prevents repeatable abuse. A 1/1 for {U} is fragile enough to be answered easily. This is a Johnny/Jenny rare that rewards careful deckbuilding.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "U-R-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:34:42.740930Z",
+  "updated_at": null
+}

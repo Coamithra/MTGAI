@@ -1,0 +1,64 @@
+{
+  "slot_id": "B-U-01",
+  "card_name": "Toothwork Familiar",
+  "attempt": 1,
+  "model": "claude-opus-4-6",
+  "input_tokens": 719,
+  "output_tokens": 289,
+  "cost_usd": 0.03246,
+  "latency_s": 5.89,
+  "stop_reason": "tool_use",
+  "timestamp": "2026-03-12T23:30:53.422057+00:00",
+  "raw_card_data": {
+    "name": "Toothwork Familiar",
+    "mana_cost": "{B}",
+    "cmc": 1,
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "type_line": "Creature — Construct",
+    "oracle_text": "When ~ dies, each opponent loses 1 life and you gain 1 life.",
+    "flavor_text": "Forty-seven teeth, none of them from the same mouth. It chittered when it walked and screamed when it broke.",
+    "power": "1",
+    "toughness": "1",
+    "loyalty": null,
+    "rarity": "uncommon",
+    "design_notes": "Black uncommon 1-drop with a death trigger. A 1/1 for B that drains 1 on death is a useful role-player — it trades profitably, discourages attacks, and synergizes with sacrifice themes (common in black). The drain-on-death is a classic black effect that rewards the creature dying, fitting the dungeon's attrition theme. P+T=2, well under budget. At uncommon it's a clean build-around piece for sacrifice or aristocrats strategies without being oppressive. The flavor references the set's clockwork dolls made of human teeth — a perfectly normal thing to find in the Anomalous Subsurface Environment.",
+    "set_code": "ASD",
+    "collector_number": "B-U-01",
+    "layout": "normal"
+  },
+  "validation_errors": [
+    {
+      "validator": "type_check",
+      "severity": "MANUAL",
+      "field": "power/toughness",
+      "message": "Non-creature card has power and/or toughness set",
+      "suggestion": "Remove power/toughness from non-creature cards.",
+      "error_code": "type_check.noncreature_has_pt"
+    },
+    {
+      "validator": "type_check",
+      "severity": "MANUAL",
+      "field": "card_types",
+      "message": "Card has power/toughness but 'Creature' is not in card_types",
+      "suggestion": "Card has power/toughness but 'Creature' is not in card_types.",
+      "error_code": "type_check.pt_without_creature"
+    }
+  ],
+  "validation_error_count": 2,
+  "validation_error_summary": [
+    "[MANUAL] type_check.power/toughness: Non-creature card has power and/or toughness set",
+    "[MANUAL] type_check.card_types: Card has power/toughness but 'Creature' is not in card_types"
+  ],
+  "applied_fixes": [],
+  "applied_fix_count": 0,
+  "prompts": {
+    "system_prompt_length": 5007,
+    "user_prompt_length": 4268,
+    "user_prompt": "## Set: Anomalous Descent\n\nTheme: Science-fantasy megadungeon in far-future post-apocalyptic Earth\n\nThousands of years after civilization collapsed, the city of Denethix clings to order at the edge of a wilderness teeming with dinosaurs, moktars, and rogue wizards. Beneath Mount Rendon lies the Anomalous Subsurface Environment — a self-spawning megadungeon that predates humanity, filled with ancient super-science relics, degraded automatons, and things far worse. Adventurers descend seeking fortune. Most don't return.\n\nThe Vizier, a former slave named Koyl Yrenum, rules Denethix through a web of lies — the city's founder Feretha is dead, his brain scooped out and hooked to a machine, but everyone must believe he still lives. The Unyielding Fist enforces order with ancient laser weapons. The Cult of Science worships technology they barely understand. The Society of the Luminous Spark fights slavery by extracting slavers' brains. And deep in the wilderness, the House of Flesh pulses with eldritch horror where Starry Wisdom cultists have transformed a forest mansion into a living sanctum of alien terror.\n\nThe tone is played straight — the gonzo humor lives in flavor text. Banks guarded by 20-foot robots with machine guns. A Head Scientist on 12-foot stilts. Wizards who fly around in giant stone heads that shoot lasers from their eyes. Clockwork cats and dolls made of human teeth. The world takes itself seriously; the absurdity speaks for itself.\n\nFlavor text tone: Deadpan, darkly humorous. The world takes itself seriously; the absurdity speaks for itself.\n\n---\n\n## Custom Mechanics for This Set\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Preventive Design Checklist (read before designing each card)\n\n1. **No keyword nonbos.** Do NOT give a creature haste if it enters tapped (e.g. via Malfunction). Do NOT give flying to a creature with defender unless the card explicitly cares about it.\n2. **Reminder text on first use.** The FIRST time a custom mechanic keyword (Salvage, Malfunction, Overclock) appears in a card's oracle text, follow it with reminder text in parentheses. Subsequent uses on the same card omit it.\n3. **Meaningful conditionals only.** If an effect says \"if you [did X] this turn\" but X is a mandatory cost of the same spell, the condition is always true and therefore pointless. Remove the conditional or make the trigger come from a separate source.\n4. **Respect rarity power budgets.** Common creatures: P+T <= CMC+3. Commons get one keyword OR one short text ability, not both. Unconditional removal starts at uncommon. Card draw at common is 1 card with a condition.\n5. **Single purpose, not kitchen sink.** Each card should do ONE thing well. Do not pile unrelated effects onto a single card.\n6. **Real variability only.** If damage/effect scales with a count, the count must actually vary in normal gameplay. \"Deal damage equal to cards exiled\" where the exile count is always fixed = fake variability.\n7. **No keyword name collisions.** Do NOT use \"Scavenge\" (existing RTR keyword) or \"Overload\" (existing RTR keyword). Our mechanics are Salvage, Malfunction, and Overclock.\n8. **Relevant enters-tapped only.** \"Enters tapped\" is irrelevant on a noncreature, non-vehicle permanent with no tap abilities. Only add it where it creates a real tempo cost.\n\n---\n\nGenerate exactly 5 card(s):\n\nCard 1: Black common creature, CMC ~1, vanilla (no abilities or keyword-only)\nCard 2: Black common creature, CMC ~2, french vanilla (one evergreen keyword only)\nCard 3: Black common instant, CMC ~3\nCard 4: Black common sorcery, CMC ~5, mechanic: complex\nCard 5: Black uncommon creature, CMC ~1"
+  }
+}

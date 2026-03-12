@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Proclamation Enforcer",
+  "layout": "normal",
+  "mana_cost": "{1}{W}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "W",
+    "B"
+  ],
+  "color_identity": [
+    "W",
+    "B"
+  ],
+  "type_line": "Legendary Creature — Human Soldier",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Whenever you gain life, create a 1/1 white Human Soldier creature token. This ability triggers only once each turn.\nWhenever another creature you control dies, each opponent loses 1 life.",
+  "flavor_text": "She ensures the city mourns on schedule and celebrates on command.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "WB-R-01",
+  "rarity": "rare",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:36:20.474523Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 2920,
+      "output_tokens": 405,
+      "cost_usd": 0.074175,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Rare WB legend for the Vizier's Regime archetype that creates a self-reinforcing engine. The lifegain-to-tokens ability is white (tokens, lifegain triggers seen on cards like Attended Healer), while the death-trigger drain is black. Together they form a loop: tokens die, opponents lose life, and any incidental lifegain (from the uncommon signpost Fist Tax Collector, Cult Archivist triggers, lifelink from Feretha, etc.) creates more tokens to sacrifice. The 'once each turn' clause on token creation prevents infinite loops and keeps it from spiraling out of control with repeated drain triggers. A 2/3 legendary for 3 mana is modestly statted — the value is in the engine, not the body. As a build-around rare, it ties together the archetype's lifegain, token, and sacrifice themes without being a one-card combo.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "WB-R-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:36:20.474523Z",
+  "updated_at": null
+}

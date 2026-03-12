@@ -1,0 +1,61 @@
+{
+  "id": null,
+  "name": "Glintscale Flyer",
+  "layout": "normal",
+  "mana_cost": "{1}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Creature — Drake",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Flying",
+  "flavor_text": "They nest in the upper shafts of the megadungeon, drawn by thermals from machinery that hasn't cooled in ten thousand years.",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "U-C-02",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:34:03.979107Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 1012,
+      "output_tokens": 318,
+      "cost_usd": 0.039081,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Blue common french vanilla with flying — blue's signature evergreen keyword. A 1/2 flyer for {1}{U} is a conservative, format-staple statline (compare to Welkin Tern at 2/1 flying). P+T = 3 = CMC(2)+1, very safe under the CMC+3 budget. Drake is a classic blue creature type. The slightly higher toughness makes it a reliable early blocker in the air, fitting blue's tempo-defensive role at common.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "U-C-02",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:34:03.979107Z",
+  "updated_at": null
+}

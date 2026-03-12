@@ -1,0 +1,64 @@
+{
+  "slot_id": "R-C-01",
+  "card_name": "Moktar Raider",
+  "attempt": 1,
+  "model": "claude-opus-4-6",
+  "input_tokens": 902,
+  "output_tokens": 279,
+  "cost_usd": 0.034491,
+  "latency_s": 5.76,
+  "stop_reason": "tool_use",
+  "timestamp": "2026-03-12T23:33:00.264877+00:00",
+  "raw_card_data": {
+    "name": "Moktar Raider",
+    "mana_cost": "{1}{R}",
+    "cmc": 2,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Creature — Moktar Warrior",
+    "oracle_text": "",
+    "flavor_text": "The moktars don't raid Denethix because they hate civilization. They raid it because the granaries are right there.",
+    "power": "2",
+    "toughness": "2",
+    "loyalty": null,
+    "rarity": "common",
+    "design_notes": "Clean red common vanilla. A 2/2 for 2 is the baseline for a common creature — no frills, just a solid body. P+T=4, CMC+3=5, well within budget. Moktars are a key creature type in the setting as wilderness raiders, making this a natural flavor fit for red's aggressive identity.",
+    "set_code": "ASD",
+    "collector_number": "R-C-01",
+    "layout": "normal"
+  },
+  "validation_errors": [
+    {
+      "validator": "type_check",
+      "severity": "MANUAL",
+      "field": "power/toughness",
+      "message": "Non-creature card has power and/or toughness set",
+      "suggestion": "Remove power/toughness from non-creature cards.",
+      "error_code": "type_check.noncreature_has_pt"
+    },
+    {
+      "validator": "type_check",
+      "severity": "MANUAL",
+      "field": "card_types",
+      "message": "Card has power/toughness but 'Creature' is not in card_types",
+      "suggestion": "Card has power/toughness but 'Creature' is not in card_types.",
+      "error_code": "type_check.pt_without_creature"
+    }
+  ],
+  "validation_error_count": 2,
+  "validation_error_summary": [
+    "[MANUAL] type_check.power/toughness: Non-creature card has power and/or toughness set",
+    "[MANUAL] type_check.card_types: Card has power/toughness but 'Creature' is not in card_types"
+  ],
+  "applied_fixes": [],
+  "applied_fix_count": 0,
+  "prompts": {
+    "system_prompt_length": 5007,
+    "user_prompt_length": 7065,
+    "user_prompt": "## Set: Anomalous Descent\n\nTheme: Science-fantasy megadungeon in far-future post-apocalyptic Earth\n\nThousands of years after civilization collapsed, the city of Denethix clings to order at the edge of a wilderness teeming with dinosaurs, moktars, and rogue wizards. Beneath Mount Rendon lies the Anomalous Subsurface Environment — a self-spawning megadungeon that predates humanity, filled with ancient super-science relics, degraded automatons, and things far worse. Adventurers descend seeking fortune. Most don't return.\n\nThe Vizier, a former slave named Koyl Yrenum, rules Denethix through a web of lies — the city's founder Feretha is dead, his brain scooped out and hooked to a machine, but everyone must believe he still lives. The Unyielding Fist enforces order with ancient laser weapons. The Cult of Science worships technology they barely understand. The Society of the Luminous Spark fights slavery by extracting slavers' brains. And deep in the wilderness, the House of Flesh pulses with eldritch horror where Starry Wisdom cultists have transformed a forest mansion into a living sanctum of alien terror.\n\nThe tone is played straight — the gonzo humor lives in flavor text. Banks guarded by 20-foot robots with machine guns. A Head Scientist on 12-foot stilts. Wizards who fly around in giant stone heads that shoot lasers from their eyes. Clockwork cats and dolls made of human teeth. The world takes itself seriously; the absurdity speaks for itself.\n\nFlavor text tone: Deadpan, darkly humorous. The world takes itself seriously; the absurdity speaks for itself.\n\n---\n\n## Custom Mechanics for This Set\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Preventive Design Checklist (read before designing each card)\n\n1. **No keyword nonbos.** Do NOT give a creature haste if it enters tapped (e.g. via Malfunction). Do NOT give flying to a creature with defender unless the card explicitly cares about it.\n2. **Reminder text on first use.** The FIRST time a custom mechanic keyword (Salvage, Malfunction, Overclock) appears in a card's oracle text, follow it with reminder text in parentheses. Subsequent uses on the same card omit it.\n3. **Meaningful conditionals only.** If an effect says \"if you [did X] this turn\" but X is a mandatory cost of the same spell, the condition is always true and therefore pointless. Remove the conditional or make the trigger come from a separate source.\n4. **Respect rarity power budgets.** Common creatures: P+T <= CMC+3. Commons get one keyword OR one short text ability, not both. Unconditional removal starts at uncommon. Card draw at common is 1 card with a condition.\n5. **Single purpose, not kitchen sink.** Each card should do ONE thing well. Do not pile unrelated effects onto a single card.\n6. **Real variability only.** If damage/effect scales with a count, the count must actually vary in normal gameplay. \"Deal damage equal to cards exiled\" where the exile count is always fixed = fake variability.\n7. **No keyword name collisions.** Do NOT use \"Scavenge\" (existing RTR keyword) or \"Overload\" (existing RTR keyword). Our mechanics are Salvage, Malfunction, and Overclock.\n8. **Relevant enters-tapped only.** \"Enters tapped\" is irrelevant on a noncreature, non-vehicle permanent with no tap abilities. Only add it where it creates a real tempo cost.\n\n---\n\n**Cards already in the set** (do NOT duplicate names or effects):\n- Subsurface Scavenger ({B}) — Creature — Human Rogue — \n- Fist Enforcer ({1}{B}) — Creature — Human Soldier — Menace\n- Dungeon Rot ({2}{B}) — Instant — Target creature gets -3/-3 until end of turn.\n- Plunder the Catacombs ({4}{B}) — Sorcery — Return up to two target creature cards from your graveyard t...\n- Toothwork Familiar ({B}) — Creature — Construct — When ~ dies, each opponent loses 1 life and you gain 1 life.\n- Luminous Spark Extractor ({2}{B}) — Creature — Human Assassin — When ~ enters, target opponent discards a card. If that card...\n- Subsurface Harvest ({3}{B}{B}) — Enchantment — Whenever a creature you control dies, you may pay 1 life. If...\n- Koyl Yrenum, the Vizier ({1}{B}) — Legendary Creature — Human Advisor — Whenever another creature dies, you may pay {1}. If you do, ...\n- The Brain Engine ({3}{B}{B}) — Legendary Enchantment — Artifact — Whenever a nontoken creature you control dies, exile it with...\n- Apex of the Subsurface ({2}{B}{B}) — Legendary Creature — Horror — Deathtouch Whenever a creature dealt damage by ~ this turn d...\n- Wilderness Tracker ({1}{G}) — Creature — Human Scout — \n- Rendon Ceratops ({2}{G}) — Creature — Dinosaur — Trample\n- Overgrown Ambush ({3}{G}) — Instant — Target creature you control gets +3/+3 and gains trample unt...\n- Reclaim the Surface ({5}{G}{G}) — Sorcery — Destroy target artifact and target enchantment. Create two 4...\n- Moktar Salvager ({1}{G}) — Creature — Moktar Warrior — When ~ enters, salvage 3. (Look at the top three cards of yo...\n- Rendon Packleader ({2}{G}{G}) — Creature — Dinosaur — Trample Whenever ~ deals combat damage to a player, salvage ...\n- Law of the Wilderness ({5}{G}{G}) — Enchantment — When ~ enters, destroy all artifacts and enchantments other ...\n- Spore-Nest Forager ({1}{G}) — Creature — Fungus Scout — Whenever an artifact enters under your control, put a +1/+1 ...\n- The Subsurface Reclaims ({5}{G}{G}) — Enchantment — Whenever a nontoken creature you control dies, you may exile...\n\n**Color distribution so far**: {'W': 0, 'U': 0, 'B': 10, 'R': 0, 'G': 9}\n**Total cards**: 19\n\n---\n\nGenerate exactly 5 card(s):\n\nCard 1: Red common creature, CMC ~2, vanilla (no abilities or keyword-only)\nCard 2: Red common creature, CMC ~3, french vanilla (one evergreen keyword only)\nCard 3: Red common instant, CMC ~4\nCard 4: Red common sorcery, CMC ~6, mechanic: complex\nCard 5: Red uncommon creature, CMC ~2"
+  }
+}

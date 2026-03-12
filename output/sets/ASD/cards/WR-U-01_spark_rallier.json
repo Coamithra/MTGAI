@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Spark Rallier",
+  "layout": "normal",
+  "mana_cost": "{W}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "W",
+    "R"
+  ],
+  "color_identity": [
+    "W",
+    "R"
+  ],
+  "type_line": "Creature — Human Rebel",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Whenever ~ or another creature you control becomes equipped, target creature you control gains first strike until end of turn.",
+  "flavor_text": "\"They gave us slave collars. We made them into shields.\"",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "WR-U-01",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:36:57.494897Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 2998,
+      "output_tokens": 373,
+      "cost_usd": 0.07299,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "WR signpost uncommon for the Spark Rebellion archetype. A 2/2 for 2 is a clean, fair statline at uncommon. The triggered ability rewards the equipment subtheme by granting first strike whenever any creature you control becomes equipped — this encourages moving equipment around in combat for aggressive trades. First strike is shared by white and red, and the equipment-matters trigger ties into the archetype's 'weapons to overwhelm' identity. The ability is strong in the right deck but does nothing without equipment, keeping it balanced as an archetype payoff rather than a generically powerful card.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "WR-U-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:36:57.494897Z",
+  "updated_at": null
+}

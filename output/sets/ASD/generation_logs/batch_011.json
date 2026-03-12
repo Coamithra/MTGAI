@@ -1,0 +1,124 @@
+{
+  "batch_index": 11,
+  "slot_ids": [
+    "W-U-02",
+    "W-U-03",
+    "W-R-01",
+    "W-R-02",
+    "W-M-01"
+  ],
+  "slot_count": 5,
+  "card_count_returned": 5,
+  "model": "claude-opus-4-6",
+  "temperature": 1.0,
+  "effort": "max",
+  "input_tokens": 5401,
+  "output_tokens": 1825,
+  "cost_usd": 0.21789,
+  "latency_s": 35.75,
+  "stop_reason": "tool_use",
+  "timestamp": "2026-03-12T23:36:02.215636+00:00",
+  "raw_cards": [
+    {
+      "name": "Fist Supply Marshal",
+      "mana_cost": "{2}{W}",
+      "cmc": 3,
+      "colors": [
+        "W"
+      ],
+      "color_identity": [
+        "W"
+      ],
+      "type_line": "Creature — Human Soldier",
+      "oracle_text": "When ~ enters, salvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\nWhenever an artifact enters under your control, ~ gets +1/+1 until end of turn.",
+      "flavor_text": "\"Requisition Form 7-C. Approved. Don't ask where it came from.\"",
+      "power": "2",
+      "toughness": "2",
+      "loyalty": null,
+      "rarity": "uncommon",
+      "design_notes": "White uncommon at CMC 3. A 2/2 body is below rate for 3 mana, but the ETB salvage 3 provides card selection and the artifact-trigger pump gives it relevance in artifact-heavy decks. Supports the WU (Ancient Technology) and WG (Salvage) draft archetypes. The pump is temporary, keeping it from snowballing too hard. P+T base of 4 is well within CMC+3=6 budget. Two abilities is appropriate for uncommon."
+    },
+    {
+      "name": "Edict of Continuity",
+      "mana_cost": "{2}{W}{W}",
+      "cmc": 4,
+      "colors": [
+        "W"
+      ],
+      "color_identity": [
+        "W"
+      ],
+      "type_line": "Enchantment",
+      "oracle_text": "Whenever one or more creatures you control die, create a 1/1 white Human Soldier creature token.\nWhenever an artifact you control is put into a graveyard from the battlefield, you may return it to its owner's hand.",
+      "flavor_text": "Denethix endures. Its people are replaced. Its machines, repaired.",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "uncommon",
+      "design_notes": "White uncommon enchantment at CMC 4. Two related triggered abilities that reward attrition strategies — creatures dying make tokens (white's bread and butter), and artifacts going to the graveyard can be recouped. The creature trigger only makes one token regardless of how many die at once, preventing combo abuse with board wipes. The artifact recursion requires the artifact to actually hit the graveyard (not exile), keeping it fair. Both halves support white's role as the 'civilization endures' color in this set. Complex enough for uncommon but each piece is individually simple."
+    },
+    {
+      "name": "Cult Relic-Bearer",
+      "mana_cost": "{W}",
+      "cmc": 1,
+      "colors": [
+        "W"
+      ],
+      "color_identity": [
+        "W"
+      ],
+      "type_line": "Creature — Human Cleric",
+      "oracle_text": "Whenever you cast an artifact spell, ~ gets +1/+0 and gains vigilance until end of turn.\n{2}{W}, {T}, Sacrifice ~: Salvage 5. (Look at the top five cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+      "flavor_text": "\"Every relic is a prayer answered by the ancients.\"",
+      "power": "1",
+      "toughness": "2",
+      "loyalty": null,
+      "rarity": "rare",
+      "design_notes": "White rare at CMC 1. A 1/2 for W is fair baseline. The artifact-cast trigger gives it early relevance in artifact-heavy decks as an aggressive body that gains vigilance. The sacrifice ability provides a late-game option — pay 3 total mana, tap and sac to salvage 5, which is deep digging for a 1-drop. The sacrifice cost ensures it's a one-shot effect and creates tension between keeping the body and cashing it in. Salvage 5 at rare is within the scaling guidelines. Supports WU artifacts archetype."
+    },
+    {
+      "name": "The Vizier's Decree",
+      "mana_cost": "{2}{W}{W}",
+      "cmc": 4,
+      "colors": [
+        "W"
+      ],
+      "color_identity": [
+        "W"
+      ],
+      "type_line": "Enchantment",
+      "oracle_text": "When ~ enters, exile target creature an opponent controls until ~ leaves the battlefield.\nWhenever a creature enters under an opponent's control, that creature doesn't untap during its controller's next untap step unless that player pays {2}.",
+      "flavor_text": "\"Feretha's will is absolute. His voice is mine. His law is everything.\"\n—Koyl Yrenum",
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "rarity": "rare",
+      "design_notes": "White rare enchantment at CMC 4. Combines two white effects — Oblivion Ring-style conditional removal and a taxing effect on opponent's new creatures. The Banishing Light effect ties removal to the enchantment's survival, giving opponents counterplay. The tax effect slows opponents deploying threats but doesn't prevent them — pay 2 or your creature enters effectively tapped. This captures the Vizier's authoritarian control of Denethix. Both abilities are firmly in white's color pie (removal via exile, taxing effects). Strong but answerable — destroying the enchantment frees the exiled creature and ends the tax."
+    },
+    {
+      "name": "Feretha, the Hollow Founder",
+      "mana_cost": "{W}{W}",
+      "cmc": 2,
+      "colors": [
+        "W"
+      ],
+      "color_identity": [
+        "W"
+      ],
+      "type_line": "Legendary Creature — Human Spirit",
+      "oracle_text": "Vigilance, lifelink\n~ can't attack or block unless you control an artifact.\nWhenever an artifact enters under your control, put a +1/+1 counter on ~.\nWhen ~ dies, salvage 4. (Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+      "flavor_text": "His body sits the throne. His mind turns the gears.",
+      "power": "2",
+      "toughness": "3",
+      "loyalty": null,
+      "rarity": "mythic",
+      "design_notes": "White mythic at CMC 2. A 2/3 with vigilance and lifelink for WW is pushed stats, but the restriction that it can't attack or block without an artifact is a meaningful deckbuilding constraint — Feretha is literally a puppet without the machines sustaining him. The +1/+1 counter growth rewards artifact-heavy strategies and makes him scale into the late game. The death trigger salvage 4 ensures you recoup value if removed, fitting the lore of his brain being hooked to machinery. The flavor captures the tragedy of Denethix's hollow figurehead perfectly. Mythic-appropriate as a build-around legendary that demands artifact support but rewards it generously."
+    }
+  ],
+  "prompts": {
+    "system_prompt": "You are an expert Magic: The Gathering card designer with deep knowledge of game mechanics, color pie philosophy, and competitive balance.\n\nYour task is to design original MTG cards and return them as valid JSON. Follow these rules precisely.\n\n## MTG Rules Reference\n\n### Evergreen Keywords\nFlying, First strike, Double strike, Deathtouch, Trample, Vigilance, Haste, Lifelink, Reach, Menace, Hexproof, Flash, Defender, Indestructible, Ward {N}.\n\n### Common Keyword Actions\nDestroy, Exile, Sacrifice, Scry N, Mill N, Fight, Create token, Counter, Draw.\n\n### Rules Text Patterns\n- Self-reference: Always use ~ for the card's own name. Write \"When ~ enters\" not \"When this creature enters\" or \"When [Card Name] enters\".\n- Triggered abilities: \"When ~ enters, ...\", \"Whenever ~ attacks, ...\", \"At the beginning of your upkeep, ...\", \"When ~ dies, ...\"\n- Activated abilities: \"{cost}: {effect}\" — e.g., \"{T}: Add {G}.\" or \"{2}{B}, Sacrifice a creature: Draw a card.\"\n- Static abilities: Keyword on its own line, or \"Other creatures you control get +1/+1.\"\n- Modal spells: \"Choose one —\\n* Effect A.\\n* Effect B.\"\n- Mana symbols: {W} white, {U} blue, {B} black, {R} red, {G} green, {C} colorless, {X} variable, {T} tap.\n\n### Mana Cost Format\nGeneric mana first, then WUBRG order: {2}{W}{U} is correct, {W}{2}{U} is wrong. X costs come first: {X}{R}{R}.\n\n## Color Pie\n\n- **White (W)**: Lifegain, small creatures, tokens, exile-based removal, enchantments, vigilance, flying (small). Cannot draw cards without restriction.\n- **Blue (U)**: Card draw, counterspells, bounce, flying (large), mill, scry, flash. Cannot destroy permanents directly.\n- **Black (B)**: Creature destruction, discard, drain life, deathtouch, menace, raise dead, sacrifice-for-value. Pays life as a cost.\n- **Red (R)**: Direct damage (burn), haste, temporary power boosts, artifact destruction, impulsive draw (exile top, cast this turn). Cannot gain life or destroy enchantments.\n- **Green (G)**: Large creatures, mana ramp, trample, fight-based removal, +1/+1 counters, enchantment/artifact destruction, reach. Cannot deal direct damage to players.\n\n## New World Order (Complexity by Rarity)\n\n- **Common**: Simple. One keyword ability OR one short text ability. No complex board interactions. Creatures should have clean stats.\n- **Uncommon**: Moderate. Up to two abilities or one complex ability. Signpost multicolor uncommons define draft archetypes.\n- **Rare**: Complex allowed. Splashy effects, build-around potential, powerful legendaries.\n- **Mythic**: Spectacular and unique. Planeswalkers, game-changing effects, iconic creatures.\n\n### Power Level Guidelines\n- Common creatures: P + T should not exceed CMC + 3. Extra stats require a drawback.\n- Removal at common should be conditional or expensive. Unconditional removal starts at uncommon.\n- Card draw at common: 1 card only, with a condition or at sorcery speed.\n\n## Output Format\n\nReturn valid JSON matching this schema:\n\n{\n  \"name\": \"string — original name, not an existing MTG card\",\n  \"mana_cost\": \"string — e.g., '{2}{W}{U}'\",\n  \"cmc\": \"number — converted mana cost total (X counts as 0)\",\n  \"colors\": [\"W\", \"U\", \"B\", \"R\", \"G\"] — subset matching mana_cost colors,\n  \"color_identity\": [\"W\", \"U\", \"B\", \"R\", \"G\"] — colors from mana_cost AND oracle_text mana symbols,\n  \"type_line\": \"string — e.g., 'Creature — Human Wizard' or 'Legendary Enchantment'\",\n  \"oracle_text\": \"string — rules text using ~ for self-reference. Separate abilities with \\\\n\",\n  \"flavor_text\": \"string or null — evocative in-world flavor\",\n  \"power\": \"string or null — required for creatures, e.g., '3' or '*'\",\n  \"toughness\": \"string or null — required for creatures\",\n  \"loyalty\": \"string or null — required for planeswalkers\",\n  \"rarity\": \"common | uncommon | rare | mythic\",\n  \"layout\": \"normal\",\n  \"design_notes\": \"string — explain your design intent, color pie reasoning, and power level choices\"\n}\n\n### Field Rules\n- power and toughness are strings (to support */*, X/X, etc.).\n- cmc must equal the total mana value of mana_cost (each {W},{U},{B},{R},{G},{C} = 1, each {N} = N, {X} = 0).\n- colors must exactly match the colored mana symbols in mana_cost. A card with mana_cost \"{2}{R}\" has colors [\"R\"].\n- color_identity includes colors from both mana_cost and any mana symbols in oracle_text.\n- Separate multiple abilities in oracle_text with \\n (newline).\n- Include flavor_text for most cards. Omit it only if rules text is very long.\n\n## Constraints\n\n- DO NOT use silver-border or un-set mechanics (no dice rolling, no subgames, no breaking the fourth wall).\n- DO NOT reference real-world people, places, brands, or events.\n- DO NOT reuse existing MTG card names. All names must be original.\n- DO NOT use the card's actual name in oracle_text — always use ~ as self-reference.\n- DO NOT create cards that are strictly better than iconic staples at the same rarity and cost.\n- DO NOT put reminder text in oracle_text unless specifically requested. Reminder text goes in a separate field if needed.",
+    "system_prompt_length": 5007,
+    "user_prompt": "## Set: Anomalous Descent\n\nTheme: Science-fantasy megadungeon in far-future post-apocalyptic Earth\n\nThousands of years after civilization collapsed, the city of Denethix clings to order at the edge of a wilderness teeming with dinosaurs, moktars, and rogue wizards. Beneath Mount Rendon lies the Anomalous Subsurface Environment — a self-spawning megadungeon that predates humanity, filled with ancient super-science relics, degraded automatons, and things far worse. Adventurers descend seeking fortune. Most don't return.\n\nThe Vizier, a former slave named Koyl Yrenum, rules Denethix through a web of lies — the city's founder Feretha is dead, his brain scooped out and hooked to a machine, but everyone must believe he still lives. The Unyielding Fist enforces order with ancient laser weapons. The Cult of Science worships technology they barely understand. The Society of the Luminous Spark fights slavery by extracting slavers' brains. And deep in the wilderness, the House of Flesh pulses with eldritch horror where Starry Wisdom cultists have transformed a forest mansion into a living sanctum of alien terror.\n\nThe tone is played straight — the gonzo humor lives in flavor text. Banks guarded by 20-foot robots with machine guns. A Head Scientist on 12-foot stilts. Wizards who fly around in giant stone heads that shoot lasers from their eyes. Clockwork cats and dolls made of human teeth. The world takes itself seriously; the absurdity speaks for itself.\n\nFlavor text tone: Deadpan, darkly humorous. The world takes itself seriously; the absurdity speaks for itself.\n\n---\n\n## Custom Mechanics for This Set\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n\n---\n\n## Preventive Design Checklist (read before designing each card)\n\n1. **No keyword nonbos.** Do NOT give a creature haste if it enters tapped (e.g. via Malfunction). Do NOT give flying to a creature with defender unless the card explicitly cares about it.\n2. **Reminder text on first use.** The FIRST time a custom mechanic keyword (Salvage, Malfunction, Overclock) appears in a card's oracle text, follow it with reminder text in parentheses. Subsequent uses on the same card omit it.\n3. **Meaningful conditionals only.** If an effect says \"if you [did X] this turn\" but X is a mandatory cost of the same spell, the condition is always true and therefore pointless. Remove the conditional or make the trigger come from a separate source.\n4. **Respect rarity power budgets.** Common creatures: P+T <= CMC+3. Commons get one keyword OR one short text ability, not both. Unconditional removal starts at uncommon. Card draw at common is 1 card with a condition.\n5. **Single purpose, not kitchen sink.** Each card should do ONE thing well. Do not pile unrelated effects onto a single card.\n6. **Real variability only.** If damage/effect scales with a count, the count must actually vary in normal gameplay. \"Deal damage equal to cards exiled\" where the exile count is always fixed = fake variability.\n7. **No keyword name collisions.** Do NOT use \"Scavenge\" (existing RTR keyword) or \"Overload\" (existing RTR keyword). Our mechanics are Salvage, Malfunction, and Overclock.\n8. **Relevant enters-tapped only.** \"Enters tapped\" is irrelevant on a noncreature, non-vehicle permanent with no tap abilities. Only add it where it creates a real tempo cost.\n\n---\n\n**Cards already in the set** (do NOT duplicate names or effects):\n- Subsurface Scavenger ({B}) — Creature — Human Rogue — \n- Fist Enforcer ({1}{B}) — Creature — Human Soldier — Menace\n- Dungeon Rot ({2}{B}) — Instant — Target creature gets -3/-3 until end of turn.\n- Plunder the Catacombs ({4}{B}) — Sorcery — Return up to two target creature cards from your graveyard t...\n- Toothwork Familiar ({B}) — Creature — Construct — When ~ dies, each opponent loses 1 life and you gain 1 life.\n- Luminous Spark Extractor ({2}{B}) — Creature — Human Assassin — When ~ enters, target opponent discards a card. If that card...\n- Subsurface Harvest ({3}{B}{B}) — Enchantment — Whenever a creature you control dies, you may pay 1 life. If...\n- Koyl Yrenum, the Vizier ({1}{B}) — Legendary Creature — Human Advisor — Whenever another creature dies, you may pay {1}. If you do, ...\n- The Brain Engine ({3}{B}{B}) — Legendary Enchantment — Artifact — Whenever a nontoken creature you control dies, exile it with...\n- Apex of the Subsurface ({2}{B}{B}) — Legendary Creature — Horror — Deathtouch Whenever a creature dealt damage by ~ this turn d...\n- Wilderness Tracker ({1}{G}) — Creature — Human Scout — \n- Rendon Ceratops ({2}{G}) — Creature — Dinosaur — Trample\n- Overgrown Ambush ({3}{G}) — Instant — Target creature you control gets +3/+3 and gains trample unt...\n- Reclaim the Surface ({5}{G}{G}) — Sorcery — Destroy target artifact and target enchantment. Create two 4...\n- Moktar Salvager ({1}{G}) — Creature — Moktar Warrior — When ~ enters, salvage 3. (Look at the top three cards of yo...\n- Rendon Packleader ({2}{G}{G}) — Creature — Dinosaur — Trample Whenever ~ deals combat damage to a player, salvage ...\n- Law of the Wilderness ({5}{G}{G}) — Enchantment — When ~ enters, destroy all artifacts and enchantments other ...\n- Spore-Nest Forager ({1}{G}) — Creature — Fungus Scout — Whenever an artifact enters under your control, put a +1/+1 ...\n- The Subsurface Reclaims ({5}{G}{G}) — Enchantment — Whenever a nontoken creature you control dies, you may exile...\n- Moktar Raider ({1}{R}) — Creature — Moktar Warrior — \n- Wasteland Raptor ({2}{R}) — Creature — Dinosaur — Haste\n- Scorched Passage ({3}{R}) — Instant — ~ deals 4 damage to target creature.\n- Ransack the Storeroom ({5}{R}) — Sorcery — ~ deals 5 damage divided as you choose among any number of t...\n- Spark Saboteur ({1}{R}) — Creature — Human Rebel — When ~ enters, it deals 1 damage to target creature or plane...\n- Moktar War-Screamer ({2}{R}{R}) — Creature — Moktar Berserker — Haste Whenever ~ attacks, it gets +1/+0 until end of turn fo...\n- Raider's Bounty ({4}{R}{R}) — Enchantment — Whenever a creature you control deals combat damage to a pla...\n- Spark Detonator ({1}{R}) — Creature — Human Rebel Artificer — Whenever an artifact enters under your control, ~ deals 1 da...\n- The Burning Descent ({4}{R}{R}) — Enchantment — At the beginning of your upkeep, overclock. (Exile the top t...\n- Subsurface Surveyor ({U}) — Creature — Human Scout — \n- Glintscale Flyer ({1}{U}) — Creature — Drake — Flying\n- Redirect Pulse ({2}{U}) — Instant — Return target creature to its owner's hand. Draw a card.\n- Excavate the Archives ({4}{U}) — Sorcery — Draw three cards, then discard a card. Salvage 3. (Look at t...\n- Cult Initiate ({U}) — Creature — Human Artificer — When ~ enters, scry 1. Whenever you cast an artifact spell, ...\n- Subsurface Cartographer ({2}{U}) — Creature — Human Wizard — Flying Whenever ~ deals combat damage to a player, salvage 3...\n- Automated Sentry Grid ({3}{U}{U}) — Enchantment — Whenever a creature an opponent controls attacks, tap it. It...\n- Cult Savant ({U}) — Creature — Human Artificer — Whenever you cast an artifact spell, draw a card, then disca...\n- The Cartography Engine ({2}{U}{U}) — Legendary Enchantment — Artifact — At the beginning of your upkeep, salvage 4. (Look at the top...\n- The Head Scientist ({1}{U}{U}) — Legendary Creature — Human Artificer — Flash When ~ enters, salvage 5. (Look at the top five cards ...\n- Depth Crawler Archivist ({1}{U}{B}) — Creature — Human Rogue — When ~ enters, mill three cards.\\nWhenever one or more creat...\n- Denethix Watchguard ({W}) — Creature — Human Soldier — \n- Fist Patrol Rider ({1}{W}) — Creature — Human Soldier — Vigilance\n- Sanctioned Exile ({2}{W}) — Instant — Exile target creature with power 4 or greater.\n- Salvage the Gatehouse ({3}{W}) — Sorcery — Create two 1/1 white Human Soldier creature tokens. Salvage ...\n- Cult Archivist ({W}) — Creature — Human Cleric — Whenever an artifact enters under your control, you gain 1 l...\n\n**Color distribution so far**: {'W': 5, 'U': 11, 'B': 11, 'R': 9, 'G': 9}\n**Total cards**: 44\n\n---\n\nGenerate exactly 5 card(s):\n\nCard 1: White uncommon creature, CMC ~3\nCard 2: White uncommon enchantment, CMC ~4, mechanic: complex\nCard 3: White rare creature, CMC ~1, mechanic: complex\nCard 4: White rare enchantment, CMC ~4, mechanic: complex\nCard 5: White mythic creature, CMC ~2, mechanic: complex",
+    "user_prompt_length": 9744
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Sura, Rendon Ranchmaster",
+  "layout": "normal",
+  "mana_cost": "{1}{W}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "W",
+    "G"
+  ],
+  "color_identity": [
+    "W",
+    "G"
+  ],
+  "type_line": "Legendary Creature — Human Settler",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Whenever you create one or more tokens, put a +1/+1 counter on each of them.\n{3}{G}{W}, {T}: Create two 1/1 white Human Soldier creature tokens and a 3/3 green Dinosaur creature token.",
+  "flavor_text": "\"The beasts don't need taming. They need purpose.\"",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "WG-R-01",
+  "rarity": "rare",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:36:39.677280Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 2869,
+      "output_tokens": 404,
+      "cost_usd": 0.073335,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Rare legendary for the WG Frontier Settlers archetype. The static ability rewards the entire token strategy by buffing every token you create across all sources — Human Soldiers from Edict of Continuity arrive as 2/2s, Dinosaur tokens from Reclaim the Surface arrive as 5/5s. This is a powerful build-around that demands an answer. The activated ability is expensive at 5 mana + tap, providing a self-contained token engine that doesn't come online until later turns, generating 7 power across 3 bodies (boosted to 9 power with the counters). The 2/3 body for 3 is modest, keeping the card honest when you don't have token support. Green gets creature tokens and +1/+1 counters; white gets soldier tokens and anthem-adjacent effects. The legendary status prevents doubling up in limited.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "WG-R-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:36:39.677280Z",
+  "updated_at": null
+}

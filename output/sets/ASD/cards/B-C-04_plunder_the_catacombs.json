@@ -1,0 +1,58 @@
+{
+  "id": null,
+  "name": "Plunder the Catacombs",
+  "layout": "normal",
+  "mana_cost": "{4}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 5.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Sorcery",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Return up to two target creature cards from your graveyard to your hand. Each opponent loses 2 life.",
+  "flavor_text": "\"Loot the dead, sell what you can, and pray whatever killed them moved on.\" —Denethix Descent Guild handbook",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "B-C-04",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:30:53.420778Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 719,
+      "output_tokens": 289,
+      "cost_usd": 0.03246,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Black common sorcery at CMC 5 with a more complex effect per the brief. This combines two core black effects — raise dead (returning creatures from graveyard) and life drain — into a single coherent card about plundering the dungeon's depths. Returning two creatures at sorcery speed for 5 mana is fair; the 2 life loss to each opponent adds value without being the primary mode. The two effects are thematically unified (descending into the catacombs and returning with spoils, leaving death in your wake) rather than being a kitchen-sink design. Appropriate complexity for a common sorcery — two related effects, no tracking or board complexity.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "B-C-04",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:30:53.420778Z",
+  "updated_at": null
+}

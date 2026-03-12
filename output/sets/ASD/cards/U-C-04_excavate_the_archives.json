@@ -1,0 +1,60 @@
+{
+  "id": null,
+  "name": "Excavate the Archives",
+  "layout": "normal",
+  "mana_cost": "{4}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 5.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Sorcery",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Draw three cards, then discard a card.\nSalvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+  "flavor_text": "\"Most of what we find is junk. But junk from before the collapse is still worth a fortune.\"",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "U-C-04",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:34:03.984154Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Oracle text contains what looks like reminder text: \"(Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+      ],
+      "input_tokens": 1012,
+      "output_tokens": 318,
+      "cost_usd": 0.039081,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Blue common sorcery at CMC 5 — the 'complex common' slot. Draw 3 discard 1 is a classic blue common effect at 5 mana (Tidings draws 4 for 5, so draw 3 loot 1 is weaker on raw cards but adds selection). The Salvage 3 rider adds set-mechanic relevance and artifact synergy without adding meaningful complexity — it's a clean additional look that happens after the draw/discard. Salvage at 3 is within the common range (2-3). The two effects are thematically unified: you're digging through ancient archives and pulling out useful relics. Sorcery speed keeps it from being too flexible.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "U-C-04",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:34:03.984154Z",
+  "updated_at": null
+}

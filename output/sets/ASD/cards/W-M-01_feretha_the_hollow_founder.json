@@ -1,0 +1,62 @@
+{
+  "id": null,
+  "name": "Feretha, the Hollow Founder",
+  "layout": "normal",
+  "mana_cost": "{W}{W}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Legendary Creature — Human Spirit",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Vigilance, lifelink\n~ can't attack or block unless you control an artifact.\nWhenever an artifact enters under your control, put a +1/+1 counter on ~.\nWhen ~ dies, salvage 4. (Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.).",
+  "flavor_text": "His body sits the throne. His mind turns the gears.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "W-M-01",
+  "rarity": "mythic",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:36:02.242713Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types",
+        "Oracle text contains what looks like reminder text: \"(Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+      ],
+      "input_tokens": 1080,
+      "output_tokens": 365,
+      "cost_usd": 0.043578,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "White mythic at CMC 2. A 2/3 with vigilance and lifelink for WW is pushed stats, but the restriction that it can't attack or block without an artifact is a meaningful deckbuilding constraint — Feretha is literally a puppet without the machines sustaining him. The +1/+1 counter growth rewards artifact-heavy strategies and makes him scale into the late game. The death trigger salvage 4 ensures you recoup value if removed, fitting the lore of his brain being hooked to machinery. The flavor captures the tragedy of Denethix's hollow figurehead perfectly. Mythic-appropriate as a build-around legendary that demands artifact support but rewards it generously.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "W-M-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:36:02.242713Z",
+  "updated_at": null
+}

@@ -1,0 +1,61 @@
+{
+  "id": null,
+  "name": "Rendon Ceratops",
+  "layout": "normal",
+  "mana_cost": "{2}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "G"
+  ],
+  "color_identity": [
+    "G"
+  ],
+  "type_line": "Creature — Dinosaur",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Trample",
+  "flavor_text": "Denethix's outer walls were built tall enough to discourage most predators. Most.",
+  "reminder_text": null,
+  "power": "3",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "G-C-02",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:32:01.696636Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 811,
+      "output_tokens": 292,
+      "cost_usd": 0.034113,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Green common french vanilla at CMC 3. A 3/3 trample for {2}{G} is a solid but fair limited creature — P+T = 6 = CMC+3 exactly. Trample is the most iconic green evergreen keyword and plays perfectly on a dinosaur. The Dinosaur type ties into the set's wilderness teeming with dinosaurs. Clean, simple, does one thing well.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "G-C-02",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:32:01.696636Z",
+  "updated_at": null
+}

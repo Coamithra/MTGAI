@@ -1,0 +1,61 @@
+{
+  "id": null,
+  "name": "Apex of the Subsurface",
+  "layout": "normal",
+  "mana_cost": "{2}{B}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Legendary Creature — Horror",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Deathtouch\nWhenever a creature dealt damage by ~ this turn dies, exile it. You may cast creature spells from among cards exiled with ~ by paying life equal to their mana value rather than paying their mana cost.\nWhenever you cast a spell this way, each opponent loses 2 life.",
+  "flavor_text": "It was here before Mount Rendon. Before humanity. It will be here after.",
+  "reminder_text": null,
+  "power": "4",
+  "toughness": "4",
+  "loyalty": null,
+  "collector_number": "B-M-01",
+  "rarity": "mythic",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:31:33.271821Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 761,
+      "output_tokens": 376,
+      "cost_usd": 0.039687,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "The mythic horror lurking at the bottom of the Anomalous Subsurface Environment. A 4/4 deathtouch for 4 is already a strong creature, but the real power is the reanimation-from-exile ability. Deathtouch ensures any creature it fights or blocks dies, feeding the exile zone. Then you can cast those exiled creatures by paying life — deeply black, reminiscent of Bolas's Citadel and Reanimate. The 2-life drain on each cast offsets some of the life payment and pressures opponents. This creates a mythic play pattern: it kills things, eats them, and lets you deploy them. Life payment creates meaningful tension — you can't recklessly cast everything. The 'dealt damage by ~' clause means it needs to be in combat or fighting, not just existing. Powerful, splashy, and quintessentially black.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "B-M-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:31:33.271821Z",
+  "updated_at": null
+}

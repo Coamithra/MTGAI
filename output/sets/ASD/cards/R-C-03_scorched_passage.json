@@ -1,0 +1,58 @@
+{
+  "id": null,
+  "name": "Scorched Passage",
+  "layout": "normal",
+  "mana_cost": "{3}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "R"
+  ],
+  "color_identity": [
+    "R"
+  ],
+  "type_line": "Instant",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "~ deals 4 damage to target creature.",
+  "flavor_text": "\"Tunnel B-7 is clear.\"\n\"What was in it?\"\n\"Doesn't matter now.\"",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "R-C-03",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:33:00.275276Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 902,
+      "output_tokens": 279,
+      "cost_usd": 0.034491,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Conditional removal at common — 4 damage for 4 mana at instant speed is a solid rate that kills most creatures but not everything. This is red's primary removal mode (burn) at an appropriate common power level. Comparable to Flame Javelin or similar burn spells, but at a fair rate. Doesn't hit players, keeping it as creature removal rather than a reach spell.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "R-C-03",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:33:00.275276Z",
+  "updated_at": null
+}

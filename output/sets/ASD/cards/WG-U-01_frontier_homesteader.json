@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Frontier Homesteader",
+  "layout": "normal",
+  "mana_cost": "{W}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "W",
+    "G"
+  ],
+  "color_identity": [
+    "W",
+    "G"
+  ],
+  "type_line": "Creature — Human Settler",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Whenever another creature enters under your control, put a +1/+1 counter on ~.",
+  "flavor_text": "\"Forty acres, a ceratops, and a laser fence. That's all anyone needs.\"",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "collector_number": "WG-U-01",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:36:39.673778Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types"
+      ],
+      "input_tokens": 2869,
+      "output_tokens": 404,
+      "cost_usd": 0.073335,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "WG signpost uncommon for the Frontier Settlers archetype. A simple, clean payoff for the go-wide token strategy — every token or creature you add makes this bigger. At 1/1 for 2 mana, it's underwhelming on its own and demands you commit to the board-building plan. Compares favorably to cards like Luminarch Aspirant but requires more setup since it only triggers on OTHER creatures entering. Works with the token generation from white (Salvage the Gatehouse, Edict of Continuity) and green's creature-heavy gameplan. The +1/+1 counter theme ties into the archetype's counter subtheme. Single ability keeps it at uncommon complexity while being a meaningful build-around in draft.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "WG-U-01",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:36:39.673778Z",
+  "updated_at": null
+}

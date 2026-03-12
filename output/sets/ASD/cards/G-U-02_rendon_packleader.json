@@ -1,0 +1,62 @@
+{
+  "id": null,
+  "name": "Rendon Packleader",
+  "layout": "normal",
+  "mana_cost": "{2}{G}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "G"
+  ],
+  "color_identity": [
+    "G"
+  ],
+  "type_line": "Creature — Dinosaur",
+  "supertypes": [],
+  "card_types": [],
+  "subtypes": [],
+  "oracle_text": "Trample\nWhenever ~ deals combat damage to a player, salvage 4. (Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.).",
+  "flavor_text": "The herd moves as one. The earth moves with them.",
+  "reminder_text": null,
+  "power": "4",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "G-U-02",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-12T23:32:31.442899Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Non-creature card has power and/or toughness set",
+        "Card has power/toughness but 'Creature' is not in card_types",
+        "Oracle text contains what looks like reminder text: \"(Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+      ],
+      "input_tokens": 1048,
+      "output_tokens": 361,
+      "cost_usd": 0.0428175,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Green uncommon at CMC 4 with P+T=7 (CMC+3, on budget). Trample helps connect for the salvage trigger, creating a natural synergy — the keyword enables the ability rather than being stapled on. Salvage 4 at uncommon is in the 4-5 range specified for that rarity. Rewards attacking, which green wants to do with beefy creatures. The combat damage trigger means the salvage isn't guaranteed, adding meaningful gameplay tension.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "G-U-02",
+  "card_faces": null,
+  "created_at": "2026-03-12T23:32:31.442899Z",
+  "updated_at": null
+}
