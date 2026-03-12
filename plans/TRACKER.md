@@ -268,12 +268,17 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 
 - [x] **1C-fix1**: Fix U+FFFD encoding in `output/sets/ASD/mechanics/test-cards-original.json` (em dashes replaced with Unicode replacement character — known issue from 1B A/B test)
   → Fixed in session 12: 16 U+FFFD → em dash (U+2014) in both `test-cards-original.json` and `test-cards.json`.
-- [ ] **1C-val1**: Build `mtgai.validation.rules_text` — regex-based MTG rules text grammar checks (self-reference ~, keyword spelling, trigger/activated/static patterns, mana symbol format)
-- [ ] **1C-val2**: Build `mtgai.validation.balance` — P/T vs CMC scoring, ability density per rarity, NWO complexity check for commons
-- [ ] **1C-val3**: Build `mtgai.validation.color_pie` — map ability types to allowed colors, flag violations
-- [ ] **1C-val4**: Build `mtgai.validation.text_overflow` — character count heuristic using config text overflow constants
-- [ ] **1C-val5**: Build `mtgai.validation.uniqueness` — exact name match + fuzzy mechanical similarity detection
-- [ ] **1C-val6**: Build `mtgai.validation.spelling` — spell check card name, rules text, flavor text, type line
+- [x] **1C-val1**: Build `mtgai.validation.rules_text` — regex-based MTG rules text grammar checks (self-reference ~, keyword spelling, trigger/activated/static patterns, mana symbol format, "enters" not "enters the battlefield")
+  → Expanded scope: 16 checks including "enters the battlefield"→"enters", "Tap:"→"{T}:", haste+Malfunction nonbo, custom mechanic reminder text, informal costs, parenthetical reminder text detection, keyword capitalization, "cannot"→"can't". Also built `schema.py` (Pydantic parse validation), `mana.py` (CMC/color/identity consistency — 9 checks), and `type_check.py` (creature P/T, PW loyalty, aura/equipment structure — 9 checks).
+- [x] **1C-val2**: Build `mtgai.validation.text_overflow` — character count heuristic using config text overflow constants
+  → 5 checks: name (30), type line (45), oracle text (300/350/400 by type), flavor (200), combined.
+- [x] **1C-val3**: Build `mtgai.validation.uniqueness` — exact name collision detection within the set
+  → 4 checks: exact name, near-duplicate name (Levenshtein ≤ 2), collector number collision (AUTO-fixable), mechanical similarity (> 80% text + same CMC/color/type).
+- [x] ~~**1C-val4**: Build `mtgai.validation.spelling`~~ — DELETED. LLMs don't misspell. Keyword capitalization and "cannot"→"can't" checks moved to `rules_text.py`.
+- [x] **1C-val5**: `power_level.py` — P/T vs CMC by rarity, NWO complexity for commons, removal efficiency, PW loyalty vs CMC, zero-CMC nonland. All MANUAL (flags for LLM review).
+- [x] **1C-val6**: `color_pie.py` — 24-category ability-to-color lookup table. All MANUAL (flags for LLM review).
+- [x] **1C-val7**: Severity refactor — renamed HARD/SOFT to AUTO/MANUAL. AUTO errors are deterministically fixed post-validation (17 registered auto-fixers). MANUAL errors feed structured retry prompts to the LLM. Auto-fix registry with lazy loading, `validate_card_from_raw()` returns `(card, errors, applied_fixes)`.
+  → 8 validator modules, ~50 distinct checks, 17 auto-fixers, 73 tests. Runner + auto-fix system + feedback formatter in `__init__.py`.
 - [ ] **1C-gen**: Implement card generation pipeline — LLM calls (tool use / function calling for structured output), batch of 5, validation chain, retry with specific feedback, escalate after 3 failures. Generation prompts must include the 8 pointed questions from 1B as preventive design guidance + use full color names (not abbreviations) to avoid Sonnet's R≠Red confusion.
 - [ ] **1C-common**: Generate dev set commons (~20 cards). Batch by color.
 - [ ] **1C-uncommon**: Generate dev set uncommons (~15 cards). Include signpost multicolor uncommons.
