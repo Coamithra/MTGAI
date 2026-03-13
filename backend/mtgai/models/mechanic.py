@@ -25,3 +25,4 @@ class Mechanic(BaseModel):
     uncommon_patterns: list[str] = Field(default_factory=list)
     rare_patterns: list[str] = Field(default_factory=list)
     distribution: dict[str, int] = Field(default_factory=dict)  # rarity -> count
+    functional_tags: list[str] = Field(default_factory=list)  # e.g. card_advantage, removal

@@ -309,6 +309,96 @@ def _print_per_color_breakdown(result: SkeletonResult) -> None:
 
 
 # ---------------------------------------------------------------------------
+# review balance (Phase 4A)
+# ---------------------------------------------------------------------------
+
+
+@app.command("balance")
+def balance(
+    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code to analyze.")] = "ASD",
+    json_only: Annotated[
+        bool, typer.Option("--json", help="Output JSON only, skip Rich console output.")
+    ] = False,
+) -> None:
+    """Run Phase 4A balance analysis on a generated set."""
+    from mtgai.analysis.balance import analyze_set
+    from mtgai.analysis.report import save_report
+
+    console.print(f"[bold]Running balance analysis for {set_code}...[/bold]")
+    result = analyze_set(set_code)
+    json_path, md_path = save_report(result, set_code)
+
+    if json_only:
+        console.print(result.model_dump_json(indent=2))
+        return
+
+    # Summary
+    console.print()
+    console.print(
+        f"[bold]Cards:[/bold] {result.total_cards}  |  "
+        f"[bold]Skeleton slots:[/bold] {result.total_skeleton_slots}"
+    )
+
+    pass_n = result.summary.get("PASS", 0)
+    warn_n = result.summary.get("WARN", 0)
+    fail_n = result.summary.get("FAIL", 0)
+    console.print(
+        f"[green]PASS: {pass_n}[/green]  |  "
+        f"[yellow]WARN: {warn_n}[/yellow]  |  "
+        f"[red]FAIL: {fail_n}[/red]"
+    )
+
+    # Conformance summary
+    matched = sum(1 for r in result.conformance if r.matched)
+    console.print(
+        f"\n[bold]Skeleton conformance:[/bold] {matched}/{len(result.conformance)} slots matched"
+    )
+
+    # Mechanic distribution
+    if result.mechanic_distribution:
+        console.print("\n[bold]Mechanic distribution:[/bold]")
+        for md in result.mechanic_distribution:
+            status = "[green]OK[/green]"
+            if md.total_actual == 0 and md.total_planned > 0:
+                status = "[red]MISSING[/red]"
+            elif abs(md.total_actual - md.total_planned) > md.total_planned:
+                status = "[yellow]SKEWED[/yellow]"
+            console.print(
+                f"  {md.mechanic_name}: planned {md.total_planned},"
+                f" actual {md.total_actual}  {status}"
+            )
+
+    # Mana fixing
+    console.print(
+        f"\n[bold]Mana fixing:[/bold] {len(result.mana_fixing_sources)} sources"
+    )
+    for name in result.mana_fixing_sources:
+        console.print(f"  - {name}")
+
+    # Color balance
+    console.print("\n[bold]Color balance (mono-color):[/bold]")
+    for color in ["W", "U", "B", "R", "G"]:
+        count = result.color_balance.get(color, 0)
+        console.print(f"  {color}: {count}")
+
+    # FAIL/WARN issues
+    fails = [i for i in result.issues if i.severity.value == "FAIL"]
+    warns = [i for i in result.issues if i.severity.value == "WARN"]
+    if fails:
+        console.print(f"\n[bold red]FAIL issues ({len(fails)}):[/bold red]")
+        for i in fails:
+            console.print(f"  [{i.check}] {i.message}")
+    if warns:
+        console.print(f"\n[bold yellow]WARN issues ({len(warns)}):[/bold yellow]")
+        for i in warns:
+            console.print(f"  [{i.check}] {i.message}")
+
+    console.print(f"\n[dim]Reports saved to:[/dim]")
+    console.print(f"  JSON: {json_path}")
+    console.print(f"  Markdown: {md_path}")
+
+
+# ---------------------------------------------------------------------------
 # Phase 3A stubs
 # ---------------------------------------------------------------------------
 

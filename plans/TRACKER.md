@@ -334,14 +334,18 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > 7. Mechanic name collision with existing MTG keywords?
 > 8. "Enters tapped" relevant on this permanent type?
 
-**--- Part A: Statistical Balance Analysis ---**
+**--- Part A: Balance Analysis (skeleton conformance + set-wide coverage) ---**
 
-- [ ] **4A-1**: Mana curve distribution analysis per color — compare to targets in `set-template.json`
-- [ ] **4A-2**: Creature P/T vs CMC analysis — flag outliers
-- [ ] **4A-3**: Removal spell density check — ensure minimum per color at common
-- [ ] **4A-4**: Card advantage sources per color — verify balanced
-- [ ] **4A-5**: Keyword/mechanic frequency + as-fan calculations
-- [ ] **4A-6**: Generate balance report → `output/sets/<code>/reports/balance-report.md`
+- [x] **4A-1**: Skeleton conformance analysis — per-slot checks (color, rarity, card type, CMC, complexity tier match). 49/60 slots matched on ASD dev set.
+- [x] **4A-2**: Creature CMC curve per color — flag gaps where a color has no creatures at a given CMC. Found gaps at CMC 4-6 (expected at 60 cards).
+- [x] **4A-3**: Creature size distribution per color — weight classes (small/medium/beefy/huge by P+T sum).
+- [x] **4A-4**: Removal spell density check per color — regex detection + mechanic functional tags. Ensures minimum removal at common/uncommon.
+- [x] **4A-5**: Card advantage sources per color — regex detection + mechanic functional tags. Counts Salvage/Overclock as CA via tags.
+- [x] **4A-6**: Mechanic distribution — planned vs actual counts. Confirmed Salvage 12 vs planned 6, Malfunction 3 vs 5, Overclock 1 vs 3.
+- [x] **4A-7**: Mana fixing inventory — 4 sources found. Color balance check — nearly perfect (W:10, U:10, B:10, R:9, G:9).
+- [x] **4A-8**: Generate balance reports → `output/sets/ASD/reports/balance-report.md` + `balance-analysis.json` (structured JSON for 4B AI review consumption).
+- [x] **4A-9**: CLI command `python -m mtgai.review balance --set ASD`. 75 tests in `tests/test_analysis/`. All 490 project tests passing.
+- [x] **4A-10**: Add `functional_tags` field to `Mechanic` model + retroactive `functional-tags.json` for ASD. Learnings documented for Phase 1B integration.
 - [ ] **4B-1**: Build sealed pool generator — `mtgai/packs.py` `generate_booster_pack()` (10C + 3U + 1R/M + 1 land), `generate_sealed_pool()` (6 packs)
 - [ ] **4B-2**: Run sealed pool simulations — analyze color viability (can you build a 2-color deck?). Dev set: smoke-test the tooling. Full simulations during scale-up.
 - [ ] **4B-3**: Booster pack composition checks — verify rarity distribution is correct

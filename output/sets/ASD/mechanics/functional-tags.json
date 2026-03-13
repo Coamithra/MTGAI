@@ -1,0 +1,5 @@
+{
+  "Salvage": ["card_advantage"],
+  "Overclock": ["card_advantage"],
+  "Malfunction": ["tempo_cost"]
+}
