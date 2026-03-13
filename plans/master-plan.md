@@ -3,6 +3,23 @@
 ## Context
 Build a complete Magic: The Gathering custom set creator — from initial set design through card generation, art creation, card rendering, and physical printing. Greenfield project. Location: Holland (Netherlands).
 
+## Phase Status
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| 0A Set Design Research | COMPLETE | 5-set analysis, distribution targets |
+| 0B Technical Research | COMPLETE | Flux + Pillow/Cairo, MPC, fonts, print specs locked |
+| 0C Project Setup | COMPLETE | uv, Ruff, pytest, Pydantic models, CI |
+| 0D LLM Strategy | COMPLETE | Sonnet for cards, Haiku for art prompts, batch-5 |
+| 0E Prompt Spike | COMPLETE | T=1.0, zero-shot, tool_use, effort=max. GO gate passed |
+| 1A Skeleton Generator | COMPLETE | 60-card dev set, CLI (list/show/stats), 75 tests |
+| 1B Mechanic Designer | COMPLETE | Salvage, Malfunction, Overclock. A/B test of 9 review strategies |
+| 1C Card Generator | COMPLETE | 60 cards, $2.78, zero failures. Validation library (8 validators, 18 fixers) |
+| 1C Human Review | COMPLETE | See learnings/phase1c.md for findings |
+| 4A+4B Balance Gate | NOT STARTED | Infrastructure not yet built |
+| 2A Art Direction | NOT STARTED | Can run parallel with 4A+4B |
+| 2B-5C | NOT STARTED | |
+
 ## Key Decisions
 - **Stack**: Python backend (FastAPI) + lightweight review UI (CLI primary, simple HTML viewer for visual review)
 - **Print**: Both draft set (24 boosters for 8-player pod) and full playset (4x common/uncommon/rare, 2x mythic — configurable)
@@ -171,6 +188,17 @@ Build a complete Magic: The Gathering custom set creator — from initial set de
 **Review**: Human review via CLI card viewer (from 1A) + HTML gallery.
 **Learnings -> `learnings/phase1c.md`**: Common generation mistakes, prompt refinements.
 
+**1C Review Findings** (dev set, 60 cards):
+- Mechanics are conceptually distinct and fun, but distribution is wrong: Salvage over-represented (~12 cards vs planned 6), Malfunction (1 vs 5) and Overclock (1 vs 3) under-represented
+- Missing multicolor signposts for UR/UG/BR/BG/RG and missing legendaries are **60-card budget effects** — auto-resolve at ~280 cards
+- Pipeline gaps that do NOT auto-resolve at scale (see Phase SC below):
+  1. **Mechanic-to-slot assignment**: skeleton says "complex", generator picks Salvage every time. Gets worse at scale.
+  2. **Constraint derivation**: no step to analyze what mechanics structurally require (e.g., Salvage needs more artifacts)
+  3. **Legend-to-slot mapping**: generator puts characters in wrong colors (Feretha planned UB, generated mono-W)
+  4. **Notable card enforcement**: named artifacts/lands from theme.json not guaranteed
+  5. **Planeswalker slot**: no explicit reservation
+- Cards flagged for Phase 4A+4B AI review: Koyl Yrenum (color pie violations), Cult Savant (reanimation in blue), Law of the Wilderness (uncommon too powerful), Automated Sentry Grid (oppressive), Feretha (wrong colors), Reclaim the Surface (too narrow for common), Raider's Bounty (too punishing)
+
 ---
 
 ## Phase 2: Art & Rendering Pipeline
@@ -296,6 +324,30 @@ Build a complete Magic: The Gathering custom set creator — from initial set de
 
 ---
 
+## Phase SC: Scale-Up to Full Set (~280 cards)
+
+> **Prerequisites**: Phase 4A+4B balance gate passed on dev set, pipeline improvements applied.
+
+### Skeleton Generator Improvements (before regenerating at scale)
+
+These are pipeline gaps identified during 1C review that get **worse** at scale:
+
+1. **Mechanic-to-slot assignment**: Tag "complex" slots with specific set mechanics (`salvage`, `malfunction`, `overclock`) based on the approved distribution and color alignment. Currently the skeleton only assigns complexity tiers — the LLM picks freely and gravitates to the simplest mechanic.
+
+2. **Constraint derivation step**: After set design defines theme + mechanics, analyze what the mechanics structurally require and output skeleton adjustments. E.g., Salvage tutors for artifacts → increase artifact density. This is an LLM revision pass on the skeleton itself (see `learnings/phase1c.md` for full design).
+
+3. **Legend-to-slot mapping**: Map specific characters from `theme.json` to specific multicolor slots with correct color identity. Prevents Feretha (planned UB) ending up mono-W.
+
+4. **Notable card slot reservation**: Reserve skeleton slots for named cards from `theme.json` (planeswalker, named artifacts/lands like Fereyn's Stone Head, God's Eye, Bank Inviolable).
+
+5. **Planeswalker slot**: Explicit reservation — the current allocation logic never produces one.
+
+### Scale-Up Generation
+- Expand skeleton to ~280 cards (all 10 signpost uncommons, all legendaries, full artifact suite)
+- Generate remaining cards with improved skeleton constraints
+- Full balance analysis (100+ sealed pools, all 10 archetypes)
+- Art generation for all cards
+
 ## Phase 5: Print Preparation & Delivery
 
 ### 5A: Print File Generation
@@ -387,20 +439,25 @@ Phase 0B ─────────┼──→ Phase 0C (setup) ──→ Phas
                   │    ┌─────────────────────────────────────────────────────┘
                   │    │
                   │    ▼
-                  │    Phase 1A (skeleton + CLI architecture)
+                  │    Phase 1A (skeleton + CLI architecture)          ✓ COMPLETE
                   │        │
                   │        ▼
-                  │    Phase 1B (mechanics) ──→ Design Review (5 sample cards)
+                  │    Phase 1B (mechanics)                            ✓ COMPLETE
                   │        │
                   │        ▼
-                  │    Phase 1C (card generation + validation library)
+                  │    Phase 1C (card gen + validation + review)       ✓ COMPLETE
                   │        │
-                  │        ├──→ Phase 4A+4B (balance gate) ◄── runs before art investment
+                  │        ├──→ Phase 4A+4B (balance gate on dev set)  ◄── WE ARE HERE
                   │        │        │
                   │        │        ▼
-                  │    Phase 2A (art direction, parallel with 1A-1C)
+                  │    Phase 2A (art direction, parallel with 4A+4B)
                   │        │
                   │        ▼
+                  │    Phase SC (skeleton improvements + scale to ~280)
+                  │        │
+                  │        ├──→ Phase 4A+4B (balance gate on full set)
+                  │        │        │
+                  │        │        ▼
                   │    Phase 2B (art generation) ◄── only after balance gate passes
                   │        │
                   │        ▼
@@ -421,5 +478,6 @@ Phase 0B ─────────┼──→ Phase 0C (setup) ──→ Phas
 **Key dependency**: 0B (print specs) must complete before 2C (renderer) starts.
 **Key dependency**: 0E (prompt spike) must complete before 1C (card generation) starts.
 **Key dependency**: Phase 4A+4B (balance gate) must pass before Phase 2B (art generation) starts — catch balance issues before investing in 280+ art pieces.
-**Key parallelization**: Art direction (Phase 2A) can begin in parallel with Phases 1A-1C.
+**Key dependency**: Phase SC (skeleton improvements) must complete before scaling to ~280 cards — mechanic distribution, constraint derivation, and legend mapping get worse at scale without these fixes.
+**Key parallelization**: Art direction (Phase 2A) can begin in parallel with Phase 4A+4B.
 **Validation library**: Built during Phase 1C, used as generation-time gates. Phase 4A+4B runs the balance suite after card generation; Phase 4C runs quality checks after rendering.

@@ -294,15 +294,14 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
   → Refactored reprint selector: replaced rule-based scoring with single Haiku LLM call (~$0.002). Haiku sees set config + pre-filtered candidates per slot (color/rarity/type match), picks best N reprints with reasoning. 48 tests, all passing. Selected 2 reprints: Murder (B-C-03) and Elvish Mystic (G-C-01). Replaced Dungeon Rot and Wilderness Tracker. Architecture note: reprints should run BEFORE generation in future pipeline runs.
 - [x] **1C-lands**: Generate nonbasic lands + basic land flavor text (5 basics = 1 per color for dev set)
   → Single Haiku call (~$0.002, 452 output tokens): 5 basic lands with set-themed flavor text + 1 common nonbasic (Descent Waypoint, W/U tapped dual). 6 card JSONs saved to `output/sets/ASD/cards/L-*.json`. Total set now 66 cards (60 main + 2 reprints replaced + 6 lands added).
-- [ ] **1C-review**: HUMAN: Big-picture set review (NOT card-by-card — that happens after AI review in 4A+4B).
-  **Review prompts for the human:**
-  - Do the custom mechanics (Salvage, Malfunction, Overclock) feel fun and distinct on actual cards?
-  - Is there a healthy mix of aggressive, defensive, and utility cards across colors?
-  - Do the draft archetypes have enough support at each represented color pair?
-  - Are there obvious gaps? (e.g., a color missing removal, no card draw, no mana fixing)
-  - Does the set have a coherent identity — do these cards feel like they belong in "Anomalous Descent"?
-  - Any cards that feel generic/boring or that you'd never want to play with?
-  - Flag specific cards that feel "off" for targeted AI review in 4A+4B (but don't try to fix card-by-card issues here).
+- [x] **1C-review**: HUMAN: Big-picture set review (NOT card-by-card — that happens after AI review in 4A+4B).
+  → Review complete. Key findings documented in `learnings/phase1c.md` under "1C Human Review findings":
+  - Mechanics feel distinct and fun, but distribution is wrong: Salvage ~12 cards (planned 6), Malfunction 1 (planned 5), Overclock 1 (planned 3). Root cause: skeleton assigns complexity tiers, not specific mechanics.
+  - Missing multicolor signposts for UR/UG/BR/BG/RG and missing legendaries (5 of 8) are 60-card budget effects — auto-resolve at ~280 cards.
+  - Pipeline gaps identified for Phase SC: mechanic-to-slot assignment, constraint derivation, legend-to-slot mapping, notable card enforcement, planeswalker slot reservation.
+  - 7 cards flagged for Phase 4A+4B AI review: Koyl Yrenum (color pie), Cult Savant (reanimation in blue), Law of the Wilderness (uncommon too powerful), Automated Sentry Grid (oppressive), Feretha (wrong colors), Reclaim the Surface (too narrow), Raider's Bounty (too punishing).
+  - Flavor text quality A+. Set identity coherent but mechanically skewed toward Salvage.
+  - Mana fixing too thin (Descent Waypoint WU-only). Reprints need flavor text.
 - [x] **1C-learn**: Write learnings → `learnings/phase1c.md`
   → Comprehensive learnings covering generation stats, validation results, 8 issues found (artifact density imbalance, prompt/validator P+T discrepancy, reminder text schema, Unicode, enchantment-artifact, type_line parser, informal mana, false positive creature errors). Key pipeline insight: need skeleton revision step driven by mechanic analysis.
 

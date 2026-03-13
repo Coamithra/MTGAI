@@ -112,6 +112,70 @@
 - `output/sets/ASD/card_gallery.md` -- human-readable card gallery with validation results
 - `scripts/gen_card_gallery.py` -- gallery generation script (runs live validation)
 
+## 1C Human Review findings
+
+Review of the 66-card dev set against the review checklist (`to review.txt`).
+
+### Mechanics feel distinct but distribution is wrong
+- Salvage, Malfunction, Overclock are conceptually distinct and fun.
+- **Distribution vs approved plan**: Salvage appears on ~12 cards (planned 6), Malfunction on 1 card (planned 5), Overclock on 1 card (planned 3). The LLM gravitates to Salvage because it's the simplest mechanic.
+- **Root cause**: The skeleton assigns complexity tiers (`vanilla`, `french_vanilla`, `complex`) but never specifies *which* set mechanic to use on "complex" slots. The LLM picks freely.
+- **Fix needed for Phase SC**: Skeleton generator should assign specific set mechanics to slots based on the approved distribution and color alignment. E.g., tag a slot as `mechanic: malfunction` not just `mechanic_tag: complex`.
+
+### Missing draft archetypes are a 60-card budget effect
+- 5 of 10 archetypes (UR, UG, BR, BG, RG) have zero multicolor cards. All white pairs + UB are covered.
+- This is **not a pipeline bug**. The skeleton generator at `_distribute_colors()` cycles through `COLOR_PAIRS` in order. At 60 cards: 5 signpost uncommon slots → WU, WB, WR, WG, UB. At 280 cards: all 10 signposts would be allocated.
+- Same for multicolor rares (4 slots → WU/WB/WR/WG) and mythics (1 slot → WU).
+- **No fix needed**: auto-resolves at full set size.
+
+### Missing legendaries — mostly budget, partly pipeline
+- 5 of 8 planned legendaries absent (Fereyn, Monsator, Karak, Tyro, Jace).
+- **Budget effect**: Only 4 mythic slots and 4 multicolor rare slots at 60 cards. Not enough room. Auto-resolves at 280.
+- **Pipeline gap**: Legendaries that DO exist ended up in wrong colors (Feretha planned UB, generated mono-W; Koyl planned WB, generated mono-B; Head Scientist planned UR rare, generated mono-U mythic). The skeleton creates generic "white mythic creature" slots — nothing maps specific characters to specific slots.
+- **Fix needed for Phase SC**: Skeleton generator should reserve legend slots and map characters from `theme.json` to specific multicolor slots with the right color identity. Alternatively, the generation prompt could include per-slot constraints like "this slot must be Feretha, a UB legendary."
+- **Jace planeswalker**: No planeswalker card type slot was generated at all. The skeleton generator references "planeswalker" as a type but the allocation logic never produces one at 60 cards. Needs an explicit reservation at any set size.
+
+### Notable cards from theme.json not generated
+- Fereyn's Stone Head, God's Eye, Bank Inviolable, House of Flesh, Protonium Lockbox, The Anomalous Subsurface Environment — all absent.
+- The LLM receives theme.json context but has no explicit slots for these cards.
+- **Partly budget**: more slots at 280 means some might appear organically.
+- **Fix needed**: Reserve skeleton slots for notable cards listed in theme.json, especially named artifacts/lands that are central to the setting.
+
+### Cards flagged for Phase 4A+4B AI review
+- **Koyl Yrenum (B-R-01)**: Hexproof + indestructible for {1}{B} is wildly pushed. Both keywords are color pie violations (hexproof=U/G, indestructible=W). Needs redesign.
+- **Cult Savant (U-R-01)**: Artifact reanimation to battlefield is primarily black. Color pie concern.
+- **Law of the Wilderness (G-U-03)**: Shatterstorm + anthem + token generator at uncommon reads like a rare/mythic.
+- **Automated Sentry Grid (U-U-03)**: Tap-and-freeze all attackers is oppressive even at 5 mana.
+- **Feretha (W-M-01)**: Should be UB per theme, ended up mono-W. 2-mana mythic with 4 abilities feels cramped.
+- **Reclaim the Surface (G-C-04)**: Requires both an artifact AND enchantment target — very narrow for common. 7-mana common sorcery is unusual.
+- **Raider's Bounty (R-U-03)**: Self-damage for unplayed cards + 6 CMC feels overly punishing for uncommon.
+
+### Mana fixing is too thin
+- Descent Waypoint is WU only — bad for non-white archetypes. Consider "any color" fixing.
+- Flickering Relay Node is any-color but Malfunction 2 delays it heavily.
+- Only 2 Treasure tokens (from Ransack the Storeroom).
+- At 280 cards, more fixing would be added naturally, but the skeleton should ensure a minimum fixing budget.
+
+### Flavor and set identity
+- **Flavor text quality: A+**. Deadpan humor lands perfectly throughout.
+- Set feels coherent as "Anomalous Descent" thematically, but mechanically it's "Salvage: The Set" due to the distribution skew.
+- Creature type representation is thin (3 moktars, 2 dinosaurs, 0 automatons) but this is a budget effect.
+
+### Misc items from review file
+- Reprints (Murder, Elvish Mystic) still need set-specific flavor text.
+- Forest flavor text may overflow on rendered card.
+
+## Summary of pipeline improvements needed before Phase SC
+
+| Issue | Where to fix | Priority |
+|---|---|---|
+| Mechanic-to-slot assignment | Skeleton generator | High — gets worse at scale |
+| Constraint derivation (artifact density etc.) | New pipeline step | High — already flagged above |
+| Legend-to-slot mapping | Skeleton generator + prompts | Medium — partly auto-resolves |
+| Notable card slot reservation | Skeleton generator | Medium — partly auto-resolves |
+| Planeswalker slot reservation | Skeleton generator | Low — 1 card, easy manual fix |
+| Mana fixing budget | Skeleton generator | Low — more room at scale |
+
 ## What to watch for next
 - **Artifact density must be addressed before review**: Either add more artifact slots to the skeleton or convert some existing cards to artifacts. The review pass can't fix a structural imbalance.
 - **Reprint/land slots** (`1C-reprint`, `1C-lands`): These are opportunities to add more artifacts to the set (artifact lands, equipment reprints, mana rocks).
