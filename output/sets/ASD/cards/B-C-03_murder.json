@@ -1,0 +1,46 @@
+{
+  "id": null,
+  "name": "Murder",
+  "layout": "normal",
+  "mana_cost": "{1}{B}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Instant",
+  "supertypes": [],
+  "card_types": [
+    "Instant"
+  ],
+  "subtypes": [],
+  "oracle_text": "Destroy target creature.",
+  "flavor_text": null,
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "B-C-03",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Reprint selected from curated_pool pool",
+  "is_reprint": true,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "B-C-03",
+  "card_faces": null,
+  "created_at": "2026-03-13T19:55:20.584868Z",
+  "updated_at": "2026-03-13T19:55:20.584868Z"
+}

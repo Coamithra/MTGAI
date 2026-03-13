@@ -1,0 +1,49 @@
+{
+  "id": null,
+  "name": "Elvish Mystic",
+  "layout": "normal",
+  "mana_cost": "{G}",
+  "mana_cost_parsed": null,
+  "cmc": 1.0,
+  "colors": [
+    "G"
+  ],
+  "color_identity": [
+    "G"
+  ],
+  "type_line": "Creature -- Elf Druid",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Elf",
+    "Druid"
+  ],
+  "oracle_text": "{T}: Add {G}.",
+  "flavor_text": null,
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "collector_number": "G-C-01",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Reprint selected from curated_pool pool",
+  "is_reprint": true,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "G-C-01",
+  "card_faces": null,
+  "created_at": "2026-03-13T19:55:20.585368Z",
+  "updated_at": "2026-03-13T19:55:20.585368Z"
+}

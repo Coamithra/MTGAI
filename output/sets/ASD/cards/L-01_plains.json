@@ -1,0 +1,48 @@
+{
+  "id": null,
+  "name": "Plains",
+  "layout": "normal",
+  "mana_cost": null,
+  "mana_cost_parsed": null,
+  "cmc": 0.0,
+  "colors": [],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Basic Land — Plains",
+  "supertypes": [
+    "Basic"
+  ],
+  "card_types": [
+    "Land"
+  ],
+  "subtypes": [
+    "Plains"
+  ],
+  "oracle_text": "",
+  "flavor_text": "The grasslands surrounding Denethix stretch endlessly, a buffer between civilization and the wild. The city's walls are visible only as a dark line on the horizon.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "L-01",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Basic land with set-themed flavor text (Haiku)",
+  "is_reprint": true,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": null,
+  "card_faces": null,
+  "created_at": "2026-03-13T20:12:45.359443Z",
+  "updated_at": "2026-03-13T20:12:45.359443Z"
+}

@@ -1,0 +1,84 @@
+{
+  "set_code": "ASD",
+  "set_size": 60,
+  "target_reprint_count": 2,
+  "selections": [
+    {
+      "slot": {
+        "slot_id": "B-C-03",
+        "color": "B",
+        "rarity": "common",
+        "card_type": "instant",
+        "role_needed": "removal_hard_kill",
+        "cmc_target": 3,
+        "mechanic_tag": "evergreen"
+      },
+      "candidate": {
+        "name": "Murder",
+        "mana_cost": "{1}{B}{B}",
+        "cmc": 3.0,
+        "type_line": "Instant",
+        "oracle_text": "Destroy target creature.",
+        "colors": [
+          "B"
+        ],
+        "rarity": "common",
+        "role": "removal_hard_kill",
+        "setting_agnostic": true,
+        "source": "curated_pool",
+        "edhrec_rank": 1500,
+        "keywords": [],
+        "subtypes": [],
+        "tags": [
+          "staple",
+          "removal",
+          "unconditional"
+        ],
+        "power": null,
+        "toughness": null
+      },
+      "reason": "Essential hard removal at common for black in Limited. Murder is a clean, efficient kill spell that fills the critical removal role and is a staple players expect to see. Fits the post-apocalyptic setting with a setting-agnostic name."
+    },
+    {
+      "slot": {
+        "slot_id": "G-C-01",
+        "color": "G",
+        "rarity": "common",
+        "card_type": "creature",
+        "role_needed": "utility_creature",
+        "cmc_target": 2,
+        "mechanic_tag": "vanilla"
+      },
+      "candidate": {
+        "name": "Elvish Mystic",
+        "mana_cost": "{G}",
+        "cmc": 1.0,
+        "type_line": "Creature -- Elf Druid",
+        "oracle_text": "{T}: Add {G}.",
+        "colors": [
+          "G"
+        ],
+        "rarity": "common",
+        "role": "ramp",
+        "setting_agnostic": true,
+        "source": "curated_pool",
+        "edhrec_rank": 400,
+        "keywords": [],
+        "subtypes": [
+          "Elf",
+          "Druid"
+        ],
+        "tags": [
+          "staple",
+          "ramp",
+          "mana_dork"
+        ],
+        "power": "1",
+        "toughness": "1"
+      },
+      "reason": "Mana acceleration is crucial for Limited format health and enables the artifact subtheme and larger creatures. Elvish Mystic is the gold standard 1-mana green ramp creature, well-known and beloved. Fits the wilderness/nature theme of Denethix's surroundings."
+    }
+  ],
+  "all_candidates_considered": 167,
+  "selection_timestamp": "2026-03-13T19:47:26.792215+00:00"
+}

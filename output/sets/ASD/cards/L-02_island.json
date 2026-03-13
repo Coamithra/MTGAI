@@ -1,0 +1,48 @@
+{
+  "id": null,
+  "name": "Island",
+  "layout": "normal",
+  "mana_cost": null,
+  "mana_cost_parsed": null,
+  "cmc": 0.0,
+  "colors": [],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Basic Land — Island",
+  "supertypes": [
+    "Basic"
+  ],
+  "card_types": [
+    "Land"
+  ],
+  "subtypes": [
+    "Island"
+  ],
+  "oracle_text": "",
+  "flavor_text": "The flooded caverns of the Subsurface Environment echo with the drip of ancient springs. Some say the water itself remembers the world before the collapse.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "L-02",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Basic land with set-themed flavor text (Haiku)",
+  "is_reprint": true,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": null,
+  "card_faces": null,
+  "created_at": "2026-03-13T20:12:45.359942Z",
+  "updated_at": "2026-03-13T20:12:45.359942Z"
+}
