@@ -11,7 +11,7 @@
   "color_identity": [
     "R"
   ],
-  "type_line": "Creature — Moktar Warrior",
+  "type_line": "Creature -- Moktar Warrior",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -49,7 +49,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Clean red common vanilla. A 2/2 for 2 is the baseline for a common creature — no frills, just a solid body. P+T=4, CMC+3=5, well within budget. Moktars are a key creature type in the setting as wilderness raiders, making this a natural flavor fit for red's aggressive identity.",
+  "design_notes": "Clean red common vanilla. A 2/2 for 2 is the baseline for a common creature -- no frills, just a solid body. P+T=4, CMC+3=5, well within budget. Moktars are a key creature type in the setting as wilderness raiders, making this a natural flavor fit for red's aggressive identity.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

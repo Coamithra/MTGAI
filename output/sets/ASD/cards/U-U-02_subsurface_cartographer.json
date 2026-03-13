@@ -11,7 +11,7 @@
   "color_identity": [
     "U"
   ],
-  "type_line": "Creature — Human Wizard",
+  "type_line": "Creature -- Human Wizard",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -50,7 +50,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Blue uncommon creature at CMC 3. A 2/2 flyer for 3 is a clean Limited body — slightly below rate to account for the salvage trigger. Flying ensures it can connect for the combat damage trigger, making salvage 3 a meaningful reward for attacking. Supports both the UW Ancient Technology and UG Dinosaur/Artifact archetypes by filtering for artifacts. P+T (4) = CMC+1, well within budget. Two abilities (flying + triggered salvage) is appropriate uncommon complexity.",
+  "design_notes": "Blue uncommon creature at CMC 3. A 2/2 flyer for 3 is a clean Limited body -- slightly below rate to account for the salvage trigger. Flying ensures it can connect for the combat damage trigger, making salvage 3 a meaningful reward for attacking. Supports both the UW Ancient Technology and UG Dinosaur/Artifact archetypes by filtering for artifacts. P+T (4) = CMC+1, well within budget. Two abilities (flying + triggered salvage) is appropriate uncommon complexity.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

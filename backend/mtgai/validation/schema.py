@@ -38,8 +38,10 @@ def _parse_type_line(card: Card) -> Card:
     if not card.type_line:
         return card
 
-    # Split on em-dash or double-hyphen
-    parts = card.type_line.replace("—", "—").split("—")
+    # Split on em-dash, en-dash, or double-hyphen
+    import re as _re
+
+    parts = _re.split(r"\s*(?:\u2014|\u2013|--)\s*", card.type_line, maxsplit=1)
     main_part = parts[0].strip()
     sub_part = parts[1].strip() if len(parts) > 1 else ""
 
@@ -55,7 +57,18 @@ def _parse_type_line(card: Card) -> Card:
         elif title in _CARD_TYPES:
             card_types.append(title)
 
-    subtypes = [s.strip() for s in sub_part.split() if s.strip()] if sub_part else []
+    # Words after the dash are subtypes, unless they're actually card types
+    # (e.g. LLM writes "Enchantment — Artifact" when it should be "Enchantment Artifact")
+    subtypes: list[str] = []
+    if sub_part:
+        for word in sub_part.split():
+            title = word.strip().title()
+            if title in _CARD_TYPES:
+                card_types.append(title)
+            elif title in _SUPERTYPES:
+                supertypes.append(title)
+            elif word.strip():
+                subtypes.append(word.strip())
 
     return card.model_copy(
         update={

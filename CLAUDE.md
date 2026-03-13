@@ -39,7 +39,7 @@
 
 ## Validation Library (`mtgai/validation/`)
 - Two severity levels: **AUTO** (deterministically fixable) and **MANUAL** (needs LLM retry)
-- AUTO errors are auto-fixed post-validation via registered fixer functions (17 fixers)
+- AUTO errors are auto-fixed post-validation via registered fixer functions (18 fixers)
 - MANUAL errors become structured retry prompts fed back to the LLM
 - `validate_card_from_raw(raw_dict)` → `(card, errors, applied_fixes)` — the main entry point
 - 8 validators run in sequence: schema → mana → type_check → rules_text → power_level → color_pie → text_overflow → uniqueness

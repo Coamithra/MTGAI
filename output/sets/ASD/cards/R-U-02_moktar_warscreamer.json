@@ -11,7 +11,7 @@
   "color_identity": [
     "R"
   ],
-  "type_line": "Creature — Moktar Berserker",
+  "type_line": "Creature -- Moktar Berserker",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -49,7 +49,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Red uncommon attacker that rewards going wide. 4 CMC for a 3/2 haste is below rate on its own (P+T = 5, CMC+3 = 7, well within budget), but the scaling attack bonus makes it a legitimate threat in aggressive decks. The bonus is genuinely variable — depends on board state and attack decisions. Fits the Moktar Raider/warband flavor. Haste is fine here since no Malfunction. Two abilities (haste + triggered) is appropriate for uncommon.",
+  "design_notes": "Red uncommon attacker that rewards going wide. 4 CMC for a 3/2 haste is below rate on its own (P+T = 5, CMC+3 = 7, well within budget), but the scaling attack bonus makes it a legitimate threat in aggressive decks. The bonus is genuinely variable -- depends on board state and attack decisions. Fits the Moktar Raider/warband flavor. Haste is fine here since no Malfunction. Two abilities (haste + triggered) is appropriate for uncommon.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

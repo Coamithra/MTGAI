@@ -11,7 +11,7 @@
   "color_identity": [
     "U"
   ],
-  "type_line": "Legendary Enchantment — Artifact",
+  "type_line": "Legendary Enchantment -- Artifact",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -48,7 +48,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Blue rare enchantment-artifact at CMC 4. A powerful engine card that defines the Cult of Science archetype. Salvage 4 every upkeep digs deep for artifacts, and the second ability converts those found artifacts into card advantage — but requires mana investment ({1} per draw), preventing it from being free value. The two abilities create a virtuous loop: salvage finds artifacts, playing artifacts draws cards, drawing cards finds more fuel. At 4 mana with no immediate board impact, it's vulnerable to aggressive strategies. The legendary supertype prevents stacking. Enchantment-Artifact typing is flavorful (ancient technology) and makes it vulnerable to both enchantment and artifact removal, providing counterplay.",
+  "design_notes": "Blue rare enchantment-artifact at CMC 4. A powerful engine card that defines the Cult of Science archetype. Salvage 4 every upkeep digs deep for artifacts, and the second ability converts those found artifacts into card advantage -- but requires mana investment ({1} per draw), preventing it from being free value. The two abilities create a virtuous loop: salvage finds artifacts, playing artifacts draws cards, drawing cards finds more fuel. At 4 mana with no immediate board impact, it's vulnerable to aggressive strategies. The legendary supertype prevents stacking. Enchantment-Artifact typing is flavorful (ancient technology) and makes it vulnerable to both enchantment and artifact removal, providing counterplay.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

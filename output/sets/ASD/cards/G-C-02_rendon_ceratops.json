@@ -11,7 +11,7 @@
   "color_identity": [
     "G"
   ],
-  "type_line": "Creature — Dinosaur",
+  "type_line": "Creature -- Dinosaur",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -49,7 +49,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Green common french vanilla at CMC 3. A 3/3 trample for {2}{G} is a solid but fair limited creature — P+T = 6 = CMC+3 exactly. Trample is the most iconic green evergreen keyword and plays perfectly on a dinosaur. The Dinosaur type ties into the set's wilderness teeming with dinosaurs. Clean, simple, does one thing well.",
+  "design_notes": "Green common french vanilla at CMC 3. A 3/3 trample for {2}{G} is a solid but fair limited creature -- P+T = 6 = CMC+3 exactly. Trample is the most iconic green evergreen keyword and plays perfectly on a dinosaur. The Dinosaur type ties into the set's wilderness teeming with dinosaurs. Clean, simple, does one thing well.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

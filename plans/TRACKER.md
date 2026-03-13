@@ -285,7 +285,9 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 - [x] **1C-uncommon**: Generated 21 uncommons including multicolor signpost uncommons.
 - [x] **1C-rare**: Generated 14 rares. All single-batch (no single-card fallback needed).
 - [x] **1C-mythic**: Generated 4 mythics (all Opus 4.6 + effort=max). Includes legendary creatures.
-  → All 60 cards generated in one pipeline run: 16 batches, $2.78 total, 7.4 minutes, zero failures. 42/60 clean, 18 auto-fixes applied (12 missing periods, 4 WUBRG ordering, 1 keyword comma, 1 ETB outdated), 30 real MANUAL warnings stored for Phase 4A+4B review. Cards saved to `output/sets/ASD/cards/`, logs to `output/sets/ASD/generation_logs/`.
+  → All 60 cards generated in one pipeline run: 16 batches, $2.78 total, 7.4 minutes, zero failures. 42/60 clean, 18 with real MANUAL warnings stored for Phase 4A+4B review. Cards saved to `output/sets/ASD/cards/`, logs to `output/sets/ASD/generation_logs/`.
+- [x] **1C-postgen**: Post-generation cleanup: scrubbed Unicode em dashes from all 59 card JSONs, fixed type_line parser to handle `--` dashes, fixed false positive creature type_check errors, added enchantment-artifact AUTO fixer (#18), narrowed informal mana production regex, generated card gallery (`output/sets/ASD/card_gallery.md`) with live validation via `scripts/gen_card_gallery.py`. Identified critical pipeline gap: skeleton needs a constraint derivation step (22 artifact-caring cards vs 6 artifacts).
+  → Validator now at 8 validators, 18 auto-fixers. Gallery script runs live validation (not stale logs). Key finding: skeleton needs LLM revision pass to align type distribution with mechanic requirements before card generation.
 - [ ] **1C-reprint-research**: Analyze reprint patterns in the 5 reference sets (`research/raw-data/{dsk,blb,otj,mkm,lci}/cards.json`). The Scryfall data has `reprint` fields but Phase 0A never analyzed them. Determine:
   - Reprint count and percentage per set, broken down by rarity
   - What roles reprints typically fill (removal, mana fixing, combat tricks, generic utility, etc.)
@@ -304,7 +306,8 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
   - Does the set have a coherent identity — do these cards feel like they belong in "Anomalous Descent"?
   - Any cards that feel generic/boring or that you'd never want to play with?
   - Flag specific cards that feel "off" for targeted AI review in 4A+4B (but don't try to fix card-by-card issues here).
-- [ ] **1C-learn**: Write learnings → `learnings/phase1c.md`
+- [x] **1C-learn**: Write learnings → `learnings/phase1c.md`
+  → Comprehensive learnings covering generation stats, validation results, 8 issues found (artifact density imbalance, prompt/validator P+T discrepancy, reminder text schema, Unicode, enchantment-artifact, type_line parser, informal mana, false positive creature errors). Key pipeline insight: need skeleton revision step driven by mechanic analysis.
 
 ---
 

@@ -11,7 +11,7 @@
   "color_identity": [
     "U"
   ],
-  "type_line": "Legendary Creature — Human Artificer",
+  "type_line": "Legendary Creature -- Human Artificer",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -50,7 +50,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Blue mythic legendary creature at CMC 3. The Head Scientist is a key lore figure — the leader of the Cult of Science, famous for his 12-foot stilts. Mechanically, he's a mythic build-around for artifact strategies. Flash lets you deploy him reactively (appropriate for blue). Salvage 5 on entry provides immediate value, digging deep for an artifact. The cost reduction enables explosive artifact chains, and the tap/untap trigger provides flexible interaction — tap down blockers, untap your own mana rocks for more casts, or untap creatures for defense. A 1/3 body is deliberately fragile for a mythic, reflecting that he's a scientist, not a warrior. The power comes from the artifact synergy engine, not raw stats. Multiple abilities are appropriate at mythic rarity.",
+  "design_notes": "Blue mythic legendary creature at CMC 3. The Head Scientist is a key lore figure -- the leader of the Cult of Science, famous for his 12-foot stilts. Mechanically, he's a mythic build-around for artifact strategies. Flash lets you deploy him reactively (appropriate for blue). Salvage 5 on entry provides immediate value, digging deep for an artifact. The cost reduction enables explosive artifact chains, and the tap/untap trigger provides flexible interaction -- tap down blockers, untap your own mana rocks for more casts, or untap creatures for defense. A 1/3 body is deliberately fragile for a mythic, reflecting that he's a scientist, not a warrior. The power comes from the artifact synergy engine, not raw stats. Multiple abilities are appropriate at mythic rarity.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

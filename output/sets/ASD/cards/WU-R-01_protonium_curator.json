@@ -13,7 +13,7 @@
     "W",
     "U"
   ],
-  "type_line": "Legendary Creature — Human Artificer",
+  "type_line": "Legendary Creature -- Human Artificer",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -51,7 +51,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Rare legendary for the WU Ancient Technology archetype. The first ability — tapping or untapping an artifact when one enters — is a flexible control tool. It can lock down an opponent's artifact or untap your own for repeated use, creating interesting board puzzles. The second ability is a build-around that reduces Malfunction counters on your permanents, making your degraded automatons come online faster. This directly supports the WU archetype's theme of mastering ancient technology. A 1/3 body is defensive and appropriate for a 2-mana utility legend — it survives common removal like Spark Saboteur's ping. White gets the tap/untap-artifact space, blue gets artifact affinity, and the Malfunction reduction is a set-specific synergy payoff. The Malfunction reduction is a static replacement effect that's clean to parse.",
+  "design_notes": "Rare legendary for the WU Ancient Technology archetype. The first ability -- tapping or untapping an artifact when one enters -- is a flexible control tool. It can lock down an opponent's artifact or untap your own for repeated use, creating interesting board puzzles. The second ability is a build-around that reduces Malfunction counters on your permanents, making your degraded automatons come online faster. This directly supports the WU archetype's theme of mastering ancient technology. A 1/3 body is defensive and appropriate for a 2-mana utility legend -- it survives common removal like Spark Saboteur's ping. White gets the tap/untap-artifact space, blue gets artifact affinity, and the Malfunction reduction is a set-specific synergy payoff. The Malfunction reduction is a static replacement effect that's clean to parse.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

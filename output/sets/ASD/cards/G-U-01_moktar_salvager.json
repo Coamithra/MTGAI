@@ -11,12 +11,12 @@
   "color_identity": [
     "G"
   ],
-  "type_line": "Creature — Moktar Warrior",
+  "type_line": "Creature -- Moktar Warrior",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
   "oracle_text": "When ~ enters, salvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.).",
-  "flavor_text": "\"Shiny thing good. Shiny thing mine.\"\n—Moktar creed, loosely translated",
+  "flavor_text": "\"Shiny thing good. Shiny thing mine.\"\n--Moktar creed, loosely translated",
   "reminder_text": null,
   "power": "2",
   "toughness": "1",

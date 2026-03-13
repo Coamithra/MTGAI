@@ -46,7 +46,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "A red uncommon enchantment that creates impulsive draw off combat damage — core red mechanic. The complexity comes from the risk/reward tension: each connecting creature gives you a card to play, but unplayed cards punish you with 2 damage each at end step. This encourages careful sequencing — attack with only as many creatures as you can use cards for. At 6 CMC it's a late-game value engine that demands an aggressive board to function. The self-damage prevents it from being free value and keeps it firmly in red's 'reckless impulse' space. 'Remove from the game' clause prevents tracking nightmares across multiple turns.",
+  "design_notes": "A red uncommon enchantment that creates impulsive draw off combat damage -- core red mechanic. The complexity comes from the risk/reward tension: each connecting creature gives you a card to play, but unplayed cards punish you with 2 damage each at end step. This encourages careful sequencing -- attack with only as many creatures as you can use cards for. At 6 CMC it's a late-game value engine that demands an aggressive board to function. The self-damage prevents it from being free value and keeps it firmly in red's 'reckless impulse' space. 'Remove from the game' clause prevents tracking nightmares across multiple turns.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

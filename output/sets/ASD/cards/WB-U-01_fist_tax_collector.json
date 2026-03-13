@@ -13,7 +13,7 @@
     "W",
     "B"
   ],
-  "type_line": "Creature — Human Advisor",
+  "type_line": "Creature -- Human Advisor",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -51,7 +51,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "WB signpost uncommon for the Vizier's Regime archetype. A 2/1 for 2 is clean at uncommon. The death-trigger drain effect is the core payoff for the sacrifice-and-taxation theme — it rewards you for trading creatures, tokens dying in combat, or deliberate sacrifice outlets. White gets lifegain, black gets life drain, and both colors care about creatures dying. The effect is incremental rather than explosive, giving the archetype inevitability without being oppressive. Pairs naturally with token generators like Edict of Continuity and sacrifice outlets like Koyl Yrenum. P+T of 3 at CMC 2 is within budget, and the 2/1 stat line makes it fragile enough that opponents can answer it before it accumulates too much value.",
+  "design_notes": "WB signpost uncommon for the Vizier's Regime archetype. A 2/1 for 2 is clean at uncommon. The death-trigger drain effect is the core payoff for the sacrifice-and-taxation theme -- it rewards you for trading creatures, tokens dying in combat, or deliberate sacrifice outlets. White gets lifegain, black gets life drain, and both colors care about creatures dying. The effect is incremental rather than explosive, giving the archetype inevitability without being oppressive. Pairs naturally with token generators like Edict of Continuity and sacrifice outlets like Koyl Yrenum. P+T of 3 at CMC 2 is within budget, and the 2/1 stat line makes it fragile enough that opponents can answer it before it accumulates too much value.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

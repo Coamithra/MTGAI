@@ -46,7 +46,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "White uncommon enchantment at CMC 4. Two related triggered abilities that reward attrition strategies — creatures dying make tokens (white's bread and butter), and artifacts going to the graveyard can be recouped. The creature trigger only makes one token regardless of how many die at once, preventing combo abuse with board wipes. The artifact recursion requires the artifact to actually hit the graveyard (not exile), keeping it fair. Both halves support white's role as the 'civilization endures' color in this set. Complex enough for uncommon but each piece is individually simple.",
+  "design_notes": "White uncommon enchantment at CMC 4. Two related triggered abilities that reward attrition strategies -- creatures dying make tokens (white's bread and butter), and artifacts going to the graveyard can be recouped. The creature trigger only makes one token regardless of how many die at once, preventing combo abuse with board wipes. The artifact recursion requires the artifact to actually hit the graveyard (not exile), keeping it fair. Both halves support white's role as the 'civilization endures' color in this set. Complex enough for uncommon but each piece is individually simple.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

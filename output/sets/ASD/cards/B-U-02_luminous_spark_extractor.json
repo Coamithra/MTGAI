@@ -11,12 +11,12 @@
   "color_identity": [
     "B"
   ],
-  "type_line": "Creature — Human Assassin",
+  "type_line": "Creature -- Human Assassin",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
   "oracle_text": "When ~ enters, target opponent discards a card. If that card was a creature card, create a 1/1 colorless Construct artifact creature token.",
-  "flavor_text": "\"We don't kill slavers. We simply... repurpose them.\"\n—Kessa, Spark operative",
+  "flavor_text": "\"We don't kill slavers. We simply... repurpose them.\"\n--Kessa, Spark operative",
   "reminder_text": null,
   "power": "2",
   "toughness": "2",
@@ -49,7 +49,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Black uncommon at CMC 3. A 2/2 for 3 with a discard ETB is a solid but fair uncommon — compare Burglar Rat (common, weaker) and Raider's Wake (uncommon, stronger). The conditional token creation adds value without being too complex. The Construct token ties into the set's super-science theme and the Society of the Luminous Spark's brain-extraction lore. P+T=4 <= 3+3=6, well within budget. Discard is core black, token creation is secondary.",
+  "design_notes": "Black uncommon at CMC 3. A 2/2 for 3 with a discard ETB is a solid but fair uncommon -- compare Burglar Rat (common, weaker) and Raider's Wake (uncommon, stronger). The conditional token creation adds value without being too complex. The Construct token ties into the set's super-science theme and the Society of the Luminous Spark's brain-extraction lore. P+T=4 <= 3+3=6, well within budget. Discard is core black, token creation is secondary.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

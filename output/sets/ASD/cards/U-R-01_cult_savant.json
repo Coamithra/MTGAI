@@ -11,7 +11,7 @@
   "color_identity": [
     "U"
   ],
-  "type_line": "Creature — Human Artificer",
+  "type_line": "Creature -- Human Artificer",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -38,7 +38,7 @@
         "Non-creature card has power and/or toughness set",
         "Card has power/toughness but 'Creature' is not in card_types",
         "Oracle text contains what looks like reminder text: \"(It enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\"",
-        "Malfunction already causes the permanent to enter tapped — explicit 'enters tapped' is redundant",
+        "Malfunction already causes the permanent to enter tapped -- explicit 'enters tapped' is redundant",
         "Card is U but has \"reanimation\" which is primarily B"
       ],
       "input_tokens": 1041,
@@ -52,7 +52,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Blue rare creature at CMC 1. A build-around 1-drop for the Cult of Science archetype. The loot-on-artifact-cast ability is efficient card filtering that rewards artifact-heavy builds without raw card advantage — you always discard. The activated ability is a powerful late-game reanimation effect for artifacts, gated behind significant costs (4 mana, tap, sacrifice) and the malfunction 2 tempo penalty. Malfunction is in-color for blue and creates meaningful delay. The sacrifice cost prevents repeatable abuse. A 1/1 for {U} is fragile enough to be answered easily. This is a Johnny/Jenny rare that rewards careful deckbuilding.",
+  "design_notes": "Blue rare creature at CMC 1. A build-around 1-drop for the Cult of Science archetype. The loot-on-artifact-cast ability is efficient card filtering that rewards artifact-heavy builds without raw card advantage -- you always discard. The activated ability is a powerful late-game reanimation effect for artifacts, gated behind significant costs (4 mana, tap, sacrifice) and the malfunction 2 tempo penalty. Malfunction is in-color for blue and creates meaningful delay. The sacrifice cost prevents repeatable abuse. A 1/1 for {U} is fragile enough to be answered easily. This is a Johnny/Jenny rare that rewards careful deckbuilding.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

@@ -13,7 +13,7 @@
     "W",
     "U"
   ],
-  "type_line": "Artifact Creature — Construct",
+  "type_line": "Artifact Creature -- Construct",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -51,7 +51,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "WU signpost uncommon for the Ancient Technology draft archetype. A 2/2 vigilance for 2 is a clean, efficient body. The artifact-trigger scry ability rewards the deck's natural artifact density without generating raw card advantage — it smooths draws incrementally, which is the WU sweet spot. Vigilance is white, scry is blue, and the artifact-matters trigger ties into the archetype's core gameplan. Being an artifact creature itself means it can trigger other artifact-matters cards in the set (Cult Archivist, Spore-Nest Forager, Spark Detonator). Two abilities is appropriate for uncommon signpost. P+T = 4 = CMC+2, well within budget.",
+  "design_notes": "WU signpost uncommon for the Ancient Technology draft archetype. A 2/2 vigilance for 2 is a clean, efficient body. The artifact-trigger scry ability rewards the deck's natural artifact density without generating raw card advantage -- it smooths draws incrementally, which is the WU sweet spot. Vigilance is white, scry is blue, and the artifact-matters trigger ties into the archetype's core gameplan. Being an artifact creature itself means it can trigger other artifact-matters cards in the set (Cult Archivist, Spore-Nest Forager, Spark Detonator). Two abilities is appropriate for uncommon signpost. P+T = 4 = CMC+2, well within budget.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

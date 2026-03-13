@@ -11,7 +11,7 @@
   "color_identity": [
     "U"
   ],
-  "type_line": "Creature — Human Artificer",
+  "type_line": "Creature -- Human Artificer",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -49,7 +49,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Blue uncommon creature at CMC 1 — an early artifact-matters enabler for the Cult of Science (UR) and Ancient Technology (WU) draft archetypes. A 1/1 for {U} with scry 1 ETB is a fair floor (comparable to Faerie Seer). The artifact-cast trigger gives it scaling relevance without being oppressive — it becomes a 2/1 attacker when you're casting artifacts, rewarding the set's artifact subtheme. P+T = 2 = CMC(1)+1, well within budget. Two abilities is appropriate at uncommon. The Artificer type supports tribal synergies. The Cult of Science flavor is a perfect home for this card.",
+  "design_notes": "Blue uncommon creature at CMC 1 -- an early artifact-matters enabler for the Cult of Science (UR) and Ancient Technology (WU) draft archetypes. A 1/1 for {U} with scry 1 ETB is a fair floor (comparable to Faerie Seer). The artifact-cast trigger gives it scaling relevance without being oppressive -- it becomes a 2/1 attacker when you're casting artifacts, rewarding the set's artifact subtheme. P+T = 2 = CMC(1)+1, well within budget. Two abilities is appropriate at uncommon. The Artificer type supports tribal synergies. The Cult of Science flavor is a perfect home for this card.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

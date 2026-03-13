@@ -13,7 +13,7 @@
     "U",
     "B"
   ],
-  "type_line": "Creature — Human Rogue",
+  "type_line": "Creature -- Human Rogue",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -51,7 +51,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "UB signpost uncommon for the Deep Descent archetype. The ETB mill 3 immediately fuels graveyard strategies and has a good chance of triggering the draw ability on entry. The triggered ability rewards continued milling from any source — self-mill spells, other creatures, etc. — creating a payoff engine for the archetype. The 'one or more' batching prevents it from drawing multiple cards off a single mill effect, keeping it fair. The life loss is the 'greater risk' the archetype promises and is squarely in black's color pie (paying life for cards). A 2/2 for 3 is below rate on stats, justified by the card advantage potential. Mill is shared UB territory, draw-for-life is black, making this a clean color pie fit. At uncommon, two abilities are appropriate and the interaction between them is the kind of synergy signpost uncommons should telegraph.",
+  "design_notes": "UB signpost uncommon for the Deep Descent archetype. The ETB mill 3 immediately fuels graveyard strategies and has a good chance of triggering the draw ability on entry. The triggered ability rewards continued milling from any source -- self-mill spells, other creatures, etc. -- creating a payoff engine for the archetype. The 'one or more' batching prevents it from drawing multiple cards off a single mill effect, keeping it fair. The life loss is the 'greater risk' the archetype promises and is squarely in black's color pie (paying life for cards). A 2/2 for 3 is below rate on stats, justified by the card advantage potential. Mill is shared UB territory, draw-for-life is black, making this a clean color pie fit. At uncommon, two abilities are appropriate and the interaction between them is the kind of synergy signpost uncommons should telegraph.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

@@ -46,7 +46,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Blue common instant — bounce + cantrip at 3 mana. This is a well-established common template (compare to Blink of an Eye without kicker, or Repulse). Bounce is core blue removal that doesn't destroy permanents, respecting the color pie. The cantrip replaces itself, making it a solid tempo play. At {2}{U} it's fairly costed — not as efficient as pure 2-mana bounce, but the card draw compensates. Fits the set by evoking ancient automated defense systems.",
+  "design_notes": "Blue common instant -- bounce + cantrip at 3 mana. This is a well-established common template (compare to Blink of an Eye without kicker, or Repulse). Bounce is core blue removal that doesn't destroy permanents, respecting the color pie. The cantrip replaces itself, making it a solid tempo play. At {2}{U} it's fairly costed -- not as efficient as pure 2-mana bounce, but the card draw compensates. Fits the set by evoking ancient automated defense systems.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

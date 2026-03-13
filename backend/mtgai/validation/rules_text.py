@@ -125,9 +125,7 @@ def _is_keyword_line(line: str) -> bool:
     if any(ch in line for ch in ".:\u2014"):
         return False
     parts = [p.strip().lower() for p in line.split(",")]
-    return any(
-        any(p == kw or p.startswith(kw + " ") for kw in ALL_KEYWORDS) for p in parts
-    )
+    return any(any(p == kw or p.startswith(kw + " ") for kw in ALL_KEYWORDS) for p in parts)
 
 
 def _is_keyword_only_line(line: str) -> bool:
@@ -272,7 +270,7 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
     # ------------------------------------------------------------------
     # 7. "Add one [color] mana" or "add W" — MANUAL
     # ------------------------------------------------------------------
-    if re.search(r"[Aa]dd (?:one )?\w+ mana", oracle):
+    if re.search(r"[Aa]dd (?:one )?(?:white|blue|black|red|green) mana", oracle):
         errors.append(
             _manual(
                 "oracle_text",
@@ -409,8 +407,7 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
                 errors.append(
                     _auto(
                         "oracle_text",
-                        f'Keyword "{part}" should be lowercase '
-                        f"(except at start of line)",
+                        f'Keyword "{part}" should be lowercase (except at start of line)',
                         f'Use "{part.lower()}"',
                         error_code="rules_text.keyword_capitalization",
                     )

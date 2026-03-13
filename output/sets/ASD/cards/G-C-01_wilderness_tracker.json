@@ -11,7 +11,7 @@
   "color_identity": [
     "G"
   ],
-  "type_line": "Creature — Human Scout",
+  "type_line": "Creature -- Human Scout",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -49,7 +49,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Green common vanilla at CMC 2. A 3/2 for {1}{G} is a clean, efficient baseline — P+T = 5, which equals CMC+3. This is a standard green common beater comparable to Grizzly Bears variants with one extra power. No abilities keeps it at the simplest possible complexity for common. The Human Scout type fits the setting's wilderness exploration theme.",
+  "design_notes": "Green common vanilla at CMC 2. A 3/2 for {1}{G} is a clean, efficient baseline -- P+T = 5, which equals CMC+3. This is a standard green common beater comparable to Grizzly Bears variants with one extra power. No abilities keeps it at the simplest possible complexity for common. The Human Scout type fits the setting's wilderness exploration theme.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

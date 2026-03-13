@@ -11,7 +11,7 @@
   "color_identity": [
     "B"
   ],
-  "type_line": "Legendary Enchantment — Artifact",
+  "type_line": "Legendary Enchantment -- Artifact",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -46,7 +46,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "A legendary enchantment artifact representing the machine keeping Feretha's brain alive — and the broader super-science of brain extraction in the setting. It stockpiles dead creatures (exiling them to track via charge counters) then reanimates from exile, not graveyard, which is a distinctive twist. Requiring 3 charge counters means you need three creatures to die before you get one back — this is a slow engine, not a combo piece. The Zombie typing adds black flavor. The tap requirement means one activation per turn. At 5 mana with a 3-death investment before payoff, this is powerful but appropriately slow for a rare build-around. Raise dead from exile is black's reanimation wheelhouse.",
+  "design_notes": "A legendary enchantment artifact representing the machine keeping Feretha's brain alive -- and the broader super-science of brain extraction in the setting. It stockpiles dead creatures (exiling them to track via charge counters) then reanimates from exile, not graveyard, which is a distinctive twist. Requiring 3 charge counters means you need three creatures to die before you get one back -- this is a slow engine, not a combo piece. The Zombie typing adds black flavor. The tap requirement means one activation per turn. At 5 mana with a 3-death investment before payoff, this is powerful but appropriately slow for a rare build-around. Raise dead from exile is black's reanimation wheelhouse.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

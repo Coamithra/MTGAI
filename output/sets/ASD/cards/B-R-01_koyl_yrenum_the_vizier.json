@@ -11,7 +11,7 @@
   "color_identity": [
     "B"
   ],
-  "type_line": "Legendary Creature — Human Advisor",
+  "type_line": "Legendary Creature -- Human Advisor",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -51,7 +51,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "The Vizier who rules through deception — mechanically, he manipulates information (opponents' libraries) and protects himself by sacrificing others. A 1/3 for 2 is defensive, fitting an advisor who hides behind others. The first ability is a repeatable Surveil-for-opponents on death triggers, costing {1} each time to prevent it from being free — it fuels mill strategies and gives information advantage. The sacrifice ability is flavorful self-preservation: Koyl will always throw someone else under the bus. Both abilities together create tension: you want creatures to die (for value) but also need them alive (for protection). Complex but cohesive at rare.",
+  "design_notes": "The Vizier who rules through deception -- mechanically, he manipulates information (opponents' libraries) and protects himself by sacrificing others. A 1/3 for 2 is defensive, fitting an advisor who hides behind others. The first ability is a repeatable Surveil-for-opponents on death triggers, costing {1} each time to prevent it from being free -- it fuels mill strategies and gives information advantage. The sacrifice ability is flavorful self-preservation: Koyl will always throw someone else under the bus. Both abilities together create tension: you want creatures to die (for value) but also need them alive (for protection). Complex but cohesive at rare.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

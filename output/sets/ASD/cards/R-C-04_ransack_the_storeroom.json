@@ -46,7 +46,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "A top-end common sorcery with two related effects — board-clearing burn plus treasure generation. At 6 mana sorcery speed, 5 divided damage is a powerful but fair board wipe effect for limited (comparable to Pyrotechnics at 5 mana). The two Treasure tokens represent the loot you grab in the chaos, tying gameplay to the dungeon-raiding flavor. Both effects are squarely red. The complexity comes from dividing damage among targets, which is an established common-level complex effect (seen on cards like Fireball variants), making this appropriate as the 'complex' common slot.",
+  "design_notes": "A top-end common sorcery with two related effects -- board-clearing burn plus treasure generation. At 6 mana sorcery speed, 5 divided damage is a powerful but fair board wipe effect for limited (comparable to Pyrotechnics at 5 mana). The two Treasure tokens represent the loot you grab in the chaos, tying gameplay to the dungeon-raiding flavor. Both effects are squarely red. The complexity comes from dividing damage among targets, which is an established common-level complex effect (seen on cards like Fireball variants), making this appropriate as the 'complex' common slot.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

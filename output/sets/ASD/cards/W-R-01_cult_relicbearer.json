@@ -11,7 +11,7 @@
   "color_identity": [
     "W"
   ],
-  "type_line": "Creature — Human Cleric",
+  "type_line": "Creature -- Human Cleric",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -50,7 +50,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "White rare at CMC 1. A 1/2 for W is fair baseline. The artifact-cast trigger gives it early relevance in artifact-heavy decks as an aggressive body that gains vigilance. The sacrifice ability provides a late-game option — pay 3 total mana, tap and sac to salvage 5, which is deep digging for a 1-drop. The sacrifice cost ensures it's a one-shot effect and creates tension between keeping the body and cashing it in. Salvage 5 at rare is within the scaling guidelines. Supports WU artifacts archetype.",
+  "design_notes": "White rare at CMC 1. A 1/2 for W is fair baseline. The artifact-cast trigger gives it early relevance in artifact-heavy decks as an aggressive body that gains vigilance. The sacrifice ability provides a late-game option -- pay 3 total mana, tap and sac to salvage 5, which is deep digging for a 1-drop. The sacrifice cost ensures it's a one-shot effect and creates tension between keeping the body and cashing it in. Salvage 5 at rare is within the scaling guidelines. Supports WU artifacts archetype.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

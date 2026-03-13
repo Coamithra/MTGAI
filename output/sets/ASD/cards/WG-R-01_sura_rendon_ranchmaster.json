@@ -13,7 +13,7 @@
     "W",
     "G"
   ],
-  "type_line": "Legendary Creature — Human Settler",
+  "type_line": "Legendary Creature -- Human Settler",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -51,7 +51,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Rare legendary for the WG Frontier Settlers archetype. The static ability rewards the entire token strategy by buffing every token you create across all sources — Human Soldiers from Edict of Continuity arrive as 2/2s, Dinosaur tokens from Reclaim the Surface arrive as 5/5s. This is a powerful build-around that demands an answer. The activated ability is expensive at 5 mana + tap, providing a self-contained token engine that doesn't come online until later turns, generating 7 power across 3 bodies (boosted to 9 power with the counters). The 2/3 body for 3 is modest, keeping the card honest when you don't have token support. Green gets creature tokens and +1/+1 counters; white gets soldier tokens and anthem-adjacent effects. The legendary status prevents doubling up in limited.",
+  "design_notes": "Rare legendary for the WG Frontier Settlers archetype. The static ability rewards the entire token strategy by buffing every token you create across all sources -- Human Soldiers from Edict of Continuity arrive as 2/2s, Dinosaur tokens from Reclaim the Surface arrive as 5/5s. This is a powerful build-around that demands an answer. The activated ability is expensive at 5 mana + tap, providing a self-contained token engine that doesn't come online until later turns, generating 7 power across 3 bodies (boosted to 9 power with the counters). The 2/3 body for 3 is modest, keeping the card honest when you don't have token support. Green gets creature tokens and +1/+1 counters; white gets soldier tokens and anthem-adjacent effects. The legendary status prevents doubling up in limited.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

@@ -46,7 +46,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Black uncommon enchantment at CMC 5. The first ability is a classic black sacrifice-for-value engine — paying life to draw cards is deeply black (compare Phyrexian Arena, Dark Prophecy). The life cost prevents it from being free card draw. The second ability rewards sacrifice-heavy strategies with a big payoff token, but requires real setup: three creatures dying in one turn demands either a board wipe or dedicated sacrifice outlets. At 5 mana, it's a midgame engine that asks you to build around it. The Horror token ties into the megadungeon's eldritch spawning theme.",
+  "design_notes": "Black uncommon enchantment at CMC 5. The first ability is a classic black sacrifice-for-value engine -- paying life to draw cards is deeply black (compare Phyrexian Arena, Dark Prophecy). The life cost prevents it from being free card draw. The second ability rewards sacrifice-heavy strategies with a big payoff token, but requires real setup: three creatures dying in one turn demands either a board wipe or dedicated sacrifice outlets. At 5 mana, it's a midgame engine that asks you to build around it. The Horror token ties into the megadungeon's eldritch spawning theme.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

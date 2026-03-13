@@ -46,7 +46,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Black common conditional removal. -3/-3 at instant speed for 3 mana is a clean, well-established rate for common removal — it kills most small and midsize creatures but can't touch the biggest threats, keeping it appropriately conditional for common. Comparable to Disfigure's bigger sibling or Grasp of Darkness at a fairer cost. Straightforward, one-line rules text per NWO common guidelines.",
+  "design_notes": "Black common conditional removal. -3/-3 at instant speed for 3 mana is a clean, well-established rate for common removal -- it kills most small and midsize creatures but can't touch the biggest threats, keeping it appropriately conditional for common. Comparable to Disfigure's bigger sibling or Grasp of Darkness at a fairer cost. Straightforward, one-line rules text per NWO common guidelines.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

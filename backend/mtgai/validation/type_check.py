@@ -13,6 +13,23 @@ from mtgai.models.card import Card
 from mtgai.validation import ValidationError, ValidationSeverity
 
 # ---------------------------------------------------------------------------
+# Auto-fixers
+# ---------------------------------------------------------------------------
+
+
+def fix_enchantment_artifact(card: Card, _error: ValidationError) -> Card:
+    """Remove 'Enchantment' from an Enchantment Artifact type line."""
+    new_card_types = [t for t in card.card_types if t != "Enchantment"]
+    # Rebuild type_line from components
+    main_parts = list(card.supertypes) + new_card_types
+    if card.subtypes:
+        new_type_line = " ".join(main_parts) + " -- " + " ".join(card.subtypes)
+    else:
+        new_type_line = " ".join(main_parts)
+    return card.model_copy(update={"type_line": new_type_line, "card_types": new_card_types})
+
+
+# ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
 
@@ -133,7 +150,24 @@ def validate_type_consistency(card: Card) -> list[ValidationError]:
                 )
             )
 
-    # 8. Type line matches card_types/subtypes/supertypes
+    # 8. Enchantment Artifact is almost never correct — strip Enchantment
+    if "Enchantment" in card.card_types and "Artifact" in card.card_types:
+        errors.append(
+            ValidationError(
+                validator="type_check",
+                severity=ValidationSeverity.AUTO,
+                field="type_line",
+                message=(
+                    "Enchantment Artifact is an extremely rare type combination "
+                    "(only Theros gods' weapons in all of MTG). "
+                    "Removing 'Enchantment' to make this a plain Artifact."
+                ),
+                suggestion="Remove 'Enchantment' from type_line.",
+                error_code="type_check.enchantment_artifact",
+            )
+        )
+
+    # 9. Type line matches card_types/subtypes/supertypes
     if card.type_line:
         type_line_lower = card.type_line.lower()
         for supertype in card.supertypes:
@@ -157,7 +191,7 @@ def validate_type_consistency(card: Card) -> list[ValidationError]:
                     )
                 )
         # Subtypes should appear after a dash separator
-        dash_match = re.search(r"\s[—\-]\s", card.type_line)
+        dash_match = re.search(r"\s(?:\u2014|\u2013|--)\s", card.type_line)
         if card.subtypes and dash_match:
             subtype_part = card.type_line[dash_match.end() :].lower()
             for subtype in card.subtypes:

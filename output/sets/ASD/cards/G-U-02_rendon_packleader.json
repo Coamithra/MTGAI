@@ -11,7 +11,7 @@
   "color_identity": [
     "G"
   ],
-  "type_line": "Creature — Dinosaur",
+  "type_line": "Creature -- Dinosaur",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -50,7 +50,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Green uncommon at CMC 4 with P+T=7 (CMC+3, on budget). Trample helps connect for the salvage trigger, creating a natural synergy — the keyword enables the ability rather than being stapled on. Salvage 4 at uncommon is in the 4-5 range specified for that rarity. Rewards attacking, which green wants to do with beefy creatures. The combat damage trigger means the salvage isn't guaranteed, adding meaningful gameplay tension.",
+  "design_notes": "Green uncommon at CMC 4 with P+T=7 (CMC+3, on budget). Trample helps connect for the salvage trigger, creating a natural synergy -- the keyword enables the ability rather than being stapled on. Salvage 4 at uncommon is in the 4-5 range specified for that rarity. Rewards attacking, which green wants to do with beefy creatures. The combat damage trigger means the salvage isn't guaranteed, adding meaningful gameplay tension.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

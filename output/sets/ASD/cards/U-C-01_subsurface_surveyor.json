@@ -11,7 +11,7 @@
   "color_identity": [
     "U"
   ],
-  "type_line": "Creature — Human Scout",
+  "type_line": "Creature -- Human Scout",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -49,7 +49,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Blue common vanilla at CMC 1. A 1/2 for {U} is a clean, on-rate defensive body — comparable to Merfolk of the Pearl Trident's 1/1 but shifted to favor toughness, which fits blue's defensive common creature profile. P+T = 3 = CMC(1)+2, well within the CMC+3 budget. The Scout type fits the dungeon-exploration theme. No abilities keeps it NWO-clean at common.",
+  "design_notes": "Blue common vanilla at CMC 1. A 1/2 for {U} is a clean, on-rate defensive body -- comparable to Merfolk of the Pearl Trident's 1/1 but shifted to favor toughness, which fits blue's defensive common creature profile. P+T = 3 = CMC(1)+2, well within the CMC+3 budget. The Scout type fits the dungeon-exploration theme. No abilities keeps it NWO-clean at common.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

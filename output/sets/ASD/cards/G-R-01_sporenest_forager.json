@@ -11,7 +11,7 @@
   "color_identity": [
     "G"
   ],
-  "type_line": "Creature — Fungus Scout",
+  "type_line": "Creature -- Fungus Scout",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -49,7 +49,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "A 2-CMC rare build-around that ties the set's artifact theme to green's ramp identity. P+T=3 (CMC+1) is modest, reflecting its value engine role. The first ability rewards playing artifacts — synergizing with Salvage cards that find artifacts — by growing the creature. The second ability converts accumulated counters into ramp, green's signature effect. Requiring two counters means you need multiple artifact triggers before each activation, creating real deckbuilding tension and preventing degenerate loops. The land enters tapped to prevent too-fast mana acceleration.",
+  "design_notes": "A 2-CMC rare build-around that ties the set's artifact theme to green's ramp identity. P+T=3 (CMC+1) is modest, reflecting its value engine role. The first ability rewards playing artifacts -- synergizing with Salvage cards that find artifacts -- by growing the creature. The second ability converts accumulated counters into ramp, green's signature effect. Requiring two counters means you need multiple artifact triggers before each activation, creating real deckbuilding tension and preventing degenerate loops. The land enters tapped to prevent too-fast mana acceleration.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

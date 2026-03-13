@@ -157,6 +157,7 @@ def _register_auto_fixers() -> None:
         fix_line_periods,
         fix_tap_colon,
     )
+    from mtgai.validation.type_check import fix_enchantment_artifact
     from mtgai.validation.uniqueness import fix_collector_number
 
     _AUTO_FIX_REGISTRY.update(
@@ -178,6 +179,7 @@ def _register_auto_fixers() -> None:
             "rules_text.keyword_capitalization": fix_keyword_capitalization,
             "rules_text.cannot": fix_cannot,
             "uniqueness.collector_number_collision": fix_collector_number,
+            "type_check.enchantment_artifact": fix_enchantment_artifact,
         }
     )
 

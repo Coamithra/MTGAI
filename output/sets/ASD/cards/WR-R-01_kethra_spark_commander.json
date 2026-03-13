@@ -13,7 +13,7 @@
     "W",
     "R"
   ],
-  "type_line": "Legendary Creature — Human Rebel",
+  "type_line": "Legendary Creature -- Human Rebel",
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
@@ -51,7 +51,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Rare WR legendary that leads the Spark Rebellion archetype. A 2/2 haste for 3 is below-rate on stats alone, justified by three synergistic abilities. Haste lets her attack immediately, triggering the token generation right away for immediate board impact. The token enters tapped and attacking — go-wide aggression that's flavorful for a rebel commander rallying fighters. The equip cost reduction to {1} ties the go-wide token strategy to the equipment subtheme: you generate bodies and cheaply arm them. This creates a powerful engine in dedicated builds but she's fragile at 2/2 and needs equipment and combat to generate value. White gets tokens and equipment synergy; red gets haste and aggressive combat triggers. The combination of abilities tells a cohesive story without being a kitchen sink — every line feeds into 'make rebels, arm rebels, attack.'",
+  "design_notes": "Rare WR legendary that leads the Spark Rebellion archetype. A 2/2 haste for 3 is below-rate on stats alone, justified by three synergistic abilities. Haste lets her attack immediately, triggering the token generation right away for immediate board impact. The token enters tapped and attacking -- go-wide aggression that's flavorful for a rebel commander rallying fighters. The equip cost reduction to {1} ties the go-wide token strategy to the equipment subtheme: you generate bodies and cheaply arm them. This creates a powerful engine in dedicated builds but she's fragile at 2/2 and needs equipment and combat to generate value. White gets tokens and equipment synergy; red gets haste and aggressive combat triggers. The combination of abilities tells a cohesive story without being a kitchen sink -- every line feeds into 'make rebels, arm rebels, attack.'",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,

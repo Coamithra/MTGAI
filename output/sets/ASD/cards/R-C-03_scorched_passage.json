@@ -46,7 +46,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Conditional removal at common — 4 damage for 4 mana at instant speed is a solid rate that kills most creatures but not everything. This is red's primary removal mode (burn) at an appropriate common power level. Comparable to Flame Javelin or similar burn spells, but at a fair rate. Doesn't hit players, keeping it as creature removal rather than a reach spell.",
+  "design_notes": "Conditional removal at common -- 4 damage for 4 mana at instant speed is a solid rate that kills most creatures but not everything. This is red's primary removal mode (burn) at an appropriate common power level. Comparable to Flame Javelin or similar burn spells, but at a fair rate. Doesn't hit players, keeping it as creature removal rather than a reach spell.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,
