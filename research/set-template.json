@@ -233,6 +233,43 @@
     }
   },
 
+  "reprints": {
+    "description": "Reprint targets derived from analysis of 5 recent sets (DSK, BLB, OTJ, MKM, LCI). Reprints are previously-printed cards included in a new set. Excludes basic lands.",
+    "overall": {
+      "target_pct": 2.8, "min_pct": 1.8, "max_pct": 4.4,
+      "target_count_280": 8, "min_count_280": 5, "max_count_280": 12,
+      "note": "Average 7.8 reprints per ~272-card set (2.8%). Range 5-12 across analyzed sets."
+    },
+    "per_rarity": {
+      "common":   { "target_pct": 4.0, "target_count_280": 4, "min": 3, "max": 5, "note": "Most reprints by raw count. Roles: removal, combat tricks, mana fixing." },
+      "uncommon": { "target_pct": 1.3, "target_count_280": 1, "min": 0, "max": 3, "note": "Lowest reprint rate. Roles: efficient removal, card selection." },
+      "rare":     { "target_pct": 3.2, "target_count_280": 2, "min": 1, "max": 5, "note": "Driven by land cycles (OTJ fastlands = 5). Roles: mana fixing, format staples." },
+      "mythic":   { "target_pct": 4.7, "target_count_280": 1, "min": 0, "max": 3, "note": "Highest % but small sample. Roles: splashy creatures, premium lands." }
+    },
+    "recommended_roles": {
+      "priority_1_common": [
+        "Black hard removal (Murder, Go for the Throat)",
+        "Red damage removal (Shock, Abrade, Lightning Strike)",
+        "Common mana-fixing land (Terramorphic Expanse, Evolving Wilds)"
+      ],
+      "priority_2_uncommon": [
+        "Artifact/enchantment removal (Thrashing Brontodon, Reclamation Sage)",
+        "Card draw/selection (Chart a Course, Opt)"
+      ],
+      "priority_3_rare_mythic": [
+        "Dual land cycle (fastlands, painlands, checklands)",
+        "Splashy nostalgia creature or premium land"
+      ]
+    },
+    "scaling_formula": "reprint_count = round(total_cards * 0.028)",
+    "constraints": [
+      "At least 1 common removal reprint in any set of 50+ cards",
+      "Reprints should NOT use set-specific named mechanics",
+      "Common reprints should fill functional infrastructure roles (removal, fixing, tricks)",
+      "Rare reprints should provide mana fixing or constructed appeal"
+    ]
+  },
+
   "set_size_scaling": {
     "description": "Formulas for scaling the template to different set sizes. All targets above are calibrated to a ~277-card set. Use these ratios to adjust for different total card counts.",
     "base_set_size": 277,

@@ -288,13 +288,8 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
   → All 60 cards generated in one pipeline run: 16 batches, $2.78 total, 7.4 minutes, zero failures. 42/60 clean, 18 with real MANUAL warnings stored for Phase 4A+4B review. Cards saved to `output/sets/ASD/cards/`, logs to `output/sets/ASD/generation_logs/`.
 - [x] **1C-postgen**: Post-generation cleanup: scrubbed Unicode em dashes from all 59 card JSONs, fixed type_line parser to handle `--` dashes, fixed false positive creature type_check errors, added enchantment-artifact AUTO fixer (#18), narrowed informal mana production regex, generated card gallery (`output/sets/ASD/card_gallery.md`) with live validation via `scripts/gen_card_gallery.py`. Identified critical pipeline gap: skeleton needs a constraint derivation step (22 artifact-caring cards vs 6 artifacts).
   → Validator now at 8 validators, 18 auto-fixers. Gallery script runs live validation (not stale logs). Key finding: skeleton needs LLM revision pass to align type distribution with mechanic requirements before card generation.
-- [ ] **1C-reprint-research**: Analyze reprint patterns in the 5 reference sets (`research/raw-data/{dsk,blb,otj,mkm,lci}/cards.json`). The Scryfall data has `reprint` fields but Phase 0A never analyzed them. Determine:
-  - Reprint count and percentage per set, broken down by rarity
-  - What roles reprints typically fill (removal, mana fixing, combat tricks, generic utility, etc.)
-  - Whether reprints concentrate at common (expected yes)
-  - Target reprint count for our 60-card dev set and 280-card full set
-  - Candidate roles for ASD reprints (which skeleton slots are good reprint candidates?)
-  → `research/reprint-analysis.md`, update `research/set-template.json` with reprint targets
+- [x] **1C-reprint-research**: Analyzed reprint patterns across 5 reference sets. Key findings: avg 7.8 reprints/set (2.8%), removal is #1 role (33%), mana fixing #2 (21%), combat tricks #3 (15%). Commons lead by count, mythics by percentage. Built reprint selector pipeline module (`mtgai/generation/reprint_selector.py`) with 75-card curated staple pool, deterministic role-based matching, and splashy reprint scoring (EDHREC popularity + age + thematic fit). 35 tests, $0 LLM cost.
+  → `research/reprint-analysis.md`, `research/set-template.json` (reprints section), `backend/mtgai/generation/reprint_selector.py`, `backend/mtgai/generation/reprint_pool.json`, `backend/tests/test_reprint_selector.py`
 - [ ] **1C-reprint**: Select reprint cards from Scryfall data to fill identified skeleton slots. Use reprint analysis to pick candidates that fit the "Anomalous Descent" theme and support draft archetypes. HUMAN: approve reprint selections.
 - [ ] **1C-lands**: Generate nonbasic lands + basic land flavor text (5 basics = 1 per color for dev set)
 - [ ] **1C-review**: HUMAN: Big-picture set review (NOT card-by-card — that happens after AI review in 4A+4B).

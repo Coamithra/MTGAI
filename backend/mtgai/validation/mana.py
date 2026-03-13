@@ -295,9 +295,7 @@ def fix_invalid_format(card: Card, error: ValidationError) -> Card:
             continue
         # Split inner into digit runs and individual color/special letters
         for token in re.findall(r"\d+|[WUBRGCXP/]", inner):
-            if token.isdigit() or token == "/" :
-                normalized_parts.append(f"{{{token}}}")
-            elif token in COLOR_SYMBOLS or token in ("C", "X"):
+            if token.isdigit() or token == "/" or token in COLOR_SYMBOLS or token in ("C", "X"):
                 normalized_parts.append(f"{{{token}}}")
 
     if normalized_parts:

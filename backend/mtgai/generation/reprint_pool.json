@@ -1,0 +1,3863 @@
+{
+  "meta": {
+    "description": "Curated pool of reprint-eligible MTG staples for set generation",
+    "last_updated": "2026-03-13",
+    "card_count": 167
+  },
+  "cards": [
+    {
+      "name": "Murder",
+      "mana_cost": "{1}{B}{B}",
+      "cmc": 3,
+      "type_line": "Instant",
+      "oracle_text": "Destroy target creature.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "removal_hard_kill",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 1500,
+      "tags": [
+        "staple",
+        "removal",
+        "unconditional"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Go for the Throat",
+      "mana_cost": "{1}{B}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Destroy target nonartifact creature.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "uncommon",
+      "role": "removal_hard_kill",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "staple",
+        "removal",
+        "efficient"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Hero's Downfall",
+      "mana_cost": "{1}{B}{B}",
+      "cmc": 3,
+      "type_line": "Instant",
+      "oracle_text": "Destroy target creature or planeswalker.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "uncommon",
+      "role": "removal_hard_kill",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 2500,
+      "tags": [
+        "staple",
+        "removal",
+        "versatile"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Doom Blade",
+      "mana_cost": "{1}{B}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Destroy target nonblack creature.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "removal_hard_kill",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 3000,
+      "tags": [
+        "staple",
+        "removal",
+        "conditional"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Cast Down",
+      "mana_cost": "{1}{B}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Destroy target nonlegendary creature.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "uncommon",
+      "role": "removal_hard_kill",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 3500,
+      "tags": [
+        "staple",
+        "removal",
+        "conditional"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Shock",
+      "mana_cost": "{R}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Shock deals 2 damage to any target.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "removal_damage",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 8000,
+      "tags": [
+        "staple",
+        "removal",
+        "burn",
+        "flexible"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Lightning Strike",
+      "mana_cost": "{1}{R}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Lightning Strike deals 3 damage to any target.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "removal_damage",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 7000,
+      "tags": [
+        "staple",
+        "removal",
+        "burn",
+        "flexible"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Abrade",
+      "mana_cost": "{1}{R}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Choose one --\n* Abrade deals 3 damage to target creature.\n* Destroy target artifact.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "removal_damage",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 1200,
+      "tags": [
+        "staple",
+        "removal",
+        "artifact",
+        "versatile"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Scorching Dragonfire",
+      "mana_cost": "{1}{R}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Scorching Dragonfire deals 3 damage to target creature or planeswalker. If that creature or planeswalker would die this turn, exile it instead.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "removal_damage",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 12000,
+      "tags": [
+        "removal",
+        "exile",
+        "burn"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Lava Coil",
+      "mana_cost": "{1}{R}",
+      "cmc": 2,
+      "type_line": "Sorcery",
+      "oracle_text": "Lava Coil deals 4 damage to target creature. If that creature would die this turn, exile it instead.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "uncommon",
+      "role": "removal_damage",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 14000,
+      "tags": [
+        "removal",
+        "exile",
+        "burn"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Searing Spear",
+      "mana_cost": "{1}{R}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Searing Spear deals 3 damage to any target.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "removal_damage",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 11000,
+      "tags": [
+        "staple",
+        "removal",
+        "burn",
+        "flexible"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Flame-Blessed Bolt",
+      "mana_cost": "{R}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Flame-Blessed Bolt deals 2 damage to target creature or planeswalker. If that permanent would die this turn, exile it instead.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "removal_damage",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 13000,
+      "tags": [
+        "removal",
+        "exile",
+        "burn"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Banishing Light",
+      "mana_cost": "{2}{W}",
+      "cmc": 3,
+      "type_line": "Enchantment",
+      "oracle_text": "When Banishing Light enters the battlefield, exile target nonland permanent an opponent controls until Banishing Light leaves the battlefield.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "removal_exile",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 1800,
+      "tags": [
+        "staple",
+        "removal",
+        "exile",
+        "versatile"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Oblivion Ring",
+      "mana_cost": "{2}{W}",
+      "cmc": 3,
+      "type_line": "Enchantment",
+      "oracle_text": "When Oblivion Ring enters the battlefield, exile another target nonland permanent.\nWhen Oblivion Ring leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "removal_exile",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 3000,
+      "tags": [
+        "staple",
+        "removal",
+        "exile",
+        "versatile"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Pacifism",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Enchantment -- Aura",
+      "oracle_text": "Enchant creature\nEnchanted creature can't attack or block.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "removal_exile",
+      "keywords": [
+        "Enchant"
+      ],
+      "subtypes": [
+        "Aura"
+      ],
+      "edhrec_rank_approx": 12000,
+      "tags": [
+        "staple",
+        "removal",
+        "soft_removal"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Journey to Nowhere",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Enchantment",
+      "oracle_text": "When Journey to Nowhere enters the battlefield, exile target creature.\nWhen Journey to Nowhere leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "removal_exile",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "staple",
+        "removal",
+        "exile"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Ossification",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Enchantment -- Aura",
+      "oracle_text": "Enchant basic land you control\nWhen Ossification enters the battlefield, exile target creature or planeswalker an opponent controls until Ossification leaves the battlefield.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "removal_exile",
+      "keywords": [
+        "Enchant"
+      ],
+      "subtypes": [
+        "Aura"
+      ],
+      "edhrec_rank_approx": 6000,
+      "tags": [
+        "removal",
+        "exile",
+        "efficient"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Unsummon",
+      "mana_cost": "{U}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Return target creature to its owner's hand.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "removal_bounce",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 11000,
+      "tags": [
+        "staple",
+        "removal",
+        "bounce",
+        "tempo"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Run Away Together",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Choose two target creatures controlled by different players. Return those creatures to their owners' hands.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "removal_bounce",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 13000,
+      "tags": [
+        "removal",
+        "bounce",
+        "tempo"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Stern Dismissal",
+      "mana_cost": "{U}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Return target creature or enchantment an opponent controls to its owner's hand.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "removal_bounce",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 14000,
+      "tags": [
+        "removal",
+        "bounce",
+        "tempo",
+        "versatile"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Into the Roil",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Kicker {1}{U}\nReturn target nonland permanent to its owner's hand. If this spell was kicked, draw a card.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "removal_bounce",
+      "keywords": [
+        "Kicker"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 4500,
+      "tags": [
+        "staple",
+        "removal",
+        "bounce",
+        "card_draw",
+        "versatile"
+      ],
+      "setting_agnostic": false
+    },
+    {
+      "name": "Blink of an Eye",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Kicker {1}{U}\nReturn target nonland permanent to its owner's hand. If this spell was kicked, draw a card.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "removal_bounce",
+      "keywords": [
+        "Kicker"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 6000,
+      "tags": [
+        "removal",
+        "bounce",
+        "card_draw",
+        "versatile"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Rabid Bite",
+      "mana_cost": "{1}{G}",
+      "cmc": 2,
+      "type_line": "Sorcery",
+      "oracle_text": "Target creature you control deals damage equal to its power to target creature you don't control.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "removal_fight",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 11000,
+      "tags": [
+        "staple",
+        "removal",
+        "bite"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Savage Swipe",
+      "mana_cost": "{G}",
+      "cmc": 1,
+      "type_line": "Sorcery",
+      "oracle_text": "Target creature you control gets +2/+2 until end of turn if its power is 2. Then it fights target creature you don't control.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "removal_fight",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 12000,
+      "tags": [
+        "removal",
+        "fight",
+        "pump"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Prey Upon",
+      "mana_cost": "{G}",
+      "cmc": 1,
+      "type_line": "Sorcery",
+      "oracle_text": "Target creature you control fights target creature you don't control.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "removal_fight",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 11500,
+      "tags": [
+        "staple",
+        "removal",
+        "fight"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Ram Through",
+      "mana_cost": "{1}{G}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Target creature you control deals damage equal to its power to target creature you don't control. If the creature you control has trample, excess damage is dealt to that creature's controller instead.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "removal_fight",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 5500,
+      "tags": [
+        "staple",
+        "removal",
+        "bite",
+        "trample_bonus"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Bite Down",
+      "mana_cost": "{1}{G}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Target creature you control deals damage equal to its power to target creature or planeswalker you don't control.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "removal_fight",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 13000,
+      "tags": [
+        "removal",
+        "bite",
+        "versatile"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Pyroclasm",
+      "mana_cost": "{1}{R}",
+      "cmc": 2,
+      "type_line": "Sorcery",
+      "oracle_text": "Pyroclasm deals 2 damage to each creature.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "uncommon",
+      "role": "removal_sweeper",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 6000,
+      "tags": [
+        "staple",
+        "removal",
+        "sweeper"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Sweltering Suns",
+      "mana_cost": "{1}{R}{R}",
+      "cmc": 3,
+      "type_line": "Sorcery",
+      "oracle_text": "Sweltering Suns deals 3 damage to each creature.\nCycling {3}",
+      "colors": [
+        "R"
+      ],
+      "rarity": "rare",
+      "role": "removal_sweeper",
+      "keywords": [
+        "Cycling"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 8000,
+      "tags": [
+        "removal",
+        "sweeper",
+        "cycling"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Terramorphic Expanse",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Sacrifice Terramorphic Expanse: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 800,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Evolving Wilds",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Sacrifice Evolving Wilds: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 700,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Shimmering Grotto",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}: Add {C}.\n{1}, {T}: Add one mana of any color.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 12000,
+      "tags": [
+        "mana_fixing",
+        "land"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Unknown Shores",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}: Add {C}.\n{1}, {T}: Add one mana of any color.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 14000,
+      "tags": [
+        "mana_fixing",
+        "land"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Gateway Plaza",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land -- Gate",
+      "oracle_text": "Gateway Plaza enters tapped.\nWhen Gateway Plaza enters the battlefield, sacrifice it unless you pay {1}.\n{T}: Add one mana of any color.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [
+        "Gate"
+      ],
+      "edhrec_rank_approx": 9000,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "gate"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Command Tower",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 50,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "commander"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Giant Growth",
+      "mana_cost": "{G}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Target creature gets +3/+3 until end of turn.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "combat_trick",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 12000,
+      "tags": [
+        "staple",
+        "combat_trick",
+        "pump"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Snakeskin Veil",
+      "mana_cost": "{G}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Put a +1/+1 counter on target creature you control. It gains hexproof until end of turn.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "combat_trick",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "combat_trick",
+        "protection",
+        "counter"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Shore Up",
+      "mana_cost": "{U}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Target creature you control gets +0/+3 until end of turn and gains hexproof until end of turn. Untap it.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "combat_trick",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "combat_trick",
+        "protection"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Fake Your Own Death",
+      "mana_cost": "{1}{B}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Until end of turn, target creature gains \"When this creature dies, return it to the battlefield tapped under its owner's control and you create a Treasure token.\"",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "combat_trick",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 3000,
+      "tags": [
+        "combat_trick",
+        "protection",
+        "treasure"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Take Up the Shield",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Put a +1/+1 counter on target creature you control. It gains indestructible until end of turn.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "combat_trick",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 9000,
+      "tags": [
+        "combat_trick",
+        "protection",
+        "counter"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Titanic Growth",
+      "mana_cost": "{1}{G}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Target creature gets +4/+4 until end of turn.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "combat_trick",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 13000,
+      "tags": [
+        "combat_trick",
+        "pump"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Gods Willing",
+      "mana_cost": "{W}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Target creature you control gains protection from the color of your choice until end of turn. Scry 1.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "combat_trick",
+      "keywords": [
+        "Scry"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "combat_trick",
+        "protection",
+        "scry"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Opt",
+      "mana_cost": "{U}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Scry 1.\nDraw a card.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "card_draw",
+      "keywords": [
+        "Scry"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 2500,
+      "tags": [
+        "staple",
+        "card_draw",
+        "cantrip",
+        "selection"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Chart a Course",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "type_line": "Sorcery",
+      "oracle_text": "Draw two cards. Then discard a card unless you attacked this turn.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "uncommon",
+      "role": "card_draw",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 3500,
+      "tags": [
+        "card_draw",
+        "aggressive"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Divination",
+      "mana_cost": "{2}{U}",
+      "cmc": 3,
+      "type_line": "Sorcery",
+      "oracle_text": "Draw two cards.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "card_draw",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "staple",
+        "card_draw"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Read the Bones",
+      "mana_cost": "{2}{B}",
+      "cmc": 3,
+      "type_line": "Sorcery",
+      "oracle_text": "Scry 2, then draw two cards. You lose 2 life.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "card_draw",
+      "keywords": [
+        "Scry"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 2000,
+      "tags": [
+        "staple",
+        "card_draw",
+        "selection"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Sign in Blood",
+      "mana_cost": "{B}{B}",
+      "cmc": 2,
+      "type_line": "Sorcery",
+      "oracle_text": "Target player draws two cards and loses 2 life.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "card_draw",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 2500,
+      "tags": [
+        "staple",
+        "card_draw",
+        "flexible"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Negate",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Counter target noncreature spell.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "counterspell",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 500,
+      "tags": [
+        "staple",
+        "counterspell"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Essence Scatter",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Counter target creature spell.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "counterspell",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "staple",
+        "counterspell"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Cancel",
+      "mana_cost": "{1}{U}{U}",
+      "cmc": 3,
+      "type_line": "Instant",
+      "oracle_text": "Counter target spell.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "counterspell",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 8000,
+      "tags": [
+        "staple",
+        "counterspell",
+        "unconditional"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Dissipate",
+      "mana_cost": "{1}{U}{U}",
+      "cmc": 3,
+      "type_line": "Instant",
+      "oracle_text": "Counter target spell. If that spell is countered this way, exile it instead of putting it into its owner's graveyard.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "uncommon",
+      "role": "counterspell",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 7000,
+      "tags": [
+        "counterspell",
+        "exile"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Naturalize",
+      "mana_cost": "{1}{G}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Destroy target artifact or enchantment.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "artifact_removal",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "staple",
+        "removal",
+        "artifact",
+        "enchantment"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Thrashing Brontodon",
+      "mana_cost": "{1}{G}{G}",
+      "cmc": 3,
+      "type_line": "Creature -- Dinosaur",
+      "oracle_text": "{1}, Sacrifice Thrashing Brontodon: Destroy target artifact or enchantment.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "uncommon",
+      "role": "artifact_removal",
+      "keywords": [],
+      "subtypes": [
+        "Dinosaur"
+      ],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "removal",
+        "artifact",
+        "enchantment",
+        "creature",
+        "dinosaur"
+      ],
+      "power": "3",
+      "toughness": "4",
+      "setting_agnostic": true
+    },
+    {
+      "name": "Reclamation Sage",
+      "mana_cost": "{2}{G}",
+      "cmc": 3,
+      "type_line": "Creature -- Elf Shaman",
+      "oracle_text": "When Reclamation Sage enters the battlefield, you may destroy target artifact or enchantment.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "uncommon",
+      "role": "artifact_removal",
+      "keywords": [],
+      "subtypes": [
+        "Elf",
+        "Shaman"
+      ],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "staple",
+        "removal",
+        "artifact",
+        "enchantment",
+        "etb"
+      ],
+      "power": "2",
+      "toughness": "1",
+      "setting_agnostic": true
+    },
+    {
+      "name": "Smelt",
+      "mana_cost": "{R}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Destroy target artifact.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "artifact_removal",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "removal",
+        "artifact"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Return to Nature",
+      "mana_cost": "{1}{G}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Choose one --\n* Destroy target artifact.\n* Destroy target enchantment.\n* Exile target card from a graveyard.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "artifact_removal",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 2000,
+      "tags": [
+        "staple",
+        "removal",
+        "artifact",
+        "enchantment",
+        "graveyard_hate",
+        "versatile"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Rampant Growth",
+      "mana_cost": "{1}{G}",
+      "cmc": 2,
+      "type_line": "Sorcery",
+      "oracle_text": "Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "ramp",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "ramp",
+        "mana_fixing"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Cultivate",
+      "mana_cost": "{2}{G}",
+      "cmc": 3,
+      "type_line": "Sorcery",
+      "oracle_text": "Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "ramp",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 50,
+      "tags": [
+        "staple",
+        "ramp",
+        "mana_fixing",
+        "card_advantage"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Llanowar Elves",
+      "mana_cost": "{G}",
+      "cmc": 1,
+      "type_line": "Creature -- Elf Druid",
+      "oracle_text": "{T}: Add {G}.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "ramp",
+      "keywords": [],
+      "subtypes": [
+        "Elf",
+        "Druid"
+      ],
+      "edhrec_rank_approx": 300,
+      "tags": [
+        "staple",
+        "ramp",
+        "mana_dork"
+      ],
+      "power": "1",
+      "toughness": "1",
+      "setting_agnostic": false
+    },
+    {
+      "name": "Elvish Mystic",
+      "mana_cost": "{G}",
+      "cmc": 1,
+      "type_line": "Creature -- Elf Druid",
+      "oracle_text": "{T}: Add {G}.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "ramp",
+      "keywords": [],
+      "subtypes": [
+        "Elf",
+        "Druid"
+      ],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "staple",
+        "ramp",
+        "mana_dork"
+      ],
+      "power": "1",
+      "toughness": "1",
+      "setting_agnostic": true
+    },
+    {
+      "name": "Spirited Companion",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Enchantment Creature -- Dog",
+      "oracle_text": "When Spirited Companion enters the battlefield, draw a card.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Dog"
+      ],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "utility",
+        "etb",
+        "card_draw"
+      ],
+      "power": "1",
+      "toughness": "1",
+      "setting_agnostic": true
+    },
+    {
+      "name": "Inspiring Overseer",
+      "mana_cost": "{2}{W}",
+      "cmc": 3,
+      "type_line": "Creature -- Angel Cleric",
+      "oracle_text": "Flying\nWhen Inspiring Overseer enters the battlefield, you gain 1 life and draw a card.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [
+        "Flying"
+      ],
+      "subtypes": [
+        "Angel",
+        "Cleric"
+      ],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "utility",
+        "etb",
+        "card_draw",
+        "lifegain",
+        "flying"
+      ],
+      "power": "2",
+      "toughness": "1",
+      "setting_agnostic": true
+    },
+    {
+      "name": "Llanowar Visionary",
+      "mana_cost": "{2}{G}",
+      "cmc": 3,
+      "type_line": "Creature -- Elf Druid",
+      "oracle_text": "When Llanowar Visionary enters the battlefield, draw a card.\n{T}: Add {G}.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Elf",
+        "Druid"
+      ],
+      "edhrec_rank_approx": 2500,
+      "tags": [
+        "utility",
+        "etb",
+        "card_draw",
+        "ramp",
+        "mana_dork"
+      ],
+      "power": "2",
+      "toughness": "2",
+      "setting_agnostic": false
+    },
+    {
+      "name": "Burglar Rat",
+      "mana_cost": "{1}{B}",
+      "cmc": 2,
+      "type_line": "Creature -- Rat",
+      "oracle_text": "When Burglar Rat enters the battlefield, each opponent discards a card.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Rat"
+      ],
+      "edhrec_rank_approx": 6000,
+      "tags": [
+        "utility",
+        "etb",
+        "discard"
+      ],
+      "power": "1",
+      "toughness": "1",
+      "setting_agnostic": true
+    },
+    {
+      "name": "Ravenous Chupacabra",
+      "mana_cost": "{2}{B}{B}",
+      "cmc": 4,
+      "type_line": "Creature -- Beast Horror",
+      "oracle_text": "When Ravenous Chupacabra enters the battlefield, destroy target creature an opponent controls.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Beast",
+        "Horror"
+      ],
+      "edhrec_rank_approx": 2000,
+      "tags": [
+        "utility",
+        "etb",
+        "removal"
+      ],
+      "power": "2",
+      "toughness": "2",
+      "setting_agnostic": true
+    },
+    {
+      "name": "Courier Bat",
+      "mana_cost": "{2}{B}",
+      "cmc": 3,
+      "type_line": "Creature -- Bat",
+      "oracle_text": "Flying\nWhen Courier Bat enters the battlefield, if you gained life this turn, draw a card.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [
+        "Flying"
+      ],
+      "subtypes": [
+        "Bat"
+      ],
+      "edhrec_rank_approx": 11000,
+      "tags": [
+        "utility",
+        "etb",
+        "card_draw",
+        "flying",
+        "lifegain_synergy"
+      ],
+      "power": "2",
+      "toughness": "2",
+      "setting_agnostic": true
+    },
+    {
+      "name": "Firebrand Archer",
+      "mana_cost": "{1}{R}",
+      "cmc": 2,
+      "type_line": "Creature -- Human Archer",
+      "oracle_text": "Whenever you cast a noncreature spell, Firebrand Archer deals 1 damage to each opponent.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Human",
+        "Archer"
+      ],
+      "edhrec_rank_approx": 2500,
+      "tags": [
+        "utility",
+        "spellslinger",
+        "burn"
+      ],
+      "power": "2",
+      "toughness": "1",
+      "setting_agnostic": true
+    },
+    {
+      "name": "Lone Missionary",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Creature -- Kor Monk",
+      "oracle_text": "When Lone Missionary enters the battlefield, you gain 4 life.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "lifegain",
+      "keywords": [],
+      "subtypes": [
+        "Kor",
+        "Monk"
+      ],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "lifegain",
+        "etb"
+      ],
+      "power": "2",
+      "toughness": "1",
+      "setting_agnostic": false
+    },
+    {
+      "name": "Revitalize",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "You gain 3 life.\nDraw a card.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "lifegain",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 8000,
+      "tags": [
+        "lifegain",
+        "card_draw",
+        "cantrip"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Nyx-Fleece Ram",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Enchantment Creature -- Sheep",
+      "oracle_text": "At the beginning of your upkeep, you gain 1 life.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "lifegain",
+      "keywords": [],
+      "subtypes": [
+        "Sheep"
+      ],
+      "edhrec_rank_approx": 9000,
+      "tags": [
+        "lifegain",
+        "defensive"
+      ],
+      "power": "0",
+      "toughness": "5",
+      "setting_agnostic": false
+    },
+    {
+      "name": "Duress",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Sorcery",
+      "oracle_text": "Target opponent reveals their hand. You choose a noncreature, nonland card from it. That player discards that card.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "disruption",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "staple",
+        "discard",
+        "disruption"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Mind Rot",
+      "mana_cost": "{2}{B}",
+      "cmc": 3,
+      "type_line": "Sorcery",
+      "oracle_text": "Target opponent discards two cards.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "disruption",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 13000,
+      "tags": [
+        "discard",
+        "disruption"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Serra Angel",
+      "mana_cost": "{3}{W}{W}",
+      "cmc": 5,
+      "type_line": "Creature -- Angel",
+      "oracle_text": "Flying, vigilance",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [
+        "Flying",
+        "Vigilance"
+      ],
+      "subtypes": [
+        "Angel"
+      ],
+      "edhrec_rank_approx": 14000,
+      "tags": [
+        "iconic",
+        "flying",
+        "vigilance"
+      ],
+      "power": "4",
+      "toughness": "4",
+      "setting_agnostic": false
+    },
+    {
+      "name": "Air Elemental",
+      "mana_cost": "{3}{U}{U}",
+      "cmc": 5,
+      "type_line": "Creature -- Elemental",
+      "oracle_text": "Flying",
+      "colors": [
+        "U"
+      ],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [
+        "Flying"
+      ],
+      "subtypes": [
+        "Elemental"
+      ],
+      "edhrec_rank_approx": 15000,
+      "tags": [
+        "iconic",
+        "flying"
+      ],
+      "power": "4",
+      "toughness": "4",
+      "setting_agnostic": true
+    },
+    {
+      "name": "Dead Weight",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Enchantment -- Aura",
+      "oracle_text": "Enchant creature\nEnchanted creature gets -2/-2.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "aura",
+      "keywords": [
+        "Enchant"
+      ],
+      "subtypes": [
+        "Aura"
+      ],
+      "edhrec_rank_approx": 12000,
+      "tags": [
+        "removal",
+        "aura",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Lightning Helix",
+      "mana_cost": "{R}{W}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Lightning Helix deals 3 damage to any target and you gain 3 life.",
+      "colors": [
+        "R",
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "removal_damage",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 3000,
+      "tags": [
+        "staple",
+        "removal",
+        "burn",
+        "lifegain",
+        "multicolor"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Corrupted Conviction",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "As an additional cost to cast this spell, sacrifice a creature.\nDraw two cards.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "card_draw",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "card_draw",
+        "sacrifice",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Skulduggery",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Until end of turn, target creature you control gets +1/+1 and target creature an opponent controls gets -1/-1.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "combat_trick",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 14000,
+      "tags": [
+        "combat_trick",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Magnifying Glass",
+      "mana_cost": "{3}",
+      "cmc": 3,
+      "type_line": "Artifact",
+      "oracle_text": "{T}: Add {C}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this artifact: Draw a card.\")",
+      "colors": [],
+      "rarity": "common",
+      "role": "ramp",
+      "keywords": [
+        "Investigate"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 15000,
+      "tags": [
+        "mana",
+        "artifact",
+        "investigate",
+        "card_draw"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Ethereal Armor",
+      "mana_cost": "{W}",
+      "cmc": 1,
+      "type_line": "Enchantment -- Aura",
+      "oracle_text": "Enchant creature\nEnchanted creature gets +1/+1 for each enchantment you control and has first strike.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "aura",
+      "keywords": [
+        "Enchant",
+        "First strike"
+      ],
+      "subtypes": [
+        "Aura"
+      ],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "aura",
+        "enchantment_synergy",
+        "aggressive"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Sorcerous Spyglass",
+      "mana_cost": "{2}",
+      "cmc": 2,
+      "type_line": "Artifact",
+      "oracle_text": "As this artifact enters, look at an opponent's hand, then choose any card name.\nActivated abilities of sources with the chosen name can't be activated unless they're mana abilities.",
+      "colors": [],
+      "rarity": "uncommon",
+      "role": "disruption",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 6000,
+      "tags": [
+        "artifact",
+        "disruption",
+        "hate"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Vampire Nighthawk",
+      "mana_cost": "{1}{B}{B}",
+      "cmc": 3,
+      "type_line": "Creature -- Vampire Shaman",
+      "oracle_text": "Flying, deathtouch, lifelink",
+      "colors": [
+        "B"
+      ],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [
+        "Flying",
+        "Deathtouch",
+        "Lifelink"
+      ],
+      "subtypes": [
+        "Vampire",
+        "Shaman"
+      ],
+      "edhrec_rank_approx": 4500,
+      "tags": [
+        "staple",
+        "evasion",
+        "lifegain",
+        "removal_deterrent"
+      ],
+      "setting_agnostic": true,
+      "power": "2",
+      "toughness": "3"
+    },
+    {
+      "name": "Mulldrifter",
+      "mana_cost": "{4}{U}",
+      "cmc": 5,
+      "type_line": "Creature -- Elemental",
+      "oracle_text": "Flying\nWhen this creature enters, draw two cards.\nEvoke {2}{U} (You may cast this spell for its evoke cost. If you do, it's sacrificed when it enters.)",
+      "colors": [
+        "U"
+      ],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [
+        "Flying",
+        "Evoke"
+      ],
+      "subtypes": [
+        "Elemental"
+      ],
+      "edhrec_rank_approx": 1500,
+      "tags": [
+        "staple",
+        "card_draw",
+        "etb",
+        "evasion"
+      ],
+      "setting_agnostic": true,
+      "power": "2",
+      "toughness": "2"
+    },
+    {
+      "name": "Acidic Slime",
+      "mana_cost": "{3}{G}{G}",
+      "cmc": 5,
+      "type_line": "Creature -- Ooze",
+      "oracle_text": "Deathtouch\nWhen this creature enters, destroy target artifact, enchantment, or land.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [
+        "Deathtouch"
+      ],
+      "subtypes": [
+        "Ooze"
+      ],
+      "edhrec_rank_approx": 2500,
+      "tags": [
+        "staple",
+        "etb",
+        "artifact_removal",
+        "enchantment_removal"
+      ],
+      "setting_agnostic": true,
+      "power": "2",
+      "toughness": "2"
+    },
+    {
+      "name": "Elvish Visionary",
+      "mana_cost": "{1}{G}",
+      "cmc": 2,
+      "type_line": "Creature -- Elf Shaman",
+      "oracle_text": "When this creature enters, draw a card.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Elf",
+        "Shaman"
+      ],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "staple",
+        "card_draw",
+        "etb"
+      ],
+      "setting_agnostic": true,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Gifted Aetherborn",
+      "mana_cost": "{B}{B}",
+      "cmc": 2,
+      "type_line": "Creature -- Aetherborn Vampire",
+      "oracle_text": "Deathtouch, lifelink",
+      "colors": [
+        "B"
+      ],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [
+        "Deathtouch",
+        "Lifelink"
+      ],
+      "subtypes": [
+        "Aetherborn",
+        "Vampire"
+      ],
+      "edhrec_rank_approx": 8000,
+      "tags": [
+        "efficient",
+        "lifegain",
+        "removal_deterrent"
+      ],
+      "setting_agnostic": true,
+      "power": "2",
+      "toughness": "3"
+    },
+    {
+      "name": "Typhoid Rats",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Creature -- Rat",
+      "oracle_text": "Deathtouch",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [
+        "Deathtouch"
+      ],
+      "subtypes": [
+        "Rat"
+      ],
+      "edhrec_rank_approx": 12000,
+      "tags": [
+        "cheap",
+        "defensive",
+        "deathtouch"
+      ],
+      "setting_agnostic": true,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Ornithopter",
+      "mana_cost": "{0}",
+      "cmc": 0,
+      "type_line": "Artifact Creature -- Thopter",
+      "oracle_text": "Flying",
+      "colors": [],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [
+        "Flying"
+      ],
+      "subtypes": [
+        "Thopter"
+      ],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "artifact",
+        "free",
+        "evasion",
+        "artifact_creature"
+      ],
+      "setting_agnostic": true,
+      "power": "0",
+      "toughness": "2"
+    },
+    {
+      "name": "Memnite",
+      "mana_cost": "{0}",
+      "cmc": 0,
+      "type_line": "Artifact Creature -- Construct",
+      "oracle_text": "",
+      "colors": [],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Construct"
+      ],
+      "edhrec_rank_approx": 7000,
+      "tags": [
+        "artifact",
+        "free",
+        "aggressive",
+        "artifact_creature"
+      ],
+      "setting_agnostic": false,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Pilgrim's Eye",
+      "mana_cost": "{3}",
+      "cmc": 3,
+      "type_line": "Artifact Creature -- Thopter",
+      "oracle_text": "Flying\nWhen this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+      "colors": [],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [
+        "Flying"
+      ],
+      "subtypes": [
+        "Thopter"
+      ],
+      "edhrec_rank_approx": 6000,
+      "tags": [
+        "artifact",
+        "mana_fixing",
+        "etb",
+        "evasion",
+        "artifact_creature"
+      ],
+      "setting_agnostic": true,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Solemn Simulacrum",
+      "mana_cost": "{4}",
+      "cmc": 4,
+      "type_line": "Artifact Creature -- Golem",
+      "oracle_text": "When this creature enters, you may search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.\nWhen this creature dies, you may draw a card.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Golem"
+      ],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "artifact",
+        "ramp",
+        "card_draw",
+        "etb",
+        "artifact_creature"
+      ],
+      "setting_agnostic": true,
+      "power": "2",
+      "toughness": "2"
+    },
+    {
+      "name": "Phyrexian Rager",
+      "mana_cost": "{2}{B}",
+      "cmc": 3,
+      "type_line": "Creature -- Phyrexian Horror",
+      "oracle_text": "When this creature enters, you draw a card and you lose 1 life.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Phyrexian",
+        "Horror"
+      ],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "card_draw",
+        "etb"
+      ],
+      "setting_agnostic": false,
+      "power": "2",
+      "toughness": "2"
+    },
+    {
+      "name": "Gray Merchant of Asphodel",
+      "mana_cost": "{3}{B}{B}",
+      "cmc": 5,
+      "type_line": "Creature -- Zombie",
+      "oracle_text": "When Gray Merchant of Asphodel enters, each opponent loses X life, where X is your devotion to black. You gain life equal to the life lost this way. (Each {B} in the mana costs of permanents you control counts toward your devotion to black.)",
+      "colors": [
+        "B"
+      ],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Zombie"
+      ],
+      "edhrec_rank_approx": 1000,
+      "tags": [
+        "staple",
+        "etb",
+        "lifegain",
+        "drain",
+        "devotion"
+      ],
+      "setting_agnostic": false,
+      "power": "2",
+      "toughness": "4"
+    },
+    {
+      "name": "Cloudkin Seer",
+      "mana_cost": "{2}{U}",
+      "cmc": 3,
+      "type_line": "Creature -- Elemental Wizard",
+      "oracle_text": "Flying\nWhen this creature enters, draw a card.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [
+        "Flying"
+      ],
+      "subtypes": [
+        "Elemental",
+        "Wizard"
+      ],
+      "edhrec_rank_approx": 12000,
+      "tags": [
+        "card_draw",
+        "etb",
+        "evasion"
+      ],
+      "setting_agnostic": true,
+      "power": "2",
+      "toughness": "1"
+    },
+    {
+      "name": "Aerial Responder",
+      "mana_cost": "{1}{W}{W}",
+      "cmc": 3,
+      "type_line": "Creature -- Dwarf Soldier",
+      "oracle_text": "Flying, vigilance, lifelink",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [
+        "Flying",
+        "Vigilance",
+        "Lifelink"
+      ],
+      "subtypes": [
+        "Dwarf",
+        "Soldier"
+      ],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "evasion",
+        "lifegain",
+        "aggressive"
+      ],
+      "setting_agnostic": true,
+      "power": "2",
+      "toughness": "3"
+    },
+    {
+      "name": "Child of Night",
+      "mana_cost": "{1}{B}",
+      "cmc": 2,
+      "type_line": "Creature -- Vampire",
+      "oracle_text": "Lifelink",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [
+        "Lifelink"
+      ],
+      "subtypes": [
+        "Vampire"
+      ],
+      "edhrec_rank_approx": 15000,
+      "tags": [
+        "lifegain",
+        "cheap"
+      ],
+      "setting_agnostic": true,
+      "power": "2",
+      "toughness": "1"
+    },
+    {
+      "name": "Centaur Courser",
+      "mana_cost": "{2}{G}",
+      "cmc": 3,
+      "type_line": "Creature -- Centaur Warrior",
+      "oracle_text": "",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Centaur",
+        "Warrior"
+      ],
+      "edhrec_rank_approx": 18000,
+      "tags": [
+        "vanilla",
+        "efficient_body"
+      ],
+      "setting_agnostic": true,
+      "power": "3",
+      "toughness": "3"
+    },
+    {
+      "name": "Goblin Instigator",
+      "mana_cost": "{1}{R}",
+      "cmc": 2,
+      "type_line": "Creature -- Goblin Rogue",
+      "oracle_text": "When this creature enters, create a 1/1 red Goblin creature token.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "token_maker",
+      "keywords": [],
+      "subtypes": [
+        "Goblin",
+        "Rogue"
+      ],
+      "edhrec_rank_approx": 8000,
+      "tags": [
+        "token",
+        "etb",
+        "go_wide"
+      ],
+      "setting_agnostic": true,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Daggerback Basilisk",
+      "mana_cost": "{2}{G}",
+      "cmc": 3,
+      "type_line": "Creature -- Basilisk",
+      "oracle_text": "Deathtouch",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [
+        "Deathtouch"
+      ],
+      "subtypes": [
+        "Basilisk"
+      ],
+      "edhrec_rank_approx": 18000,
+      "tags": [
+        "defensive",
+        "deathtouch"
+      ],
+      "setting_agnostic": true,
+      "power": "2",
+      "toughness": "2"
+    },
+    {
+      "name": "Vampire of the Dire Moon",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Creature -- Vampire",
+      "oracle_text": "Deathtouch, lifelink",
+      "colors": [
+        "B"
+      ],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [
+        "Deathtouch",
+        "Lifelink"
+      ],
+      "subtypes": [
+        "Vampire"
+      ],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "cheap",
+        "efficient",
+        "lifegain",
+        "deathtouch"
+      ],
+      "setting_agnostic": true,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Bronze Sable",
+      "mana_cost": "{2}",
+      "cmc": 2,
+      "type_line": "Artifact Creature -- Sable",
+      "oracle_text": "",
+      "colors": [],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Sable"
+      ],
+      "edhrec_rank_approx": 20000,
+      "tags": [
+        "artifact",
+        "vanilla",
+        "artifact_creature"
+      ],
+      "setting_agnostic": true,
+      "power": "2",
+      "toughness": "1"
+    },
+    {
+      "name": "Anticipate",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Look at the top three cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "card_draw",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 6000,
+      "tags": [
+        "staple",
+        "card_selection",
+        "instant_speed"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Think Twice",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Draw a card.\nFlashback {2}{U} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "card_draw",
+      "keywords": [
+        "Flashback"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 8000,
+      "tags": [
+        "card_draw",
+        "flashback",
+        "graveyard"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Preordain",
+      "mana_cost": "{U}",
+      "cmc": 1,
+      "type_line": "Sorcery",
+      "oracle_text": "Scry 2, then draw a card.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "card_draw",
+      "keywords": [
+        "Scry"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 500,
+      "tags": [
+        "staple",
+        "card_selection",
+        "cheap",
+        "cantrip"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Raise the Alarm",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Create two 1/1 white Soldier creature tokens.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "token_maker",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 7000,
+      "tags": [
+        "token",
+        "instant_speed",
+        "go_wide"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Dragon Fodder",
+      "mana_cost": "{1}{R}",
+      "cmc": 2,
+      "type_line": "Sorcery",
+      "oracle_text": "Create two 1/1 red Goblin creature tokens.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "token_maker",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 6000,
+      "tags": [
+        "token",
+        "go_wide"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Krenko's Command",
+      "mana_cost": "{1}{R}",
+      "cmc": 2,
+      "type_line": "Sorcery",
+      "oracle_text": "Create two 1/1 red Goblin creature tokens.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "token_maker",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 7000,
+      "tags": [
+        "token",
+        "go_wide"
+      ],
+      "setting_agnostic": false
+    },
+    {
+      "name": "Bone Splinters",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Sorcery",
+      "oracle_text": "As an additional cost to cast this spell, sacrifice a creature.\nDestroy target creature.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "removal_hard_kill",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 7000,
+      "tags": [
+        "removal",
+        "sacrifice",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Fiery Temper",
+      "mana_cost": "{1}{R}{R}",
+      "cmc": 3,
+      "type_line": "Instant",
+      "oracle_text": "Fiery Temper deals 3 damage to any target.\nMadness {R} (If you discard this card, discard it into exile. When you do, cast it for its madness cost or put it into your graveyard.)",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "removal_damage",
+      "keywords": [
+        "Madness"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 9000,
+      "tags": [
+        "removal",
+        "burn",
+        "madness",
+        "discard_synergy"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Oakenform",
+      "mana_cost": "{2}{G}",
+      "cmc": 3,
+      "type_line": "Enchantment -- Aura",
+      "oracle_text": "Enchant creature\nEnchanted creature gets +3/+3.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "aura",
+      "keywords": [
+        "Enchant"
+      ],
+      "subtypes": [
+        "Aura"
+      ],
+      "edhrec_rank_approx": 18000,
+      "tags": [
+        "aura",
+        "pump",
+        "aggressive"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Curiosity",
+      "mana_cost": "{U}",
+      "cmc": 1,
+      "type_line": "Enchantment -- Aura",
+      "oracle_text": "Enchant creature\nWhenever enchanted creature deals damage to an opponent, you may draw a card.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "uncommon",
+      "role": "aura",
+      "keywords": [
+        "Enchant"
+      ],
+      "subtypes": [
+        "Aura"
+      ],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "aura",
+        "card_draw",
+        "evasion_payoff"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Unholy Strength",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Enchantment -- Aura",
+      "oracle_text": "Enchant creature\nEnchanted creature gets +2/+1.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "aura",
+      "keywords": [
+        "Enchant"
+      ],
+      "subtypes": [
+        "Aura"
+      ],
+      "edhrec_rank_approx": 18000,
+      "tags": [
+        "aura",
+        "pump",
+        "aggressive",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Claustrophobia",
+      "mana_cost": "{1}{U}{U}",
+      "cmc": 3,
+      "type_line": "Enchantment -- Aura",
+      "oracle_text": "Enchant creature\nWhen Claustrophobia enters, tap enchanted creature.\nEnchanted creature doesn't untap during its controller's untap step.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "removal_exile",
+      "keywords": [
+        "Enchant"
+      ],
+      "subtypes": [
+        "Aura"
+      ],
+      "edhrec_rank_approx": 14000,
+      "tags": [
+        "removal",
+        "aura",
+        "tap_down"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Staggering Insight",
+      "mana_cost": "{W}{U}",
+      "cmc": 2,
+      "type_line": "Enchantment -- Aura",
+      "oracle_text": "Enchant creature\nEnchanted creature gets +1/+1 and has lifelink and \"Whenever this creature deals combat damage to a player, draw a card.\"",
+      "colors": [
+        "W",
+        "U"
+      ],
+      "rarity": "uncommon",
+      "role": "aura",
+      "keywords": [
+        "Enchant",
+        "Lifelink"
+      ],
+      "subtypes": [
+        "Aura"
+      ],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "aura",
+        "card_draw",
+        "lifegain",
+        "multicolor"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Short Sword",
+      "mana_cost": "{1}",
+      "cmc": 1,
+      "type_line": "Artifact -- Equipment",
+      "oracle_text": "Equipped creature gets +1/+1.\nEquip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.)",
+      "colors": [],
+      "rarity": "common",
+      "role": "equipment",
+      "keywords": [
+        "Equip"
+      ],
+      "subtypes": [
+        "Equipment"
+      ],
+      "edhrec_rank_approx": 14000,
+      "tags": [
+        "equipment",
+        "artifact",
+        "cheap",
+        "aggressive"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Bonesplitter",
+      "mana_cost": "{1}",
+      "cmc": 1,
+      "type_line": "Artifact -- Equipment",
+      "oracle_text": "Equipped creature gets +2/+0.\nEquip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.)",
+      "colors": [],
+      "rarity": "common",
+      "role": "equipment",
+      "keywords": [
+        "Equip"
+      ],
+      "subtypes": [
+        "Equipment"
+      ],
+      "edhrec_rank_approx": 7000,
+      "tags": [
+        "equipment",
+        "artifact",
+        "cheap",
+        "aggressive",
+        "staple"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Leonin Scimitar",
+      "mana_cost": "{1}",
+      "cmc": 1,
+      "type_line": "Artifact -- Equipment",
+      "oracle_text": "Equipped creature gets +1/+1.\nEquip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.)",
+      "colors": [],
+      "rarity": "common",
+      "role": "equipment",
+      "keywords": [
+        "Equip"
+      ],
+      "subtypes": [
+        "Equipment"
+      ],
+      "edhrec_rank_approx": 16000,
+      "tags": [
+        "equipment",
+        "artifact",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Vulshok Morningstar",
+      "mana_cost": "{2}",
+      "cmc": 2,
+      "type_line": "Artifact -- Equipment",
+      "oracle_text": "Equipped creature gets +2/+2.\nEquip {2} ({2}: Attach to target creature you control. Equip only as a sorcery.)",
+      "colors": [],
+      "rarity": "uncommon",
+      "role": "equipment",
+      "keywords": [
+        "Equip"
+      ],
+      "subtypes": [
+        "Equipment"
+      ],
+      "edhrec_rank_approx": 12000,
+      "tags": [
+        "equipment",
+        "artifact",
+        "efficient"
+      ],
+      "setting_agnostic": false
+    },
+    {
+      "name": "Mind Stone",
+      "mana_cost": "{2}",
+      "cmc": 2,
+      "type_line": "Artifact",
+      "oracle_text": "{T}: Add {C}.\n{1}, {T}, Sacrifice Mind Stone: Draw a card.",
+      "colors": [],
+      "rarity": "uncommon",
+      "role": "ramp",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 100,
+      "tags": [
+        "staple",
+        "artifact",
+        "ramp",
+        "card_draw",
+        "mana_rock"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Prophetic Prism",
+      "mana_cost": "{2}",
+      "cmc": 2,
+      "type_line": "Artifact",
+      "oracle_text": "When this artifact enters, draw a card.\n{1}, {T}: Add one mana of any color.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 7000,
+      "tags": [
+        "artifact",
+        "mana_fixing",
+        "card_draw",
+        "etb"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Wayfarer's Bauble",
+      "mana_cost": "{1}",
+      "cmc": 1,
+      "type_line": "Artifact",
+      "oracle_text": "{2}, {T}, Sacrifice Wayfarer's Bauble: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+      "colors": [],
+      "rarity": "common",
+      "role": "ramp",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "artifact",
+        "ramp",
+        "mana_fixing"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Arcane Signet",
+      "mana_cost": "{2}",
+      "cmc": 2,
+      "type_line": "Artifact",
+      "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
+      "colors": [],
+      "rarity": "uncommon",
+      "role": "ramp",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 10,
+      "tags": [
+        "staple",
+        "artifact",
+        "ramp",
+        "mana_rock",
+        "commander"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Traveler's Amulet",
+      "mana_cost": "{1}",
+      "cmc": 1,
+      "type_line": "Artifact",
+      "oracle_text": "{1}, Sacrifice Traveler's Amulet: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "artifact",
+        "mana_fixing",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Spare Supplies",
+      "mana_cost": "{2}",
+      "cmc": 2,
+      "type_line": "Artifact",
+      "oracle_text": "Spare Supplies enters tapped.\nWhen Spare Supplies enters, draw a card.\n{2}, {T}, Sacrifice Spare Supplies: Draw a card.",
+      "colors": [],
+      "rarity": "common",
+      "role": "card_draw",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 12000,
+      "tags": [
+        "artifact",
+        "card_draw",
+        "etb"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Heraldic Banner",
+      "mana_cost": "{3}",
+      "cmc": 3,
+      "type_line": "Artifact",
+      "oracle_text": "As Heraldic Banner enters, choose a color.\nCreatures you control of the chosen color get +1/+0.\n{T}: Add one mana of the chosen color.",
+      "colors": [],
+      "rarity": "uncommon",
+      "role": "ramp",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "artifact",
+        "anthem",
+        "mana_rock",
+        "aggressive"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Haunted Fengraf",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}: Add {C}.\n{3}, {T}, Sacrifice Haunted Fengraf: Return a creature card at random from your graveyard to your hand.",
+      "colors": [],
+      "rarity": "common",
+      "role": "graveyard_recursion",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 8000,
+      "tags": [
+        "land",
+        "graveyard",
+        "recursion"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Mortuary Mire",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Mortuary Mire enters tapped.\nWhen Mortuary Mire enters, you may put target creature card from your graveyard on top of your library.\n{T}: Add {B}.",
+      "colors": [],
+      "rarity": "common",
+      "role": "graveyard_recursion",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 9000,
+      "tags": [
+        "land",
+        "graveyard",
+        "recursion",
+        "etb"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Cryptic Caves",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}: Add {C}.\n{1}, {T}, Sacrifice Cryptic Caves: Draw a card. Activate only if you control five or more lands.",
+      "colors": [],
+      "rarity": "uncommon",
+      "role": "card_draw",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 12000,
+      "tags": [
+        "land",
+        "card_draw",
+        "late_game"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Kodama's Reach",
+      "mana_cost": "{2}{G}",
+      "cmc": 3,
+      "type_line": "Sorcery -- Arcane",
+      "oracle_text": "Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "ramp",
+      "keywords": [],
+      "subtypes": [
+        "Arcane"
+      ],
+      "edhrec_rank_approx": 50,
+      "tags": [
+        "staple",
+        "ramp",
+        "mana_fixing"
+      ],
+      "setting_agnostic": false
+    },
+    {
+      "name": "Farseek",
+      "mana_cost": "{1}{G}",
+      "cmc": 2,
+      "type_line": "Sorcery",
+      "oracle_text": "Search your library for a Plains, Island, Swamp, or Mountain card, put it onto the battlefield tapped, then shuffle.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "ramp",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 300,
+      "tags": [
+        "staple",
+        "ramp",
+        "mana_fixing"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Sakura-Tribe Elder",
+      "mana_cost": "{1}{G}",
+      "cmc": 2,
+      "type_line": "Creature -- Snake Shaman",
+      "oracle_text": "Sacrifice Sakura-Tribe Elder: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "ramp",
+      "keywords": [],
+      "subtypes": [
+        "Snake",
+        "Shaman"
+      ],
+      "edhrec_rank_approx": 100,
+      "tags": [
+        "staple",
+        "ramp",
+        "sacrifice"
+      ],
+      "setting_agnostic": false,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Ajani's Pridemate",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Creature -- Cat Soldier",
+      "oracle_text": "Whenever you gain life, put a +1/+1 counter on Ajani's Pridemate.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "lifegain",
+      "keywords": [],
+      "subtypes": [
+        "Cat",
+        "Soldier"
+      ],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "lifegain",
+        "payoff",
+        "counters",
+        "aggressive"
+      ],
+      "setting_agnostic": false,
+      "power": "2",
+      "toughness": "2"
+    },
+    {
+      "name": "Healer's Hawk",
+      "mana_cost": "{W}",
+      "cmc": 1,
+      "type_line": "Creature -- Bird",
+      "oracle_text": "Flying, lifelink",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "lifegain",
+      "keywords": [
+        "Flying",
+        "Lifelink"
+      ],
+      "subtypes": [
+        "Bird"
+      ],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "lifegain",
+        "evasion",
+        "cheap",
+        "aggressive"
+      ],
+      "setting_agnostic": true,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Soul Warden",
+      "mana_cost": "{W}",
+      "cmc": 1,
+      "type_line": "Creature -- Human Cleric",
+      "oracle_text": "Whenever another creature enters the battlefield, you gain 1 life.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "lifegain",
+      "keywords": [],
+      "subtypes": [
+        "Human",
+        "Cleric"
+      ],
+      "edhrec_rank_approx": 2000,
+      "tags": [
+        "staple",
+        "lifegain",
+        "etb_trigger"
+      ],
+      "setting_agnostic": true,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Despise",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Sorcery",
+      "oracle_text": "Target opponent reveals their hand. You choose a creature or planeswalker card from it. That player discards that card.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "disruption",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "disruption",
+        "hand_attack",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Divest",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Sorcery",
+      "oracle_text": "Target opponent reveals their hand. You choose an artifact or creature card from it. That player discards that card.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "disruption",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 14000,
+      "tags": [
+        "disruption",
+        "hand_attack",
+        "cheap",
+        "artifact"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Thoughtseize",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Sorcery",
+      "oracle_text": "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "rare",
+      "role": "disruption",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 3000,
+      "tags": [
+        "staple",
+        "disruption",
+        "hand_attack",
+        "premium"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Unearth",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Sorcery",
+      "oracle_text": "Return target creature card with mana value 3 or less from your graveyard to the battlefield.\nCycling {2} ({2}, Discard this card: Draw a card.)",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "graveyard_recursion",
+      "keywords": [
+        "Cycling"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 3000,
+      "tags": [
+        "graveyard",
+        "recursion",
+        "cycling",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Raise Dead",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Sorcery",
+      "oracle_text": "Return target creature card from your graveyard to your hand.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "graveyard_recursion",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 15000,
+      "tags": [
+        "graveyard",
+        "recursion",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Disentomb",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Sorcery",
+      "oracle_text": "Return target creature card from your graveyard to your hand.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "graveyard_recursion",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 16000,
+      "tags": [
+        "graveyard",
+        "recursion",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Satyr Wayfinder",
+      "mana_cost": "{1}{G}",
+      "cmc": 2,
+      "type_line": "Creature -- Satyr",
+      "oracle_text": "When this creature enters, reveal the top four cards of your library. You may put a land card from among them into your hand. Put the rest into your graveyard.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "self_mill",
+      "keywords": [],
+      "subtypes": [
+        "Satyr"
+      ],
+      "edhrec_rank_approx": 3000,
+      "tags": [
+        "self_mill",
+        "graveyard",
+        "land_search",
+        "etb"
+      ],
+      "setting_agnostic": true,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Stitcher's Supplier",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Creature -- Zombie",
+      "oracle_text": "When this creature enters or dies, mill three cards.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "uncommon",
+      "role": "self_mill",
+      "keywords": [
+        "Mill"
+      ],
+      "subtypes": [
+        "Zombie"
+      ],
+      "edhrec_rank_approx": 2000,
+      "tags": [
+        "self_mill",
+        "graveyard",
+        "cheap"
+      ],
+      "setting_agnostic": true,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Grisly Salvage",
+      "mana_cost": "{B}{G}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Reveal the top five cards of your library. You may put a creature or land card from among them into your hand. Put the rest into your graveyard.",
+      "colors": [
+        "B",
+        "G"
+      ],
+      "rarity": "common",
+      "role": "self_mill",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "self_mill",
+        "graveyard",
+        "card_selection",
+        "multicolor"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Thought Scour",
+      "mana_cost": "{U}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Target player mills two cards.\nDraw a card.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "self_mill",
+      "keywords": [
+        "Mill"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 7000,
+      "tags": [
+        "self_mill",
+        "cantrip",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Fog Bank",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "type_line": "Creature -- Wall",
+      "oracle_text": "Defender, flying\nPrevent all combat damage that would be dealt to and dealt by this creature.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "uncommon",
+      "role": "defensive",
+      "keywords": [
+        "Defender",
+        "Flying"
+      ],
+      "subtypes": [
+        "Wall"
+      ],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "defensive",
+        "wall",
+        "evasion_blocker"
+      ],
+      "setting_agnostic": true,
+      "power": "0",
+      "toughness": "2"
+    },
+    {
+      "name": "Wall of Omens",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Creature -- Wall",
+      "oracle_text": "Defender\nWhen this creature enters, draw a card.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "defensive",
+      "keywords": [
+        "Defender"
+      ],
+      "subtypes": [
+        "Wall"
+      ],
+      "edhrec_rank_approx": 3000,
+      "tags": [
+        "defensive",
+        "wall",
+        "card_draw",
+        "etb"
+      ],
+      "setting_agnostic": true,
+      "power": "0",
+      "toughness": "4"
+    },
+    {
+      "name": "Manalith",
+      "mana_cost": "{3}",
+      "cmc": 3,
+      "type_line": "Artifact",
+      "oracle_text": "{T}: Add one mana of any color.",
+      "colors": [],
+      "rarity": "common",
+      "role": "ramp",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 8000,
+      "tags": [
+        "artifact",
+        "mana_rock",
+        "mana_fixing"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Swords to Plowshares",
+      "mana_cost": "{W}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Exile target creature. Its controller gains life equal to its power.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "removal_exile",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 50,
+      "tags": [
+        "staple",
+        "removal",
+        "exile",
+        "premium"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Path to Exile",
+      "mana_cost": "{W}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Exile target creature. Its controller may search their library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "removal_exile",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 100,
+      "tags": [
+        "staple",
+        "removal",
+        "exile",
+        "premium"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Disfigure",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Target creature gets -2/-2 until end of turn.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "removal_damage",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "removal",
+        "cheap",
+        "instant_speed"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Tragic Slip",
+      "mana_cost": "{B}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Target creature gets -1/-1 until end of turn.\nMorbid -- That creature gets -13/-13 until end of turn instead if a creature died this turn.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "removal_damage",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "removal",
+        "cheap",
+        "morbid",
+        "conditional"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Flame Slash",
+      "mana_cost": "{R}",
+      "cmc": 1,
+      "type_line": "Sorcery",
+      "oracle_text": "Flame Slash deals 4 damage to target creature.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "removal_damage",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 11000,
+      "tags": [
+        "removal",
+        "burn",
+        "cheap",
+        "efficient"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Electrickery",
+      "mana_cost": "{R}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Electrickery deals 1 damage to target creature you don't control.\nOverload {1}{R} (You may cast this spell for its overload cost. If you do, change \"target\" in its text to \"each.\")",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "removal_sweeper",
+      "keywords": [
+        "Overload"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "removal",
+        "sweeper",
+        "token_hate",
+        "overload"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Shelter",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Target creature you control gains protection from the color of your choice until end of turn.\nDraw a card.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "combat_trick",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 9000,
+      "tags": [
+        "combat_trick",
+        "protection",
+        "cantrip"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Vines of Vastwood",
+      "mana_cost": "{G}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Kicker {G} (You may pay an additional {G} as you cast this spell.)\nTarget creature can't be the target of spells or abilities your opponents control this turn. If this spell was kicked, that creature gets +4/+4 until end of turn.",
+      "colors": [
+        "G"
+      ],
+      "rarity": "common",
+      "role": "combat_trick",
+      "keywords": [
+        "Kicker"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 6000,
+      "tags": [
+        "combat_trick",
+        "protection",
+        "pump",
+        "kicker"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Spell Pierce",
+      "mana_cost": "{U}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Counter target noncreature spell unless its controller pays {2}.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "counterspell",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "staple",
+        "counterspell",
+        "cheap",
+        "conditional"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Mana Leak",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Counter target spell unless its controller pays {3}.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "counterspell",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 3000,
+      "tags": [
+        "staple",
+        "counterspell",
+        "efficient",
+        "conditional"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Lingering Souls",
+      "mana_cost": "{2}{W}",
+      "cmc": 3,
+      "type_line": "Sorcery",
+      "oracle_text": "Create two 1/1 white Spirit creature tokens with flying.\nFlashback {1}{B} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "token_maker",
+      "keywords": [
+        "Flashback"
+      ],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "token",
+        "evasion",
+        "flashback",
+        "go_wide"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Servo Exhibition",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Sorcery",
+      "oracle_text": "Create two 1/1 colorless Servo artifact creature tokens.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "uncommon",
+      "role": "token_maker",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "token",
+        "artifact",
+        "go_wide",
+        "artifact_creature"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Filigree Familiar",
+      "mana_cost": "{3}",
+      "cmc": 3,
+      "type_line": "Artifact Creature -- Fox",
+      "oracle_text": "When this creature enters, you gain 2 life.\nWhen this creature dies, draw a card.",
+      "colors": [],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Fox"
+      ],
+      "edhrec_rank_approx": 6000,
+      "tags": [
+        "artifact",
+        "lifegain",
+        "card_draw",
+        "etb",
+        "artifact_creature"
+      ],
+      "setting_agnostic": true,
+      "power": "2",
+      "toughness": "2"
+    },
+    {
+      "name": "Myr Sire",
+      "mana_cost": "{2}",
+      "cmc": 2,
+      "type_line": "Artifact Creature -- Myr",
+      "oracle_text": "When this creature dies, create a 1/1 colorless Myr artifact creature token.",
+      "colors": [],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Myr"
+      ],
+      "edhrec_rank_approx": 10000,
+      "tags": [
+        "artifact",
+        "sacrifice",
+        "token",
+        "artifact_creature"
+      ],
+      "setting_agnostic": false,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Gingerbrute",
+      "mana_cost": "{1}",
+      "cmc": 1,
+      "type_line": "Artifact Creature -- Food Golem",
+      "oracle_text": "Haste\n{1}: Gingerbrute can't be blocked this turn except by creatures with haste.\n{2}, {T}, Sacrifice Gingerbrute: You gain 3 life.",
+      "colors": [],
+      "rarity": "common",
+      "role": "utility_creature",
+      "keywords": [
+        "Haste"
+      ],
+      "subtypes": [
+        "Food",
+        "Golem"
+      ],
+      "edhrec_rank_approx": 8000,
+      "tags": [
+        "artifact",
+        "aggressive",
+        "evasion",
+        "artifact_creature"
+      ],
+      "setting_agnostic": true,
+      "power": "1",
+      "toughness": "1"
+    },
+    {
+      "name": "Foundry Inspector",
+      "mana_cost": "{3}",
+      "cmc": 3,
+      "type_line": "Artifact Creature -- Construct",
+      "oracle_text": "Artifact spells you cast cost {1} less to cast.",
+      "colors": [],
+      "rarity": "uncommon",
+      "role": "utility_creature",
+      "keywords": [],
+      "subtypes": [
+        "Construct"
+      ],
+      "edhrec_rank_approx": 3000,
+      "tags": [
+        "artifact",
+        "cost_reduction",
+        "artifact_synergy",
+        "artifact_creature"
+      ],
+      "setting_agnostic": true,
+      "power": "3",
+      "toughness": "2"
+    },
+    {
+      "name": "Impulse",
+      "mana_cost": "{1}{U}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Look at the top four cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.",
+      "colors": [
+        "U"
+      ],
+      "rarity": "common",
+      "role": "card_draw",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 5000,
+      "tags": [
+        "card_selection",
+        "instant_speed"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Night's Whisper",
+      "mana_cost": "{1}{B}",
+      "cmc": 2,
+      "type_line": "Sorcery",
+      "oracle_text": "You draw two cards and you lose 2 life.",
+      "colors": [
+        "B"
+      ],
+      "rarity": "common",
+      "role": "card_draw",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 1500,
+      "tags": [
+        "staple",
+        "card_draw",
+        "efficient"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Disenchant",
+      "mana_cost": "{1}{W}",
+      "cmc": 2,
+      "type_line": "Instant",
+      "oracle_text": "Destroy target artifact or enchantment.",
+      "colors": [
+        "W"
+      ],
+      "rarity": "common",
+      "role": "artifact_removal",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "staple",
+        "artifact_removal",
+        "enchantment_removal"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Crush",
+      "mana_cost": "{R}",
+      "cmc": 1,
+      "type_line": "Instant",
+      "oracle_text": "Destroy target noncreature artifact.",
+      "colors": [
+        "R"
+      ],
+      "rarity": "common",
+      "role": "artifact_removal",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 14000,
+      "tags": [
+        "artifact_removal",
+        "cheap"
+      ],
+      "setting_agnostic": true
+    }
+  ]
+}
