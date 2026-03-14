@@ -79,9 +79,7 @@ def _build_reminder(template: str, param: int | None) -> str:
     return result
 
 
-def _find_keyword_ability_use(
-    oracle: str, keyword: str
-) -> re.Match | None:
+def _find_keyword_ability_use(oracle: str, keyword: str) -> re.Match | None:
     """Find the first USE of a parameterized keyword ability (e.g., Salvage X).
 
     A USE is keyword + number (e.g., "salvage 3", "malfunction 2").
@@ -95,9 +93,7 @@ def _find_keyword_ability_use(
     return pattern.search(oracle)
 
 
-def _find_keyword_action_use(
-    oracle: str, keyword: str
-) -> re.Match | None:
+def _find_keyword_action_use(oracle: str, keyword: str) -> re.Match | None:
     """Find the first USE of a non-parameterized keyword action (e.g., Overclock).
 
     A USE is the keyword as the main verb/action of a clause:

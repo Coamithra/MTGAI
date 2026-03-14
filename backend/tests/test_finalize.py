@@ -26,8 +26,7 @@ MECHANICS = [
     {
         "name": "Overclock",
         "reminder_text": (
-            "(Exile the top three cards of your library. You may play "
-            "them until end of turn.)"
+            "(Exile the top three cards of your library. You may play them until end of turn.)"
         ),
     },
 ]
@@ -62,9 +61,7 @@ class TestFinalizeCard:
 
     def test_auto_fixes_applied(self):
         """ETB phrasing should be auto-fixed during finalization."""
-        card = _make_card(
-            oracle_text="When ~ enters the battlefield, salvage 3."
-        )
+        card = _make_card(oracle_text="When ~ enters the battlefield, salvage 3.")
         finalized, fixes, _manual = finalize_card(card, MECHANICS)
         assert "enters the battlefield" not in finalized.oracle_text
         assert "enters," in finalized.oracle_text

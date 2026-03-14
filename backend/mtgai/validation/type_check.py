@@ -42,10 +42,7 @@ def fix_enchantment_artifact(card: Card, _error: ValidationError) -> Card:
         new_main = " ".join(words)
         sub_part = " ".join(sub_words)
 
-    if sub_part.strip():
-        new_type_line = f"{new_main} -- {sub_part.strip()}"
-    else:
-        new_type_line = new_main
+    new_type_line = f"{new_main} -- {sub_part.strip()}" if sub_part.strip() else new_main
 
     new_card_types = [t for t in card.card_types if t != "Enchantment"]
     if "Artifact" not in new_card_types:

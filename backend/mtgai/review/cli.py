@@ -459,8 +459,7 @@ def finalize(
     console.print()
     console.print(f"[bold]Finalization {'(dry run) ' if dry_run else ''}complete[/bold]")
     console.print(
-        f"  Cards processed: {summary['total_cards']}  |  "
-        f"Modified: {summary['cards_modified']}"
+        f"  Cards processed: {summary['total_cards']}  |  Modified: {summary['cards_modified']}"
     )
     console.print(
         f"  Auto-fixes: [green]{summary['total_auto_fixes']}[/green]  |  "

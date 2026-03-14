@@ -37,8 +37,7 @@ MECHANICS = [
         "name": "Overclock",
         "keyword_type": "keyword_action",
         "reminder_text": (
-            "(Exile the top three cards of your library. You may play "
-            "them until end of turn.)"
+            "(Exile the top three cards of your library. You may play them until end of turn.)"
         ),
     },
 ]
@@ -159,26 +158,19 @@ class TestInjectUses:
         assert "(Exile the top three cards" in result.oracle_text
 
     def test_overclock_upkeep_trigger(self):
-        card = _make_card(
-            oracle_text="At the beginning of your upkeep, overclock."
-        )
+        card = _make_card(oracle_text="At the beginning of your upkeep, overclock.")
         result = inject_reminder_text(card, MECHANICS)
         assert "(Exile the top three cards" in result.oracle_text
 
     def test_grants_malfunction(self):
         """'It gains malfunction 2' = granting the ability."""
-        card = _make_card(
-            oracle_text="It gains malfunction 2."
-        )
+        card = _make_card(oracle_text="It gains malfunction 2.")
         result = inject_reminder_text(card, MECHANICS)
         assert "(This permanent enters tapped with two" in result.oracle_text
 
     def test_only_first_use_gets_reminder(self):
         card = _make_card(
-            oracle_text=(
-                "When ~ enters, salvage 3.\n"
-                "Whenever an artifact enters, salvage 2."
-            )
+            oracle_text=("When ~ enters, salvage 3.\nWhenever an artifact enters, salvage 2.")
         )
         result = inject_reminder_text(card, MECHANICS)
         count = result.oracle_text.count("(Look at the top")
@@ -198,12 +190,7 @@ class TestInjectUses:
 
     def test_keyword_in_quoted_ability(self):
         """Granted ability in quotes still gets reminder text."""
-        card = _make_card(
-            oracle_text=(
-                'Create a token with '
-                '"When this creature dies, salvage 5."'
-            )
-        )
+        card = _make_card(oracle_text=('Create a token with "When this creature dies, salvage 5."'))
         result = inject_reminder_text(card, MECHANICS)
         assert "(Look at the top five cards" in result.oracle_text
 
@@ -231,53 +218,38 @@ class TestInjectUses:
 class TestInjectReferences:
     def test_no_inject_whenever_you_overclock(self):
         """'Whenever you overclock' is a trigger — no reminder text."""
-        card = _make_card(
-            oracle_text="Whenever you overclock, draw a card."
-        )
+        card = _make_card(oracle_text="Whenever you overclock, draw a card.")
         result = inject_reminder_text(card, MECHANICS)
         assert "(Exile" not in result.oracle_text
 
     def test_no_inject_whenever_tilde_overclocks(self):
         """'Whenever ~ overclocks' uses conjugated form — won't match."""
-        card = _make_card(
-            oracle_text="Whenever ~ overclocks, deal 2 damage."
-        )
+        card = _make_card(oracle_text="Whenever ~ overclocks, deal 2 damage.")
         result = inject_reminder_text(card, MECHANICS)
         assert "(Exile" not in result.oracle_text
 
     def test_no_inject_if_you_overclock(self):
-        card = _make_card(
-            oracle_text="If you overclock this turn, draw a card."
-        )
+        card = _make_card(oracle_text="If you overclock this turn, draw a card.")
         result = inject_reminder_text(card, MECHANICS)
         assert "(Exile" not in result.oracle_text
 
     def test_no_inject_malfunction_counter(self):
         """'malfunction counter' is a reference, not the ability."""
         card = _make_card(
-            oracle_text=(
-                "When the last malfunction counter is removed "
-                "from ~, draw a card."
-            )
+            oracle_text=("When the last malfunction counter is removed from ~, draw a card.")
         )
         result = inject_reminder_text(card, MECHANICS)
         assert "(This permanent" not in result.oracle_text
 
     def test_no_inject_bare_salvage_without_number(self):
         """'whenever you salvage' without a number = reference."""
-        card = _make_card(
-            oracle_text="Whenever you salvage, you gain 1 life."
-        )
+        card = _make_card(oracle_text="Whenever you salvage, you gain 1 life.")
         result = inject_reminder_text(card, MECHANICS)
         assert "(Look at" not in result.oracle_text
 
     def test_no_inject_creatures_with_malfunction(self):
         """Lord effect referencing keyword — no reminder text."""
-        card = _make_card(
-            oracle_text=(
-                "All creatures with malfunction get +1/+1."
-            )
-        )
+        card = _make_card(oracle_text=("All creatures with malfunction get +1/+1."))
         result = inject_reminder_text(card, MECHANICS)
         assert "(This permanent" not in result.oracle_text
 
@@ -328,8 +300,6 @@ class TestFinalizeReminderText:
 
     def test_finalize_reference_only_card(self):
         """Card that only references keywords gets no reminder text."""
-        card = _make_card(
-            oracle_text="Whenever you overclock, draw a card."
-        )
+        card = _make_card(oracle_text="Whenever you overclock, draw a card.")
         result = finalize_reminder_text(card, MECHANICS)
         assert result.oracle_text == "Whenever you overclock, draw a card."

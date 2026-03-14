@@ -92,10 +92,7 @@ def finalize_set(
     card_paths = _card_files(set_code)
 
     if card_filter:
-        card_paths = [
-            p for p in card_paths
-            if card_filter.upper() in p.stem.upper()
-        ]
+        card_paths = [p for p in card_paths if card_filter.upper() in p.stem.upper()]
 
     results: list[dict] = []
     total_fixes = 0
@@ -223,9 +220,7 @@ def _write_report(summary: dict, set_code: str) -> Path:
         lines.append("## Auto-Fixes Applied")
         lines.append("")
         for card in fix_cards:
-            lines.append(
-                f"### {card['collector_number']} — {card['name']}"
-            )
+            lines.append(f"### {card['collector_number']} — {card['name']}")
             for fix in card["fixes_applied"]:
                 lines.append(f"- {fix}")
             lines.append("")
@@ -236,9 +231,7 @@ def _write_report(summary: dict, set_code: str) -> Path:
         lines.append("## MANUAL Errors (Human Review Required)")
         lines.append("")
         for card in manual_cards:
-            lines.append(
-                f"### {card['collector_number']} — {card['name']}"
-            )
+            lines.append(f"### {card['collector_number']} — {card['name']}")
             for err in card["manual_errors"]:
                 code = err.get("code", "unknown")
                 msg = err["message"]
