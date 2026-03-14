@@ -306,11 +306,8 @@ Build a complete Magic: The Gathering custom set creator — from initial set de
 - Rarity power level distribution
 - Keyword/mechanic frequency (as-fan calculations)
 
-### 4B: Limited Environment Analysis
-- Sample sealed pool generator (6 packs of 14 cards using classic Draft Booster format)
-- Sealed pool color analysis (can you build a 2-color deck from a pool?)
-- Booster pack composition checks (proper rarity distribution per pack)
-- Draft archetype support check (are all 10 color pairs viable?)
+### ~~4B: Limited Environment Analysis~~ — CUT
+> Sealed pool sims, booster composition checks, and draft archetype analysis removed from the critical path. Rationale: if the skeleton is well-designed and card generation follows it, Limited viability is guaranteed by construction. Sealed sims on the 60-card dev set are meaningless (need 90+ cards per pool), and at 280 cards they'd mostly confirm what the skeleton already enforces. The AI design review (4B-review) catches actual card quality issues far more effectively. Pack generator can be built later as a polish step before printing if desired.
 
 ### 4C: Quality Checks
 - Rules text grammar validation

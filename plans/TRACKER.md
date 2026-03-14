@@ -346,11 +346,27 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 - [x] **4A-8**: Generate balance reports → `output/sets/ASD/reports/balance-report.md` + `balance-analysis.json` (structured JSON for 4B AI review consumption).
 - [x] **4A-9**: CLI command `python -m mtgai.review balance --set ASD`. 75 tests in `tests/test_analysis/`. All 490 project tests passing.
 - [x] **4A-10**: Add `functional_tags` field to `Mechanic` model + retroactive `functional-tags.json` for ASD. Learnings documented for Phase 1B integration.
-- [ ] **4B-1**: Build sealed pool generator — `mtgai/packs.py` `generate_booster_pack()` (10C + 3U + 1R/M + 1 land), `generate_sealed_pool()` (6 packs)
-- [ ] **4B-2**: Run sealed pool simulations — analyze color viability (can you build a 2-color deck?). Dev set: smoke-test the tooling. Full simulations during scale-up.
-- [ ] **4B-3**: Booster pack composition checks — verify rarity distribution is correct
-- [ ] **4B-4**: Draft archetype support check — verify signpost cards present for represented archetypes. Full 10-pair check during scale-up.
-- [ ] **4B-5**: Generate limited report → `output/sets/<code>/reports/limited-report.md`
+- [x] ~~**4B-1 through 4B-5**: Limited environment analysis (sealed pools, booster composition, draft archetypes, limited report)~~ — **CUT**. Skeleton + card generation rules guarantee Limited viability by construction. Sealed sims meaningless at 60 cards, marginal even at 280. AI design review (4B-review) catches actual quality issues. Pack generator can be built as polish before printing if desired.
+
+**--- Part A-rev: Skeleton Revision + Targeted Regeneration ---**
+> **Plan**: `plans/phase-4a-rev-skeleton-revision.md`
+> 4A findings split into two buckets: **card-level** issues (color pie, power level, text overflow — handled by AI review in 4B) and **set-level** issues (mechanic distribution, artifact density, complexity tier mismatches — can't be fixed by reviewing individual cards). This step fixes set-level issues by having an LLM propose slot changes then regenerating only the affected cards.
+>
+> **Set-level issues to fix** (from 4A + 1C-review):
+> - Mechanic distribution: Salvage 12 vs planned 6, Malfunction 3 vs 5, Overclock 1 vs 3
+> - Complexity tier mismatches (11 cards)
+> - Artifact density too low for Salvage archetype
+> - At 280: missing legendaries, missing signpost uncommons, CMC curve gaps
+
+- [ ] **4A-rev-1**: Build revision pipeline (`backend/mtgai/generation/skeleton_reviser.py`):
+  - Compact card serializer (~100 chars/card: `slot_id | name | cost | type P/T | oracle truncated`)
+  - Revision prompt: compact card list + balance findings + mechanic defs/targets + theme → Opus 4.6 effort=max
+  - Tool schema (`propose_revision_plan`): returns structured `{analysis, changes[], expected_improvements}`
+  - `apply_revision_plan()`: archive old cards, update skeleton slot constraints (notes field), regenerate via 1C pipeline
+  - `run_revision()`: full loop — serialize → prompt → apply → regenerate → validate → re-run 4A → loop if needed (max 2 rounds)
+  - RevisionPlan/SlotChange Pydantic models
+- [ ] **4A-rev-2**: Run skeleton revision on ASD dev set. Verify mechanic distribution and artifact density improve. Archive replaced cards.
+  → `output/sets/ASD/cards/archive/`, updated `skeleton.json`, updated `balance-report.md`, `reports/revision-report.md`
 
 **--- Part B: AI Design Review (1B Hybrid Pipeline) ---**
 
@@ -506,8 +522,8 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 
 - [ ] **SC-1**: Regenerate skeleton at full set size (~280 cards) using `set_size` parameter. HUMAN: Review expanded skeleton.
 - [ ] **SC-2**: Generate remaining cards to fill all skeleton slots (reuse dev set cards where they fit, generate ~220 new cards). Batch by color/rarity using proven 1C pipeline.
-- [ ] **SC-3**: Run full-set balance analysis (4A+4B) — mana curves, removal density, as-fan, sealed simulations (100+ pools), all 10 draft archetypes validated.
-- [ ] **SC-4**: HUMAN: Review balance report. Fix any flagged issues (regenerate/modify cards).
+- [ ] **SC-3**: Run 4A balance analysis + 4A-rev skeleton revision on full set — proven tooling from dev set. Fixes mechanic distribution, artifact density, CMC gaps, missing legendaries/signposts automatically.
+- [ ] **SC-4**: Run 4B AI design review on full set. HUMAN: Review balance + AI review reports. Fix any remaining issues.
 - [ ] **SC-5**: Generate art for all new cards (~220 images) using proven 2B pipeline. May span multiple days.
 - [ ] **SC-6**: HUMAN: Review art via gallery. Regenerate rejected art.
 - [ ] **SC-7**: Render all ~280 cards using proven 2C pipeline.
@@ -629,3 +645,4 @@ SC (SCALE-UP ~280)  ←── full production run through proven pipeline
 | 2026-03-09 | 10 | Phase 1B: 1B-8a/8b complete. Automated review calibration: FAIL detection 100% (8/8), WARN detection 50% (1/2). "Scavenge" renamed to "Salvage". Review loop has false positive problem (4/5 PASS cards flagged). Designed A/B test plan for 8 review-and-revise strategies. Next: 1B-8c (run A/B tests), 1B-8d (human picks winner), 1B-9 (learnings). |
 | 2026-03-10 | 11 | Phase 1B: 1B-8c/8d complete. A/B tested 8 review strategies (4 Sonnet + 4 Opus) on 7 test cards, $3.83 total. Key findings: (1) Sonnet can't reason about mandatory-cost-as-conditional, (2) Sonnet doesn't understand malfunction-as-downside or R=Red, (3) Detailed analysis helps detection but hurts revision (Opus S7 identified but didn't fix balance), (4) Split approach best for Sonnet, (5) Iterative Opus only fully satisfactory but expensive + oscillation-prone. Winner: Hybrid (S4 Split/Sonnet + Opus sanity check). Encoding issue (U+FFFD) in test data noted. Next: 1B-9 (learnings), then Phase 1C. |
 | 2026-03-10 | 12 | Phase 1B: **PARTIAL REDO needed.** Discovered Round 1 A/B tests used Opus 4.0 ($15/$75), not 4.6 ($5/$25) — 3x cost difference invalidates Opus cost/benefit analysis. Rerunning all 9 strategies with Opus 4.6 + Sonnet 4.6 + `effort: "max"` for Opus. Added S9 (Council: 3 reviewers + 2-of-3 consensus). Fixed U+FFFD encoding in test cards. Completed S1 (4/7), S2 (6/7), S5, S6, S9 runs. S3/S4/S7/S8 hit thinking+truncation issues — removed thinking from all calls, added truncation guard, need rerun. API learnings: thinking incompatible with forced tool_choice, redundant for explicit analysis, `effort: "max"` is Opus-only. ~$2.97 spent on Round 2 so far. **Next: rerun S3/S4/S7/S8, human-evaluate S3-S9, pick final winner (1B-8d).** |
+| 2026-03-14 | 14 | Pipeline restructuring: (1) **Cut 4B-1 through 4B-5** (limited environment analysis) — skeleton guarantees Limited viability by construction, sealed sims meaningless at 60 cards and marginal at 280. (2) **Split 4A findings** into card-level (→ AI review) and set-level (→ skeleton revision). Set-level issues can't be fixed by reviewing individual cards. (3) **Added Phase 4A-rev** (skeleton revision + targeted regeneration) between 4A and 4B-review: LLM proposes slot changes from compact card list + balance findings, regenerates only affected slots, re-runs 4A to verify. Plan: `plans/phase-4a-rev-skeleton-revision.md`. (4) Updated Phase SC to reuse 4A-rev tooling at 280 cards instead of deferring fixes. **Next: 4A-rev-1 (build revision pipeline), 4A-rev-2 (run on ASD dev set).** |
