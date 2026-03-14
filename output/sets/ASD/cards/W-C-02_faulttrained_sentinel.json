@@ -20,7 +20,7 @@
     "Human",
     "Soldier"
   ],
-  "oracle_text": "Vigilance\\nMalfunction 1 (This permanent enters tapped with one malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.).",
+  "oracle_text": "Vigilance\\nMalfunction 1.",
   "flavor_text": "A sentinel who can't move is no sentinel at all—until it learns from the failure.",
   "reminder_text": null,
   "power": "2",

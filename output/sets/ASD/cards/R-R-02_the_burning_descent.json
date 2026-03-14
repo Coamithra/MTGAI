@@ -15,7 +15,7 @@
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
-  "oracle_text": "At the beginning of your upkeep, overclock. (Exile the top three cards of your library. You may play them until end of turn.).\nWhenever you play a card exiled with ~, ~ deals 2 damage to each opponent.",
+  "oracle_text": "At the beginning of your upkeep, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nWhenever you play a card exiled with ~, ~ deals 2 damage to each opponent.",
   "flavor_text": "The deeper you go, the hotter it gets. Most explorers assume that's geology.",
   "reminder_text": null,
   "power": null,

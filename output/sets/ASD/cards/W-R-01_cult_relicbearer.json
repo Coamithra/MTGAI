@@ -15,7 +15,7 @@
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
-  "oracle_text": "Whenever you cast an artifact spell, ~ gets +1/+0 and gains vigilance until end of turn.\n{2}{W}, {T}, Sacrifice ~: Salvage 5. (Look at the top five cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.).",
+  "oracle_text": "Whenever you cast an artifact spell, ~ gets +1/+0 and gains vigilance until end of turn.\n{2}{W}, {T}, Sacrifice ~: Salvage 5. (Look at the top five cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
   "flavor_text": "\"Every relic is a prayer answered by the ancients.\"",
   "reminder_text": null,
   "power": "1",

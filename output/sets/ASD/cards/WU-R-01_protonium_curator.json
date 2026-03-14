@@ -17,7 +17,7 @@
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
-  "oracle_text": "Whenever an artifact enters under your control, you may tap or untap target artifact.\nArtifacts you control have \"Malfunction 1\" (This permanent enters tapped with one malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.) instead of \"Malfunction 2\" or \"Malfunction 3.\"",
+  "oracle_text": "Whenever an artifact enters under your control, you may tap or untap target artifact.\nArtifacts you control have \"Malfunction 1 (This permanent enters tapped with one malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)\" instead of \"Malfunction 2\" or \"Malfunction 3.\"",
   "flavor_text": "\"Every relic tells me its name. Most of them are screaming it.\"",
   "reminder_text": null,
   "power": "1",

@@ -20,7 +20,7 @@
     "Human",
     "Rebel"
   ],
-  "oracle_text": "Malfunction 2 (This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.).\nWhen the last malfunction counter is removed from ~, deal 3 damage to any target.",
+  "oracle_text": "Malfunction 2 (This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\nWhen the last malfunction counter is removed from ~, deal 3 damage to any target.",
   "flavor_text": "The Fist tried to stomp out the spark. They failed.",
   "reminder_text": null,
   "power": "2",

@@ -15,7 +15,7 @@
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
-  "oracle_text": "Whenever another creature dies, you may pay {1}. If you do, look at the top two cards of target opponent's library. Put one into their graveyard and the other back on top.\nWhen Koyl Yrenum dies, look at the top three cards of target opponent's library. Put one into their graveyard and the other two back on top.\nShroud",
+  "oracle_text": "Whenever another creature dies, you may pay {1}. If you do, look at the top two cards of target opponent's library. Put one into their graveyard and the other back on top.\nWhen Koyl Yrenum dies, look at the top three cards of target opponent's library. Put one into their graveyard and the other two back on top.\nShroud.",
   "flavor_text": "Feretha still rules Denethix. Everyone knows this. Everyone.",
   "reminder_text": null,
   "power": "1",

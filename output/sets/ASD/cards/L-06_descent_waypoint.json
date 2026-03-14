@@ -16,7 +16,7 @@
     "Land"
   ],
   "subtypes": [],
-  "oracle_text": "Descent Waypoint enters the battlefield tapped.\n{T}: Add {W} or {U}.",
+  "oracle_text": "~ enters tapped.\n{T}: Add {W} or {U}.",
   "flavor_text": "Adventurers mark the safest routes deeper into the Anomalous Subsurface Environment, though 'safe' is a relative term.",
   "reminder_text": null,
   "power": null,

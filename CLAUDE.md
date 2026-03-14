@@ -112,10 +112,11 @@
 - Art and rendered images are NOT version-controlled (gitignored)
 - Never commit API keys or .env files
 
-## Current State (Phase 4B)
+## Current State (4AB Human Review Gate)
 - 66 cards generated for ASD dev set (60 main + 6 lands)
 - 3 custom mechanics: Salvage (W/U/G), Malfunction (W/U/R), Overclock (U/R/B)
-- Phases 0A-0E, 1A-1C, 4A, 4A-rev, 4B-review-infra complete
-- Reminder text pipeline complete: programmatic injection replaces LLM-generated reminder text
-- Post-review finalization step built: inject → validate → auto-fix → save + MANUAL report
-- Next: 4B-review-run (AI review on all 60 cards), then finalize, then 4AB human review gate
+- Phases 0A-0E, 1A-1C, 4A, 4A-rev, 4B complete (review-infra, review-run, finalize)
+- AI review: 59 cards reviewed (Haiku, $0.58), 6 changed, 58 OK / 1 REVISE
+- Post-review finalization done: reminder injection + 5 auto-fixes + 2 validator bugs fixed
+- Review gallery: `output/sets/ASD/reports/card-review-gallery.html`
+- Next: 4AB-gate (human card-by-card "art ready" review), then Phase 2A (art direction)

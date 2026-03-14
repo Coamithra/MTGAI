@@ -22,7 +22,7 @@
     "Human",
     "Rogue"
   ],
-  "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play cards exiled this way until end of turn.)\nYou may cast instant and sorcery cards you exiled with this ability until end of your next turn.",
+  "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nYou may cast instant and sorcery cards you exiled with this ability until end of your next turn.",
   "flavor_text": "The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, knowledge floods in.",
   "reminder_text": null,
   "power": "2",

@@ -17,7 +17,9 @@ Build a complete Magic: The Gathering custom set creator — from initial set de
 | 1C Card Generator | COMPLETE | 60 cards, $2.78, zero failures. Validation library (8 validators, 18 fixers) |
 | 1C Human Review | COMPLETE | See learnings/phase1c.md for findings |
 | 4A Balance + Revision | COMPLETE | Balance analysis + skeleton revision pipeline. 2 bugs found & fixed in prompt pipeline. Mechanic targets met. |
-| 2A Art Direction | NOT STARTED | Can run parallel with 4B review |
+| 4B AI Design Review | COMPLETE | 59 cards reviewed (Haiku, $0.58), 6 changed, 58 OK / 1 REVISE. Post-review finalization done: reminder injection + auto-fixes. 2 validator bugs fixed. |
+| 4AB Human Review Gate | IN PROGRESS | Card-by-card "art ready" review. Gallery built for visual review. |
+| 2A Art Direction | NOT STARTED | Can run parallel with human review |
 | 2B-5C | NOT STARTED | |
 
 ## Key Decisions
@@ -447,7 +449,7 @@ Phase 0B ─────────┼──→ Phase 0C (setup) ──→ Phas
                   │        ├──→ Phase 4A (balance + revision on dev set)  ✓ COMPLETE
                   │        │        │
                   │        │        ▼
-                  │    Phase 4B (AI design review)  ◄── NEXT
+                  │    Phase 4B (AI design review)  ✓ COMPLETE
                   │        │
                   │        ▼
                   │    Phase 2A (art direction, parallel with 4B)

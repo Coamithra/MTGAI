@@ -384,16 +384,22 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
   - Prompt updates: generation prompts now say "do NOT include reminder text". AI review prompts no longer check for reminder text.
   - Tests: 31 tests in `test_reminder_injector.py` (strip, inject uses, inject references, finalize), 6 tests in `test_finalize.py`. All 548 project tests pass.
   - Dry-run on ASD: 61 cards processed, 11 modified (reminder injection), 5 auto-fixes, 2 genuine MANUAL errors for human review.
-- [ ] **4B-review-run**: Run AI review on all 60 dev set cards:
-  1. Single-reviewer + iteration on all C/U cards (Opus 4.6, effort=max).
-  2. Council + iteration on all R/M cards and planeswalkers/sagas (Opus 4.6, effort=max).
+- [x] **4B-review-run**: Run AI review on all 60 dev set cards:
+  1. Single-reviewer + iteration on all C/U cards.
+  2. Council + iteration on all R/M cards and planeswalkers/sagas.
   3. Apply revisions to card JSONs. Log all changes with full prompts/responses/costs.
   4. Generate review summary report.
   → `output/sets/<code>/reviews/`, `output/sets/<code>/reports/ai-review-summary.md`
+  - **Results**: 59 cards reviewed (Murder reprint skipped), 58 OK / 1 REVISE (UB-U-01), 6 cards changed. Ran on Haiku (effort=max), cost $0.58. 118 review log files generated.
 
 **--- Gate: Human Review ---**
 
-- [ ] **4B-finalize**: Run `python -m mtgai.review finalize --set ASD` after 4B-review-run completes. Injects reminder text, re-validates, auto-fixes, saves. Review `finalize-report.md` for any MANUAL errors.
+- [x] **4B-finalize**: Run `python -m mtgai.review finalize --set ASD` after 4B-review-run completes. Injects reminder text, re-validates, auto-fixes, saves. Review `finalize-report.md` for any MANUAL errors.
+  - **Results**: 61 cards, 11 modified (reminder injection), 5 auto-fixes, 2 MANUAL errors resolved:
+    - G-R-02 "this creature" false positive: validator didn't skip quoted granted-ability text (`has "When this creature dies, ..."`). Fixed Check 2 in `rules_text.py` to strip double-quoted strings before matching.
+    - B-R-02 empty type_line: `fix_enchantment_artifact` relied on `card_types` (empty) instead of parsing `type_line` directly. Fixed fixer in `type_check.py`, manually corrected card JSON to "Legendary Artifact".
+    - W-C-02 overstatted (2/3 at CMC 2): deferred to human review at 4AB-gate.
+  - Review gallery built: `output/sets/ASD/reports/card-review-gallery.html` (MTG-style card frames + reviewer comments). Generator script: `build_gallery.py`.
 - [ ] **4AB-gate**: HUMAN: Card-by-card "art ready" review. This is the definitive quality check before art investment. By this point, cards have been through heuristic validation (1C), statistical balance analysis (4A), AI design review (4B), and post-review finalization (reminder text + re-validation) — the human focuses on final judgment.
   **Review prompts for the human:**
   - Read the AI review summary (`reports/ai-review-summary.md`) first — what did the AI flag and fix?

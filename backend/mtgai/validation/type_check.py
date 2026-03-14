@@ -18,14 +18,39 @@ from mtgai.validation import ValidationError, ValidationSeverity
 
 
 def fix_enchantment_artifact(card: Card, _error: ValidationError) -> Card:
-    """Remove 'Enchantment' from an Enchantment Artifact type line."""
-    new_card_types = [t for t in card.card_types if t != "Enchantment"]
-    # Rebuild type_line from components
-    main_parts = list(card.supertypes) + new_card_types
-    if card.subtypes:
-        new_type_line = " ".join(main_parts) + " -- " + " ".join(card.subtypes)
+    """Remove 'Enchantment' from an Enchantment Artifact type line.
+
+    Works from ``type_line`` directly since ``card_types`` may be empty
+    (the parsed list isn't always populated by the generation pipeline).
+    """
+    # Parse type_line: "Legendary Enchantment -- Artifact" -> main / subtypes
+    if " -- " in card.type_line:
+        main_part, sub_part = card.type_line.split(" -- ", 1)
     else:
-        new_type_line = " ".join(main_parts)
+        main_part, sub_part = card.type_line, ""
+
+    # Remove "Enchantment" from the main part's words
+    words = [w for w in main_part.split() if w != "Enchantment"]
+    new_main = " ".join(words)
+
+    # Also ensure "Artifact" is present (it may have been on the subtypes side)
+    main_words_lower = [w.lower() for w in words]
+    if "artifact" not in main_words_lower:
+        # Artifact was after the --, move it to main types
+        sub_words = [w for w in sub_part.split() if w.lower() != "artifact"]
+        words.append("Artifact")
+        new_main = " ".join(words)
+        sub_part = " ".join(sub_words)
+
+    if sub_part.strip():
+        new_type_line = f"{new_main} -- {sub_part.strip()}"
+    else:
+        new_type_line = new_main
+
+    new_card_types = [t for t in card.card_types if t != "Enchantment"]
+    if "Artifact" not in new_card_types:
+        new_card_types.append("Artifact")
+
     return card.model_copy(update={"type_line": new_type_line, "card_types": new_card_types})
 
 

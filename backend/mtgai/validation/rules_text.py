@@ -187,11 +187,13 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
 
     # ------------------------------------------------------------------
     # 2. "this creature/card/permanent" instead of ~ — MANUAL
-    #    Skip matches inside parenthesized reminder text.
+    #    Skip matches inside parenthesized reminder text and inside
+    #    quoted granted-ability text (e.g. has "When this creature dies, …").
     # ------------------------------------------------------------------
     for i, line in enumerate(lines, start=1):
         line_no_reminder = re.sub(r"\([^)]*\)", "", line)
-        for m in SELF_REF_BAD.finditer(line_no_reminder):
+        line_no_quoted = re.sub(r'"[^"]*"', "", line_no_reminder)
+        for m in SELF_REF_BAD.finditer(line_no_quoted):
             errors.append(
                 _manual(
                     "oracle_text",
