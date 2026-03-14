@@ -22,6 +22,7 @@ class MTGAIConfig(BaseSettings):
     llm_model: str = "claude-sonnet-4-20250514"
     llm_temperature: float = 0.7
     llm_max_retries: int = 3
+    max_model: str | None = None  # Cap: "haiku", "sonnet", or "opus"
 
     # === Image Generation ===
     image_provider: str = "chatgpt"

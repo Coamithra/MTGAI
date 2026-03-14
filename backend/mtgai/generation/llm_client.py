@@ -1,9 +1,12 @@
 """Minimal LLM client for card/mechanic generation."""
 
+import logging
 import os
 from pathlib import Path
 
 from anthropic import Anthropic
+
+logger = logging.getLogger(__name__)
 
 # Load .env file from project root
 _ENV_PATH = Path("C:/Programming/MTGAI/.env")
@@ -13,6 +16,53 @@ if _ENV_PATH.exists():
         if line and not line.startswith("#") and "=" in line:
             key, _, value = line.partition("=")
             os.environ.setdefault(key.strip(), value.strip())
+
+# Model tiers: family name → (rank, latest model ID)
+_MODEL_TIERS: dict[str, tuple[int, str]] = {
+    "haiku": (0, "claude-haiku-4-5-20251001"),
+    "sonnet": (1, "claude-sonnet-4-6"),
+    "opus": (2, "claude-opus-4-6"),
+}
+
+
+def _model_tier(model: str) -> int:
+    """Return numeric tier for a model string, or -1 if unknown."""
+    model_lower = model.lower()
+    for family, (tier, _) in _MODEL_TIERS.items():
+        if family in model_lower:
+            return tier
+    return -1
+
+
+def cap_model(model: str, effort: str | None = None) -> tuple[str, str | None]:
+    """Cap *model* to the MTGAI_MAX_MODEL ceiling.
+
+    Set MTGAI_MAX_MODEL to a family name (haiku, sonnet, opus) and any call
+    requesting a higher-tier model will be downgraded to the latest model in
+    the cap tier.
+
+    Returns ``(effective_model, effective_effort)``.
+    """
+    max_family = os.environ.get("MTGAI_MAX_MODEL", "").strip().lower()
+    if not max_family:
+        return model, effort
+
+    cap = _MODEL_TIERS.get(max_family)
+    if cap is None:
+        logger.warning("MTGAI_MAX_MODEL=%r not recognised (use haiku/sonnet/opus)", max_family)
+        return model, effort
+
+    cap_tier, cap_model_id = cap
+    req_tier = _model_tier(model)
+    if req_tier == -1:
+        return model, effort  # unknown model — pass through
+
+    if req_tier > cap_tier:
+        logger.info("MAX_MODEL cap: %s → %s", model, cap_model_id)
+        if effort and "opus" not in cap_model_id:
+            effort = None
+        return cap_model_id, effort
+    return model, effort
 
 
 def generate_with_tool(
@@ -40,6 +90,8 @@ def generate_with_tool(
         - output_tokens: tokens generated
         - stop_reason: the stop reason from the API
     """
+    model, effort = cap_model(model, effort)
+
     client = Anthropic()
 
     kwargs: dict = {
