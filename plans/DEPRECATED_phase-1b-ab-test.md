@@ -1,4 +1,9 @@
-# Phase 1B-8a: Review Loop A/B Test Plan
+# DEPRECATED: Phase 1B-8a: Review Loop A/B Test Plan
+
+> **DEPRECATED** — This was the pre-test plan for strategies S1-S8. The A/B test has been
+> completed (including S9 Council, added later). The winning strategy and full results are
+> documented in **`learnings/phase1b.md`** (section "Winning strategy: Tiered council+iteration
+> hybrid", lines 160-172). Use that as the source of truth, not this file.
 
 ## Goal
 

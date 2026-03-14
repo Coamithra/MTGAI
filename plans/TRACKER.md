@@ -236,7 +236,7 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
   **Output**: Per-card reports with original card, full conversation log, revised card, cost. → `output/sets/ASD/mechanics/ab-test/<strategy>/`
   **Evaluation**: HUMAN reviews revised cards for quality, regression, overnerfing, cost efficiency.
   **Budget**: ~$10-19 total across all 9 strategies.
-  → **Round 1 results** (session 11, Opus 4.0): $3.83 total. Winner: Hybrid (S4 Split/Sonnet + Opus sanity check).
+  → **Round 1 results** (session 11, Opus 4.0): $3.83 total. Provisional winner: Hybrid (S4 Split/Sonnet + Opus sanity check). **Superseded by Round 2** — see 1B-8d below.
   → **Round 2** (session 12, Opus 4.6 + effort=max + S9 council): Partial — S1, S2, S5, S6, S9 complete. S3, S4, S7, S8 need rerun (thinking+truncation issues fixed mid-run). See `learnings/phase1b.md` for details.
   → **Round 2 complete** (session 13, Opus 4.6): S3-S9 all rerun successfully. Rerun cost: $1.45 (S3 $0.37, S4 $0.27, S7 $0.37, S8 $0.44) + S9 rerun $0.49. Human evaluated all 9 strategies.
   **Round 2 scores**: S1=4/7, S2=6/7, S3=5/7, S4=5/7, S5=4/7, S6=6/7, S7=5/7, S8=6/7, S9=6/7.
@@ -308,21 +308,21 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 ---
 
 ## Phase 4A+4B: Balance Gate + AI Design Review
-> **Plan**: `plans/phase-4-5-validation-print.md` Sections 4A, 4B + `learnings/phase1b.md` (hybrid review pipeline)
+> **Plan**: `learnings/phase1b.md` (section "Winning strategy: Tiered council+iteration hybrid", lines 160-172)
 > **Needs**: 1C (dev set cards generated)
 > **Inputs**: `output/sets/<code>/cards/*.json`, `research/set-template.json` (target ranges), `output/sets/<code>/mechanics/approved.json`, `learnings/phase1b.md` (pointed questions, strategy specs)
-> **Outputs**: `output/sets/<code>/reports/balance-report.md`, `output/sets/<code>/reports/limited-report.md`, `output/sets/<code>/reviews/` (per-card AI review logs), revised card JSONs
-> **What this does**: Two-part gate before art investment. **Part A**: Statistical balance analysis (mana curves, P/T, removal density, as-fan, sealed simulations). **Part B**: AI design review using the hybrid pipeline proven in Phase 1B — S4 Split/Sonnet reviews every card for templating/mechanics/balance issues, Opus batch sanity check catches flagrant problems Sonnet misses, S6 Iterative/Opus fixes flagged cards only. This is where the 1B A/B test learnings are applied at scale.
+> **Outputs**: `output/sets/<code>/reports/balance-report.md`, `output/sets/<code>/reviews/` (per-card AI review logs), revised card JSONs
+> **What this does**: Two-part gate before art investment. **Part A**: Statistical balance analysis (mana curves, P/T, removal density). **Part B**: AI design review using the **tiered council+iteration hybrid** proven in Phase 1B A/B test (Round 2, S9 Council).
 >
-> **1B learnings applied**:
-> - Hybrid review: S4 Split/Sonnet ($0.032/card) + Opus batch sanity ($0.50-1.00/batch) + S6 Iterative/Opus ($0.145/card, ~10-20% of cards)
-> - Sonnet cannot reason about: mandatory-cost-as-conditional, malfunction as downside, color abbreviations → Opus sanity check must explicitly look for these
-> - Splitting helps Sonnet dramatically (3 focused passes > 1 big prompt). Iteration helps Opus but hurts Sonnet.
-> - Detailed analysis helps detection but hurts revision — don't over-analyze in the fix pass
-> - Every AI review must produce a detailed log (prompt, full response, cost) for diagnosing bad reasoning
-> - The 8 pointed questions evolve — add new failure modes discovered during 1C generation
-> - Planeswalkers/sagas: skip Sonnet review, go straight to Opus
-> - Estimated cost: ~$4-6 for 60-card dev set
+> **Winning strategy from 1B A/B test** (see `learnings/phase1b.md` lines 160-172):
+> - **C/U cards**: Single Opus reviewer with category nudge ("List any issues with templating, mechanics, balance, design, or color pie") + iteration (continue conversation, loop until OK or max N). ~$0.10/card.
+> - **R/M cards**: Full council (3 independent Opus reviewers + consensus synthesizer, 2-of-3 filter) + iteration. ~$0.11/card.
+> - **Planeswalkers/sagas**: Skip any Sonnet stage, go straight to Opus council.
+> - **No Sonnet stage**: Opus 4.6 ($5/$25) is only ~1.7x Sonnet ($3/$15) and dramatically better at nonbos, balance, conditional reasoning. Sonnet cannot reason about mandatory-cost-as-conditional, malfunction as downside, or color abbreviations.
+> - **Token optimizations**: Only include relevant mechanic defs, skip synthesis if all 3 council reviewers say OK, batch by mechanic for prompt caching, continue conversation for iteration.
+> - **Estimated cost**: ~$6-7 for 60-card dev set.
+> - Every AI review must produce a detailed log (prompt, full response, cost) for diagnosing bad reasoning.
+> - The 8 pointed questions evolve — add new failure modes discovered during 1C generation.
 >
 > **Pointed questions** (from 1B, evolving):
 > 1. Keywords negated by other abilities? (e.g., haste + malfunction)
@@ -369,20 +369,19 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 - [x] **4A-rev-2**: Run skeleton revision on ASD dev set. Verify mechanic distribution and artifact density improve. Archive replaced cards.
   → 2 revision rounds (Opus, $3.38) + 1 fix regeneration (Haiku, $0.065). Initial run: 32 cards replaced (19 R1 + 13 R2) but regenerated cards didn't use requested mechanics due to two bugs: (1) `prompts.py:format_slot_specs` wasn't including the `notes` field in generation prompts, (2) `skeleton_reviser.py:apply_revision_plan` only applied `notes` from `new_constraints`, silently dropping `mechanic_tag`/`card_type` updates. After fixing both bugs, re-ran 11 affected slots with Haiku — 100% mechanic adherence. Final mechanic distribution: Salvage 8 (planned 6), Malfunction 7 (planned 5), Overclock 4 (planned 3). Color balance: W:10, U:10, B:10, R:9, G:9. 0 FAIL issues. 33 cards archived in `output/sets/ASD/cards/archive/`. Logs in `output/sets/ASD/revision_logs/`.
 
-**--- Part B: AI Design Review (1B Hybrid Pipeline) ---**
+**--- Part B: AI Design Review (1B Tiered Council+Iteration Hybrid) ---**
 
-- [ ] **4B-review-infra**: Build AI review pipeline infrastructure. Implement the three-stage hybrid from 1B:
-  1. **S4 Split/Sonnet** (~$0.032/card): 3 focused passes per card (templating, mechanics, balance) + revision. Use full color names in prompts. Include pointed questions.
-  2. **Opus batch sanity check** (~$0.50-1.00/batch): Single prompt with all cards in a rarity tier. "Flag cards with flagrant balance, mechanical, or wording issues." Returns only flagged card names + what's wrong. Must explicitly check for Sonnet blind spots: mandatory-cost-as-conditional, malfunction misjudgment, color abbreviation errors.
-  3. **S6 Iterative/Opus** (~$0.145/card): Iterative review+revise loop (max 5 iterations) only for cards flagged by the sanity check.
-  Infrastructure must include: per-card review logging (prompt, full response, tool calls, cost, verdict) saved to `output/sets/<code>/reviews/<collector_number>.json`. The pointed questions list should be loaded from a config file (`output/sets/<code>/mechanics/pointed-questions.json`) so it can evolve as new failure modes are discovered.
+- [ ] **4B-review-infra**: Build AI review pipeline infrastructure. Implement the **tiered council+iteration hybrid** from 1B A/B test:
+  1. **C/U tier — Single Opus reviewer + iteration** (~$0.10/card): Category nudge prompt ("List any issues with templating, mechanics, balance, design, or color pie") + iteration loop (continue conversation, max 5 iterations, loop until OK). Opus 4.6 effort=max.
+  2. **R/M tier — Full Opus council + iteration** (~$0.11/card): 3 independent Opus reviewers analyze each card (same prompt, no cross-contamination). Synthesizer applies 2-of-3 consensus filter, produces revision. If REVISED, iterate until OK or max 5 iterations. Skip synthesis if all 3 reviewers say OK.
+  3. **Planeswalkers/sagas**: Always use council tier regardless of rarity.
+  Infrastructure must include: per-card review logging (prompt, full response, tool calls, cost, verdict) saved to `output/sets/<code>/reviews/<collector_number>.json`. The pointed questions list should be loaded from a config file (`output/sets/<code>/mechanics/pointed-questions.json`) so it can evolve as new failure modes are discovered. Token optimizations: only include relevant mechanic defs per card, batch by mechanic for prompt caching, continue conversation for iteration.
   → `backend/mtgai/review/ai_review.py`, `output/sets/<code>/mechanics/pointed-questions.json`
 - [ ] **4B-review-run**: Run AI review on all 60 dev set cards:
-  1. S4 Split/Sonnet on all cards (skip Sonnet for planeswalkers/sagas — go straight to Opus).
-  2. Apply S4 revisions to card JSONs. Log all changes.
-  3. Opus batch sanity check per rarity tier (commons batch, uncommons batch, rares+mythics batch).
-  4. S6 Iterative/Opus on flagged cards only (estimated 10-20%).
-  5. Apply final revisions. Generate review summary report.
+  1. Single-reviewer + iteration on all C/U cards (Opus 4.6, effort=max).
+  2. Council + iteration on all R/M cards and planeswalkers/sagas (Opus 4.6, effort=max).
+  3. Apply revisions to card JSONs. Log all changes with full prompts/responses/costs.
+  4. Generate review summary report.
   → `output/sets/<code>/reviews/`, `output/sets/<code>/reports/ai-review-summary.md`
 
 **--- Gate: Human Review ---**
@@ -644,6 +643,6 @@ SC (SCALE-UP ~280)  ←── full production run through proven pipeline
 | 2026-03-09 | 8 | Phase 1B: 7/9 tasks done. 3 mechanics approved: Scavenge X (W/U/G, dig for artifacts), Malfunction N (W/U/R, delayed power), Overclock (U/R/B, exile-and-play). LLM infra built (llm_client.py, mechanic_generator.py). Validation spike: 15 test cards, all GO (avg 4.77/5). $0.09 API cost. **BLOCKED on 1B-8**: human flagged issues with test card templating — revisit next session. |
 | 2026-03-09 | 9 | Phase 1B-8: COMPLETE. Interactive human+Opus review of all 15 test cards found 9 issue categories across 8 FAIL + 2 WARN cards. Key findings: (1) "Scavenge" name collision with existing MTG keyword — needs rename, (2) haste negated by malfunction enters-tapped, (3) redundant conditional on Synaptic Overload hid broken power level, (4) Cascade Protocol 12 dmg for 5 mana wildly above rate + false variability, (5) missing reminder text on 5 cards. Two cards fully redesigned. Defined AI review architecture: AI1 self-critique → AI2 sentiment analysis → prod if uncertain → explicit pointed questions for blind spots. Added 1B-8a (calibration test) and 1B-8b (Scavenge rename). Files: `test-cards-original.json`, `test-cards-revised.json`, `human-review-findings.md`. Next: 1B-8a (run automated review calibration), 1B-8b (rename Scavenge). |
 | 2026-03-09 | 10 | Phase 1B: 1B-8a/8b complete. Automated review calibration: FAIL detection 100% (8/8), WARN detection 50% (1/2). "Scavenge" renamed to "Salvage". Review loop has false positive problem (4/5 PASS cards flagged). Designed A/B test plan for 8 review-and-revise strategies. Next: 1B-8c (run A/B tests), 1B-8d (human picks winner), 1B-9 (learnings). |
-| 2026-03-10 | 11 | Phase 1B: 1B-8c/8d complete. A/B tested 8 review strategies (4 Sonnet + 4 Opus) on 7 test cards, $3.83 total. Key findings: (1) Sonnet can't reason about mandatory-cost-as-conditional, (2) Sonnet doesn't understand malfunction-as-downside or R=Red, (3) Detailed analysis helps detection but hurts revision (Opus S7 identified but didn't fix balance), (4) Split approach best for Sonnet, (5) Iterative Opus only fully satisfactory but expensive + oscillation-prone. Winner: Hybrid (S4 Split/Sonnet + Opus sanity check). Encoding issue (U+FFFD) in test data noted. Next: 1B-9 (learnings), then Phase 1C. |
+| 2026-03-10 | 11 | Phase 1B: 1B-8c/8d complete. A/B tested 8 review strategies (4 Sonnet + 4 Opus) on 7 test cards, $3.83 total. Key findings: (1) Sonnet can't reason about mandatory-cost-as-conditional, (2) Sonnet doesn't understand malfunction-as-downside or R=Red, (3) Detailed analysis helps detection but hurts revision (Opus S7 identified but didn't fix balance), (4) Split approach best for Sonnet, (5) Iterative Opus only fully satisfactory but expensive + oscillation-prone. Provisional winner: Hybrid (S4 Split/Sonnet + Opus sanity check) — **superseded by Round 2 tiered council+iteration hybrid (session 13)**. Encoding issue (U+FFFD) in test data noted. Next: 1B-9 (learnings), then Phase 1C. |
 | 2026-03-10 | 12 | Phase 1B: **PARTIAL REDO needed.** Discovered Round 1 A/B tests used Opus 4.0 ($15/$75), not 4.6 ($5/$25) — 3x cost difference invalidates Opus cost/benefit analysis. Rerunning all 9 strategies with Opus 4.6 + Sonnet 4.6 + `effort: "max"` for Opus. Added S9 (Council: 3 reviewers + 2-of-3 consensus). Fixed U+FFFD encoding in test cards. Completed S1 (4/7), S2 (6/7), S5, S6, S9 runs. S3/S4/S7/S8 hit thinking+truncation issues — removed thinking from all calls, added truncation guard, need rerun. API learnings: thinking incompatible with forced tool_choice, redundant for explicit analysis, `effort: "max"` is Opus-only. ~$2.97 spent on Round 2 so far. **Next: rerun S3/S4/S7/S8, human-evaluate S3-S9, pick final winner (1B-8d).** |
 | 2026-03-14 | 14 | Pipeline restructuring: (1) **Cut 4B-1 through 4B-5** (limited environment analysis) — skeleton guarantees Limited viability by construction, sealed sims meaningless at 60 cards and marginal at 280. (2) **Split 4A findings** into card-level (→ AI review) and set-level (→ skeleton revision). Set-level issues can't be fixed by reviewing individual cards. (3) **Added Phase 4A-rev** (skeleton revision + targeted regeneration) between 4A and 4B-review: LLM proposes slot changes from compact card list + balance findings, regenerates only affected slots, re-runs 4A to verify. Plan: `plans/phase-4a-rev-skeleton-revision.md`. (4) Updated Phase SC to reuse 4A-rev tooling at 280 cards instead of deferring fixes. **Next: 4A-rev-1 (build revision pipeline), 4A-rev-2 (run on ASD dev set).** |

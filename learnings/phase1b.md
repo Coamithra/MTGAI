@@ -75,7 +75,7 @@ Tested 8 strategies (4 Sonnet + 4 Opus) on 7 test cards with known human verdict
 | S7 | Detailed | Opus 4.0 | $0.74 | FAIL — identifies but doesn't fix balance issues |
 | S8 | Split | Opus 4.0 | $1.11 | FAIL — {U}{U} counterspell unacceptable |
 
-**Winner (provisional): Hybrid** — S4 (Split/Sonnet) + Opus sanity check for balance outliers.
+**Winner (provisional): Hybrid** — S4 (Split/Sonnet) + Opus sanity check for balance outliers. **Superseded by Round 2 below.**
 
 ### Round 2 (session 12) — Opus 4.6, effort=max, +S9 council
 
