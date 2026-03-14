@@ -431,6 +431,51 @@ def ai_review(
 
 
 # ---------------------------------------------------------------------------
+# review finalize (post-review)
+# ---------------------------------------------------------------------------
+
+
+@app.command("finalize")
+def finalize(
+    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code.")] = "ASD",
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show what would change without saving.")
+    ] = False,
+    card: Annotated[
+        str | None,
+        typer.Option("--card", "-c", help="Finalize only this card (e.g. W-C-01)."),
+    ] = None,
+) -> None:
+    """Post-review finalization: inject reminder text, re-validate, auto-fix."""
+    import logging
+
+    from mtgai.review.finalize import finalize_set
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    summary = finalize_set(set_code, dry_run=dry_run, card_filter=card)
+
+    # Rich summary
+    console.print()
+    console.print(f"[bold]Finalization {'(dry run) ' if dry_run else ''}complete[/bold]")
+    console.print(
+        f"  Cards processed: {summary['total_cards']}  |  "
+        f"Modified: {summary['cards_modified']}"
+    )
+    console.print(
+        f"  Auto-fixes: [green]{summary['total_auto_fixes']}[/green]  |  "
+        f"MANUAL errors: [yellow]{summary['total_manual_errors']}[/yellow]"
+    )
+
+    if summary["total_manual_errors"] > 0:
+        console.print()
+        console.print(
+            f"[yellow]MANUAL errors found — see "
+            f"output/sets/{set_code}/reports/finalize-report.md[/yellow]"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Phase 3A stubs
 # ---------------------------------------------------------------------------
 

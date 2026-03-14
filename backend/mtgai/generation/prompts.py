@@ -45,9 +45,10 @@ PREVENTIVE_GUIDANCE = """\
 1. **No keyword nonbos.** Do NOT give a creature haste if it enters tapped \
 (e.g. via Malfunction). Do NOT give flying to a creature with defender \
 unless the card explicitly cares about it.
-2. **Reminder text on first use.** The FIRST time a custom mechanic keyword \
-(Salvage, Malfunction, Overclock) appears in a card's oracle text, follow \
-it with reminder text in parentheses. Subsequent uses on the same card omit it.
+2. **No reminder text.** Do NOT include reminder text in parentheses for any \
+keyword (custom or evergreen). Reminder text is added programmatically later. \
+Just write the keyword and any parameters, e.g. "Salvage 3" not \
+"Salvage 3 (Look at the top three cards...)".
 3. **Meaningful conditionals only.** If an effect says "if you [did X] this \
 turn" but X is a mandatory cost of the same spell, the condition is always \
 true and therefore pointless. Remove the conditional or make the trigger \

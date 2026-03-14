@@ -330,32 +330,15 @@ class TestRulesText:
         errors = _errors_by_validator(validate_card(card), "rules_text")
         assert not any("nonbo" in e.message.lower() for e in errors)
 
-    def test_custom_mechanic_missing_reminder(self):
+    def test_reminder_text_in_oracle_not_flagged(self):
+        """Reminder text in oracle is no longer flagged — it's injected programmatically."""
         card = _make_card(
-            oracle_text="Salvage 3",
-            mechanic_tags=["salvage"],
-            reminder_text=None,
+            oracle_text=(
+                "Flying (This creature can't be blocked except by creatures with flying.)"
+            ),
         )
         errors = _errors_by_validator(validate_card(card), "rules_text")
-        assert any("reminder text" in e.message.lower() for e in errors)
-
-    def test_custom_mechanic_with_reminder_ok(self):
-        card = _make_card(
-            oracle_text="Salvage 3",
-            mechanic_tags=["salvage"],
-            reminder_text="(Look at the top 3 cards of your library...)",
-        )
-        errors = _errors_by_validator(validate_card(card), "rules_text")
-        assert not any(
-            "reminder text" in e.message.lower() for e in errors if e.validator == "rules_text"
-        )
-
-    def test_reminder_text_in_oracle(self):
-        card = _make_card(
-            oracle_text="Flying (This creature can't be blocked except by creatures with flying.)",
-        )
-        errors = _errors_by_validator(validate_card(card), "rules_text")
-        assert any("reminder text" in e.message.lower() for e in errors)
+        assert not any("reminder text" in e.message.lower() for e in errors)
 
     def test_vanilla_creature_no_errors(self):
         card = _make_card(oracle_text="")

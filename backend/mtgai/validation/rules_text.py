@@ -169,8 +169,6 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
 
     oracle = card.oracle_text or ""
     if not oracle:
-        # Check 12 still applies even with empty oracle text
-        errors += _check_custom_mechanic_reminder(card)
         return errors
 
     lines = oracle.split("\n")
@@ -189,9 +187,11 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
 
     # ------------------------------------------------------------------
     # 2. "this creature/card/permanent" instead of ~ — MANUAL
+    #    Skip matches inside parenthesized reminder text.
     # ------------------------------------------------------------------
     for i, line in enumerate(lines, start=1):
-        for m in SELF_REF_BAD.finditer(line):
+        line_no_reminder = re.sub(r"\([^)]*\)", "", line)
+        for m in SELF_REF_BAD.finditer(line_no_reminder):
             errors.append(
                 _manual(
                     "oracle_text",
@@ -343,7 +343,7 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
             continue
         if re.match(r"^[A-Z]\w+(\s\w+)?\s*[—\-]", stripped):
             continue
-        if not stripped.endswith(".") and not stripped.endswith('"'):
+        if not stripped.endswith((".", '"', ")")):
             errors.append(
                 _auto(
                     "oracle_text",
@@ -352,26 +352,6 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
                     error_code="rules_text.line_period",
                 )
             )
-
-    # ------------------------------------------------------------------
-    # 11. Reminder text in oracle_text — MANUAL
-    # ------------------------------------------------------------------
-    for m in re.finditer(r"\(([^)]+)\)", oracle):
-        paren_content = m.group(1)
-        if len(paren_content) >= 20:
-            errors.append(
-                _manual(
-                    "oracle_text",
-                    f'Oracle text contains what looks like reminder text: "({paren_content})"',
-                    "Move reminder text to the reminder_text field.",
-                    error_code="rules_text.reminder_in_oracle",
-                )
-            )
-
-    # ------------------------------------------------------------------
-    # 12. Custom mechanic reminder text — MANUAL
-    # ------------------------------------------------------------------
-    errors += _check_custom_mechanic_reminder(card)
 
     # ------------------------------------------------------------------
     # 13. Haste + Malfunction nonbo — MANUAL
@@ -427,22 +407,6 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
             )
         )
 
-    return errors
-
-
-def _check_custom_mechanic_reminder(card: Card) -> list[ValidationError]:
-    """Check that cards with custom mechanics have reminder text."""
-    errors: list[ValidationError] = []
-    for mechanic in CUSTOM_KEYWORDS:
-        if mechanic in [t.lower() for t in card.mechanic_tags] and not card.reminder_text:
-            errors.append(
-                _manual(
-                    "reminder_text",
-                    f'Card uses custom mechanic "{mechanic}" but has no reminder text',
-                    f'Add reminder text explaining the "{mechanic}" mechanic.',
-                    error_code="rules_text.custom_mechanic_no_reminder",
-                )
-            )
     return errors
 
 
@@ -526,7 +490,7 @@ def fix_line_periods(card: Card, error: ValidationError) -> Card:
         if re.match(r"^[A-Z]\w+(\s\w+)?\s*[—\-]", stripped):
             new_lines.append(line)
             continue
-        if not stripped.endswith(".") and not stripped.endswith('"'):
+        if not stripped.endswith((".", '"', ")")):
             new_lines.append(line + ".")
         else:
             new_lines.append(line)

@@ -6,8 +6,13 @@ on a physical card. All checks are MANUAL (need AI/human to shorten).
 
 from __future__ import annotations
 
+import re
+
 from mtgai.models.card import Card
 from mtgai.validation import ValidationError, ValidationSeverity
+
+# Matches parenthesized reminder text (20+ chars) — stripped before measuring.
+_REMINDER_RE = re.compile(r"\s*\([^)]{20,}\)\.?")
 
 # --- Character limits ---
 NAME_LIMIT = 30
@@ -81,8 +86,8 @@ def validate_text_overflow(card: Card) -> list[ValidationError]:
             )
         )
 
-    # 3. Oracle text length
-    oracle_len = len(card.oracle_text)
+    # 3. Oracle text length (strip reminder text — it can be dropped/shrunk at render)
+    oracle_len = len(_REMINDER_RE.sub("", card.oracle_text))
     limit = _oracle_limit(card)
     oracle_over = oracle_len > limit
     if oracle_over:

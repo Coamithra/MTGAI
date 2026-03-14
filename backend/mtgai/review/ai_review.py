@@ -164,7 +164,7 @@ REVIEW_TOOL_SCHEMA = {
                         "category": {
                             "type": "string",
                             "description": (
-                                "Issue category: keyword_negated, missing_reminder_text, "
+                                "Issue category: keyword_negated, "
                                 "redundant_conditional, above_rate_balance, kitchen_sink, "
                                 "false_variability, keyword_collision, enters_tapped_irrelevant, "
                                 "templating, color_pie, design, balance, other"
@@ -298,11 +298,9 @@ Focus on:
 - Design quality (focused purpose, no kitchen sink, real variability)
 - Keyword interactions and nonbos
 - Color pie adherence
-- Reminder text presence for custom mechanics (first use only)
-
 Do NOT flag:
 - JSON metadata issues (e.g., keywords field) -- that's a data format concern
-- Minor punctuation in reminder text (comma vs period) as long as content is correct
+- Missing reminder text -- it is added programmatically after review
 - Balance concerns where the card has a meaningful drawback that compensates
 - Malfunction cards being above-rate -- malfunction IS the drawback, the delay is the point
 - Vanilla/french vanilla creatures being simple -- that's intentional at common"""

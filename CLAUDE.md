@@ -57,6 +57,26 @@
 - Auto-fix registry in `__init__.py` maps `error_code` -> fixer function, with lazy loading
 - Cards are immutable Pydantic models — fixers return new instances via `card.model_copy(update={...})`
 - No spelling validator — LLMs don't misspell; keyword capitalization and "cannot"->"can't" live in rules_text
+- **Reminder text is NOT validated** — it's injected programmatically after review (see below)
+- `text_overflow` strips reminder text before measuring oracle length (reminder can be shrunk/dropped at render)
+- `rules_text` Check 2 (self-reference) skips parenthesized text to avoid false positives from injected reminder text
+- `rules_text` Check 10 (line_period) accepts `)` as valid line ending (for lines ending with reminder text)
+
+## Reminder Text Injection (`mtgai/generation/reminder_injector.py`)
+- LLMs do NOT generate reminder text — prompts explicitly say "do not include reminder text"
+- Reminder text is injected programmatically from mechanic definitions (`approved.json`)
+- **Use vs. Reference heuristic** (generic, no hardcoded keyword names):
+  - `keyword_ability` (parameterized, e.g., Salvage X): keyword + number = USE → inject. Bare keyword = REFERENCE → skip.
+  - `keyword_action` (non-parameterized, e.g., Overclock): keyword as clause action = USE → inject. Trigger/conditional context ("whenever you [keyword]") = REFERENCE → skip.
+- Number-to-word substitution (3 → "three") and singular/plural handling
+- `finalize_reminder_text(card, mechanics)` — strips old reminder text then injects fresh
+- `strip_reminder_text(oracle)` — removes parenthesized text ≥20 chars
+- `REMINDER_STRIP_RE` regex exported for use by other modules
+
+## Post-Review Finalization (`mtgai/review/finalize.py`)
+- Runs after AI review: inject reminder text → full validation → auto-fix → save
+- Produces `output/sets/<SET_CODE>/reports/finalize-report.md` listing MANUAL errors for human review
+- CLI: `python -m mtgai.review finalize [--set ASD] [--dry-run] [--card W-C-01]`
 
 ## AI Review Pipeline (`mtgai/review/ai_review.py`)
 - Tiered council+iteration hybrid from Phase 1B A/B test
@@ -67,6 +87,7 @@
 - Per-card review logs saved as JSON in `output/sets/<SET_CODE>/reviews/`
 - Summary report in `output/sets/<SET_CODE>/reports/ai-review-summary.md`
 - Resumable: skips cards with existing review logs
+- **Does NOT check reminder text** — reminder text is added programmatically after review
 - CLI: `python -m mtgai.review ai-review [--dry-run] [--card W-C-01]`
 - Also: `python -m mtgai.review.ai_review [--dry-run] [--card W-C-01]`
 
@@ -80,7 +101,9 @@
 - CLI: `python -m mtgai.generation.skeleton_reviser [--dry-run] [--max-rounds N]`
 
 ## Testing
-- Validation tests are the most important category — 73+ tests in `tests/test_validation/test_validators.py`
+- Validation tests are the most important category — 71+ tests in `tests/test_validation/test_validators.py`
+- Reminder injector tests: 31 tests in `tests/test_reminder_injector.py`
+- Finalization tests: 6 tests in `tests/test_finalize.py`
 - Use `_make_card(**overrides)` helper for creating test cards with sane defaults
 - Test file structure mirrors source structure
 
@@ -92,6 +115,7 @@
 ## Current State (Phase 4B)
 - 66 cards generated for ASD dev set (60 main + 6 lands)
 - 3 custom mechanics: Salvage (W/U/G), Malfunction (W/U/R), Overclock (U/R/B)
-- Phases 0A-0E, 1A-1C, 4A, 4A-rev complete
-- Currently building: Phase 4B AI design review pipeline
-- Next: 4B review run, then 4AB human review gate before art
+- Phases 0A-0E, 1A-1C, 4A, 4A-rev, 4B-review-infra complete
+- Reminder text pipeline complete: programmatic injection replaces LLM-generated reminder text
+- Post-review finalization step built: inject → validate → auto-fix → save + MANUAL report
+- Next: 4B-review-run (AI review on all 60 cards), then finalize, then 4AB human review gate
