@@ -1,0 +1,10 @@
+{
+  "collector_number": "R-U-03",
+  "name": "Combustion Cascade",
+  "type_line": "Enchantment",
+  "visual_description": "A towering laboratory engulfed in cascading flames and electrical arcs, its walls glowing red-hot. A gaunt figure in an oversized lab coat stands amid the inferno, multiple mechanical arms extending from the garment, goggles askew on wild hair. Embers and sparks spiral upward as the structure collapses inward.",
+  "full_prompt": "A towering laboratory engulfed in cascading flames and electrical arcs, its walls glowing red-hot. A gaunt figure in an oversized lab coat stands amid the inferno, multiple mechanical arms extending from the garment, goggles askew on wild hair. Embers and sparks spiral upward as the structure collapses inward.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1465,
+  "output_tokens": 109
+}

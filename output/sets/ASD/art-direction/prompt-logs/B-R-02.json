@@ -1,0 +1,10 @@
+{
+  "collector_number": "B-R-02",
+  "name": "The Brain Engine",
+  "type_line": "Legendary Artifact",
+  "visual_description": "A desiccated corpse in decayed royal robes sits rigidly on a technological throne, skull hollow and empty-eyed. Neural cables and fluid tubes snake from its hollow head into a humming server rack of ancient machinery. A golden crown fused with interface nodes crowns the skeletal frame. Muted background of dim laboratory architecture.",
+  "full_prompt": "A desiccated corpse in decayed royal robes sits rigidly on a technological throne, skull hollow and empty-eyed. Neural cables and fluid tubes snake from its hollow head into a humming server rack of ancient machinery. A golden crown fused with interface nodes crowns the skeletal frame. Muted background of dim laboratory architecture.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1499,
+  "output_tokens": 107
+}

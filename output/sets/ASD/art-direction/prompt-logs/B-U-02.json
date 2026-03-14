@@ -1,0 +1,10 @@
+{
+  "collector_number": "B-U-02",
+  "name": "Catacomb Harvester",
+  "type_line": "Creature \u2014 Human Warlock",
+  "visual_description": "A gaunt human warlock in tattered dark robes kneels among scattered bones in a shadowed catacomb, one skeletal hand outstretched as spectral wisps coil around their fingers. Pale skin, hollow eyes, surrounded by stone tombs and glowing rune fragments embedded in the floor.",
+  "full_prompt": "A gaunt human warlock in tattered dark robes kneels among scattered bones in a shadowed catacomb, one skeletal hand outstretched as spectral wisps coil around their fingers. Pale skin, hollow eyes, surrounded by stone tombs and glowing rune fragments embedded in the floor.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1344,
+  "output_tokens": 101
+}

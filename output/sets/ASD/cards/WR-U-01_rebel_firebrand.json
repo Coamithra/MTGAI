@@ -55,7 +55,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A defiant human rebel with singed clothes and burn scars on bare arms, holding a torch aloft with wild intensity. Flames dance across their hands and face, eyes blazing with fury. Behind them, a Fist officer in splint mail and ceremonial insignia lies crumpled, their revolver-pistol fallen nearby.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "WR signpost uncommon for Spark Rebellion archetype. Malfunction 2 provides a significant tempo cost (enters tapped, two-turn clock to be active), justified by aggressive stats (3/2). The activated ability {1} to remove malfunction counters allows interactive play: you can choose to pay mana to accelerate the card's usefulness, or hold up mana for combat tricks. This creates decision-making and rewards tempo planning. The modest mana cost means it can come down turn 2 and be active by turn 4, fitting WR's aggressive tempo play. Flavor reflects the rebel underdog nature and pyromaniac style. Stats fit common power budget: 3+2=5, CMC 3, so P+T = CMC+2, well within acceptable range.\"",
   "is_reprint": false,
   "scryfall_id": null,

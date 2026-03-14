@@ -45,7 +45,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A sprawling dungeon chamber thick with bioluminescent mist, skeletal remains scattered across wet stone. Ethereal tendrils of pale energy coalesce above the bones, pulling them upward. Shadows writhe with purpose—the dungeon itself breathing, feeding, transforming death into something alive and hungry.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
   "design_notes": "Black uncommon enchantment at CMC 5. The first ability is a classic black sacrifice-for-value engine -- paying life to draw cards is deeply black (compare Phyrexian Arena, Dark Prophecy). The life cost prevents it from being free card draw. The second ability rewards sacrifice-heavy strategies with a big payoff token, but requires real setup: three creatures dying in one turn demands either a board wipe or dedicated sacrifice outlets. At 5 mana, it's a midgame engine that asks you to build around it. The Horror token ties into the megadungeon's eldritch spawning theme.",
   "is_reprint": false,
   "scryfall_id": null,

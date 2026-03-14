@@ -1,0 +1,10 @@
+{
+  "collector_number": "U-C-03",
+  "name": "Redirect Pulse",
+  "type_line": "Instant",
+  "visual_description": "A creature caught mid-recoil as an invisible force field ripples outward, distorting the air around it. Ancient crystalline structures glow with cold blue energy, their geometric patterns pulsing. The creature's form blurs backward, suspended in the moment of rejection. Frozen, dramatic, the instant of forceful displacement.",
+  "full_prompt": "A creature caught mid-recoil as an invisible force field ripples outward, distorting the air around it. Ancient crystalline structures glow with cold blue energy, their geometric patterns pulsing. The creature's form blurs backward, suspended in the moment of rejection. Frozen, dramatic, the instant of forceful displacement.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1271,
+  "output_tokens": 104
+}

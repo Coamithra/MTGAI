@@ -49,7 +49,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A muscular tawny-furred lion-headed humanoid in a full sprint, wielding a crude sharpened blade, running alongside a dust-colored raptor dinosaur with slate-grey striping. Both creatures charge forward in violent motion, weapons raised, through a barren wasteland of cracked earth and sparse rock.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
   "design_notes": "A 3/3 haste trample for 4 is reasonable at uncommon — two keywords plus a combat trigger is appropriate complexity. The attack trigger rewards going wide, which synergizes with WR (Spark Rebellion) token strategies and RG (Dinosaur/aggressive) builds. The power boost is temporary and requires committing multiple creatures to combat, creating real risk/reward. Base 3/3 means it's solid alone but becomes a real threat with a board. X varies meaningfully based on board state.",
   "is_reprint": false,
   "scryfall_id": null,

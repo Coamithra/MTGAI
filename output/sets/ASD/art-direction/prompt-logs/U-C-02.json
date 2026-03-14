@@ -1,0 +1,10 @@
+{
+  "collector_number": "U-C-02",
+  "name": "Glintscale Flyer",
+  "type_line": "Creature -- Drake",
+  "visual_description": "A small, iridescent blue-scaled drake in mid-flight, wings spread wide catching thermals. Its scales shimmer with pale blue and silver highlights. Lean, graceful frame. Behind it, shadowed stone shafts and faint warm orange glow from ancient machinery, hinting at vast depths below.",
+  "full_prompt": "A small, iridescent blue-scaled drake in mid-flight, wings spread wide catching thermals. Its scales shimmer with pale blue and silver highlights. Lean, graceful frame. Behind it, shadowed stone shafts and faint warm orange glow from ancient machinery, hinting at vast depths below.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1278,
+  "output_tokens": 100
+}

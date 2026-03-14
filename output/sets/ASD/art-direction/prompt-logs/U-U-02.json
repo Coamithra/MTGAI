@@ -1,0 +1,10 @@
+{
+  "collector_number": "U-U-02",
+  "name": "Relay Node Technician",
+  "type_line": "Creature \u2014 Human Artificer",
+  "visual_description": "A lean human technician in sleek blue-grey robes leans intently over a crystalline circuit mechanism, fingers hovering above glowing counters embedded in its surface. Soft blue light emanates from the device, casting sharp shadows across their focused face. Delicate tools and floating energy wisps surround the scene.",
+  "full_prompt": "A lean human technician in sleek blue-grey robes leans intently over a crystalline circuit mechanism, fingers hovering above glowing counters embedded in its surface. Soft blue light emanates from the device, casting sharp shadows across their focused face. Delicate tools and floating energy wisps surround the scene.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1396,
+  "output_tokens": 102
+}

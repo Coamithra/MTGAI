@@ -53,7 +53,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A lean human fighter in tattered clothes crouches defiantly, one fist raised, eyes blazing with red energy. Behind them looms a massive armored treaded vehicle with twin gun turrets, smoke and sparks rising from its damaged hull. The rebel's silhouette burns against the mechanical wreckage.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
   "design_notes": "Red uncommon creature with aggressive stats (2/1 for CMC 2). Malfunction 2 creates a real tempo cost—enters tapped, not dangerous immediately. When the second counter removes at start of turn 3, the damage trigger rewards you for the delay and fits Red's burn philosophy. This is different from a typical haste creature: it's a bomb that needs setup, which is mechanically interesting at uncommon. The trigger condition is clear and meaningful: 'the last counter' has real game impact. Power/toughness on-rate: 2+1=3, CMC+3=5, so within budget. No keyword nonbos: 2/1 body attacking turn 3 is fine, no haste needed because Malfunction does the work.",
   "is_reprint": false,
   "scryfall_id": null,

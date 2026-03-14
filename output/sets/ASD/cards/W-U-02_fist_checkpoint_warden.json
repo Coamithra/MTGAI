@@ -50,7 +50,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A stern human soldier in chain mail and splint armor stands at a checkpoint, hand raised in a commanding halt gesture. A large ceremonial revolver-style pistol holstered at their hip. Rigid posture, authoritarian bearing. Papers and documents scattered on a desk behind them. Checkpoint barrier visible in background.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "White uncommon creature with a strong ETB tempo effect. 2/3 for {2}{W} is a fair body (P+T=5 vs CMC+3=6). The tap-and-freeze effect is a classic white ability seen on cards like Reflector Mage (in blue-white) and Kor Hookmaster. At uncommon, this conditional removal-adjacent effect is appropriate. The card supports blink/flicker strategies with The Custodian Remnant and fits the Unyielding Fist's authoritarian checkpoint flavor. It's a clean, focused design — one ETB, one effect, no keyword soup.",
   "is_reprint": false,
   "scryfall_id": null,

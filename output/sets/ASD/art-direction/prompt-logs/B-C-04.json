@@ -1,0 +1,10 @@
+{
+  "collector_number": "B-C-04",
+  "name": "Plunder the Catacombs",
+  "type_line": "Sorcery",
+  "visual_description": "A cloaked figure emerges from a yawning catacomb entrance, skeletal hands of exhumed creatures trailing behind in spectral wisps. Crumbling stone vaults and exposed rebar frame the descent. Ancient concrete megastructure walls loom above, weathered and vast. The air shimmers with death magic as the plunderer rises, clutching stolen treasures from the depths.",
+  "full_prompt": "A cloaked figure emerges from a yawning catacomb entrance, skeletal hands of exhumed creatures trailing behind in spectral wisps. Crumbling stone vaults and exposed rebar frame the descent. Ancient concrete megastructure walls loom above, weathered and vast. The air shimmers with death magic as the plunderer rises, clutching stolen treasures from the depths.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1429,
+  "output_tokens": 120
+}

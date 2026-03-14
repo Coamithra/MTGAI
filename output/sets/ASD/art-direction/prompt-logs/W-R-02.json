@@ -1,0 +1,10 @@
+{
+  "collector_number": "W-R-02",
+  "name": "The Vizier's Decree",
+  "type_line": "Enchantment",
+  "visual_description": "A desiccated corpse seated on a technological throne, hollow skull crowned with a neural interface, cables and fluid tubes snaking from its empty eye sockets. Beside it stands a lean man in dark formal robes, eyes sharp and calculating, one hand raised in commanding gesture. Ethereal chains of light bind the scene, transforming the air into shimmering constraint.",
+  "full_prompt": "A desiccated corpse seated on a technological throne, hollow skull crowned with a neural interface, cables and fluid tubes snaking from its empty eye sockets. Beside it stands a lean man in dark formal robes, eyes sharp and calculating, one hand raised in commanding gesture. Ethereal chains of light bind the scene, transforming the air into shimmering constraint.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1556,
+  "output_tokens": 112
+}

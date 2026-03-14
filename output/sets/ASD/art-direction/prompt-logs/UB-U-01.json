@@ -1,0 +1,10 @@
+{
+  "collector_number": "UB-U-01",
+  "name": "Subsurface Conduit",
+  "type_line": "Creature \u2014 Human Rogue",
+  "visual_description": "A lean, dark-haired human rogue in sleek tactical gear crouches in a deep underground shaft, fingers splayed against ancient stone walls that glow with faint bioluminescent veins. Their expression shows intense focus as ethereal knowledge-streams flow visibly around them, suggesting communion with something vast and primordial beneath the earth.",
+  "full_prompt": "A lean, dark-haired human rogue in sleek tactical gear crouches in a deep underground shaft, fingers splayed against ancient stone walls that glow with faint bioluminescent veins. Their expression shows intense focus as ethereal knowledge-streams flow visibly around them, suggesting communion with something vast and primordial beneath the earth.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1344,
+  "output_tokens": 107
+}

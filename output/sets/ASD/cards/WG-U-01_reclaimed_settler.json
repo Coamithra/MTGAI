@@ -54,7 +54,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A weathered human settler in practical frontier clothing kneels among scattered scavenge ancient technology, examining a piece of salvaged metal or tool in their hands. Worn leather, earth tones, and dappled sunlight suggest a lived-in landscape. Their posture conveys focused determination and resourcefulness.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "WG signpost uncommon for the Frontier Settlers archetype. Salvage 4 on entry provides artifact tutor-like utility while filtering the top of library — supports both the artifact subtheme and WG's interest in finding ramp/mana artifacts. The body starts as a 1/1 (compliant with CMC+3 rule at uncommon), but grows via the +1/+1 counter trigger whenever the player creates tokens. This synergy signals the archetype's go-wide strategy and provides a payoff for the token-generation cards in the format (Edict of Continuity, Proclamation Enforcer, Kethra, etc.). The card rewards playing the WG game plan and scales naturally in limited while remaining focused and clean.",
   "is_reprint": false,
   "scryfall_id": null,

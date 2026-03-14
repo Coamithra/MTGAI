@@ -45,7 +45,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A lean, determined human in worn leather armor and bandoliers of incendiary devices, mid-action pose. Scarred hands grip a glowing artifact-weapon mid-detonation, bright sparks erupting outward. Practical rebel gear, intense focus, dangerous energy crackling around them.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
   "design_notes": "A 2 CMC red rare build-around that turns artifacts into damage. The triggered ability pings opponents whenever artifacts arrive (tokens count!), while the activated ability lets you sacrifice artifacts for significant targeted damage. At 2/1 it's fragile and demands protection. The two abilities are tightly linked -- both care about artifacts -- avoiding kitchen-sink design. This is a Spark Rebellion payoff card that also bridges into the UR artifacts-matter space. The 1-damage ping is incremental, while the 3-damage sac ability provides meaningful reach. Compares to Reckless Fireweaver but adds the sacrifice outlet at rare power level.",
   "is_reprint": false,
   "scryfall_id": null,

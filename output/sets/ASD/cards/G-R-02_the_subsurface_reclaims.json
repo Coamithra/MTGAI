@@ -49,7 +49,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A dungeon floor overgrown with bioluminescent vines and fleshy plant tendrils reclaiming fallen warrior bodies. Ethereal green light pulses through the stone, animating corpses as they sprout roots and transform into hybrid plant-creatures. The air shimmers with an otherworldly, persistent glow of regrowth and renewal.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.",
   "design_notes": "A rare enchantment that creates a recursive value engine themed around the dungeon's alien ecosystem reclaiming the dead. Each nontoken creature gets one 'regrowth' as a Plant copy, but the copy is a token so it won't re-trigger the enchantment—preventing infinite loops naturally. The added Salvage 5 on the token's death means each regrown creature leaves behind one last gift of artifact-finding, tying into the set's core mechanic at the rare-appropriate power level of 5. The exile clause is a real cost that prevents graveyard synergy overlap with black's recursion theme, giving each color a distinct angle on death triggers.",
   "is_reprint": false,
   "scryfall_id": null,

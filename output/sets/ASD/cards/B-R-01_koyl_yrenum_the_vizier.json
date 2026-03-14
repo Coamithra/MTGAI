@@ -48,7 +48,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A lean, sharp-featured man in his fifties wearing immaculate dark formal robes stands with absolute authority. Clean-shaven and calculating, his piercing eyes betray hidden arcane knowledge. Behind him, shadowed figures collapse—the cost of his orchestration. Ancient concrete ruins loom in the background, suggesting hidden power and control.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
   "design_notes": "The Vizier who rules through deception and the orchestration of sacrifice. Koyl manipulates opponents' libraries through repeatable death triggers: whenever another creature dies, he peers into their deck for {1} per activation. When Koyl himself dies—the ultimate sacrifice of an expendable advisor—he gains a larger payoff (three cards instead of two), creating genuine mechanical tension between using him as a protected asset versus accepting his death for value. Shroud protects him from targeting effects (fitting black's evasion through hidden knowledge) while maintaining color pie integrity. This design reinforces the flavor: Koyl is both the orchestrator of others' demise and a creature whose own sacrifice yields significant advantage. The repeatable effect scales well with sacrifice outlets and death-heavy strategies, fitting the Deep Descent (UB control) archetype.",
   "is_reprint": false,
   "scryfall_id": null,

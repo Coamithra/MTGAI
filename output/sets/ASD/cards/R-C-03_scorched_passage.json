@@ -45,7 +45,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A narrow underground tunnel engulfed in intense orange flames, scorching stone walls and blackened debris scattered across the floor. Heat distortion ripples through the air. A faint silhouette of a creature consumed by fire at the tunnel's center, frozen mid-collapse. Smoke billows upward into darkness.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
   "design_notes": "Conditional removal at common -- 4 damage for 4 mana at instant speed is a solid rate that kills most creatures but not everything. This is red's primary removal mode (burn) at an appropriate common power level. Comparable to Flame Javelin or similar burn spells, but at a fair rate. Doesn't hit players, keeping it as creature removal rather than a reach spell.",
   "is_reprint": false,
   "scryfall_id": null,

@@ -1,0 +1,10 @@
+{
+  "collector_number": "WG-R-01",
+  "name": "Sura, Rendon Ranchmaster",
+  "type_line": "Legendary Creature -- Human Settler",
+  "visual_description": "A weathered human rancher in frontier garb stands commanding among prehistoric beasts\u2014a massive ceratopsian with dusty brown plating beside him, smaller raptors circling. His posture radiates authority and purpose, hand raised to direct the creatures. Dusty earth and wilderness backdrop.",
+  "full_prompt": "A weathered human rancher in frontier garb stands commanding among prehistoric beasts\u2014a massive ceratopsian with dusty brown plating beside him, smaller raptors circling. His posture radiates authority and purpose, hand raised to direct the creatures. Dusty earth and wilderness backdrop.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1511,
+  "output_tokens": 96
+}

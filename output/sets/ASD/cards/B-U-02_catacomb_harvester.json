@@ -50,7 +50,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A gaunt human warlock in tattered dark robes kneels among scattered bones in a shadowed catacomb, one skeletal hand outstretched as spectral wisps coil around their fingers. Pale skin, hollow eyes, surrounded by stone tombs and glowing rune fragments embedded in the floor.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
   "design_notes": "A clean black uncommon that rewards sacrifice strategies. 2/2 deathtouch for 3 is a fair body — P+T = 4 which is CMC+1, well within budget, with deathtouch making it trade up in combat. The death trigger with a life payment is classic black: paying a resource (life) for card advantage. This supports the WB (Fist of Denethix aristocrats) and mono-B themes already present in the set alongside Koyl Yrenum, Fist Tax Collector, and Subsurface Harvest. The life payment prevents it from being free card draw and creates meaningful tension. At uncommon, the two-ability design (keyword + triggered ability) is appropriate complexity.",
   "is_reprint": false,
   "scryfall_id": null,

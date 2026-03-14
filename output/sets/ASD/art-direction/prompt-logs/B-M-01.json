@@ -1,0 +1,10 @@
+{
+  "collector_number": "B-M-01",
+  "name": "Koyl's Reanimated Maw",
+  "type_line": "Legendary Creature \u2014 Horror",
+  "visual_description": "A grotesque severed head mounted on a mechanical construct, its pale features twisted in a permanent snarl. Exposed brain tissue glistens beneath translucent skull-plates fused with corroded brass and iron. Multiple eyes\u2014some human, some not\u2014bulge from asymmetric sockets. Wet sinew wraps around articulated metal joints. Deathly aura emanates from its form.",
+  "full_prompt": "A grotesque severed head mounted on a mechanical construct, its pale features twisted in a permanent snarl. Exposed brain tissue glistens beneath translucent skull-plates fused with corroded brass and iron. Multiple eyes\u2014some human, some not\u2014bulge from asymmetric sockets. Wet sinew wraps around articulated metal joints. Deathly aura emanates from its form.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1715,
+  "output_tokens": 121
+}

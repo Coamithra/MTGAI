@@ -1,0 +1,10 @@
+{
+  "collector_number": "X-C-01",
+  "name": "Subsurface Signal Lamp",
+  "type_line": "Artifact",
+  "visual_description": "A weathered brass lamp fixture mounted on a stone pedestal, its cylindrical glass chamber holding a faintly glowing filament. Three thin scratches mark the glass where light flickers unevenly. Corrosion stains streak downward. The background fades to dark stone, keeping focus on the lamp's mechanical simplicity and worn patina.",
+  "full_prompt": "A weathered brass lamp fixture mounted on a stone pedestal, its cylindrical glass chamber holding a faintly glowing filament. Three thin scratches mark the glass where light flickers unevenly. Corrosion stains streak downward. The background fades to dark stone, keeping focus on the lamp's mechanical simplicity and worn patina.. Stylized digital illustration, centered object-focused composition, self-illuminated subject against dark background, ancient technology aesthetic.",
+  "character_refs": [],
+  "input_tokens": 1399,
+  "output_tokens": 108
+}

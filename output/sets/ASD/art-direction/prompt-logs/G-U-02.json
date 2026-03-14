@@ -1,0 +1,10 @@
+{
+  "collector_number": "G-U-02",
+  "name": "Rendon Apex Tracker",
+  "type_line": "Creature \u2014 Human Scout",
+  "visual_description": "A lean, weathered human scout in earth-toned leather armor crouches mid-stride through dense wilderness, one hand gripping a wooden spear. Scarred face and alert eyes scan the overgrown path ahead. Tangled vines and gnarled trees frame the figure against a shadowed forest backdrop.",
+  "full_prompt": "A lean, weathered human scout in earth-toned leather armor crouches mid-stride through dense wilderness, one hand gripping a wooden spear. Scarred face and alert eyes scan the overgrown path ahead. Tangled vines and gnarled trees frame the figure against a shadowed forest backdrop.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1343,
+  "output_tokens": 101
+}

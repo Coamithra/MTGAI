@@ -45,7 +45,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A medieval city of stone and timber buildings nestled within towering concrete and steel ruins, ethereal white light coalescing above the scene. Exposed rebar and repurposed metal structures frame the composition. The atmosphere shimmers with a persistent, ghostly radiance—the essence of continuity itself—as the city endures beneath ancient megastructures.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "White uncommon enchantment at CMC 4. Two related triggered abilities that reward attrition strategies -- creatures dying make tokens (white's bread and butter), and artifacts going to the graveyard can be recouped. The creature trigger only makes one token regardless of how many die at once, preventing combo abuse with board wipes. The artifact recursion requires the artifact to actually hit the graveyard (not exile), keeping it fair. Both halves support white's role as the 'civilization endures' color in this set. Complex enough for uncommon but each piece is individually simple.",
   "is_reprint": false,
   "scryfall_id": null,

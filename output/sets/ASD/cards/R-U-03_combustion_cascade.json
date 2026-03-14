@@ -49,7 +49,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A towering laboratory engulfed in cascading flames and electrical arcs, its walls glowing red-hot. A gaunt figure in an oversized lab coat stands amid the inferno, multiple mechanical arms extending from the garment, goggles askew on wild hair. Embers and sparks spiral upward as the structure collapses inward.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
   "design_notes": "Red rare enchantment at CMC 5. Triggers Overclock on ETB (creates immediate value), then rewards you for casting noncreature spells that turn. The 2 damage per opponent scales with your spell velocity, which naturally varies in gameplay. Overclock is tertiary (complexity 3) and justifies rare rarity. The redundant conditional has been removed; now the ability consistently rewards noncreature spell casting regardless of the turn Overclock resolved. This enchantment interacts well with The Burning Descent and Spark Detonator in the set, building synergy in UR (Mad Science) archetype. Power level: 5 mana for ongoing 2 damage triggers is fair—you need to cast spells to get value, so it's not pure card advantage.",
   "is_reprint": false,
   "scryfall_id": null,

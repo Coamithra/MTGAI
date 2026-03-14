@@ -47,7 +47,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A desiccated corpse-king seated on a technological throne, skeletal frame draped in decayed royal robes. A golden crown fused with neural interface cables crowns his hollow skull. Fluid tubes and glowing conduits snake from his empty eye sockets into a humming server rack, his body a puppet of ancient machinery.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "White mythic at CMC 2. A 2/3 with vigilance and lifelink for WW is pushed stats, but the restriction that it can't attack or block without an artifact is a meaningful deckbuilding constraint -- Feretha is literally a puppet without the machines sustaining him. The +1/+1 counter growth rewards artifact-heavy strategies and makes him scale into the late game. The death trigger salvage 4 ensures you recoup value if removed, fitting the lore of his brain being hooked to machinery. The flavor captures the tragedy of Denethix's hollow figurehead perfectly. Mythic-appropriate as a build-around legendary that demands artifact support but rewards it generously.",
   "is_reprint": false,
   "scryfall_id": null,

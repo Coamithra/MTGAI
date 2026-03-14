@@ -1,0 +1,10 @@
+{
+  "collector_number": "L-06",
+  "name": "Descent Waypoint",
+  "type_line": "Land",
+  "visual_description": "A vast underground corridor carved with inhuman precision\u2014smooth stone walls meeting perfect right angles, impossibly high ceiling receding into shadow. Faint bioluminescent markings glow along the floor, forming a pathway deeper into the darkness. Ancient machinery hums within the walls. The scale feels wrong, oppressive, built for something far larger than human.",
+  "full_prompt": "A vast underground corridor carved with inhuman precision\u2014smooth stone walls meeting perfect right angles, impossibly high ceiling receding into shadow. Faint bioluminescent markings glow along the floor, forming a pathway deeper into the darkness. Ancient machinery hums within the walls. The scale feels wrong, oppressive, built for something far larger than human.. Stylized digital illustration, panoramic landscape, dramatic atmospheric perspective, concept-art establishing shot, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1289,
+  "output_tokens": 107
+}

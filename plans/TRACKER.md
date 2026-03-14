@@ -400,16 +400,7 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
     - B-R-02 empty type_line: `fix_enchantment_artifact` relied on `card_types` (empty) instead of parsing `type_line` directly. Fixed fixer in `type_check.py`, manually corrected card JSON to "Legendary Artifact".
     - W-C-02 overstatted (2/3 at CMC 2): deferred to human review at 4AB-gate.
   - Review gallery built: `output/sets/ASD/reports/card-review-gallery.html` (MTG-style card frames + reviewer comments). Generator script: `build_gallery.py`.
-- [ ] **4AB-gate**: HUMAN: Card-by-card "art ready" review. This is the definitive quality check before art investment. By this point, cards have been through heuristic validation (1C), statistical balance analysis (4A), AI design review (4B), and post-review finalization (reminder text + re-validation) — the human focuses on final judgment.
-  **Review prompts for the human:**
-  - Read the AI review summary (`reports/ai-review-summary.md`) first — what did the AI flag and fix?
-  - For each AI-flagged card: do you agree with the revision? Is the fix satisfactory or does it need manual editing?
-  - Walk through each card: would you be happy seeing this card printed? Is the design clean, focused, and fun?
-  - Check that legendary creatures have evocative names and unique mechanical identities.
-  - Check that planeswalker abilities tell a coherent story and are properly costed.
-  - Verify the overall power level feels consistent — no obvious "best card in the set" outliers.
-  - For each card, final verdict: **approve** (art ready), **edit** (you fix it now), or **reject** (regenerate from scratch in a follow-up pass).
-  - This is a hard gate — no card proceeds to art generation without explicit approval.
+- [x] **4AB-gate**: HUMAN: Card-by-card "art ready" review. All 66 cards approved as art-ready by human reviewer (2026-03-14). Cards passed through heuristic validation (1C), statistical balance (4A), AI review (4B), and post-review finalization — human elected to approve all without individual edits.
 
 ---
 
@@ -420,14 +411,25 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > **Outputs**: `output/sets/<code>/art-direction/style-guide.md`, prompt templates per card type, character reference images, set symbol SVG, `learnings/phase2a.md`
 > **What this does**: Define the visual identity — color palette, mood, composition guidelines, character references. Generate 20 sample arts as go/no-go gate. This phase involves significant HUMAN judgment on art style preferences.
 
-- [ ] **2A-1**: HUMAN: Create style guide collaboratively — color palette, mood, setting, architecture, flora/fauna, per-color visual identity → `output/sets/<code>/art-direction/style-guide.md`
-- [ ] **2A-2**: Define art prompt templates per card type (creature, spell, land, artifact, planeswalker) — plan Section 2A.2
-- [ ] **2A-3**: Set up character consistency workflow — generate reference images for key characters (legendaries, planeswalkers), document how to maintain consistency
-- [ ] **2A-4**: Define artist style variation personas — different "artist" prompt prefixes to simulate varied art styles
-- [ ] **2A-5**: Generate 10+ sample arts across card types, evaluate consistency and quality
-- [ ] **2A-6**: HUMAN: Go/no-go gate — 20 sample arts evaluated. Sufficient quality? Cohesive identity? If NO, reassess image generation approach.
-- [ ] **2A-7**: Finalize set symbol SVG (replaces Phase 0B placeholder) → `assets/symbols/set-symbol.svg`
-- [ ] **2A-8**: Write learnings → `learnings/phase2a.md`
+- [x] **2A-1**: HUMAN: Create style guide collaboratively — color palette, mood, setting, architecture, flora/fauna, per-color visual identity → `output/sets/ASD/art-direction/style-guide.md`
+  - Stylized digital illustration (bold shapes, strong silhouettes, painterly texture). Researched ASE original art, Thundarr, Moebius, Dying Earth for visual DNA. Dual palette: warm/dusty surface, cool/eerie dungeon. Deadpan serious rendering of absurd subjects.
+- [x] **2A-2**: Define art prompt templates per card type (creature, spell, land, artifact, planeswalker) — plan Section 2A.2
+  - Flux-optimized prompts: subject front-loaded, 40-60 words, one style sentence. No negative phrasing, no game jargon, no setting-specific names.
+  - Built `backend/mtgai/art/prompt_builder.py` — Haiku translates MTG → visual English, Flux sanitizer strips setting terms. Generated all 66 prompts ($0.10, zero errors, temp 0.6).
+  - Built `backend/mtgai/art/visual_reference.py` — loads from `visual-references.json` (data-driven per set, not hardcoded). 13 creature types, 5 factions, 4 landmarks, 8 legendary characters sourced from ASE PDF.
+  - Gallery updated with collapsible "Art Prompt" section per card: `output/sets/ASD/reports/card-review-gallery.html`
+- [x] **2A-3**: Set up character consistency workflow — document visual descriptions, plan reference image pipeline
+  - Visual reference dictionary in `visual-references.json` (data-driven, loaded by `visual_reference.py`) with descriptions for all 8 legendary characters, creature types, factions, landmarks. Sourced from ASE module PDF.
+  - Character consistency plan: Flux Kontext Dev + PuLID for identity extraction. Generate neutral reference portraits (2A-5), then inject via PuLID during card art generation (2A-6/2B). PuLID extracts only face identity, ignoring reference style — text prompt controls all styling.
+  - `prompt_builder.py` has `get_character_ref_paths()` to detect which cards need character refs and log reference image paths.
+- [x] **2A-4**: Define artist style variation personas — different "artist" prompt prefixes to simulate varied art styles
+  - 8 personas mapped to card colors (W=Classical Authority, U=Clinical Futurism, B=Dark Grotesque, R=Dynamic Action, G=Naturalist Exploration, Artifact=Technical Precision, Multi=Style Collision, Land=Panoramic Wonder). No extra data plumbing — reads `card.colors` directly.
+- [ ] **2A-5**: Generate character reference portraits for all 8 legendary characters using Flux dev (text-to-image from visual-references.json descriptions). Simple neutral headshots — plain background, even lighting, front-facing. Store in `output/sets/<code>/art-direction/character-refs/`.
+- [ ] **2A-5b**: HUMAN: Review character reference portraits. Pick the best version for each character. These become the canonical identity references.
+- [ ] **2A-6**: Generate 10+ sample card arts across card types using Flux dev. For cards featuring legendary characters, use Kontext Dev + PuLID workflow to inject character identity from reference portraits while letting the text prompt control style. Evaluate consistency and quality.
+- [ ] **2A-7**: HUMAN: Go/no-go gate — 20 sample arts evaluated. Sufficient quality? Cohesive identity? Character consistency across cards? If NO, reassess image generation approach.
+- [ ] **2A-8**: Finalize set symbol SVG (replaces Phase 0B placeholder) → `assets/symbols/set-symbol.svg`
+- [ ] **2A-9**: Write learnings → `learnings/phase2a.md`
 
 ---
 

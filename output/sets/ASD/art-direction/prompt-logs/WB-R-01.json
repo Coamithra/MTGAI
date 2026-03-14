@@ -1,0 +1,10 @@
+{
+  "collector_number": "WB-R-01",
+  "name": "Proclamation Enforcer",
+  "type_line": "Legendary Creature -- Human Soldier",
+  "visual_description": "A stern, sharp-featured woman in ornate white and black ceremonial armor stands at rigid attention, one gauntleted fist raised in command. Her expression is cold and authoritative, eyes fixed forward. Intricate gold trim adorns her breastplate and pauldrons, marking her rank. The pose radiates absolute control and unwavering discipline.",
+  "full_prompt": "A stern, sharp-featured woman in ornate white and black ceremonial armor stands at rigid attention, one gauntleted fist raised in command. Her expression is cold and authoritative, eyes fixed forward. Intricate gold trim adorns her breastplate and pauldrons, marking her rank. The pose radiates absolute control and unwavering discipline.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1414,
+  "output_tokens": 109
+}

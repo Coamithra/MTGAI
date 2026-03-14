@@ -1,0 +1,10 @@
+{
+  "collector_number": "G-U-03",
+  "name": "Law of the Wilderness",
+  "type_line": "Enchantment",
+  "visual_description": "A sprawling wilderness reclaiming a crumbling city, vines and roots tearing through stone structures. Massive earthen-toned dinosaurs\u2014a horned ceratopsian and sleek raptor\u2014stride through the ruins. Glowing green energy radiates from the ground, dissolving the last remnants of civilization into dust and shadow.",
+  "full_prompt": "A sprawling wilderness reclaiming a crumbling city, vines and roots tearing through stone structures. Massive earthen-toned dinosaurs\u2014a horned ceratopsian and sleek raptor\u2014stride through the ruins. Glowing green energy radiates from the ground, dissolving the last remnants of civilization into dust and shadow.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1416,
+  "output_tokens": 108
+}

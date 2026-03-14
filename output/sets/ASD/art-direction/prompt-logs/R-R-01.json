@@ -1,0 +1,10 @@
+{
+  "collector_number": "R-R-01",
+  "name": "Spark Detonator",
+  "type_line": "Creature -- Human Rebel Artificer",
+  "visual_description": "A lean, determined human in worn leather armor and bandoliers of incendiary devices, mid-action pose. Scarred hands grip a glowing artifact-weapon mid-detonation, bright sparks erupting outward. Practical rebel gear, intense focus, dangerous energy crackling around them.",
+  "full_prompt": "A lean, determined human in worn leather armor and bandoliers of incendiary devices, mid-action pose. Scarred hands grip a glowing artifact-weapon mid-detonation, bright sparks erupting outward. Practical rebel gear, intense focus, dangerous energy crackling around them.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1441,
+  "output_tokens": 97
+}

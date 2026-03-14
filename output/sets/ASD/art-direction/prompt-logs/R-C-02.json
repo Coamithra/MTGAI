@@ -1,0 +1,10 @@
+{
+  "collector_number": "R-C-02",
+  "name": "Wasteland Raptor",
+  "type_line": "Creature -- Dinosaur",
+  "visual_description": "A lean, muscular raptor dinosaur with dusty brown and slate-grey mottled scales lunges forward in a predatory sprint, its powerful hind legs driving it across barren wasteland. Sharp claws rake the dust, teeth bared, tail extended for balance. Sparse scrub and cracked earth frame the scene.",
+  "full_prompt": "A lean, muscular raptor dinosaur with dusty brown and slate-grey mottled scales lunges forward in a predatory sprint, its powerful hind legs driving it across barren wasteland. Sharp claws rake the dust, teeth bared, tail extended for balance. Sparse scrub and cracked earth frame the scene.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1458,
+  "output_tokens": 104
+}

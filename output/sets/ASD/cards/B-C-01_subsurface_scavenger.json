@@ -45,7 +45,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A gaunt human scavenger crouches in shadow, tattered black rags clinging to a wiry frame. Dirt-smudged face, hollow cheeks, fingers wrapped in frayed cloth reaching toward scattered debris. Dim torchlight catches the glint of a crude dagger. The dungeon floor stretches behind, littered with picked-over bones and broken artifacts.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
   "design_notes": "Black 1-mana vanilla creature. A 1/1 for B is the standard baseline -- clean, simple, fills the curve for limited. P+T=2, well within CMC+3=4 budget. The flavor captures a Denethix dungeon-diver scraping by on the megadungeon's upper levels.",
   "is_reprint": false,
   "scryfall_id": null,

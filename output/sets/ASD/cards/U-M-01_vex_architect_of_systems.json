@@ -52,7 +52,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A sharp-featured woman in sleek blue attire hunches over glowing holographic displays, fingers dancing across three luminous screens simultaneously. Her eyes reflect cascading data streams. Crystalline artifacts and mechanical components scatter across her workspace, bathed in cool blue-white light.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
   "design_notes": "Blue mythic legendary creature with Flash and a strong artifact-focused build-around. Flash provides tempo value and build-around flexibility—can be held up and deployed at instant speed when optimal. Cost reduction on artifact spells is a powerful static ability that scales with artifact density in the deck, encouraging artifact-heavy strategies. The ETB draw triggers once and scales with current artifact count on the field, creating a synergistic payoff that rewards players who build around artifacts while not being an infinite value engine. The 1/3 body is modest but acceptable at CMC 3 for a utility mythic with flash and strong text. This card fits perfectly in U/W (Ancient Technology), U/R (Mad Science), and U/B (Deep Descent) artifact-matters strategies. The card is strong enough to be a build-around without being strictly better than existing staples—it requires deck construction and protection to maximize value.",
   "is_reprint": false,
   "scryfall_id": null,

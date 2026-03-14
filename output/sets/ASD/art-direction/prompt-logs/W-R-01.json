@@ -1,0 +1,10 @@
+{
+  "collector_number": "W-R-01",
+  "name": "Cult Relic-Bearer",
+  "type_line": "Creature -- Human Cleric",
+  "visual_description": "A lean human cleric in white vestments kneels reverently, cradling an ornate metallic relic in both hands. Golden light radiates from the artifact. Intricate scrollwork adorns her robes. Her expression is devotional, eyes fixed on the glowing object. Ancient stone columns frame the scene.",
+  "full_prompt": "A lean human cleric in white vestments kneels reverently, cradling an ornate metallic relic in both hands. Golden light radiates from the artifact. Intricate scrollwork adorns her robes. Her expression is devotional, eyes fixed on the glowing object. Ancient stone columns frame the scene.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1357,
+  "output_tokens": 102
+}

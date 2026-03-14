@@ -53,7 +53,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A towering stainless steel construct with a cylindrical head crowned by a crystalline eye, its armored frame layered with hydraulic hoses and mismatched salvaged plating. Dormant and motionless, it stands upright in a shadowed underground vault carved into stone, faint crystalline light emanating from its core.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
   "design_notes": "Blue rare artifact creature designed as a strong payoff for the Malfunction mechanic. Hexproof provides protection during the three-turn ramp-up phase, and drawing a card when fully online rewards players for keeping it alive. The 3/3 body for CMC 2 is justified by: (1) three turns of delay before becoming untapped and threatening, (2) vulnerability to artifact removal during the setup window, (3) hexproof creating counterplay restrictions. Fits U/W (Ancient Technology) and U/R (Mad Science) archetypes.",
   "is_reprint": false,
   "scryfall_id": null,

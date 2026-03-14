@@ -1,0 +1,10 @@
+{
+  "collector_number": "G-R-01",
+  "name": "Spore-Nest Forager",
+  "type_line": "Creature -- Fungus Scout",
+  "visual_description": "A small bioluminescent fungal creature with a bulbous mushroom-cap body glowing pale blue-green, sprouting delicate tendrils and spore wisps. Fragments of corroded metal and ancient circuitry are embedded in its gelatinous form. It crouches low, examining a piece of rusted machinery with visible curiosity, surrounded by drifting spores.",
+  "full_prompt": "A small bioluminescent fungal creature with a bulbous mushroom-cap body glowing pale blue-green, sprouting delicate tendrils and spore wisps. Fragments of corroded metal and ancient circuitry are embedded in its gelatinous form. It crouches low, examining a piece of rusted machinery with visible curiosity, surrounded by drifting spores.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1431,
+  "output_tokens": 119
+}

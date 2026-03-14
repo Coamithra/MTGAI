@@ -47,7 +47,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A roiling vortex of crimson and orange flame spirals downward into darkness, consuming ethereal cards that scatter and ignite mid-air. Heat distortion ripples outward, warping the surrounding stone cavern walls. Embers drift upward in defiance of gravity, creating an otherworldly descent into infernal depths.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
   "design_notes": "A red rare enchantment showcasing the Overclock mechanic. Every upkeep you exile 3 cards and get to play them that turn -- a relentless engine that churns through your library. The 2-damage trigger per card played from exile rewards you for actually casting what you find, turning the overclock into a damage clock. At 6 CMC this is a late-game inevitability engine: 3 cards per turn with up to 6 damage if you play them all. The risk is real -- you're exiling cards permanently, and anything you can't play is lost forever. This creates genuine tension around deck construction (low curve helps) and mana management. Overclock's first appearance in the set, so reminder text is included.",
   "is_reprint": false,
   "scryfall_id": null,

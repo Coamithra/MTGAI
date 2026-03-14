@@ -50,7 +50,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A lean human technician in sleek blue-grey robes leans intently over a crystalline circuit mechanism, fingers hovering above glowing counters embedded in its surface. Soft blue light emanates from the device, casting sharp shadows across their focused face. Delicate tools and floating energy wisps surround the scene.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
   "design_notes": "A 2/3 for 3 mana is a clean, fair body at uncommon (P+T = 5, CMC+3 = 6). The ETB ability creates a strong synergy with the Malfunction mechanic — removing a malfunction counter speeds up your artifact's activation while also drawing a card, making this a 2-for-1 when it works. It also interacts with any counter type (e.g., +1/+1 counters from Spore-Nest Forager or Protonium Technician), giving it flexibility. The 'if you do' clause ensures it doesn't draw unconditionally — you need a permanent with a counter, creating a real condition. This supports the UR (Cult of Science / Mad Science) archetype's counter-manipulation theme and the WU (Ancient Technology) archetype's artifact synergies. Blue gets card draw and artifact interaction cleanly within the color pie. A single ability with a meaningful condition fits uncommon complexity perfectly.",
   "is_reprint": false,
   "scryfall_id": null,

@@ -1,0 +1,59 @@
+{
+  "creature_types": {
+    "moktar": "Moktars are 7-foot-tall humanoids, heavily muscled with short tawny fur and thick-maned lion-like heads. They travel in roving warbands, preying on travelers and isolated villages. They carry crude weapons — sharpened metal, stone axes, looted swords — and wear scavenged trophies. They have their own language of grunts, growls, and roars.",
+    "morlock": "Morlocks are flabby, greenish-gray humanoids with deeply reflective eyes capable of seeing in pitch darkness, and scraggly white hair. They arm themselves with heavy clubs and wear only simple loincloths. They are subterranean cannibals found in the dungeon depths.",
+    "screechman": "Screechmen are pigmentless albino humanoids, entirely eyeless, with massive pointed ears, mouths full of fangs, and claws on their hands and feet. They do not wear clothing. They use echolocation via horrible screams at regular intervals, and can crawl on walls and ceilings.",
+    "grunkie": "Grunkies most closely resemble lizard-headed scaled monkeys. They have bluish-green skin, a thick paddle-like tail, and webbed hands and feet. Adults are 2 feet tall when standing upright. Juveniles are docile pets; adults are aggressive. Packs of grunkies attack larger prey.",
+    "peryton": "From a distance a peryton resembles a winged stag. It has a brownish hide — a mixture of fur and dull brown scales — a large rack of horns, and huge bat-like wings. It has four red eyes (two on each side), a mouth full of razor-sharp curved teeth, and clawed fingers instead of hooves.",
+    "automaton": "Automatons are roughly man-like machines of stainless steel framing with stainless plates covering vulnerable hydraulic hoses and wiring. Their heads are cylindrical with a speaker grill for speech and two crystalline eyes. Minor rust stains speak to millennia of self-maintenance. They carry crude blades of sharpened steel plating. Jury-rigged versions have human skulls replacing damaged heads, and human bones patching broken parts.",
+    "construct": "Constructs in this setting are ancient machines — stainless steel frames with plate armor over hydraulic hoses and wiring. Cylindrical heads with speaker grills and crystalline eyes. After millennia, many are patched with mismatched parts, jury-rigged with whatever was available — human bone, crab claws, glass domes. Some are small clockwork devices assembled from salvaged components.",
+    "custodian": "Custodians of Fiduciary Duty are enormous man-shaped robots, 20 feet tall, made of iron and gold. Embedded in each arm is a minigun and a rocket launcher. They guard the Bank Inviolable and occasionally fire on people waiting in line.",
+    "cornstalk warrior": "Cornstalk warriors are animated stalks of corn. They walk on root-like feet and attack with crude wooden spears and clubs grasped in leafy hand-stalks. They despise all animal life, especially those who eat corn.",
+    "fungus": "Dungeon fungi in this setting are bioluminescent — glowing blue-green, violet, or pale gold. They grow on ancient machinery and stone walls. Fungal creatures are ambulatory mushroom-forms with spore clouds, sometimes incorporating bits of ancient circuitry or metal into their structure as they grow over and through abandoned technology.",
+    "dinosaur": "Dinosaurs roam the wilderness outside the city — real, dangerous prehistoric predators. Raptors, ceratopsians, and massive apex predators with muted earthy coloring (dusty browns, dark greens, slate greys). The tribal humanoids worship the largest ones.",
+    "horror": "Horrors in this setting are eldritch body-horror entities. Asymmetric forms, too many eyes or limbs, flesh fused with metal, organic-mechanical hybrids. Wet, glistening surfaces. The dungeon assembled them from spare parts — biological and mechanical alike.",
+    "ooze": "Dungeon oozes are semi-translucent masses that dissolve and absorb whatever they engulf. Ancient circuit boards and metal fragments float suspended inside them — partially dissolved technology from millennia of feeding on the dungeon's detritus."
+  },
+  "factions": {
+    "unyielding fist": "The Unyielding Fist are shock troopers repurposed into a police and security force. Human footmen and cavalry, plus at least a dozen Steel Leviathans (8-foot armored treaded vehicles with twin machine-gun heads). Foot soldiers wear chain mail with shield and long sword. Riflemen carry breech-loading rifles. Officers wear splint mail and carry large revolver-style pistols. All firearms are sculpted with the ceremonial insignia of the Fist.",
+    "fist": "The Unyielding Fist are shock troopers repurposed into a police and security force. Human footmen and cavalry, plus at least a dozen Steel Leviathans (8-foot armored treaded vehicles with twin machine-gun heads). Foot soldiers wear chain mail with shield and long sword. Riflemen carry breech-loading rifles. Officers wear splint mail and carry large revolver-style pistols. All firearms are sculpted with the ceremonial insignia of the Fist.",
+    "cult of science": "The Cult of Science worships ancient technology they barely understand. Members wear tattered lab coats over improvised protective gear — goggles, rubber gloves, repurposed hazmat equipment. They carry salvaged instruments: oscilloscopes, multimeters, devices with blinking lights whose purpose is forgotten. Their sanctums are cluttered laboratories full of humming machinery, exposed wiring, and holographic displays showing data nobody can read.",
+    "luminous spark": "The Society of the Luminous Spark fights slavery by extracting slavers' brains. They are rebel freedom fighters — scrappy, determined, dangerous. They carry incendiary devices and improvised explosives. Practical combat gear: leather armor, bandoliers, stolen weapons. Their symbol is a bright spark or flame.",
+    "house of flesh": "The House of Flesh is a forest mansion transformed by Starry Wisdom cultists into a living eldritch horror. Walls of stretched skin, doors of bone, windows that blink. Inside, flesh is reshaped and repurposed. Ribbed corridors, arterial piping, rooms that breathe. Associated creatures are similarly organic-horrific."
+  },
+  "landmarks": {
+    "denethix": "Denethix is a medieval city built atop and inside massive ancient mega-structures. Crude stone and timber buildings nestled inside towering concrete and steel ruins. Exposed rebar, repurposed ventilation shafts as alleyways. The Unyielding Fist maintains order. A large wall surrounds the city to keep out wilderness creatures.",
+    "anomalous subsurface environment": "The ASE is a vast megadungeon beneath Mount Rendon. Its corridors are impossibly precise — smooth walls, perfect angles, built by something inhuman. Ancient machinery hums in the walls. The scale is wrong: doorways too large, ceilings too high, corridors too wide. Deeper levels are stranger — bioluminescent growths, impossible geometry.",
+    "bank inviolable": "The Bank Inviolable is guarded by Custodians — enormous man-shaped robots, 20 feet tall, of iron and gold, with miniguns and rocket launchers embedded in each arm. The interior is bureaucratic — teller windows, forms in triplicate, queuing ropes.",
+    "mount rendon": "Mount Rendon is a rugged mountain with ancient bunker entrances and ventilation shafts visible on its slopes. The entrance to the ASE is carved into its base — too precise to be natural. Strange lights flicker in the shafts at night."
+  },
+  "legendary_characters": {
+    "feretha": "Feretha, the Hollow Founder: A dead wizard-ruler whose brain has been scooped out and connected to an ancient machine. His body sits on a technological throne — cables, fluid tubes, neural interfaces connecting his hollow skull to a humming server rack. He wears decayed royal robes over a desiccated frame. His eyes are open but empty. A golden crown doubles as a neural interface headset.",
+    "koyl": "Koyl Yrenum, the Vizier: Appears to be a 50-year-old man, though much older. A former slave who rose to become Denethix's de facto ruler. Immaculately dressed in dark formal robes. Sharp, calculating eyes. Clean-shaven, precise. He carries himself with quiet absolute authority. Lean build. He has secretly learned to cast a few spells.",
+    "marcus tyro": "Captain Marcus Tyro: Commander of the Unyielding Fist. A battle-scarred military leader. Practical uniform with armor, carries weaponry with the Fist's ceremonial insignia. Weathered face, short-cropped hair. Fiercely loyal soldiers follow him. Pragmatic, tired, unyielding.",
+    "fereyn": "Fereyn, Wizard of Tab-Nakel: A wizard who flies in a giant detachable stone head. The head is the upper portion of a 60-foot statue atop a step-pyramid. It has a 20-foot tall bearded stone face with glowing blue eyes that fire high-energy lasers. The operator sits inside and speaks through a microphone that echoes loudly through the head's mouth.",
+    "monsator": "Monsator, Lord of the Stalks: A wizard who commands Cornstalk Warriors — animated stalks of corn that walk on root-like feet and attack with crude wooden spears grasped in leafy hand-stalks. He rides a draft horse named Tess. He wears a ragged black cloak.",
+    "head scientist": "The Head Scientist: Leader of the Cult of Science, standing 12 feet tall on concealed stilts. Wears a 12-foot lab coat that hides the stilts completely. Multiple prosthetic tool-arms extend from the coat. Goggles pushed up on forehead, wild hair, manic curiosity. Fragile and egotistical.",
+    "karak": "Terrible Karak: A bandit king — large, scarred, draped in stolen finery mixed with scavenged tech trophies. Gold chains, fur-lined cloak, rings on every finger. His weapons are visible and many. He grins too wide.",
+    "jace": "Jace, Anomaly Seeker: A visiting planeswalker — distinctly out of place in this world. Clean blue robes with geometric patterns, no grime or wear. Glowing blue eyes, short dark hair, lean build. He radiates calm intelligence. His magic manifests as blue geometric light patterns."
+  },
+  "flux_term_replacements": {
+    "moktar": "tawny-furred lion-headed humanoid",
+    "moktars": "tawny-furred lion-headed humanoids",
+    "morlock": "flabby greenish-gray cave humanoid with reflective eyes",
+    "morlocks": "flabby greenish-gray cave humanoids with reflective eyes",
+    "screechman": "eyeless albino humanoid with fangs and pointed ears",
+    "screechmen": "eyeless albino humanoids with fangs and pointed ears",
+    "grunkie": "small lizard-headed scaled monkey",
+    "grunkies": "small lizard-headed scaled monkeys",
+    "peryton": "winged stag with bat wings and four red eyes",
+    "perytons": "winged stags with bat wings and four red eyes",
+    "protonium": "indestructible ancient metal",
+    "denethix": "the walled city",
+    "feretha": "the dead wizard-ruler",
+    "overclock": "push beyond safe limits",
+    "overclocked": "pushed beyond safe limits",
+    "salvage": "scavenge ancient technology",
+    "malfunction": "mechanical failure"
+  }
+}

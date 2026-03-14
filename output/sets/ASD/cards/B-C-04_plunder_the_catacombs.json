@@ -45,7 +45,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A cloaked figure emerges from a yawning catacomb entrance, skeletal hands of exhumed creatures trailing behind in spectral wisps. Crumbling stone vaults and exposed rebar frame the descent. Ancient concrete megastructure walls loom above, weathered and vast. The air shimmers with death magic as the plunderer rises, clutching stolen treasures from the depths.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
   "design_notes": "Black common sorcery at CMC 5 with a more complex effect per the brief. This combines two core black effects -- raise dead (returning creatures from graveyard) and life drain -- into a single coherent card about plundering the dungeon's depths. Returning two creatures at sorcery speed for 5 mana is fair; the 2 life loss to each opponent adds value without being the primary mode. The two effects are thematically unified (descending into the catacombs and returning with spoils, leaving death in your wake) rather than being a kitchen-sink design. Appropriate complexity for a common sorcery -- two related effects, no tracking or board complexity.",
   "is_reprint": false,
   "scryfall_id": null,

@@ -50,7 +50,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A lean, weathered human scout in earth-toned leather armor crouches mid-stride through dense wilderness, one hand gripping a wooden spear. Scarred face and alert eyes scan the overgrown path ahead. Tangled vines and gnarled trees frame the figure against a shadowed forest backdrop.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.",
   "design_notes": "A solid green uncommon beater at CMC 4. A 4/3 trample for 4 is a fair statline (P+T = 7 = CMC+3), and the combat damage trigger provides card selection that rewards connecting in combat — a green-appropriate 'Impulse for creatures' effect. Trample helps ensure the trigger connects, giving the two abilities natural synergy. The creature-filtering trigger is distinct from salvage (which finds artifacts) and instead supports green's creature-centric gameplan, giving the set's green decks a way to find their threats. The trigger is conditional on combat damage, keeping it from being free value.",
   "is_reprint": false,
   "scryfall_id": null,

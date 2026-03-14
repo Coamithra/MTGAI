@@ -45,7 +45,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A pale, robed human cleric kneels reverently before an ornate stone tablet inscribed with geometric patterns, hands extended in devotion. Soft golden light radiates from the artifact, illuminating her weathered face and worn white vestments. Dust motes drift through the reverent stillness.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "A 1-mana uncommon build-around that rewards the artifact subtheme with incremental lifegain -- firmly in white's slice of the color pie. The 1/1 body is fragile and the effect is small, so at uncommon this provides a useful synergy piece without being overpowered. Parallels Spore-Nest Forager (green, +1/+1 counters) and Spark Detonator (red, 1 damage) as artifact-entry payoffs in other colors, giving white its own angle on the same trigger. Lifegain is white's version of this effect -- defensive and incremental. The Cult of Science flavor ties the mechanical artifact caring to the set's world.",
   "is_reprint": false,
   "scryfall_id": null,

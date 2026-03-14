@@ -1,0 +1,10 @@
+{
+  "collector_number": "R-U-01",
+  "name": "Spark Insurgent",
+  "type_line": "Creature \u2014 Human Rebel",
+  "visual_description": "A lean human fighter in tattered clothes crouches defiantly, one fist raised, eyes blazing with red energy. Behind them looms a massive armored treaded vehicle with twin gun turrets, smoke and sparks rising from its damaged hull. The rebel's silhouette burns against the mechanical wreckage.",
+  "full_prompt": "A lean human fighter in tattered clothes crouches defiantly, one fist raised, eyes blazing with red energy. Behind them looms a massive armored treaded vehicle with twin gun turrets, smoke and sparks rising from its damaged hull. The rebel's silhouette burns against the mechanical wreckage.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1511,
+  "output_tokens": 101
+}

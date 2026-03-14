@@ -1,0 +1,10 @@
+{
+  "collector_number": "W-C-01",
+  "name": "Denethix Watchguard",
+  "type_line": "Creature -- Human Soldier",
+  "visual_description": "A human soldier in chain mail stands alert at a stone gate, shield raised and long sword ready. Weathered armor catches pale light. Behind him, towering concrete ruins loom above the medieval fortifications. His stance is rigid, watchful\u2014a sentry maintaining order over the crumbling city.",
+  "full_prompt": "A human soldier in chain mail stands alert at a stone gate, shield raised and long sword ready. Weathered armor catches pale light. Behind him, towering concrete ruins loom above the medieval fortifications. His stance is rigid, watchful\u2014a sentry maintaining order over the crumbling city.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1471,
+  "output_tokens": 96
+}

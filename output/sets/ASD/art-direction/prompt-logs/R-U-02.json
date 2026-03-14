@@ -1,0 +1,10 @@
+{
+  "collector_number": "R-U-02",
+  "name": "Wasteland War-Raptor",
+  "type_line": "Creature \u2014 Dinosaur",
+  "visual_description": "A muscular tawny-furred lion-headed humanoid in a full sprint, wielding a crude sharpened blade, running alongside a dust-colored raptor dinosaur with slate-grey striping. Both creatures charge forward in violent motion, weapons raised, through a barren wasteland of cracked earth and sparse rock.",
+  "full_prompt": "A muscular tawny-furred lion-headed humanoid in a full sprint, wielding a crude sharpened blade, running alongside a dust-colored raptor dinosaur with slate-grey striping. Both creatures charge forward in violent motion, weapons raised, through a barren wasteland of cracked earth and sparse rock.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1494,
+  "output_tokens": 103
+}

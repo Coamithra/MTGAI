@@ -1,0 +1,10 @@
+{
+  "collector_number": "W-U-02",
+  "name": "Fist Checkpoint Warden",
+  "type_line": "Creature \u2014 Human Soldier",
+  "visual_description": "A stern human soldier in chain mail and splint armor stands at a checkpoint, hand raised in a commanding halt gesture. A large ceremonial revolver-style pistol holstered at their hip. Rigid posture, authoritarian bearing. Papers and documents scattered on a desk behind them. Checkpoint barrier visible in background.",
+  "full_prompt": "A stern human soldier in chain mail and splint armor stands at a checkpoint, hand raised in a commanding halt gesture. A large ceremonial revolver-style pistol holstered at their hip. Rigid posture, authoritarian bearing. Papers and documents scattered on a desk behind them. Checkpoint barrier visible in background.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1453,
+  "output_tokens": 100
+}

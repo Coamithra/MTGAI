@@ -1,0 +1,10 @@
+{
+  "collector_number": "U-U-01",
+  "name": "Flickerfield Operative",
+  "type_line": "Creature \u2014 Human Rogue",
+  "visual_description": "A lean, nimble human rogue in dark blue leather armor crouches mid-stride through a shimmering, fractured corridor. Crystalline blue light refracts around them as they move, their hand outstretched toward swirling motes of arcane energy. Sharp features, focused expression, ready for swift action.",
+  "full_prompt": "A lean, nimble human rogue in dark blue leather armor crouches mid-stride through a shimmering, fractured corridor. Crystalline blue light refracts around them as they move, their hand outstretched toward swirling motes of arcane energy. Sharp features, focused expression, ready for swift action.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1272,
+  "output_tokens": 104
+}

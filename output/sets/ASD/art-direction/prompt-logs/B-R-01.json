@@ -1,0 +1,10 @@
+{
+  "collector_number": "B-R-01",
+  "name": "Koyl Yrenum, the Vizier",
+  "type_line": "Legendary Creature -- Human Advisor",
+  "visual_description": "A lean, sharp-featured man in his fifties wearing immaculate dark formal robes stands with absolute authority. Clean-shaven and calculating, his piercing eyes betray hidden arcane knowledge. Behind him, shadowed figures collapse\u2014the cost of his orchestration. Ancient concrete ruins loom in the background, suggesting hidden power and control.",
+  "full_prompt": "A lean, sharp-featured man in his fifties wearing immaculate dark formal robes stands with absolute authority. Clean-shaven and calculating, his piercing eyes betray hidden arcane knowledge. Behind him, shadowed figures collapse\u2014the cost of his orchestration. Ancient concrete ruins loom in the background, suggesting hidden power and control.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1738,
+  "output_tokens": 105
+}

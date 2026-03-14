@@ -1,0 +1,10 @@
+{
+  "collector_number": "WR-R-01",
+  "name": "Kethra, Spark Commander",
+  "type_line": "Legendary Creature -- Human Rebel",
+  "visual_description": "A fierce human woman in rebel armor, scarred face set with fierce determination, gripping a blazing sword wreathed in white-hot flames. She strides forward mid-combat, sparks trailing from her weapon, rallying armored fighters emerging from shadow behind her. Intense, dynamic action pose.",
+  "full_prompt": "A fierce human woman in rebel armor, scarred face set with fierce determination, gripping a blazing sword wreathed in white-hot flames. She strides forward mid-combat, sparks trailing from her weapon, rallying armored fighters emerging from shadow behind her. Intense, dynamic action pose.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1401,
+  "output_tokens": 97
+}

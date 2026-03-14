@@ -1,0 +1,10 @@
+{
+  "collector_number": "U-R-01",
+  "name": "Automated Sentinel",
+  "type_line": "Creature \u2014 Construct",
+  "visual_description": "A towering stainless steel construct with a cylindrical head crowned by a crystalline eye, its armored frame layered with hydraulic hoses and mismatched salvaged plating. Dormant and motionless, it stands upright in a shadowed underground vault carved into stone, faint crystalline light emanating from its core.",
+  "full_prompt": "A towering stainless steel construct with a cylindrical head crowned by a crystalline eye, its armored frame layered with hydraulic hoses and mismatched salvaged plating. Dormant and motionless, it stands upright in a shadowed underground vault carved into stone, faint crystalline light emanating from its core.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1522,
+  "output_tokens": 106
+}

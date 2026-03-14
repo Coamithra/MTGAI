@@ -1,0 +1,10 @@
+{
+  "collector_number": "U-R-02",
+  "name": "Anomalous Resonance",
+  "type_line": "Enchantment",
+  "visual_description": "A dungeon chamber resonates with visible waves of blue-violet energy, rippling through stone and air. Metallic artifacts\u2014gears, crystals, fragments\u2014hover suspended, vibrating in synchronization. The light pulses rhythmically, casting dancing shadows across carved walls, creating an almost audible hum made visible.",
+  "full_prompt": "A dungeon chamber resonates with visible waves of blue-violet energy, rippling through stone and air. Metallic artifacts\u2014gears, crystals, fragments\u2014hover suspended, vibrating in synchronization. The light pulses rhythmically, casting dancing shadows across carved walls, creating an almost audible hum made visible.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1335,
+  "output_tokens": 102
+}

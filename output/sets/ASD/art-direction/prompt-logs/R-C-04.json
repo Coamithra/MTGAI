@@ -1,0 +1,10 @@
+{
+  "collector_number": "R-C-04",
+  "name": "Ransack the Storeroom",
+  "type_line": "Sorcery",
+  "visual_description": "Adventurers ransacking a stone storeroom, overturning shelves and scattering treasures in a chaotic explosion of red flame and debris. Gold coins and jeweled vessels tumble through the air as fire engulfs the chamber, casting wild shadows across wooden crates and ancient stone walls.",
+  "full_prompt": "Adventurers ransacking a stone storeroom, overturning shelves and scattering treasures in a chaotic explosion of red flame and debris. Gold coins and jeweled vessels tumble through the air as fire engulfs the chamber, casting wild shadows across wooden crates and ancient stone walls.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1304,
+  "output_tokens": 98
+}

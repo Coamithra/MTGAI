@@ -1,0 +1,10 @@
+{
+  "collector_number": "W-M-01",
+  "name": "Feretha, the Hollow Founder",
+  "type_line": "Legendary Creature -- Human Spirit",
+  "visual_description": "A desiccated corpse-king seated on a technological throne, skeletal frame draped in decayed royal robes. A golden crown fused with neural interface cables crowns his hollow skull. Fluid tubes and glowing conduits snake from his empty eye sockets into a humming server rack, his body a puppet of ancient machinery.",
+  "full_prompt": "A desiccated corpse-king seated on a technological throne, skeletal frame draped in decayed royal robes. A golden crown fused with neural interface cables crowns his hollow skull. Fluid tubes and glowing conduits snake from his empty eye sockets into a humming server rack, his body a puppet of ancient machinery.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1525,
+  "output_tokens": 105
+}

@@ -1,0 +1,10 @@
+{
+  "collector_number": "G-R-02",
+  "name": "The Subsurface Reclaims",
+  "type_line": "Enchantment",
+  "visual_description": "A dungeon floor overgrown with bioluminescent vines and fleshy plant tendrils reclaiming fallen warrior bodies. Ethereal green light pulses through the stone, animating corpses as they sprout roots and transform into hybrid plant-creatures. The air shimmers with an otherworldly, persistent glow of regrowth and renewal.",
+  "full_prompt": "A dungeon floor overgrown with bioluminescent vines and fleshy plant tendrils reclaiming fallen warrior bodies. Ethereal green light pulses through the stone, animating corpses as they sprout roots and transform into hybrid plant-creatures. The air shimmers with an otherworldly, persistent glow of regrowth and renewal.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1499,
+  "output_tokens": 110
+}

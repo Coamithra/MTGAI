@@ -45,7 +45,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A crystalline metallic node suspended in mid-air, crackling with unstable arcs of energy. Its surface is scarred and pitted, with visible cracks leaking faint luminescence. Wisps of electromagnetic distortion shimmer around it, creating a faint humming aura. The background fades to neutral grey, keeping focus on the malfunctioning device's chaotic energy discharge.. Stylized digital illustration, centered object-focused composition, self-illuminated subject against dark background, ancient technology aesthetic.",
   "design_notes": "A mana rock that showcases the Malfunction mechanic at uncommon complexity. With Malfunction 2, it enters tapped and can't be used for 2 full turns (counters removed at your upkeep turns 2 and 3, first tap available turn 3 after the last counter comes off). This is a significant tempo cost for a mana rock -- you're paying 3 mana now for 2-mana-per-turn payoff starting much later. Compare to Worn Powerstone (3 mana, enters tapped, taps for {C}{C} -- available next turn). This is stronger when online (colored mana) but dramatically slower. The scry 2 trigger when the last counter is removed rewards patience and creates a satisfying 'boot-up complete' moment. The tap ability produces colored mana, making enters-tapped meaningful per the design checklist. Malfunction 2 is the expected scaling for uncommon. Supports Cult of Science (UR) counter-manipulation themes.",
   "is_reprint": false,
   "scryfall_id": null,

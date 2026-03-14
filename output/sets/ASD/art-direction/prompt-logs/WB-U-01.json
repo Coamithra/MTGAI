@@ -1,0 +1,10 @@
+{
+  "collector_number": "WB-U-01",
+  "name": "Fist Tax Collector",
+  "type_line": "Creature -- Human Advisor",
+  "visual_description": "A stern human official in splint mail armor grips a heavy ceremonial revolver, one hand outstretched in a demanding gesture. Chain-mail glints beneath layered plate. Insignia marks his pistol grip. His weathered face shows cold authority\u2014a collector of debts, living and dead. Action pose, commanding presence.",
+  "full_prompt": "A stern human official in splint mail armor grips a heavy ceremonial revolver, one hand outstretched in a demanding gesture. Chain-mail glints beneath layered plate. Insignia marks his pistol grip. His weathered face shows cold authority\u2014a collector of debts, living and dead. Action pose, commanding presence.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1490,
+  "output_tokens": 105
+}

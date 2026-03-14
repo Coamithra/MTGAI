@@ -1,0 +1,10 @@
+{
+  "collector_number": "U-C-04",
+  "name": "Excavate the Archives",
+  "type_line": "Sorcery",
+  "visual_description": "A figure in tattered robes stands amid towering shelves of ancient scrolls and artifacts, hands raised as glowing blue energy swirls upward, pulling objects from the dusty archive. Scattered relics and papers drift through the air, illuminated by arcane light flooding the vast library chamber.",
+  "full_prompt": "A figure in tattered robes stands amid towering shelves of ancient scrolls and artifacts, hands raised as glowing blue energy swirls upward, pulling objects from the dusty archive. Scattered relics and papers drift through the air, illuminated by arcane light flooding the vast library chamber.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1359,
+  "output_tokens": 97
+}

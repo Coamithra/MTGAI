@@ -1,0 +1,10 @@
+{
+  "collector_number": "W-U-03",
+  "name": "Edict of Continuity",
+  "type_line": "Enchantment",
+  "visual_description": "A medieval city of stone and timber buildings nestled within towering concrete and steel ruins, ethereal white light coalescing above the scene. Exposed rebar and repurposed metal structures frame the composition. The atmosphere shimmers with a persistent, ghostly radiance\u2014the essence of continuity itself\u2014as the city endures beneath ancient megastructures.",
+  "full_prompt": "A medieval city of stone and timber buildings nestled within towering concrete and steel ruins, ethereal white light coalescing above the scene. Exposed rebar and repurposed metal structures frame the composition. The atmosphere shimmers with a persistent, ghostly radiance\u2014the essence of continuity itself\u2014as the city endures beneath ancient megastructures.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1421,
+  "output_tokens": 108
+}

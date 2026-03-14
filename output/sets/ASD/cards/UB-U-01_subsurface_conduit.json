@@ -55,7 +55,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A lean, dark-haired human rogue in sleek tactical gear crouches in a deep underground shaft, fingers splayed against ancient stone walls that glow with faint bioluminescent veins. Their expression shows intense focus as ethereal knowledge-streams flow visibly around them, suggesting communion with something vast and primordial beneath the earth.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
   "design_notes": "UB signpost uncommon for Deep Descent archetype. Overclock exiles three cards and allows playing them until end of turn (including lands). The second ability specifically grants an extended window for instant/sorcery cards until end of next turn via 'this ability' phrasing, supporting recursive casting patterns and mill synergy. The 2/2 body is efficient at uncommon. Temporal windows are now explicit: all cards have an initial window (EOT), instants/sorceries have an extended window (end of next turn). Flavor emphasizes alien knowledge of the Anomalous Subsurface.",
   "is_reprint": false,
   "scryfall_id": null,

@@ -1,0 +1,10 @@
+{
+  "collector_number": "WU-R-01",
+  "name": "Protonium Curator",
+  "type_line": "Legendary Creature \u2014 Human Artificer",
+  "visual_description": "A sharp-featured human artificer in pristine white and blue robes, surrounded by floating crystalline artifacts and mechanical relics. Their hands gesture with precise control as ethereal energy flows between the hovering objects. Intense, focused expression\u2014a master orchestrating ancient technology with absolute command.",
+  "full_prompt": "A sharp-featured human artificer in pristine white and blue robes, surrounded by floating crystalline artifacts and mechanical relics. Their hands gesture with precise control as ethereal energy flows between the hovering objects. Intense, focused expression\u2014a master orchestrating ancient technology with absolute command.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1432,
+  "output_tokens": 93
+}

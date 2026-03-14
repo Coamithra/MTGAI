@@ -47,7 +47,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A stern, sharp-featured woman in ornate white and black ceremonial armor stands at rigid attention, one gauntleted fist raised in command. Her expression is cold and authoritative, eyes fixed forward. Intricate gold trim adorns her breastplate and pauldrons, marking her rank. The pose radiates absolute control and unwavering discipline.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "Rare WB legend for the Vizier's Regime archetype that creates a self-reinforcing engine. The lifegain-to-tokens ability is white (tokens, lifegain triggers seen on cards like Attended Healer), while the death-trigger drain is black. Together they form a loop: tokens die, opponents lose life, and any incidental lifegain (from the uncommon signpost Fist Tax Collector, Cult Archivist triggers, lifelink from Feretha, etc.) creates more tokens to sacrifice. The 'once each turn' clause on token creation prevents infinite loops and keeps it from spiraling out of control with repeated drain triggers. A 2/3 legendary for 3 mana is modestly statted -- the value is in the engine, not the body. As a build-around rare, it ties together the archetype's lifegain, token, and sacrifice themes without being a one-card combo.",
   "is_reprint": false,
   "scryfall_id": null,

@@ -1,0 +1,10 @@
+{
+  "collector_number": "R-C-03",
+  "name": "Scorched Passage",
+  "type_line": "Instant",
+  "visual_description": "A narrow underground tunnel engulfed in intense orange flames, scorching stone walls and blackened debris scattered across the floor. Heat distortion ripples through the air. A faint silhouette of a creature consumed by fire at the tunnel's center, frozen mid-collapse. Smoke billows upward into darkness.",
+  "full_prompt": "A narrow underground tunnel engulfed in intense orange flames, scorching stone walls and blackened debris scattered across the floor. Heat distortion ripples through the air. A faint silhouette of a creature consumed by fire at the tunnel's center, frozen mid-collapse. Smoke billows upward into darkness.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1235,
+  "output_tokens": 99
+}

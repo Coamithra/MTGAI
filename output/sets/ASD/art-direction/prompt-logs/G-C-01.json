@@ -1,0 +1,10 @@
+{
+  "collector_number": "G-C-01",
+  "name": "Elvish Mystic",
+  "type_line": "Creature -- Elf Druid",
+  "visual_description": "A slender elf with pointed ears and flowing green robes stands in a meditative pose, hands raised gently before their chest. Soft golden light radiates from their fingertips as natural vines and leaves swirl around them. Their expression is serene and focused, embodying connection to the forest.",
+  "full_prompt": "A slender elf with pointed ears and flowing green robes stands in a meditative pose, hands raised gently before their chest. Soft golden light radiates from their fingertips as natural vines and leaves swirl around them. Their expression is serene and focused, embodying connection to the forest.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1146,
+  "output_tokens": 98
+}

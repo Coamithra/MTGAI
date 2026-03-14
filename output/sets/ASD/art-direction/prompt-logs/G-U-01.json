@@ -1,0 +1,10 @@
+{
+  "collector_number": "G-U-01",
+  "name": "Salvage Beetle",
+  "type_line": "Artifact Creature \u2014 Insect Beast",
+  "visual_description": "A stocky chitinous beetle with iridescent green-bronze carapace crawls across weathered metal debris. Its segmented legs grip rusted gears and broken machinery. Long spined antennae curve upward, and a faint metallic sheen clings to its armored body, suggesting it feeds on industrial remnants in a reclaimed wasteland.",
+  "full_prompt": "A stocky chitinous beetle with iridescent green-bronze carapace crawls across weathered metal debris. Its segmented legs grip rusted gears and broken machinery. Long spined antennae curve upward, and a faint metallic sheen clings to its armored body, suggesting it feeds on industrial remnants in a reclaimed wasteland.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1395,
+  "output_tokens": 111
+}

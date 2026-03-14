@@ -1,0 +1,10 @@
+{
+  "collector_number": "R-C-01",
+  "name": "Moktar Raider",
+  "type_line": "Creature -- Moktar Warrior",
+  "visual_description": "A seven-foot-tall muscular humanoid with short tawny fur and a thick lion-like maned head crouches in an aggressive stance. Crude weapons\u2014sharpened metal and looted swords\u2014hang from its frame. Scavenged trophies dangle from its body. Behind it, weathered stone buildings and exposed concrete ruins of an ancient mega-structure loom.",
+  "full_prompt": "A seven-foot-tall muscular humanoid with short tawny fur and a thick lion-like maned head crouches in an aggressive stance. Crude weapons\u2014sharpened metal and looted swords\u2014hang from its frame. Scavenged trophies dangle from its body. Behind it, weathered stone buildings and exposed concrete ruins of an ancient mega-structure loom.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1438,
+  "output_tokens": 119
+}

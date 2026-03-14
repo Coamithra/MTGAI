@@ -1,0 +1,10 @@
+{
+  "collector_number": "B-C-02",
+  "name": "Fist Enforcer",
+  "type_line": "Creature -- Human Soldier",
+  "visual_description": "A muscular human soldier in chain mail stands with fists clenched, jaw set in grim determination. Ceremonial insignia marks his breech-loading rifle. Scarred knuckles and a stance radiating menace\u2014this is a shock trooper who breaks resistance through sheer intimidating presence.",
+  "full_prompt": "A muscular human soldier in chain mail stands with fists clenched, jaw set in grim determination. Ceremonial insignia marks his breech-loading rifle. Scarred knuckles and a stance radiating menace\u2014this is a shock trooper who breaks resistance through sheer intimidating presence.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1397,
+  "output_tokens": 99
+}

@@ -47,7 +47,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A fierce human woman in rebel armor, scarred face set with fierce determination, gripping a blazing sword wreathed in white-hot flames. She strides forward mid-combat, sparks trailing from her weapon, rallying armored fighters emerging from shadow behind her. Intense, dynamic action pose.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "Rare WR legendary that leads the Spark Rebellion archetype. A 2/2 haste for 3 is below-rate on stats alone, justified by three synergistic abilities. Haste lets her attack immediately, triggering the token generation right away for immediate board impact. The token enters tapped and attacking -- go-wide aggression that's flavorful for a rebel commander rallying fighters. The equip cost reduction to {1} ties the go-wide token strategy to the equipment subtheme: you generate bodies and cheaply arm them. This creates a powerful engine in dedicated builds but she's fragile at 2/2 and needs equipment and combat to generate value. White gets tokens and equipment synergy; red gets haste and aggressive combat triggers. The combination of abilities tells a cohesive story without being a kitchen sink -- every line feeds into 'make rebels, arm rebels, attack.'",
   "is_reprint": false,
   "scryfall_id": null,

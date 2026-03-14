@@ -1,0 +1,10 @@
+{
+  "collector_number": "B-U-03",
+  "name": "Subsurface Harvest",
+  "type_line": "Enchantment",
+  "visual_description": "A sprawling dungeon chamber thick with bioluminescent mist, skeletal remains scattered across wet stone. Ethereal tendrils of pale energy coalesce above the bones, pulling them upward. Shadows writhe with purpose\u2014the dungeon itself breathing, feeding, transforming death into something alive and hungry.",
+  "full_prompt": "A sprawling dungeon chamber thick with bioluminescent mist, skeletal remains scattered across wet stone. Ethereal tendrils of pale energy coalesce above the bones, pulling them upward. Shadows writhe with purpose\u2014the dungeon itself breathing, feeding, transforming death into something alive and hungry.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1411,
+  "output_tokens": 101
+}

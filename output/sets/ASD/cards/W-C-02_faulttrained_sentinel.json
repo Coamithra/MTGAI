@@ -54,7 +54,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A human soldier in white plate armor stands rigid in a defensive stance, one gauntleted hand raised to shield. Their posture is stiff and mechanical, as if frozen mid-motion. Weathered metal plating shows faint scorch marks and repair seams, suggesting past failures. Alert eyes peer forward from beneath a reinforced helm.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "White common creature at CMC 2 with Malfunction 1 as requested. Stats of 2/3 are above-rate for the cost (P+T = 5, which would normally be CMC+3 = 5 for a 2-mana common), justified by the enters-tapped tempo cost of Malfunction 1. Vigilance synergizes perfectly with enters tapped—the creature can block immediately without needing to untap, and after a turn cycle the malfunction counter is removed, unlocking the creature for attacks. This creates meaningful gameplay: the card provides early defense despite the tempo penalty. Single keyword ability (vigilance) + one mechanic keyword (Malfunction), respecting common complexity. Fits WR (Spark Rebellion) draft archetype as a defensive early play and WU (Ancient Technology) as a utility creature that works around the malfunction tempo cost. Flavor text is deadpan and on-brand for the setting.",
   "is_reprint": false,
   "scryfall_id": null,

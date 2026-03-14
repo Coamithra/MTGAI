@@ -47,7 +47,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A dungeon chamber resonates with visible waves of blue-violet energy, rippling through stone and air. Metallic artifacts—gears, crystals, fragments—hover suspended, vibrating in synchronization. The light pulses rhythmically, casting dancing shadows across carved walls, creating an almost audible hum made visible.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
   "design_notes": "A blue rare enchantment that rewards artifact-heavy strategies. The first ability is a loot trigger — each artifact entering gives you card filtering, keeping hands smooth without raw card advantage. The second ability is the payoff: if you can get three artifacts entering in a single turn (via tokens, cheap artifacts, or Salvage chains), you draw two cards at end step — genuine card advantage. The threshold of three artifacts is achievable but requires real deckbuilding commitment. At 4 CMC it comes down early enough to matter but isn't free. Supports the WU and UR artifact archetypes as a build-around. Blue is primary in both card draw and enchantments-that-draw.",
   "is_reprint": false,
   "scryfall_id": null,

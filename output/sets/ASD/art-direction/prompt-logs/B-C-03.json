@@ -1,0 +1,10 @@
+{
+  "collector_number": "B-C-03",
+  "name": "Murder",
+  "type_line": "Instant",
+  "visual_description": "A pale humanoid figure collapses mid-stride, body twisted in shock, as a gleaming blade withdraws from their back. Dark blood pools beneath them. The killer's hand\u2014gloved, steady\u2014remains visible at frame's edge. Frozen moment of violent finality, tight, intimate framing.",
+  "full_prompt": "A pale humanoid figure collapses mid-stride, body twisted in shock, as a gleaming blade withdraws from their back. Dark blood pools beneath them. The killer's hand\u2014gloved, steady\u2014remains visible at frame's edge. Frozen moment of violent finality, tight, intimate framing.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1122,
+  "output_tokens": 98
+}

@@ -45,7 +45,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A desiccated corpse seated on a technological throne, hollow skull crowned with a neural interface, cables and fluid tubes snaking from its empty eye sockets. Beside it stands a lean man in dark formal robes, eyes sharp and calculating, one hand raised in commanding gesture. Ethereal chains of light bind the scene, transforming the air into shimmering constraint.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "White rare enchantment at CMC 4. Combines two white effects -- Oblivion Ring-style conditional removal and a taxing effect on opponent's new creatures. The Banishing Light effect ties removal to the enchantment's survival, giving opponents counterplay. The tax effect slows opponents deploying threats but doesn't prevent them -- pay 2 or your creature enters effectively tapped. This captures the Vizier's authoritarian control of Denethix. Both abilities are firmly in white's color pie (removal via exile, taxing effects). Strong but answerable -- destroying the enchantment frees the exiled creature and ends the tax.",
   "is_reprint": false,
   "scryfall_id": null,

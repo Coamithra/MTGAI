@@ -45,7 +45,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A chain-mailed soldier with ceremonial insignia on his revolver-style pistol, pointing the weapon at a massive armored figure mid-vanishment, ethereal light tearing the target away. Frozen moment of authoritarian judgment and exile, tight dramatic framing.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "Conditional exile-based removal, squarely in white's color pie. At 3 mana and restricted to power 4+, this is appropriately costed for common -- it handles big threats but can't answer small utility creatures or tokens. Comparable to Angelic Purge or Reprisal variants. The 'power 4 or greater' restriction keeps it conditional per NWO common removal guidelines. Instant speed is a slight premium but justified by the narrow targeting. Flavor ties to Denethix's authoritarian government exiling undesirables into the megadungeon.",
   "is_reprint": false,
   "scryfall_id": null,

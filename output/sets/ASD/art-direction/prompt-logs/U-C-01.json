@@ -1,0 +1,10 @@
+{
+  "collector_number": "U-C-01",
+  "name": "Subsurface Surveyor",
+  "type_line": "Creature -- Human Scout",
+  "visual_description": "A lean human scout in practical blue-grey garments crouches at a rocky cavern entrance, one hand steadying against stone. Rope coils at their belt, eyes alert and focused downward into darkness. Torchlight catches their determined face as they prepare to descend into shadowed depths below.",
+  "full_prompt": "A lean human scout in practical blue-grey garments crouches at a rocky cavern entrance, one hand steadying against stone. Rope coils at their belt, eyes alert and focused downward into darkness. Torchlight catches their determined face as they prepare to descend into shadowed depths below.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1258,
+  "output_tokens": 98
+}

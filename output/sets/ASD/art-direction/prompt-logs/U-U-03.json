@@ -1,0 +1,10 @@
+{
+  "collector_number": "U-U-03",
+  "name": "Automated Sentry Grid",
+  "type_line": "Enchantment",
+  "visual_description": "An intricate lattice of luminous blue-white energy grids suspended in mid-air, crackling with ancient power. Crystalline nodes pulse rhythmically across the geometric network. Frozen mechanical constructs hover trapped within the energy field, their forms locked in place by cascading arcs of ethereal light. The backdrop fades into weathered stone architecture, suggesting ruins of forgotten technology.",
+  "full_prompt": "An intricate lattice of luminous blue-white energy grids suspended in mid-air, crackling with ancient power. Crystalline nodes pulse rhythmically across the geometric network. Frozen mechanical constructs hover trapped within the energy field, their forms locked in place by cascading arcs of ethereal light. The backdrop fades into weathered stone architecture, suggesting ruins of forgotten technology.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1331,
+  "output_tokens": 115
+}

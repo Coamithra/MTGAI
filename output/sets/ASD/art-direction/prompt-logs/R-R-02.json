@@ -1,0 +1,10 @@
+{
+  "collector_number": "R-R-02",
+  "name": "The Burning Descent",
+  "type_line": "Enchantment",
+  "visual_description": "A roiling vortex of crimson and orange flame spirals downward into darkness, consuming ethereal cards that scatter and ignite mid-air. Heat distortion ripples outward, warping the surrounding stone cavern walls. Embers drift upward in defiance of gravity, creating an otherworldly descent into infernal depths.",
+  "full_prompt": "A roiling vortex of crimson and orange flame spirals downward into darkness, consuming ethereal cards that scatter and ignite mid-air. Heat distortion ripples outward, warping the surrounding stone cavern walls. Embers drift upward in defiance of gravity, creating an otherworldly descent into infernal depths.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1357,
+  "output_tokens": 105
+}

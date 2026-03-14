@@ -1,0 +1,10 @@
+{
+  "collector_number": "WU-U-01",
+  "name": "Sanctuary Automaton",
+  "type_line": "Artifact Creature \u2014 Construct",
+  "visual_description": "A stainless steel automaton stands in a protective stance, its cylindrical head crowned with a speaker grill and luminous crystalline eyes. Hydraulic hoses and wiring thread through exposed gaps between polished steel plates. Minor rust stains trace its weathered frame. One sharpened steel blade hangs ready at its side, poised to defend.",
+  "full_prompt": "A stainless steel automaton stands in a protective stance, its cylindrical head crowned with a speaker grill and luminous crystalline eyes. Hydraulic hoses and wiring thread through exposed gaps between polished steel plates. Minor rust stains trace its weathered frame. One sharpened steel blade hangs ready at its side, poised to defend.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1674,
+  "output_tokens": 109
+}

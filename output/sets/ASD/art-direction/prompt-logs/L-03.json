@@ -1,0 +1,10 @@
+{
+  "collector_number": "L-03",
+  "name": "Swamp",
+  "type_line": "Basic Land \u2014 Swamp",
+  "visual_description": "A desolate swamp landscape where murky water pools glow with sickly bioluminescent greens and purples. Crumbling metal structures and bleached bone fragments protrude from the mire, half-submerged and corroded. Twisted vegetation clings to sunken ruins, while acidic mist rises from the toxic pools, creating an atmosphere of decay and forgotten technology consumed by nature.",
+  "full_prompt": "A desolate swamp landscape where murky water pools glow with sickly bioluminescent greens and purples. Crumbling metal structures and bleached bone fragments protrude from the mire, half-submerged and corroded. Twisted vegetation clings to sunken ruins, while acidic mist rises from the toxic pools, creating an atmosphere of decay and forgotten technology consumed by nature.. Stylized digital illustration, panoramic landscape, dramatic atmospheric perspective, concept-art establishing shot, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1162,
+  "output_tokens": 122
+}

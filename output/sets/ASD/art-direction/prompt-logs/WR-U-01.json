@@ -1,0 +1,10 @@
+{
+  "collector_number": "WR-U-01",
+  "name": "Rebel Firebrand",
+  "type_line": "Creature \u2014 Human Rebel",
+  "visual_description": "A defiant human rebel with singed clothes and burn scars on bare arms, holding a torch aloft with wild intensity. Flames dance across their hands and face, eyes blazing with fury. Behind them, a Fist officer in splint mail and ceremonial insignia lies crumpled, their revolver-pistol fallen nearby.",
+  "full_prompt": "A defiant human rebel with singed clothes and burn scars on bare arms, holding a torch aloft with wild intensity. Flames dance across their hands and face, eyes blazing with fury. Behind them, a Fist officer in splint mail and ceremonial insignia lies crumpled, their revolver-pistol fallen nearby.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1509,
+  "output_tokens": 105
+}

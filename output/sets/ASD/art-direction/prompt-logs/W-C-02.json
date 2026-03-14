@@ -1,0 +1,10 @@
+{
+  "collector_number": "W-C-02",
+  "name": "Fault-Trained Sentinel",
+  "type_line": "Creature \u2014 Human Soldier",
+  "visual_description": "A human soldier in white plate armor stands rigid in a defensive stance, one gauntleted hand raised to shield. Their posture is stiff and mechanical, as if frozen mid-motion. Weathered metal plating shows faint scorch marks and repair seams, suggesting past failures. Alert eyes peer forward from beneath a reinforced helm.",
+  "full_prompt": "A human soldier in white plate armor stands rigid in a defensive stance, one gauntleted hand raised to shield. Their posture is stiff and mechanical, as if frozen mid-motion. Weathered metal plating shows faint scorch marks and repair seams, suggesting past failures. Alert eyes peer forward from beneath a reinforced helm.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1373,
+  "output_tokens": 105
+}

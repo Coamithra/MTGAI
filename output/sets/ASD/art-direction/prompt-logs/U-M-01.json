@@ -1,0 +1,10 @@
+{
+  "collector_number": "U-M-01",
+  "name": "Vex, Architect of Systems",
+  "type_line": "Legendary Creature \u2014 Human Artificer",
+  "visual_description": "A sharp-featured woman in sleek blue attire hunches over glowing holographic displays, fingers dancing across three luminous screens simultaneously. Her eyes reflect cascading data streams. Crystalline artifacts and mechanical components scatter across her workspace, bathed in cool blue-white light.",
+  "full_prompt": "A sharp-featured woman in sleek blue attire hunches over glowing holographic displays, fingers dancing across three luminous screens simultaneously. Her eyes reflect cascading data streams. Crystalline artifacts and mechanical components scatter across her workspace, bathed in cool blue-white light.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1415,
+  "output_tokens": 91
+}

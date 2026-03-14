@@ -46,7 +46,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A weathered brass lamp fixture mounted on a stone pedestal, its cylindrical glass chamber holding a faintly glowing filament. Three thin scratches mark the glass where light flickers unevenly. Corrosion stains streak downward. The background fades to dark stone, keeping focus on the lamp's mechanical simplicity and worn patina.. Stylized digital illustration, centered object-focused composition, self-illuminated subject against dark background, ancient technology aesthetic.",
   "design_notes": "A simple colorless mana rock at common that showcases Malfunction 1. At CMC 2, a mana rock that produces any color is strong, but entering tapped with a malfunction counter means it can't tap until the counter is removed at your next upkeep — effectively a two-turn delay before it's online (enters tapped turn 1, counter removed at upkeep of turn 2, then available to tap). This is significantly worse than Mind Stone or Arcane Signet, keeping it at common power level. The enters-tapped from Malfunction is meaningful here because the card has a tap ability, avoiding the checklist's \"relevant enters-tapped only\" concern. Malfunction 1 at common follows the scaling guidelines. The card supports the set's artifact theme, fixes mana for multicolor decks in draft, and interacts with counter-removal effects from the Cult of Science (UR) archetype like Relay Node Technician.",
   "is_reprint": false,
   "scryfall_id": null,

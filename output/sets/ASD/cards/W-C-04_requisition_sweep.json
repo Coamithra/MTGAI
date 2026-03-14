@@ -49,7 +49,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A sweeping enforcement action in a grand chamber: white-armored officials confiscate glowing artifacts and enchanted relics from shelves and pedestals. Magical items crumble and dissolve under their touch. In the background, a desiccated corpse in royal robes sits motionless on a technological throne, neural cables trailing from an empty skull, overseeing the seizure with hollow indifference.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "White common sorcery that combines artifact/enchantment removal with the set's Salvage mechanic. White has primary access to both artifact/enchantment destruction and Salvage. At {3}{W} sorcery speed, this is a fair rate — Disenchant effects at instant for {1}{W} are the baseline, so adding Salvage 3 at sorcery speed and +{2} is reasonable for common. The two effects are thematically linked: you destroy enemy tech and scavenge something useful from the ruins. Salvage 3 at common follows the X=2-3 guideline. This is the first appearance of Salvage in white, so reminder text is included.",
   "is_reprint": false,
   "scryfall_id": null,

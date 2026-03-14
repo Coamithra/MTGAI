@@ -353,6 +353,9 @@ def build_card_html(card: dict, review: dict | None, finalize_info: dict | None)
       <!-- Review Section -->
       {review_html}
 
+      <!-- Art Prompt (collapsible) -->
+      {build_art_prompt_html(card.get("art_prompt"))}
+
       <!-- Design Notes (collapsible) -->
       {build_design_notes_html(design_notes) if design_notes else ""}
     </div>
@@ -502,6 +505,19 @@ def build_design_notes_html(notes: str) -> str:
         f'<details class="design-notes-details">'
         f"<summary>Design Notes</summary>"
         f'<div class="design-notes-content"><p>{escaped}</p></div></details>'
+    )
+
+
+def build_art_prompt_html(art_prompt: str | None) -> str:
+    """Build a collapsible section showing the art generation prompt."""
+    if not art_prompt:
+        return ""
+    escaped = html.escape(art_prompt).replace("\n\n", "<br><br>").replace("\n", "<br>")
+    return (
+        f'<details class="design-notes-details">'
+        f'<summary>Art Prompt</summary>'
+        f'<div class="design-notes-content art-prompt-content">'
+        f"<p>{escaped}</p></div></details>"
     )
 
 

@@ -1,0 +1,10 @@
+{
+  "collector_number": "L-02",
+  "name": "Island",
+  "type_line": "Basic Land \u2014 Island",
+  "visual_description": "Flooded underground cavern with still, reflective water mirroring ancient stone arches and crumbling columns. Luminescent moss clings to weathered rocks. Water drips from stalactites above, rippling the surface. Dim blue-green light filters through cracks in the cavern ceiling, illuminating submerged ruins and the echoing void beyond.",
+  "full_prompt": "Flooded underground cavern with still, reflective water mirroring ancient stone arches and crumbling columns. Luminescent moss clings to weathered rocks. Water drips from stalactites above, rippling the surface. Dim blue-green light filters through cracks in the cavern ceiling, illuminating submerged ruins and the echoing void beyond.. Stylized digital illustration, panoramic landscape, dramatic atmospheric perspective, concept-art establishing shot, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1156,
+  "output_tokens": 112
+}

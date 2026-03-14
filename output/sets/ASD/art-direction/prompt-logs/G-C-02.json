@@ -1,0 +1,10 @@
+{
+  "collector_number": "G-C-02",
+  "name": "Rendon Ceratops",
+  "type_line": "Creature -- Dinosaur",
+  "visual_description": "A stocky ceratopsian dinosaur with a broad bony frill and thick horns charges forward, muscles tensed for impact. Dusty brown and slate-grey scales cover its powerful frame. Behind it, the towering stone walls of a medieval city recede, dwarfed by the creature's sheer mass and presence.",
+  "full_prompt": "A stocky ceratopsian dinosaur with a broad bony frill and thick horns charges forward, muscles tensed for impact. Dusty brown and slate-grey scales cover its powerful frame. Behind it, the towering stone walls of a medieval city recede, dwarfed by the creature's sheer mass and presence.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1423,
+  "output_tokens": 105
+}

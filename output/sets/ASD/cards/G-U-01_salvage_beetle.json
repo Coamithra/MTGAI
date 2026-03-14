@@ -51,7 +51,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "A stocky chitinous beetle with iridescent green-bronze carapace crawls across weathered metal debris. Its segmented legs grip rusted gears and broken machinery. Long spined antennae curve upward, and a faint metallic sheen clings to its armored body, suggesting it feeds on industrial remnants in a reclaimed wasteland.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.",
   "design_notes": "This card is a green uncommon artifact creature at CMC 2 with straightforward mechanical identity. Reach is an evergreen keyword fitting green's fight-and-control strategy. The triggered ability ties into the set's artifact-matters theme by rewarding artifact sacrifice or destruction — a clean interaction with cards like Spark Detonator, Reclaim the Surface, and artifact-based sacrifice loops. The ability creates real variability (actual artifact deaths in-game), respecting the \"no fake variability\" rule. P+T of 2/2 at CMC 2 is on-curve for green, and the +1/+1 scaling potential makes it a relevant draft pick without being dominant. No keyword nonbos: reach + 2/2 body + triggered growth is cohesive. The Insect Beast creature type reinforces the post-apocalyptic nature setting and fits the renewal theme of the flavor text.",
   "is_reprint": false,
   "scryfall_id": null,

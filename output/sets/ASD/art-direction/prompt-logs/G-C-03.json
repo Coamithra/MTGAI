@@ -1,0 +1,10 @@
+{
+  "collector_number": "G-C-03",
+  "name": "Overgrown Ambush",
+  "type_line": "Instant",
+  "visual_description": "A muscular creature with vine-wrapped limbs lunges forward through a narrow alley, dense vegetation exploding outward from its body. Crumbling concrete walls and exposed rebar frame the moment. Thick roots tear through ancient stone, wild growth overwhelming the urban decay in an instant of raw, unstoppable force.",
+  "full_prompt": "A muscular creature with vine-wrapped limbs lunges forward through a narrow alley, dense vegetation exploding outward from its body. Crumbling concrete walls and exposed rebar frame the moment. Thick roots tear through ancient stone, wild growth overwhelming the urban decay in an instant of raw, unstoppable force.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1388,
+  "output_tokens": 101
+}

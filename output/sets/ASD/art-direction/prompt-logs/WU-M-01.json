@@ -1,0 +1,10 @@
+{
+  "collector_number": "WU-M-01",
+  "name": "The Custodian Eternal",
+  "type_line": "Legendary Artifact Creature -- Construct",
+  "visual_description": "An immense stainless-steel construct, 20 feet tall, with a cylindrical head crowned by crystalline eyes that glow with ancient intelligence. Its iron-and-gold frame bristles with jury-rigged components\u2014bone plating, salvaged gears, wiring\u2014patched across millennia. Hydraulic hoses pulse beneath plate armor. It hovers with ethereal grace, one massive limb raised in eternal vigilance.",
+  "full_prompt": "An immense stainless-steel construct, 20 feet tall, with a cylindrical head crowned by crystalline eyes that glow with ancient intelligence. Its iron-and-gold frame bristles with jury-rigged components\u2014bone plating, salvaged gears, wiring\u2014patched across millennia. Hydraulic hoses pulse beneath plate armor. It hovers with ethereal grace, one massive limb raised in eternal vigilance.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1646,
+  "output_tokens": 128
+}

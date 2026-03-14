@@ -49,7 +49,7 @@
   "render_attempts": [],
   "art_path": null,
   "render_path": null,
-  "art_prompt": null,
+  "art_prompt": "An immense stainless-steel construct, 20 feet tall, with a cylindrical head crowned by crystalline eyes that glow with ancient intelligence. Its iron-and-gold frame bristles with jury-rigged components—bone plating, salvaged gears, wiring—patched across millennia. Hydraulic hoses pulse beneath plate armor. It hovers with ethereal grace, one massive limb raised in eternal vigilance.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.",
   "design_notes": "Mythic capstone for the WU Ancient Technology archetype. A 4/5 flying vigilance for 5 is a strong but fair body. The core ability is an Oblivion Ring-style repeatable exile tied to artifact ETBs -- each artifact you play temporarily removes a nonland permanent. This is white's exile-based removal married to blue's artifact affinity, creating a powerful board-control engine that rewards artifact-dense decks. The exile is tied to the Custodian leaving, so all exiled cards return if it's removed -- a meaningful counterplay window that prevents it from being oppressive. The death trigger (salvage 6) ensures you recover momentum if your opponent does answer it, finding another artifact threat to continue your gameplan. Flying + vigilance means it attacks and defends simultaneously, befitting an ancient guardian. P+T of 9 at CMC 5 is within mythic budget. The card is spectacular but answerable -- removal returns all exiled permanents, creating dramatic swings in both directions.",
   "is_reprint": false,
   "scryfall_id": null,

@@ -1,0 +1,10 @@
+{
+  "collector_number": "B-U-01",
+  "name": "Toothwork Familiar",
+  "type_line": "Creature -- Construct",
+  "visual_description": "A small skeletal construct of mismatched human teeth welded into a stainless steel frame, crystalline eyes glowing dimly. Hydraulic joints twitch beneath patched armor plating. Teeth clatter and protrude at chaotic angles from its cylindrical body, creating a chittering, unsettling silhouette against shadow.",
+  "full_prompt": "A small skeletal construct of mismatched human teeth welded into a stainless steel frame, crystalline eyes glowing dimly. Hydraulic joints twitch beneath patched armor plating. Teeth clatter and protrude at chaotic angles from its cylindrical body, creating a chittering, unsettling silhouette against shadow.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.",
+  "character_refs": [],
+  "input_tokens": 1438,
+  "output_tokens": 107
+}
