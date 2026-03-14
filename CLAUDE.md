@@ -5,7 +5,9 @@
 - Tests live in `backend/tests/`, mirroring the source structure
 - Research outputs go in `research/`
 - Learnings go in `learnings/`
+- Plans and tracker in `plans/` (TRACKER.md is the master progress file)
 - Generated files (art, renders, print files) go in `output/` (gitignored)
+- Card JSON files are version-controlled in `output/sets/<SET_CODE>/cards/`
 
 ## Development
 - Python 3.12+, managed with uv
@@ -37,18 +39,48 @@
 - Every generation attempt is tracked (prompt, model, timestamp, success/failure)
 - Pipeline is resumable: interrupted operations resume from the last incomplete card
 
+## LLM Client (`mtgai/generation/llm_client.py`)
+- `generate_with_tool()` — Anthropic API with forced `tool_choice` for structured JSON output
+- Supports `effort` parameter (Opus-only): "max", "high", "low"
+- Model tier capping via `MTGAI_MAX_MODEL` env var (set to "haiku", "sonnet", or "opus")
+  - Higher-tier requests are downgraded to the cap model
+  - `effort` is removed if dropping below Opus
+- `thinking` is incompatible with forced `tool_choice` — don't use together
+- Always use full color names in prompts (not abbreviations like "R")
+
 ## Validation Library (`mtgai/validation/`)
 - Two severity levels: **AUTO** (deterministically fixable) and **MANUAL** (needs LLM retry)
 - AUTO errors are auto-fixed post-validation via registered fixer functions (18 fixers)
 - MANUAL errors become structured retry prompts fed back to the LLM
-- `validate_card_from_raw(raw_dict)` → `(card, errors, applied_fixes)` — the main entry point
-- 8 validators run in sequence: schema → mana → type_check → rules_text → power_level → color_pie → text_overflow → uniqueness
-- Auto-fix registry in `__init__.py` maps `error_code` → fixer function, with lazy loading to avoid circular imports
+- `validate_card_from_raw(raw_dict)` -> `(card, errors, applied_fixes)` — the main entry point
+- 8 validators run in sequence: schema -> mana -> type_check -> rules_text -> power_level -> color_pie -> text_overflow -> uniqueness
+- Auto-fix registry in `__init__.py` maps `error_code` -> fixer function, with lazy loading
 - Cards are immutable Pydantic models — fixers return new instances via `card.model_copy(update={...})`
-- No spelling validator — LLMs don't misspell; keyword capitalization and "cannot"→"can't" live in rules_text
+- No spelling validator — LLMs don't misspell; keyword capitalization and "cannot"->"can't" live in rules_text
+
+## AI Review Pipeline (`mtgai/review/ai_review.py`)
+- Tiered council+iteration hybrid from Phase 1B A/B test
+- **C/U cards**: Single Opus reviewer + iteration (max 5 loops)
+- **R/M cards + planeswalkers/sagas**: Full council (3 independent Opus reviewers + consensus synthesizer, 2-of-3 filter) + iteration
+- Pointed questions loaded from `output/sets/<SET_CODE>/mechanics/pointed-questions.json` (evolving config)
+- Token optimizations: only include relevant mechanic defs, skip synthesis if all 3 say OK
+- Per-card review logs saved as JSON in `output/sets/<SET_CODE>/reviews/`
+- Summary report in `output/sets/<SET_CODE>/reports/ai-review-summary.md`
+- Resumable: skips cards with existing review logs
+- CLI: `python -m mtgai.review ai-review [--dry-run] [--card W-C-01]`
+- Also: `python -m mtgai.review.ai_review [--dry-run] [--card W-C-01]`
+
+## Balance Analysis (`mtgai/analysis/`)
+- `analyze_set(set_code)` runs skeleton conformance, CMC curve, creature size, removal density, card advantage, mechanic distribution, mana fixing, and color balance checks
+- CLI: `python -m mtgai.review balance --set ASD`
+- Reports saved to `output/sets/<SET_CODE>/reports/balance-{report,analysis}.{md,json}`
+
+## Skeleton Revision (`mtgai/generation/skeleton_reviser.py`)
+- LLM proposes slot changes based on balance findings, then regenerates affected cards
+- CLI: `python -m mtgai.generation.skeleton_reviser [--dry-run] [--max-rounds N]`
 
 ## Testing
-- Validation tests are the most important category — 73 tests in `tests/test_validation/test_validators.py`
+- Validation tests are the most important category — 73+ tests in `tests/test_validation/test_validators.py`
 - Use `_make_card(**overrides)` helper for creating test cards with sane defaults
 - Test file structure mirrors source structure
 
@@ -56,3 +88,10 @@
 - Card JSON is version-controlled
 - Art and rendered images are NOT version-controlled (gitignored)
 - Never commit API keys or .env files
+
+## Current State (Phase 4B)
+- 66 cards generated for ASD dev set (60 main + 6 lands)
+- 3 custom mechanics: Salvage (W/U/G), Malfunction (W/U/R), Overclock (U/R/B)
+- Phases 0A-0E, 1A-1C, 4A, 4A-rev complete
+- Currently building: Phase 4B AI design review pipeline
+- Next: 4B review run, then 4AB human review gate before art

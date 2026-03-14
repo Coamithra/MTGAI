@@ -1,0 +1,50 @@
+[
+  {
+    "id": "keyword_nonbo",
+    "question": "Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.",
+    "category": "keyword_negated",
+    "source": "1B-8 human review"
+  },
+  {
+    "id": "reminder_text",
+    "question": "Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.",
+    "category": "missing_reminder_text",
+    "source": "1B-8 human review"
+  },
+  {
+    "id": "redundant_conditional",
+    "question": "If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.",
+    "category": "redundant_conditional",
+    "source": "1B-8 human review"
+  },
+  {
+    "id": "power_level",
+    "question": "Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.",
+    "category": "above_rate_balance",
+    "source": "1B-8 human review"
+  },
+  {
+    "id": "kitchen_sink",
+    "question": "Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.",
+    "category": "kitchen_sink",
+    "source": "1B-8 human review"
+  },
+  {
+    "id": "false_variability",
+    "question": "If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.",
+    "category": "false_variability",
+    "source": "1B-8 human review"
+  },
+  {
+    "id": "keyword_collision",
+    "question": "Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.",
+    "category": "keyword_collision",
+    "source": "1B-8 human review"
+  },
+  {
+    "id": "enters_tapped_irrelevant",
+    "question": "Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.",
+    "category": "enters_tapped_irrelevant",
+    "source": "1B-8 human review"
+  }
+]

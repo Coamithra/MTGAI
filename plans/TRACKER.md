@@ -371,12 +371,12 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 
 **--- Part B: AI Design Review (1B Tiered Council+Iteration Hybrid) ---**
 
-- [ ] **4B-review-infra**: Build AI review pipeline infrastructure. Implement the **tiered council+iteration hybrid** from 1B A/B test:
+- [x] **4B-review-infra**: Build AI review pipeline infrastructure. Implement the **tiered council+iteration hybrid** from 1B A/B test:
   1. **C/U tier — Single Opus reviewer + iteration** (~$0.10/card): Category nudge prompt ("List any issues with templating, mechanics, balance, design, or color pie") + iteration loop (continue conversation, max 5 iterations, loop until OK). Opus 4.6 effort=max.
   2. **R/M tier — Full Opus council + iteration** (~$0.11/card): 3 independent Opus reviewers analyze each card (same prompt, no cross-contamination). Synthesizer applies 2-of-3 consensus filter, produces revision. If REVISED, iterate until OK or max 5 iterations. Skip synthesis if all 3 reviewers say OK.
   3. **Planeswalkers/sagas**: Always use council tier regardless of rarity.
   Infrastructure must include: per-card review logging (prompt, full response, tool calls, cost, verdict) saved to `output/sets/<code>/reviews/<collector_number>.json`. The pointed questions list should be loaded from a config file (`output/sets/<code>/mechanics/pointed-questions.json`) so it can evolve as new failure modes are discovered. Token optimizations: only include relevant mechanic defs per card, batch by mechanic for prompt caching, continue conversation for iteration.
-  → `backend/mtgai/review/ai_review.py`, `output/sets/<code>/mechanics/pointed-questions.json`
+  → `backend/mtgai/review/ai_review.py` (1050+ lines), `output/sets/ASD/mechanics/pointed-questions.json` (8 questions). Pydantic models: ReviewIssue, ReviewVerdict, ReviewIteration, CouncilMemberReview, CardReviewResult. Tool schemas: submit_review (OK/REVISE + revised card), submit_synthesis (2-of-3 consensus). Respects MTGAI_MAX_MODEL env var via `generate_with_tool()`. Resumable (skips existing review logs). CLI: `python -m mtgai.review ai-review [--dry-run] [--card W-C-01]`. Dry-run verified: 41 single + 18 council = 59 cards (skips 5 basic lands + 2 reprints). All 513 tests pass.
 - [ ] **4B-review-run**: Run AI review on all 60 dev set cards:
   1. Single-reviewer + iteration on all C/U cards (Opus 4.6, effort=max).
   2. Council + iteration on all R/M cards and planeswalkers/sagas (Opus 4.6, effort=max).

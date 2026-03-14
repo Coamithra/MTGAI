@@ -369,9 +369,7 @@ def balance(
             )
 
     # Mana fixing
-    console.print(
-        f"\n[bold]Mana fixing:[/bold] {len(result.mana_fixing_sources)} sources"
-    )
+    console.print(f"\n[bold]Mana fixing:[/bold] {len(result.mana_fixing_sources)} sources")
     for name in result.mana_fixing_sources:
         console.print(f"  - {name}")
 
@@ -393,9 +391,43 @@ def balance(
         for i in warns:
             console.print(f"  [{i.check}] {i.message}")
 
-    console.print(f"\n[dim]Reports saved to:[/dim]")
+    console.print("\n[dim]Reports saved to:[/dim]")
     console.print(f"  JSON: {json_path}")
     console.print(f"  Markdown: {md_path}")
+
+
+# ---------------------------------------------------------------------------
+# review ai-review (Phase 4B)
+# ---------------------------------------------------------------------------
+
+
+@app.command("ai-review")
+def ai_review(
+    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code to review.")] = "ASD",
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show plan without calling LLM.")
+    ] = False,
+    card: Annotated[
+        str | None,
+        typer.Option("--card", "-c", help="Review only this collector number (e.g. W-C-01)."),
+    ] = None,
+    include_lands: Annotated[
+        bool, typer.Option("--include-lands", help="Include basic lands in review.")
+    ] = False,
+    include_reprints: Annotated[
+        bool, typer.Option("--include-reprints", help="Include reprints in review.")
+    ] = False,
+) -> None:
+    """Run AI design review on generated cards (Phase 4B)."""
+    from mtgai.review.ai_review import review_set
+
+    review_set(
+        set_code=set_code,
+        dry_run=dry_run,
+        card_filter=card,
+        skip_lands=not include_lands,
+        skip_reprints=not include_reprints,
+    )
 
 
 # ---------------------------------------------------------------------------
