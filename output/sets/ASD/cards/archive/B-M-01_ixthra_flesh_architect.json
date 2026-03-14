@@ -1,0 +1,66 @@
+{
+  "id": null,
+  "name": "Ixthra, Flesh Architect",
+  "layout": "normal",
+  "mana_cost": "{2}{B}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Legendary Creature — Horror",
+  "supertypes": [
+    "Legendary"
+  ],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Horror"
+  ],
+  "oracle_text": "Menace\nWhenever a nontoken creature dies, exile it. You may put a creature card exiled with ~ onto the battlefield under your control at the beginning of your next end step. If you do, it enters with a finality counter on it.\nCreatures you control with finality counters on them get +2/+0 and have menace.",
+  "flavor_text": "The House of Flesh does not kill. It repurposes.",
+  "reminder_text": null,
+  "power": "3",
+  "toughness": "4",
+  "loyalty": null,
+  "collector_number": "B-M-01",
+  "rarity": "mythic",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:40:00.603851Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Oracle text is 305 characters, exceeding the 300-char limit for this card type"
+      ],
+      "input_tokens": 2551,
+      "output_tokens": 406,
+      "cost_usd": 0.0687225,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "A mythic legendary tied to the House of Flesh lore — the eldritch horror mansion where cultists reshape living things. Mechanically complex and game-warping as a mythic should be. The death trigger exiles ALL nontoken creatures that die (yours and opponents'), giving you a delayed reanimation of one per death. The finality counter means reanimated creatures are one-use (they get exiled on death, per existing finality counter rules), preventing infinite loops. The +2/+0 and menace buff for finality-countered creatures creates an aggressive reanimator strategy — you're building a disposable army of repurposed dead. At 3/4 menace for 4 mana, the body is solid but not overwhelming; the power is in the engine. It's answerable by exile removal and graveyard hate (cards get exiled, but you can still remove finality-countered creatures). The delayed trigger (next end step, not immediately) gives opponents a window to respond.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "B-M-01",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:40:00.603851Z",
+  "updated_at": null
+}

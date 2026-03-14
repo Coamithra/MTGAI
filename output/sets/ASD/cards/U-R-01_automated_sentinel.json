@@ -1,0 +1,67 @@
+{
+  "id": null,
+  "name": "Automated Sentinel",
+  "layout": "normal",
+  "mana_cost": "{1}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Creature — Construct",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Construct"
+  ],
+  "oracle_text": "Malfunction 3 (This permanent enters tapped with three malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.).\nhexproof, malfunction\nWhen ~ no longer has malfunction counters on it, draw a card.",
+  "flavor_text": "Three centuries of dormancy in the vaults beneath Mount Rendon. When power surged back through its crystalline matrices, it remembered only one directive: observe.",
+  "reminder_text": null,
+  "power": "3",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "U-R-01",
+  "rarity": "rare",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:57:07.625729Z",
+      "prompt_used": null,
+      "model_used": "claude-haiku-4-5-20251001",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Line 1: \"This permanent\" should use \"~\" or \"this\" only in specific MTG contexts",
+        "Oracle text contains what looks like reminder text: \"(This permanent enters tapped with three malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\"",
+        "Malfunction already causes the permanent to enter tapped — explicit 'enters tapped' is redundant",
+        "Combined oracle + flavor text is 441 characters, exceeding the 350-char limit for this card type"
+      ],
+      "input_tokens": 3082,
+      "output_tokens": 437,
+      "cost_usd": 0.004216,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This is a Blue rare artifact creature with a high malfunction threshold (3 counters). The card is designed as a strong payoff for the Malfunction mechanic: hexproof while in-flight provides protection during the vulnerable ramp-up phase, and drawing a card when fully online rewards players for keeping it alive. The 3/3 body for CMC 2 is above rate, justified by: (1) three turns of delay before the card becomes untapped and threatening, (2) vulnerability to artifact removal during that window, (3) hexproof creating counterplay restrictions. This fits Blue's defensive, spell-slinging archetype and encourages artifact-focused control/midrange strategies in the U/W (Ancient Technology) or U/R (Mad Science) archetypes. The ETB draw triggers once when all counters are gone, providing a one-time card advantage payoff rather than sustained value, keeping it balanced for rare.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "U-R-01",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:57:07.625729Z",
+  "updated_at": null
+}

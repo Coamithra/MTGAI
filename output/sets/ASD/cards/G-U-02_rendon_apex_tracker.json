@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Rendon Apex Tracker",
+  "layout": "normal",
+  "mana_cost": "{2}{G}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "G"
+  ],
+  "color_identity": [
+    "G"
+  ],
+  "type_line": "Creature — Human Scout",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Scout"
+  ],
+  "oracle_text": "Trample\nWhenever ~ deals combat damage to a player, look at the top three cards of your library. You may put a creature card from among them into your hand. Put the rest on the bottom of your library in any order.",
+  "flavor_text": "\"The megadungeon swallows everything. The wilderness just bites.\"",
+  "reminder_text": null,
+  "power": "4",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "G-U-02",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:44:14.087488Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 2731,
+      "output_tokens": 376,
+      "cost_usd": 0.069165,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "A solid green uncommon beater at CMC 4. A 4/3 trample for 4 is a fair statline (P+T = 7 = CMC+3), and the combat damage trigger provides card selection that rewards connecting in combat — a green-appropriate 'Impulse for creatures' effect. Trample helps ensure the trigger connects, giving the two abilities natural synergy. The creature-filtering trigger is distinct from salvage (which finds artifacts) and instead supports green's creature-centric gameplan, giving the set's green decks a way to find their threats. The trigger is conditional on combat damage, keeping it from being free value.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "G-U-02",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:44:14.087488Z",
+  "updated_at": null
+}

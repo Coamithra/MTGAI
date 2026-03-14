@@ -1,0 +1,67 @@
+{
+  "id": null,
+  "name": "Reclaimed Settler",
+  "layout": "normal",
+  "mana_cost": "{W}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "W",
+    "G"
+  ],
+  "color_identity": [
+    "W",
+    "G"
+  ],
+  "type_line": "Creature — Human Settler",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Settler"
+  ],
+  "oracle_text": "When ~ enters, salvage 4. (Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\\nWhenever you create a token, put a +1/+1 counter on ~.",
+  "flavor_text": "The best tools are the ones you find buried. The best settlers are the ones who know how to use 'em.",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "collector_number": "WG-U-01",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:57:26.967025Z",
+      "prompt_used": null,
+      "model_used": "claude-haiku-4-5-20251001",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Oracle text contains what looks like reminder text: \"(Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+      ],
+      "input_tokens": 6066,
+      "output_tokens": 517,
+      "cost_usd": 0.0069208,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "WG signpost uncommon for the Frontier Settlers archetype. Salvage 4 on entry provides artifact tutor-like utility while filtering the top of library — supports both the artifact subtheme and WG's interest in finding ramp/mana artifacts. The body starts as a 1/1 (compliant with CMC+3 rule at uncommon), but grows via the +1/+1 counter trigger whenever the player creates tokens. This synergy signals the archetype's go-wide strategy and provides a payoff for the token-generation cards in the format (Edict of Continuity, Proclamation Enforcer, Kethra, etc.). The card rewards playing the WG game plan and scales naturally in limited while remaining focused and clean.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "WG-U-01",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:57:26.967025Z",
+  "updated_at": null
+}

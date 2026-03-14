@@ -7,6 +7,7 @@ folded into the generation prompt as preventive design guidance.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -26,11 +27,10 @@ def load_system_prompt() -> str:
 
     raw = _SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
     # Extract the fenced code block between the first pair of ```
-    start = raw.index("```") + 3
-    # Skip optional language identifier on the same line
-    start = raw.index("\n", start) + 1
-    end = raw.index("```", start)
-    _SYSTEM_PROMPT_CACHE = raw[start:end].strip()
+    match = re.search(r"```[^\n]*\n(.*?)```", raw, re.DOTALL)
+    if not match:
+        raise ValueError(f"No fenced code block found in {_SYSTEM_PROMPT_PATH}")
+    _SYSTEM_PROMPT_CACHE = match.group(1).strip()
     return _SYSTEM_PROMPT_CACHE
 
 
@@ -135,10 +135,17 @@ def format_set_context(existing_cards: list[dict]) -> str:
         cost = c.get("mana_cost", "")
         tl = c.get("type_line", "")
         oracle = c.get("oracle_text", "")
-        # Truncate oracle to ~60 chars for summary
-        summary = oracle[:60].replace("\n", " ")
-        if len(oracle) > 60:
-            summary += "..."
+        # Truncate oracle at a clause boundary (sentence end or newline) up to 120 chars
+        flat = oracle.replace("\n", " | ")
+        if len(flat) <= 120:
+            summary = flat
+        else:
+            cut = flat[:120]
+            # Try to break at a sentence boundary
+            last_period = cut.rfind(". ")
+            last_pipe = cut.rfind(" | ")
+            break_at = max(last_period + 1, last_pipe) if max(last_period, last_pipe) > 40 else 120
+            summary = cut[:break_at].rstrip() + "..."
         lines.append(f"- {name} ({cost}) — {tl} — {summary}")
 
         for clr in c.get("colors", []):
@@ -190,6 +197,20 @@ def format_slot_specs(slots: list[dict], theme: dict | None = None) -> str:
             spec += f", colors: {_expand_color(color_pair[0])}/{_expand_color(color_pair[1])}"
             if color_pair in archetype_map:
                 spec += f"\n   Archetype — {archetype_map[color_pair]}"
+
+        # Include archetype guidance for monocolor slots via archetype_tags
+        archetype_tags = slot.get("archetype_tags", [])
+        if archetype_tags and not color_pair:
+            arch_descs = [archetype_map[tag] for tag in archetype_tags if tag in archetype_map]
+            if arch_descs:
+                spec += f"\n   Supports archetypes: {'; '.join(arch_descs)}"
+
+        if slot.get("is_reprint_slot"):
+            spec += "\n   REPRINT SLOT — design a card suitable as a reprint from an existing set"
+
+        notes = slot.get("notes", "").strip()
+        if notes:
+            spec += f"\n   Notes: {notes}"
 
         lines.append(spec)
 

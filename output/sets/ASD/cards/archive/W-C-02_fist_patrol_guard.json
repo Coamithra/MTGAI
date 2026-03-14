@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Fist Patrol Guard",
+  "layout": "normal",
+  "mana_cost": "{1}{W}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Creature — Human Soldier",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Soldier"
+  ],
+  "oracle_text": "Vigilance",
+  "flavor_text": "The Unyielding Fist never sleeps. Partly out of duty. Partly because the screaming from below Mount Rendon makes it difficult.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "W-C-02",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:41:55.213262Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 2927,
+      "output_tokens": 366,
+      "cost_usd": 0.0713925,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Clean french vanilla common for white. A 2/2 vigilance for {1}{W} is a solid, fair rate — comparable to cards like Cavalry Pegasus or Kinsbaile Cavalier bodies without being pushed. P+T=4, CMC+3=5, well within budget. Vigilance is white's signature evergreen keyword and fits the flavor of the Unyielding Fist as tireless enforcers of order in Denethix. The Human Soldier typing synergizes with the set's token themes (Edict of Continuity, Salvage the Gatehouse) without being parasitic.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "W-C-02",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:41:55.213262Z",
+  "updated_at": null
+}

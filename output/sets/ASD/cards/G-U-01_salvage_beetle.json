@@ -1,0 +1,64 @@
+{
+  "id": null,
+  "name": "Salvage Beetle",
+  "layout": "normal",
+  "mana_cost": "{1}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "G"
+  ],
+  "color_identity": [
+    "G"
+  ],
+  "type_line": "Artifact Creature — Insect Beast",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "Insect",
+    "Beast"
+  ],
+  "oracle_text": "Reach\\nWhenever an artifact you control is put into a graveyard from the battlefield, put a +1/+1 counter on ~.",
+  "flavor_text": "\"The ruins feed the land. The land feeds us. The cycle continues.\" — Sura, Rendon Ranchmaster",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "G-U-01",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:56:46.870723Z",
+      "prompt_used": null,
+      "model_used": "claude-haiku-4-5-20251001",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5504,
+      "output_tokens": 514,
+      "cost_usd": 0.0064592,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card is a green uncommon artifact creature at CMC 2 with straightforward mechanical identity. Reach is an evergreen keyword fitting green's fight-and-control strategy. The triggered ability ties into the set's artifact-matters theme by rewarding artifact sacrifice or destruction — a clean interaction with cards like Spark Detonator, Reclaim the Surface, and artifact-based sacrifice loops. The ability creates real variability (actual artifact deaths in-game), respecting the \"no fake variability\" rule. P+T of 2/2 at CMC 2 is on-curve for green, and the +1/+1 scaling potential makes it a relevant draft pick without being dominant. No keyword nonbos: reach + 2/2 body + triggered growth is cohesive. The Insect Beast creature type reinforces the post-apocalyptic nature setting and fits the renewal theme of the flavor text.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "G-U-01",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:56:46.870723Z",
+  "updated_at": null
+}

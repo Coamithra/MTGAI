@@ -44,10 +44,10 @@
         "WR",
         "WG"
       ],
-      "mechanic_tag": "french_vanilla",
+      "mechanic_tag": "malfunction",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Must use Malfunction 1. White common creature with vigilance. Above-rate stats (e.g. 2/3 or 3/2) justified by entering tapped with a malfunction counter. Human Soldier.",
       "color_pair": null
     },
     {
@@ -378,13 +378,13 @@
       "slot_id": "X-C-01",
       "color": "colorless",
       "rarity": "common",
-      "card_type": "artifact",
+      "card_type": "Artifact",
       "cmc_target": 2,
       "archetype_tags": [],
-      "mechanic_tag": "vanilla",
+      "mechanic_tag": "malfunction",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Must use Malfunction 1. Simple common mana rock or utility artifact. Enters tapped with 1 malfunction counter. Should be a clean vanilla-complexity design aside from the keyword.",
       "color_pair": null
     },
     {
@@ -420,7 +420,7 @@
       "mechanic_tag": "evergreen",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "White uncommon creature. Evergreen complexity only — no set mechanics. Human Soldier with a simple evergreen ability like vigilance + a basic ETB (e.g., gain life, create a token). Should support white's go-wide or artifact-matters themes without using Salvage.",
       "color_pair": null
     },
     {
@@ -456,7 +456,7 @@
       "mechanic_tag": "evergreen",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Blue uncommon creature. Evergreen complexity only. Human Artificer 1/1. Simple artifact-matters creature with only evergreen keywords (e.g., 'Flash' or 'When ~ enters, scry 2'). No set mechanics, no complex triggers.",
       "color_pair": null
     },
     {
@@ -474,7 +474,7 @@
       "mechanic_tag": "evergreen",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Blue uncommon creature. No Salvage. Human Wizard or Artificer with flying. 2/2 body. Can have an artifact-synergy ability (e.g., 'Whenever an artifact enters under your control, draw a card then discard a card') or simple card filtering. Supports blue's artifact themes without Salvage.",
       "color_pair": null
     },
     {
@@ -517,7 +517,7 @@
       "slot_id": "B-U-02",
       "color": "B",
       "rarity": "uncommon",
-      "card_type": "creature",
+      "card_type": "Creature",
       "cmc_target": 3,
       "archetype_tags": [
         "WB",
@@ -528,7 +528,7 @@
       "mechanic_tag": "evergreen",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Black uncommon creature with deathtouch and one other evergreen keyword (e.g., menace or lifelink). Human Rogue type fits the setting. No set-specific mechanics. Simple, clean design.",
       "color_pair": null
     },
     {
@@ -561,10 +561,10 @@
         "BR",
         "RG"
       ],
-      "mechanic_tag": "evergreen",
+      "mechanic_tag": "malfunction",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Must use Malfunction 2. Red uncommon creature with aggressive stats. 'When the last malfunction counter is removed from ~, deal 3 damage to any target.' Human Rebel or Construct. Enters tapped with 2 counters as tempo cost.",
       "color_pair": null
     },
     {
@@ -582,7 +582,7 @@
       "mechanic_tag": "evergreen",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Red uncommon creature. Evergreen complexity only. Moktar Berserker 3/3 or 4/2. Simple evergreen keywords like haste + trample, or haste + menace. No complex triggered abilities.",
       "color_pair": null
     },
     {
@@ -597,17 +597,17 @@
         "BR",
         "RG"
       ],
-      "mechanic_tag": "complex",
+      "mechanic_tag": "overclock",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Red uncommon enchantment. Should reference Overclock. 'Whenever you cast a noncreature spell, if you overclocked this turn, ~ deals 2 damage to each opponent.' May have an activated overclock ability or trigger overclock on ETB. CMC 4 is fine for uncommon enchantment.",
       "color_pair": null
     },
     {
       "slot_id": "G-U-01",
       "color": "G",
       "rarity": "uncommon",
-      "card_type": "creature",
+      "card_type": "Artifact Creature",
       "cmc_target": 2,
       "archetype_tags": [
         "WG",
@@ -618,14 +618,14 @@
       "mechanic_tag": "evergreen",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Green uncommon artifact creature with a simple evergreen keyword (e.g., reach or trample). No salvage. Should support the artifact-matters subtheme by being an artifact itself. Construct or Beast type fits the setting.",
       "color_pair": null
     },
     {
       "slot_id": "G-U-02",
       "color": "G",
       "rarity": "uncommon",
-      "card_type": "creature",
+      "card_type": "Creature",
       "cmc_target": 4,
       "archetype_tags": [
         "WG",
@@ -636,7 +636,7 @@
       "mechanic_tag": "evergreen",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Green uncommon creature with evergreen keywords only (e.g., trample + reach, or trample + vigilance). Dinosaur type preferred. No set mechanics. Should be a solid midrange body.",
       "color_pair": null
     },
     {
@@ -666,10 +666,10 @@
       "archetype_tags": [
         "WU"
       ],
-      "mechanic_tag": "complex",
+      "mechanic_tag": "salvage",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "WU signpost uncommon. Artifact Creature — Construct. Must use Salvage 4. 'When ~ enters, salvage 4. If you put an artifact card into your hand this way, [bonus effect like scry 2, gain 2 life, or tap target creature].' 2/2 with vigilance. Signals the WU Ancient Technology archetype.",
       "color_pair": "WU"
     },
     {
@@ -696,10 +696,10 @@
       "archetype_tags": [
         "WR"
       ],
-      "mechanic_tag": "complex",
+      "mechanic_tag": "malfunction",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "WR signpost uncommon. Must use Malfunction 2. '{1}: Remove a malfunction counter from ~.' Aggressive stats (e.g. 3/2 or 3/3) justified by Malfunction tempo cost. Human Rebel. Should signal the WR Spark Rebellion archetype.",
       "color_pair": "WR"
     },
     {
@@ -711,10 +711,10 @@
       "archetype_tags": [
         "WG"
       ],
-      "mechanic_tag": "complex",
+      "mechanic_tag": "salvage",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "WG signpost uncommon. Creature — Human Settler. Must use Salvage 4. 'When ~ enters, salvage 4.' Plus a payoff for finding artifacts or tokens theme. 1/1 or 2/2 body with a +1/+1 counter subtheme tie-in. Signals the WG Frontier Settlers archetype.",
       "color_pair": "WG"
     },
     {
@@ -726,10 +726,10 @@
       "archetype_tags": [
         "UB"
       ],
-      "mechanic_tag": "complex",
+      "mechanic_tag": "overclock",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "UB signpost uncommon. Must use Overclock. 'When ~ enters, overclock. You may cast instant and sorcery cards exiled this way until end of your next turn.' Human Rogue or similar. 2/2 or 2/3 body. Should signal the UB archetype.",
       "color_pair": "UB"
     },
     {
@@ -793,10 +793,10 @@
         "UR",
         "UG"
       ],
-      "mechanic_tag": "complex",
+      "mechanic_tag": "malfunction",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Must use Malfunction 3. Blue rare artifact creature (Construct or Automaton). Powerful payoff: 'Has hexproof as long as it has a malfunction counter on it' plus a strong ability once fully online. Above-rate body justified by long Malfunction delay.",
       "color_pair": null
     },
     {
@@ -814,7 +814,7 @@
       "mechanic_tag": "complex",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Blue rare legendary enchantment with artifact subtype. No Salvage. Artifact-matters engine: 'Whenever an artifact enters under your control, draw a card.' Or 'At the beginning of your upkeep, create a 1/1 colorless Construct artifact creature token.' Should be a powerful artifact-synergy engine without using Salvage.",
       "color_pair": null
     },
     {
@@ -1018,7 +1018,7 @@
       "mechanic_tag": "complex",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Blue mythic legendary creature. Human Artificer. No Salvage. Flash. 1/3 body. 'Artifact spells you cast cost {1} less to cast.' Replace Salvage with a different powerful ETB or static (e.g., 'When ~ enters, draw cards equal to the number of artifacts you control' or 'Artifacts you control have hexproof'). Must remain a strong artifact-matters build-around.",
       "color_pair": null
     },
     {
@@ -1033,10 +1033,10 @@
         "BR",
         "BG"
       ],
-      "mechanic_tag": "complex",
+      "mechanic_tag": "overclock",
       "is_reprint_slot": false,
       "card_id": null,
-      "notes": "",
+      "notes": "Black mythic creature. Must have repeatable Overclock: '{2}{B}, {T}: Overclock. Whenever you overclock, each opponent loses 2 life.' Horror or Demon type. Powerful body (4/4 or similar) with deathtouch. Legendary.",
       "color_pair": null
     },
     {

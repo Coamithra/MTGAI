@@ -1,0 +1,67 @@
+{
+  "id": null,
+  "name": "Spark Insurgent",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "R"
+  ],
+  "color_identity": [
+    "R"
+  ],
+  "type_line": "Creature — Human Rebel",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Rebel"
+  ],
+  "oracle_text": "Malfunction 2 (This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.).\nWhen the last malfunction counter is removed from ~, deal 3 damage to any target.",
+  "flavor_text": "The Fist tried to stomp out the spark. They failed.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "1",
+  "loyalty": null,
+  "collector_number": "R-U-01",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:56:56.799513Z",
+      "prompt_used": null,
+      "model_used": "claude-haiku-4-5-20251001",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Line 1: \"This permanent\" should use \"~\" or \"this\" only in specific MTG contexts",
+        "Oracle text contains what looks like reminder text: \"(This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\"",
+        "Malfunction already causes the permanent to enter tapped — explicit 'enters tapped' is redundant"
+      ],
+      "input_tokens": 2915,
+      "output_tokens": 406,
+      "cost_usd": 0.003958,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Red uncommon creature with aggressive stats (2/1 for CMC 2). Malfunction 2 creates a real tempo cost—enters tapped, not dangerous immediately. When the second counter removes at start of turn 3, the damage trigger rewards you for the delay and fits Red's burn philosophy. This is different from a typical haste creature: it's a bomb that needs setup, which is mechanically interesting at uncommon. The trigger condition is clear and meaningful: 'the last counter' has real game impact. Power/toughness on-rate: 2+1=3, CMC+3=5, so within budget. No keyword nonbos: 2/1 body attacking turn 3 is fine, no haste needed because Malfunction does the work.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "R-U-01",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:56:56.799513Z",
+  "updated_at": null
+}

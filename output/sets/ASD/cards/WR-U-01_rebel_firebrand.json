@@ -1,0 +1,69 @@
+{
+  "id": null,
+  "name": "Rebel Firebrand",
+  "layout": "normal",
+  "mana_cost": "{1}{W}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "W",
+    "R"
+  ],
+  "color_identity": [
+    "W",
+    "R"
+  ],
+  "type_line": "Creature — Human Rebel",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Rebel"
+  ],
+  "oracle_text": "Malfunction 2 (This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\\n{1}: Remove a malfunction counter from ~.",
+  "flavor_text": "The Fist guns can't aim if their hands are burned off.",
+  "reminder_text": null,
+  "power": "3",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "WR-U-01",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:57:32.795157Z",
+      "prompt_used": null,
+      "model_used": "claude-haiku-4-5-20251001",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Line 1: \"This permanent\" should use \"~\" or \"this\" only in specific MTG contexts",
+        "Oracle text contains what looks like reminder text: \"(This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\"",
+        "Malfunction already causes the permanent to enter tapped — explicit 'enters tapped' is redundant"
+      ],
+      "input_tokens": 6275,
+      "output_tokens": 501,
+      "cost_usd": 0.007024,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "WR signpost uncommon for Spark Rebellion archetype. Malfunction 2 provides a significant tempo cost (enters tapped, two-turn clock to be active), justified by aggressive stats (3/2). The activated ability {1} to remove malfunction counters allows interactive play: you can choose to pay mana to accelerate the card's usefulness, or hold up mana for combat tricks. This creates decision-making and rewards tempo planning. The modest mana cost means it can come down turn 2 and be active by turn 4, fitting WR's aggressive tempo play. Flavor reflects the rebel underdog nature and pyromaniac style. Stats fit common power budget: 3+2=5, CMC 3, so P+T = CMC+2, well within acceptable range.\"",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "WR-U-01",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:57:32.795157Z",
+  "updated_at": null
+}

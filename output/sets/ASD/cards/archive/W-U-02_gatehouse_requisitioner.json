@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Gatehouse Requisitioner",
+  "layout": "normal",
+  "mana_cost": "{2}{W}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Creature — Human Soldier",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Soldier"
+  ],
+  "oracle_text": "When ~ enters, salvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.).",
+  "flavor_text": "\"Requisitioned for civic defense. You'll receive a receipt. Eventually.\"",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "W-U-02",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:41:55.286095Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Oracle text contains what looks like reminder text: \"(Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+      ],
+      "input_tokens": 2927,
+      "output_tokens": 366,
+      "cost_usd": 0.0713925,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "White uncommon that delivers the set's Salvage mechanic on a reasonable body. A 2/2 for 3 with an ETB salvage 3 is a clean, useful card — the body is below rate to account for the card selection. Comparable to Militia Bugler or Attended Socialite-style 'ETB filter' creatures at uncommon. Salvage 3 is the common-tier scaling (2-3), appropriate here since the body is modest and it's the primary effect. Supports WU (Ancient Technology) and WG artifact-matters archetypes. This is the first appearance of Salvage in white creatures, so full reminder text is included. The flavor captures Denethix's bureaucratic authoritarianism — the Fist confiscating useful relics under the guise of civic duty.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "W-U-02",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:41:55.286095Z",
+  "updated_at": null
+}

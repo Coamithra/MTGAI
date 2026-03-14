@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Fist Checkpoint Warden",
+  "layout": "normal",
+  "mana_cost": "{2}{W}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Creature — Human Soldier",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Soldier"
+  ],
+  "oracle_text": "When ~ enters, tap target creature an opponent controls. It doesn't untap during its controller's next untap step.",
+  "flavor_text": "\"Papers. Permit. Purpose. Proceed — slowly.\"",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "W-U-02",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:45:26.159103Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 1972,
+      "output_tokens": 329,
+      "cost_usd": 0.05429,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "White uncommon creature with a strong ETB tempo effect. 2/3 for {2}{W} is a fair body (P+T=5 vs CMC+3=6). The tap-and-freeze effect is a classic white ability seen on cards like Reflector Mage (in blue-white) and Kor Hookmaster. At uncommon, this conditional removal-adjacent effect is appropriate. The card supports blink/flicker strategies with The Custodian Remnant and fits the Unyielding Fist's authoritarian checkpoint flavor. It's a clean, focused design — one ETB, one effect, no keyword soup.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "W-U-02",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:45:26.159103Z",
+  "updated_at": null
+}

@@ -1,0 +1,478 @@
+{
+  "round_number": 1,
+  "timestamp": "2026-03-14T00:39:39.838723+00:00",
+  "model": "claude-opus-4-6",
+  "temperature": 0.5,
+  "effort": "max",
+  "input_tokens": 5981,
+  "output_tokens": 5612,
+  "cost_usd": 0.510615,
+  "latency_s": 84.64,
+  "prompts": {
+    "system_prompt": "You are an expert Magic: The Gathering set designer. You analyze set-wide structural problems and propose targeted fixes by reassigning skeleton slots.\n\nYour job is to fix SET-LEVEL issues (mechanic distribution, artifact density, complexity tier mismatches) — NOT card-level design quality issues. You do this by identifying which cards to replace and what constraints the replacement cards should have.\n\nRules:\n- Preserve load-bearing cards (signpost uncommons, key removal, archetype enablers, reprints)\n- Prefer replacing generic/vanilla cards over mechanically interesting ones\n- Don't change more slots than necessary\n- Each replacement must serve a specific structural need\n- New slot constraints must be achievable (valid color/rarity/type/CMC combos)\n- A card can serve multiple purposes (e.g., an artifact creature with Malfunction fixes both artifact density AND mechanic distribution)",
+    "system_prompt_length": 896,
+    "user_prompt": "## Current Cards in the Set\n\n```\nB-C-01 | Subsurface Scavenger | {B} | Creature -- Human Rogue 1/1 | \nB-C-02 | Fist Enforcer | {1}{B} | Creature -- Human Soldier 2/1 | Menace\nB-C-03 | Murder | {1}{B}{B} | Instant | Destroy target creature.\nB-C-04 | Plunder the Catacombs | {4}{B} | Sorcery | Return up to two target creature cards from your graveyard to your hand. Each...\nB-M-01 | Apex of the Subsurface | {2}{B}{B} | Legendary Creature -- Horror 4/4 | Deathtouch Whenever a creature dealt damage by ~ this turn dies, exile it. Yo...\nB-R-01 | Koyl Yrenum, the Vizier | {1}{B} | Legendary Creature -- Human Advisor 1/3 | Whenever another creature dies, you may pay {1}. If you do, look at the top t...\nB-R-02 | The Brain Engine | {3}{B}{B} | Legendary Enchantment -- Artifact | Whenever a nontoken creature you control dies, exile it with a charge counter...\nB-U-01 | Toothwork Familiar | {B} | Creature -- Construct 1/1 | When ~ dies, each opponent loses 1 life and you gain 1 life.\nB-U-02 | Luminous Spark Extractor | {2}{B} | Creature -- Human Assassin 2/2 | When ~ enters, target opponent discards a card. If that card was a creature c...\nB-U-03 | Subsurface Harvest | {3}{B}{B} | Enchantment | Whenever a creature you control dies, you may pay 1 life. If you do, draw a c...\nG-C-01 | Elvish Mystic | {G} | Creature -- Elf Druid 1/1 | {T}: Add {G}.\nG-C-02 | Rendon Ceratops | {2}{G} | Creature -- Dinosaur 3/3 | Trample\nG-C-03 | Overgrown Ambush | {3}{G} | Instant | Target creature you control gets +3/+3 and gains trample until end of turn.\nG-C-04 | Reclaim the Surface | {5}{G}{G} | Sorcery | Destroy target artifact and target enchantment. Create two 4/4 green Dinosaur...\nG-R-01 | Spore-Nest Forager | {1}{G} | Creature -- Fungus Scout 1/2 | Whenever an artifact enters under your control, put a +1/+1 counter on ~. {G}...\nG-R-02 | The Subsurface Reclaims | {5}{G}{G} | Enchantment | Whenever a nontoken creature you control dies, you may exile it. If you do, c...\nG-U-01 | Moktar Salvager | {1}{G} | Creature -- Moktar Warrior 2/1 | When ~ enters, salvage 3. .\nG-U-02 | Rendon Packleader | {2}{G}{G} | Creature -- Dinosaur 4/3 | Trample Whenever ~ deals combat damage to a player, salvage 4. .\nG-U-03 | Law of the Wilderness | {5}{G}{G} | Enchantment | When ~ enters, destroy all artifacts and enchantments other than ~. Creatures...\nL-01 | Plains |  | Basic Land — Plains | \nL-02 | Island |  | Basic Land — Island | \nL-03 | Swamp |  | Basic Land — Swamp | \nL-04 | Mountain |  | Basic Land — Mountain | \nL-05 | Forest |  | Basic Land — Forest | \nL-06 | Descent Waypoint |  | Land | Descent Waypoint enters the battlefield tapped. {T}: Add {W} or {U}.\nR-C-01 | Moktar Raider | {1}{R} | Creature -- Moktar Warrior 2/2 | \nR-C-02 | Wasteland Raptor | {2}{R} | Creature -- Dinosaur 3/1 | Haste\nR-C-03 | Scorched Passage | {3}{R} | Instant | ~ deals 4 damage to target creature.\nR-C-04 | Ransack the Storeroom | {5}{R} | Sorcery | ~ deals 5 damage divided as you choose among any number of target creatures. ...\nR-R-01 | Spark Detonator | {1}{R} | Creature -- Human Rebel Artificer 2/1 | Whenever an artifact enters under your control, ~ deals 1 damage to each oppo...\nR-R-02 | The Burning Descent | {4}{R}{R} | Enchantment | At the beginning of your upkeep, overclock. . Whenever you play a card exiled...\nR-U-01 | Spark Saboteur | {1}{R} | Creature -- Human Rebel 2/1 | When ~ enters, it deals 1 damage to target creature or planeswalker. Sacrific...\nR-U-02 | Moktar War-Screamer | {2}{R}{R} | Creature -- Moktar Berserker 3/2 | Haste Whenever ~ attacks, it gets +1/+0 until end of turn for each other atta...\nR-U-03 | Raider's Bounty | {4}{R}{R} | Enchantment | Whenever a creature you control deals combat damage to a player, exile the to...\nU-C-01 | Subsurface Surveyor | {U} | Creature -- Human Scout 1/2 | \nU-C-02 | Glintscale Flyer | {1}{U} | Creature -- Drake 1/2 | Flying\nU-C-03 | Redirect Pulse | {2}{U} | Instant | Return target creature to its owner's hand. Draw a card.\nU-C-04 | Excavate the Archives | {4}{U} | Sorcery | Draw three cards, then discard a card. Salvage 3.\nU-M-01 | The Head Scientist | {1}{U}{U} | Legendary Creature -- Human Artificer 1/3 | Flash When ~ enters, salvage 5. . Artifact spells you cast cost {1} less to c...\nU-R-01 | Cult Savant | {U} | Creature -- Human Artificer 1/1 | Whenever you cast an artifact spell, draw a card, then discard a card. {3}{U}...\nU-R-02 | The Cartography Engine | {2}{U}{U} | Legendary Enchantment -- Artifact | At the beginning of your upkeep, salvage 4. . Whenever an artifact enters und...\nU-U-01 | Cult Initiate | {U} | Creature -- Human Artificer 1/1 | When ~ enters, scry 1. Whenever you cast an artifact spell, ~ gets +1/+0 unti...\nU-U-02 | Subsurface Cartographer | {2}{U} | Creature -- Human Wizard 2/2 | Flying Whenever ~ deals combat damage to a player, salvage 3. .\nU-U-03 | Automated Sentry Grid | {3}{U}{U} | Enchantment | Whenever a creature an opponent controls attacks, tap it. It doesn't untap du...\nUB-U-01 | Depth Crawler Archivist | {1}{U}{B} | Creature -- Human Rogue 2/2 | When ~ enters, mill three cards.\\nWhenever one or more creature cards are put...\nW-C-01 | Denethix Watchguard | {W} | Creature -- Human Soldier 1/2 | \nW-C-02 | Fist Patrol Rider | {1}{W} | Creature -- Human Soldier 2/2 | Vigilance\nW-C-03 | Sanctioned Exile | {2}{W} | Instant | Exile target creature with power 4 or greater.\nW-C-04 | Salvage the Gatehouse | {3}{W} | Sorcery | Create two 1/1 white Human Soldier creature tokens. Salvage 3.\nW-M-01 | Feretha, the Hollow Founder | {W}{W} | Legendary Creature -- Human Spirit 2/3 | Vigilance, lifelink ~ can't attack or block unless you control an artifact. W...\nW-R-01 | Cult Relic-Bearer | {W} | Creature -- Human Cleric 1/2 | Whenever you cast an artifact spell, ~ gets +1/+0 and gains vigilance until e...\nW-R-02 | The Vizier's Decree | {2}{W}{W} | Enchantment | When ~ enters, exile target creature an opponent controls until ~ leaves the ...\nW-U-01 | Cult Archivist | {W} | Creature -- Human Cleric 1/1 | Whenever an artifact enters under your control, you gain 1 life.\nW-U-02 | Fist Supply Marshal | {2}{W} | Creature -- Human Soldier 2/2 | When ~ enters, salvage 3. . Whenever an artifact enters under your control, ~...\nW-U-03 | Edict of Continuity | {2}{W}{W} | Enchantment | Whenever one or more creatures you control die, create a 1/1 white Human Sold...\nWB-R-01 | Proclamation Enforcer | {1}{W}{B} | Legendary Creature -- Human Soldier 2/3 | Whenever you gain life, create a 1/1 white Human Soldier creature token. This...\nWB-U-01 | Fist Tax Collector | {W}{B} | Creature -- Human Advisor 2/1 | Whenever another creature you control dies, each opponent loses 1 life and yo...\nWG-R-01 | Sura, Rendon Ranchmaster | {1}{W}{G} | Legendary Creature -- Human Settler 2/3 | Whenever you create one or more tokens, put a +1/+1 counter on each of them. ...\nWG-U-01 | Frontier Homesteader | {W}{G} | Creature -- Human Settler 1/1 | Whenever another creature enters under your control, put a +1/+1 counter on ~.\nWR-R-01 | Kethra, Spark Commander | {1}{W}{R} | Legendary Creature -- Human Rebel 2/2 | Haste Whenever ~ attacks, create a 1/1 white Human Rebel creature token that'...\nWR-U-01 | Spark Rallier | {W}{R} | Creature -- Human Rebel 2/2 | Whenever ~ or another creature you control becomes equipped, target creature ...\nWU-M-01 | The Custodian Eternal | {3}{W}{U} | Legendary Artifact Creature -- Construct 4/5 | Flying, vigilance Whenever ~ or another artifact enters under your control, e...\nWU-R-01 | Protonium Curator | {W}{U} | Legendary Creature -- Human Artificer 1/3 | Whenever an artifact enters under your control, you may tap or untap target a...\nWU-U-01 | Relic Warden Automaton | {W}{U} | Artifact Creature -- Construct 2/2 | Vigilance Whenever another artifact enters under your control, scry 1.\nX-C-01 | Corroded Exo-Frame | {2} | Artifact -- Equipment | Equipped creature gets +1/+1. Equip {1}\nX-U-01 | Flickering Relay Node | {3} | Artifact | Malfunction 2 . {T}: Add two mana of any one color. When the last malfunction...\n```\n\n---\n\n## Structural Issues to Fix\n\n- Salvage: 12 actual vs 6 planned (OVER, delta +6)\n- Malfunction: 3 actual vs 5 planned (UNDER, delta -2)\n- Overclock: 1 actual vs 3 planned (UNDER, delta -2)\n\nComplexity tier mismatches (11 cards):\n- W-C-04 (Salvage the Gatehouse): slot expects complex, card is evergreen\n- U-C-04 (Excavate the Archives): slot expects complex, card is evergreen\n- G-C-01 (Elvish Mystic): slot expects vanilla, card is french_vanilla\n- X-C-01 (Corroded Exo-Frame): slot expects vanilla, card is evergreen\n- W-U-02 (Fist Supply Marshal): slot expects evergreen, card is complex\n- U-U-01 (Cult Initiate): slot expects evergreen, card is complex\n- B-U-02 (Luminous Spark Extractor): slot expects evergreen, card is complex\n- R-U-01 (Spark Saboteur): slot expects evergreen, card is complex\n- R-U-02 (Moktar War-Screamer): slot expects evergreen, card is complex\n- WU-U-01 (Relic Warden Automaton): slot expects complex, card is evergreen\n- WG-U-01 (Frontier Homesteader): slot expects complex, card is evergreen\n\n---\n\n## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: W, U, G\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tut\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: W, U, R\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: U, R, B\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' fro\n\n\n---\n\n## Mechanic Distribution Targets\n\n- Salvage: 6 cards planned (by rarity: {\"common\": 3, \"uncommon\": 2, \"rare\": 1, \"mythic\": 0})\n  - W-C-04: When this spell resolves, salvage 2. Simple common sorcery with salvage as the main effect.\n  - U-C-04: Salvage 3 as ETB-style effect on a sorcery. Draw/filter variant.\n  - G-C-02: \"When ~ enters, salvage 2.\" Simple creature with salvage ETB trigger.\n  - WU-U-01: WU signpost uncommon. \"When ~ enters, salvage 4. If you put an artifact card into your hand this way\n  - WG-U-01: WG signpost uncommon. \"When ~ enters, salvage 4.\" Payoff for Frontier Settlers archetype finding art\n  - G-R-01: Repeatable salvage. \"{T}: Salvage 6.\" Powerful artifact-finding engine at rare.\n- Malfunction: 5 cards planned (by rarity: {\"common\": 2, \"uncommon\": 2, \"rare\": 1, \"mythic\": 0})\n  - W-C-02: \"Malfunction 1\" on an above-rate 2-drop creature with vigilance. Enters tapped with 1 counter, still\n  - X-C-01: \"Malfunction 1\" on a common artifact. Simple mana rock or utility artifact that enters tapped with a\n  - R-U-01: \"Malfunction 2\" creature. \"When the last malfunction counter is removed from ~, deal 3 damage to any\n  - WR-U-01: WR signpost uncommon. \"Malfunction 2. {1}: Remove a malfunction counter from ~.\" Aggressive stats wi\n  - U-R-01: \"Malfunction 3\" with a powerful payoff. \"~ has hexproof as long as it has a malfunction counter on i\n- Overclock: 3 cards planned (by rarity: {\"common\": 0, \"uncommon\": 2, \"rare\": 0, \"mythic\": 1})\n  - UB-U-01: UB signpost uncommon. \"When ~ enters, overclock. You may cast instant and sorcery cards exiled this \n  - R-U-03: \"Whenever you cast a noncreature spell, if you overclocked this turn, ~ deals 2 damage to each oppon\n  - B-M-01: Mythic creature with repeatable overclock. \"{2}{B}, {T}: Overclock. Whenever you overclock, each opp\n\n---\n\n## Set Theme\n\n**Anomalous Descent** (ASD)\n\nScience-fantasy megadungeon in far-future post-apocalyptic Earth\n\nSpecial constraints: Artifact subtheme — ancient technology, automatons, protonium-metal relics, One planeswalker only: Jace (visiting from another plane, investigating the ASE), Include dinosaurs as creature type (canon to setting), Named characters as legendary creatures, House of Flesh as a card cycle (legendary enchantment/land + cultist creatures), Deeper dungeon levels hinted in flavor text but not depicted\n\n---\n\n## Instructions\n\nPropose a revision plan to fix the structural issues listed above. For each change, specify the slot_id, current card name, action (regenerate or modify_slot), new constraints if modifying the slot, and reasoning.\n\nFocus on:\n1. Reducing Salvage count from 12 toward 6 (replace Salvage cards with cards using Malfunction or Overclock, or simpler cards)\n2. Increasing Malfunction count from 3 toward 5\n3. Increasing Overclock count from 1 toward 3\n4. Fixing complexity tier mismatches where possible\n5. Consider making some replacements artifact creatures to improve artifact density\n\nReprints (Murder, Elvish Mystic) must NOT be replaced.",
+    "user_prompt_length": 13556
+  },
+  "raw_tool_response": {
+    "analysis": "The set has three interrelated structural problems: (1) Salvage is massively over-represented at 12 cards vs 6 planned, meaning 6 Salvage cards need to lose the mechanic or be replaced; (2) Malfunction is 2 short (3 vs 5 planned); (3) Overclock is 2 short (1 vs 3 planned). Additionally, there are 11 complexity tier mismatches.\n\n**Strategy:**\n- The planned distribution tells us exactly which slots SHOULD have which mechanics. Cards in those slots that are missing their assigned mechanic need regeneration. Cards that have Salvage but SHOULDN'T need to lose it.\n- **Slots that should have Salvage (6):** W-C-04, U-C-04, G-C-02, WU-U-01, WG-U-01, G-R-01. All 6 of these currently DO have Salvage — good, keep them.\n- **Slots that should have Malfunction (5):** W-C-02, X-C-01, R-U-01, WR-U-01, U-R-01. Currently only X-U-01 has Malfunction (which isn't even in the plan). W-C-02 has no Malfunction, X-C-01 has no Malfunction, R-U-01 has no Malfunction, WR-U-01 has no Malfunction, U-R-01 has no Malfunction. So we need to regenerate these 5 slots — but W-C-02 (Fist Patrol Rider) is a simple vigilance creature, and the plan says it should have Malfunction 1. Similarly for the others.\n- **Slots that should have Overclock (3):** UB-U-01, R-U-03, B-M-01. Currently only R-R-02 has Overclock. UB-U-01 has no Overclock, R-U-03 has no Overclock, B-M-01 has no Overclock.\n- **Extra Salvage cards (not in plan):** G-U-01 (Moktar Salvager), G-U-02 (Rendon Packleader), U-U-02 (Subsurface Cartographer), W-U-02 (Fist Supply Marshal), U-M-01 (The Head Scientist), U-R-02 (The Cartography Engine) — these 6 have Salvage but their slots aren't in the Salvage plan. They need to lose Salvage.\n\nI'll prioritize changes that fix BOTH mechanic distribution AND complexity mismatches simultaneously. Reprints (Murder B-C-03, Elvish Mystic G-C-01) are untouchable. Load-bearing cards (signpost uncommons, key rares, mythics with strong archetype roles) should be preserved where possible unless they're in a slot that demands a different mechanic.\n\n**Key changes needed:**\n1. W-C-02: Add Malfunction 1 (planned slot) — also fixes no complexity mismatch\n2. X-C-01: Regenerate as Malfunction 1 artifact — fixes complexity mismatch (vanilla→evergreen with malfunction)\n3. R-U-01: Regenerate with Malfunction 2 — fixes complexity mismatch (evergreen→complex)\n4. WR-U-01: Regenerate with Malfunction 2 — signpost uncommon, plan demands it\n5. U-R-01: Regenerate with Malfunction 3 — plan demands it\n6. UB-U-01: Regenerate with Overclock — signpost uncommon, plan demands it\n7. R-U-03: Regenerate with Overclock — plan demands it\n8. B-M-01: Regenerate with Overclock — plan demands it\n9-14. Remove excess Salvage from 6 cards: G-U-01, G-U-02, U-U-02, W-U-02, U-M-01, U-R-02\n\nTo minimize changes, I'll focus on the most impactful swaps. Some excess Salvage cards are on load-bearing slots (U-M-01 is a mythic, U-R-02 is a legendary rare) — I'll still regenerate them since they're in slots NOT planned for Salvage, but with care to preserve their archetype role.",
+    "changes": [
+      {
+        "slot_id": "W-C-02",
+        "current_card_name": "Fist Patrol Rider",
+        "action": "regenerate",
+        "reasoning": "Plan assigns Malfunction 1 to this slot. Current card is a simple vigilance 2/2 with no set mechanic. Regenerate as an above-rate creature with Malfunction 1 and vigilance. This adds +1 Malfunction. No Salvage is lost since it didn't have any.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 2,
+          "mechanic_tag": "malfunction",
+          "notes": "Must use Malfunction 1. White common creature with vigilance. Above-rate stats (e.g. 2/3 or 3/2) justified by entering tapped with a malfunction counter. Human Soldier."
+        }
+      },
+      {
+        "slot_id": "X-C-01",
+        "current_card_name": "Corroded Exo-Frame",
+        "action": "regenerate",
+        "reasoning": "Plan assigns Malfunction 1 to this slot. Current card is a generic Equipment with no set mechanic and has a complexity mismatch (slot expects vanilla, card is evergreen). Regenerate as a common artifact with Malfunction 1 — a simple mana rock or utility artifact. This adds +1 Malfunction and fixes the complexity mismatch. Also improves artifact density.",
+        "new_constraints": {
+          "card_type": "Artifact",
+          "cmc_target": 2,
+          "mechanic_tag": "malfunction",
+          "notes": "Must use Malfunction 1. Common utility artifact (mana rock or similar). Enters tapped with 1 malfunction counter, providing a simple delayed benefit. Keep it simple for common."
+        }
+      },
+      {
+        "slot_id": "R-U-01",
+        "current_card_name": "Spark Saboteur",
+        "action": "regenerate",
+        "reasoning": "Plan assigns Malfunction 2 to this slot. Current card has no Malfunction and has a complexity mismatch (slot expects evergreen, card is complex). Regenerate as a red uncommon creature with Malfunction 2 and a payoff when the last counter is removed. This adds +1 Malfunction, fixes the complexity mismatch, and no Salvage is lost.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 2,
+          "mechanic_tag": "malfunction",
+          "notes": "Must use Malfunction 2. Red uncommon creature with aggressive stats. 'When the last malfunction counter is removed from ~, deal 3 damage to any target.' Human Rebel or Construct. Enters tapped with 2 counters as tempo cost."
+        }
+      },
+      {
+        "slot_id": "WR-U-01",
+        "current_card_name": "Spark Rallier",
+        "action": "regenerate",
+        "reasoning": "Plan assigns Malfunction 2 to this slot. This is the WR signpost uncommon — plan specifically wants it to showcase Malfunction with a self-removal activation. Current card has no Malfunction. Regenerate to match the archetype plan. No Salvage lost.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 2,
+          "mechanic_tag": "malfunction",
+          "notes": "WR signpost uncommon. Must use Malfunction 2. '{1}: Remove a malfunction counter from ~.' Aggressive stats (e.g. 3/2 or 3/3) justified by Malfunction tempo cost. Human Rebel. Should signal the WR Spark Rebellion archetype."
+        }
+      },
+      {
+        "slot_id": "U-R-01",
+        "current_card_name": "Cult Savant",
+        "action": "regenerate",
+        "reasoning": "Plan assigns Malfunction 3 to this slot. Current card is an artifact-matters creature with no Malfunction. Regenerate as a blue rare with Malfunction 3 and a powerful payoff. This adds +1 Malfunction. No Salvage lost. Can be an artifact creature to help artifact density.",
+        "new_constraints": {
+          "card_type": "Artifact Creature",
+          "cmc_target": 3,
+          "mechanic_tag": "malfunction",
+          "notes": "Must use Malfunction 3. Blue rare artifact creature (Construct or Automaton). Powerful payoff: 'Has hexproof as long as it has a malfunction counter on it' plus a strong ability once fully online. Above-rate body justified by long Malfunction delay."
+        }
+      },
+      {
+        "slot_id": "UB-U-01",
+        "current_card_name": "Depth Crawler Archivist",
+        "action": "regenerate",
+        "reasoning": "Plan assigns Overclock to this slot as the UB signpost uncommon. Current card has mill/graveyard synergy but no Overclock. Regenerate with Overclock as the UB archetype enabler. This adds +1 Overclock. No Salvage lost.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 3,
+          "mechanic_tag": "overclock",
+          "notes": "UB signpost uncommon. Must use Overclock. 'When ~ enters, overclock. You may cast instant and sorcery cards exiled this way until end of your next turn.' Human Rogue or similar. 2/2 or 2/3 body. Should signal the UB archetype."
+        }
+      },
+      {
+        "slot_id": "R-U-03",
+        "current_card_name": "Raider's Bounty",
+        "action": "regenerate",
+        "reasoning": "Plan assigns Overclock to this slot. Current card is an enchantment with impulse-draw-on-combat-damage but no Overclock keyword. Regenerate as a red uncommon enchantment with Overclock synergy. This adds +1 Overclock. No Salvage lost.",
+        "new_constraints": {
+          "card_type": "Enchantment",
+          "cmc_target": 4,
+          "mechanic_tag": "overclock",
+          "notes": "Red uncommon enchantment. Should reference Overclock. 'Whenever you cast a noncreature spell, if you overclocked this turn, ~ deals 2 damage to each opponent.' May have an activated overclock ability or trigger overclock on ETB. CMC 4 is fine for uncommon enchantment."
+        }
+      },
+      {
+        "slot_id": "B-M-01",
+        "current_card_name": "Apex of the Subsurface",
+        "action": "regenerate",
+        "reasoning": "Plan assigns Overclock to this slot as the black mythic. Current card is a 4/4 deathtouch Horror with exile-on-kill but no Overclock. Regenerate as a mythic creature with repeatable Overclock. This adds +1 Overclock. No Salvage lost.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 4,
+          "mechanic_tag": "overclock",
+          "notes": "Black mythic creature. Must have repeatable Overclock: '{2}{B}, {T}: Overclock. Whenever you overclock, each opponent loses 2 life.' Horror or Demon type. Powerful body (4/4 or similar) with deathtouch. Legendary."
+        }
+      },
+      {
+        "slot_id": "W-U-02",
+        "current_card_name": "Fist Supply Marshal",
+        "action": "regenerate",
+        "reasoning": "This slot has Salvage but is NOT in the Salvage plan — it's one of 6 excess Salvage cards. Also has a complexity mismatch (slot expects evergreen, card is complex due to Salvage + artifact-enters trigger). Regenerate as a straightforward white uncommon creature with evergreen keywords only. This removes 1 excess Salvage and fixes the complexity mismatch.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 3,
+          "notes": "White uncommon creature. Evergreen complexity only — no set mechanics. Human Soldier with a simple evergreen ability like vigilance + a basic ETB (e.g., gain life, create a token). Should support white's go-wide or artifact-matters themes without using Salvage."
+        }
+      },
+      {
+        "slot_id": "U-U-02",
+        "current_card_name": "Subsurface Cartographer",
+        "action": "regenerate",
+        "reasoning": "This slot has Salvage but is NOT in the Salvage plan — excess Salvage card. Regenerate as a blue uncommon without Salvage. Can keep the flying combat-damage trigger flavor but with a different payoff. Removes 1 excess Salvage.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 3,
+          "notes": "Blue uncommon creature. No Salvage. Human Wizard or Artificer with flying. 2/2 body. Can have an artifact-synergy ability (e.g., 'Whenever an artifact enters under your control, draw a card then discard a card') or simple card filtering. Supports blue's artifact themes without Salvage."
+        }
+      },
+      {
+        "slot_id": "G-U-01",
+        "current_card_name": "Moktar Salvager",
+        "action": "regenerate",
+        "reasoning": "This slot has Salvage but is NOT in the Salvage plan — excess Salvage card. Green uncommon slot. Regenerate as a green uncommon creature without Salvage. Can be an artifact creature to boost artifact density. Removes 1 excess Salvage.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 2,
+          "notes": "Green uncommon creature. No Salvage. Moktar Warrior or Beast. 2/2 or 3/1 body. Can have a simple ability that supports green's themes (e.g., fight, +1/+1 counters, trample). Evergreen or simple triggered ability."
+        }
+      },
+      {
+        "slot_id": "G-U-02",
+        "current_card_name": "Rendon Packleader",
+        "action": "regenerate",
+        "reasoning": "This slot has Salvage but is NOT in the Salvage plan — excess Salvage card. Regenerate as a green uncommon creature without Salvage. A 4-mana dinosaur with trample and a non-Salvage ability. Removes 1 excess Salvage.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 4,
+          "notes": "Green uncommon Dinosaur. No Salvage. 4/3 or 4/4 with trample. Can have a combat-damage trigger that doesn't involve Salvage (e.g., create a token, put a +1/+1 counter, fight). Supports green's midrange/dinosaur themes."
+        }
+      },
+      {
+        "slot_id": "U-M-01",
+        "current_card_name": "The Head Scientist",
+        "action": "regenerate",
+        "reasoning": "This slot has Salvage but is NOT in the Salvage plan — excess Salvage card. This is blue's mythic, a key archetype piece. Regenerate preserving the artifact-matters legendary identity but replacing Salvage with a different powerful ability. Removes 1 excess Salvage.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 3,
+          "notes": "Blue mythic legendary creature. Human Artificer. No Salvage. Flash. 1/3 body. 'Artifact spells you cast cost {1} less to cast.' Replace Salvage with a different powerful ETB or static (e.g., 'When ~ enters, draw cards equal to the number of artifacts you control' or 'Artifacts you control have hexproof'). Must remain a strong artifact-matters build-around."
+        }
+      },
+      {
+        "slot_id": "U-R-02",
+        "current_card_name": "The Cartography Engine",
+        "action": "regenerate",
+        "reasoning": "This slot has Salvage but is NOT in the Salvage plan — excess Salvage card. Legendary enchantment-artifact rare. Regenerate keeping the artifact-engine identity but without Salvage. Can use artifact-enters triggers with different payoffs. Removes 1 excess Salvage.",
+        "new_constraints": {
+          "card_type": "Enchantment",
+          "cmc_target": 4,
+          "notes": "Blue rare legendary enchantment with artifact subtype. No Salvage. Artifact-matters engine: 'Whenever an artifact enters under your control, draw a card.' Or 'At the beginning of your upkeep, create a 1/1 colorless Construct artifact creature token.' Should be a powerful artifact-synergy engine without using Salvage."
+        }
+      },
+      {
+        "slot_id": "WU-U-01",
+        "current_card_name": "Relic Warden Automaton",
+        "action": "regenerate",
+        "reasoning": "This is the WU signpost uncommon. Plan says it should have Salvage 4 with an artifact payoff. Current card has no Salvage and has a complexity mismatch (slot expects complex, card is evergreen). Regenerate to match the plan. This keeps 1 planned Salvage card correct and fixes the complexity mismatch.",
+        "new_constraints": {
+          "card_type": "Artifact Creature",
+          "cmc_target": 2,
+          "mechanic_tag": "salvage",
+          "notes": "WU signpost uncommon. Artifact Creature — Construct. Must use Salvage 4. 'When ~ enters, salvage 4. If you put an artifact card into your hand this way, [bonus effect like scry 2, gain 2 life, or tap target creature].' 2/2 with vigilance. Signals the WU Ancient Technology archetype."
+        }
+      },
+      {
+        "slot_id": "WG-U-01",
+        "current_card_name": "Frontier Homesteader",
+        "action": "regenerate",
+        "reasoning": "This is the WG signpost uncommon. Plan says it should have Salvage 4. Current card has no Salvage and has a complexity mismatch (slot expects complex, card is evergreen). Regenerate to match the plan. Keeps 1 planned Salvage card correct and fixes the complexity mismatch.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 2,
+          "mechanic_tag": "salvage",
+          "notes": "WG signpost uncommon. Creature — Human Settler. Must use Salvage 4. 'When ~ enters, salvage 4.' Plus a payoff for finding artifacts or tokens theme. 1/1 or 2/2 body with a +1/+1 counter subtheme tie-in. Signals the WG Frontier Settlers archetype."
+        }
+      },
+      {
+        "slot_id": "U-U-01",
+        "current_card_name": "Cult Initiate",
+        "action": "regenerate",
+        "reasoning": "Complexity mismatch: slot expects evergreen, card is complex (artifact-cast trigger + scry + power boost). Regenerate as a simpler blue uncommon creature with evergreen abilities only. No mechanic changes needed — just simplify.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 1,
+          "notes": "Blue uncommon creature. Evergreen complexity only. Human Artificer 1/1. Simple artifact-matters creature with only evergreen keywords (e.g., 'Flash' or 'When ~ enters, scry 2'). No set mechanics, no complex triggers."
+        }
+      },
+      {
+        "slot_id": "B-U-02",
+        "current_card_name": "Luminous Spark Extractor",
+        "action": "regenerate",
+        "reasoning": "Complexity mismatch: slot expects evergreen, card is complex (ETB discard + conditional creature removal). Regenerate as a simpler black uncommon creature with evergreen-level abilities.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 3,
+          "notes": "Black uncommon creature. Evergreen complexity only. Human Assassin 2/2 or 3/1. Simple abilities like deathtouch, menace, or a basic ETB (e.g., 'When ~ enters, each opponent loses 2 life'). No complex conditional triggers."
+        }
+      },
+      {
+        "slot_id": "R-U-02",
+        "current_card_name": "Moktar War-Screamer",
+        "action": "regenerate",
+        "reasoning": "Complexity mismatch: slot expects evergreen, card is complex (haste + attack trigger with scaling power boost). Regenerate as a simpler red uncommon creature with evergreen-level abilities.",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 4,
+          "notes": "Red uncommon creature. Evergreen complexity only. Moktar Berserker 3/3 or 4/2. Simple evergreen keywords like haste + trample, or haste + menace. No complex triggered abilities."
+        }
+      }
+    ],
+    "expected_improvements": {
+      "salvage_count": 6,
+      "malfunction_count": 5,
+      "overclock_count": 3,
+      "artifact_count": 8
+    }
+  },
+  "parsed_plan": {
+    "analysis": "The set has three interrelated structural problems: (1) Salvage is massively over-represented at 12 cards vs 6 planned, meaning 6 Salvage cards need to lose the mechanic or be replaced; (2) Malfunction is 2 short (3 vs 5 planned); (3) Overclock is 2 short (1 vs 3 planned). Additionally, there are 11 complexity tier mismatches.\n\n**Strategy:**\n- The planned distribution tells us exactly which slots SHOULD have which mechanics. Cards in those slots that are missing their assigned mechanic need regeneration. Cards that have Salvage but SHOULDN'T need to lose it.\n- **Slots that should have Salvage (6):** W-C-04, U-C-04, G-C-02, WU-U-01, WG-U-01, G-R-01. All 6 of these currently DO have Salvage — good, keep them.\n- **Slots that should have Malfunction (5):** W-C-02, X-C-01, R-U-01, WR-U-01, U-R-01. Currently only X-U-01 has Malfunction (which isn't even in the plan). W-C-02 has no Malfunction, X-C-01 has no Malfunction, R-U-01 has no Malfunction, WR-U-01 has no Malfunction, U-R-01 has no Malfunction. So we need to regenerate these 5 slots — but W-C-02 (Fist Patrol Rider) is a simple vigilance creature, and the plan says it should have Malfunction 1. Similarly for the others.\n- **Slots that should have Overclock (3):** UB-U-01, R-U-03, B-M-01. Currently only R-R-02 has Overclock. UB-U-01 has no Overclock, R-U-03 has no Overclock, B-M-01 has no Overclock.\n- **Extra Salvage cards (not in plan):** G-U-01 (Moktar Salvager), G-U-02 (Rendon Packleader), U-U-02 (Subsurface Cartographer), W-U-02 (Fist Supply Marshal), U-M-01 (The Head Scientist), U-R-02 (The Cartography Engine) — these 6 have Salvage but their slots aren't in the Salvage plan. They need to lose Salvage.\n\nI'll prioritize changes that fix BOTH mechanic distribution AND complexity mismatches simultaneously. Reprints (Murder B-C-03, Elvish Mystic G-C-01) are untouchable. Load-bearing cards (signpost uncommons, key rares, mythics with strong archetype roles) should be preserved where possible unless they're in a slot that demands a different mechanic.\n\n**Key changes needed:**\n1. W-C-02: Add Malfunction 1 (planned slot) — also fixes no complexity mismatch\n2. X-C-01: Regenerate as Malfunction 1 artifact — fixes complexity mismatch (vanilla→evergreen with malfunction)\n3. R-U-01: Regenerate with Malfunction 2 — fixes complexity mismatch (evergreen→complex)\n4. WR-U-01: Regenerate with Malfunction 2 — signpost uncommon, plan demands it\n5. U-R-01: Regenerate with Malfunction 3 — plan demands it\n6. UB-U-01: Regenerate with Overclock — signpost uncommon, plan demands it\n7. R-U-03: Regenerate with Overclock — plan demands it\n8. B-M-01: Regenerate with Overclock — plan demands it\n9-14. Remove excess Salvage from 6 cards: G-U-01, G-U-02, U-U-02, W-U-02, U-M-01, U-R-02\n\nTo minimize changes, I'll focus on the most impactful swaps. Some excess Salvage cards are on load-bearing slots (U-M-01 is a mythic, U-R-02 is a legendary rare) — I'll still regenerate them since they're in slots NOT planned for Salvage, but with care to preserve their archetype role.",
+    "num_changes": 19,
+    "changes": [
+      {
+        "slot_id": "W-C-02",
+        "current_card_name": "Fist Patrol Rider",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 2,
+          "mechanic_tag": "malfunction",
+          "notes": "Must use Malfunction 1. White common creature with vigilance. Above-rate stats (e.g. 2/3 or 3/2) justified by entering tapped with a malfunction counter. Human Soldier."
+        },
+        "reasoning": "Plan assigns Malfunction 1 to this slot. Current card is a simple vigilance 2/2 with no set mechanic. Regenerate as an above-rate creature with Malfunction 1 and vigilance. This adds +1 Malfunction. No Salvage is lost since it didn't have any."
+      },
+      {
+        "slot_id": "X-C-01",
+        "current_card_name": "Corroded Exo-Frame",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Artifact",
+          "cmc_target": 2,
+          "mechanic_tag": "malfunction",
+          "notes": "Must use Malfunction 1. Common utility artifact (mana rock or similar). Enters tapped with 1 malfunction counter, providing a simple delayed benefit. Keep it simple for common."
+        },
+        "reasoning": "Plan assigns Malfunction 1 to this slot. Current card is a generic Equipment with no set mechanic and has a complexity mismatch (slot expects vanilla, card is evergreen). Regenerate as a common artifact with Malfunction 1 — a simple mana rock or utility artifact. This adds +1 Malfunction and fixes the complexity mismatch. Also improves artifact density."
+      },
+      {
+        "slot_id": "R-U-01",
+        "current_card_name": "Spark Saboteur",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 2,
+          "mechanic_tag": "malfunction",
+          "notes": "Must use Malfunction 2. Red uncommon creature with aggressive stats. 'When the last malfunction counter is removed from ~, deal 3 damage to any target.' Human Rebel or Construct. Enters tapped with 2 counters as tempo cost."
+        },
+        "reasoning": "Plan assigns Malfunction 2 to this slot. Current card has no Malfunction and has a complexity mismatch (slot expects evergreen, card is complex). Regenerate as a red uncommon creature with Malfunction 2 and a payoff when the last counter is removed. This adds +1 Malfunction, fixes the complexity mismatch, and no Salvage is lost."
+      },
+      {
+        "slot_id": "WR-U-01",
+        "current_card_name": "Spark Rallier",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 2,
+          "mechanic_tag": "malfunction",
+          "notes": "WR signpost uncommon. Must use Malfunction 2. '{1}: Remove a malfunction counter from ~.' Aggressive stats (e.g. 3/2 or 3/3) justified by Malfunction tempo cost. Human Rebel. Should signal the WR Spark Rebellion archetype."
+        },
+        "reasoning": "Plan assigns Malfunction 2 to this slot. This is the WR signpost uncommon — plan specifically wants it to showcase Malfunction with a self-removal activation. Current card has no Malfunction. Regenerate to match the archetype plan. No Salvage lost."
+      },
+      {
+        "slot_id": "U-R-01",
+        "current_card_name": "Cult Savant",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Artifact Creature",
+          "cmc_target": 3,
+          "mechanic_tag": "malfunction",
+          "notes": "Must use Malfunction 3. Blue rare artifact creature (Construct or Automaton). Powerful payoff: 'Has hexproof as long as it has a malfunction counter on it' plus a strong ability once fully online. Above-rate body justified by long Malfunction delay."
+        },
+        "reasoning": "Plan assigns Malfunction 3 to this slot. Current card is an artifact-matters creature with no Malfunction. Regenerate as a blue rare with Malfunction 3 and a powerful payoff. This adds +1 Malfunction. No Salvage lost. Can be an artifact creature to help artifact density."
+      },
+      {
+        "slot_id": "UB-U-01",
+        "current_card_name": "Depth Crawler Archivist",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 3,
+          "mechanic_tag": "overclock",
+          "notes": "UB signpost uncommon. Must use Overclock. 'When ~ enters, overclock. You may cast instant and sorcery cards exiled this way until end of your next turn.' Human Rogue or similar. 2/2 or 2/3 body. Should signal the UB archetype."
+        },
+        "reasoning": "Plan assigns Overclock to this slot as the UB signpost uncommon. Current card has mill/graveyard synergy but no Overclock. Regenerate with Overclock as the UB archetype enabler. This adds +1 Overclock. No Salvage lost."
+      },
+      {
+        "slot_id": "R-U-03",
+        "current_card_name": "Raider's Bounty",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Enchantment",
+          "cmc_target": 4,
+          "mechanic_tag": "overclock",
+          "notes": "Red uncommon enchantment. Should reference Overclock. 'Whenever you cast a noncreature spell, if you overclocked this turn, ~ deals 2 damage to each opponent.' May have an activated overclock ability or trigger overclock on ETB. CMC 4 is fine for uncommon enchantment."
+        },
+        "reasoning": "Plan assigns Overclock to this slot. Current card is an enchantment with impulse-draw-on-combat-damage but no Overclock keyword. Regenerate as a red uncommon enchantment with Overclock synergy. This adds +1 Overclock. No Salvage lost."
+      },
+      {
+        "slot_id": "B-M-01",
+        "current_card_name": "Apex of the Subsurface",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 4,
+          "mechanic_tag": "overclock",
+          "notes": "Black mythic creature. Must have repeatable Overclock: '{2}{B}, {T}: Overclock. Whenever you overclock, each opponent loses 2 life.' Horror or Demon type. Powerful body (4/4 or similar) with deathtouch. Legendary."
+        },
+        "reasoning": "Plan assigns Overclock to this slot as the black mythic. Current card is a 4/4 deathtouch Horror with exile-on-kill but no Overclock. Regenerate as a mythic creature with repeatable Overclock. This adds +1 Overclock. No Salvage lost."
+      },
+      {
+        "slot_id": "W-U-02",
+        "current_card_name": "Fist Supply Marshal",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 3,
+          "notes": "White uncommon creature. Evergreen complexity only — no set mechanics. Human Soldier with a simple evergreen ability like vigilance + a basic ETB (e.g., gain life, create a token). Should support white's go-wide or artifact-matters themes without using Salvage."
+        },
+        "reasoning": "This slot has Salvage but is NOT in the Salvage plan — it's one of 6 excess Salvage cards. Also has a complexity mismatch (slot expects evergreen, card is complex due to Salvage + artifact-enters trigger). Regenerate as a straightforward white uncommon creature with evergreen keywords only. This removes 1 excess Salvage and fixes the complexity mismatch."
+      },
+      {
+        "slot_id": "U-U-02",
+        "current_card_name": "Subsurface Cartographer",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 3,
+          "notes": "Blue uncommon creature. No Salvage. Human Wizard or Artificer with flying. 2/2 body. Can have an artifact-synergy ability (e.g., 'Whenever an artifact enters under your control, draw a card then discard a card') or simple card filtering. Supports blue's artifact themes without Salvage."
+        },
+        "reasoning": "This slot has Salvage but is NOT in the Salvage plan — excess Salvage card. Regenerate as a blue uncommon without Salvage. Can keep the flying combat-damage trigger flavor but with a different payoff. Removes 1 excess Salvage."
+      },
+      {
+        "slot_id": "G-U-01",
+        "current_card_name": "Moktar Salvager",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 2,
+          "notes": "Green uncommon creature. No Salvage. Moktar Warrior or Beast. 2/2 or 3/1 body. Can have a simple ability that supports green's themes (e.g., fight, +1/+1 counters, trample). Evergreen or simple triggered ability."
+        },
+        "reasoning": "This slot has Salvage but is NOT in the Salvage plan — excess Salvage card. Green uncommon slot. Regenerate as a green uncommon creature without Salvage. Can be an artifact creature to boost artifact density. Removes 1 excess Salvage."
+      },
+      {
+        "slot_id": "G-U-02",
+        "current_card_name": "Rendon Packleader",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 4,
+          "notes": "Green uncommon Dinosaur. No Salvage. 4/3 or 4/4 with trample. Can have a combat-damage trigger that doesn't involve Salvage (e.g., create a token, put a +1/+1 counter, fight). Supports green's midrange/dinosaur themes."
+        },
+        "reasoning": "This slot has Salvage but is NOT in the Salvage plan — excess Salvage card. Regenerate as a green uncommon creature without Salvage. A 4-mana dinosaur with trample and a non-Salvage ability. Removes 1 excess Salvage."
+      },
+      {
+        "slot_id": "U-M-01",
+        "current_card_name": "The Head Scientist",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 3,
+          "notes": "Blue mythic legendary creature. Human Artificer. No Salvage. Flash. 1/3 body. 'Artifact spells you cast cost {1} less to cast.' Replace Salvage with a different powerful ETB or static (e.g., 'When ~ enters, draw cards equal to the number of artifacts you control' or 'Artifacts you control have hexproof'). Must remain a strong artifact-matters build-around."
+        },
+        "reasoning": "This slot has Salvage but is NOT in the Salvage plan — excess Salvage card. This is blue's mythic, a key archetype piece. Regenerate preserving the artifact-matters legendary identity but replacing Salvage with a different powerful ability. Removes 1 excess Salvage."
+      },
+      {
+        "slot_id": "U-R-02",
+        "current_card_name": "The Cartography Engine",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Enchantment",
+          "cmc_target": 4,
+          "notes": "Blue rare legendary enchantment with artifact subtype. No Salvage. Artifact-matters engine: 'Whenever an artifact enters under your control, draw a card.' Or 'At the beginning of your upkeep, create a 1/1 colorless Construct artifact creature token.' Should be a powerful artifact-synergy engine without using Salvage."
+        },
+        "reasoning": "This slot has Salvage but is NOT in the Salvage plan — excess Salvage card. Legendary enchantment-artifact rare. Regenerate keeping the artifact-engine identity but without Salvage. Can use artifact-enters triggers with different payoffs. Removes 1 excess Salvage."
+      },
+      {
+        "slot_id": "WU-U-01",
+        "current_card_name": "Relic Warden Automaton",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Artifact Creature",
+          "cmc_target": 2,
+          "mechanic_tag": "salvage",
+          "notes": "WU signpost uncommon. Artifact Creature — Construct. Must use Salvage 4. 'When ~ enters, salvage 4. If you put an artifact card into your hand this way, [bonus effect like scry 2, gain 2 life, or tap target creature].' 2/2 with vigilance. Signals the WU Ancient Technology archetype."
+        },
+        "reasoning": "This is the WU signpost uncommon. Plan says it should have Salvage 4 with an artifact payoff. Current card has no Salvage and has a complexity mismatch (slot expects complex, card is evergreen). Regenerate to match the plan. This keeps 1 planned Salvage card correct and fixes the complexity mismatch."
+      },
+      {
+        "slot_id": "WG-U-01",
+        "current_card_name": "Frontier Homesteader",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 2,
+          "mechanic_tag": "salvage",
+          "notes": "WG signpost uncommon. Creature — Human Settler. Must use Salvage 4. 'When ~ enters, salvage 4.' Plus a payoff for finding artifacts or tokens theme. 1/1 or 2/2 body with a +1/+1 counter subtheme tie-in. Signals the WG Frontier Settlers archetype."
+        },
+        "reasoning": "This is the WG signpost uncommon. Plan says it should have Salvage 4. Current card has no Salvage and has a complexity mismatch (slot expects complex, card is evergreen). Regenerate to match the plan. Keeps 1 planned Salvage card correct and fixes the complexity mismatch."
+      },
+      {
+        "slot_id": "U-U-01",
+        "current_card_name": "Cult Initiate",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 1,
+          "notes": "Blue uncommon creature. Evergreen complexity only. Human Artificer 1/1. Simple artifact-matters creature with only evergreen keywords (e.g., 'Flash' or 'When ~ enters, scry 2'). No set mechanics, no complex triggers."
+        },
+        "reasoning": "Complexity mismatch: slot expects evergreen, card is complex (artifact-cast trigger + scry + power boost). Regenerate as a simpler blue uncommon creature with evergreen abilities only. No mechanic changes needed — just simplify."
+      },
+      {
+        "slot_id": "B-U-02",
+        "current_card_name": "Luminous Spark Extractor",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 3,
+          "notes": "Black uncommon creature. Evergreen complexity only. Human Assassin 2/2 or 3/1. Simple abilities like deathtouch, menace, or a basic ETB (e.g., 'When ~ enters, each opponent loses 2 life'). No complex conditional triggers."
+        },
+        "reasoning": "Complexity mismatch: slot expects evergreen, card is complex (ETB discard + conditional creature removal). Regenerate as a simpler black uncommon creature with evergreen-level abilities."
+      },
+      {
+        "slot_id": "R-U-02",
+        "current_card_name": "Moktar War-Screamer",
+        "action": "regenerate",
+        "new_constraints": {
+          "card_type": "Creature",
+          "cmc_target": 4,
+          "notes": "Red uncommon creature. Evergreen complexity only. Moktar Berserker 3/3 or 4/2. Simple evergreen keywords like haste + trample, or haste + menace. No complex triggered abilities."
+        },
+        "reasoning": "Complexity mismatch: slot expects evergreen, card is complex (haste + attack trigger with scaling power boost). Regenerate as a simpler red uncommon creature with evergreen-level abilities."
+      }
+    ],
+    "expected_improvements": {
+      "salvage_count": 6,
+      "malfunction_count": 5,
+      "overclock_count": 3,
+      "artifact_count": 8
+    }
+  }
+}

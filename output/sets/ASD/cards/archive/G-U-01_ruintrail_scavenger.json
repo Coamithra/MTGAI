@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Ruin-Trail Scavenger",
+  "layout": "normal",
+  "mana_cost": "{1}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "G"
+  ],
+  "color_identity": [
+    "G"
+  ],
+  "type_line": "Creature — Human Scout",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Scout"
+  ],
+  "oracle_text": "When ~ enters, salvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.).\nWhenever an artifact enters under your control, ~ gets +1/+1 until end of turn.",
+  "flavor_text": "\"The dungeon eats people but it spits out wonders. Fair trade, if you're quick.\"",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "1",
+  "loyalty": null,
+  "collector_number": "G-U-01",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:40:19.804129Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Oracle text contains what looks like reminder text: \"(Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+      ],
+      "input_tokens": 2612,
+      "output_tokens": 411,
+      "cost_usd": 0.0700425,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Green uncommon at CMC 2 that bridges salvage and the artifact-matters subtheme. A 2/1 for 2 is a fair baseline. The ETB salvage 3 is appropriately scaled for uncommon (2-3 at common, 4-5 at uncommon — this sits at the low end since it's stapled to a body). The artifact-trigger pump gives it late relevance and synergizes with the artifact subtheme already present in green (Spore-Nest Forager). Green gets salvage per the set's color allocation. The +1/+1 temporary boost is a green-pie combat trick effect. Doesn't overlap with Spore-Nest Forager which puts permanent +1/+1 counters — this is a temporary pump, making them play differently.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "G-U-01",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:40:19.804129Z",
+  "updated_at": null
+}

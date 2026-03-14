@@ -1,0 +1,62 @@
+{
+  "id": null,
+  "name": "Rendon Apex Predator",
+  "layout": "normal",
+  "mana_cost": "{2}{G}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "G"
+  ],
+  "color_identity": [
+    "G"
+  ],
+  "type_line": "Creature — Dinosaur",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Dinosaur"
+  ],
+  "oracle_text": "Trample\nWhenever ~ attacks, you may have it fight target creature defending player controls.",
+  "flavor_text": "The moktars worship it. The settlers avoid it. The dungeon spawned something worse, and it ate that too.",
+  "reminder_text": null,
+  "power": "4",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "G-U-02",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:40:19.870088Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 2612,
+      "output_tokens": 411,
+      "cost_usd": 0.0700425,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "A beefy green uncommon at CMC 4 that serves as a signpost for green's creature-based removal. A 4/3 trample for 4 is solid but not pushed — P+T of 7 is CMC+3 exactly, which is fine for uncommon. The attack-triggered fight is green's primary removal mechanic and rewards aggressive play. The 'may' clause and 'defending player controls' restriction keep it fair — you choose whether to risk your creature, and it only fights blockers of the player you're attacking. It pairs well with +1/+1 counter and artifact synergies in the set (equip something to it, then fight). Trample plus fight gives it a clear aggressive identity distinct from Rendon Ceratops (a vanilla trampler at 3 CMC).",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "G-U-02",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:40:19.870088Z",
+  "updated_at": null
+}

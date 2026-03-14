@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Relay Node Technician",
+  "layout": "normal",
+  "mana_cost": "{2}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Creature — Human Artificer",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Artificer"
+  ],
+  "oracle_text": "When ~ enters, you may remove a counter from target permanent you control. If you do, draw a card.",
+  "flavor_text": "\"Every counter removed is a circuit restored. Every circuit restored is a question answered.\"",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "U-U-02",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:44:48.568175Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5961,
+      "output_tokens": 515,
+      "cost_usd": 0.12804,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "A 2/3 for 3 mana is a clean, fair body at uncommon (P+T = 5, CMC+3 = 6). The ETB ability creates a strong synergy with the Malfunction mechanic — removing a malfunction counter speeds up your artifact's activation while also drawing a card, making this a 2-for-1 when it works. It also interacts with any counter type (e.g., +1/+1 counters from Spore-Nest Forager or Protonium Technician), giving it flexibility. The 'if you do' clause ensures it doesn't draw unconditionally — you need a permanent with a counter, creating a real condition. This supports the UR (Cult of Science / Mad Science) archetype's counter-manipulation theme and the WU (Ancient Technology) archetype's artifact synergies. Blue gets card draw and artifact interaction cleanly within the color pie. A single ability with a meaningful condition fits uncommon complexity perfectly.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "U-U-02",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:44:48.568175Z",
+  "updated_at": null
+}

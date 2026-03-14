@@ -1,0 +1,68 @@
+{
+  "id": null,
+  "name": "Fault-Trained Sentinel",
+  "layout": "normal",
+  "mana_cost": "{1}{W}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Creature — Human Soldier",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Soldier"
+  ],
+  "oracle_text": "Vigilance\\nMalfunction 1 (This permanent enters tapped with one malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.).",
+  "flavor_text": "A sentinel who can't move is no sentinel at all—until it learns from the failure.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "W-C-02",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:57:20.687189Z",
+      "prompt_used": null,
+      "model_used": "claude-haiku-4-5-20251001",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Line 1: \"This permanent\" should use \"~\" or \"this\" only in specific MTG contexts",
+        "Oracle text contains what looks like reminder text: \"(This permanent enters tapped with one malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)\"",
+        "Malfunction already causes the permanent to enter tapped — explicit 'enters tapped' is redundant",
+        "Power 2 + Toughness 3 = 5 on a CMC 2.0 common creature exceeds P+T <= CMC+2 guideline"
+      ],
+      "input_tokens": 5931,
+      "output_tokens": 525,
+      "cost_usd": 0.0068448,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "White common creature at CMC 2 with Malfunction 1 as requested. Stats of 2/3 are above-rate for the cost (P+T = 5, which would normally be CMC+3 = 5 for a 2-mana common), justified by the enters-tapped tempo cost of Malfunction 1. Vigilance synergizes perfectly with enters tapped—the creature can block immediately without needing to untap, and after a turn cycle the malfunction counter is removed, unlocking the creature for attacks. This creates meaningful gameplay: the card provides early defense despite the tempo penalty. Single keyword ability (vigilance) + one mechanic keyword (Malfunction), respecting common complexity. Fits WR (Spark Rebellion) draft archetype as a defensive early play and WU (Ancient Technology) as a utility creature that works around the malfunction tempo cost. Flavor text is deadpan and on-brand for the setting.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "W-C-02",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:57:20.687189Z",
+  "updated_at": null
+}

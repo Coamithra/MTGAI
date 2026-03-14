@@ -1,0 +1,60 @@
+{
+  "id": null,
+  "name": "Anomalous Resonance",
+  "layout": "normal",
+  "mana_cost": "{2}{U}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Enchantment",
+  "supertypes": [],
+  "card_types": [
+    "Enchantment"
+  ],
+  "subtypes": [],
+  "oracle_text": "Whenever an artifact enters under your control, you may draw a card. If you do, discard a card.\nAt the beginning of your end step, if three or more artifacts entered under your control this turn, draw two cards.",
+  "flavor_text": "The dungeon hums at a frequency only the desperate can hear.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "U-R-02",
+  "rarity": "rare",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:41:24.469651Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 1174,
+      "output_tokens": 363,
+      "cost_usd": 0.04485,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "A blue rare enchantment that rewards artifact-heavy strategies. The first ability is a loot trigger — each artifact entering gives you card filtering, keeping hands smooth without raw card advantage. The second ability is the payoff: if you can get three artifacts entering in a single turn (via tokens, cheap artifacts, or Salvage chains), you draw two cards at end step — genuine card advantage. The threshold of three artifacts is achievable but requires real deckbuilding commitment. At 4 CMC it comes down early enough to matter but isn't free. Supports the WU and UR artifact archetypes as a build-around. Blue is primary in both card draw and enchantments-that-draw.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "U-R-02",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:41:24.469651Z",
+  "updated_at": null
+}

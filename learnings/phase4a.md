@@ -115,3 +115,55 @@ backend/mtgai/analysis/
 58/66 cards have empty `card_types` field. The analyzer parses `type_line` strings instead
 (e.g., "Legendary Artifact Creature -- Construct" -> ["Artifact", "Creature"]). This is a
 known data quality issue from Phase 1C that should be fixed in the generation pipeline.
+
+---
+
+## Phase 4A-rev: Skeleton Revision Pipeline
+
+**Date**: 2026-03-14
+**Total cost**: $3.44 (Opus revision analysis $3.38 + Haiku fix regen $0.065)
+
+### What Worked
+
+- **Revision pipeline architecture** — compact card serialization, balance findings + mechanic targets to Opus, structured revision plan via tool_use, apply to skeleton, regenerate only affected slots — is the right design.
+- **Haiku for regeneration** — $0.065 for 11 cards vs $3.38 for Opus. Haiku produced 100% mechanic adherence when given proper prompts. Expensive models are needed for *analysis*, not execution.
+- **Detailed logging** — full prompts and responses in `revision_logs/` made it possible to diagnose the prompt bugs by comparing what the skeleton had vs what the LLM actually saw.
+
+### Critical Bugs Found and Fixed
+
+All in the same class: **fields exist in the data model, get populated correctly, but are silently dropped when building prompts or transferring between modules.**
+
+1. **`notes` dropped from generation prompt** (`prompts.py:format_slot_specs`): Revision guidance like "Must use Malfunction 2" was never shown to the generator LLM. The field was simply never added to the format function.
+
+2. **`mechanic_tag` dropped during revision plan application** (`skeleton_reviser.py:apply_revision_plan`): For `regenerate` actions, only `notes` was applied from `new_constraints` — `mechanic_tag`, `card_type` etc. were silently dropped.
+
+3. **`archetype_tags` dropped for monocolor slots** (`prompts.py:format_slot_specs`): Archetype lookup only happened for multicolor slots via `color_pair`. Monocolor cards — the majority of the set — got zero draft archetype guidance.
+
+4. **`is_reprint_slot` never sent to LLM** (`prompts.py:format_slot_specs`): Reprint slots were generated as original designs.
+
+5. **`mechanic_tags`/`draft_archetype` never set on Card model** (`card_generator.py:_process_batch_result`): Fields existed on the model but were never populated from skeleton data during generation.
+
+6. **Oracle text over-truncated** (`prompts.py:format_set_context`): Hard-cut at 60 chars mid-word. Increased to 120 chars with clause-boundary-aware truncation.
+
+7. **System prompt parsing fragile** (`prompts.py:load_system_prompt`): `string.index("```")` replaced with regex + explicit error on no match.
+
+### Design Lesson: Revision model was over-prescriptive
+
+The revision LLM (Opus) was designing entire cards in the `notes` field — exact ability text, stats, creature types, keywords. This turned the generation LLM into a transcriber rather than a designer.
+
+**Fix applied**: Tightened tool schema description and instructions to constrain `notes` to brief mechanic/structural constraints only (e.g., "Must use Malfunction 2, UB signpost"). Creative decisions belong to the generation model.
+
+### Design Lesson: Silent data loss is the deadliest bug class
+
+All prompt-related bugs produced zero errors — the pipeline ran successfully but generated worse cards. The only symptom was "the LLM isn't doing what we asked" which looks like an LLM quality problem, not a code bug.
+
+**Mitigation for scale-up**: Add prompt verification assertions before the full 280-card run. If a slot has non-empty `notes`, the formatted spec must contain "Notes:". If a slot has `archetype_tags`, the spec must contain "Supports archetypes" or "Archetype". Fail fast on data loss.
+
+### Post-revision metrics
+
+- Salvage: 12 -> 8 (planned 6)
+- Malfunction: 3 -> 7 (planned 5)
+- Overclock: 1 -> 4 (planned 3)
+- Color balance: W:10, U:10, B:10, R:9, G:9
+- 33 cards archived, 11 re-regenerated after bug fix
+- 0 FAIL issues in balance analysis

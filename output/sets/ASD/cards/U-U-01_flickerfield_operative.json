@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Flickerfield Operative",
+  "layout": "normal",
+  "mana_cost": "{U}",
+  "mana_cost_parsed": null,
+  "cmc": 1.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Creature — Human Rogue",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Rogue"
+  ],
+  "oracle_text": "When ~ enters, scry 2.",
+  "flavor_text": "\"The first level is mapped. The second level is mapped differently every time.\"",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "collector_number": "U-U-01",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:41:24.335426Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 1174,
+      "output_tokens": 363,
+      "cost_usd": 0.04485,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Clean blue 1-drop uncommon. A 1/1 for U with scry 2 on ETB is a solid but not overpowered value creature — comparable to Opt stapled to a 1/1 body without the card draw. Scry 2 is meaningful card selection that supports blue's identity without breaking common power budgets. Good enabler for artifact-matters strategies since it helps find key pieces. Simple enough for uncommon but slightly above common power level due to the scry 2 value.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "U-U-01",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:41:24.335426Z",
+  "updated_at": null
+}

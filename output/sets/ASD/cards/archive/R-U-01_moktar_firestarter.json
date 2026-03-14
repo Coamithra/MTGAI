@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Moktar Firestarter",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "R"
+  ],
+  "color_identity": [
+    "R"
+  ],
+  "type_line": "Creature — Moktar Shaman",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Moktar",
+    "Shaman"
+  ],
+  "oracle_text": "Whenever an artifact you control is put into a graveyard from the battlefield, ~ deals 2 damage to each opponent.",
+  "flavor_text": "\"Fire was the first technology. It will also be the last.\"",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "1",
+  "loyalty": null,
+  "collector_number": "R-U-01",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:40:43.950017Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 1824,
+      "output_tokens": 335,
+      "cost_usd": 0.052520000000000004,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "A 2/1 for 1R is clean red stats (P+T = CMC+1). The triggered ability rewards artifact sacrifice or destruction strategies, connecting to red's artifact-matters themes and the set's relic/salvage flavor. Works well with Spark Detonator and artifact tokens from other colors. The trigger is narrower than 'whenever an artifact enters' since it requires artifacts leaving, making it a natural pairing with sacrifice outlets or fragile relics. Deals damage to opponents only, staying in red's wheelhouse.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "R-U-01",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:40:43.950017Z",
+  "updated_at": null
+}

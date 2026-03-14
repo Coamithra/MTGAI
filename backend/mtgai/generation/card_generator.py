@@ -57,6 +57,7 @@ MAX_RETRIES = 3  # Only for schema parse failures
 
 # Pricing per 1M tokens (March 2026)
 PRICING = {
+    "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.00},
     "claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
     "claude-opus-4-6": {"input": 15.00, "output": 75.00},
 }
@@ -529,27 +530,35 @@ def _process_batch_result(
                 continue
 
         # Card parsed — set pipeline fields
-        card = card.model_copy(
-            update={
-                "set_code": DEFAULT_SET_CODE,
-                "collector_number": slot_id,
-                "slot_id": slot_id,
-                "status": CardStatus.DRAFT,
-                "created_at": datetime.now(UTC),
-                "generation_attempts": [
-                    GenerationAttempt(
-                        attempt_number=1,
-                        timestamp=datetime.now(UTC),
-                        model_used=model,
-                        success=True,
-                        validation_errors=[e.message for e in errors],
-                        input_tokens=input_tokens // max(len(raw_cards), 1),
-                        output_tokens=output_tokens // max(len(raw_cards), 1),
-                        cost_usd=cost_per_card,
-                    ),
-                ],
-            }
-        )
+        update_fields: dict = {
+            "set_code": DEFAULT_SET_CODE,
+            "collector_number": slot_id,
+            "slot_id": slot_id,
+            "status": CardStatus.DRAFT,
+            "created_at": datetime.now(UTC),
+            "generation_attempts": [
+                GenerationAttempt(
+                    attempt_number=1,
+                    timestamp=datetime.now(UTC),
+                    model_used=model,
+                    success=True,
+                    validation_errors=[e.message for e in errors],
+                    input_tokens=input_tokens // max(len(raw_cards), 1),
+                    output_tokens=output_tokens // max(len(raw_cards), 1),
+                    cost_usd=cost_per_card,
+                ),
+            ],
+        }
+
+        # Propagate skeleton metadata to card model
+        mechanic_tag = slot.get("mechanic_tag", "")
+        if mechanic_tag and mechanic_tag not in ("vanilla", "french_vanilla", "evergreen"):
+            update_fields["mechanic_tags"] = [mechanic_tag]
+        archetype_tags = slot.get("archetype_tags", [])
+        if archetype_tags:
+            update_fields["draft_archetype"] = archetype_tags[0]
+
+        card = card.model_copy(update=update_fields)
 
         # Save card
         path = save_card(card, OUTPUT_ROOT)

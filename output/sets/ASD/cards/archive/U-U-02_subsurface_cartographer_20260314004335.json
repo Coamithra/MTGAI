@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Subsurface Cartographer",
+  "layout": "normal",
+  "mana_cost": "{2}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Creature — Human Wizard",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Wizard"
+  ],
+  "oracle_text": "Flying\nWhenever ~ deals combat damage to a player, salvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.).",
+  "flavor_text": "She charts the dungeon's shifting corridors in ink that moves.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "U-U-02",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:41:24.402676Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Oracle text contains what looks like reminder text: \"(Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+      ],
+      "input_tokens": 1174,
+      "output_tokens": 363,
+      "cost_usd": 0.04485,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Blue uncommon flying creature that rewards connecting in combat with Salvage 3 — a repeatable artifact-finding effect tied to combat damage. A 2/2 flyer for 3 is a fair rate. The salvage trigger is conditional (must deal combat damage) so it's not guaranteed value, making it a rewarding build-around for the artifact theme without being too powerful. Salvage 3 is within the uncommon range (2-3 at common, 4-5 at uncommon), and the conditional trigger justifies it at the lower end. Flying is blue's primary evasion keyword. Supports WU (Ancient Technology) and UR (Cult of Science) draft archetypes.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "U-U-02",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:41:24.402676Z",
+  "updated_at": null
+}

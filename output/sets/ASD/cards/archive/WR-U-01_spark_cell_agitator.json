@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Spark Cell Agitator",
+  "layout": "normal",
+  "mana_cost": "{W}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "W",
+    "R"
+  ],
+  "color_identity": [
+    "W",
+    "R"
+  ],
+  "type_line": "Creature — Human Rebel",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Rebel"
+  ],
+  "oracle_text": "Whenever ~ or another creature you control becomes equipped, target creature you control gains first strike until end of turn.",
+  "flavor_text": "\"The Fist took my hands. The Spark gave me better ones.\"",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "WR-U-01",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:42:23.925488Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 6151,
+      "output_tokens": 499,
+      "cost_usd": 0.12969,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "WR signpost-adjacent uncommon for the Spark Rebellion archetype. A 2/2 for 2 is a clean, fair body. The triggered ability rewards the archetype's equipment subtheme — whenever any creature you control becomes equipped, you grant first strike to any creature you control. This creates meaningful combat math decisions: do you move equipment around pre-combat to enable first strike on your best attacker? First strike is primary in white and red, and caring about equipment is squarely in WR's mechanical identity. The ability is complex enough for uncommon (triggered ability with a target that requires tracking equipment movement) but not overloaded — it does one thing well. The 2/2 body means it trades in combat without the buff but becomes a real threat when equipped itself. Flavor ties to the Luminous Spark's fight against slavery, with the darkly humorous implication of prosthetic weaponized hands.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "WR-U-01",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:42:23.925488Z",
+  "updated_at": null
+}

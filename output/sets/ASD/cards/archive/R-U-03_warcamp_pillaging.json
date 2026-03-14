@@ -1,0 +1,60 @@
+{
+  "id": null,
+  "name": "War-Camp Pillaging",
+  "layout": "normal",
+  "mana_cost": "{4}{R}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 6.0,
+  "colors": [
+    "R"
+  ],
+  "color_identity": [
+    "R"
+  ],
+  "type_line": "Enchantment",
+  "supertypes": [],
+  "card_types": [
+    "Enchantment"
+  ],
+  "subtypes": [],
+  "oracle_text": "Whenever a creature you control deals combat damage to a player, you may exile the top card of your library. You may play that card until the end of your next turn.\nCreatures you control get +1/+0.",
+  "flavor_text": "The moktar word for 'negotiation' translates roughly as 'looting that hasn't started yet.'",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "R-U-03",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:40:43.998422Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 1824,
+      "output_tokens": 335,
+      "cost_usd": 0.052520000000000004,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "A 6-mana red enchantment that rewards aggressive combat strategies. The impulsive draw trigger on combat damage is squarely in red's color pie, and the 'until end of your next turn' window is generous enough to make the cards usable without being too complex to track. The static +1/+0 anthem makes your creatures trade better in combat and helps push through damage to trigger the exile effect — the two abilities work together toward one goal (attacking profitably). At 6 mana this is a late-game payoff for go-wide red strategies, particularly WR Spark Rebellion tokens. Each creature that connects is a separate trigger, so tokens become card advantage engines. Complex but not convoluted — appropriate for uncommon.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "R-U-03",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:40:43.998422Z",
+  "updated_at": null
+}

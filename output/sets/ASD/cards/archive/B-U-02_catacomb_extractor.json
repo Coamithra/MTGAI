@@ -1,0 +1,63 @@
+{
+  "id": null,
+  "name": "Catacomb Extractor",
+  "layout": "normal",
+  "mana_cost": "{2}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Creature — Human Rogue",
+  "supertypes": [],
+  "card_types": [
+    "Creature"
+  ],
+  "subtypes": [
+    "Human",
+    "Rogue"
+  ],
+  "oracle_text": "Deathtouch\nWhenever ~ deals combat damage to a player, you may sacrifice an artifact. If you do, draw two cards.",
+  "flavor_text": "\"The things down there aren't treasures. They're organs. The dungeon just hasn't noticed they're missing yet.\"",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "B-U-02",
+  "rarity": "uncommon",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:40:00.555939Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 2551,
+      "output_tokens": 406,
+      "cost_usd": 0.0687225,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "A black uncommon creature at CMC 3 with P+T = 4 (well within budget). Deathtouch makes it a real threat in combat, encouraging blocks or letting it connect. The sacrifice-an-artifact trigger for draw-two rewards the set's artifact subtheme (Salvage tokens, relics) and gives black a payoff for accumulating artifacts without stepping outside the color pie — black sacrifices resources for card advantage. The two abilities work together: deathtouch helps it connect, and connecting lets you cash in artifacts. Clean two-ability uncommon design.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "B-U-02",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:40:00.555939Z",
+  "updated_at": null
+}

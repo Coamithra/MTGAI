@@ -358,15 +358,16 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > - Artifact density too low for Salvage archetype
 > - At 280: missing legendaries, missing signpost uncommons, CMC curve gaps
 
-- [ ] **4A-rev-1**: Build revision pipeline (`backend/mtgai/generation/skeleton_reviser.py`):
+- [x] **4A-rev-1**: Build revision pipeline (`backend/mtgai/generation/skeleton_reviser.py`):
   - Compact card serializer (~100 chars/card: `slot_id | name | cost | type P/T | oracle truncated`)
   - Revision prompt: compact card list + balance findings + mechanic defs/targets + theme → Opus 4.6 effort=max
   - Tool schema (`propose_revision_plan`): returns structured `{analysis, changes[], expected_improvements}`
   - `apply_revision_plan()`: archive old cards, update skeleton slot constraints (notes field), regenerate via 1C pipeline
   - `run_revision()`: full loop — serialize → prompt → apply → regenerate → validate → re-run 4A → loop if needed (max 2 rounds)
   - RevisionPlan/SlotChange Pydantic models
-- [ ] **4A-rev-2**: Run skeleton revision on ASD dev set. Verify mechanic distribution and artifact density improve. Archive replaced cards.
-  → `output/sets/ASD/cards/archive/`, updated `skeleton.json`, updated `balance-report.md`, `reports/revision-report.md`
+  → `backend/mtgai/generation/skeleton_reviser.py` (580 lines), `backend/tests/test_skeleton_reviser.py` (23 tests). All 513 project tests pass. CLI: `python -m mtgai.generation.skeleton_reviser [--dry-run] [--max-rounds N]`
+- [x] **4A-rev-2**: Run skeleton revision on ASD dev set. Verify mechanic distribution and artifact density improve. Archive replaced cards.
+  → 2 revision rounds (Opus, $3.38) + 1 fix regeneration (Haiku, $0.065). Initial run: 32 cards replaced (19 R1 + 13 R2) but regenerated cards didn't use requested mechanics due to two bugs: (1) `prompts.py:format_slot_specs` wasn't including the `notes` field in generation prompts, (2) `skeleton_reviser.py:apply_revision_plan` only applied `notes` from `new_constraints`, silently dropping `mechanic_tag`/`card_type` updates. After fixing both bugs, re-ran 11 affected slots with Haiku — 100% mechanic adherence. Final mechanic distribution: Salvage 8 (planned 6), Malfunction 7 (planned 5), Overclock 4 (planned 3). Color balance: W:10, U:10, B:10, R:9, G:9. 0 FAIL issues. 33 cards archived in `output/sets/ASD/cards/archive/`. Logs in `output/sets/ASD/revision_logs/`.
 
 **--- Part B: AI Design Review (1B Hybrid Pipeline) ---**
 

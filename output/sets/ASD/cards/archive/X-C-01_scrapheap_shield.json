@@ -1,0 +1,58 @@
+{
+  "id": null,
+  "name": "Scrapheap Shield",
+  "layout": "normal",
+  "mana_cost": "{2}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [],
+  "color_identity": [],
+  "type_line": "Artifact — Equipment",
+  "supertypes": [],
+  "card_types": [
+    "Artifact"
+  ],
+  "subtypes": [
+    "Equipment"
+  ],
+  "oracle_text": "Equipped creature gets +0/+2.\\nEquip {1}.",
+  "flavor_text": "\"Dented, corroded, and fused shut. Still stops a blade better than bare skin.\" —Subsurface Salvage Guide, Chapter 3",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "X-C-01",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:42:49.343235Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 6181,
+      "output_tokens": 468,
+      "cost_usd": 0.127815,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "A clean, simple colorless common artifact for the set. Equipment is the most natural fit for a vanilla-adjacent artifact at common — it has a single, straightforward effect (+0/+2) with a cheap equip cost. This supports the set's artifact-matters theme by being an artifact that creatures like Spore-Nest Forager, Spark Detonator, Cult Archivist, and Protonium Technician all trigger off of. The +0/+2 defensive stat boost is deliberately modest for common power level, and the {1} equip cost keeps it accessible without being pushed. It's the kind of ancient junk adventurers pull out of the dungeon — barely functional but better than nothing.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "X-C-01",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:42:49.343235Z",
+  "updated_at": null
+}

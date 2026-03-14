@@ -1,0 +1,62 @@
+{
+  "id": null,
+  "name": "Requisition Sweep",
+  "layout": "normal",
+  "mana_cost": "{3}{W}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Sorcery",
+  "supertypes": [],
+  "card_types": [
+    "Sorcery"
+  ],
+  "subtypes": [],
+  "oracle_text": "Destroy target artifact or enchantment.\nSalvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+  "flavor_text": "\"Confiscated for the glory of Feretha. You'll receive a receipt. Eventually.\"",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "W-C-04",
+  "rarity": "common",
+  "set_code": "ASD",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-03-14T00:45:26.134451Z",
+      "prompt_used": null,
+      "model_used": "claude-opus-4-6",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Oracle text contains what looks like reminder text: \"(Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+      ],
+      "input_tokens": 1972,
+      "output_tokens": 329,
+      "cost_usd": 0.05429,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "White common sorcery that combines artifact/enchantment removal with the set's Salvage mechanic. White has primary access to both artifact/enchantment destruction and Salvage. At {3}{W} sorcery speed, this is a fair rate — Disenchant effects at instant for {1}{W} are the baseline, so adding Salvage 3 at sorcery speed and +{2} is reasonable for common. The two effects are thematically linked: you destroy enemy tech and scavenge something useful from the ruins. Salvage 3 at common follows the X=2-3 guideline. This is the first appearance of Salvage in white, so reminder text is included.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "W-C-04",
+  "card_faces": null,
+  "created_at": "2026-03-14T00:45:26.134451Z",
+  "updated_at": null
+}

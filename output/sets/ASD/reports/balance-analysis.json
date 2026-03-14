@@ -11,9 +11,19 @@
     },
     {
       "slot_id": "W-C-02",
-      "card_name": "Fist Patrol Rider",
-      "matched": true,
-      "issues": []
+      "card_name": "Fault-Trained Sentinel",
+      "matched": false,
+      "issues": [
+        {
+          "check": "conformance.mechanic_tier",
+          "severity": "WARN",
+          "slot_id": "W-C-02",
+          "card_name": "Fault-Trained Sentinel",
+          "message": "Complexity tier mismatch: slot expects malfunction, card classified as evergreen",
+          "expected": "malfunction",
+          "actual": "evergreen"
+        }
+      ]
     },
     {
       "slot_id": "W-C-03",
@@ -23,14 +33,14 @@
     },
     {
       "slot_id": "W-C-04",
-      "card_name": "Salvage the Gatehouse",
+      "card_name": "Requisition Sweep",
       "matched": false,
       "issues": [
         {
           "check": "conformance.mechanic_tier",
           "severity": "WARN",
           "slot_id": "W-C-04",
-          "card_name": "Salvage the Gatehouse",
+          "card_name": "Requisition Sweep",
           "message": "Complexity tier mismatch: slot expects complex, card classified as evergreen",
           "expected": "complex",
           "actual": "evergreen"
@@ -164,16 +174,16 @@
     },
     {
       "slot_id": "X-C-01",
-      "card_name": "Corroded Exo-Frame",
+      "card_name": "Subsurface Signal Lamp",
       "matched": false,
       "issues": [
         {
           "check": "conformance.mechanic_tier",
           "severity": "WARN",
           "slot_id": "X-C-01",
-          "card_name": "Corroded Exo-Frame",
-          "message": "Complexity tier mismatch: slot expects vanilla, card classified as evergreen",
-          "expected": "vanilla",
+          "card_name": "Subsurface Signal Lamp",
+          "message": "Complexity tier mismatch: slot expects malfunction, card classified as evergreen",
+          "expected": "malfunction",
           "actual": "evergreen"
         }
       ]
@@ -186,14 +196,14 @@
     },
     {
       "slot_id": "W-U-02",
-      "card_name": "Fist Supply Marshal",
+      "card_name": "Fist Checkpoint Warden",
       "matched": false,
       "issues": [
         {
           "check": "conformance.mechanic_tier",
           "severity": "WARN",
           "slot_id": "W-U-02",
-          "card_name": "Fist Supply Marshal",
+          "card_name": "Fist Checkpoint Warden",
           "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
           "expected": "evergreen",
           "actual": "complex"
@@ -208,25 +218,25 @@
     },
     {
       "slot_id": "U-U-01",
-      "card_name": "Cult Initiate",
+      "card_name": "Flickerfield Operative",
+      "matched": true,
+      "issues": []
+    },
+    {
+      "slot_id": "U-U-02",
+      "card_name": "Relay Node Technician",
       "matched": false,
       "issues": [
         {
           "check": "conformance.mechanic_tier",
           "severity": "WARN",
-          "slot_id": "U-U-01",
-          "card_name": "Cult Initiate",
+          "slot_id": "U-U-02",
+          "card_name": "Relay Node Technician",
           "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
           "expected": "evergreen",
           "actual": "complex"
         }
       ]
-    },
-    {
-      "slot_id": "U-U-02",
-      "card_name": "Subsurface Cartographer",
-      "matched": true,
-      "issues": []
     },
     {
       "slot_id": "U-U-03",
@@ -242,14 +252,14 @@
     },
     {
       "slot_id": "B-U-02",
-      "card_name": "Luminous Spark Extractor",
+      "card_name": "Catacomb Harvester",
       "matched": false,
       "issues": [
         {
           "check": "conformance.mechanic_tier",
           "severity": "WARN",
           "slot_id": "B-U-02",
-          "card_name": "Luminous Spark Extractor",
+          "card_name": "Catacomb Harvester",
           "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
           "expected": "evergreen",
           "actual": "complex"
@@ -264,30 +274,30 @@
     },
     {
       "slot_id": "R-U-01",
-      "card_name": "Spark Saboteur",
+      "card_name": "Spark Insurgent",
       "matched": false,
       "issues": [
         {
           "check": "conformance.mechanic_tier",
           "severity": "WARN",
           "slot_id": "R-U-01",
-          "card_name": "Spark Saboteur",
-          "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
-          "expected": "evergreen",
+          "card_name": "Spark Insurgent",
+          "message": "Complexity tier mismatch: slot expects malfunction, card classified as complex",
+          "expected": "malfunction",
           "actual": "complex"
         }
       ]
     },
     {
       "slot_id": "R-U-02",
-      "card_name": "Moktar War-Screamer",
+      "card_name": "Wasteland War-Raptor",
       "matched": false,
       "issues": [
         {
           "check": "conformance.mechanic_tier",
           "severity": "WARN",
           "slot_id": "R-U-02",
-          "card_name": "Moktar War-Screamer",
+          "card_name": "Wasteland War-Raptor",
           "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
           "expected": "evergreen",
           "actual": "complex"
@@ -296,21 +306,69 @@
     },
     {
       "slot_id": "R-U-03",
-      "card_name": "Raider's Bounty",
-      "matched": true,
-      "issues": []
+      "card_name": "Combustion Cascade",
+      "matched": false,
+      "issues": [
+        {
+          "check": "conformance.cmc",
+          "severity": "WARN",
+          "slot_id": "R-U-03",
+          "card_name": "Combustion Cascade",
+          "message": "CMC off by 1: slot targets 6, card is 5",
+          "expected": "6",
+          "actual": "5"
+        },
+        {
+          "check": "conformance.mechanic_tier",
+          "severity": "WARN",
+          "slot_id": "R-U-03",
+          "card_name": "Combustion Cascade",
+          "message": "Complexity tier mismatch: slot expects overclock, card classified as complex",
+          "expected": "overclock",
+          "actual": "complex"
+        }
+      ]
     },
     {
       "slot_id": "G-U-01",
-      "card_name": "Moktar Salvager",
-      "matched": true,
-      "issues": []
+      "card_name": "Salvage Beetle",
+      "matched": false,
+      "issues": [
+        {
+          "check": "conformance.card_type",
+          "severity": "WARN",
+          "slot_id": "G-U-01",
+          "card_name": "Salvage Beetle",
+          "message": "Card type mismatch: slot expects Artifact Creature, card types are ['Artifact', 'Creature']",
+          "expected": "Artifact Creature",
+          "actual": "Artifact, Creature"
+        },
+        {
+          "check": "conformance.mechanic_tier",
+          "severity": "WARN",
+          "slot_id": "G-U-01",
+          "card_name": "Salvage Beetle",
+          "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
+          "expected": "evergreen",
+          "actual": "complex"
+        }
+      ]
     },
     {
       "slot_id": "G-U-02",
-      "card_name": "Rendon Packleader",
-      "matched": true,
-      "issues": []
+      "card_name": "Rendon Apex Tracker",
+      "matched": false,
+      "issues": [
+        {
+          "check": "conformance.mechanic_tier",
+          "severity": "WARN",
+          "slot_id": "G-U-02",
+          "card_name": "Rendon Apex Tracker",
+          "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
+          "expected": "evergreen",
+          "actual": "complex"
+        }
+      ]
     },
     {
       "slot_id": "G-U-03",
@@ -320,17 +378,26 @@
     },
     {
       "slot_id": "WU-U-01",
-      "card_name": "Relic Warden Automaton",
+      "card_name": "Sanctuary Automaton",
       "matched": false,
       "issues": [
+        {
+          "check": "conformance.cmc",
+          "severity": "WARN",
+          "slot_id": "WU-U-01",
+          "card_name": "Sanctuary Automaton",
+          "message": "CMC off by 1: slot targets 2, card is 3",
+          "expected": "2",
+          "actual": "3"
+        },
         {
           "check": "conformance.mechanic_tier",
           "severity": "WARN",
           "slot_id": "WU-U-01",
-          "card_name": "Relic Warden Automaton",
-          "message": "Complexity tier mismatch: slot expects complex, card classified as evergreen",
-          "expected": "complex",
-          "actual": "evergreen"
+          "card_name": "Sanctuary Automaton",
+          "message": "Complexity tier mismatch: slot expects salvage, card classified as complex",
+          "expected": "salvage",
+          "actual": "complex"
         }
       ]
     },
@@ -342,31 +409,60 @@
     },
     {
       "slot_id": "WR-U-01",
-      "card_name": "Spark Rallier",
-      "matched": true,
-      "issues": []
+      "card_name": "Rebel Firebrand",
+      "matched": false,
+      "issues": [
+        {
+          "check": "conformance.cmc",
+          "severity": "WARN",
+          "slot_id": "WR-U-01",
+          "card_name": "Rebel Firebrand",
+          "message": "CMC off by 1: slot targets 2, card is 3",
+          "expected": "2",
+          "actual": "3"
+        },
+        {
+          "check": "conformance.mechanic_tier",
+          "severity": "WARN",
+          "slot_id": "WR-U-01",
+          "card_name": "Rebel Firebrand",
+          "message": "Complexity tier mismatch: slot expects malfunction, card classified as evergreen",
+          "expected": "malfunction",
+          "actual": "evergreen"
+        }
+      ]
     },
     {
       "slot_id": "WG-U-01",
-      "card_name": "Frontier Homesteader",
+      "card_name": "Reclaimed Settler",
       "matched": false,
       "issues": [
         {
           "check": "conformance.mechanic_tier",
           "severity": "WARN",
           "slot_id": "WG-U-01",
-          "card_name": "Frontier Homesteader",
-          "message": "Complexity tier mismatch: slot expects complex, card classified as evergreen",
-          "expected": "complex",
+          "card_name": "Reclaimed Settler",
+          "message": "Complexity tier mismatch: slot expects salvage, card classified as evergreen",
+          "expected": "salvage",
           "actual": "evergreen"
         }
       ]
     },
     {
       "slot_id": "UB-U-01",
-      "card_name": "Depth Crawler Archivist",
-      "matched": true,
-      "issues": []
+      "card_name": "Subsurface Conduit",
+      "matched": false,
+      "issues": [
+        {
+          "check": "conformance.mechanic_tier",
+          "severity": "WARN",
+          "slot_id": "UB-U-01",
+          "card_name": "Subsurface Conduit",
+          "message": "Complexity tier mismatch: slot expects overclock, card classified as complex",
+          "expected": "overclock",
+          "actual": "complex"
+        }
+      ]
     },
     {
       "slot_id": "X-U-01",
@@ -388,13 +484,32 @@
     },
     {
       "slot_id": "U-R-01",
-      "card_name": "Cult Savant",
-      "matched": true,
-      "issues": []
+      "card_name": "Automated Sentinel",
+      "matched": false,
+      "issues": [
+        {
+          "check": "conformance.cmc",
+          "severity": "WARN",
+          "slot_id": "U-R-01",
+          "card_name": "Automated Sentinel",
+          "message": "CMC off by 1: slot targets 1, card is 2",
+          "expected": "1",
+          "actual": "2"
+        },
+        {
+          "check": "conformance.mechanic_tier",
+          "severity": "WARN",
+          "slot_id": "U-R-01",
+          "card_name": "Automated Sentinel",
+          "message": "Complexity tier mismatch: slot expects malfunction, card classified as complex",
+          "expected": "malfunction",
+          "actual": "complex"
+        }
+      ]
     },
     {
       "slot_id": "U-R-02",
-      "card_name": "The Cartography Engine",
+      "card_name": "Anomalous Resonance",
       "matched": true,
       "issues": []
     },
@@ -466,15 +581,25 @@
     },
     {
       "slot_id": "U-M-01",
-      "card_name": "The Head Scientist",
+      "card_name": "Vex, Architect of Systems",
       "matched": true,
       "issues": []
     },
     {
       "slot_id": "B-M-01",
-      "card_name": "Apex of the Subsurface",
-      "matched": true,
-      "issues": []
+      "card_name": "Koyl's Reanimated Maw",
+      "matched": false,
+      "issues": [
+        {
+          "check": "conformance.mechanic_tier",
+          "severity": "WARN",
+          "slot_id": "B-M-01",
+          "card_name": "Koyl's Reanimated Maw",
+          "message": "Complexity tier mismatch: slot expects overclock, card classified as evergreen",
+          "expected": "overclock",
+          "actual": "evergreen"
+        }
+      ]
     },
     {
       "slot_id": "WU-M-01",
@@ -490,7 +615,59 @@
       "total_creatures": 15,
       "creature_cmc_buckets": {
         "1": 3,
-        "2": 7,
+        "2": 5,
+        "3": 6,
+        "5": 1
+      },
+      "creature_cmc_gaps": [
+        4,
+        6
+      ],
+      "creature_sizes": [
+        {
+          "weight_class": "beefy",
+          "count": 6
+        },
+        {
+          "weight_class": "huge",
+          "count": 1
+        },
+        {
+          "weight_class": "medium",
+          "count": 6
+        },
+        {
+          "weight_class": "small",
+          "count": 2
+        }
+      ],
+      "removal_count": 3,
+      "removal_cards": [
+        "Sanctioned Exile",
+        "Requisition Sweep",
+        "The Vizier's Decree"
+      ],
+      "card_advantage_count": 10,
+      "card_advantage_cards": [
+        "Requisition Sweep",
+        "Feretha, the Hollow Founder",
+        "Cult Relic-Bearer",
+        "Edict of Continuity",
+        "Proclamation Enforcer",
+        "Sura, Rendon Ranchmaster",
+        "Reclaimed Settler",
+        "Kethra, Spark Commander",
+        "The Custodian Eternal",
+        "Sanctuary Automaton"
+      ]
+    },
+    {
+      "color": "U",
+      "total_cards": 14,
+      "total_creatures": 10,
+      "creature_cmc_buckets": {
+        "1": 2,
+        "2": 3,
         "3": 4,
         "5": 1
       },
@@ -501,7 +678,7 @@
       "creature_sizes": [
         {
           "weight_class": "beefy",
-          "count": 3
+          "count": 2
         },
         {
           "weight_class": "huge",
@@ -509,77 +686,29 @@
         },
         {
           "weight_class": "medium",
-          "count": 9
+          "count": 6
         },
         {
           "weight_class": "small",
-          "count": 2
-        }
-      ],
-      "removal_count": 2,
-      "removal_cards": [
-        "Sanctioned Exile",
-        "The Vizier's Decree"
-      ],
-      "card_advantage_count": 10,
-      "card_advantage_cards": [
-        "Salvage the Gatehouse",
-        "Feretha, the Hollow Founder",
-        "Cult Relic-Bearer",
-        "Fist Supply Marshal",
-        "Edict of Continuity",
-        "Proclamation Enforcer",
-        "Sura, Rendon Ranchmaster",
-        "Kethra, Spark Commander",
-        "The Custodian Eternal",
-        "Relic Warden Automaton"
-      ]
-    },
-    {
-      "color": "U",
-      "total_cards": 14,
-      "total_creatures": 10,
-      "creature_cmc_buckets": {
-        "1": 3,
-        "2": 3,
-        "3": 3,
-        "5": 1
-      },
-      "creature_cmc_gaps": [
-        4,
-        6
-      ],
-      "creature_sizes": [
-        {
-          "weight_class": "huge",
           "count": 1
-        },
-        {
-          "weight_class": "medium",
-          "count": 7
-        },
-        {
-          "weight_class": "small",
-          "count": 2
         }
       ],
       "removal_count": 1,
       "removal_cards": [
         "Redirect Pulse"
       ],
-      "card_advantage_count": 11,
+      "card_advantage_count": 10,
       "card_advantage_cards": [
         "Redirect Pulse",
         "Excavate the Archives",
-        "The Head Scientist",
-        "Cult Savant",
-        "The Cartography Engine",
-        "Cult Initiate",
-        "Subsurface Cartographer",
+        "Automated Sentinel",
+        "Anomalous Resonance",
+        "Flickerfield Operative",
+        "Relay Node Technician",
         "Automated Sentry Grid",
-        "Depth Crawler Archivist",
+        "Subsurface Conduit",
         "The Custodian Eternal",
-        "Relic Warden Automaton"
+        "Sanctuary Automaton"
       ]
     },
     {
@@ -618,12 +747,13 @@
       "removal_cards": [
         "Murder"
       ],
-      "card_advantage_count": 5,
+      "card_advantage_count": 6,
       "card_advantage_cards": [
         "Plunder the Catacombs",
-        "Luminous Spark Extractor",
+        "Koyl's Reanimated Maw",
+        "Catacomb Harvester",
         "Subsurface Harvest",
-        "Depth Crawler Archivist",
+        "Subsurface Conduit",
         "Proclamation Enforcer"
       ]
     },
@@ -632,8 +762,8 @@
       "total_cards": 11,
       "total_creatures": 7,
       "creature_cmc_buckets": {
-        "2": 4,
-        "3": 2,
+        "2": 3,
+        "3": 3,
         "4": 1
       },
       "creature_cmc_gaps": [
@@ -644,11 +774,11 @@
       "creature_sizes": [
         {
           "weight_class": "beefy",
-          "count": 1
+          "count": 2
         },
         {
           "weight_class": "medium",
-          "count": 6
+          "count": 5
         }
       ],
       "removal_count": 5,
@@ -656,13 +786,14 @@
         "Scorched Passage",
         "Spark Detonator",
         "The Burning Descent",
-        "Spark Saboteur",
-        "Raider's Bounty"
+        "Spark Insurgent",
+        "Combustion Cascade"
       ],
-      "card_advantage_count": 3,
+      "card_advantage_count": 4,
       "card_advantage_cards": [
         "Ransack the Storeroom",
         "The Burning Descent",
+        "Combustion Cascade",
         "Kethra, Spark Commander"
       ]
     },
@@ -707,10 +838,10 @@
         "Reclaim the Surface",
         "Spore-Nest Forager",
         "The Subsurface Reclaims",
-        "Moktar Salvager",
-        "Rendon Packleader",
+        "Rendon Apex Tracker",
         "Law of the Wilderness",
-        "Sura, Rendon Ranchmaster"
+        "Sura, Rendon Ranchmaster",
+        "Reclaimed Settler"
       ]
     },
     {
@@ -738,13 +869,13 @@
         "mythic": 0
       },
       "actual": {
-        "rare": 3,
-        "uncommon": 4,
+        "rare": 2,
         "common": 2,
-        "mythic": 3
+        "mythic": 2,
+        "uncommon": 2
       },
       "total_planned": 6,
-      "total_actual": 12
+      "total_actual": 8
     },
     {
       "mechanic_name": "Malfunction",
@@ -755,11 +886,12 @@
         "mythic": 0
       },
       "actual": {
+        "uncommon": 3,
         "rare": 2,
-        "uncommon": 1
+        "common": 2
       },
       "total_planned": 5,
-      "total_actual": 3
+      "total_actual": 7
     },
     {
       "mechanic_name": "Overclock",
@@ -770,16 +902,19 @@
         "mythic": 1
       },
       "actual": {
-        "rare": 1
+        "mythic": 1,
+        "rare": 1,
+        "uncommon": 2
       },
       "total_planned": 3,
-      "total_actual": 1
+      "total_actual": 4
     }
   ],
   "mana_fixing_sources": [
     "Spore-Nest Forager",
     "Descent Waypoint",
     "Ransack the Storeroom",
+    "Subsurface Signal Lamp",
     "Flickering Relay Node"
   ],
   "color_balance": {
@@ -793,8 +928,17 @@
     {
       "check": "conformance.mechanic_tier",
       "severity": "WARN",
+      "slot_id": "W-C-02",
+      "card_name": "Fault-Trained Sentinel",
+      "message": "Complexity tier mismatch: slot expects malfunction, card classified as evergreen",
+      "expected": "malfunction",
+      "actual": "evergreen"
+    },
+    {
+      "check": "conformance.mechanic_tier",
+      "severity": "WARN",
       "slot_id": "W-C-04",
-      "card_name": "Salvage the Gatehouse",
+      "card_name": "Requisition Sweep",
       "message": "Complexity tier mismatch: slot expects complex, card classified as evergreen",
       "expected": "complex",
       "actual": "evergreen"
@@ -830,16 +974,16 @@
       "check": "conformance.mechanic_tier",
       "severity": "WARN",
       "slot_id": "X-C-01",
-      "card_name": "Corroded Exo-Frame",
-      "message": "Complexity tier mismatch: slot expects vanilla, card classified as evergreen",
-      "expected": "vanilla",
+      "card_name": "Subsurface Signal Lamp",
+      "message": "Complexity tier mismatch: slot expects malfunction, card classified as evergreen",
+      "expected": "malfunction",
       "actual": "evergreen"
     },
     {
       "check": "conformance.mechanic_tier",
       "severity": "WARN",
       "slot_id": "W-U-02",
-      "card_name": "Fist Supply Marshal",
+      "card_name": "Fist Checkpoint Warden",
       "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
       "expected": "evergreen",
       "actual": "complex"
@@ -847,8 +991,8 @@
     {
       "check": "conformance.mechanic_tier",
       "severity": "WARN",
-      "slot_id": "U-U-01",
-      "card_name": "Cult Initiate",
+      "slot_id": "U-U-02",
+      "card_name": "Relay Node Technician",
       "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
       "expected": "evergreen",
       "actual": "complex"
@@ -857,7 +1001,7 @@
       "check": "conformance.mechanic_tier",
       "severity": "WARN",
       "slot_id": "B-U-02",
-      "card_name": "Luminous Spark Extractor",
+      "card_name": "Catacomb Harvester",
       "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
       "expected": "evergreen",
       "actual": "complex"
@@ -866,16 +1010,52 @@
       "check": "conformance.mechanic_tier",
       "severity": "WARN",
       "slot_id": "R-U-01",
-      "card_name": "Spark Saboteur",
-      "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
-      "expected": "evergreen",
+      "card_name": "Spark Insurgent",
+      "message": "Complexity tier mismatch: slot expects malfunction, card classified as complex",
+      "expected": "malfunction",
       "actual": "complex"
     },
     {
       "check": "conformance.mechanic_tier",
       "severity": "WARN",
       "slot_id": "R-U-02",
-      "card_name": "Moktar War-Screamer",
+      "card_name": "Wasteland War-Raptor",
+      "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
+      "expected": "evergreen",
+      "actual": "complex"
+    },
+    {
+      "check": "conformance.cmc",
+      "severity": "WARN",
+      "slot_id": "R-U-03",
+      "card_name": "Combustion Cascade",
+      "message": "CMC off by 1: slot targets 6, card is 5",
+      "expected": "6",
+      "actual": "5"
+    },
+    {
+      "check": "conformance.mechanic_tier",
+      "severity": "WARN",
+      "slot_id": "R-U-03",
+      "card_name": "Combustion Cascade",
+      "message": "Complexity tier mismatch: slot expects overclock, card classified as complex",
+      "expected": "overclock",
+      "actual": "complex"
+    },
+    {
+      "check": "conformance.card_type",
+      "severity": "WARN",
+      "slot_id": "G-U-01",
+      "card_name": "Salvage Beetle",
+      "message": "Card type mismatch: slot expects Artifact Creature, card types are ['Artifact', 'Creature']",
+      "expected": "Artifact Creature",
+      "actual": "Artifact, Creature"
+    },
+    {
+      "check": "conformance.mechanic_tier",
+      "severity": "WARN",
+      "slot_id": "G-U-01",
+      "card_name": "Salvage Beetle",
       "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
       "expected": "evergreen",
       "actual": "complex"
@@ -883,19 +1063,91 @@
     {
       "check": "conformance.mechanic_tier",
       "severity": "WARN",
+      "slot_id": "G-U-02",
+      "card_name": "Rendon Apex Tracker",
+      "message": "Complexity tier mismatch: slot expects evergreen, card classified as complex",
+      "expected": "evergreen",
+      "actual": "complex"
+    },
+    {
+      "check": "conformance.cmc",
+      "severity": "WARN",
       "slot_id": "WU-U-01",
-      "card_name": "Relic Warden Automaton",
-      "message": "Complexity tier mismatch: slot expects complex, card classified as evergreen",
-      "expected": "complex",
+      "card_name": "Sanctuary Automaton",
+      "message": "CMC off by 1: slot targets 2, card is 3",
+      "expected": "2",
+      "actual": "3"
+    },
+    {
+      "check": "conformance.mechanic_tier",
+      "severity": "WARN",
+      "slot_id": "WU-U-01",
+      "card_name": "Sanctuary Automaton",
+      "message": "Complexity tier mismatch: slot expects salvage, card classified as complex",
+      "expected": "salvage",
+      "actual": "complex"
+    },
+    {
+      "check": "conformance.cmc",
+      "severity": "WARN",
+      "slot_id": "WR-U-01",
+      "card_name": "Rebel Firebrand",
+      "message": "CMC off by 1: slot targets 2, card is 3",
+      "expected": "2",
+      "actual": "3"
+    },
+    {
+      "check": "conformance.mechanic_tier",
+      "severity": "WARN",
+      "slot_id": "WR-U-01",
+      "card_name": "Rebel Firebrand",
+      "message": "Complexity tier mismatch: slot expects malfunction, card classified as evergreen",
+      "expected": "malfunction",
       "actual": "evergreen"
     },
     {
       "check": "conformance.mechanic_tier",
       "severity": "WARN",
       "slot_id": "WG-U-01",
-      "card_name": "Frontier Homesteader",
-      "message": "Complexity tier mismatch: slot expects complex, card classified as evergreen",
-      "expected": "complex",
+      "card_name": "Reclaimed Settler",
+      "message": "Complexity tier mismatch: slot expects salvage, card classified as evergreen",
+      "expected": "salvage",
+      "actual": "evergreen"
+    },
+    {
+      "check": "conformance.mechanic_tier",
+      "severity": "WARN",
+      "slot_id": "UB-U-01",
+      "card_name": "Subsurface Conduit",
+      "message": "Complexity tier mismatch: slot expects overclock, card classified as complex",
+      "expected": "overclock",
+      "actual": "complex"
+    },
+    {
+      "check": "conformance.cmc",
+      "severity": "WARN",
+      "slot_id": "U-R-01",
+      "card_name": "Automated Sentinel",
+      "message": "CMC off by 1: slot targets 1, card is 2",
+      "expected": "1",
+      "actual": "2"
+    },
+    {
+      "check": "conformance.mechanic_tier",
+      "severity": "WARN",
+      "slot_id": "U-R-01",
+      "card_name": "Automated Sentinel",
+      "message": "Complexity tier mismatch: slot expects malfunction, card classified as complex",
+      "expected": "malfunction",
+      "actual": "complex"
+    },
+    {
+      "check": "conformance.mechanic_tier",
+      "severity": "WARN",
+      "slot_id": "B-M-01",
+      "card_name": "Koyl's Reanimated Maw",
+      "message": "Complexity tier mismatch: slot expects overclock, card classified as evergreen",
+      "expected": "overclock",
       "actual": "evergreen"
     },
     {
@@ -996,29 +1248,11 @@
       "message": "G has no creature at CMC 6",
       "expected": ">=1",
       "actual": "0"
-    },
-    {
-      "check": "coverage.mechanic_under",
-      "severity": "WARN",
-      "slot_id": null,
-      "card_name": null,
-      "message": "Malfunction under-represented: planned 5, got 3",
-      "expected": "5",
-      "actual": "3"
-    },
-    {
-      "check": "coverage.mechanic_under",
-      "severity": "WARN",
-      "slot_id": null,
-      "card_name": null,
-      "message": "Overclock under-represented: planned 3, got 1",
-      "expected": "3",
-      "actual": "1"
     }
   ],
   "summary": {
-    "PASS": 49,
-    "WARN": 25,
+    "PASS": 41,
+    "WARN": 36,
     "FAIL": 0
   }
 }
