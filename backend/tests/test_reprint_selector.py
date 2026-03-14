@@ -11,7 +11,6 @@ import pytest
 from mtgai.generation.reprint_selector import (
     ReprintCandidate,
     ReprintSlot,
-    SelectionPair,
     _color_matches,
     _type_matches,
     convert_to_card,
@@ -419,7 +418,9 @@ class TestPreFilterForSlot:
 
 class TestFormatCandidateTldr:
     def test_basic_instant(self):
-        c = _make_candidate(name="Murder", mana_cost="{1}{B}{B}", oracle_text="Destroy target creature.")
+        c = _make_candidate(
+            name="Murder", mana_cost="{1}{B}{B}", oracle_text="Destroy target creature."
+        )
         tldr = format_candidate_tldr(c)
         assert tldr == "Murder ({1}{B}{B} — Destroy target creature.)"
 
@@ -475,25 +476,36 @@ class TestLlmSelectReprints:
         """LLM returns valid selections, they're parsed correctly."""
         pool = [
             _make_candidate(name="Murder", colors=["B"], rarity="common"),
-            _make_candidate(name="Abrade", colors=["R"], rarity="common", role="removal_damage",
-                            type_line="Instant", mana_cost="{1}{R}"),
+            _make_candidate(
+                name="Abrade",
+                colors=["R"],
+                rarity="common",
+                role="removal_damage",
+                type_line="Instant",
+                mana_cost="{1}{R}",
+            ),
         ]
         slots = [
             _make_slot(slot_id="B-C-03", color="B", card_type="instant"),
-            _make_slot(slot_id="R-C-03", color="R", card_type="instant", role_needed="removal_damage"),
+            _make_slot(
+                slot_id="R-C-03", color="R", card_type="instant", role_needed="removal_damage"
+            ),
         ]
         config = _make_set_config()
 
-        mock_response = self._mock_haiku_response([
-            {"slot_id": "B-C-03", "card_name": "Murder", "reason": "Essential removal"},
-            {"slot_id": "R-C-03", "card_name": "Abrade", "reason": "Hits artifacts"},
-        ])
+        mock_response = self._mock_haiku_response(
+            [
+                {"slot_id": "B-C-03", "card_name": "Murder", "reason": "Essential removal"},
+                {"slot_id": "R-C-03", "card_name": "Abrade", "reason": "Hits artifacts"},
+            ]
+        )
 
         with patch(
             "mtgai.generation.llm_client.generate_with_tool",
             return_value=mock_response,
         ):
             from mtgai.generation.reprint_selector import _llm_select_reprints
+
             result = _llm_select_reprints(slots, pool, config, count=2)
 
         assert len(result) == 2
@@ -508,15 +520,18 @@ class TestLlmSelectReprints:
         slots = [_make_slot(slot_id="B-C-03")]
         config = _make_set_config()
 
-        mock_response = self._mock_haiku_response([
-            {"slot_id": "INVALID", "card_name": "Murder", "reason": "test"},
-        ])
+        mock_response = self._mock_haiku_response(
+            [
+                {"slot_id": "INVALID", "card_name": "Murder", "reason": "test"},
+            ]
+        )
 
         with patch(
             "mtgai.generation.llm_client.generate_with_tool",
             return_value=mock_response,
         ):
             from mtgai.generation.reprint_selector import _llm_select_reprints
+
             result = _llm_select_reprints(slots, pool, config, count=1)
 
         assert len(result) == 0
@@ -527,15 +542,18 @@ class TestLlmSelectReprints:
         slots = [_make_slot(slot_id="B-C-03")]
         config = _make_set_config()
 
-        mock_response = self._mock_haiku_response([
-            {"slot_id": "B-C-03", "card_name": "Not A Real Card", "reason": "test"},
-        ])
+        mock_response = self._mock_haiku_response(
+            [
+                {"slot_id": "B-C-03", "card_name": "Not A Real Card", "reason": "test"},
+            ]
+        )
 
         with patch(
             "mtgai.generation.llm_client.generate_with_tool",
             return_value=mock_response,
         ):
             from mtgai.generation.reprint_selector import _llm_select_reprints
+
             result = _llm_select_reprints(slots, pool, config, count=1)
 
         assert len(result) == 0
@@ -551,6 +569,7 @@ class TestLlmSelectReprints:
             side_effect=RuntimeError("API down"),
         ):
             from mtgai.generation.reprint_selector import _llm_select_reprints
+
             result = _llm_select_reprints(slots, pool, config, count=1)
 
         assert result == []
@@ -561,15 +580,18 @@ class TestLlmSelectReprints:
         slots = [_make_slot(slot_id="B-C-03")]
         config = _make_set_config()
 
-        mock_response = self._mock_haiku_response([
-            {"slot_id": "B-C-03", "card_name": "murder", "reason": "test"},
-        ])
+        mock_response = self._mock_haiku_response(
+            [
+                {"slot_id": "B-C-03", "card_name": "murder", "reason": "test"},
+            ]
+        )
 
         with patch(
             "mtgai.generation.llm_client.generate_with_tool",
             return_value=mock_response,
         ):
             from mtgai.generation.reprint_selector import _llm_select_reprints
+
             result = _llm_select_reprints(slots, pool, config, count=1)
 
         assert len(result) == 1
@@ -582,6 +604,7 @@ class TestLlmSelectReprints:
         config = _make_set_config()
 
         from mtgai.generation.reprint_selector import _llm_select_reprints
+
         result = _llm_select_reprints(slots, pool, config, count=1)
 
         assert result == []

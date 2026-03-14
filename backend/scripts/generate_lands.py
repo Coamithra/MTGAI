@@ -12,17 +12,17 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from mtgai.generation.llm_client import generate_with_tool
+from mtgai.generation.reprint_selector import extract_set_config
+from mtgai.models.card import Card
+from mtgai.models.enums import Color, Rarity
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(levelname)-7s | %(name)s | %(message)s",
     stream=sys.stdout,
 )
 logger = logging.getLogger(__name__)
-
-from mtgai.generation.llm_client import generate_with_tool
-from mtgai.generation.reprint_selector import extract_set_config
-from mtgai.models.card import Card
-from mtgai.models.enums import Color, Rarity
 
 SKELETON_PATH = Path("../output/sets/ASD/skeleton.json")
 CARDS_DIR = Path("../output/sets/ASD/cards")
@@ -49,7 +49,8 @@ def _build_prompt(set_config: dict) -> tuple[str, str]:
         f"**Special**: {', '.join(set_config.get('special_constraints', []))}\n\n"
         "## Task 1: Basic Land Flavor Text\n"
         "Write 1-2 sentence flavor text for each basic land. Each should evoke a specific "
-        "location or scene from this world. Use em-dashes for attribution if quoting a character.\n\n"
+        "location or scene from this world. "
+        "Use em-dashes for attribution if quoting a character.\n\n"
         "1. Plains — flat, open terrain near Denethix\n"
         "2. Island — water, coastline, or flooded underground areas\n"
         "3. Swamp — dark, decaying, toxic areas below the surface\n"
@@ -75,7 +76,9 @@ def _build_tool_schema() -> dict:
             "properties": {
                 "basics": {
                     "type": "array",
-                    "description": "Flavor text for 5 basic lands (Plains, Island, Swamp, Mountain, Forest)",
+                    "description": (
+                        "Flavor text for 5 basic lands (Plains, Island, Swamp, Mountain, Forest)"
+                    ),
                     "items": {
                         "type": "object",
                         "properties": {
@@ -128,8 +131,13 @@ def _make_basic_card(basic: dict, flavor_text: str) -> Card:
 def _make_nonbasic_card(data: dict) -> Card:
     # Parse color identity from oracle text (look for mana symbols)
     ci: list[Color] = []
-    color_map = {"{W}": Color.WHITE, "{U}": Color.BLUE, "{B}": Color.BLACK,
-                 "{R}": Color.RED, "{G}": Color.GREEN}
+    color_map = {
+        "{W}": Color.WHITE,
+        "{U}": Color.BLUE,
+        "{B}": Color.BLACK,
+        "{R}": Color.RED,
+        "{G}": Color.GREEN,
+    }
     for symbol, color in color_map.items():
         if symbol in data["oracle_text"]:
             ci.append(color)
@@ -211,7 +219,7 @@ def main() -> None:
         )
         cards_saved.append(filename)
         print(f"\n  {basic['name']} ({basic['cn']})")
-        print(f"    \"{flavor}\"")
+        print(f'    "{flavor}"')
 
     print()
     print("=" * 60)
@@ -230,7 +238,7 @@ def main() -> None:
         print(f"\n  {nonbasic_data['name']}")
         print(f"    Type: {nonbasic_data['type_line']}")
         print(f"    Text: {nonbasic_data['oracle_text']}")
-        print(f"    Flavor: \"{nonbasic_data['flavor_text']}\"")
+        print(f'    Flavor: "{nonbasic_data["flavor_text"]}"')
 
     print()
     print("=" * 60)

@@ -909,8 +909,7 @@ def _review_to_markdown(r: CardReviewResult) -> str:
             lines.append("")
             lines.append(f"**Verdict:** {cr.verdict} ({len(cr.issues)} issues)  ")
             lines.append(
-                f"**Cost:** ${cr.cost_usd:.4f} "
-                f"({cr.input_tokens:,} in / {cr.output_tokens:,} out)"
+                f"**Cost:** ${cr.cost_usd:.4f} ({cr.input_tokens:,} in / {cr.output_tokens:,} out)"
             )
             lines.append("")
             analysis = cr.response.get("analysis", "")

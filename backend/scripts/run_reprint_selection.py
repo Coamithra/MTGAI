@@ -12,14 +12,14 @@ import logging
 import sys
 from pathlib import Path
 
+from mtgai.generation.reprint_selector import ReprintSelection, select_reprints
+
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(levelname)-7s | %(name)s | %(message)s",
     stream=sys.stdout,
 )
 logger = logging.getLogger(__name__)
-
-from mtgai.generation.reprint_selector import ReprintSelection, select_reprints
 
 
 def main() -> None:
@@ -59,7 +59,9 @@ def main() -> None:
             slot = pair.slot
             cand = pair.candidate
             print(f"\n  [{i}] {cand.name}")
-            print(f"      Slot:        {slot.slot_id} ({slot.color} {slot.rarity} {slot.card_type})")
+            print(
+                f"      Slot:        {slot.slot_id} ({slot.color} {slot.rarity} {slot.card_type})"
+            )
             print(f"      Role needed: {slot.role_needed}")
             print(f"      CMC target:  {slot.cmc_target}")
             print(f"      Mana cost:   {cand.mana_cost}")

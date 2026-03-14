@@ -177,8 +177,17 @@ def extract_set_config(skeleton_path: Path) -> dict:
 
     creature_types: list[str] = []
     type_candidates = [
-        "Dinosaur", "Human", "Wizard", "Construct", "Elf", "Angel",
-        "Horror", "Beast", "Rat", "Dragon", "Zombie",
+        "Dinosaur",
+        "Human",
+        "Wizard",
+        "Construct",
+        "Elf",
+        "Angel",
+        "Horror",
+        "Beast",
+        "Rat",
+        "Dragon",
+        "Zombie",
     ]
     for ct in type_candidates:
         if ct.lower() in flavor or any(ct.lower() in c.lower() for c in constraints):
@@ -476,7 +485,11 @@ def _llm_select_reprints(
         },
     }
 
-    logger.info("Calling Haiku for reprint selection (%d slots, need %d)", len(slot_candidates), count)
+    logger.info(
+        "Calling Haiku for reprint selection (%d slots, need %d)",
+        len(slot_candidates),
+        count,
+    )
 
     try:
         response = generate_with_tool(
@@ -626,8 +639,13 @@ def _parse_card_types(type_line: str) -> tuple[list[str], list[str], list[str]]:
     """Parse a type line into (supertypes, card_types, subtypes)."""
     supertypes_set = {"Legendary", "Basic", "Snow", "World"}
     card_types_set = {
-        "Creature", "Instant", "Sorcery", "Enchantment", "Artifact",
-        "Planeswalker", "Land",
+        "Creature",
+        "Instant",
+        "Sorcery",
+        "Enchantment",
+        "Artifact",
+        "Planeswalker",
+        "Land",
     }
 
     if " \u2014 " in type_line:
