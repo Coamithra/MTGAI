@@ -42,7 +42,6 @@
       "validation_errors": [
         "Line 1: \"This permanent\" should use \"~\" or \"this\" only in specific MTG contexts",
         "Oracle text contains what looks like reminder text: \"(This permanent enters tapped with one malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)\"",
-        "Malfunction already causes the permanent to enter tapped — explicit 'enters tapped' is redundant",
         "Power 2 + Toughness 3 = 5 on a CMC 2.0 common creature exceeds P+T <= CMC+2 guideline"
       ],
       "input_tokens": 5931,

@@ -427,22 +427,6 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
             )
         )
 
-    # ------------------------------------------------------------------
-    # 16. "Enters tapped" redundancy with Malfunction — MANUAL
-    # ------------------------------------------------------------------
-    has_malfunction_text = "malfunction" in oracle_lower
-    has_enters_tapped = "enters tapped" in oracle_lower
-
-    if has_malfunction_text and has_enters_tapped:
-        errors.append(
-            _manual(
-                "oracle_text",
-                "Malfunction already causes the permanent to enter tapped — "
-                "explicit 'enters tapped' is redundant",
-                error_code="rules_text.malfunction_enters_tapped",
-            )
-        )
-
     return errors
 
 

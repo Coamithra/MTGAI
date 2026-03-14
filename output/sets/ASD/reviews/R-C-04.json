@@ -1,0 +1,93 @@
+{
+  "collector_number": "R-C-04",
+  "card_name": "Ransack the Storeroom",
+  "rarity": "common",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Ransack the Storeroom",
+    "layout": "normal",
+    "mana_cost": "{5}{R}",
+    "mana_cost_parsed": null,
+    "cmc": 6.0,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Sorcery",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "~ deals 5 damage divided as you choose among any number of target creatures.\nCreate two Treasure tokens.",
+    "flavor_text": "The first adventurers down took notes and drew maps. The later ones just brought bigger bags.",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "R-C-04",
+    "rarity": "common",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:33:00.277276Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 902,
+        "output_tokens": 279,
+        "cost_usd": 0.034491,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "A top-end common sorcery with two related effects -- board-clearing burn plus treasure generation. At 6 mana sorcery speed, 5 divided damage is a powerful but fair board wipe effect for limited (comparable to Pyrotechnics at 5 mana). The two Treasure tokens represent the loot you grab in the chaos, tying gameplay to the dungeon-raiding flavor. Both effects are squarely red. The complexity comes from dividing damage among targets, which is an established common-level complex effect (seen on cards like Fireball variants), making this appropriate as the 'complex' common slot.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "R-C-04",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:33:00.277276Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Ransack the Storeroom\nMana Cost: {5}{R}\nType: Sorcery\nRarity: common\nOracle Text: ~ deals 5 damage divided as you choose among any number of target creatures.\nCreate two Treasure tokens.\nFlavor Text: The first adventurers down took notes and drew maps. The later ones just brought bigger bags.\nDesign Notes: A top-end common sorcery with two related effects -- board-clearing burn plus treasure generation. At 6 mana sorcery speed, 5 divided damage is a powerful but fair board wipe effect for limited (comparable to Pyrotechnics at 5 mana). The two Treasure tokens represent the loot you grab in the chaos, tying gameplay to the dungeon-raiding flavor. Both effects are squarely red. The complexity comes from dividing damage among targets, which is an established common-level complex effect (seen on cards like Fireball variants), making this appropriate as the 'complex' common slot.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "\nRansack the Storeroom is a straightforward limited-focused red sorcery combining two thematically aligned effects: flexible damage and treasure generation. Let me evaluate it against the checklist:\n\n**Templating & Mechanics:** The oracle text is correctly templated using modern conventions. The divided damage mechanic is a well-established red effect at common (Pyrotechnics, Comet Storm variants). No custom mechanics are present on this card, so no reminder text issues apply.\n\n**Balance:** At 6 mana, dealing 5 divided damage plus creating two Treasures needs to be compared carefully. Pyrotechnics costs 5 mana for 4 damage divided (with some scry), making this 1 more damage for 1 more mana plus 2 Treasures. The Treasure tokens add meaningful value—they ramp future plays and represent the flavor of dungeon looting. This feels appropriately costed for common. The effect is powerful but not broken in limited, where 6-mana sorceries need to deliver impact.\n\n**Design Purpose:** The card has a focused, coherent design: you're raiding a storeroom, dealing with threats (damage) and collecting loot (Treasures). The two effects reinforce the same theme rather than being disconnected. This is good, focused design, not kitchen sink.\n\n**Color Pie:** Divided damage is core red, and treasure generation is increasingly red-friendly (red adventurers, red aggression that's backed by resource generation). Both effects align well with red's slice of the pie.\n\n**Variability:** The 5 damage is flexible (divided among targets), making it appropriately variable for limited. The 2 Treasures are fixed, which is fine—they don't need to vary.\n\n**No Collision Issues:** No custom mechanics are used, so no keyword collision concerns.\n\n**Keyword Negation:** Not applicable; no conflicting abilities present.\n\n**Conditional Logic:** Not applicable; no conditionals on this card.\n\n**Enters Tapped Irrelevance:** Not applicable; this is a sorcery, not a permanent.\n\nThis card appears well-designed and correctly templated. It's solidly at common power level with thematic coherence and clean execution.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2621,
+      "output_tokens": 570,
+      "cost_usd": 0.0043768,
+      "latency_s": 6.981422424316406
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2621,
+  "total_output_tokens": 570,
+  "total_cost_usd": 0.0043768,
+  "total_latency_s": 6.981422424316406,
+  "timestamp": "2026-03-14T12:22:43.631564+00:00"
+}

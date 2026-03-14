@@ -1,0 +1,118 @@
+{
+  "collector_number": "U-R-02",
+  "card_name": "Anomalous Resonance",
+  "rarity": "rare",
+  "review_tier": "council",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Anomalous Resonance",
+    "layout": "normal",
+    "mana_cost": "{2}{U}{U}",
+    "mana_cost_parsed": null,
+    "cmc": 4.0,
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "type_line": "Enchantment",
+    "supertypes": [],
+    "card_types": [
+      "Enchantment"
+    ],
+    "subtypes": [],
+    "oracle_text": "Whenever an artifact enters under your control, you may draw a card. If you do, discard a card.\nAt the beginning of your end step, if three or more artifacts entered under your control this turn, draw two cards.",
+    "flavor_text": "The dungeon hums at a frequency only the desperate can hear.",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "U-R-02",
+    "rarity": "rare",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:41:24.469651Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 1174,
+        "output_tokens": 363,
+        "cost_usd": 0.04485,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "A blue rare enchantment that rewards artifact-heavy strategies. The first ability is a loot trigger — each artifact entering gives you card filtering, keeping hands smooth without raw card advantage. The second ability is the payoff: if you can get three artifacts entering in a single turn (via tokens, cheap artifacts, or Salvage chains), you draw two cards at end step — genuine card advantage. The threshold of three artifacts is achievable but requires real deckbuilding commitment. At 4 CMC it comes down early enough to matter but isn't free. Supports the WU and UR artifact archetypes as a build-around. Blue is primary in both card draw and enchantments-that-draw.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "U-R-02",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:41:24.469651Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [],
+  "council_reviews": [
+    {
+      "member_id": 1,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "**Anomalous Resonance** is a blue rare enchantment with a tightly focused artifact-synergy theme that fits well into the set's mechanical ecosystem. Here's my detailed assessment:\n\n**Oracle Text & Templating:**\nThe card uses modern, clean templating. Both abilities are straightforward:\n1. \"Whenever an artifact enters under your control, you may draw a card. If you do, discard a card.\" — This is loot templating, correctly phrased.\n2. \"At the beginning of your end step, if three or more artifacts entered under your control this turn, draw two cards.\" — Proper conditional phrasing and timing.\n\nNo custom mechanics appear on this card, so reminder text is not applicable. The card is clear and rules-legal.\n\n**Balance:**\nAt {2}{U}{U} (4 CMC), this card sits at a reasonable rate for a blue rare enchantment. Comparing to printed equivalents:\n- **Talrand, Sky Summoner** (3 CMC) generates tokens and draws cards, also a 4-mana commitment when cast from hand.\n- **Chasm Skulker** (2 CMC) filters and evasion, also reaches 4 mana.\n- **Glazier Sphinx** (4 CMC) is pure card advantage in a different color.\n\nThe first ability (conditional loot trigger) provides consistent smoothing but not raw card advantage—each artifact entering cycles you through your deck at the cost of hand disruption. This is appropriate for uncommon-rate effects. The second ability (draw two cards at end step for three artifact entries) is the legitimate payoff. It requires real deckbuilding commitment (three artifact entries in one turn) and comes as a reward at a specific point.\n\nThis is fairly costed. The payoff is real but requires setup, and the threshold of three artifacts is meaningful in a limited format without being trivial. The loot trigger prevents the enchantment from being a dead draw in non-artifact heavy hands, adding flexibility.\n\n**Design Quality:**\nThe card has a **focused purpose**: reward artifact-heavy strategies with card advantage. Both abilities pull in the same direction (rewarding artifacts entering), and the mechanics create an interesting decision tree:\n- Do I enable the loot trigger even though it costs a card from hand?\n- Can I engineer three artifact entries this turn for the bigger payoff?\n- How many artifacts is \"enough\" for this to be worth the slot?\n\nThis is excellent limited-focused design. The card is **not a kitchen sink**—it does one thing (artifact synergy) with two complementary mechanisms (loot feedback + threshold payoff).\n\n**Variability:**\nThe variability is **real**:\n- The loot trigger fires once per artifact entry, but only if you choose to and have cards to draw.\n- The end-step draw is conditional: it only triggers if you hit the three-artifact threshold, which is not guaranteed. Some turns you'll get no payoff; good turns you'll draw two cards.\n- The number of times the loot trigger fires varies based on how many artifacts enter (0–many).\n\nThe condition \"three or more artifacts entered\" is not redundant—it can genuinely fail to trigger if you play, say, only one or two artifacts, or if the artifacts are stalled by removal.\n\n**Color Pie:**\nBlue is the primary color for card draw and enchantments-that-draw (e.g., **Rhystic Study**, **Necropotence**, **Future Sight**). The loot mechanic is solidly in blue's wheelhouse (filtering). The artifact synergy is colorless/pan-blue, fitting UW and UR themes. No color pie issues.\n\n**Keyword Interactions:**\nNo custom mechanics on this card means no collision or negation concerns. No keywords are negated or made useless.\n\n**No Issues Found:**\n1. ✓ No keywords negated or useless.\n2. ✓ No custom mechanics, so no reminder text required.\n3. ✓ The threshold condition (\"three or more artifacts entered\") is meaningful and can fail.\n4. ✓ Power level is appropriate for 4 CMC rare, with real but not broken payoff.\n5. ✓ Focused purpose (artifact synergy), not a kitchen sink.\n6. ✓ Variability is real on both axes.\n7. ✓ No keyword collisions (uses no custom mechanics).\n8. ✓ No enters tapped irrelevancy.\n\nThe card is well-designed, correctly templated, and appropriately balanced for its rarity and cost. It fits naturally into the artifact synergy strategies outlined in the design notes.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2889,
+      "output_tokens": 1121,
+      "cost_usd": 0.0067952
+    },
+    {
+      "member_id": 2,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "Anomalous Resonance is a blue rare enchantment designed to reward artifact-heavy strategies. The card presents two synergistic abilities: a loot trigger for each artifact entering and a card draw payoff at end step if three or more artifacts entered in a single turn.\n\n**Templating & Mechanics:**\nThe oracle text is correctly templated using modern MTG conventions. The first ability uses \"you may\" with a conditional consequence (if you draw, then discard), which is standard loot templating. The second ability properly uses an end-of-turn check with a meaningful threshold condition. No custom mechanics appear on this card, so reminder text requirements don't apply.\n\n**Balance & Power Level:**\nAt {2}{U}{U} for a 4 CMC rare enchantment that draws cards, this requires comparison to similar blue card-draw engines. The first ability functions as repeatable loot (draw + discard), which by itself would be modest—each artifact enters netting you a card sort. However, the real power is in the second ability: triggering three artifacts in one turn to draw two cards is genuine card advantage and is the intended payoff.\n\nComparing to printed precedents: Mechanized Production (Kaladesh, 4 CMC) is an enchantment that wins the game under the right conditions but requires setup. Whirler Virtuoso (Aether Revolt, 3 CMC) generates repeatable value but requires energy. More directly, Etherium Sculptor (Modern Masters 2017, 2 CMC) discounts artifacts but is a creature. In Standard and Limited environments where artifact density is high (which this set supports), drawing two cards at end step is strong but not broken—it requires building around the card and doesn't generate mana or immediate board impact.\n\nThe design note correctly identifies that getting three artifacts to enter in one turn requires \"real deckbuilding commitment.\" This is a fair constraint. The card is not above-rate for a rare in an artifact-focused environment and has natural limiting factors (artifact count, timing, mana cost).\n\n**Design Quality:**\nThe card has a focused purpose: it's a build-around for artifact-heavy decks, particularly in limited where artifact tokens and cheap artifacts are plentiful. It rewards density without being parasitic. The two abilities work together without being redundant: the first ability (loot per artifact) smooths your hand, while the second (two-card payoff at threshold) is the win condition. This is elegant design with real strategic depth—do you want to hold up artifacts to hit threshold, or deploy them as needed? There's no kitchen sink problem here.\n\n**Color Pie:**\nBlue is the primary color for both enchantments and card draw in Magic. Conditional card draw (especially on artifacts) is squarely in blue's identity. No color pie concerns.\n\n**Keyword & Mechanic Issues:**\n1. No keywords are negated or made useless.\n2. No custom mechanics appear on this card, so reminder text is not applicable.\n3. The conditional \"if three or more artifacts entered under your control this turn\" is meaningful—this condition can absolutely be false when the card is played (e.g., in early turns or in non-artifact-heavy games).\n4. Power level is appropriate for the rarity and environment (addressed above).\n5. No kitchen sink design—two related abilities with one purpose.\n6. Variability is real: the threshold condition is genuine. Some turns you'll hit three artifacts and draw two; other turns you won't. This isn't a fixed value.\n7. No mechanic collisions (Salvage, Malfunction, and Overclock are not present on this card).\n8. No irrelevant \"enters tapped\" effects (this card is an enchantment with no tap abilities).\n\n**Minor Observations:**\nThe flavor text is thematic and brief, which fits rare enchantments. The design notes are thorough and accurately describe the card's role in the set's artifact themes.\n\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2889,
+      "output_tokens": 951,
+      "cost_usd": 0.0061152
+    },
+    {
+      "member_id": 3,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "**Anomalous Resonance** is a blue rare enchantment that integrates well with the set's artifact subtheme. Let me analyze each aspect:\n\n**Templating & Oracle Text:**\nThe card is cleanly templated and follows modern MTG conventions. The two abilities are distinct and clearly separated. No custom keywords appear, so no reminder text is required. The use of \"you may\" for the first ability and the \"if\" condition for the second are both standard and correct.\n\n**Mechanics & Interactions:**\n- The first ability (loot trigger on artifact ETB) is a reasonable blue effect that provides repeatable card filtering without raw card advantage per trigger.\n- The second ability (threshold payoff at 3+ artifacts) creates a meaningful build-around incentive. The threshold is achievable but requires deckbuilding commitment—not trivial.\n- There are no keyword collisions, negated keywords, or mechanical nonbos.\n- The conditional (\"if three or more artifacts entered this turn\") is genuinely meaningful: it's possible to play this card and activate only the first ability once or twice in a turn without hitting the threshold. The condition can definitely be false.\n\n**Balance:**\nAt {2}{U}{U} (4 CMC) for a rare:\n- **First ability alone:** Drawing a card while discarding is a loot effect. Looting on artifact ETB at this rate (1 loot per artifact) is reasonable but not spectacular. Comparable: this is slower and more restrictive than cards like **Teferi's Tutelage** or **Enchantress effects** that draw unconditionally.\n- **Payoff ability:** Drawing two cards for engineering three artifacts in a single turn is solid but not backbreaking. Requires setup and deck construction. The payoff is once per turn, at end step, so it's not infinitable without massive artifact generation.\n- **Overall:** The card is fairly costed for a build-around enchantment. It rewards artifact-heavy decks without being oppressive. The 4-mana cost is fair—it comes down early enough to enable the strategy but late enough that it's not a natural inclusion in all decks.\n\n**Design Quality:**\n- **Focused purpose:** The card has a clear purpose: reward artifact-heavy strategies with card advantage. Both abilities feed into this.\n- **Not a kitchen sink:** Two abilities, both artifact-related. No extraneous mechanics.\n- **Variability:** The card has real variability:\n  - Different turns will generate different numbers of artifact ETBs (0 to many).\n  - The threshold condition creates meaningful play decisions: players must balance using mana to trigger artifacts vs. preserving resources for other turns.\n  - The loot trigger can result in hand smoothing without always maxing value.\n\n**Color Pie:**\n- Blue is primary in card draw and enchantments. Drawing cards is a core blue mechanic.\n- The artifact synergy is appropriate (blue has artifact synergies via creatures and effects).\n- No color pie violations.\n\n**Issues Identified:**\nNone. The card is well-designed, fairly balanced, appropriately costed, and has no mechanical, templating, or design issues.\n\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2889,
+      "output_tokens": 779,
+      "cost_usd": 0.005427200000000001
+    }
+  ],
+  "total_input_tokens": 8667,
+  "total_output_tokens": 2851,
+  "total_cost_usd": 0.018337600000000003,
+  "total_latency_s": 33.38269352912903,
+  "timestamp": "2026-03-14T12:26:45.712219+00:00"
+}

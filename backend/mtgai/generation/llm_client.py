@@ -124,5 +124,6 @@ def generate_with_tool(
                 "input_tokens": response.usage.input_tokens,
                 "output_tokens": response.usage.output_tokens,
                 "stop_reason": response.stop_reason,
+                "model": model,
             }
     raise ValueError("No tool_use block in response")

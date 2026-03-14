@@ -1,0 +1,172 @@
+{
+  "collector_number": "R-U-03",
+  "card_name": "Combustion Cascade",
+  "rarity": "uncommon",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Combustion Cascade",
+    "layout": "normal",
+    "mana_cost": "{4}{R}",
+    "mana_cost_parsed": null,
+    "cmc": 5.0,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Enchantment",
+    "supertypes": [],
+    "card_types": [
+      "Enchantment"
+    ],
+    "subtypes": [],
+    "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.).\nWhenever you cast a noncreature spell, if you overclocked this turn, ~ deals 2 damage to each opponent.",
+    "flavor_text": "The Head Scientist's tower burns brightest just before it falls.",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "R-U-03",
+    "rarity": "uncommon",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:56:56.831760Z",
+        "prompt_used": null,
+        "model_used": "claude-haiku-4-5-20251001",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [
+          "Oracle text contains what looks like reminder text: \"(Exile the top three cards of your library. You may play them until end of turn.)\""
+        ],
+        "input_tokens": 2915,
+        "output_tokens": 406,
+        "cost_usd": 0.003958,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Red uncommon enchantment at CMC 5. Triggers Overclock on ETB (creates immediate value), then rewards you for casting noncreature spells the turn you overclock. The 'if you overclocked this turn' clause creates meaningful gameplay: you want to cast multiple spells after overclocking to get repeated damage triggers. This incentivizes instant-speed spells and sorceries as part of a turn sequence, fitting Red's playstyle. The 2 damage per opponent scales with your spell velocity, which naturally varies in gameplay (not fake variability). Overclock is tertiary (complexity 3) but appears at uncommon here with reminder text as first use in this subset. The enchantment interacts well with The Burning Descent and Spark Detonator already in the set, building synergy in UR (Mad Science) archetype. Power level: 5 mana for ongoing 2 damage triggers is fair—you need to cast spells to get value, so it's not pure card advantage.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "R-U-03",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:56:56.831760Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": {
+    "name": "Combustion Cascade",
+    "mana_cost": "{4}{R}",
+    "type_line": "Enchantment",
+    "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nWhenever you cast a noncreature spell, ~ deals 2 damage to each opponent.",
+    "flavor_text": "The Head Scientist's tower burns brightest just before it falls.",
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "rarity": "rare",
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "cmc": 5,
+    "design_notes": "Red rare enchantment at CMC 5. Triggers Overclock on ETB (creates immediate value), then rewards you for casting noncreature spells that turn. The 2 damage per opponent scales with your spell velocity, which naturally varies in gameplay. Overclock is tertiary (complexity 3) and justifies rare rarity. The redundant conditional has been removed; now the ability consistently rewards noncreature spell casting regardless of the turn Overclock resolved. This enchantment interacts well with The Burning Descent and Spark Detonator in the set, building synergy in UR (Mad Science) archetype. Power level: 5 mana for ongoing 2 damage triggers is fair—you need to cast spells to get value, so it's not pure card advantage."
+  },
+  "card_was_changed": true,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Combustion Cascade\nMana Cost: {4}{R}\nType: Enchantment\nRarity: uncommon\nOracle Text: When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.).\nWhenever you cast a noncreature spell, if you overclocked this turn, ~ deals 2 damage to each opponent.\nFlavor Text: The Head Scientist's tower burns brightest just before it falls.\nDesign Notes: Red uncommon enchantment at CMC 5. Triggers Overclock on ETB (creates immediate value), then rewards you for casting noncreature spells the turn you overclock. The 'if you overclocked this turn' clause creates meaningful gameplay: you want to cast multiple spells after overclocking to get repeated damage triggers. This incentivizes instant-speed spells and sorceries as part of a turn sequence, fitting Red's playstyle. The 2 damage per opponent scales with your spell velocity, which naturally varies in gameplay (not fake variability). Overclock is tertiary (complexity 3) but appears at uncommon here with reminder text as first use in this subset. The enchantment interacts well with The Burning Descent and Spark Detonator already in the set, building synergy in UR (Mad Science) archetype. Power level: 5 mana for ongoing 2 damage triggers is fair—you need to cast spells to get value, so it's not pure card advantage.\nValidation Warnings (from auto-validator):\n  - Oracle text contains what looks like reminder text: \"(Exile the top three cards of your library. You may play them until end of turn.)\"\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "verdict": "REVISE",
+        "analysis": "Combustion Cascade is a red uncommon with solid design intent—it creates a meaningful turn-of-overclocking payoff where the 2 damage triggers reward a full turn of spell casting. The complexity argument (Overclock is tertiary, complexity 3) is defensible, and the first-use reminder text is appropriately included.\n\nHowever, there are two critical issues:\n\n**1. Overclock at Uncommon (Rules Violation)**\nThe custom mechanic specification explicitly states: \"Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common.\" This card violates that design constraint. While the reminder text makes the mechanic clear, the design notes justify this violation weakly. Overclock at uncommon sets a dangerous precedent for a tertiary mechanic and likely extends beyond the intended power band for the rarity. This needs to be elevated to rare, or the card needs to be redesigned to use a simpler mechanic.\n\n**2. The \"if you overclocked this turn\" Conditional is Redundant**\nSince Overclock on entry is mandatory (as an ETB trigger), the condition \"if you overclocked this turn\" is always true when the second ability can trigger. The condition cannot fail in normal play—you will always have overclocked that turn. This makes the conditional ornamental rather than meaningful, which is poor templating.\n\n**Suggested fixes:**\n- Move the card to rare rarity, or\n- Redesign the second ability to remove the redundant conditional (e.g., \"Whenever you cast a noncreature spell, ~ deals 2 damage to each opponent\"), or\n- Use a different trigger structure that makes the conditional actually variable (e.g., \"If Overclock was cast as a spell this turn\" or similar).\n\nThe card is not fundamentally broken—the damage output is reasonable—but it violates set constraints and has unnecessary conditional text.",
+        "issues": [
+          {
+            "severity": "FAIL",
+            "category": "other",
+            "description": "Overclock is a tertiary mechanic (complexity 3) designed for rare+ only, but appears here at uncommon, violating the design specification."
+          },
+          {
+            "severity": "WARN",
+            "category": "redundant_conditional",
+            "description": "The 'if you overclocked this turn' clause is redundant because Overclock enters tapped with a mandatory ETB trigger, guaranteeing the condition is always true when the second ability can trigger."
+          }
+        ],
+        "revised_card": {
+          "name": "Combustion Cascade",
+          "mana_cost": "{4}{R}",
+          "type_line": "Enchantment",
+          "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nWhenever you cast a noncreature spell, ~ deals 2 damage to each opponent.",
+          "flavor_text": "The Head Scientist's tower burns brightest just before it falls.",
+          "power": null,
+          "toughness": null,
+          "loyalty": null,
+          "rarity": "rare",
+          "colors": [
+            "R"
+          ],
+          "color_identity": [
+            "R"
+          ],
+          "cmc": 5,
+          "design_notes": "Red rare enchantment at CMC 5. Triggers Overclock on ETB (creates immediate value), then rewards you for casting noncreature spells that turn. The 2 damage per opponent scales with your spell velocity, which naturally varies in gameplay. Overclock is tertiary (complexity 3) and justifies rare rarity. The redundant conditional has been removed; now the ability consistently rewards noncreature spell casting regardless of the turn Overclock resolved. This enchantment interacts well with The Burning Descent and Spark Detonator in the set, building synergy in UR (Mad Science) archetype. Power level: 5 mana for ongoing 2 damage triggers is fair—you need to cast spells to get value, so it's not pure card advantage."
+        }
+      },
+      "verdict": "REVISE",
+      "issues": [
+        {
+          "severity": "FAIL",
+          "category": "other",
+          "description": "Overclock is a tertiary mechanic (complexity 3) designed for rare+ only, but appears here at uncommon, violating the design specification."
+        },
+        {
+          "severity": "WARN",
+          "category": "redundant_conditional",
+          "description": "The 'if you overclocked this turn' clause is redundant because Overclock enters tapped with a mandatory ETB trigger, guaranteeing the condition is always true when the second ability can trigger."
+        }
+      ],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2778,
+      "output_tokens": 1012,
+      "cost_usd": 0.0062704,
+      "latency_s": 9.014512538909912
+    },
+    {
+      "iteration": 2,
+      "prompt": "You revised the card. Here is your revision:\n\nName: Combustion Cascade\nMana Cost: {4}{R}\nType: Enchantment\nRarity: rare\nOracle Text: When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nWhenever you cast a noncreature spell, ~ deals 2 damage to each opponent.\nFlavor Text: The Head Scientist's tower burns brightest just before it falls.\nDesign Notes: Red rare enchantment at CMC 5. Triggers Overclock on ETB (creates immediate value), then rewards you for casting noncreature spells that turn. The 2 damage per opponent scales with your spell velocity, which naturally varies in gameplay. Overclock is tertiary (complexity 3) and justifies rare rarity. The redundant conditional has been removed; now the ability consistently rewards noncreature spell casting regardless of the turn Overclock resolved. This enchantment interacts well with The Burning Descent and Spark Detonator in the set, building synergy in UR (Mad Science) archetype. Power level: 5 mana for ongoing 2 damage triggers is fair—you need to cast spells to get value, so it's not pure card advantage.\n\nIssues you identified:\n- [FAIL] other: Overclock is a tertiary mechanic (complexity 3) designed for rare+ only, but appears here at uncommon, violating the design specification.\n- [WARN] redundant_conditional: The 'if you overclocked this turn' clause is redundant because Overclock enters tapped with a mandatory ETB trigger, guaranteeing the condition is always true when the second ability can trigger.\n\nNow review YOUR REVISION with the same rigor. Does the revised card fix all the issues without introducing new ones? Check templating, balance, design, color pie, and the pointed questions again.\n\nIf the revised card is now good, verdict is OK. If it still needs changes, verdict is REVISE with a new revision.",
+      "response": {
+        "analysis": "\nReviewing the revised \"Combustion Cascade\" against the original issues and design standards:\n\n**Issue 1: Overclock at Uncommon (FAIL - FIXED)**\nThe revision removes the uncommon printing concern because this card is at rare rarity. Overclock is a tertiary mechanic (complexity 3) designed for rare+, and this card is correctly positioned as a rare. ✓ Fixed.\n\n**Issue 2: Redundant Conditional (FAIL - FIXED)**\nThe original card had the clause \"if you overclocked this turn\" on the second ability. The revision removes this conditional entirely, so the ability now reads: \"Whenever you cast a noncreature spell, ~ deals 2 damage to each opponent.\" This no longer depends on Overclock having resolved that turn, making it a genuine standalone triggered ability. ✓ Fixed.\n\n**Templating Check:**\n- \"When ~ enters, overclock.\" is correct modern templating for an ETB trigger.\n- \"Whenever you cast a noncreature spell, ~ deals 2 damage to each opponent.\" follows standard templating for repeatable damage triggers.\n- Overclock is assumed to be properly defined as a keyword in the set (reminder text not strictly required on second use if already introduced elsewhere).\n\n**Balance Assessment:**\n- 5-mana enchantment that requires you to cast noncreature spells to generate damage.\n- The Overclock effect gives you immediate card access (exile top 3, play until EOT) which is meaningful but temporary value.\n- 2 damage per opponent per noncreature spell is solid but requires deck building around it (you need to cast spells). In a spell-heavy deck, this could generate 4-10+ damage over a turn cycle.\n- Comparable to cards like Talrand, Sky Summoner or Crackling Drake in terms of rewarding spell velocity at rare.\n- Fair power level: the card demands commitment to the spell-heavy strategy to justify its mana cost.\n\n**Design Quality:**\n- Clear, focused identity: reward noncreature spell casting with damage and temporary card access.\n- No kitchen sink elements—both abilities serve the same core strategy.\n- Real variability: the number of triggers depends on what you draw and cast, creating meaningful game variation.\n- Synergy with UR Mad Science archetype is intentional and healthy.\n\n**Color Pie:**\n- Red enchantment: ✓ Red gets temporary card access via exile effects and direct damage as core pie.\n- Overclock (exiling to play) is acceptable as Red's secondary card advantage mechanic.\n- Damage scaling with spellcasting is pure Red.\n\n**No New Issues Introduced:**\n- No keyword negation, missing reminder text on first use (assuming Overclock is defined), color pie violation, or template errors.\n- The removal of the redundant conditional actually improves the card's coherence.\n\n**One Design Note:**\nThe design notes mention this card \"interacts well with The Burning Descent and Spark Detonator in the set, building synergy in UR (Mad Science) archetype.\" This is contextual and healthy for a rare in a themed set. The card doesn't need those synergies to function, but they enhance it.\n\n**Verdict: The revised card is solid.** Both identified issues are fixed, templating is correct, balance is fair for a rare, design is focused, and no new issues are introduced.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 1906,
+      "output_tokens": 842,
+      "cost_usd": 0.0048928,
+      "latency_s": 9.73682188987732
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 4684,
+  "total_output_tokens": 1854,
+  "total_cost_usd": 0.0111632,
+  "total_latency_s": 18.75133442878723,
+  "timestamp": "2026-03-14T12:24:15.720900+00:00"
+}

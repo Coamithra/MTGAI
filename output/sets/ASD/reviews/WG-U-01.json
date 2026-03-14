@@ -1,0 +1,102 @@
+{
+  "collector_number": "WG-U-01",
+  "card_name": "Reclaimed Settler",
+  "rarity": "uncommon",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Reclaimed Settler",
+    "layout": "normal",
+    "mana_cost": "{W}{G}",
+    "mana_cost_parsed": null,
+    "cmc": 2.0,
+    "colors": [
+      "W",
+      "G"
+    ],
+    "color_identity": [
+      "W",
+      "G"
+    ],
+    "type_line": "Creature — Human Settler",
+    "supertypes": [],
+    "card_types": [
+      "Creature"
+    ],
+    "subtypes": [
+      "Human",
+      "Settler"
+    ],
+    "oracle_text": "When ~ enters, salvage 4. (Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\\nWhenever you create a token, put a +1/+1 counter on ~.",
+    "flavor_text": "The best tools are the ones you find buried. The best settlers are the ones who know how to use 'em.",
+    "reminder_text": null,
+    "power": "1",
+    "toughness": "1",
+    "loyalty": null,
+    "collector_number": "WG-U-01",
+    "rarity": "uncommon",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:57:26.967025Z",
+        "prompt_used": null,
+        "model_used": "claude-haiku-4-5-20251001",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [
+          "Oracle text contains what looks like reminder text: \"(Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+        ],
+        "input_tokens": 6066,
+        "output_tokens": 517,
+        "cost_usd": 0.0069208,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "WG signpost uncommon for the Frontier Settlers archetype. Salvage 4 on entry provides artifact tutor-like utility while filtering the top of library — supports both the artifact subtheme and WG's interest in finding ramp/mana artifacts. The body starts as a 1/1 (compliant with CMC+3 rule at uncommon), but grows via the +1/+1 counter trigger whenever the player creates tokens. This synergy signals the archetype's go-wide strategy and provides a payoff for the token-generation cards in the format (Edict of Continuity, Proclamation Enforcer, Kethra, etc.). The card rewards playing the WG game plan and scales naturally in limited while remaining focused and clean.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "WG-U-01",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:57:26.967025Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n\n---\n\n## Card to Review\n\nName: Reclaimed Settler\nMana Cost: {W}{G}\nType: Creature — Human Settler\nRarity: uncommon\nOracle Text: When ~ enters, salvage 4. (Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\\nWhenever you create a token, put a +1/+1 counter on ~.\nFlavor Text: The best tools are the ones you find buried. The best settlers are the ones who know how to use 'em.\nP/T: 1/1\nDesign Notes: WG signpost uncommon for the Frontier Settlers archetype. Salvage 4 on entry provides artifact tutor-like utility while filtering the top of library — supports both the artifact subtheme and WG's interest in finding ramp/mana artifacts. The body starts as a 1/1 (compliant with CMC+3 rule at uncommon), but grows via the +1/+1 counter trigger whenever the player creates tokens. This synergy signals the archetype's go-wide strategy and provides a payoff for the token-generation cards in the format (Edict of Continuity, Proclamation Enforcer, Kethra, etc.). The card rewards playing the WG game plan and scales naturally in limited while remaining focused and clean.\nValidation Warnings (from auto-validator):\n  - Oracle text contains what looks like reminder text: \"(Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\"\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "\nReclaimed Settler is a well-designed WG signpost uncommon that effectively communicates its archetype's identity and strategy.\n\n**Templating & Mechanics:**\nThe oracle text is correct. Salvage 4 appears with full reminder text on its first use, which is appropriate since Salvage is a custom mechanic new to the set. The reminder text is properly formatted in parentheses and accurately describes the ability. The templating follows modern conventions: \"When ~ enters, salvage 4\" correctly uses the creature token as the subject, and \"Whenever you create a token, put a +1/+1 counter on ~\" is standard incremental growth language.\n\n**Balance:**\nAt {W}{G} for a 1/1 with two abilities, this is appropriately costed for uncommon. The initial 1/1 body is small and complies with the CMC+3 power guideline (2 CMC + 3 ≈ 5 power/toughness potential, and this starts at 1). The power level is comparable to other archetype signposts: the Salvage 4 effect provides real value by fixing the top of the library and tutoring for artifacts (a smoothing effect rather than a tutor), while the token trigger creates meaningful scaling within the WG token-focused strategy. Neither ability is undercosted, and the combination isn't oppressive—it requires both building around tokens (which is the WG game plan) AND playing artifact payoffs. This feels like a genuine uncommon payoff card.\n\n**Design Quality:**\nThe card has a focused, coherent purpose: reward WG's token strategy while providing access to artifacts from the library. It signals the archetype without trying to do unrelated things. The Salvage trigger on entry ties directly into the artifact subtheme and provides early filtering, while the token counter trigger ties into the go-wide strategy. Both mechanics push players toward the same game plan—this is intentional synergy, not kitchen sink design.\n\n**Color Pie:**\n{W}{G} is correct for this card. White has creature token generation (Proclamation Enforcer, Edict of Continuity) and +1/+1 counter mechanics. Green has artifact tutor effects (Salvage fits here, searching for mana rocks) and token payoffs. This is solidly in pie for both colors.\n\n**Keyword Interactions:**\nNo keywords are negated or made useless. Salvage is a reasonable static ability that doesn't conflict with the token counter trigger. Both abilities are relevant and encourage the same play pattern.\n\n**Custom Mechanic Reminder Text:**\nSalvage appears with full, accurate reminder text on its first appearance. This is correct and necessary.\n\n**Conditional Logic:**\nThe token trigger is not a conditional in the redundant sense—\"whenever you create a token\" is a meaningful condition that will be false in games where tokens aren't created. The card encourages specific play patterns (token generation) rather than being an always-on effect.\n\n**Real Variability:**\nThe Salvage effect has real variability in what artifacts you find in the top 4 cards, and how you arrange the non-artifact cards on the bottom. The token counter trigger depends on how many tokens the player generates during the game. Both are genuinely variable.\n\n**Summary:**\nThis is a clean, well-executed signpost uncommon that does exactly what it should: communicate the WG archetype's strategy, reward the player for playing tokens, and provide artifact tutoring within the framework of library filtering. The card is balanced, templated correctly, and shows good design sense.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2811,
+      "output_tokens": 866,
+      "cost_usd": 0.0057128000000000005,
+      "latency_s": 10.855558156967163
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2811,
+  "total_output_tokens": 866,
+  "total_cost_usd": 0.0057128000000000005,
+  "total_latency_s": 10.855558156967163,
+  "timestamp": "2026-03-14T12:31:23.081723+00:00"
+}

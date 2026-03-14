@@ -1,0 +1,116 @@
+{
+  "collector_number": "G-R-01",
+  "card_name": "Spore-Nest Forager",
+  "rarity": "rare",
+  "review_tier": "council",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Spore-Nest Forager",
+    "layout": "normal",
+    "mana_cost": "{1}{G}",
+    "mana_cost_parsed": null,
+    "cmc": 2.0,
+    "colors": [
+      "G"
+    ],
+    "color_identity": [
+      "G"
+    ],
+    "type_line": "Creature -- Fungus Scout",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "Whenever an artifact enters under your control, put a +1/+1 counter on ~.\n{G}, Remove two +1/+1 counters from ~: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+    "flavor_text": "It catalogues the dungeon's relics by taste.",
+    "reminder_text": null,
+    "power": "1",
+    "toughness": "2",
+    "loyalty": null,
+    "collector_number": "G-R-01",
+    "rarity": "rare",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:32:31.451486Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 1048,
+        "output_tokens": 361,
+        "cost_usd": 0.0428175,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "A 2-CMC rare build-around that ties the set's artifact theme to green's ramp identity. P+T=3 (CMC+1) is modest, reflecting its value engine role. The first ability rewards playing artifacts -- synergizing with Salvage cards that find artifacts -- by growing the creature. The second ability converts accumulated counters into ramp, green's signature effect. Requiring two counters means you need multiple artifact triggers before each activation, creating real deckbuilding tension and preventing degenerate loops. The land enters tapped to prevent too-fast mana acceleration.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "G-R-01",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:32:31.451486Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [],
+  "council_reviews": [
+    {
+      "member_id": 1,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "\nSpore-Nest Forager is a well-designed rare with clear mechanical purpose and balanced power level.\n\n**Mechanics & Templating:**\nThe card uses two custom mechanics appropriately: the trigger references artifacts entering under your control (no reminder text needed—this is core MTG templating), and the activated ability is cleanly templated with straightforward ramp effect. No custom mechanic keywords (Salvage, Malfunction, Overclock) appear on this card, so no reminder text is required.\n\n**Balance:**\nAt {1}{G}, the card costs 2 mana with 1/2 stats (p/t = 3, which is modest for rare). The first ability directly synergizes with the set's artifact theme (Salvage cards) by converting artifacts into +1/+1 counters. This is reasonable—it's card advantage in the form of creature growth, but requires an outside engine (Salvage or other artifact generators) to be effective. The activated ability {G}, remove 2 counters: fetch a tapped basic land is strong but comes with a real cost (two counter removal per activation). Tapping the land prevents this from enabling explosive mana sequences. This is roughly comparable to effects like Elvish Archdruid's ramp modes—good in a deck built around artifacts, but not bonkers at 2 CMC. The delayed ramp (requiring counter accumulation first) and tapped land both provide appropriate friction.\n\n**Design Quality:**\nThe card has a single, focused purpose: turn artifact triggers into sustainable growth and late-game ramp. There are no unrelated effects (not a kitchen sink design). The mechanical coherence is excellent: Salvage cards find artifacts → artifacts trigger growth → accumulated counters fuel ramp. This creates meaningful deckbuilding tension (you need artifact generators to justify the card) and gameplay depth.\n\n**Color Pie:**\nGreen's signature effect is ramp, and this card delivers that. Green also has artifact synergy support in recent sets (e.g., Tezzeret, master of the Bridge effects, artifacts matter themes in Kaladesh blocks). The counter-growing aspect is green-aligned (green grows creatures). The artifact synergy is a modern color-pie bridge (green can have artifact synergy, especially in artifact sets). Checks out well.\n\n**Keyword Interactions:**\nNo keywords on this card are negated or made useless by other abilities.\n\n**Reminder Text:**\nNo custom mechanics appear on this card, so reminder text is not applicable.\n\n**Conditional Checks:**\nNo conditionals appear that need evaluation.\n\n**Variability:**\nThe counter accumulation and ramp output are both meaningful—they scale based on actual artifact triggers and deck composition, not fixed values.\n\n**Potential Edge Cases:**\n- The artifact trigger is clean and will work as intended with Salvage and other artifact ETB effects.\n- No enters-tapped irrelevance.\n- No keyword collisions.\n\nThis is a tight, well-balanced card with clear mechanical role and excellent design coherence.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2504,
+      "output_tokens": 742,
+      "cost_usd": 0.004971199999999999
+    },
+    {
+      "member_id": 2,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "\nSpore-Nest Forager is a well-designed, focused rare that successfully ties together the set's artifact theme with green's ramp identity. Let me analyze each dimension:\n\n**Templating & Oracle Text:** The card is templated correctly. Both abilities use modern MTG conventions:\n- The trigger \"Whenever an artifact enters under your control\" is standard phrasing.\n- The activated ability \"{G}, Remove two +1/+1 counters from ~: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle\" follows proper sequencing and cost structure.\n- The land entering tapped is explicitly stated and mechanically relevant (prevents mana acceleration from being degenerate at CMC 2).\n\n**Custom Mechanics Check:** This card contains no custom mechanics (Salvage, Malfunction, or Overclock), so reminder text is not applicable here.\n\n**Color Pie:** Green at rare regularly receives creature-based ramp engines, especially those tied to artifact synergy or growth mechanics. The combination of +1/+1 counter generation and land tutoring is squarely in green's wheelhouse. No color pie violations.\n\n**Balance:** At {1}{G} for a 1/2 creature, the baseline is modest—comparable to other limited-format utility creatures. The power level is appropriate because:\n- The creature itself is not a threat without enablers (1 power is minimal).\n- It requires artifact synergy to grow, and each activation of the ramp ability requires two accumulated counters (suggesting multiple artifacts must enter).\n- The ramp ability is greenish and not degenerate; fetching tapped lands at 1-per-two triggers is reasonable value for a CMC 2 creature.\n- In Limited, this is a decent build-around that won't dominate if artifact synergies are present.\n\n**Design Quality:** Excellent focused design:\n- **Primary purpose:** Reward playing artifacts and convert growth into ramp.\n- **Deckbuilding tension:** Needs both artifact triggers AND the ability to accumulate counters before each ramp activation. This prevents degenerate loops and ensures the card requires a functional deck around it.\n- **No kitchen sink:** Two related abilities, both supporting the artifact-ramp theme. Not trying to be a combo piece, card draw engine, and removal in one.\n- **Real variability:** The number of +1/+1 counters accumulated depends on how many artifacts enter, which is genuinely variable based on the deck and draws.\n\n**Mechanical Interactions:**\n- Works naturally with Salvage cards that put artifact cards into hand/play.\n- The two-counter cost for ramp prevents the creature from becoming too efficient at generating mana.\n- No nonbos or keyword collisions.\n- Enters untapped as a creature should, so no \"enters tapped irrelevant\" issues.\n\n**Power Level for Rarity:** At rare, a 1/2 creature that requires significant setup is reasonable. It's not a flashy bomb—it's a role-player that rewards focused deckbuilding. This is appropriate for a set with a strong artifact theme, where it will be maximally effective in the right shell.\n\nThe only minor note is that this card will likely be slow in most Limited formats, only truly shining in an artifact-heavy format. However, that's intentional design for a set mechanic.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2504,
+      "output_tokens": 821,
+      "cost_usd": 0.0052872
+    },
+    {
+      "member_id": 3,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "Spore-Nest Forager is a well-crafted rare build-around that clearly ties into ASD's artifact theme and Salvage mechanic. The card achieves its design goals effectively:\n\n**Mechanic Integrity & Templating**: The two abilities are cleanly templated in modern MTG style. The first ability (counter on artifacts entering) is a straightforward triggered ability. The second ability (activated ramp) uses standard land tutor templating with proper \"then shuffle\" sequencing. No custom mechanics appear on this card, so no reminder text is needed.\n\n**Color Pie**: Both abilities are solidly within green's color pie. +1/+1 counters are green's primary growth mechanic, and basic land tutoring (especially tapped) is green's signature ramp effect. The cost of 1G + counter investment keeps this from feeling too pushed.\n\n**Balance**: At {1}{G} for a 1/2, this is approximately rate for a utility creature (compare to cards like Elvish Visionary). The value comes from the activated abilities rather than raw stats, which is appropriate for a build-around rare. The design tension is excellent: you need multiple artifact triggers to accumulate enough counters before you can ramp, which creates meaningful deckbuilding decisions about what artifacts to include. The tapped land clause prevents acceleration curves from becoming degenerate. For rare, this feels appropriately powered—strong in the right shell, but not format-warping.\n\n**Design Quality**: This card has focused purpose: it rewards artifact play and converts that value into ramp. The two abilities work in coherent synergy (artifacts → counters → land acceleration). The two-counter cost for ramp prevents clicking the button every turn and avoids degenerate loops with free artifacts. The design is elegant without being kitchen sink.\n\n**Keyword Interaction**: There are no keywords on this card, so no potential nonbos. The card doesn't attempt to do unrelated things—it's purely an artifact-rewards ramp creature.\n\n**Variability & Balance Edge Cases**: The growth from triggered abilities will vary based on how many artifacts you play, which is meaningful variability tied to actual deck construction. The ramp activation is not a fixed value—you can choose when to cash in counters, giving the player real sequencing decisions.\n\n**Overall Assessment**: This is a strong, focused rare that integrates well with the set's themes. It's moderately above rate but has legitimate drawbacks (requiring artifacts, needing counter accumulation, tapped lands) that justify the payoff.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2504,
+      "output_tokens": 625,
+      "cost_usd": 0.0045032
+    }
+  ],
+  "total_input_tokens": 7512,
+  "total_output_tokens": 2188,
+  "total_cost_usd": 0.0147616,
+  "total_latency_s": 28.641571521759033,
+  "timestamp": "2026-03-14T12:20:44.893994+00:00"
+}

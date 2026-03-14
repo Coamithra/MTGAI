@@ -1,0 +1,93 @@
+{
+  "collector_number": "G-C-03",
+  "card_name": "Overgrown Ambush",
+  "rarity": "common",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Overgrown Ambush",
+    "layout": "normal",
+    "mana_cost": "{3}{G}",
+    "mana_cost_parsed": null,
+    "cmc": 4.0,
+    "colors": [
+      "G"
+    ],
+    "color_identity": [
+      "G"
+    ],
+    "type_line": "Instant",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "Target creature you control gets +3/+3 and gains trample until end of turn.",
+    "flavor_text": "\"The jungle doesn't attack you. It just stops letting you leave.\"\n--Denethix ranger's proverb",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "G-C-03",
+    "rarity": "common",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:32:01.699636Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 811,
+        "output_tokens": 292,
+        "cost_usd": 0.034113,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Green common combat trick at CMC 4. At 4 mana this is appropriately costed for a common -- it's a sizable pump but at instant speed it serves as green's version of removal (winning combats). +3/+3 with trample is a clean, single-purpose effect that green gets naturally. Comparable to cards like Titanic Growth but at one more mana for the added trample. Being an instant at 4 mana means it's a real mana investment to hold up, which is a natural balancing factor.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "G-C-03",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:32:01.699636Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n\n---\n\n## Card to Review\n\nName: Overgrown Ambush\nMana Cost: {3}{G}\nType: Instant\nRarity: common\nOracle Text: Target creature you control gets +3/+3 and gains trample until end of turn.\nFlavor Text: \"The jungle doesn't attack you. It just stops letting you leave.\"\n--Denethix ranger's proverb\nDesign Notes: Green common combat trick at CMC 4. At 4 mana this is appropriately costed for a common -- it's a sizable pump but at instant speed it serves as green's version of removal (winning combats). +3/+3 with trample is a clean, single-purpose effect that green gets naturally. Comparable to cards like Titanic Growth but at one more mana for the added trample. Being an instant at 4 mana means it's a real mana investment to hold up, which is a natural balancing factor.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "\nOvergrown Ambush is a straightforward green combat trick at common rarity. It's an instant that pumps a creature you control by +3/+3 and grants trample until end of turn for {3}{G} (4 mana total).\n\n**Templating & Rules**: The oracle text is correctly formatted and uses modern MTG templating. There are no custom mechanics (Salvage, Malfunction, or Overclock) on this card, so reminder text is not applicable.\n\n**Color Pie**: This effect is firmly within green's slice of the pie. Green gets both significant creature pump and trample naturally. At common, green combat tricks with trample are appropriate (see cards like Ranger's Guile, Aspect of the Badger, etc.). The combination of pump + trample is a classic green combat pattern.\n\n**Balance**: At {3}{G} (4 mana), this is appropriately costed for a common. The card is comparable to Titanic Growth ({2}{G}, +4/+4 no evasion) but trades one point of power for trample and instant-speed flexibility. Holding up 4 mana is a significant investment at common, which naturally balances the effect. This is not above-rate for its cost at this rarity. The instant speed makes it useful for combat tricks, but it's not overpowered — it's a legitimate pump spell with a clear limitation.\n\n**Design**: The card has a focused, single purpose: pump your creature and help it win combat by guaranteeing trample damage. There's no kitchen-sink design here. The flavor text ties the mechanical effect to the set's post-apocalyptic megadungeon theme appropriately.\n\n**Mechanics & Interactions**: No keyword negations, no false variability, no mechanic collisions. The effect is straightforward and works exactly as intended.\n\n**Custom Mechanics**: This card uses no custom mechanics, so reminder text is not required.\n\nThis is a clean, well-designed common that fills a necessary role in limited (green combat trick with evasion-granting element).\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2457,
+      "output_tokens": 532,
+      "cost_usd": 0.0040936,
+      "latency_s": 6.271605014801025
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2457,
+  "total_output_tokens": 532,
+  "total_cost_usd": 0.0040936,
+  "total_latency_s": 6.271605014801025,
+  "timestamp": "2026-03-14T12:20:07.647561+00:00"
+}

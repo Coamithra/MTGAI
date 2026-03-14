@@ -1,0 +1,93 @@
+{
+  "collector_number": "B-C-04",
+  "card_name": "Plunder the Catacombs",
+  "rarity": "common",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Plunder the Catacombs",
+    "layout": "normal",
+    "mana_cost": "{4}{B}",
+    "mana_cost_parsed": null,
+    "cmc": 5.0,
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "type_line": "Sorcery",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "Return up to two target creature cards from your graveyard to your hand. Each opponent loses 2 life.",
+    "flavor_text": "\"Loot the dead, sell what you can, and pray whatever killed them moved on.\" --Denethix Descent Guild handbook",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "B-C-04",
+    "rarity": "common",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:30:53.420778Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 719,
+        "output_tokens": 289,
+        "cost_usd": 0.03246,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Black common sorcery at CMC 5 with a more complex effect per the brief. This combines two core black effects -- raise dead (returning creatures from graveyard) and life drain -- into a single coherent card about plundering the dungeon's depths. Returning two creatures at sorcery speed for 5 mana is fair; the 2 life loss to each opponent adds value without being the primary mode. The two effects are thematically unified (descending into the catacombs and returning with spoils, leaving death in your wake) rather than being a kitchen-sink design. Appropriate complexity for a common sorcery -- two related effects, no tracking or board complexity.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "B-C-04",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:30:53.420778Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Plunder the Catacombs\nMana Cost: {4}{B}\nType: Sorcery\nRarity: common\nOracle Text: Return up to two target creature cards from your graveyard to your hand. Each opponent loses 2 life.\nFlavor Text: \"Loot the dead, sell what you can, and pray whatever killed them moved on.\" --Denethix Descent Guild handbook\nDesign Notes: Black common sorcery at CMC 5 with a more complex effect per the brief. This combines two core black effects -- raise dead (returning creatures from graveyard) and life drain -- into a single coherent card about plundering the dungeon's depths. Returning two creatures at sorcery speed for 5 mana is fair; the 2 life loss to each opponent adds value without being the primary mode. The two effects are thematically unified (descending into the catacombs and returning with spoils, leaving death in your wake) rather than being a kitchen-sink design. Appropriate complexity for a common sorcery -- two related effects, no tracking or board complexity.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "Plunder the Catacombs is a black common sorcery that returns up to two creatures from graveyard to hand and drains each opponent for 2 life. This card is appropriate for common and achieves its thematic goal effectively.\n\n**Templating & Mechanics:** The oracle text follows modern MTG templating correctly. \"Return up to two target creature cards from your graveyard to your hand\" uses proper targeting and mode syntax. \"Each opponent loses 2 life\" is standard drain templating. No custom mechanics are present, so no reminder text is needed.\n\n**Balance:** At {4}{B} (5 mana), this compares favorably to analogues like Reassembling Skeleton (which returns one creature repeatedly) and other black recursion effects. Returning up to 2 creatures is a solid effect for 5 mana at common, especially with the added 2 life drain per opponent as a bonus. The life drain adds meaningful value without overshadowing the primary effect. For a 5-mana common, this is fairly costed—not oppressively strong, but efficient enough to see play in limited.\n\n**Design Quality:** The card has a focused purpose: dungeon plundering/grave recursion with a thematic drain payoff. The two effects (recursion + drain) are thematically unified around the \"descending and despoiling the catacombs\" flavor, not a disconnected pile of abilities. The complexity is appropriate for common—straightforward to resolve, no tracking issues. The design clearly communicates its purpose: reanimation plus a modest life drain rider.\n\n**Color Pie:** This is firmly in black's pie. Recursion from the graveyard and life drain are both core black effects. At uncommon or rare, conditional recursion like this is standard; at common, it's acceptable with a modest scope (up to 2 creatures, sorcery speed only).\n\n**Interactions & Nonbos:** No keyword interactions or nonbos present. The card has no keywords, so there's nothing to negate or collide with existing mechanics.\n\n**Custom Mechanics:** None present on this card, so the custom mechanics (Overclock, Malfunction, Salvage) checklist doesn't apply.\n\nThis is a well-designed, appropriately costed common sorcery with good thematic coherence and fair limited power level.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2455,
+      "output_tokens": 589,
+      "cost_usd": 0.00432,
+      "latency_s": 7.557683944702148
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2455,
+  "total_output_tokens": 589,
+  "total_cost_usd": 0.00432,
+  "total_latency_s": 7.557683944702148,
+  "timestamp": "2026-03-14T12:17:28.065573+00:00"
+}

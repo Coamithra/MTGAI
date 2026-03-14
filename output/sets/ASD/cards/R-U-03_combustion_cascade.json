@@ -17,14 +17,14 @@
     "Enchantment"
   ],
   "subtypes": [],
-  "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.).\nWhenever you cast a noncreature spell, if you overclocked this turn, ~ deals 2 damage to each opponent.",
+  "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nWhenever you cast a noncreature spell, ~ deals 2 damage to each opponent.",
   "flavor_text": "The Head Scientist's tower burns brightest just before it falls.",
   "reminder_text": null,
   "power": null,
   "toughness": null,
   "loyalty": null,
   "collector_number": "R-U-03",
-  "rarity": "uncommon",
+  "rarity": "rare",
   "set_code": "ASD",
   "artist": "AI Generated",
   "status": "draft",
@@ -50,7 +50,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Red uncommon enchantment at CMC 5. Triggers Overclock on ETB (creates immediate value), then rewards you for casting noncreature spells the turn you overclock. The 'if you overclocked this turn' clause creates meaningful gameplay: you want to cast multiple spells after overclocking to get repeated damage triggers. This incentivizes instant-speed spells and sorceries as part of a turn sequence, fitting Red's playstyle. The 2 damage per opponent scales with your spell velocity, which naturally varies in gameplay (not fake variability). Overclock is tertiary (complexity 3) but appears at uncommon here with reminder text as first use in this subset. The enchantment interacts well with The Burning Descent and Spark Detonator already in the set, building synergy in UR (Mad Science) archetype. Power level: 5 mana for ongoing 2 damage triggers is fair—you need to cast spells to get value, so it's not pure card advantage.",
+  "design_notes": "Red rare enchantment at CMC 5. Triggers Overclock on ETB (creates immediate value), then rewards you for casting noncreature spells that turn. The 2 damage per opponent scales with your spell velocity, which naturally varies in gameplay. Overclock is tertiary (complexity 3) and justifies rare rarity. The redundant conditional has been removed; now the ability consistently rewards noncreature spell casting regardless of the turn Overclock resolved. This enchantment interacts well with The Burning Descent and Spark Detonator in the set, building synergy in UR (Mad Science) archetype. Power level: 5 mana for ongoing 2 damage triggers is fair—you need to cast spells to get value, so it's not pure card advantage.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,
@@ -58,5 +58,5 @@
   "slot_id": "R-U-03",
   "card_faces": null,
   "created_at": "2026-03-14T00:56:56.831760Z",
-  "updated_at": null
+  "updated_at": "2026-03-14T12:24:15.722901Z"
 }

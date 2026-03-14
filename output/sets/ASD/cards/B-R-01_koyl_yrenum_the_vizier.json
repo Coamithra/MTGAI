@@ -15,7 +15,7 @@
   "supertypes": [],
   "card_types": [],
   "subtypes": [],
-  "oracle_text": "Whenever another creature dies, you may pay {1}. If you do, look at the top two cards of target opponent's library. Put one into their graveyard and the other back on top.\nhexproof, indestructible",
+  "oracle_text": "Whenever another creature dies, you may pay {1}. If you do, look at the top two cards of target opponent's library. Put one into their graveyard and the other back on top.\nWhen Koyl Yrenum dies, look at the top three cards of target opponent's library. Put one into their graveyard and the other two back on top.\nShroud",
   "flavor_text": "Feretha still rules Denethix. Everyone knows this. Everyone.",
   "reminder_text": null,
   "power": "1",
@@ -35,8 +35,6 @@
       "success": true,
       "error_message": null,
       "validation_errors": [
-        "Non-creature card has power and/or toughness set",
-        "Card has power/toughness but 'Creature' is not in card_types",
         "Card is B but has \"hexproof\" which is primarily U/G",
         "Card is B but has \"indestructible\" which is primarily W"
       ],
@@ -51,7 +49,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "The Vizier who rules through deception -- mechanically, he manipulates information (opponents' libraries) and protects himself by sacrificing others. A 1/3 for 2 is defensive, fitting an advisor who hides behind others. The first ability is a repeatable Surveil-for-opponents on death triggers, costing {1} each time to prevent it from being free -- it fuels mill strategies and gives information advantage. The sacrifice ability is flavorful self-preservation: Koyl will always throw someone else under the bus. Both abilities together create tension: you want creatures to die (for value) but also need them alive (for protection). Complex but cohesive at rare.",
+  "design_notes": "The Vizier who rules through deception and the orchestration of sacrifice. Koyl manipulates opponents' libraries through repeatable death triggers: whenever another creature dies, he peers into their deck for {1} per activation. When Koyl himself dies—the ultimate sacrifice of an expendable advisor—he gains a larger payoff (three cards instead of two), creating genuine mechanical tension between using him as a protected asset versus accepting his death for value. Shroud protects him from targeting effects (fitting black's evasion through hidden knowledge) while maintaining color pie integrity. This design reinforces the flavor: Koyl is both the orchestrator of others' demise and a creature whose own sacrifice yields significant advantage. The repeatable effect scales well with sacrifice outlets and death-heavy strategies, fitting the Deep Descent (UB control) archetype.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,
@@ -59,5 +57,5 @@
   "slot_id": "B-R-01",
   "card_faces": null,
   "created_at": "2026-03-12T23:31:33.268313Z",
-  "updated_at": null
+  "updated_at": "2026-03-14T12:19:09.181046Z"
 }

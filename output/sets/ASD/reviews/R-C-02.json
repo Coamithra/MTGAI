@@ -1,0 +1,93 @@
+{
+  "collector_number": "R-C-02",
+  "card_name": "Wasteland Raptor",
+  "rarity": "common",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Wasteland Raptor",
+    "layout": "normal",
+    "mana_cost": "{2}{R}",
+    "mana_cost_parsed": null,
+    "cmc": 3.0,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Creature -- Dinosaur",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "Haste",
+    "flavor_text": "The Fist's perimeter scouts learned to identify its hunting cry. By then, of course, it was already too late.",
+    "reminder_text": null,
+    "power": "3",
+    "toughness": "1",
+    "loyalty": null,
+    "collector_number": "R-C-02",
+    "rarity": "common",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:33:00.272770Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 902,
+        "output_tokens": 279,
+        "cost_usd": 0.034491,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "French vanilla red common with haste. A 3/1 haste for 3 is a clean aggressive creature -- hits hard but trades down easily. P+T=4, CMC+3=6, well within budget. The glass cannon statline is quintessentially red. Dinosaurs are a major creature type in the wilderness around Denethix, and haste captures the ambush predator feel.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "R-C-02",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:33:00.272770Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Wasteland Raptor\nMana Cost: {2}{R}\nType: Creature -- Dinosaur\nRarity: common\nOracle Text: Haste\nFlavor Text: The Fist's perimeter scouts learned to identify its hunting cry. By then, of course, it was already too late.\nP/T: 3/1\nDesign Notes: French vanilla red common with haste. A 3/1 haste for 3 is a clean aggressive creature -- hits hard but trades down easily. P+T=4, CMC+3=6, well within budget. The glass cannon statline is quintessentially red. Dinosaurs are a major creature type in the wilderness around Denethix, and haste captures the ambush predator feel.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "Wasteland Raptor is a straightforward red creature designed as a French vanilla aggressive common. The card has clean, unambiguous templating: a 3/1 dinosaur with haste for {2}{R}, which aligns perfectly with red's aggressive philosophy.\n\n**Balance Assessment:** At common, a 3/1 haste creature for 3 mana is appropriately costed. This matches the rate of analogous cards like Embercleave-era red commons. The P/T sum of 4 and CMC+3=6 metric both fall well within typical design parameters. The glass cannon statline (high power, low toughness) is classic red design and provides counterplay through blocking. The card is not above or below rate for its rarity.\n\n**Mechanics & Keywords:** The card uses only haste, a core evergreen keyword with no reminder text needed at common. There are no custom mechanics present. No keyword negations or collisions.\n\n**Design Purpose:** The card has a focused purpose—aggressive early game creature with ambush capability. The flavor text effectively communicates the predator ambush theme (\"hunting cry... it was already too late\"), and the dinosaur type ties coherently into the set's wilderness faction. No kitchen sink issues.\n\n**Color Pie:** Haste is quintessentially red. The aggressive stats are appropriate for red. No color pie violations.\n\n**Templating:** Oracle text is correctly formatted as a single-line keyword. All required information is present.\n\nThis is a well-executed common creature with clear purpose, appropriate power level, and good flavor integration.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2566,
+      "output_tokens": 414,
+      "cost_usd": 0.0037088000000000004,
+      "latency_s": 4.992336988449097
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2566,
+  "total_output_tokens": 414,
+  "total_cost_usd": 0.0037088000000000004,
+  "total_latency_s": 4.992336988449097,
+  "timestamp": "2026-03-14T12:22:31.236233+00:00"
+}

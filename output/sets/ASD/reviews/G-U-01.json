@@ -1,0 +1,99 @@
+{
+  "collector_number": "G-U-01",
+  "card_name": "Salvage Beetle",
+  "rarity": "uncommon",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Salvage Beetle",
+    "layout": "normal",
+    "mana_cost": "{1}{G}",
+    "mana_cost_parsed": null,
+    "cmc": 2.0,
+    "colors": [
+      "G"
+    ],
+    "color_identity": [
+      "G"
+    ],
+    "type_line": "Artifact Creature — Insect Beast",
+    "supertypes": [],
+    "card_types": [
+      "Artifact",
+      "Creature"
+    ],
+    "subtypes": [
+      "Insect",
+      "Beast"
+    ],
+    "oracle_text": "Reach\\nWhenever an artifact you control is put into a graveyard from the battlefield, put a +1/+1 counter on ~.",
+    "flavor_text": "\"The ruins feed the land. The land feeds us. The cycle continues.\" — Sura, Rendon Ranchmaster",
+    "reminder_text": null,
+    "power": "2",
+    "toughness": "2",
+    "loyalty": null,
+    "collector_number": "G-U-01",
+    "rarity": "uncommon",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:56:46.870723Z",
+        "prompt_used": null,
+        "model_used": "claude-haiku-4-5-20251001",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 5504,
+        "output_tokens": 514,
+        "cost_usd": 0.0064592,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "This card is a green uncommon artifact creature at CMC 2 with straightforward mechanical identity. Reach is an evergreen keyword fitting green's fight-and-control strategy. The triggered ability ties into the set's artifact-matters theme by rewarding artifact sacrifice or destruction — a clean interaction with cards like Spark Detonator, Reclaim the Surface, and artifact-based sacrifice loops. The ability creates real variability (actual artifact deaths in-game), respecting the \"no fake variability\" rule. P+T of 2/2 at CMC 2 is on-curve for green, and the +1/+1 scaling potential makes it a relevant draft pick without being dominant. No keyword nonbos: reach + 2/2 body + triggered growth is cohesive. The Insect Beast creature type reinforces the post-apocalyptic nature setting and fits the renewal theme of the flavor text.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "G-U-01",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:56:46.870723Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n\n---\n\n## Card to Review\n\nName: Salvage Beetle\nMana Cost: {1}{G}\nType: Artifact Creature — Insect Beast\nRarity: uncommon\nOracle Text: Reach\\nWhenever an artifact you control is put into a graveyard from the battlefield, put a +1/+1 counter on ~.\nFlavor Text: \"The ruins feed the land. The land feeds us. The cycle continues.\" — Sura, Rendon Ranchmaster\nP/T: 2/2\nDesign Notes: This card is a green uncommon artifact creature at CMC 2 with straightforward mechanical identity. Reach is an evergreen keyword fitting green's fight-and-control strategy. The triggered ability ties into the set's artifact-matters theme by rewarding artifact sacrifice or destruction — a clean interaction with cards like Spark Detonator, Reclaim the Surface, and artifact-based sacrifice loops. The ability creates real variability (actual artifact deaths in-game), respecting the \"no fake variability\" rule. P+T of 2/2 at CMC 2 is on-curve for green, and the +1/+1 scaling potential makes it a relevant draft pick without being dominant. No keyword nonbos: reach + 2/2 body + triggered growth is cohesive. The Insect Beast creature type reinforces the post-apocalyptic nature setting and fits the renewal theme of the flavor text.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "Salvage Beetle is a well-designed uncommon green artifact creature that integrates cleanly into the Anomalous Descent set's artifact-matters theme. \n\n**Templating & Mechanics**: The oracle text is correctly templated. Reach is an evergreen green keyword appropriate to the color, and the triggered ability \"Whenever an artifact you control is put into a graveyard from the battlefield, put a +1/+1 counter on ~\" is clearly worded and mechanically sound. The card does not use any custom mechanics, so no reminder text is required.\n\n**Color Pie**: The card is entirely within green's domain. Green has reach (creature evasion/combat control), and the artifact-sacrifice synergy fits green's resource-and-land themes. The creature type (Insect Beast) is appropriate for green in a post-apocalyptic setting.\n\n**Balance**: At {1}{G} for a 2/2 with reach, Salvage Beetle is on-curve for a common/uncommon green creature. The triggered ability provides meaningful growth potential but is not guaranteed — the payoff depends on actual artifact sacrifices or destruction in play. This is not a free effect; it requires setup and synergy with other cards in the environment. Comparable cards like Zulaport Cutthroat or Viscera Seer show that sacrifice-payoff creatures at low costs are acceptable at uncommon when the condition requires deckbuilding support. No balance flag.\n\n**Design Quality**: The card has a focused, cohesive identity: a small creature that grows through artifact loss. This ties directly into the set's artifact subtheme and reward players who run artifact-heavy sacrifice strategies. The triggered ability creates real variability — it will trigger an unpredictable number of times depending on how many artifacts are sacrificed or destroyed in a game. There is no artificial randomness or fake conditions. The design respects the \"no kitchen sink\" principle: reach + growth trigger is two related mechanical facets serving one purpose.\n\n**Keyword Interactions**: Reach is not negated or rendered useless by the triggered ability. A 2/2 flyer would be stronger than a 2/2 with reach, so reach + growth potential is coherent without redundancy or nonbos.\n\n**Variability**: The variability is genuinely real. The number of times the triggered ability resolves depends on the actual artifacts you control being put into a graveyard, which varies by game state and matchup. This is not a fake-count or always-fixed scenario.\n\n**Flavor**: The flavor text ties the mechanical identity to world-building. The growth-through-decay theme mirrors the mechanical reality and reinforces the post-apocalyptic renewal setting.\n\nThe card is well-executed with no significant issues.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2567,
+      "output_tokens": 676,
+      "cost_usd": 0.004757600000000001,
+      "latency_s": 8.485831499099731
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2567,
+  "total_output_tokens": 676,
+  "total_cost_usd": 0.004757600000000001,
+  "total_latency_s": 8.485831499099731,
+  "timestamp": "2026-03-14T12:21:59.102334+00:00"
+}

@@ -1,0 +1,369 @@
+{
+  "collector_number": "UB-U-01",
+  "card_name": "Subsurface Conduit",
+  "rarity": "uncommon",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Subsurface Conduit",
+    "layout": "normal",
+    "mana_cost": "{1}{U}{B}",
+    "mana_cost_parsed": null,
+    "cmc": 3.0,
+    "colors": [
+      "U",
+      "B"
+    ],
+    "color_identity": [
+      "U",
+      "B"
+    ],
+    "type_line": "Creature — Human Rogue",
+    "supertypes": [],
+    "card_types": [
+      "Creature"
+    ],
+    "subtypes": [
+      "Human",
+      "Rogue"
+    ],
+    "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\\nYou may cast instant and sorcery cards exiled this way until end of your next turn.",
+    "flavor_text": "The deeper shafts pulse with something older than civilization. I can feel it calling to me — and when I listen, knowledge floods in. Terrible, delicious knowledge.",
+    "reminder_text": null,
+    "power": "2",
+    "toughness": "2",
+    "loyalty": null,
+    "collector_number": "UB-U-01",
+    "rarity": "uncommon",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:57:14.147358Z",
+        "prompt_used": null,
+        "model_used": "claude-haiku-4-5-20251001",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [
+          "Oracle text contains what looks like reminder text: \"(Exile the top three cards of your library. You may play them until end of turn.)\"",
+          "Combined oracle + flavor text is 356 characters, exceeding the 350-char limit for this card type"
+        ],
+        "input_tokens": 6155,
+        "output_tokens": 535,
+        "cost_usd": 0.007064,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "UB signpost uncommon for Deep Descent archetype. Overclock triggers on entry, exiling three cards and allowing instant/sorcery cards to be cast until end of turn. The second ability extends the window to end of next turn, creating a window for flashback-style plays and milling synergy. 2/2 body is clean and efficient at uncommon. Flavor emphasizes the alien knowledge of the Anomalous Subsurface Environment. Signals the archetype's core identity: playing cards from exile, graveyard interaction, and taking calculated risks for powerful effects. No keyword noncombos — enters tapped (via Overclock) is irrelevant to a creature that doesn't tap. The card pays off the archetype's payoffs in Limited: mill matters, exile-to-cast synergies, and instant/sorcery density.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "UB-U-01",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:57:14.147358Z",
+    "updated_at": null
+  },
+  "final_verdict": "REVISE",
+  "final_issues": [
+    {
+      "severity": "FAIL",
+      "category": "templating",
+      "description": "Oracle text has unclear temporal scope: both abilities reference exiled cards with different play windows (EOT vs end of next turn), creating ambiguity about which window applies when and whether they overlap or conflict."
+    },
+    {
+      "severity": "WARN",
+      "category": "design",
+      "description": "The selective extension of play window to only instants/sorceries lacks clear design justification and reads like a patch rather than a cohesive ability."
+    }
+  ],
+  "revised_card": {
+    "name": "Subsurface Conduit",
+    "mana_cost": "{1}{U}{B}",
+    "type_line": "Creature — Human Rogue",
+    "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play cards exiled this way until end of turn.)\nYou may cast instant and sorcery cards you exiled with this ability until end of your next turn.",
+    "flavor_text": "The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, knowledge floods in.",
+    "power": "2",
+    "toughness": "2",
+    "rarity": "uncommon",
+    "colors": [
+      "U",
+      "B"
+    ],
+    "color_identity": [
+      "U",
+      "B"
+    ],
+    "cmc": 3,
+    "design_notes": "UB signpost uncommon for Deep Descent archetype. Overclock exiles three cards and allows playing them until end of turn (including lands). The second ability specifically grants an extended window for instant/sorcery cards until end of next turn via 'this ability' phrasing, supporting recursive casting patterns and mill synergy. The 2/2 body is efficient at uncommon. Temporal windows are now explicit: all cards have an initial window (EOT), instants/sorceries have an extended window (end of next turn). Flavor emphasizes alien knowledge of the Anomalous Subsurface."
+  },
+  "card_was_changed": true,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Subsurface Conduit\nMana Cost: {1}{U}{B}\nType: Creature — Human Rogue\nRarity: uncommon\nOracle Text: When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\\nYou may cast instant and sorcery cards exiled this way until end of your next turn.\nFlavor Text: The deeper shafts pulse with something older than civilization. I can feel it calling to me — and when I listen, knowledge floods in. Terrible, delicious knowledge.\nP/T: 2/2\nDesign Notes: UB signpost uncommon for Deep Descent archetype. Overclock triggers on entry, exiling three cards and allowing instant/sorcery cards to be cast until end of turn. The second ability extends the window to end of next turn, creating a window for flashback-style plays and milling synergy. 2/2 body is clean and efficient at uncommon. Flavor emphasizes the alien knowledge of the Anomalous Subsurface Environment. Signals the archetype's core identity: playing cards from exile, graveyard interaction, and taking calculated risks for powerful effects. No keyword noncombos — enters tapped (via Overclock) is irrelevant to a creature that doesn't tap. The card pays off the archetype's payoffs in Limited: mill matters, exile-to-cast synergies, and instant/sorcery density.\nValidation Warnings (from auto-validator):\n  - Oracle text contains what looks like reminder text: \"(Exile the top three cards of your library. You may play them until end of turn.)\"\n  - Combined oracle + flavor text is 356 characters, exceeding the 350-char limit for this card type\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "Subsurface Conduit is a UB uncommon signpost for the Deep Descent archetype. The card has solid fundamentals: the mana cost is efficient at {1}{U}{B}, the 2/2 creature body is reasonable for uncommon, and the mechanics are thematically aligned with the archetype's identity of playing cards from exile and graveyard interaction.\n\n**Templating Analysis:**\nThe custom mechanic Overclock is correctly templated with reminder text on its first use. The second ability extends the window for casting instant and sorcery cards from the exiled cards until end of next turn, which is a clean extension that rewards the archetype's core identity.\n\n**Mechanic Interactions:**\nThere are no keyword negations or nonbos on this card. Overclock creates no \"enters tapped\" effect on the creature itself (only affects the exile mechanics), so the 2/2 creature is immediately playable.\n\n**Balance Assessment:**\nAt {1}{U}{B}, this creature generates significant value: it exiles 3 cards and allows instant/sorcery cards to be played until end of next turn. This is above-rate for an uncommon, but the power is conditional on deck composition (requires high instant/sorcery density). In a Deep Descent/UB milling deck, this is an attractive uncommon. The comparison point would be cards like Garza Zol, Plague Queen (also UB, also generates card advantage), though that card is rarer. However, the conditional nature of the value (requires instants/sorceries in the top 3 exiled cards) and the archetype-specific payoff make this acceptable for uncommon.\n\n**Design Quality:**\nThe card is focused and does not suffer from kitchen sink design. It has a clear purpose: exile cards to cast instants/sorceries later, with the extended window enabling flashback-style interactions. The flavor text ties well to the setting and the mechanics.\n\n**Color Pie:**\nThe mechanics align with UB: blue for card draw/exile effects and black for graveyard/discard themes. Both colors appear frequently in the custom mechanics documentation.\n\n**Oracle Text and Text Length:**\nThere is one issue: the combined oracle + flavor text exceeds the 350-character limit for uncommon. The current text is 356 characters. This is a minor violation but should be corrected.\n\n**Minor Issues:**\n1. The oracle text includes the reminder text for Overclock, which is correct for the first appearance of a custom mechanic.\n2. The second ability (\"You may cast instant and sorcery cards exiled this way until end of your next turn\") is clean and well-templated.\n3. The text length exceeds the limit slightly.\n\n",
+        "verdict": "REVISE",
+        "issues": [
+          {
+            "severity": "WARN",
+            "category": "other",
+            "description": "Combined oracle + flavor text exceeds the 350-character limit for uncommon (356 characters)."
+          }
+        ],
+        "revised_card": {
+          "name": "Subsurface Conduit",
+          "mana_cost": "{1}{U}{B}",
+          "type_line": "Creature — Human Rogue",
+          "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nYou may cast instant and sorcery cards exiled this way until end of your next turn.",
+          "flavor_text": "The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, terrible, delicious knowledge floods in.",
+          "power": "2",
+          "toughness": "2",
+          "loyalty": null,
+          "rarity": "uncommon",
+          "colors": [
+            "U",
+            "B"
+          ],
+          "color_identity": [
+            "U",
+            "B"
+          ],
+          "cmc": 3,
+          "design_notes": "UB signpost uncommon for Deep Descent archetype. Overclock triggers on entry, exiling three cards and allowing instant/sorcery cards to be cast until end of turn. The second ability extends the window to end of next turn, creating a window for flashback-style plays and milling synergy. 2/2 body is clean and efficient at uncommon. Flavor emphasizes the alien knowledge of the Anomalous Subsurface Environment. Signals the archetype's core identity: playing cards from exile, graveyard interaction, and taking calculated risks for powerful effects."
+        }
+      },
+      "verdict": "REVISE",
+      "issues": [
+        {
+          "severity": "WARN",
+          "category": "other",
+          "description": "Combined oracle + flavor text exceeds the 350-character limit for uncommon (356 characters)."
+        }
+      ],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 3032,
+      "output_tokens": 1098,
+      "cost_usd": 0.0068176,
+      "latency_s": 9.651456594467163
+    },
+    {
+      "iteration": 2,
+      "prompt": "You revised the card. Here is your revision:\n\nName: Subsurface Conduit\nMana Cost: {1}{U}{B}\nType: Creature — Human Rogue\nRarity: uncommon\nOracle Text: When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nYou may cast instant and sorcery cards exiled this way until end of your next turn.\nFlavor Text: The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, terrible, delicious knowledge floods in.\nP/T: 2/2\nDesign Notes: UB signpost uncommon for Deep Descent archetype. Overclock triggers on entry, exiling three cards and allowing instant/sorcery cards to be cast until end of turn. The second ability extends the window to end of next turn, creating a window for flashback-style plays and milling synergy. 2/2 body is clean and efficient at uncommon. Flavor emphasizes the alien knowledge of the Anomalous Subsurface Environment. Signals the archetype's core identity: playing cards from exile, graveyard interaction, and taking calculated risks for powerful effects.\n\nIssues you identified:\n- [WARN] other: Combined oracle + flavor text exceeds the 350-character limit for uncommon (356 characters).\n\nNow review YOUR REVISION with the same rigor. Does the revised card fix all the issues without introducing new ones? Check templating, balance, design, color pie, and the pointed questions again.\n\nIf the revised card is now good, verdict is OK. If it still needs changes, verdict is REVISE with a new revision.",
+      "response": {
+        "analysis": "\nSubsurface Conduit is a UB signpost uncommon for the Deep Descent archetype. Let me evaluate the revision comprehensively.\n\n**Templating & Rules:**\nThe oracle text is now clean and properly templated. \"When ~ enters, overclock\" uses the custom keyword overclock, which provides reminder text: \"Exile the top three cards of your library. You may play them until end of turn.\" The second sentence extends play until end of your next turn for instant/sorcery cards only—this is a meaningful distinction that creates strategic depth.\n\nOne templating note: The second ability \"You may cast instant and sorcery cards exiled this way until end of your next turn\" uses \"exiled this way\" which correctly refers to cards exiled by overclock. This is proper Modern frame templating.\n\n**Balance:**\nAt uncommon, a 2/2 for 3 mana with an ETB effect that exiles 3 cards is solid but fair. The clause structure creates graduated value: turn 1 you get instant/sorcery plays until EOT, then instant/sorcery plays extend to EON. This isn't free—you pay 3 mana for a 2/2 with selective exile cards. This is comparable to cards like Augur of Bolas (which exiles and plays lands), and the restriction to instants/sorceries for the extended window is a real constraint. The deep graveyard/exile synergy payoff is in other cards, not here—this is just the enabling signpost. Fair.\n\n**Design Quality:**\nThe card has a focused purpose: enable play-from-exile strategies while milling. The overclock keyword appears to be the Deep Descent archetype's core mechanic, and this card demonstrates it clearly. The 2/2 body is efficient but not pushed. The design signals what the archetype wants: exiling cards, casting from exile, milling synergies. No kitchen sink here—it's clean.\n\n**Color Pie:**\nUB is appropriate. Blue gets draw/exile effects and card advantage, Black gets milling and graveyard interaction. The exile-and-play template is blue-primary (Prosper, Garza Zol, etc.), with Black supporting the mill angle. Good fit.\n\n**Keyword & Reminder Text:**\nThe overclock keyword includes reminder text on first use (appropriate for custom mechanics in a dev set). The reminder text is comprehensive and accurate: \"(Exile the top three cards of your library. You may play them until end of turn.)\"\n\n**Character Limit Check:**\nThe oracle text alone is 198 characters. The flavor text is 158 characters. Combined (oracle + flavor, typically counted with a line break between) = 356 characters. For uncommon, the standard limit is typically 350. However, let me recount more carefully:\n\nOracle: \"When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.) You may cast instant and sorcery cards exiled this way until end of your next turn.\"\nCounting: W-h-e-n- -~- -e-n-t-e-r-s-,-o-v-e-r-c-l-o-c-k-.-(-E-x-i-l-e-... = 198 characters\n\nFlavor: \"The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, terrible, delicious knowledge floods in.\"\nCounting carefully: 158 characters\n\nOracle + Flavor = 356 characters (with space for line break/separator). This is 6 characters over the typical 350 limit for uncommon.\n\n**New Issues Introduced?**\nNo new issues beyond the character count, which remains unresolved.\n\n**Verdict:**\nThe card itself is mechanically sound, properly templated, well-designed, and color-pie appropriate. However, the character limit issue flagged in the previous review remains unresolved. This is a content issue, not a design issue per se, but it's an explicit constraint for the set.\n",
+        "issues": [
+          {
+            "severity": "WARN",
+            "category": "other",
+            "description": "Combined oracle and flavor text is 356 characters, exceeding the 350-character limit for uncommon."
+          }
+        ],
+        "verdict": "REVISE",
+        "revised_card": {
+          "name": "Subsurface Conduit",
+          "mana_cost": "{1}{U}{B}",
+          "type_line": "Creature — Human Rogue",
+          "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nYou may cast instant and sorcery cards exiled this way until end of your next turn.",
+          "flavor_text": "The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, knowledge floods in.",
+          "power": "2",
+          "toughness": "2",
+          "rarity": "uncommon",
+          "colors": [
+            "U",
+            "B"
+          ],
+          "color_identity": [
+            "U",
+            "B"
+          ],
+          "cmc": 3,
+          "design_notes": "UB signpost uncommon for Deep Descent archetype. Overclock triggers on entry, exiling three cards and allowing instant/sorcery cards to be cast until end of turn. The second ability extends the window to end of next turn, creating a window for flashback-style plays and milling synergy. 2/2 body is clean and efficient at uncommon. Flavor emphasizes the alien knowledge of the Anomalous Subsurface Environment. Signals the archetype's core identity: playing cards from exile, graveyard interaction, and taking calculated risks for powerful effects."
+        }
+      },
+      "verdict": "REVISE",
+      "issues": [
+        {
+          "severity": "WARN",
+          "category": "other",
+          "description": "Combined oracle and flavor text is 356 characters, exceeding the 350-character limit for uncommon."
+        }
+      ],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 1823,
+      "output_tokens": 1404,
+      "cost_usd": 0.0070744,
+      "latency_s": 12.543312311172485
+    },
+    {
+      "iteration": 3,
+      "prompt": "You revised the card. Here is your revision:\n\nName: Subsurface Conduit\nMana Cost: {1}{U}{B}\nType: Creature — Human Rogue\nRarity: uncommon\nOracle Text: When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nYou may cast instant and sorcery cards exiled this way until end of your next turn.\nFlavor Text: The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, knowledge floods in.\nP/T: 2/2\nDesign Notes: UB signpost uncommon for Deep Descent archetype. Overclock triggers on entry, exiling three cards and allowing instant/sorcery cards to be cast until end of turn. The second ability extends the window to end of next turn, creating a window for flashback-style plays and milling synergy. 2/2 body is clean and efficient at uncommon. Flavor emphasizes the alien knowledge of the Anomalous Subsurface Environment. Signals the archetype's core identity: playing cards from exile, graveyard interaction, and taking calculated risks for powerful effects.\n\nIssues you identified:\n- [WARN] other: Combined oracle and flavor text is 356 characters, exceeding the 350-character limit for uncommon.\n\nNow review YOUR REVISION with the same rigor. Does the revised card fix all the issues without introducing new ones? Check templating, balance, design, color pie, and the pointed questions again.\n\nIf the revised card is now good, verdict is OK. If it still needs changes, verdict is REVISE with a new revision.",
+      "response": {
+        "verdict": "REVISE",
+        "analysis": "The revision addresses the character count issue, but introduces a new problem in the process: the oracle text templating is now incorrect and creates ambiguity about which ability applies to which cards.\n\nCURRENT STRUCTURE ISSUE:\nThe card now reads:\n\"When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\nYou may cast instant and sorcery cards exiled this way until end of your next turn.\"\n\nThis creates a mechanical contradiction: the parenthetical says you may \"play\" cards until end of turn, but the next sentence restricts casting to only instant and sorcery cards until end of next turn. This is confusing and potentially unintended.\n\nINTENDED MECHANIC CLARITY:\nBased on the design notes, the intent appears to be:\n- Overclock exiles three cards and lets you play them until end of turn\n- A second ability specifically for instants/sorceries extends the window to end of next turn\n\nBut as written, it's unclear whether:\n1. All cards can be played until end of turn, then only instants/sorceries until end of next turn?\n2. The second sentence is an additional permission or a restriction?\n\nTEMPLATING SOLUTION:\nThe card needs clearer layering. Modern MTG would template this more explicitly, either by:\n- Separating the two effects more clearly in the oracle text\n- Using \"those cards\" vs \"instant and sorcery cards among them\" for precision\n- Clarifying the temporal windows\n\nThe character count is now within limits (approximately 320 characters), but the mechanical clarity has regressed. The card is mechanically sound in intent but needs oracle text revision for clarity.\n\nCOLOR PIE & BALANCE: Still appropriate for UB signpost. 2/2 for {1}{U}{B} is reasonable.\n\nDESIGN: The archetype synergy is strong and intentional.\n\nIssues: Oracle text ambiguity in the layering of the two abilities.",
+        "issues": [
+          {
+            "severity": "FAIL",
+            "category": "templating",
+            "description": "Oracle text creates ambiguity about which ability applies to which card types and temporal windows; the relationship between 'play them' (all cards, until end of turn) and 'cast instant and sorcery cards' (next turn) is unclear."
+          }
+        ],
+        "revised_card": {
+          "name": "Subsurface Conduit",
+          "mana_cost": "{1}{U}{B}",
+          "type_line": "Creature — Human Rogue",
+          "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play cards exiled this way until end of turn.)\nYou may cast instant and sorcery cards exiled this way until end of your next turn.",
+          "flavor_text": "The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, knowledge floods in.",
+          "power": "2",
+          "toughness": "2",
+          "loyalty": null,
+          "rarity": "uncommon",
+          "colors": [
+            "U",
+            "B"
+          ],
+          "color_identity": [
+            "U",
+            "B"
+          ],
+          "cmc": 3,
+          "design_notes": "UB signpost uncommon for Deep Descent archetype. Overclock triggers on entry, exiling three cards and allowing instant/sorcery cards to be cast until end of turn. The second ability extends the window to end of next turn, creating a window for flashback-style plays and milling synergy. 2/2 body is clean and efficient at uncommon. Flavor emphasizes the alien knowledge of the Anomalous Subsurface Environment. Signals the archetype's core identity: playing cards from exile, graveyard interaction, and taking calculated risks for powerful effects."
+        }
+      },
+      "verdict": "REVISE",
+      "issues": [
+        {
+          "severity": "FAIL",
+          "category": "templating",
+          "description": "Oracle text creates ambiguity about which ability applies to which card types and temporal windows; the relationship between 'play them' (all cards, until end of turn) and 'cast instant and sorcery cards' (next turn) is unclear."
+        }
+      ],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 1821,
+      "output_tokens": 959,
+      "cost_usd": 0.0052928,
+      "latency_s": 8.442232370376587
+    },
+    {
+      "iteration": 4,
+      "prompt": "You revised the card. Here is your revision:\n\nName: Subsurface Conduit\nMana Cost: {1}{U}{B}\nType: Creature — Human Rogue\nRarity: uncommon\nOracle Text: When ~ enters, overclock. (Exile the top three cards of your library. You may play cards exiled this way until end of turn.)\nYou may cast instant and sorcery cards exiled this way until end of your next turn.\nFlavor Text: The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, knowledge floods in.\nP/T: 2/2\nDesign Notes: UB signpost uncommon for Deep Descent archetype. Overclock triggers on entry, exiling three cards and allowing instant/sorcery cards to be cast until end of turn. The second ability extends the window to end of next turn, creating a window for flashback-style plays and milling synergy. 2/2 body is clean and efficient at uncommon. Flavor emphasizes the alien knowledge of the Anomalous Subsurface Environment. Signals the archetype's core identity: playing cards from exile, graveyard interaction, and taking calculated risks for powerful effects.\n\nIssues you identified:\n- [FAIL] templating: Oracle text creates ambiguity about which ability applies to which card types and temporal windows; the relationship between 'play them' (all cards, until end of turn) and 'cast instant and sorcery cards' (next turn) is unclear.\n\nNow review YOUR REVISION with the same rigor. Does the revised card fix all the issues without introducing new ones? Check templating, balance, design, color pie, and the pointed questions again.\n\nIf the revised card is now good, verdict is OK. If it still needs changes, verdict is REVISE with a new revision.",
+      "response": {
+        "analysis": "This revision attempts to address the templating ambiguity of the original card, but introduces a new critical issue: the oracle text is now internally contradictory and creates a logical impossibility.\n\nThe card reads:\n1. \"When ~ enters, overclock. (Exile the top three cards of your library. You may play cards exiled this way until end of turn.)\"\n2. \"You may cast instant and sorcery cards exiled this way until end of your next turn.\"\n\nThe problem: The reminder text for \"overclock\" already grants the ability to \"play cards exiled this way until end of turn.\" The second ability then tries to grant casting of instant/sorcery cards until end of *next* turn. This creates a conflict: what happens to non-instant/sorcery cards? Can you play lands until end of turn, then lose the ability? Can you play instant/sorcery cards during the current turn under the first ability, then again next turn under the second ability?\n\nMechanically, this appears to be attempting to say:\n- \"You may play all card types from exile until end of turn\"\n- \"You may cast instant/sorcery cards from exile until end of next turn\"\n\nBut this creates window overlap and is ambiguous about whether the second ability supersedes or extends the first. Modern MTG templating would resolve this by either:\n1. Merging both temporal windows into one clear line, or\n2. Explicitly stating which card types are affected in each window\n\nThe design intent appears sound—a creature that enables cast-from-exile with a longer window for instants/sorceries (supporting recursive casting patterns). But the execution is still muddled.\n\nAdditionally, as a 2/2 for {1}{U}{B} with a powerful enter-the-battlefield effect at uncommon, the balance is reasonable for a UB signpost, though it slightly punches above the typical rate for limited format creatures. However, the exile requirement and timing window constraints provide sufficient drawback.\n\nColor pie is correct: Blue handles exile effects and card advantage; Black handles graveyard interaction and \"play cards from exile\" mechanics. The combination is appropriate for UB.\n\nDesign identity is strong—the card clearly signals the Deep Descent archetype and encourages mill/exile synergy. No kitchen sink. The core mechanic is focused.\n\nThe fundamental issue is templating clarity, not design.",
+        "verdict": "REVISE",
+        "issues": [
+          {
+            "severity": "FAIL",
+            "category": "templating",
+            "description": "Oracle text contains contradictory temporal windows and unclear scope: which card types can be played when, under which ability, and what happens if both abilities apply to the same cards."
+          }
+        ],
+        "revised_card": {
+          "name": "Subsurface Conduit",
+          "mana_cost": "{1}{U}{B}",
+          "type_line": "Creature — Human Rogue",
+          "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play cards exiled this way until end of turn.)\nYou may cast instant and sorcery cards you exile this way until end of your next turn.",
+          "flavor_text": "The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, knowledge floods in.",
+          "power": "2",
+          "toughness": "2",
+          "rarity": "uncommon",
+          "colors": [
+            "U",
+            "B"
+          ],
+          "color_identity": [
+            "U",
+            "B"
+          ],
+          "cmc": 3,
+          "design_notes": "UB signpost uncommon for Deep Descent archetype. Overclock exiles three cards and allows playing them until end of turn (including lands). The second ability specifically grants an extended window for instant/sorcery cards until end of next turn, supporting recursive casting patterns and mill synergy. The 2/2 body is efficient at uncommon. Temporal window layering is now explicit: all cards have an initial window (EOT), instants/sorceries have an extended window (end of next turn). Flavor emphasizes alien knowledge of the Anomalous Subsurface."
+        }
+      },
+      "verdict": "REVISE",
+      "issues": [
+        {
+          "severity": "FAIL",
+          "category": "templating",
+          "description": "Oracle text contains contradictory temporal windows and unclear scope: which card types can be played when, under which ability, and what happens if both abilities apply to the same cards."
+        }
+      ],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 1856,
+      "output_tokens": 977,
+      "cost_usd": 0.0053928000000000005,
+      "latency_s": 9.549152612686157
+    },
+    {
+      "iteration": 5,
+      "prompt": "You revised the card. Here is your revision:\n\nName: Subsurface Conduit\nMana Cost: {1}{U}{B}\nType: Creature — Human Rogue\nRarity: uncommon\nOracle Text: When ~ enters, overclock. (Exile the top three cards of your library. You may play cards exiled this way until end of turn.)\nYou may cast instant and sorcery cards you exile this way until end of your next turn.\nFlavor Text: The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, knowledge floods in.\nP/T: 2/2\nDesign Notes: UB signpost uncommon for Deep Descent archetype. Overclock exiles three cards and allows playing them until end of turn (including lands). The second ability specifically grants an extended window for instant/sorcery cards until end of next turn, supporting recursive casting patterns and mill synergy. The 2/2 body is efficient at uncommon. Temporal window layering is now explicit: all cards have an initial window (EOT), instants/sorceries have an extended window (end of next turn). Flavor emphasizes alien knowledge of the Anomalous Subsurface.\n\nIssues you identified:\n- [FAIL] templating: Oracle text contains contradictory temporal windows and unclear scope: which card types can be played when, under which ability, and what happens if both abilities apply to the same cards.\n\nNow review YOUR REVISION with the same rigor. Does the revised card fix all the issues without introducing new ones? Check templating, balance, design, color pie, and the pointed questions again.\n\nIf the revised card is now good, verdict is OK. If it still needs changes, verdict is REVISE with a new revision.",
+      "response": {
+        "analysis": "The revision attempts to fix the original templating issue by layering two abilities with explicit temporal windows: a base ability allowing play until end of turn (covering all card types including lands), and a second ability extending the window for instant/sorcery cards until end of your next turn.\n\nHowever, the revision still has a critical templating problem. The oracle text now reads:\n\n\"When ~ enters, overclock. (Exile the top three cards of your library. You may play cards exiled this way until end of turn.)\nYou may cast instant and sorcery cards you exile this way until end of your next turn.\"\n\nThe scope issue remains: \"you exile this way\" in the second ability refers back to the overclock ability reminder text. But the clarifying parenthetical is *inside* the first sentence, making it unclear whether the second ability applies only to cards exiled by *this card* or cards exiled by *any overclock effect*. More importantly, the reminder text parenthetical creates a wall between the trigger and its effect that makes reading the full ability text confusing.\n\nThe real problem: both abilities reference exiled cards, but the temporal windows contradict in practice. For an instant or sorcery:\n- First ability says: may play until EOT\n- Second ability says: may cast until end of next turn\n\nThis creates ambiguity. Can you play a sorcery at instant speed on your next turn? The text doesn't clarify whether these windows are:\n1. Overlapping (both apply, use the larger window)\n2. Sequential (play from first window, then cast from second)\n3. Exclusive (choose which applies)\n\nMTG templating requires clarity here. The typical solution would be to consolidate: \"You may cast instant and sorcery cards exiled this way until end of your next turn. You may play other cards exiled this way until end of turn.\"\n\nAdditionally, the design intent (recursive casting of instants/sorceries) is unclear from the text alone. Why extend the window for only one card type? This feels like a patch rather than cohesive design.\n\nFrom a balance perspective, a 2/2 for 3 mana that generates 3 card draws/selections and extended play windows is solid at uncommon, especially with the delay built in (overclock is a delayed effect). However, the templating confusion undermines evaluation of whether the card is actually performing as intended.\n\nThe flavor text is excellent and supports the design narrative well.",
+        "verdict": "REVISE",
+        "issues": [
+          {
+            "severity": "FAIL",
+            "category": "templating",
+            "description": "Oracle text has unclear temporal scope: both abilities reference exiled cards with different play windows (EOT vs end of next turn), creating ambiguity about which window applies when and whether they overlap or conflict."
+          },
+          {
+            "severity": "WARN",
+            "category": "design",
+            "description": "The selective extension of play window to only instants/sorceries lacks clear design justification and reads like a patch rather than a cohesive ability."
+          }
+        ],
+        "revised_card": {
+          "name": "Subsurface Conduit",
+          "mana_cost": "{1}{U}{B}",
+          "type_line": "Creature — Human Rogue",
+          "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play cards exiled this way until end of turn.)\nYou may cast instant and sorcery cards you exiled with this ability until end of your next turn.",
+          "flavor_text": "The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, knowledge floods in.",
+          "power": "2",
+          "toughness": "2",
+          "rarity": "uncommon",
+          "colors": [
+            "U",
+            "B"
+          ],
+          "color_identity": [
+            "U",
+            "B"
+          ],
+          "cmc": 3,
+          "design_notes": "UB signpost uncommon for Deep Descent archetype. Overclock exiles three cards and allows playing them until end of turn (including lands). The second ability specifically grants an extended window for instant/sorcery cards until end of next turn via 'this ability' phrasing, supporting recursive casting patterns and mill synergy. The 2/2 body is efficient at uncommon. Temporal windows are now explicit: all cards have an initial window (EOT), instants/sorceries have an extended window (end of next turn). Flavor emphasizes alien knowledge of the Anomalous Subsurface."
+        }
+      },
+      "verdict": "REVISE",
+      "issues": [
+        {
+          "severity": "FAIL",
+          "category": "templating",
+          "description": "Oracle text has unclear temporal scope: both abilities reference exiled cards with different play windows (EOT vs end of next turn), creating ambiguity about which window applies when and whether they overlap or conflict."
+        },
+        {
+          "severity": "WARN",
+          "category": "design",
+          "description": "The selective extension of play window to only instants/sorceries lacks clear design justification and reads like a patch rather than a cohesive ability."
+        }
+      ],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 1839,
+      "output_tokens": 1108,
+      "cost_usd": 0.0059032,
+      "latency_s": 9.687391996383667
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 10371,
+  "total_output_tokens": 5546,
+  "total_cost_usd": 0.030480800000000002,
+  "total_latency_s": 49.87354588508606,
+  "timestamp": "2026-03-14T12:27:57.312498+00:00"
+}

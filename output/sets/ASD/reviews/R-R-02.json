@@ -1,0 +1,118 @@
+{
+  "collector_number": "R-R-02",
+  "card_name": "The Burning Descent",
+  "rarity": "rare",
+  "review_tier": "council",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "The Burning Descent",
+    "layout": "normal",
+    "mana_cost": "{4}{R}{R}",
+    "mana_cost_parsed": null,
+    "cmc": 6.0,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Enchantment",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "At the beginning of your upkeep, overclock. (Exile the top three cards of your library. You may play them until end of turn.).\nWhenever you play a card exiled with ~, ~ deals 2 damage to each opponent.",
+    "flavor_text": "The deeper you go, the hotter it gets. Most explorers assume that's geology.",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "R-R-02",
+    "rarity": "rare",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:33:31.814475Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [
+          "Oracle text contains what looks like reminder text: \"(Exile the top three cards of your library. You may play them until end of turn.)\""
+        ],
+        "input_tokens": 1160,
+        "output_tokens": 362,
+        "cost_usd": 0.04455,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "A red rare enchantment showcasing the Overclock mechanic. Every upkeep you exile 3 cards and get to play them that turn -- a relentless engine that churns through your library. The 2-damage trigger per card played from exile rewards you for actually casting what you find, turning the overclock into a damage clock. At 6 CMC this is a late-game inevitability engine: 3 cards per turn with up to 6 damage if you play them all. The risk is real -- you're exiling cards permanently, and anything you can't play is lost forever. This creates genuine tension around deck construction (low curve helps) and mana management. Overclock's first appearance in the set, so reminder text is included.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "R-R-02",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:33:31.814475Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [],
+  "council_reviews": [
+    {
+      "member_id": 1,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "\nThe Burning Descent is a rare red enchantment that showcases the Overclock mechanic as its primary engine. Let me work through the review checklist:\n\n**Reminder Text & Custom Mechanics:**\nThe card correctly includes reminder text for Overclock on its first (and primary) appearance in the set. The reminder text is complete and accurate: \"(Exile the top three cards of your library. You may play them until end of turn.)\" This is appropriate and necessary for a tertiary mechanic.\n\n**Templating & Oracle Text:**\nThe oracle text is well-structured. The reminder text for Overclock is correctly parenthesized. The trigger ability uses \"~\" to refer to the permanent, which is modern templating. The wording \"Whenever you play a card exiled with ~\" is clear and correct — it creates a meaningful connection between the two abilities.\n\n**Mechanics Interaction:**\nThere are no negated or useless keywords here. Overclock is the centerpiece, and the damage trigger amplifies its value. This is coherent design.\n\n**Conditionals:**\nThe conditional \"Whenever you play a card exiled with ~\" is genuinely meaningful. You won't always play all three exiled cards (mana constraints, hand size, card type mismatches, etc.), so the trigger condition can absolutely fail in play. This is real variability that creates gameplay tension.\n\n**Variability:**\nThe damage output is NOT fixed. You exile 3 cards per upkeep, but you might play 0, 1, 2, or all 3 of them depending on mana availability, card types, and board state. The \"up to 6 damage if you play them all\" described in the design notes correctly identifies this as variable. This creates real decision points and tension.\n\n**Balance:**\nAt {4}{R}{R} (6 CMC), this is a powerful late-game engine but not unreasonable for rare. Comparable cards:\n- **Underworld Breach** (Theros Beyond Death, {1}{B}{R}{B}) costs 4 and exiles cards permanently but plays them for free — Burning Descent costs more but repeats. The tempo delay (upkeep trigger) is meaningful.\n- **Experimental Frenzy** (Guilds of Ravnica, {3}{R}) costs 3 and is arguably more efficient, but doesn't create a damage clock.\n- **Magecraft** cards in limited contexts typically cost 4-6 for repeatable value engines.\n\nThe card's drawback — exiling cards permanently, losing ones you can't play, mana constraints on casting exiled cards — is real and significant. You're also telegraphed a turn in advance (upkeep trigger), giving opponents time to remove it. The CMC is reasonable for the effect. This is neither absurdly above-rate nor below-rate for a rare; it's appropriately costed.\n\n**Color Pie:**\nRed is the correct home for this. Exiling cards from the library and playing them is firmly in red's bend (impulsive draw, temporary access), and the damage trigger is on-color for red. The upkeep timing is neutral.\n\n**Kitchen Sink:**\nThe card has two connected abilities: (1) Overclock each upkeep, and (2) deal 2 damage when you play cards exiled this way. These are tightly coupled and serve a single goal: build a damage engine from temporary library access. This is not kitchen sink design; it's focused and coherent.\n\n**Keyword Collisions:**\nNo collision. Overclock is a new mechanic for this set, and the design notes correctly identify it as a retuned version of a rejected \"Overload\" candidate to avoid collision with the existing Overload keyword from Return to Ravnica. Approved.\n\n**Enters Tapped Concerns:**\nNot applicable. This is an enchantment, not a permanent that taps.\n\n**Overall Assessment:**\nThis is a well-designed card. The mechanics are clear, the reminder text is complete, the balance is appropriate for a rare, and the design is focused with real variability in gameplay. The card does what it intends to do: reward players for building around Overclock and create a powerful but fair late-game engine.\n\nNo issues found.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2719,
+      "output_tokens": 1028,
+      "cost_usd": 0.006287200000000001
+    },
+    {
+      "member_id": 2,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "**The Burning Descent** is a focused red rare enchantment that showcases the Overclock mechanic. Let me analyze it across key dimensions:\n\n**Templating & Mechanics:**\nThe card is correctly templated. The reminder text for Overclock is properly included on the card's first appearance and is accurate. The second ability correctly references \"~ \" (the card name) to create a clear trigger condition tied to the Overclock effect. The phrase \"exiled with ~\" is slightly informal but acceptable MTG shorthand meaning \"exiled by The Burning Descent's ability.\"\n\n**Custom Mechanic Integration:**\nOverclock appears here for the first time in a standard way: as a keyword ability with full reminder text. This is correct per the custom mechanic guidelines. The mechanic fits red's philosophy of aggressive, library-manipulation effects and risk/reward play patterns.\n\n**Power Level & Balance:**\nAt 6 mana, this is appropriately positioned as a late-game value engine. Comparable references:\n- **Chandra, Flamecaller** (Oath of the Gatewatch, 4RR) is a planeswalker with slightly more immediate impact but lower loyalty ceiling.\n- **Outpost Siege** (Khans of Tarkir, 3RR) is a 4-mana enchantment that exiles one card per turn, making this card roughly twice the effect for twice the cost.\n- **Experimental Overload** (theoretical card) would be in the same design space.\n\nThe tradeoff is real: you're exiling 3 cards per turn permanently, and anything you can't cast is pure card loss. Playing all 3 exiled cards (highly ambitious) nets you 6 damage per turn through the second ability, but you need the mana and the opportunity. This is legitimately constrained by deck construction, mana availability, and board state. The 6 CMC is steep enough that you won't resolve this until turn 6+, giving opponents ample removal windows. The card is powerful but not broken—it's an inevitable engine, not a immediate threat.\n\n**Design Quality:**\nThe card has excellent focused purpose: enable Overclock consistently, reward successful casting from exile with damage, create tension. The two abilities work synergistically rather than at cross-purposes. There's no kitchen sink behavior here.\n\n**Variability:**\nThe damage output is genuinely variable. You might cast 0, 1, 2, or all 3 exiled cards per turn depending on:\n- Your mana available that turn\n- What cards you exile (you might exile lands, creatures you can't cast yet, etc.)\n- Your board state and ability to actually attack\nThis isn't false variability—it's real gameplay interaction.\n\n**Keyword Interactions:**\nNo negated abilities. The card doesn't have haste, flying, or other evasion that would be wasted. Overclock naturally triggers upkeep effects, which is clean.\n\n**Color Pie:**\nThis is entirely on-pie for red. Library manipulation as a cost-benefit, damage as the payoff, and exile effects are all red-aligned (especially in the context of this set's post-apocalyptic mechanics).\n\n**No Issues Found:**\n- Templating is correct\n- Reminder text is present and accurate (first use of Overclock)\n- The conditional (whenever you play a card exiled with ~) is meaningful—you can exile cards you won't play\n- Power level is appropriate for a 6-mana rare with real drawbacks\n- No keyword collisions\n- No irrelevant abilities\n- Focused, cohesive design with real variability\n\nThis is a well-executed card that will play as intended.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2719,
+      "output_tokens": 899,
+      "cost_usd": 0.005771200000000001
+    },
+    {
+      "member_id": 3,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "verdict": "OK",
+        "analysis": "The Burning Descent is a well-designed red rare enchantment that showcases the Overclock mechanic effectively. The card's core design is sound:\n\n**Templating & Mechanics:** The oracle text is correctly templated. Overclock appears with full reminder text on its first appearance in the set, as required. The trigger condition (\"Whenever you play a card exiled with ~\") is properly formed and meaningful—not all exiled cards will necessarily be playable or played, creating genuine decision points.\n\n**Color Pie:** The card is appropriately red. Exiling cards and playing them from exile is a blue-primary ability (see Garrick's Uprising, Expansion // Explosion), but red's aggressive take on library manipulation for direct damage is well-established (see Outcry, Vengeance, past red \"exile top N and play them\" effects). Red getting access to temporary card advantage that converts to damage is on-pie.\n\n**Balance:** At {4}{R}{R} for a card that draws 3 cards per turn starting turn 7, this is a legitimate late-game engine. However, the cost is real: \n- Mana cost of 6 means it enters in mid-to-late game\n- Overclocked cards are exiled and lost if not played\n- Mana constraints prevent playing all 3 cards every turn in many decks\n- The damage output (up to 6/turn if you play all 3 cards exiled) is good but not immediately game-ending—opponents can race or block\n\nCompared to Chandra, Fire of Kaladesh (~6 mana equivalent in loyalty), which provides similar card advantage + damage, The Burning Descent is reasonable. The card doesn't feel undercosted or overcosted for its mana investment and effect.\n\n**Design Quality:** The card has a focused, coherent purpose: turn library exile into a damage clock. The secondary trigger (2 damage per card played) creates meaningful tension between greedy plays and prudent ones. Deck construction matters (low curve helps). There's no kitchen sink—every ability supports the core identity.\n\n**Keyword Interactions:** No negated keywords or malfunction issues. Overclock is a keyword action that triggers independently on this card.\n\n**Variability:** The damage output is genuinely variable. You might play 1, 2, or 3 of the exiled cards in a turn depending on hand, board, and mana. You might not play any if they're all expensive. This is real variability, not hidden fixed damage.\n\n**Reminder Text:** Overclock has correct reminder text on its first appearance.\n\nThe card is excellent as-is.",
+        "issues": []
+      },
+      "input_tokens": 2719,
+      "output_tokens": 658,
+      "cost_usd": 0.004807200000000001
+    }
+  ],
+  "total_input_tokens": 8157,
+  "total_output_tokens": 2585,
+  "total_cost_usd": 0.0168656,
+  "total_latency_s": 31.75137948989868,
+  "timestamp": "2026-03-14T12:23:39.877829+00:00"
+}

@@ -19,8 +19,8 @@
   "subtypes": [
     "Construct"
   ],
-  "oracle_text": "Malfunction 3 (This permanent enters tapped with three malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.).\nhexproof, malfunction\nWhen ~ no longer has malfunction counters on it, draw a card.",
-  "flavor_text": "Three centuries of dormancy in the vaults beneath Mount Rendon. When power surged back through its crystalline matrices, it remembered only one directive: observe.",
+  "oracle_text": "Malfunction 3 (This permanent enters tapped with three malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\nHexproof\nWhen ~ no longer has malfunction counters on it, draw a card.",
+  "flavor_text": "Three centuries of dormancy in the vaults beneath Mount Rendon. When power surged through its crystalline matrices, it remembered only one directive: observe.",
   "reminder_text": null,
   "power": "3",
   "toughness": "3",
@@ -41,7 +41,6 @@
       "validation_errors": [
         "Line 1: \"This permanent\" should use \"~\" or \"this\" only in specific MTG contexts",
         "Oracle text contains what looks like reminder text: \"(This permanent enters tapped with three malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\"",
-        "Malfunction already causes the permanent to enter tapped — explicit 'enters tapped' is redundant",
         "Combined oracle + flavor text is 441 characters, exceeding the 350-char limit for this card type"
       ],
       "input_tokens": 3082,
@@ -55,7 +54,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "This is a Blue rare artifact creature with a high malfunction threshold (3 counters). The card is designed as a strong payoff for the Malfunction mechanic: hexproof while in-flight provides protection during the vulnerable ramp-up phase, and drawing a card when fully online rewards players for keeping it alive. The 3/3 body for CMC 2 is above rate, justified by: (1) three turns of delay before the card becomes untapped and threatening, (2) vulnerability to artifact removal during that window, (3) hexproof creating counterplay restrictions. This fits Blue's defensive, spell-slinging archetype and encourages artifact-focused control/midrange strategies in the U/W (Ancient Technology) or U/R (Mad Science) archetypes. The ETB draw triggers once when all counters are gone, providing a one-time card advantage payoff rather than sustained value, keeping it balanced for rare.",
+  "design_notes": "Blue rare artifact creature designed as a strong payoff for the Malfunction mechanic. Hexproof provides protection during the three-turn ramp-up phase, and drawing a card when fully online rewards players for keeping it alive. The 3/3 body for CMC 2 is justified by: (1) three turns of delay before becoming untapped and threatening, (2) vulnerability to artifact removal during the setup window, (3) hexproof creating counterplay restrictions. Fits U/W (Ancient Technology) and U/R (Mad Science) archetypes.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,
@@ -63,5 +62,5 @@
   "slot_id": "U-R-01",
   "card_faces": null,
   "created_at": "2026-03-14T00:57:07.625729Z",
-  "updated_at": null
+  "updated_at": "2026-03-14T12:26:12.328526Z"
 }

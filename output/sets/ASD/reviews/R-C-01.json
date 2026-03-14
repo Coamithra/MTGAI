@@ -1,0 +1,93 @@
+{
+  "collector_number": "R-C-01",
+  "card_name": "Moktar Raider",
+  "rarity": "common",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Moktar Raider",
+    "layout": "normal",
+    "mana_cost": "{1}{R}",
+    "mana_cost_parsed": null,
+    "cmc": 2.0,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Creature -- Moktar Warrior",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "",
+    "flavor_text": "The moktars don't raid Denethix because they hate civilization. They raid it because the granaries are right there.",
+    "reminder_text": null,
+    "power": "2",
+    "toughness": "2",
+    "loyalty": null,
+    "collector_number": "R-C-01",
+    "rarity": "common",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:33:00.264877Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 902,
+        "output_tokens": 279,
+        "cost_usd": 0.034491,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Clean red common vanilla. A 2/2 for 2 is the baseline for a common creature -- no frills, just a solid body. P+T=4, CMC+3=5, well within budget. Moktars are a key creature type in the setting as wilderness raiders, making this a natural flavor fit for red's aggressive identity.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "R-C-01",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:33:00.264877Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Moktar Raider\nMana Cost: {1}{R}\nType: Creature -- Moktar Warrior\nRarity: common\nFlavor Text: The moktars don't raid Denethix because they hate civilization. They raid it because the granaries are right there.\nP/T: 2/2\nDesign Notes: Clean red common vanilla. A 2/2 for 2 is the baseline for a common creature -- no frills, just a solid body. P+T=4, CMC+3=5, well within budget. Moktars are a key creature type in the setting as wilderness raiders, making this a natural flavor fit for red's aggressive identity.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "\nMoktar Raider is a straightforward common red creature with clean, focused design. It's a 2/2 vanilla creature for {1}{R}, which matches the established baseline for common creatures (P+T = 4, cost budget of 5). The card has no custom mechanics, no keywords, and no complex interactions—just a solid aggressive body appropriate for red's color identity.\n\nThe flavor is well-integrated: the Moktar creature type fits the post-apocalyptic raider theme, and the text explains that these are pragmatic wilderness raiders rather than ideologically driven antagonists. This adds character without adding complexity.\n\nPower level is on-curve. A 2/2 for two mana is the standard common creature statline (see Grizzly Bears, Ambush Viper, Ash Zealot, etc.). No issues with rate. The design is cleanly in-color for red—aggressive body, no evasion, no tricks.\n\nNo custom mechanics appear, so reminder text is not applicable. No keywords are present that could be negated or made useless. The design has a single clear purpose: be an efficient attacker. There's no kitchen sink problem here.\n\nThis is simple by design, which is entirely appropriate at common. The card serves its archetype function without overreaching.\n",
+        "issues": [],
+        "verdict": "OK"
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2549,
+      "output_tokens": 353,
+      "cost_usd": 0.0034511999999999998,
+      "latency_s": 5.674516677856445
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2549,
+  "total_output_tokens": 353,
+  "total_cost_usd": 0.0034511999999999998,
+  "total_latency_s": 5.674516677856445,
+  "timestamp": "2026-03-14T12:22:26.237558+00:00"
+}

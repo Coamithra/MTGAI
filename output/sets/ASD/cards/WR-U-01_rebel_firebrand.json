@@ -43,8 +43,7 @@
       "error_message": null,
       "validation_errors": [
         "Line 1: \"This permanent\" should use \"~\" or \"this\" only in specific MTG contexts",
-        "Oracle text contains what looks like reminder text: \"(This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\"",
-        "Malfunction already causes the permanent to enter tapped — explicit 'enters tapped' is redundant"
+        "Oracle text contains what looks like reminder text: \"(This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\""
       ],
       "input_tokens": 6275,
       "output_tokens": 501,

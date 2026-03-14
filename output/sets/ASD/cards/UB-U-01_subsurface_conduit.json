@@ -22,8 +22,8 @@
     "Human",
     "Rogue"
   ],
-  "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play them until end of turn.)\\nYou may cast instant and sorcery cards exiled this way until end of your next turn.",
-  "flavor_text": "The deeper shafts pulse with something older than civilization. I can feel it calling to me — and when I listen, knowledge floods in. Terrible, delicious knowledge.",
+  "oracle_text": "When ~ enters, overclock. (Exile the top three cards of your library. You may play cards exiled this way until end of turn.)\nYou may cast instant and sorcery cards you exiled with this ability until end of your next turn.",
+  "flavor_text": "The deeper shafts pulse with something older than civilization. I can feel it calling—and when I listen, knowledge floods in.",
   "reminder_text": null,
   "power": "2",
   "toughness": "2",
@@ -56,7 +56,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "UB signpost uncommon for Deep Descent archetype. Overclock triggers on entry, exiling three cards and allowing instant/sorcery cards to be cast until end of turn. The second ability extends the window to end of next turn, creating a window for flashback-style plays and milling synergy. 2/2 body is clean and efficient at uncommon. Flavor emphasizes the alien knowledge of the Anomalous Subsurface Environment. Signals the archetype's core identity: playing cards from exile, graveyard interaction, and taking calculated risks for powerful effects. No keyword noncombos — enters tapped (via Overclock) is irrelevant to a creature that doesn't tap. The card pays off the archetype's payoffs in Limited: mill matters, exile-to-cast synergies, and instant/sorcery density.",
+  "design_notes": "UB signpost uncommon for Deep Descent archetype. Overclock exiles three cards and allows playing them until end of turn (including lands). The second ability specifically grants an extended window for instant/sorcery cards until end of next turn via 'this ability' phrasing, supporting recursive casting patterns and mill synergy. The 2/2 body is efficient at uncommon. Temporal windows are now explicit: all cards have an initial window (EOT), instants/sorceries have an extended window (end of next turn). Flavor emphasizes alien knowledge of the Anomalous Subsurface.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,
@@ -64,5 +64,5 @@
   "slot_id": "UB-U-01",
   "card_faces": null,
   "created_at": "2026-03-14T00:57:14.147358Z",
-  "updated_at": null
+  "updated_at": "2026-03-14T12:27:57.320512Z"
 }

@@ -1,0 +1,124 @@
+{
+  "collector_number": "B-M-01",
+  "card_name": "Koyl's Reanimated Maw",
+  "rarity": "mythic",
+  "review_tier": "council",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Koyl's Reanimated Maw",
+    "layout": "normal",
+    "mana_cost": "{2}{B}{B}",
+    "mana_cost_parsed": null,
+    "cmc": 4.0,
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "type_line": "Legendary Creature — Horror",
+    "supertypes": [
+      "Legendary"
+    ],
+    "card_types": [
+      "Creature"
+    ],
+    "subtypes": [
+      "Horror"
+    ],
+    "oracle_text": "Deathtouch\\n{2}{B}, {T}: Overclock. (Exile the top three cards of your library. You may play them until end of turn.) Whenever ~ overclocks, each opponent loses 2 life.",
+    "flavor_text": "The Vizier's collection of severed heads grows daily. Most are useful only once. This one... this one keeps talking.",
+    "reminder_text": null,
+    "power": "4",
+    "toughness": "4",
+    "loyalty": null,
+    "collector_number": "B-M-01",
+    "rarity": "mythic",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:56:40.398157Z",
+        "prompt_used": null,
+        "model_used": "claude-haiku-4-5-20251001",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [
+          "Oracle text contains what looks like reminder text: \"(Exile the top three cards of your library. You may play them until end of turn.)\""
+        ],
+        "input_tokens": 5426,
+        "output_tokens": 652,
+        "cost_usd": 0.0069488,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "This card is a black mythic that delivers on the Anomalous Descent theme: a horrific construct piloted by an extracted brain, capable of siphoning knowledge (overclock) and draining life from enemies. At CMC 4 with a 4/4 body and deathtouch, it's efficient and threatening. The repeatable overclock activation ({2}{B}, {T}) is expensive enough to prevent infinite loops while remaining impactful—each activation draws 3 cards and drains 2 life, creating a genuine advantage sink. This fits Koyl Yrenum's grotesque legacy and the set's science-horror aesthetic. Mechanical design respects the overclock cost structure: the reminder text appears on first use, and the triggered drain effect (\"Whenever ~ overclocks\") creates a meaningful reward for the activation. The deathtouch ensures the body matters even without the ability, and the Legendary status makes it a signature card for black control/midrange strategies. Power level: slightly above rate for a 4/4 with deathtouch at mythic, but the overclock activation requires both tapping and paying mana, balancing the threat. Fits the BR (Raider Warbands) and UB (Deep Descent) archetypes, giving black a powerful sink for excess mana in the late game.\"",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "B-M-01",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:56:40.398157Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [],
+  "council_reviews": [
+    {
+      "member_id": 1,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "verdict": "OK",
+        "analysis": "Koyl's Reanimated Maw is a well-designed mythic black creature that delivers meaningfully on the Anomalous Descent theme while respecting MTG templating and balance standards.\n\n**Templating & Oracle Text:**\nThe oracle text is correctly formatted. The reminder text for Overclock appears in parentheses immediately after its first use in the activated ability, following modern MTG conventions. The triggered ability \"Whenever ~ overclocks, each opponent loses 2 life\" correctly uses the keyword to reference the action. The card includes all necessary elements: keyword (Deathtouch), activated ability with cost and effect, triggered ability, and power/toughness.\n\n**Mechanics & Interactions:**\nThere are no nonbos or negated keywords. Deathtouch meaningfully applies to the 4/4 body even when the overclock ability isn't activated, ensuring the creature is a threat both as a beater and as a mana sink. The triggered ability fires whenever the overclock action resolves, creating a consistent reward structure: {2}{B} and a tap equals 3 exiled cards, the option to play them, and 2 life drain.\n\n**Keyword Collision:**\nThe Overclock keyword is correct and distinct from the existing MTG keyword Overload (Return to Ravnica). No collision.\n\n**Balance & Power Level:**\nAt CMC 4, a 4/4 with deathtouch is on-rate for a mythic, comparable to cards like Vampire Nighthawk (though Nighthawk is uncommon). The overclock activation is appropriately costed: {2}{B} plus tapping prevents abuse, and the cost scales with the benefit (3 cards drawn + potential life drain). This is not above-rate for mythic; the activation requires both mana and a tap, preventing infinite loops and keeping the card balanced. The life drain trigger adds value without breaking the cost structure—it's a secondary benefit, not the primary draw. Compared to other mythic mana sinks like Necrogenesis or similar late-game engines, this is appropriately powered.\n\n**Design Cohesion:**\nThe card has a focused mechanical purpose: it's a repeatable card advantage engine that punishes opponents. It doesn't try to do too many unrelated things—deathtouch + overclock activation + triggered drain all reinforce the \"horrific construct\" identity. The life drain thematically connects to black's desire to drain life, and the overclock ability ties into blue's card selection/exile mechanics in a black frame. No kitchen sink issues.\n\n**Variability:**\nThe variability in this card is real. The \"play them until end of turn\" clause depends on what cards are exiled, creating genuine unpredictability in outcomes. The life drain is fixed at 2 per activation, but that's appropriate for a consistent reward. The card selection via overclock naturally creates variance.\n\n**Color Pie:**\nBlack getting a repeatable card advantage engine through exile + drain is solid color pie. Blue is tertiary in Overclock (noted in the mechanic), and black is an appropriate primary color for a reanimation-themed creature. The deathtouch fits black's creature removal/evasion suite.\n\n**Minor Notes:**\nThe flavor text and design notes are excellent, grounding the card in the set's narrative. The reminder text for Overclock is present and correctly formatted on first use. All required fields are properly filled.",
+        "issues": []
+      },
+      "input_tokens": 2688,
+      "output_tokens": 830,
+      "cost_usd": 0.005470399999999999
+    },
+    {
+      "member_id": 2,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "Koyl's Reanimated Maw is a legendary black mythic with strong thematic cohesion and a clear mechanical identity. The card combines a 4/4 deathtouch body with a repeatable overclock activation that generates value while draining opponents.\n\n**Templating & Oracle Text:**\nThe oracle text is correctly formatted. The reminder text for Overclock is properly included on its first use (in the activated ability). The templating \"Whenever ~ overclocks\" correctly uses the keyword as a trigger condition. The card references the custom mechanic unambiguously.\n\n**Mechanics & Interactions:**\n- Deathtouch on a 4/4 is a reasonable keyword—it makes the body relevant both as a blocker and as a threat that demands removal.\n- The overclock activation is appropriately costed at {2}{B}, {T}: it's expensive enough to prevent rapid-fire draws while remaining impactful in the late game.\n- The triggered drain (each opponent loses 2 life) creates meaningful synergy with the activation, rewarding repeated use and tying into black's life-drain theme.\n- No keyword negation issues: deathtouch is relevant, and the tap requirement makes sense for an activated ability.\n\n**Balance & Power Level:**\nComparing to similar mythic creatures: A 4/4 with deathtouch at CMC 4 is slightly efficient (e.g., Quag Vampires is 4/4 for {2}{B}{B} but without deathtouch). However, the repeatable activated ability mitigates power concerns. The ability costs {2}{B} and a tap, meaning it can activate roughly once per two turns in the late game (if you're maintaining mana). Each activation nets 3 cards exiled and 2 life drain—significant but not broken. Comparing to Bog Witch (a repeatable black creature ability), this is appropriately powerful for mythic.\n\n**Design Quality:**\n- **Focused purpose:** The card is a mid-range/control finisher that generates card advantage and life drain. No kitchen sink—all abilities serve the vampire/horror drain archetype.\n- **Real variability:** The exiled cards create genuine variability (which 3 cards are on top), though the life drain is fixed at 2. This is acceptable—variability exists in which cards become playable.\n- **Thematic fit:** Excellent thematic alignment with the \"severed brain piloting a creature\" flavor, the science-horror setting, and black's identity.\n\n**Color Pie:**\n- Deathtouch: Black. ✓\n- Card exiling/playing: Blue primary, but black can secondary (see Living Death themes). The exile-and-play effect here is acceptable in black as part of a self-mill/reanimation subtheme.\n- Life drain: Black. ✓\n- Activation cost: {2}{B} is solid black mana. ✓\n\n**Issues Found:**\nNone. The card is well-templated, balanced, and thematically coherent. The reminder text is present for Overclock. No keywords are negated or redundant. No collision with existing mechanics. The power level is appropriate for mythic.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2688,
+      "output_tokens": 788,
+      "cost_usd": 0.0053024
+    },
+    {
+      "member_id": 3,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "\nKoyl's Reanimated Maw is a black mythic creature that combines a solid efficient body (4/4 with deathtouch for 4 mana) with a repeatable Overclock activation. Let me analyze each dimension:\n\n**Templating & Custom Mechanics:**\nThe card correctly uses \"Overclock\" as a keyword action followed by reminder text in parentheses: \"(Exile the top three cards of your library. You may play them until end of turn.)\" This is the first appearance of Overclock in the set, so reminder text is required and present. The triggered ability \"Whenever ~ overclocks, each opponent loses 2 life\" correctly references the keyword using standard templating (~ for self-reference, proper capitalization). The oracle text is clean and follows MTG conventions.\n\n**Mechanical Interaction:**\nThe card has no negated keywords. Deathtouch on a 4/4 is always relevant. The Overclock activation is conditional on tapping and paying {2}{B}, which is appropriate for a repeatable effect. The \"Whenever ~ overclocks\" trigger creates genuine gameplay: each activation provides both card advantage (3 cards) and life drain (2 life), making this a powerful mana sink in the late game.\n\n**Balance:**\nAt CMC 4, this is efficient for the baseline body alone—4/4 with deathtouch is very solid. The repeatable activation adds significant power, but the costs are real: {2}{B} + tapping the creature means you can't attack while activating, and the mana requirement prevents spamming. Comparing to similar mythics: Korlash, Heir to Blackblade (4/3 for 4BB with regeneration and search) or Grave Titan (6/6 for 5BB with token generation) shows this is appropriately costed. The life drain on top of card advantage is powerful, but manageable given the activation costs. The card rewards long games and is a legitimate win condition if left unchecked, which is appropriate for mythic. Power level is slightly above rate but justified by the complexity of the mechanic and mythic rarity.\n\n**Design & Flavor:**\nThe design is focused: a reanimated construct that \"thinks\" via card exile and siphons life as it does so. The flavor text and design notes align perfectly with the character (Koyl Yrenum's severed head collection) and the set's post-apocalyptic megadungeon theme. This is not a kitchen sink—every ability serves the core purpose of a dangerous, parasitic creature. The Legendary status adds to the signature piece feel.\n\n**Color Pie:**\nBlack's use of Overclock here fits the design notes: the ability exiles cards (black's access to library manipulation is tertiary, but this is a custom mechanic) and the life drain effect is quintessentially black. The combination is cohesive.\n\n**Variability:**\nThe Overclock activation always exiles exactly 3 cards and always triggers the drain exactly once per activation. This is not false variability—it's a fixed effect that the player controls by choosing when to activate. The variability comes from what cards are exiled (real) and the life total management around it (real).\n\n**Custom Mechanic Collision:**\nNo collision with existing MTG keywords. \"Overclock\" is custom to this set and distinct from \"Overload\" (which affects casting costs for modal spells) as noted in the mechanic design notes.\n\n**Minor Validator Warning:**\nThe auto-validator flagged reminder text as being in the oracle text, which is expected and correct for a custom mechanic's first use. This is not an issue.\n\nOverall, this is a well-designed, properly templated mythic that delivers on theme, mechanics, and power level.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2688,
+      "output_tokens": 918,
+      "cost_usd": 0.005822399999999999
+    }
+  ],
+  "total_input_tokens": 8064,
+  "total_output_tokens": 2536,
+  "total_cost_usd": 0.016595199999999997,
+  "total_latency_s": 31.41152787208557,
+  "timestamp": "2026-03-14T12:17:59.485116+00:00"
+}

@@ -1,0 +1,80 @@
+{
+  "collector_number": "L-06",
+  "card_name": "Descent Waypoint",
+  "rarity": "common",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Descent Waypoint",
+    "layout": "normal",
+    "mana_cost": null,
+    "mana_cost_parsed": null,
+    "cmc": 0.0,
+    "colors": [],
+    "color_identity": [
+      "W",
+      "U"
+    ],
+    "type_line": "Land",
+    "supertypes": [],
+    "card_types": [
+      "Land"
+    ],
+    "subtypes": [],
+    "oracle_text": "Descent Waypoint enters the battlefield tapped.\n{T}: Add {W} or {U}.",
+    "flavor_text": "Adventurers mark the safest routes deeper into the Anomalous Subsurface Environment, though 'safe' is a relative term.",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "L-06",
+    "rarity": "common",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Nonbasic fixing land designed by Haiku",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": null,
+    "card_faces": null,
+    "created_at": "2026-03-13T20:12:45.361954Z",
+    "updated_at": "2026-03-13T20:12:45.361954Z"
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Descent Waypoint\nMana Cost: None\nType: Land\nRarity: common\nOracle Text: Descent Waypoint enters the battlefield tapped.\n{T}: Add {W} or {U}.\nFlavor Text: Adventurers mark the safest routes deeper into the Anomalous Subsurface Environment, though 'safe' is a relative term.\nDesign Notes: Nonbasic fixing land designed by Haiku\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "verdict": "OK",
+        "analysis": "Descent Waypoint is a straightforward nonbasic dual land designed for the WU color pair in the set. It enters tapped and produces either white or blue mana, which is appropriate for a common fixing land in a 60-card set.\n\n**Templating & Oracle Text:** The card follows standard MTG templating for lands. \"Enters the battlefield tapped\" is clear and correct. The mana ability {T}: Add {W} or {U} uses modern templating (choice templating rather than separate modes).\n\n**Balance:** At common rarity, this is appropriately costed. Comparing to similar common fixing lands (e.g., basic dual lands from various sets that enter tapped), this is on-rate or slightly worse, which is correct for a nonbasic. The tempo cost of entering tapped is meaningful early game, and at common, that's an appropriate drawback.\n\n**Design Quality:** The card has a focused purpose: provide color fixing for the WU draft archetype while applying a tempo penalty. It's not a kitchen sink card — it does one thing well. The flavor text ties it to the set's megadungeon theme nicely.\n\n**Keyword Interactions:** There are no custom mechanics on this card, so no Salvage/Malfunction/Overclock interactions to check.\n\n**Enters Tapped Relevance:** This is a land with a tap ability, so \"enters tapped\" is mechanically relevant — it delays the mana production by one turn. This is appropriate and not a nonbo.\n\n**Color Pie:** White-Blue fixing is firmly within color pie. The colors match the design notes' intent.\n\nNo issues detected.",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2730,
+      "output_tokens": 432,
+      "cost_usd": 0.003912,
+      "latency_s": 5.484745979309082
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2730,
+  "total_output_tokens": 432,
+  "total_cost_usd": 0.003912,
+  "total_latency_s": 5.484745979309082,
+  "timestamp": "2026-03-14T12:22:20.561040+00:00"
+}

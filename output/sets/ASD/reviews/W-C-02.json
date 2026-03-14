@@ -1,0 +1,102 @@
+{
+  "collector_number": "W-C-02",
+  "card_name": "Fault-Trained Sentinel",
+  "rarity": "common",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Fault-Trained Sentinel",
+    "layout": "normal",
+    "mana_cost": "{1}{W}",
+    "mana_cost_parsed": null,
+    "cmc": 2.0,
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "type_line": "Creature — Human Soldier",
+    "supertypes": [],
+    "card_types": [
+      "Creature"
+    ],
+    "subtypes": [
+      "Human",
+      "Soldier"
+    ],
+    "oracle_text": "Vigilance\\nMalfunction 1 (This permanent enters tapped with one malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.).",
+    "flavor_text": "A sentinel who can't move is no sentinel at all—until it learns from the failure.",
+    "reminder_text": null,
+    "power": "2",
+    "toughness": "3",
+    "loyalty": null,
+    "collector_number": "W-C-02",
+    "rarity": "common",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:57:20.687189Z",
+        "prompt_used": null,
+        "model_used": "claude-haiku-4-5-20251001",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [
+          "Line 1: \"This permanent\" should use \"~\" or \"this\" only in specific MTG contexts",
+          "Oracle text contains what looks like reminder text: \"(This permanent enters tapped with one malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)\"",
+          "Power 2 + Toughness 3 = 5 on a CMC 2.0 common creature exceeds P+T <= CMC+2 guideline"
+        ],
+        "input_tokens": 5931,
+        "output_tokens": 525,
+        "cost_usd": 0.0068448,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "White common creature at CMC 2 with Malfunction 1 as requested. Stats of 2/3 are above-rate for the cost (P+T = 5, which would normally be CMC+3 = 5 for a 2-mana common), justified by the enters-tapped tempo cost of Malfunction 1. Vigilance synergizes perfectly with enters tapped—the creature can block immediately without needing to untap, and after a turn cycle the malfunction counter is removed, unlocking the creature for attacks. This creates meaningful gameplay: the card provides early defense despite the tempo penalty. Single keyword ability (vigilance) + one mechanic keyword (Malfunction), respecting common complexity. Fits WR (Spark Rebellion) draft archetype as a defensive early play and WU (Ancient Technology) as a utility creature that works around the malfunction tempo cost. Flavor text is deadpan and on-brand for the setting.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "W-C-02",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:57:20.687189Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n\n---\n\n## Card to Review\n\nName: Fault-Trained Sentinel\nMana Cost: {1}{W}\nType: Creature — Human Soldier\nRarity: common\nOracle Text: Vigilance\\nMalfunction 1 (This permanent enters tapped with one malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.).\nFlavor Text: A sentinel who can't move is no sentinel at all—until it learns from the failure.\nP/T: 2/3\nDesign Notes: White common creature at CMC 2 with Malfunction 1 as requested. Stats of 2/3 are above-rate for the cost (P+T = 5, which would normally be CMC+3 = 5 for a 2-mana common), justified by the enters-tapped tempo cost of Malfunction 1. Vigilance synergizes perfectly with enters tapped—the creature can block immediately without needing to untap, and after a turn cycle the malfunction counter is removed, unlocking the creature for attacks. This creates meaningful gameplay: the card provides early defense despite the tempo penalty. Single keyword ability (vigilance) + one mechanic keyword (Malfunction), respecting common complexity. Fits WR (Spark Rebellion) draft archetype as a defensive early play and WU (Ancient Technology) as a utility creature that works around the malfunction tempo cost. Flavor text is deadpan and on-brand for the setting.\nValidation Warnings (from auto-validator):\n  - Line 1: \"This permanent\" should use \"~\" or \"this\" only in specific MTG contexts\n  - Oracle text contains what looks like reminder text: \"(This permanent enters tapped with one malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.)\"\n  - Power 2 + Toughness 3 = 5 on a CMC 2.0 common creature exceeds P+T <= CMC+2 guideline\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "\nFault-Trained Sentinel is a thoughtfully designed white common that successfully integrates Malfunction 1 with Vigilance. The card demonstrates strong mechanical synergy: entering tapped is normally a significant tempo cost, but Vigilance allows the creature to fulfill its defensive role immediately while the malfunction counter counts down, creating meaningful gameplay with a clear payoff.\n\n**Templating & Oracle Text:**\nThe card uses correct modern templating. The Malfunction keyword appears with full reminder text as required for its first use in the set. The reminder text itself is templated correctly: it describes what happens when the permanent enters (enters tapped with N counters) and the upkeep trigger that removes them. While the auto-validator flagged the phrase \"This permanent,\" this is actually correct MTG templating for reminder text—reminder text consistently uses \"this\" to refer to the object, not the tilde (~).\n\n**Balance & Power Level:**\nAt CMC 2, this is a 2/3 creature with Vigilance and Malfunction 1. The P+T sum of 5 exceeds the CMC+2 guideline (which would cap it at 4), but this is explicitly justified in the design notes: Malfunction IS the drawback. The creature enters tapped, losing a turn of attacking. This is equivalent to the tempo cost of cards like Siege Rhino or other delayed-entry creatures. For comparison, {1}{W} creatures in printed sets typically range from 2/2 vanilla (efficient) to 1/2-2/1 with keywords. A 2/3 with delayed attacking but immediate blocking capability is reasonable once you account for the enters-tapped tax. Vigilance on a tapped creature is not wasted—it's a clean interface that lets the creature block while untapped, then attack once the counter clears.\n\n**Design Quality:**\nThe card has a focused purpose: an early blocker that scales into a decent threat after the malfunction counter resolves. The single keyword (Vigilance) + one mechanic keyword (Malfunction) respects common complexity. The flavor text is excellent and thematic: \"A sentinel who can't move is no sentinel at all—until it learns from the failure\" perfectly encapsulates the gameplay (can't attack initially, but can block, and eventually untaps). There is no kitchen sink—no extraneous abilities or effects.\n\n**Keyword Interactions:**\nVigilance + enters tapped: NOT a nonbo. This is actually a feature. A tapped creature can still block on turn 1, so Vigilance isn't wasted. The creature can attack once Malfunction is resolved. The interaction is clean and useful.\n\n**Color Pie:**\nWhite is the correct color. White has Vigilance (flying defense, go-wide themes) and white has taken small efficiency hits in recent years (sees \"enters tapped\" effects). The temporal delay of Malfunction fits white's theme of order and learning. No color pie issues.\n\n**Reminder Text:**\nPresent and correct. This is the first appearance of Malfunction in the set, so reminder text is required and provided.\n\n**Variability:**\nNot applicable—no conditional abilities or variable effects.\n\n**Enters Tapped Relevance:**\nThis is a creature, so enters tapped is mechanically meaningful: it prevents attacking on the turn it enters, which is a real cost. Combined with Malfunction's counter-removal trigger, the enters-tapped duration is tied to the malfunction mechanic and creates a design space where Vigilance becomes a relevant bonus. No issue here.\n\nThe auto-validator's warnings are false positives: the \"This permanent\" phrasing is correct for reminder text, and the P+T sum exceeding CMC+2 is explicitly acceptable for a Malfunction card where the delay is the primary drawback. The card is well-designed, correctly templated, and appropriately balanced.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2887,
+      "output_tokens": 932,
+      "cost_usd": 0.006037600000000001,
+      "latency_s": 12.31422233581543
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2887,
+  "total_output_tokens": 932,
+  "total_cost_usd": 0.006037600000000001,
+  "total_latency_s": 12.31422233581543,
+  "timestamp": "2026-03-14T12:28:14.174661+00:00"
+}

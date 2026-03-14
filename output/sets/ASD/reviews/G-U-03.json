@@ -1,0 +1,93 @@
+{
+  "collector_number": "G-U-03",
+  "card_name": "Law of the Wilderness",
+  "rarity": "uncommon",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Law of the Wilderness",
+    "layout": "normal",
+    "mana_cost": "{5}{G}{G}",
+    "mana_cost_parsed": null,
+    "cmc": 7.0,
+    "colors": [
+      "G"
+    ],
+    "color_identity": [
+      "G"
+    ],
+    "type_line": "Enchantment",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "When ~ enters, destroy all artifacts and enchantments other than ~.\nCreatures you control get +2/+2 and have trample.\nWhenever an artifact or enchantment an opponent controls is put into a graveyard from the battlefield, create a 3/3 green Dinosaur creature token.",
+    "flavor_text": "Civilization is a brief interruption.",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "G-U-03",
+    "rarity": "uncommon",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:32:31.446482Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 1048,
+        "output_tokens": 361,
+        "cost_usd": 0.0428175,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "A splashy uncommon finisher at CMC 7 that captures green's philosophy of nature reclaiming technology. The ETB is a green-appropriate Shatterstorm/Tranquility hybrid. The anthem + trample is a classic green payoff for going wide. The token creation punishes opponents who try to rebuild with artifacts/enchantments after the sweep. At 7 mana this is a draft-viable top-end bomb that's powerful but appropriately costed. All three abilities are thematically unified: nature destroys civilization, empowers creatures, and grows from the ruins.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "G-U-03",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:32:31.446482Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n\n---\n\n## Card to Review\n\nName: Law of the Wilderness\nMana Cost: {5}{G}{G}\nType: Enchantment\nRarity: uncommon\nOracle Text: When ~ enters, destroy all artifacts and enchantments other than ~.\nCreatures you control get +2/+2 and have trample.\nWhenever an artifact or enchantment an opponent controls is put into a graveyard from the battlefield, create a 3/3 green Dinosaur creature token.\nFlavor Text: Civilization is a brief interruption.\nDesign Notes: A splashy uncommon finisher at CMC 7 that captures green's philosophy of nature reclaiming technology. The ETB is a green-appropriate Shatterstorm/Tranquility hybrid. The anthem + trample is a classic green payoff for going wide. The token creation punishes opponents who try to rebuild with artifacts/enchantments after the sweep. At 7 mana this is a draft-viable top-end bomb that's powerful but appropriately costed. All three abilities are thematically unified: nature destroys civilization, empowers creatures, and grows from the ruins.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "Law of the Wilderness is a thematically strong uncommon finisher that captures green's philosophy of reclaiming the world from artifice. The card has three distinct but coherent abilities:\n\n1. **ETB effect**: Destroy all artifacts and enchantments other than itself. This is appropriately on-color for green (which has access to artifact/enchantment destruction, though traditionally more via creatures) and serves as the \"reset button\" that clears the board of opposing permanents.\n\n2. **Anthem effect**: +2/+2 and trample to creatures you control. This is classic green payoff and works well with go-wide strategies.\n\n3. **Token generation**: Creates 3/3 Dinosaur tokens whenever an opponent's artifact or enchantment goes to the graveyard. This incentivizes opponents to play around the card and rewards you if they do rebuild.\n\n**Templating & Mechanics**: Oracle text is clean and correctly formatted. The ETB effect uses \"other than ~\" which is correct modern templating for \"other than this permanent.\" No custom mechanics are present, so no reminder text is needed.\n\n**Balance**: At CMC 7, this is appropriately costed for an uncommon. It's powerful but requires setup and time to come online. Comparable cards:\n- Tranquility (3G, WotC) destroys all enchantments for 4 mana\n- Shatterstorm (2R, WotC) destroys all artifacts for 3 mana\n- This combines both effects + anthem + token generation for 7 total. The power level is reasonable for the cost and conditional nature (requires you to have creatures, requires opponents to have permanents to destroy post-ETB).\n\nThe token generation scales based on opponent play patterns, creating interactive decision points. This is appropriate variation, not false variability.\n\n**Design Quality**: The card is focused on a coherent theme: green reclaiming the world from technology. While it has multiple abilities, they all serve this unified purpose rather than being a kitchen sink pile of unrelated effects.\n\n**Color Pie**: All abilities are on-color for green. Green can destroy artifacts and enchantments (especially as an ETB effect, Titania's Song, Reclamation Sage variants). +2/+2 and trample are classic green. Dinosaur token generation is in-color. No issues.\n\n**Interactions**: No keyword negation, no problematic nonbos. The ETB destroying permanents sets up the anthem to be more impactful by clearing opposing blockers.\n\n**Miscellaneous**: No custom mechanics, so no collision issues. No irrelevant \"enters tapped\" or similar. The card is clean.\n\nOverall, this is a well-designed, thematically unified, and appropriately balanced uncommon finisher.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2500,
+      "output_tokens": 688,
+      "cost_usd": 0.004752,
+      "latency_s": 9.37266230583191
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2500,
+  "total_output_tokens": 688,
+  "total_cost_usd": 0.004752,
+  "total_latency_s": 9.37266230583191,
+  "timestamp": "2026-03-14T12:22:15.076294+00:00"
+}

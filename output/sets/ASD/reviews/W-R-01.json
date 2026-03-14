@@ -1,0 +1,118 @@
+{
+  "collector_number": "W-R-01",
+  "card_name": "Cult Relic-Bearer",
+  "rarity": "rare",
+  "review_tier": "council",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Cult Relic-Bearer",
+    "layout": "normal",
+    "mana_cost": "{W}",
+    "mana_cost_parsed": null,
+    "cmc": 1.0,
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "type_line": "Creature -- Human Cleric",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "Whenever you cast an artifact spell, ~ gets +1/+0 and gains vigilance until end of turn.\n{2}{W}, {T}, Sacrifice ~: Salvage 5. (Look at the top five cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.).",
+    "flavor_text": "\"Every relic is a prayer answered by the ancients.\"",
+    "reminder_text": null,
+    "power": "1",
+    "toughness": "2",
+    "loyalty": null,
+    "collector_number": "W-R-01",
+    "rarity": "rare",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:36:02.233622Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [
+          "Oracle text contains what looks like reminder text: \"(Look at the top five cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+        ],
+        "input_tokens": 1080,
+        "output_tokens": 365,
+        "cost_usd": 0.043578,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "White rare at CMC 1. A 1/2 for W is fair baseline. The artifact-cast trigger gives it early relevance in artifact-heavy decks as an aggressive body that gains vigilance. The sacrifice ability provides a late-game option -- pay 3 total mana, tap and sac to salvage 5, which is deep digging for a 1-drop. The sacrifice cost ensures it's a one-shot effect and creates tension between keeping the body and cashing it in. Salvage 5 at rare is within the scaling guidelines. Supports WU artifacts archetype.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "W-R-01",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:36:02.233622Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [],
+  "council_reviews": [
+    {
+      "member_id": 1,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "\nCult Relic-Bearer is a well-designed rare that sits at the intersection of multiple ASD themes. Let me analyze it systematically:\n\n**Templating & Mechanics:**\nThe oracle text is clean and correct. The Salvage keyword appears with full reminder text on first use, which is appropriate. The artifact-cast trigger is standard templating. The sacrifice ability cleanly separates the two modes: triggered effect and activated effect.\n\n**Balance Analysis:**\nAt {W}, this is a 1/2 baseline creature, which is fair (comparable to creatures like Thalia, Guardian of Thraben at the same cost with different upsides). The triggered ability (+1/+0 + vigilance) provides scaling in artifact-heavy decks, turning the small body into a threat in the right context. In non-artifact decks, it's a modest 1/2 cleric—not a bomb, not unplayable.\n\nThe sacrifice ability costs {2}{W} + tap + sacrifice = 3 total mana in addition to the creature itself. This is reasonable for Salvage 5 at rare, which is within the stated scaling (6+ at rare/mythic, so 5 is slightly conservative). The cost creates real tension: you're sacrificing a creature that's just starting to come online if you cast artifacts, making this a late-game value outlet rather than an early finisher.\n\nThis is NOT overrate-unbalanced. The creature is small, its trigger requires artifact support, and its cash-in cost is meaningful.\n\n**Design Quality:**\nFocused: The card has two purposes that align—it cares about artifacts via the trigger, and it tutors artifacts via the sacrifice ability. This is synergistic, not kitchen sink.\nVariability: The trigger effect is consistent (whenever you cast an artifact), and the sacrifice ability is deterministic (Salvage 5). Both are real, not false variability.\n\n**Color Pie:**\nWhite Cleric casting artifacts and caring about artifacts is on-pie (white gets artifact support, especially in recent years). White tutoring from library is unusual but acceptable when restricted to artifacts (white can search for artifacts in white's identity). Vigilance is white (combat evasion). The sacrifice outlet is white-acceptable in a set context. No color pie violation.\n\n**Custom Mechanics:**\nSalvage appears with full reminder text as required for first use. No collision with existing keywords (Salvage vs. Scavenge). Reminder text matches the custom mechanics definition provided.\n\n**Keyword Negation Check:**\nNo keywords are negated. Vigilance is gainable only after the creature is already a threat (via artifact cast), so there's no \"vigilance on a defender\" situation.\n\n**Conditional Check:**\nThe card has no \"if you X this turn\" conditionals, so this is not applicable.\n\n**Enters Tapped Check:**\nThe card has no enters tapped effect, so this is not applicable.\n\n**Validation Warning:**\nThe auto-validator flagged reminder text in the oracle text. This is expected and correct—the Salvage keyword REQUIRES reminder text on first appearance. The validator is likely checking for compliance with custom mechanic definitions, and this is a non-issue.\n\n**Conclusion:**\nThis is a solid, well-constructed rare that serves the set's themes. It has clear purpose, appropriate power level, good templating, and no mechanical issues. The card works in artifact-heavy decks as both a scaling threat and a late-game value engine, without being oppressive in limited or constructed contexts.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2775,
+      "output_tokens": 855,
+      "cost_usd": 0.00564
+    },
+    {
+      "member_id": 2,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "\nThis is a well-designed rare that supports the WU artifacts archetype. Let me evaluate it systematically:\n\n**Templating & Custom Mechanics:**\nSalvage 5 is correctly templated with reminder text on its first appearance on this card. The reminder text is complete and uses modern MTG templating conventions (imperative mood, proper comma usage).\n\n**Mana Cost & Power Level:**\nAt {W} (CMC 1), the baseline 1/2 body is fair for white. The card has two meaningful abilities:\n1. A cast trigger that provides aggressive scaling in artifact-heavy decks (vigilance is valuable, +1/+0 matters)\n2. A sacrifice outlet that generates card advantage late game\n\nThis is appropriately costed for rare. The first ability isn't a nonbo with the sacrifice outlet—you have meaningful tension between attacking and sacrificing for value, which is good design. For comparison, creatures like **Recruitment Officer** (WW, 1/1, artifact-cast synergy) and **Puresteel Paladin** (WW, 1/2, artifact trigger with value) show similar designs exist at similar power levels.\n\n**Balance & Drawbacks:**\n- The creature is vulnerable (1/2) and dies to common pingers, which limits its clock\n- The sacrifice ability requires investment ({2}{W} + tap), making it a deliberate choice rather than mandatory value\n- Salvage 5 at rare is within the stated scaling guidelines (6+ at rare/mythic)\n- No obvious brokenness with existing mechanics\n\n**Design Coherence:**\nThe card has laser-focused purpose: it's a cost-efficient WU artifacts enabler that scales with artifact density and offers a late-game mana sink. Not a kitchen sink—both abilities feed the same archetype goal.\n\n**Keyword Interactions:**\nNo negations detected. There are no irrelevant keywords or mechanical conflicts. Vigilance from the trigger doesn't conflict with any other ability.\n\n**Color Pie:**\nWhite getting {T}, sacrifice, and tutoring effects (via Salvage) is appropriate. Salvage is explicitly multicolor (W/U/G per mechanics doc), and white having access to artifact tuning is well-established (see Stoneforge Mystic, Puresteel Paladin).\n\n**Issues Identified:**\nNone. The card is correctly templated, well-balanced for rare, supports its intended archetype, and has clear gameplay purpose.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2775,
+      "output_tokens": 618,
+      "cost_usd": 0.004692
+    },
+    {
+      "member_id": 3,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "Cult Relic-Bearer is a well-designed white rare that cohesively supports the WU artifacts archetype without overreaching. Let me address the validation warning and check all design axes:\n\n**Templating & Reminder Text:**\nThe card correctly includes reminder text for Salvage on its first appearance. This is appropriate and necessary for a custom mechanic. The validator's warning is a false positive—reminder text in oracle text is correct for custom keywords, especially at rare where many players may not be familiar with the mechanic yet.\n\n**Mechanical Cohesion:**\nThe card has two related but distinct abilities:\n1. A triggered ability that rewards casting artifacts (thematic for the WU archetype)\n2. A sacrifice outlet that uses Salvage to dig for more artifacts\n\nThese aren't unrelated—they both encourage and reward artifact-casting gameplay. The trigger gives the creature offensive utility (vigilance bypasses the sacrifice outlet later), while the outlet provides late-game value. This is focused design, not kitchen-sink.\n\n**Balance:**\nA 1/2 for {W} is a fair baseline for a white rare. The triggered ability is conditional on casting artifact spells—relevant in limited's artifact-dense decks but easily blanked in non-artifact strategies. Vigilance is the payoff here, enabling attacking without sacrificing tempo. The sacrifice outlet costs {2}{W} plus tap plus the creature itself, totaling 3 mana for Salvage 5. Per the design notes, Salvage 5 at rare is within scaling guidelines (6+ at rare/mythic). This is a reasonable rate for deep digging in limited, especially as a late-game option after getting value from the creature's attack trigger. The creature must be sacrificed (not just tapped), creating meaningful tension: you give up the persistent vigilance trigger to cash in. This is appropriate for a rare.\n\n**Color Pie:**\nWhite is correct here. White can cast creatures and get temporary combat effects (vigilance), and white has long supported artifact strategies (see Stoneforge Mystic, Puremage Veteran, etc.). The Salvage ability (looking at library, filtering for artifacts) is within white's toolbox—white can tutor artifacts in limited contexts.\n\n**Keyword Interactions:**\nNo problematic keyword negations. The creature doesn't have any inherent drawbacks that conflict with its abilities.\n\n**Custom Mechanic Integrity:**\nSalvage is correctly presented with reminder text, maintaining the custom mechanic's integrity.\n\nNo real issues here. The card is clean, focused, and balanced for rare limited play.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2775,
+      "output_tokens": 638,
+      "cost_usd": 0.004772
+    }
+  ],
+  "total_input_tokens": 8325,
+  "total_output_tokens": 2111,
+  "total_cost_usd": 0.015104000000000001,
+  "total_latency_s": 26.973177671432495,
+  "timestamp": "2026-03-14T12:29:22.290297+00:00"
+}

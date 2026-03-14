@@ -35,8 +35,6 @@
       "success": true,
       "error_message": null,
       "validation_errors": [
-        "Non-creature card has power and/or toughness set",
-        "Card has power/toughness but 'Creature' is not in card_types",
         "Oracle text contains what looks like reminder text: \"(Look at the top four cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
       ],
       "input_tokens": 1080,

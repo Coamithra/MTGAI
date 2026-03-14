@@ -1,0 +1,98 @@
+{
+  "collector_number": "U-U-01",
+  "card_name": "Flickerfield Operative",
+  "rarity": "uncommon",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Flickerfield Operative",
+    "layout": "normal",
+    "mana_cost": "{U}",
+    "mana_cost_parsed": null,
+    "cmc": 1.0,
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "type_line": "Creature — Human Rogue",
+    "supertypes": [],
+    "card_types": [
+      "Creature"
+    ],
+    "subtypes": [
+      "Human",
+      "Rogue"
+    ],
+    "oracle_text": "When ~ enters, scry 2.",
+    "flavor_text": "\"The first level is mapped. The second level is mapped differently every time.\"",
+    "reminder_text": null,
+    "power": "1",
+    "toughness": "1",
+    "loyalty": null,
+    "collector_number": "U-U-01",
+    "rarity": "uncommon",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:41:24.335426Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 1174,
+        "output_tokens": 363,
+        "cost_usd": 0.04485,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Clean blue 1-drop uncommon. A 1/1 for U with scry 2 on ETB is a solid but not overpowered value creature — comparable to Opt stapled to a 1/1 body without the card draw. Scry 2 is meaningful card selection that supports blue's identity without breaking common power budgets. Good enabler for artifact-matters strategies since it helps find key pieces. Simple enough for uncommon but slightly above common power level due to the scry 2 value.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "U-U-01",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:41:24.335426Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Flickerfield Operative\nMana Cost: {U}\nType: Creature — Human Rogue\nRarity: uncommon\nOracle Text: When ~ enters, scry 2.\nFlavor Text: \"The first level is mapped. The second level is mapped differently every time.\"\nP/T: 1/1\nDesign Notes: Clean blue 1-drop uncommon. A 1/1 for U with scry 2 on ETB is a solid but not overpowered value creature — comparable to Opt stapled to a 1/1 body without the card draw. Scry 2 is meaningful card selection that supports blue's identity without breaking common power budgets. Good enabler for artifact-matters strategies since it helps find key pieces. Simple enough for uncommon but slightly above common power level due to the scry 2 value.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "Flickerfield Operative is a clean blue 1-drop uncommon with scry 2 on entry. The card is straightforward in design and execution: a 1/1 body paired with a cantrip-like effect. This is well within blue's slice of the color pie (selection and information advantage). \n\nComparing to printed precedent: Scry as a standalone mechanic at common/uncommon (like Opt) costs 1U for the spell alone. Here we get it stapled to a 1/1 creature for U, which is definitely above the rate of a bare scry-only card, but the 1/1 body is fragile and scry 2 (not scry 1, not draw) is limited. The card is reasonably costed for uncommon without being oppressive. It supports blue's broader strategy in the limited environment while serving as an enabler for artifact-focused synergies (helping find key pieces).\n\nTemplating is correct: \"When ~ enters, scry 2\" uses modern wording (ETB trigger with basic action). No custom mechanics appear, so reminder text requirements don't apply. Power level is slightly above common but appropriate for uncommon — comparable to printed cards like Portent or similar cantrip-creatures.\n\nNo nonbos or mechanical conflicts. No kitchen sink design (single coherent effect). The card does exactly what it says.",
+        "issues": [],
+        "verdict": "OK"
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2823,
+      "output_tokens": 373,
+      "cost_usd": 0.0037504,
+      "latency_s": 5.001415014266968
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2823,
+  "total_output_tokens": 373,
+  "total_cost_usd": 0.0037504,
+  "total_latency_s": 5.001415014266968,
+  "timestamp": "2026-03-14T12:26:50.713634+00:00"
+}

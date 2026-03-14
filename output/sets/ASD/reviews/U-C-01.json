@@ -1,0 +1,93 @@
+{
+  "collector_number": "U-C-01",
+  "card_name": "Subsurface Surveyor",
+  "rarity": "common",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Subsurface Surveyor",
+    "layout": "normal",
+    "mana_cost": "{U}",
+    "mana_cost_parsed": null,
+    "cmc": 1.0,
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "type_line": "Creature -- Human Scout",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "",
+    "flavor_text": "\"The first rule of the descent: count your steps. The second rule: count them again when nothing adds up.\"",
+    "reminder_text": null,
+    "power": "1",
+    "toughness": "2",
+    "loyalty": null,
+    "collector_number": "U-C-01",
+    "rarity": "common",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:34:03.970599Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 1012,
+        "output_tokens": 318,
+        "cost_usd": 0.039081,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Blue common vanilla at CMC 1. A 1/2 for {U} is a clean, on-rate defensive body -- comparable to Merfolk of the Pearl Trident's 1/1 but shifted to favor toughness, which fits blue's defensive common creature profile. P+T = 3 = CMC(1)+2, well within the CMC+3 budget. The Scout type fits the dungeon-exploration theme. No abilities keeps it NWO-clean at common.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "U-C-01",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:34:03.970599Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Subsurface Surveyor\nMana Cost: {U}\nType: Creature -- Human Scout\nRarity: common\nFlavor Text: \"The first rule of the descent: count your steps. The second rule: count them again when nothing adds up.\"\nP/T: 1/2\nDesign Notes: Blue common vanilla at CMC 1. A 1/2 for {U} is a clean, on-rate defensive body -- comparable to Merfolk of the Pearl Trident's 1/1 but shifted to favor toughness, which fits blue's defensive common creature profile. P+T = 3 = CMC(1)+2, well within the CMC+3 budget. The Scout type fits the dungeon-exploration theme. No abilities keeps it NWO-clean at common.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "Subsurface Surveyor is a blue common creature designed as a straightforward defensive body with no abilities. Let me evaluate it systematically:\n\n**Templating & Mechanics**: The card has no custom mechanics (Salvage, Malfunction, Overclock), so no reminder text is needed. Oracle text is clean and simple: just a creature type and P/T. No templating issues.\n\n**Balance**: A 1/2 body for {U} (one blue mana) is on-rate for common. Comparable reference points include Merfolk of the Pearl Trident (1/1 for {U}) and other blue common creatures that trade power for utility or toughness. The P+T = 3 against CMC 1 is within the CMC+3 design envelope commonly used for vanilla creatures. The design notes correctly identify this as well-costed.\n\n**Color Pie**: Blue at common gets defensive creatures, which aligns perfectly with blue's profile. A 1/2 Scout fits the archetype well.\n\n**Design Quality**: This is a vanilla creature at common, which is intentional and appropriate per NWO (New World Order) — common creatures should be simple. The Scout type ties to the dungeon-exploration theme nicely. The card has a single, focused purpose: to be a defensive body.\n\n**Keyword Interactions**: No keywords on the card, so no nonbos possible.\n\n**Custom Mechanics**: Does not use Salvage, Malfunction, or Overclock. No issues here.\n\n**Variability**: N/A — vanilla creature with fixed stats.\n\n**Miscellaneous**: Flavor text is flavorful and thematic. No mechanical issues detected.\n\nThis is a clean, well-designed common that serves as a straightforward defensive blue creature. It has no issues.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2812,
+      "output_tokens": 468,
+      "cost_usd": 0.0041216000000000004,
+      "latency_s": 5.310936689376831
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2812,
+  "total_output_tokens": 468,
+  "total_cost_usd": 0.0041216000000000004,
+  "total_latency_s": 5.310936689376831,
+  "timestamp": "2026-03-14T12:24:21.033838+00:00"
+}

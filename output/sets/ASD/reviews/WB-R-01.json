@@ -1,0 +1,118 @@
+{
+  "collector_number": "WB-R-01",
+  "card_name": "Proclamation Enforcer",
+  "rarity": "rare",
+  "review_tier": "council",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Proclamation Enforcer",
+    "layout": "normal",
+    "mana_cost": "{1}{W}{B}",
+    "mana_cost_parsed": null,
+    "cmc": 3.0,
+    "colors": [
+      "W",
+      "B"
+    ],
+    "color_identity": [
+      "W",
+      "B"
+    ],
+    "type_line": "Legendary Creature -- Human Soldier",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "Whenever you gain life, create a 1/1 white Human Soldier creature token. This ability triggers only once each turn.\nWhenever another creature you control dies, each opponent loses 1 life.",
+    "flavor_text": "She ensures the city mourns on schedule and celebrates on command.",
+    "reminder_text": null,
+    "power": "2",
+    "toughness": "3",
+    "loyalty": null,
+    "collector_number": "WB-R-01",
+    "rarity": "rare",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:36:20.474523Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 2920,
+        "output_tokens": 405,
+        "cost_usd": 0.074175,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Rare WB legend for the Vizier's Regime archetype that creates a self-reinforcing engine. The lifegain-to-tokens ability is white (tokens, lifegain triggers seen on cards like Attended Healer), while the death-trigger drain is black. Together they form a loop: tokens die, opponents lose life, and any incidental lifegain (from the uncommon signpost Fist Tax Collector, Cult Archivist triggers, lifelink from Feretha, etc.) creates more tokens to sacrifice. The 'once each turn' clause on token creation prevents infinite loops and keeps it from spiraling out of control with repeated drain triggers. A 2/3 legendary for 3 mana is modestly statted -- the value is in the engine, not the body. As a build-around rare, it ties together the archetype's lifegain, token, and sacrifice themes without being a one-card combo.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "WB-R-01",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:36:20.474523Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [],
+  "council_reviews": [
+    {
+      "member_id": 1,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "Proclamation Enforcer is a well-designed rare legendary creature that cohesively ties together the WB archetype's lifegain, token, and sacrifice themes. Let me evaluate it against the review checklist:\n\n**Templating & Custom Mechanics:** The card contains no custom mechanics (Salvage, Malfunction, Overclock), so no reminder text is needed or expected. The oracle text follows modern MTG templating conventions correctly. The phrasing \"This ability triggers only once each turn\" is the standard template for preventing ability stacking within a turn window.\n\n**Keyword Collision:** No issues. The card uses no keywords that would collide with existing MTG mechanics or the set's custom mechanics.\n\n**Conditional Logic:** Both abilities lack conditionals, so the redundancy check doesn't apply. Both effects resolve immediately upon their triggers being met.\n\n**Keyword Negation:** No keywords are present that would be negated or made useless by other abilities.\n\n**Balance:** At {1}{W}{B} for a 2/3 legendary, the body is modestly statted. The value lies in the engine, not raw stats. This is appropriate for a build-around rare. The first ability (lifegain triggers create tokens, once per turn) is white and balanced—it requires setup (sources of lifegain) to generate value. The second ability (death triggers drain) is black removal/evasion through life loss. Together they form a meaningful loop: tokens die to sacrifice outlets, opponents lose life, and incidental lifegain creates more tokens. The \"once each turn\" clause on token creation is critical—without it, repeated drain triggers could spiral into an infinite loop or runaway engine. With it, the card is powerful but requires build-around support and proper sequencing. Compare to cards like Zulaport Cutthroat (uncommon sacrifice outlet) or other legendary engines at rare—this feels appropriately powered.\n\n**Design Quality:** The card has a focused purpose: enable a lifegain/token/sacrifice engine in limited and constructed. It's not a kitchen sink—both abilities directly support the core synergy. The body (2/3) is reasonable defensive stats that don't interfere with the core strategy.\n\n**Color Pie:** Lifegain triggers creating tokens is solidly white (Attended Healer, Epicure of Blood effects). Death triggers that drain are classic black. The combination is appropriate for WB, where token creation and sacrifice overlap.\n\n**Real Variability:** The card's power scales with the rest of the deck—it requires lifegain sources and sacrifice outlets to generate value. This is meaningful variability, not fake; the card's impact genuinely depends on the supporting cards in the deck.\n\nNo issues detected. The card is cohesive, well-templated, appropriately powered for its rarity, and fits the set's design goals.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2954,
+      "output_tokens": 692,
+      "cost_usd": 0.005131200000000001
+    },
+    {
+      "member_id": 2,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "\nProclamation Enforcer is a rare WB legend designed as an engine piece for the Vizier's Regime archetype. The card is well-constructed and serves its archetype clearly.\n\n**Mechanics & Templating:**\nThe card uses two clean, standard abilities with no custom mechanics (Salvage, Malfunction, or Overclock), so reminder text compliance is not an issue. Oracle text follows modern conventions. The \"only once each turn\" clause on the lifegain trigger is precise and necessary to prevent runaway loops—this is good design.\n\n**Color Pie:**\nThe color distribution is appropriate. White's portion covers tokens and lifegain (per cards like Attended Healer), while black's death drain is solidly in black's pie. The combination is cohesive and not pie-stretching for a rare legend.\n\n**Balance:**\nAt {1}{W}{B} with a 2/3 body, the creature is modestly costed. The value is entirely in the engine, not the stats, which is appropriate for a build-around rare. The once-per-turn limit on token generation prevents infinite loops. As a 3-mana legend, this is reasonable—it's not a Smothering Tithe-level auto-include, but a focused payoff for decks built around lifegain and sacrifice. Compare to similar engine rares: Zulaport Cutthroat is 1B and a 1/1, Cruel Celebrant is 1B and a 1/2, and Proclamation Enforcer offers more sustained value by creating tokens. The fact that it requires either lifegain triggers or sacrificial synergies to function keeps it from being universally good. This is appropriately powered for a rare.\n\n**Design:**\nThe card has one clear purpose: create a feedback loop in a lifegain-sacrifice deck. It doesn't try to do unrelated things—both abilities feed into the same archetype's themes. The design notes indicate it combos well with Fist Tax Collector, Cult Archivist, and Feretha, which suggests it was built with the broader set context in mind. No kitchen sink here.\n\n**Interactions & Nonbos:**\nNo negated keywords. The two abilities work together synergistically rather than against each other. The creature has no tap abilities, no special activation conditions, and no clash with other set mechanics.\n\n**Questions 1–8 checklist:**\n1. No negated keywords. ✓\n2. No custom mechanics present, so reminder text N/A. ✓\n3. No conditionals with false-always conditions. ✓\n4. Power level is appropriate: modest cost, gated by requiring synergies, rare-appropriate build-around. ✓\n5. Focused purpose (engine, two synergistic abilities). ✓\n6. Variability is real—token generation depends on incidental lifegain frequency. ✓\n7. No custom mechanic keyword collisions. ✓\n8. No enters-tapped or irrelevant tap effects. ✓\n\nThis card is well-designed and ready to print.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2954,
+      "output_tokens": 768,
+      "cost_usd": 0.005435200000000001
+    },
+    {
+      "member_id": 3,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "Proclamation Enforcer is a rare WB legendary creature designed as a build-around for the Vizier's Regime archetype. The card has two distinct abilities: a lifegain-to-token generator (once per turn) and a death-trigger drain effect.\n\n**Templating & Mechanics:**\nThe Oracle text is correctly templated. The first ability properly uses \"triggers only once each turn\" to prevent infinite loops while still rewarding the archetype's lifegain theme. The second ability is a standard death trigger. No custom mechanics (Salvage, Malfunction, Overclock) appear on this card, so reminder text is not applicable.\n\n**Color Pie & Design:**\n- Lifegain triggers creating tokens is solidly white (seen on cards like Attended Healer, Intrepid Adversary effects).\n- Death-triggered drain is black (classic aristocrat effect).\n- Together they form the intended engine: lifegain → tokens → death triggers → drain → more life → more tokens.\n- The combination is thematically coherent and mechanically on-color.\n\n**Balance Analysis:**\nAt {1}{W}{B}, this is a 2/3 legendary for three mana. Comparable rares:\n- Yavimaya Evoker (2/3, 3 mana, three mana ability) — rarity rare, sees play as a finisher in some formats\n- Zulaport Cutthroat (1/1, 2 mana, death drain) — sees consistent play in sacrifice decks\n- Attended Healer (3/3, 2 mana, gains 1 life per ETB) — common, much higher power level\n\nThe stats are modest (2/3 for 3 mana is acceptable but not exceptional). The power is in the **engine**, not the body. The card requires:\n1. Additional sources of lifegain to trigger the first ability\n2. Token generation or creatures that die to fuel the second ability\n3. Density of these elements in the deck\n\nThis is appropriate for a build-around rare. It's strong in the right shell but not a standalone powerhouse. The \"once each turn\" clause prevents degenerative play patterns and keeps it from becoming oppressive with multiple lifegain sources. The flavor and design notes confirm this is intentional.\n\n**Design Quality:**\nThe card has a focused purpose: tie together the Vizier's Regime's lifegain, token, and sacrifice themes. The two abilities reinforce each other organically without feeling like a kitchen sink. The mechanics are meaningful in the archetype context. The legendary status, moderate stats, and build-around nature all suggest this is properly positioned at rare.\n\n**Potential Issues Considered:**\n- Is there a nonbo with \"enters tapped\"? No — this is not an artifact or creature with tap abilities, so this doesn't apply.\n- Are the conditionals meaningful? The \"only once each turn\" clause is essential and not redundant — it prevents multiple lifegain triggers in a turn from creating multiple tokens.\n- Is the drain too efficient? The second ability has no rate or cap, but it's only strong when creatures are dying, which requires setup.\n- Any keyword collisions? No custom keywords appear on this card.\n\nThe card appears sound.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2954,
+      "output_tokens": 798,
+      "cost_usd": 0.005555200000000001
+    }
+  ],
+  "total_input_tokens": 8862,
+  "total_output_tokens": 2258,
+  "total_cost_usd": 0.016121600000000003,
+  "total_latency_s": 25.168509006500244,
+  "timestamp": "2026-03-14T12:30:38.612431+00:00"
+}

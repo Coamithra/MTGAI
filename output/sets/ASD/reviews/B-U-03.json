@@ -1,0 +1,93 @@
+{
+  "collector_number": "B-U-03",
+  "card_name": "Subsurface Harvest",
+  "rarity": "uncommon",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Subsurface Harvest",
+    "layout": "normal",
+    "mana_cost": "{3}{B}{B}",
+    "mana_cost_parsed": null,
+    "cmc": 5.0,
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "type_line": "Enchantment",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "Whenever a creature you control dies, you may pay 1 life. If you do, draw a card.\nAt the beginning of your end step, if three or more creatures died this turn, create a 4/4 black Horror creature token.",
+    "flavor_text": "The dungeon feeds on the dead. It always has.",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "B-U-03",
+    "rarity": "uncommon",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:31:33.264807Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 761,
+        "output_tokens": 376,
+        "cost_usd": 0.039687,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Black uncommon enchantment at CMC 5. The first ability is a classic black sacrifice-for-value engine -- paying life to draw cards is deeply black (compare Phyrexian Arena, Dark Prophecy). The life cost prevents it from being free card draw. The second ability rewards sacrifice-heavy strategies with a big payoff token, but requires real setup: three creatures dying in one turn demands either a board wipe or dedicated sacrifice outlets. At 5 mana, it's a midgame engine that asks you to build around it. The Horror token ties into the megadungeon's eldritch spawning theme.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "B-U-03",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:31:33.264807Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Subsurface Harvest\nMana Cost: {3}{B}{B}\nType: Enchantment\nRarity: uncommon\nOracle Text: Whenever a creature you control dies, you may pay 1 life. If you do, draw a card.\nAt the beginning of your end step, if three or more creatures died this turn, create a 4/4 black Horror creature token.\nFlavor Text: The dungeon feeds on the dead. It always has.\nDesign Notes: Black uncommon enchantment at CMC 5. The first ability is a classic black sacrifice-for-value engine -- paying life to draw cards is deeply black (compare Phyrexian Arena, Dark Prophecy). The life cost prevents it from being free card draw. The second ability rewards sacrifice-heavy strategies with a big payoff token, but requires real setup: three creatures dying in one turn demands either a board wipe or dedicated sacrifice outlets. At 5 mana, it's a midgame engine that asks you to build around it. The Horror token ties into the megadungeon's eldritch spawning theme.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "\nSubsurface Harvest is a well-designed black uncommon enchantment that fits the set's sacrifice-focused themes. The card has two distinct abilities that complement each other without conflicting:\n\n**Templating & Mechanics:**\nThe oracle text is cleanly templated and uses standard MTG language. \"Whenever a creature you control dies, you may pay 1 life. If you do, draw a card\" follows the modern pattern for optional triggered abilities with a cost rider. The second ability uses \"if three or more creatures died this turn\" which is standard conditional phrasing for turn-end triggers.\n\n**Color Pie:**\nBoth abilities are solidly black. Life payment for card draw is a hallmark of black (Phyrexian Arena, Dark Prophecy, Necrologia). Creature token generation is black-acceptable, particularly when tied to sacrifice/death themes. The 4/4 Horror creature token fits the set's eldritch aesthetic.\n\n**Balance:**\nAt {3}{B}{B} (CMC 5), this is appropriately costed for uncommon. The first ability trades 1 life for a card draw, which is a classic B rate with precedent across many sets. The second ability requires setup—three creatures dying in one turn is a meaningful threshold that demands either a sacrifice outlet strategy or a board wipe. The 4/4 Horror token is a solid payoff but not game-breaking since it arrives on the end step and costs a full turn's resource commitment. The card fills a midgame role for sacrifice decks without being oppressive. Compare favorably to cards like Zulaport Cutthroat or Cartel Aristocrat strategies at similar power level and mana cost.\n\n**Design Quality:**\nThe card has a focused purpose: rewarding sacrifice-heavy strategies with card draw and creature tokens. There's no kitchen sink bloat—both abilities feed into the core sacrifice theme. The variability is real: the number of creatures dying can range from 1–5+ in a given turn, making the card draw amount genuinely variable, and the 4/4 token only triggers when the threshold is met, creating meaningful deckbuilding decisions.\n\n**No Custom Mechanics:**\nThis card contains no Salvage, Malfunction, or Overclock keywords, so reminder text requirements do not apply.\n\n**Keyword Interactions:**\nNo keywords appear on this card, so there are no negated or redundant keyword interactions.\n\n**Conditionals:**\nThe \"if three or more creatures died this turn\" conditional is meaningful—in many game states, fewer than three creatures will die, making the second ability a real reward for sacrifice-focused plays rather than a redundant bonus.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2454,
+      "output_tokens": 659,
+      "cost_usd": 0.0045991999999999995,
+      "latency_s": 7.783464431762695
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2454,
+  "total_output_tokens": 659,
+  "total_cost_usd": 0.0045991999999999995,
+  "total_latency_s": 7.783464431762695,
+  "timestamp": "2026-03-14T12:19:57.859352+00:00"
+}

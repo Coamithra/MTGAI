@@ -1,0 +1,93 @@
+{
+  "collector_number": "R-C-03",
+  "card_name": "Scorched Passage",
+  "rarity": "common",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Scorched Passage",
+    "layout": "normal",
+    "mana_cost": "{3}{R}",
+    "mana_cost_parsed": null,
+    "cmc": 4.0,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Instant",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "~ deals 4 damage to target creature.",
+    "flavor_text": "\"Tunnel B-7 is clear.\"\n\"What was in it?\"\n\"Doesn't matter now.\"",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "R-C-03",
+    "rarity": "common",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:33:00.275276Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 902,
+        "output_tokens": 279,
+        "cost_usd": 0.034491,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Conditional removal at common -- 4 damage for 4 mana at instant speed is a solid rate that kills most creatures but not everything. This is red's primary removal mode (burn) at an appropriate common power level. Comparable to Flame Javelin or similar burn spells, but at a fair rate. Doesn't hit players, keeping it as creature removal rather than a reach spell.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "R-C-03",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:33:00.275276Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Scorched Passage\nMana Cost: {3}{R}\nType: Instant\nRarity: common\nOracle Text: ~ deals 4 damage to target creature.\nFlavor Text: \"Tunnel B-7 is clear.\"\n\"What was in it?\"\n\"Doesn't matter now.\"\nDesign Notes: Conditional removal at common -- 4 damage for 4 mana at instant speed is a solid rate that kills most creatures but not everything. This is red's primary removal mode (burn) at an appropriate common power level. Comparable to Flame Javelin or similar burn spells, but at a fair rate. Doesn't hit players, keeping it as creature removal rather than a reach spell.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "Scorched Passage is a straightforward common red instant that deals 4 damage to target creature. At {3}{R} (4 mana), this provides a clean removal spell at an appropriate rate for the rarity.\n\n**Templating & Mechanics:** The oracle text is clean and correctly templated. No custom mechanics are present on this card, so reminder text requirements do not apply.\n\n**Balance:** At common, 4 mana for 4 damage to a creature is fair. The card kills most common creatures but not everything (it won't take down a 5/5, for instance), which is appropriate for common removal. It's an instant, giving it flexibility in timing. Comparable cards: Flame Javelin deals 4 damage for {2}{R} at sorcery speed, but that card is from a different metagame. In the context of a 60-card dev set, this rate is reasonable—not exceptional, but solid. The design notes correctly note it doesn't hit players, keeping it pure creature removal rather than a reach spell, which is appropriate.\n\n**Color Pie:** Red burn/direct damage is core to red's identity. This is entirely on-pie.\n\n**Design Quality:** The card has a focused purpose (creature removal) with no extraneous effects. The flavor text is thematic and evocative. No kitchen sink issues.\n\n**Keyword Interactions:** No keywords present; no interactions to worry about.\n\n**Drawbacks:** The card's only real \"drawback\" is that it's instant-speed creature damage only (no player damage). This is intentional design to keep it as removal rather than reach, which is fine for common.\n\nOverall, this is a clean, well-designed common removal spell with no issues.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2553,
+      "output_tokens": 449,
+      "cost_usd": 0.0038384,
+      "latency_s": 5.410222053527832
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2553,
+  "total_output_tokens": 449,
+  "total_cost_usd": 0.0038384,
+  "total_latency_s": 5.410222053527832,
+  "timestamp": "2026-03-14T12:22:36.647959+00:00"
+}

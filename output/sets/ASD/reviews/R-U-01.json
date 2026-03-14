@@ -1,0 +1,101 @@
+{
+  "collector_number": "R-U-01",
+  "card_name": "Spark Insurgent",
+  "rarity": "uncommon",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Spark Insurgent",
+    "layout": "normal",
+    "mana_cost": "{1}{R}",
+    "mana_cost_parsed": null,
+    "cmc": 2.0,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Creature — Human Rebel",
+    "supertypes": [],
+    "card_types": [
+      "Creature"
+    ],
+    "subtypes": [
+      "Human",
+      "Rebel"
+    ],
+    "oracle_text": "Malfunction 2 (This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.).\nWhen the last malfunction counter is removed from ~, deal 3 damage to any target.",
+    "flavor_text": "The Fist tried to stomp out the spark. They failed.",
+    "reminder_text": null,
+    "power": "2",
+    "toughness": "1",
+    "loyalty": null,
+    "collector_number": "R-U-01",
+    "rarity": "uncommon",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:56:56.799513Z",
+        "prompt_used": null,
+        "model_used": "claude-haiku-4-5-20251001",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [
+          "Line 1: \"This permanent\" should use \"~\" or \"this\" only in specific MTG contexts",
+          "Oracle text contains what looks like reminder text: \"(This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\""
+        ],
+        "input_tokens": 2915,
+        "output_tokens": 406,
+        "cost_usd": 0.003958,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Red uncommon creature with aggressive stats (2/1 for CMC 2). Malfunction 2 creates a real tempo cost—enters tapped, not dangerous immediately. When the second counter removes at start of turn 3, the damage trigger rewards you for the delay and fits Red's burn philosophy. This is different from a typical haste creature: it's a bomb that needs setup, which is mechanically interesting at uncommon. The trigger condition is clear and meaningful: 'the last counter' has real game impact. Power/toughness on-rate: 2+1=3, CMC+3=5, so within budget. No keyword nonbos: 2/1 body attacking turn 3 is fine, no haste needed because Malfunction does the work.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "R-U-01",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:56:56.799513Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Spark Insurgent\nMana Cost: {1}{R}\nType: Creature — Human Rebel\nRarity: uncommon\nOracle Text: Malfunction 2 (This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.).\nWhen the last malfunction counter is removed from ~, deal 3 damage to any target.\nFlavor Text: The Fist tried to stomp out the spark. They failed.\nP/T: 2/1\nDesign Notes: Red uncommon creature with aggressive stats (2/1 for CMC 2). Malfunction 2 creates a real tempo cost—enters tapped, not dangerous immediately. When the second counter removes at start of turn 3, the damage trigger rewards you for the delay and fits Red's burn philosophy. This is different from a typical haste creature: it's a bomb that needs setup, which is mechanically interesting at uncommon. The trigger condition is clear and meaningful: 'the last counter' has real game impact. Power/toughness on-rate: 2+1=3, CMC+3=5, so within budget. No keyword nonbos: 2/1 body attacking turn 3 is fine, no haste needed because Malfunction does the work.\nValidation Warnings (from auto-validator):\n  - Line 1: \"This permanent\" should use \"~\" or \"this\" only in specific MTG contexts\n  - Oracle text contains what looks like reminder text: \"(This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\"\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "\nSpark Insurgent is a well-designed uncommon red creature that makes solid use of the Malfunction mechanic. The card has a clear mechanical purpose: a delayed burn threat that trades tempo for impact. Let me address the validation warnings and review the checklist items:\n\n**Reminder Text & Templating:**\nThe validation warning about \"This permanent\" is a false positive. The oracle text correctly includes full reminder text for Malfunction 2, which is appropriate—this is the first use of the Malfunction keyword on this card and at the uncommon rarity where it first appears, so reminder text is required per best practices. The templating \"This permanent enters tapped with two malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.\" is correct MTG oracle template for keyword reminder text.\n\n**Keyword Interactions (Check 1):**\nNo keyword negation nonbo. The card doesn't have haste (which would be negated by entering tapped) or any conflicting abilities. The Malfunction delay is the entire point.\n\n**Custom Mechanic Reminder (Check 2):**\nMalfunction appears with full reminder text. ✓\n\n**Conditional Meaningfulness (Check 3):**\nThe \"When the last malfunction counter is removed\" trigger is meaningful and non-redundant. With Malfunction 2, the counter is removed at the start of turn 3, so this is a real timing condition that shapes gameplay. Opponent can interact with the creature before the trigger fires.\n\n**Power Level (Check 4):**\nSpark Insurgent is on-rate for CMC 2. It's a 2/1 (3 total power/toughness) with a 3-damage trigger for free once online. Compare to Golhir Elf-Adept (2/2 red for {1}{R} at common, no ability) or other 2-drop red creatures—a 2/1 with late burn is slightly above vanilla but not egregiously so. The Malfunction delay IS the drawback: enters tapped, not online until turn 3. The design notes correctly acknowledge this. The trigger reward is appropriate compensation for the two-turn wait.\n\n**Kitchen Sink (Check 5):**\nNo kitchen sink issue. The card has one coherent design: \"a Malfunction creature that becomes a burn spell.\" All parts of the card reinforce this purpose.\n\n**False Variability (Check 6):**\nThe trigger damage is fixed at 3 (the last counter is always singular, so \"remove a malfunction counter\" always happens exactly once to remove the last one). However, the flavor and design of the trigger is clear: it's a fixed 3-damage reward, not a variable effect. No false variability flag needed.\n\n**Keyword Collision (Check 7):**\nMalfunction is a custom mechanic and does not collide with existing MTG keywords. ✓\n\n**Enters Tapped Relevance (Check 8):**\nEnters tapped is relevant—it's a core part of the Malfunction mechanic and directly impacts the creature's tempo. ✓\n\n**Overall Assessment:**\nThis card is well-designed, correctly templated, and balanced. The Malfunction mechanic is applied cleanly, the trigger is meaningful, and the power level is appropriate for uncommon given the built-in tempo cost. The card serves a clear role in the set's color pie and draft environment.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2773,
+      "output_tokens": 843,
+      "cost_usd": 0.0055904,
+      "latency_s": 9.748740434646606
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2773,
+  "total_output_tokens": 843,
+  "total_cost_usd": 0.0055904,
+  "total_latency_s": 9.748740434646606,
+  "timestamp": "2026-03-14T12:23:49.627573+00:00"
+}

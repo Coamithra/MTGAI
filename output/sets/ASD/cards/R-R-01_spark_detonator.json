@@ -34,10 +34,7 @@
       "model_used": "claude-opus-4-6",
       "success": true,
       "error_message": null,
-      "validation_errors": [
-        "Non-creature card has power and/or toughness set",
-        "Card has power/toughness but 'Creature' is not in card_types"
-      ],
+      "validation_errors": [],
       "input_tokens": 1160,
       "output_tokens": 362,
       "cost_usd": 0.04455,

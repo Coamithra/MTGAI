@@ -22,7 +22,7 @@
   "toughness": null,
   "loyalty": null,
   "collector_number": "G-C-04",
-  "rarity": "common",
+  "rarity": "uncommon",
   "set_code": "ASD",
   "artist": "AI Generated",
   "status": "draft",
@@ -48,7 +48,7 @@
   "art_path": null,
   "render_path": null,
   "art_prompt": null,
-  "design_notes": "Green common sorcery at CMC 7 with a complex effect for common. At 7 mana this is a top-end common that does something splashy -- destroying an artifact and an enchantment (both firmly in green's color pie) while also creating two 4/4 tramplers. The dual removal plus token creation is complex for common but justified at this high mana cost, where it serves as a big payoff in limited. Each target is required, so it's dead without both an artifact and enchantment target, which is a real deckbuilding/timing constraint that balances the power. Fits the theme of the wilderness overtaking ancient technology.",
+  "design_notes": "Green uncommon sorcery at CMC 7. Moved from common to uncommon where the dual-target requirement (artifact AND enchantment) is acceptable as a narrower payoff for greedier limited decks. In uncommon, this serves as a splashy endgame card that rewards players who include both artifact and enchantment removal targets in their deck, and the 8 power of tokens plus dual removal is appropriately efficient for the slot. Fits the theme of nature overtaking ancient ruins.",
   "is_reprint": false,
   "scryfall_id": null,
   "draft_archetype": null,
@@ -56,5 +56,5 @@
   "slot_id": "G-C-04",
   "card_faces": null,
   "created_at": "2026-03-12T23:32:01.701636Z",
-  "updated_at": null
+  "updated_at": "2026-03-14T11:22:04.148940Z"
 }

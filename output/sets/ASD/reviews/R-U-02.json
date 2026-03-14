@@ -1,0 +1,97 @@
+{
+  "collector_number": "R-U-02",
+  "card_name": "Wasteland War-Raptor",
+  "rarity": "uncommon",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Wasteland War-Raptor",
+    "layout": "normal",
+    "mana_cost": "{2}{R}{R}",
+    "mana_cost_parsed": null,
+    "cmc": 4.0,
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "type_line": "Creature — Dinosaur",
+    "supertypes": [],
+    "card_types": [
+      "Creature"
+    ],
+    "subtypes": [
+      "Dinosaur"
+    ],
+    "oracle_text": "Haste, trample\nWhenever ~ attacks, it gets +X/+0 until end of turn, where X is the number of other attacking creatures.",
+    "flavor_text": "The moktars don't ride them. They just run in the same direction and hope.",
+    "reminder_text": null,
+    "power": "3",
+    "toughness": "3",
+    "loyalty": null,
+    "collector_number": "R-U-02",
+    "rarity": "uncommon",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:40:43.966404Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 1824,
+        "output_tokens": 335,
+        "cost_usd": 0.052520000000000004,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "A 3/3 haste trample for 4 is reasonable at uncommon — two keywords plus a combat trigger is appropriate complexity. The attack trigger rewards going wide, which synergizes with WR (Spark Rebellion) token strategies and RG (Dinosaur/aggressive) builds. The power boost is temporary and requires committing multiple creatures to combat, creating real risk/reward. Base 3/3 means it's solid alone but becomes a real threat with a board. X varies meaningfully based on board state.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "R-U-02",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:40:43.966404Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Wasteland War-Raptor\nMana Cost: {2}{R}{R}\nType: Creature — Dinosaur\nRarity: uncommon\nOracle Text: Haste, trample\nWhenever ~ attacks, it gets +X/+0 until end of turn, where X is the number of other attacking creatures.\nFlavor Text: The moktars don't ride them. They just run in the same direction and hope.\nP/T: 3/3\nDesign Notes: A 3/3 haste trample for 4 is reasonable at uncommon — two keywords plus a combat trigger is appropriate complexity. The attack trigger rewards going wide, which synergizes with WR (Spark Rebellion) token strategies and RG (Dinosaur/aggressive) builds. The power boost is temporary and requires committing multiple creatures to combat, creating real risk/reward. Base 3/3 means it's solid alone but becomes a real threat with a board. X varies meaningfully based on board state.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "This is a straightforward aggressive creature with excellent design for uncommon. Wasteland War-Raptor is a 3/3 haste trample for 4 mana that rewards go-wide strategies through its attack trigger.\n\n**Templating & Mechanics:**\nThe oracle text is correctly templated. \"Whenever ~ attacks, it gets +X/+0 until end of turn, where X is the number of other attacking creatures\" is clean and unambiguous. The card uses no custom mechanics (Malfunction, Overclock, or Salvage), so reminder text is not required.\n\n**Balance:**\nAt uncommon, a 3/3 haste trample for {2}{R}{R} is at rate or slightly above rate, comparable to cards like Raptor Companion (uncommon 2/2 for {1}{R}, plus similar abilities). The attack trigger provides meaningful upside but requires commitment—you need other attacking creatures to maximize the boost. A solo attack yields +0/+0 (no bonus), making the card solid but not dominant when you're light on creatures. With 2-3 other attackers, it becomes a 5-7/3 threat, which is powerful but requires investment and board state. The risk/reward is well-calibrated: the card incentivizes going wide without being oppressive if you can't.\n\n**Design:**\nThe card has a focused purpose: rewarding aggressive, wide strategies. It's not a kitchen sink—just two evergreen keywords plus a meaningful combat trigger that plays into the set's WR (Spark Rebellion) and RG themes. The variability in power boost is real and meaningful; the bonus genuinely depends on your board state.\n\n**Color Pie:**\nRed haste and trample are evergreen for red. The bonus power effect is firmly in red's domain (temporary, combat-focused boosts). No color pie issues.\n\n**Keyword Interactions:**\nHaste and trample are both evergreen and have no conflicts here. The card doesn't negate any of its own abilities. No issues.\n\n**No Custom Mechanics:**\nThis card doesn't use Malfunction, Overclock, or Salvage, so no reminder text is required.\n\n**Variability:**\nThe +X/+0 boost varies meaningfully based on the number of other attacking creatures. This is real variability tied to board state, not a fixed hidden number.\n\nThe card is clean, well-balanced for uncommon, and has a focused design that fits the set's themes. No issues detected.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2619,
+      "output_tokens": 628,
+      "cost_usd": 0.0046072000000000005,
+      "latency_s": 7.333378314971924
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2619,
+  "total_output_tokens": 628,
+  "total_cost_usd": 0.0046072000000000005,
+  "total_latency_s": 7.333378314971924,
+  "timestamp": "2026-03-14T12:23:56.961955+00:00"
+}

@@ -1,0 +1,97 @@
+{
+  "collector_number": "W-C-04",
+  "card_name": "Requisition Sweep",
+  "rarity": "common",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Requisition Sweep",
+    "layout": "normal",
+    "mana_cost": "{3}{W}",
+    "mana_cost_parsed": null,
+    "cmc": 4.0,
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "type_line": "Sorcery",
+    "supertypes": [],
+    "card_types": [
+      "Sorcery"
+    ],
+    "subtypes": [],
+    "oracle_text": "Destroy target artifact or enchantment.\nSalvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+    "flavor_text": "\"Confiscated for the glory of Feretha. You'll receive a receipt. Eventually.\"",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "W-C-04",
+    "rarity": "common",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:45:26.134451Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [
+          "Oracle text contains what looks like reminder text: \"(Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+        ],
+        "input_tokens": 1972,
+        "output_tokens": 329,
+        "cost_usd": 0.05429,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "White common sorcery that combines artifact/enchantment removal with the set's Salvage mechanic. White has primary access to both artifact/enchantment destruction and Salvage. At {3}{W} sorcery speed, this is a fair rate — Disenchant effects at instant for {1}{W} are the baseline, so adding Salvage 3 at sorcery speed and +{2} is reasonable for common. The two effects are thematically linked: you destroy enemy tech and scavenge something useful from the ruins. Salvage 3 at common follows the X=2-3 guideline. This is the first appearance of Salvage in white, so reminder text is included.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "W-C-04",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:45:26.134451Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n\n---\n\n## Card to Review\n\nName: Requisition Sweep\nMana Cost: {3}{W}\nType: Sorcery\nRarity: common\nOracle Text: Destroy target artifact or enchantment.\nSalvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\nFlavor Text: \"Confiscated for the glory of Feretha. You'll receive a receipt. Eventually.\"\nDesign Notes: White common sorcery that combines artifact/enchantment removal with the set's Salvage mechanic. White has primary access to both artifact/enchantment destruction and Salvage. At {3}{W} sorcery speed, this is a fair rate — Disenchant effects at instant for {1}{W} are the baseline, so adding Salvage 3 at sorcery speed and +{2} is reasonable for common. The two effects are thematically linked: you destroy enemy tech and scavenge something useful from the ruins. Salvage 3 at common follows the X=2-3 guideline. This is the first appearance of Salvage in white, so reminder text is included.\nValidation Warnings (from auto-validator):\n  - Oracle text contains what looks like reminder text: \"(Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\"\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "**Requisition Sweep** is a white common sorcery that combines targeted artifact/enchantment removal with the Salvage 3 mechanic. Let me evaluate it across all dimensions:\n\n**Templating & Oracle Text:**\nThe oracle text is correctly formatted. \"Destroy target artifact or enchantment\" is standard templating. Salvage 3 is properly stated as a keyword with full reminder text included. The reminder text is comprehensive and matches the custom mechanic specification exactly. The validator warning about reminder text presence is a false positive—reminder text for custom mechanics should be included on first appearance, which it is.\n\n**Mechanics & Interactions:**\nThis is the first appearance of Salvage in white (as noted in design notes), so reminder text inclusion is appropriate and required. There are no keyword negations—the card has two distinct abilities with no conflicts. Salvage 3 is a real, meaningful effect that will have variance based on library composition; it's not a fixed-value conditional.\n\n**Balance:**\nAt {3}{W} for a common sorcery, this needs comparison to baseline removal:\n- Disenchant effects at instant speed cost {1}{W} (e.g., Disenchant itself)\n- Artifact OR enchantment removal at sorcery speed on a {1}{W} baseline is already slightly worse than instant\n- Adding +{2} and Salvage 3 to the cost\n- Salvage 3 is a genuine upside (card selection toward artifacts), but from a library search perspective, it's more \"smoothing variance\" than raw card advantage\n- Compared to cards like **Siege Rhino's removal rider** or **Ranger's Guile** + removal effects, this seems fairly costed for common\n- The mana cost {3}{W} is reasonable for combining two effects at common\n\nSalvage at common follows the published X=2-3 guideline (this uses 3), which is appropriate.\n\n**Design Quality:**\nThe card has focused purpose: it's a removal spell with a secondary effect that ties into the artifact theme. The two effects are thematically coherent (\"destroy enemy tech, salvage from ruins\"). Not a kitchen sink card—it's doing two things, and they're related in both flavor and mechanical sense (artifact subtheme).\n\n**Color Pie:**\nWhite has primary access to:\n- Artifact/enchantment destruction ✓ (White's traditional removal)\n- Salvage (listed as White, Blue, Green) ✓\n\nThe combination is color-pie appropriate.\n\n**Custom Mechanic Handling:**\n- Salvage keyword: ✓ Present with full reminder text\n- First appearance in white: ✓ Reminder text included (required)\n- Reminder text accuracy: ✓ Matches specification exactly\n\n**Potential Issues Review:**\n1. Keyword negation: None detected\n2. Reminder text: Present and correct for first Salvage appearance\n3. Redundant conditionals: None present\n4. Power level: Appropriate for cost and rarity\n5. Kitchen sink: No—two related effects\n6. False variability: Salvage has real variability\n7. Mechanic name collision: Salvage is confirmed distinct from Scavenge; no collision\n8. Enters tapped irrelevance: N/A (sorcery, not a permanent)\n\nThis card is solid and ready for printing.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2770,
+      "output_tokens": 829,
+      "cost_usd": 0.005532,
+      "latency_s": 9.693161010742188
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2770,
+  "total_output_tokens": 829,
+  "total_cost_usd": 0.005532,
+  "total_latency_s": 9.693161010742188,
+  "timestamp": "2026-03-14T12:28:29.154995+00:00"
+}

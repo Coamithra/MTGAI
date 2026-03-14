@@ -1,0 +1,98 @@
+{
+  "collector_number": "G-U-02",
+  "card_name": "Rendon Apex Tracker",
+  "rarity": "uncommon",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Rendon Apex Tracker",
+    "layout": "normal",
+    "mana_cost": "{2}{G}{G}",
+    "mana_cost_parsed": null,
+    "cmc": 4.0,
+    "colors": [
+      "G"
+    ],
+    "color_identity": [
+      "G"
+    ],
+    "type_line": "Creature — Human Scout",
+    "supertypes": [],
+    "card_types": [
+      "Creature"
+    ],
+    "subtypes": [
+      "Human",
+      "Scout"
+    ],
+    "oracle_text": "Trample\nWhenever ~ deals combat damage to a player, look at the top three cards of your library. You may put a creature card from among them into your hand. Put the rest on the bottom of your library in any order.",
+    "flavor_text": "\"The megadungeon swallows everything. The wilderness just bites.\"",
+    "reminder_text": null,
+    "power": "4",
+    "toughness": "3",
+    "loyalty": null,
+    "collector_number": "G-U-02",
+    "rarity": "uncommon",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:44:14.087488Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 2731,
+        "output_tokens": 376,
+        "cost_usd": 0.069165,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "A solid green uncommon beater at CMC 4. A 4/3 trample for 4 is a fair statline (P+T = 7 = CMC+3), and the combat damage trigger provides card selection that rewards connecting in combat — a green-appropriate 'Impulse for creatures' effect. Trample helps ensure the trigger connects, giving the two abilities natural synergy. The creature-filtering trigger is distinct from salvage (which finds artifacts) and instead supports green's creature-centric gameplan, giving the set's green decks a way to find their threats. The trigger is conditional on combat damage, keeping it from being free value.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "G-U-02",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:44:14.087488Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n\n---\n\n## Card to Review\n\nName: Rendon Apex Tracker\nMana Cost: {2}{G}{G}\nType: Creature — Human Scout\nRarity: uncommon\nOracle Text: Trample\nWhenever ~ deals combat damage to a player, look at the top three cards of your library. You may put a creature card from among them into your hand. Put the rest on the bottom of your library in any order.\nFlavor Text: \"The megadungeon swallows everything. The wilderness just bites.\"\nP/T: 4/3\nDesign Notes: A solid green uncommon beater at CMC 4. A 4/3 trample for 4 is a fair statline (P+T = 7 = CMC+3), and the combat damage trigger provides card selection that rewards connecting in combat — a green-appropriate 'Impulse for creatures' effect. Trample helps ensure the trigger connects, giving the two abilities natural synergy. The creature-filtering trigger is distinct from salvage (which finds artifacts) and instead supports green's creature-centric gameplan, giving the set's green decks a way to find their threats. The trigger is conditional on combat damage, keeping it from being free value.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "Rendon Apex Tracker is a well-designed green uncommon that presents a focused, synergistic package. At CMC 4, the 4/3 trample statline is appropriately costed—slightly above a vanilla 4/3 for 3G (which would be underpowered), but the trample evasion and the combat-triggered tutor elevate the card meaningfully. This tracks closely with cards like Courser of Kruphix (3/2 that also draws/tutors but without the trample) and Elvish Archer (2/2 with a different activation), making the overall power level sound for uncommon.\n\nThe card's core design is elegant: trample naturally synergizes with a combat damage trigger, ensuring the trigger can reliably fire and rewarding the player for connecting. The creature-filtering tutor (distinct from Salvage, which tutors artifacts) supports green's creature-centric gameplan and fills a meaningful niche—green should have access to threat tutoring, especially when it requires a combat condition.\n\nOracle text follows modern MTG templating correctly: \"Whenever ~ deals combat damage to a player, look at the top three cards of your library. You may put a creature card from among them into your hand. Put the rest on the bottom of your library in any order.\" This mirrors the structure of cards like Abundant Harvest and uses the \"look at X, may put one into hand, put the rest on bottom in any order\" template accurately.\n\nTrample and the combat trigger are not in conflict—trample makes the trigger more likely to resolve, which is intentional design synergy, not a nonbo. The combat-damage condition is meaningful and cannot always be guaranteed, so the tutor is properly gated.\n\nNo custom mechanics (Salvage, Malfunction, Overclock) appear on this card, so reminder text is not applicable. There are no keyword collisions, no enters-tapped irrelevancies, no kitchen sink elements, and no redundant conditionals. The card is color-pie appropriate for green (creature tutoring, trample, combat-centric value).",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2517,
+      "output_tokens": 533,
+      "cost_usd": 0.0041456,
+      "latency_s": 6.598790884017944
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2517,
+  "total_output_tokens": 533,
+  "total_cost_usd": 0.0041456,
+  "total_latency_s": 6.598790884017944,
+  "timestamp": "2026-03-14T12:22:05.702628+00:00"
+}

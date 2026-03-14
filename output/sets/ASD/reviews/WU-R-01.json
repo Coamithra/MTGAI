@@ -1,0 +1,118 @@
+{
+  "collector_number": "WU-R-01",
+  "card_name": "Protonium Curator",
+  "rarity": "rare",
+  "review_tier": "council",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Protonium Curator",
+    "layout": "normal",
+    "mana_cost": "{W}{U}",
+    "mana_cost_parsed": null,
+    "cmc": 2.0,
+    "colors": [
+      "W",
+      "U"
+    ],
+    "color_identity": [
+      "W",
+      "U"
+    ],
+    "type_line": "Legendary Creature — Human Artificer",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "Whenever an artifact enters under your control, you may tap or untap target artifact.\nArtifacts you control have \"Malfunction 1\" (This permanent enters tapped with one malfunction counter on it. At the beginning of your upkeep, remove a malfunction counter from it.) instead of \"Malfunction 2\" or \"Malfunction 3.\"",
+    "flavor_text": "\"Every relic tells me its name. Most of them are screaming it.\"",
+    "reminder_text": null,
+    "power": "1",
+    "toughness": "3",
+    "loyalty": null,
+    "collector_number": "WU-R-01",
+    "rarity": "rare",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:37:26.170657Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 2042,
+        "output_tokens": 413,
+        "cost_usd": 0.061635,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Rare legendary for the WU Ancient Technology archetype. The first ability -- tapping or untapping an artifact when one enters -- is a flexible control tool. It can lock down an opponent's artifact or untap your own for repeated use, creating interesting board puzzles. The second ability is a build-around that reduces Malfunction counters on your permanents, making your degraded automatons come online faster. This directly supports the WU archetype's theme of mastering ancient technology. A 1/3 body is defensive and appropriate for a 2-mana utility legend -- it survives common removal like Spark Saboteur's ping. White gets the tap/untap-artifact space, blue gets artifact affinity, and the Malfunction reduction is a set-specific synergy payoff. The Malfunction reduction is a static replacement effect that's clean to parse.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "WU-R-01",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:37:26.170657Z",
+    "updated_at": "2026-03-14T11:33:11.881505Z"
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [],
+  "council_reviews": [
+    {
+      "member_id": 1,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "\nProtonium Curator is a legendary 2-mana WU Artificer that provides two related effects: (1) flexible tap/untap control when artifacts enter, and (2) a Malfunction cost reduction from 2-3 to 1.\n\n**Templating & Custom Mechanics:**\nThe oracle text correctly uses the custom \"Malfunction 1\" keyword with proper reminder text on its first appearance. The mechanics are well-templated and clearly referenced. The reminder text accurately describes Malfunction's behavior.\n\n**Keyword Interaction Analysis:**\nThe first ability (tap/untap target artifact) is genuinely flexible and creates tactical gameplay depth. It enables both disruption (tapping opponent's artifacts) and offense (untapping your own for reuse). This synergizes naturally with the Malfunction reduction theme.\n\n**Balance & Power Level:**\nAt {W}{U} for a 1/3 legendary, the baseline is reasonable. The first ability is pure value—each artifact trigger grants a tap/untap option, which is useful but not game-breaking. The second ability (Malfunction reduction) is a build-around payoff that's contextual: it only matters in decks specifically building around Malfunction artifacts. In Limited, this would be a strong signpost for the WU archetype but not oppressive. In Constructed, it requires supporting artifact synergies. The 1/3 body is appropriately fragile for a utility legend. This is at-rate or slightly above-rate for a rare, which is acceptable given its archetype-dependent nature.\n\n**Design & Purpose:**\nThe card has clear focus: it's a reward for playing Malfunction artifacts and a control tool for artifact decks. It's not kitchen sink—both abilities are artifact-focused and synergistic. The build-around nature (reduction only applies to your own permanents) prevents abuse.\n\n**Color Pie:**\nWhite has tap/untap effects for artifacts (e.g., Tocatli Honor Guard, Stoneforge Mystic context), and blue has artifact synergy and cost reduction mechanics. The combination is cohesive for {W}{U} Artificer.\n\n**Issues Found:**\nThe first ability's phrasing \"you may tap or untap target artifact\" triggers on each artifact entry, providing repeatable options. This is clean and intentional. The second ability's phrasing as a replacement effect (\"instead of Malfunction 2 or Malfunction 3\") correctly avoids stacking issues. No ambiguities detected.\n\nOne minor note: the design notes mention a \"static replacement effect,\" which is correct terminology for how the Malfunction reduction works, but the oracle text itself is phrased as a standard ability rather than explicitly using replacement language. This is fine—the meaning is clear and follows modern templating.\n\nThe card serves its intended purpose as a WU archetype signpost and delivers meaningful gameplay without exploitable interactions or balance issues.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2969,
+      "output_tokens": 715,
+      "cost_usd": 0.005235200000000001
+    },
+    {
+      "member_id": 2,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "\n**Templating & Mechanics:**\nThe card is templated correctly. The first ability uses modern trigger syntax (\"Whenever an artifact enters under your control, you may tap or untap target artifact.\"). The second ability is a static replacement effect that cleanly modifies how other permanents function. Reminder text for Malfunction is present on the second ability, which is appropriate since this is the first substantive use of the Malfunction keyword in the card's oracle text (the first sentence triggers the reminder).\n\n**Custom Mechanic Reminder Text:**\nMalfunction appears in the second ability with full reminder text. This is correct for the first meaningful appearance.\n\n**Balance:**\nAt 2 mana for a 1/3 legendary creature with two strong abilities, this is solidly rare-rate. The first ability is a repeatable control tool that creates real value: tapping opponent artifacts is tempo disruption, untapping your own creates artifact synergy. The second ability is a powerful build-around that reduces Malfunction startup cost from 2-3 down to 1 on all your artifact permanents, shortening the clock by 1-2 turns on major threats. Together, these abilities reward an artifact-heavy deck without being overpowered. The 1/3 body is appropriately fragile for a utility legend at this cost. Comparison: similar rare legends like **Vial Smasher the Fierce** (RB legend, 2 mana, 2/3) and **Kynaios and Tiro of Meletis** (WU legend, 4 mana, 2/2) show that a 1/3 utility legend at 2 mana is fair. This card's utility is narrower (artifact-focused) than those, so the rate is appropriate.\n\n**Design Quality:**\nThe card has a focused purpose: it's a WU archetype payoff that rewards playing artifacts and makes Malfunction-heavy strategies come online faster. The first ability is a control/puzzle tool that offers real gameplay decisions (tap opponent vs. untap self). The second ability is a clean build-around synergy. This is not a kitchen sink card—both abilities reinforce the artifact/Malfunction theme.\n\n**Keyword Interactions & Color Pie:**\n- Tap/untap is solidly in White and Blue's pie (especially for artifacts).\n- Artifact affinity is Blue's domain.\n- The Malfunction reduction is set-specific but mechanically sound.\n- No negated keywords: the creature's toughness justifies its lack of evasion.\n- No collisions with existing MTG keywords (uses Malfunction, not Scavenge or Overload).\n\n**Conditional Logic:**\nBoth abilities are meaningful:\n1. \"May tap or untap\" offers a real choice and can be false (you might not want to activate).\n2. The Malfunction reduction applies \"instead of 'Malfunction 2 or 3'\"—this is meaningful when artifacts enter with those counters and is a genuine replacement effect.\n\n**Variability:**\nThe second ability doesn't claim variability; it's a static effect that deterministically reduces counters, which is clean.\n\n**No Issues Identified:**\nThis card is well-designed, templated correctly, and balanced appropriately for its mana cost and rarity. It supports the WU archetype cohesively and offers interesting play patterns without breaking the set's mechanical boundaries.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2969,
+      "output_tokens": 833,
+      "cost_usd": 0.005707200000000001
+    },
+    {
+      "member_id": 3,
+      "verdict": "OK",
+      "issues": [],
+      "response": {
+        "analysis": "Protonium Curator is a well-designed rare legendary that cleanly supports the WU Ancient Technology archetype. Let me analyze it systematically:\n\n**Templating & Mechanics:**\nThe oracle text is correctly templated. The first ability \"Whenever an artifact enters under your control, you may tap or untap target artifact\" is clean MTG templating with proper use of \"may\" for the optional trigger. The second ability uses a static replacement effect to reduce Malfunction counters, which is the correct format for this interaction.\n\nThe Malfunction keyword receives reminder text as required for first appearance. This is appropriate since Malfunction is a custom mechanic unique to this set.\n\n**Balance:**\nAt {W}{U} for a 1/3 legendary, the baseline is reasonable for a utility creature. The body is intentionally defensive (survives Spark Saboteur-style pings) and the abilities drive the archetype rather than providing raw tempo or power. The first ability creates repeatable interaction value when artifacts enter. The second ability is a payoff for playing Malfunction creatures, letting them come online faster—exactly the kind of build-around that rare legendaries should do. The combination is above-rate for a 2-mana body, but not by a problematic margin; this is appropriate for a rare legendary that requires a supporting cast to shine. The static Malfunction reduction is significant in a dedicated deck but doesn't break the mechanic.\n\n**Design Quality:**\nThe card has a focused purpose: enable and synergize with Malfunction artifacts in the WU archetype. Both abilities reinforce this without kitchen-sink bloat. The first ability (tap/untap artifacts) is a flexible control tool that works independently—it can lock down opponent's artifacts or untap your own for repeated triggers, creating interesting play patterns. The second ability is the true build-around that rewards you for playing Malfunction creatures.\n\n**Color Pie:**\nWhite's tapping and untapping of artifacts is well-established (see cards like Paradoxical Outcome, Faith's Reward, Spell Pierce effects). Blue's artifact affinity is on-color. The combination in WU for artifact mastery is clean and appropriate.\n\n**Custom Mechanics Check:**\n- Salvage: Not present on this card, no issue.\n- Malfunction: Present with reminder text on first use. ✓\n- Overclock: Not present on this card, no issue.\n\n**Keyword Interactions:**\nNo negations present. The abilities interact positively and synergistically.\n\n**Variability:**\nNot applicable; no conditional abilities with variable outcomes.\n\n**Specific Checklist Items:**\n1. No negated keywords—all abilities are synergistic. ✓\n2. Malfunction reminder text present on first use. ✓\n3. No conditional redundancy. ✓\n4. Power level appropriate for rare legend with support requirement. ✓\n5. Not a kitchen sink; focused on Malfunction synergy and artifact control. ✓\n6. No false variability. ✓\n7. No keyword collisions with existing MTG keywords. ✓\n8. No irrelevant \"enters tapped\" effects. ✓\n\nThe card is well-executed and ready for print.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "input_tokens": 2969,
+      "output_tokens": 790,
+      "cost_usd": 0.0055352000000000005
+    }
+  ],
+  "total_input_tokens": 8907,
+  "total_output_tokens": 2338,
+  "total_cost_usd": 0.016477600000000002,
+  "total_latency_s": 26.801445722579956,
+  "timestamp": "2026-03-14T12:33:01.590732+00:00"
+}

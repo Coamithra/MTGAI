@@ -1,0 +1,93 @@
+{
+  "collector_number": "U-U-03",
+  "card_name": "Automated Sentry Grid",
+  "rarity": "uncommon",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Automated Sentry Grid",
+    "layout": "normal",
+    "mana_cost": "{3}{U}{U}",
+    "mana_cost_parsed": null,
+    "cmc": 5.0,
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "type_line": "Enchantment",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "Whenever a creature an opponent controls attacks, tap it. It doesn't untap during its controller's next untap step unless its controller pays {2}.\nWhenever an artifact enters under your control, scry 1.",
+    "flavor_text": "The grid was designed to protect something. After ten thousand years, it no longer remembers what.",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "U-U-03",
+    "rarity": "uncommon",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:34:42.737931Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 1041,
+        "output_tokens": 381,
+        "cost_usd": 0.044196,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Blue uncommon enchantment at CMC 5. A defensive pillow-fort effect that feels like ancient security technology. The tap-and-freeze effect is a blue staple (Frost Titan, Dungeon Geists lineage) but spread across all attackers at a steep 5-mana investment. The {2} opt-out prevents total lockdown and gives opponents meaningful choices. The artifact-scry rider ties it into the set's artifact subtheme without being too powerful -- scry 1 is minor enough to not dominate. At 5 mana, this is a late-game stabilizer, not an oppressive lock piece.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "U-U-03",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:34:42.737931Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Automated Sentry Grid\nMana Cost: {3}{U}{U}\nType: Enchantment\nRarity: uncommon\nOracle Text: Whenever a creature an opponent controls attacks, tap it. It doesn't untap during its controller's next untap step unless its controller pays {2}.\nWhenever an artifact enters under your control, scry 1.\nFlavor Text: The grid was designed to protect something. After ten thousand years, it no longer remembers what.\nDesign Notes: Blue uncommon enchantment at CMC 5. A defensive pillow-fort effect that feels like ancient security technology. The tap-and-freeze effect is a blue staple (Frost Titan, Dungeon Geists lineage) but spread across all attackers at a steep 5-mana investment. The {2} opt-out prevents total lockdown and gives opponents meaningful choices. The artifact-scry rider ties it into the set's artifact subtheme without being too powerful -- scry 1 is minor enough to not dominate. At 5 mana, this is a late-game stabilizer, not an oppressive lock piece.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "\nAutomated Sentry Grid is a well-designed blue uncommon enchantment that functions as a defensive pillow-fort piece. Let me work through the checklist:\n\n**Templating & Oracle Text:** The card uses clean modern templating. \"Whenever a creature an opponent controls attacks, tap it\" is standard. The follow-up \"It doesn't untap during its controller's next untap step unless its controller pays {2}\" is correctly templated and clearly states the conditional untap cost. The second ability \"Whenever an artifact enters under your control, scry 1\" is also correctly formatted. No custom mechanics (Salvage, Malfunction, Overclock) appear on this card, so reminder text is not applicable.\n\n**Keyword Interactions:** No keywords are negated or made useless here. This is not a creature, so the tap mechanic has full mechanical weight.\n\n**Conditional Meaningfulness:** The conditional \"unless its controller pays {2}\" is meaningful and non-redundant. An opponent can choose to pay {2} to untap the creature, creating real decision points and preventing total lockdown. This is good design.\n\n**Power Level:** At CMC 5 (3UU), this card provides valuable late-game stabilization. Comparable cards: Frost Titan (5 mana, creature, taps on attack) was a strong blue card in its Standard environment. Dungeon Geists (4 mana, creature with flying) also taps creatures. This is an enchantment (not a creature, so no combat stats), and it applies to ALL attacking creatures, not just one per turn. The scry rider adds utility. The {2} opt-out prevents infinite lockdown. At uncommon, this feels appropriately powerful for a late-game stabilizer without being oppressive. It's above a typical utility enchantment but below pushed, which is appropriate for this role at 5 mana.\n\n**Kitchen Sink:** The card has two abilities: (1) tap all attacking creatures and prevent untapping unless paid for, and (2) scry 1 when artifacts enter. Both tie to the set's artifact theme and defense strategy. They're related in purpose (late-game stabilization) rather than unrelated effects. This is not kitchen sink design. The scry rider is a minor bonus that fits the \"ancient technology\" flavor.\n\n**Variability:** Both abilities are straightforward with no false variability. There's no counting or conditional scaling.\n\n**Mechanic Name Collisions:** No custom mechanics appear on this card, so no collision issues.\n\n**Enters Tapped:** Not applicable; this is not a permanent that enters the battlefield with tapped status.\n\n**Color Pie:** This is solidly in blue's pie. Tapping creatures is a blue staple (or blue-adjacent in some cases, but blue has always had this through control effects). Scry is a core blue mechanic. The defensive posture is very much blue. No pie concerns.\n\n**Set Context:** This card fits well into the \"Anomalous Descent\" set's artifact subtheme and would pair nicely with salvage mechanics and other artifact generators, creating a cohesive limited strategy.\n\nOverall assessment: This is a well-executed uncommon that serves a clear purpose without overextending. No issues detected.\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2885,
+      "output_tokens": 796,
+      "cost_usd": 0.005492,
+      "latency_s": 9.508989334106445
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2885,
+  "total_output_tokens": 796,
+  "total_cost_usd": 0.005492,
+  "total_latency_s": 9.508989334106445,
+  "timestamp": "2026-03-14T12:27:07.436447+00:00"
+}

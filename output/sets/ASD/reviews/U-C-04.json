@@ -1,0 +1,95 @@
+{
+  "collector_number": "U-C-04",
+  "card_name": "Excavate the Archives",
+  "rarity": "common",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Excavate the Archives",
+    "layout": "normal",
+    "mana_cost": "{4}{U}",
+    "mana_cost_parsed": null,
+    "cmc": 5.0,
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "type_line": "Sorcery",
+    "supertypes": [],
+    "card_types": [],
+    "subtypes": [],
+    "oracle_text": "Draw three cards, then discard a card.\nSalvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)",
+    "flavor_text": "\"Most of what we find is junk. But junk from before the collapse is still worth a fortune.\"",
+    "reminder_text": null,
+    "power": null,
+    "toughness": null,
+    "loyalty": null,
+    "collector_number": "U-C-04",
+    "rarity": "common",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-12T23:34:03.984154Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [
+          "Oracle text contains what looks like reminder text: \"(Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\""
+        ],
+        "input_tokens": 1012,
+        "output_tokens": 318,
+        "cost_usd": 0.039081,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "Blue common sorcery at CMC 5 -- the 'complex common' slot. Draw 3 discard 1 is a classic blue common effect at 5 mana (Tidings draws 4 for 5, so draw 3 loot 1 is weaker on raw cards but adds selection). The Salvage 3 rider adds set-mechanic relevance and artifact synergy without adding meaningful complexity -- it's a clean additional look that happens after the draw/discard. Salvage at 3 is within the common range (2-3). The two effects are thematically unified: you're digging through ancient archives and pulling out useful relics. Sorcery speed keeps it from being too flexible.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "U-C-04",
+    "card_faces": null,
+    "created_at": "2026-03-12T23:34:03.984154Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Salvage\n- Type: keyword_ability\n- Reminder text: (Look at the top X cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\n- Colors: White, Blue, Green\n- Complexity: 1\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Primary mechanic for the set. Complexity 1 makes it common-viable. X scaling: 2-3 at common, 4-5 at uncommon, 6+ at rare/mythic. Supports the artifact subtheme by filtering for artifacts. Does NOT tutor (unlike the original candidate) -- it looks at top X, reducing variance and keeping common versions simple. Renamed from 'Scavenge' to 'Salvage' to avoid collision with the existing MTG keyword 'Scavenge' from Return to Ravnica (which exiles creatures from graveyards to put +1/+1 counters on targets).\n\n### Malfunction\n- Type: keyword_ability\n- Reminder text: (This permanent enters tapped with N malfunction counters on it. At the beginning of your upkeep, remove a malfunction counter from it.)\n- Colors: White, Blue, Red\n- Complexity: 2\n- Appears at: common, uncommon, rare, mythic\n- Design notes: Secondary mechanic. N scaling: 1 at common, 2 at uncommon, 2-3 at rare/mythic. Enters tapped is the key tempo cost. Overlaps well with WR (Spark Rebellion) and WU (Ancient Technology) draft archetypes. The colorless artifact slot (X-C-01) is a natural fit. Counter removal creates interesting interactions with the Cult of Science (UR) archetype.\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Excavate the Archives\nMana Cost: {4}{U}\nType: Sorcery\nRarity: common\nOracle Text: Draw three cards, then discard a card.\nSalvage 3. (Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\nFlavor Text: \"Most of what we find is junk. But junk from before the collapse is still worth a fortune.\"\nDesign Notes: Blue common sorcery at CMC 5 -- the 'complex common' slot. Draw 3 discard 1 is a classic blue common effect at 5 mana (Tidings draws 4 for 5, so draw 3 loot 1 is weaker on raw cards but adds selection). The Salvage 3 rider adds set-mechanic relevance and artifact synergy without adding meaningful complexity -- it's a clean additional look that happens after the draw/discard. Salvage at 3 is within the common range (2-3). The two effects are thematically unified: you're digging through ancient archives and pulling out useful relics. Sorcery speed keeps it from being too flexible.\nValidation Warnings (from auto-validator):\n  - Oracle text contains what looks like reminder text: \"(Look at the top three cards of your library. You may put an artifact card from among them into your hand. Put the rest on the bottom of your library in any order.)\"\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "\n**Excavate the Archives** is a complex common sorcery at {4}{U} that combines draw-discard selection with Salvage 3. Let me analyze each component:\n\n**Oracle Text & Templating:**\nThe card is correctly templated. The reminder text for Salvage is appropriately included inline after the keyword (this is the first appearance of Salvage in this card, so reminder text is correct and required). The sequence of effects is clear: draw three, discard one, then apply Salvage 3. This follows modern MTG conventions where additional effects are listed after the main effect.\n\n**Power Level Assessment:**\n- Base effect: Draw 3, discard 1 at CMC 5. This is weaker than Tidings (draw 4 for 5), but stronger than raw card draw because it includes selection (you're choosing what to discard). This is reasonable for a common blue effect.\n- Salvage 3 rider: Adds set-mechanic relevance without bloating the card. Salvage 3 is within the common range (2-3 per design notes). For a deck with artifact synergy, this is genuinely valuable; for non-artifact decks, it's still a filter effect that can smooth out mana or find utility.\n- Overall: At CMC 5 for a sorcery that draws 3 and filters the top 3 library cards for artifacts, this is well-costed. Not overpowered, not underpowered. Comparable to Divination variants with added complexity.\n\n**Color Pie:**\nBlue is the correct color. Draw, filtering, artifact support through search — all in blue's wheelhouse. No red mana for flexibility, so no color pie violations.\n\n**Design Quality:**\n- Focused purpose: The card is thematically unified around \"excavating archives\" — you're drawing resources and pulling artifacts from the library. The two effects reinforce each other mechanically.\n- Kitchen sink: No. Two related effects (draw/discard + Salvage) that work together thematically. Not kitchen sink.\n- Variability: The Salvage 3 has real variability — you might find 0, 1, 2, or 3 artifact cards in the top 3. This creates meaningful decision trees and variance. The draw-discard also has variability depending on hand state.\n\n**Keyword Interactions:**\n- Salvage is a custom mechanic without conflicts. The keyword is properly templated with reminder text on first use.\n- No negated keywords or redundant conditionals.\n\n**Complex Common Slot:**\nThe design notes correctly identify this as a \"complex common\" — it has two effects that need to be understood, but both are relatively straightforward. The reminder text on Salvage helps readability. This is appropriate complexity for a common in a small set where Salvage is a primary mechanic.\n\n**One Concern — Validation Warning:**\nThe auto-validator flagged that the oracle text \"contains what looks like reminder text.\" This is actually correct behavior — the reminder text for Salvage IS present in the oracle text as parentheses. This is NOT an error; this is the correct way to present custom mechanics on their first appearance. The validator appears to be doing its job (detecting parenthetical reminder text) but flagging it as a potential issue when it's actually correct. No action needed here.\n\n**Summary:**\n- Templating: ✓ Correct\n- Power level: ✓ Appropriate for CMC 5 common\n- Color pie: ✓ Blue is correct\n- Design: ✓ Focused, thematic, good variability\n- Mechanics: ✓ Salvage reminder text present on first use, no collisions or negations\n",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2973,
+      "output_tokens": 908,
+      "cost_usd": 0.0060104,
+      "latency_s": 10.415403842926025
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2973,
+  "total_output_tokens": 908,
+  "total_cost_usd": 0.0060104,
+  "total_latency_s": 10.415403842926025,
+  "timestamp": "2026-03-14T12:24:43.274979+00:00"
+}

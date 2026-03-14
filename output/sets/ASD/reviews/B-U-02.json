@@ -1,0 +1,98 @@
+{
+  "collector_number": "B-U-02",
+  "card_name": "Catacomb Harvester",
+  "rarity": "uncommon",
+  "review_tier": "single",
+  "model": "claude-haiku-4-5-20251001",
+  "original_card": {
+    "id": null,
+    "name": "Catacomb Harvester",
+    "layout": "normal",
+    "mana_cost": "{2}{B}",
+    "mana_cost_parsed": null,
+    "cmc": 3.0,
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "type_line": "Creature — Human Warlock",
+    "supertypes": [],
+    "card_types": [
+      "Creature"
+    ],
+    "subtypes": [
+      "Human",
+      "Warlock"
+    ],
+    "oracle_text": "Deathtouch\nWhenever another creature you control dies, you may pay 1 life. If you do, draw a card.",
+    "flavor_text": "\"The dungeon provides. You just have to know which parts to cut open.\"",
+    "reminder_text": null,
+    "power": "2",
+    "toughness": "2",
+    "loyalty": null,
+    "collector_number": "B-U-02",
+    "rarity": "uncommon",
+    "set_code": "ASD",
+    "artist": "AI Generated",
+    "status": "draft",
+    "generation_attempts": [
+      {
+        "attempt_number": 1,
+        "timestamp": "2026-03-14T00:43:57.010670Z",
+        "prompt_used": null,
+        "model_used": "claude-opus-4-6",
+        "success": true,
+        "error_message": null,
+        "validation_errors": [],
+        "input_tokens": 2667,
+        "output_tokens": 425,
+        "cost_usd": 0.071925,
+        "prompt_version": null
+      }
+    ],
+    "art_generation_attempts": [],
+    "render_attempts": [],
+    "art_path": null,
+    "render_path": null,
+    "art_prompt": null,
+    "design_notes": "A clean black uncommon that rewards sacrifice strategies. 2/2 deathtouch for 3 is a fair body — P+T = 4 which is CMC+1, well within budget, with deathtouch making it trade up in combat. The death trigger with a life payment is classic black: paying a resource (life) for card advantage. This supports the WB (Fist of Denethix aristocrats) and mono-B themes already present in the set alongside Koyl Yrenum, Fist Tax Collector, and Subsurface Harvest. The life payment prevents it from being free card draw and creates meaningful tension. At uncommon, the two-ability design (keyword + triggered ability) is appropriate complexity.",
+    "is_reprint": false,
+    "scryfall_id": null,
+    "draft_archetype": null,
+    "mechanic_tags": [],
+    "slot_id": "B-U-02",
+    "card_faces": null,
+    "created_at": "2026-03-14T00:43:57.010670Z",
+    "updated_at": null
+  },
+  "final_verdict": "OK",
+  "final_issues": [],
+  "revised_card": null,
+  "card_was_changed": false,
+  "iterations": [
+    {
+      "iteration": 1,
+      "prompt": "## Custom Mechanics\n\n### Overclock\n- Type: keyword_action\n- Reminder text: (Exile the top three cards of your library. You may play them until end of turn.)\n- Colors: Blue, Red, Black\n- Complexity: 3\n- Appears at: uncommon, rare, mythic\n- Design notes: Tertiary mechanic, rare+ only (complexity 3). Should NOT appear at common. This is a renamed/retuned version of the candidate 'Overload' to avoid collision with the existing MTG keyword 'Overload' from Return to Ravnica. High risk/reward: exiling 3 cards is significant, but playing them until end of turn is powerful. Fits UR (Mad Science) and UB (Deep Descent) archetypes. BR (Raider Warbands) can splash into it for explosive turns.\n\n\n---\n\n## Card to Review\n\nName: Catacomb Harvester\nMana Cost: {2}{B}\nType: Creature — Human Warlock\nRarity: uncommon\nOracle Text: Deathtouch\nWhenever another creature you control dies, you may pay 1 life. If you do, draw a card.\nFlavor Text: \"The dungeon provides. You just have to know which parts to cut open.\"\nP/T: 2/2\nDesign Notes: A clean black uncommon that rewards sacrifice strategies. 2/2 deathtouch for 3 is a fair body — P+T = 4 which is CMC+1, well within budget, with deathtouch making it trade up in combat. The death trigger with a life payment is classic black: paying a resource (life) for card advantage. This supports the WB (Fist of Denethix aristocrats) and mono-B themes already present in the set alongside Koyl Yrenum, Fist Tax Collector, and Subsurface Harvest. The life payment prevents it from being free card draw and creates meaningful tension. At uncommon, the two-ability design (keyword + triggered ability) is appropriate complexity.\n\n---\n\n## Review Checklist\n\nList any issues with templating, mechanics, balance, design, or color pie.\n\nAdditionally, consider these specific questions:\n\n1. Does this card have any keywords that are negated or made useless by other abilities on the card? For example, haste on a creature that always enters tapped, or flying on a creature with defender that doesn't care about it.\n2. Is reminder text present for all custom mechanics (Salvage, Malfunction, Overclock)? The FIRST time each custom mechanic keyword appears in the oracle text, it should be followed by reminder text in parentheses. Only flag if there is genuinely NO reminder text at all for a custom mechanic's first use.\n3. If this card has a conditional ('if you X this turn'), is that conditional actually meaningful -- can the condition ever be false when the card is played normally? For instance, if overclock is a mandatory additional cost, then 'if you overclocked this turn' is always true and therefore redundant.\n4. Is the power level appropriate for its mana cost and rarity? Compare to well-known MTG cards at the same cost. Flag anything that seems significantly above or below rate. Exception: Malfunction cards are intentionally above-rate because the delay IS the drawback.\n5. Does this card try to do too many unrelated things (kitchen sink design)? A good card has a focused purpose; a kitchen sink card piles on 3+ unrelated effects.\n6. If this card has variable damage or variable effects based on a count, is the variability real or does it always resolve to the same fixed value? For example, 'deal 2 damage for each card exiled' where the exile count is always fixed at 6 means the damage is always 12.\n7. Do any mechanic names on this card collide with existing MTG keywords? Specifically: 'Scavenge' is an existing MTG keyword from Return to Ravnica (2012). 'Overload' is an existing keyword from the same set. Our mechanics are Salvage, Malfunction, and Overclock.\n8. Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.\n\nIf the card is good as-is, verdict is OK with an empty issues list. If the card needs changes, verdict is REVISE and provide the complete revised card with ALL fields.",
+      "response": {
+        "analysis": "Catacomb Harvester is a clean, well-designed black uncommon that fits squarely within the color pie and set context. The card has two straightforward abilities: deathtouch (a keyword) and a death-triggered card draw engine that costs 1 life.\n\n**Templating & Mechanics:** The oracle text is correctly templated. \"Whenever another creature you control dies, you may pay 1 life. If you do, draw a card.\" is standard conditional sacrifice-reward text. No custom mechanics appear on this card, so no reminder text is needed.\n\n**Power Level & Balance:** A 2/2 for {2}{B} with deathtouch is fair. The P+T sum is 4, which equals CMC+1—well within the budget for a creature with a meaningful keyword. The triggered ability adds value in grindy, sacrifice-heavy strategies. The life payment (1 life per activation) prevents this from being free card draw and creates meaningful tension. Compared to cards like Zulaport Cutthroat (2/1 for {1}{B}, triggers on death but drains for 1 instead of drawing), Catacomb Harvester is appropriately costed for uncommon. The card rewards building around it rather than being a standalone powerhouse.\n\n**Design Quality:** The card has a focused purpose: reward sacrifice strategies in black. It supports the stated archetypes (WB aristocrats with Fist of Denethix, and the mentioned mono-B synergies). The two-ability design (keyword + triggered ability) is appropriate for uncommon complexity. No kitchen sink issues—every part of the card serves the sacrifice/card advantage theme.\n\n**Keyword Interactions:** Deathtouch is a pure upside on a 2/2 body and doesn't conflict with the triggered ability. The death trigger doesn't negate or make deathtouch irrelevant.\n\n**Color Pie:** Black is the color of death, sacrifice, and life payment for value. This card is squarely in black's identity.\n\n**Custom Mechanics:** No Salvage, Malfunction, or Overclock appears on this card, so no custom reminder text is required.\n\nOverall, this is a solid, focused uncommon that belongs in the set.",
+        "verdict": "OK",
+        "issues": []
+      },
+      "verdict": "OK",
+      "issues": [],
+      "model": "claude-haiku-4-5-20251001",
+      "input_tokens": 2474,
+      "output_tokens": 570,
+      "cost_usd": 0.0042591999999999994,
+      "latency_s": 6.225118637084961
+    }
+  ],
+  "council_reviews": [],
+  "total_input_tokens": 2474,
+  "total_output_tokens": 570,
+  "total_cost_usd": 0.0042591999999999994,
+  "total_latency_s": 6.225118637084961,
+  "timestamp": "2026-03-14T12:19:50.073888+00:00"
+}

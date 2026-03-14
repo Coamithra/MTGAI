@@ -54,6 +54,12 @@ def _manual(
 
 def validate_type_consistency(card: Card) -> list[ValidationError]:
     """Check that the card's type line, stats, and abilities are consistent."""
+    # If card_types wasn't populated (e.g. loaded from disk), derive from type_line
+    if not card.card_types and card.type_line:
+        from mtgai.validation.schema import _parse_type_line
+
+        card = _parse_type_line(card)
+
     errors: list[ValidationError] = []
 
     is_creature = "Creature" in card.card_types

@@ -111,6 +111,7 @@ class CardReviewResult(BaseModel):
     card_name: str
     rarity: str
     review_tier: str  # "single" or "council"
+    model: str = ""  # effective model after MTGAI_MAX_MODEL capping
     original_card: dict
     final_verdict: str
     final_issues: list[ReviewIssue] = Field(default_factory=list)
@@ -328,6 +329,14 @@ def _format_card_for_review(card: dict) -> str:
     notes = card.get("design_notes")
     if notes:
         lines.append(f"Design Notes: {notes}")
+    # Include heuristic validation warnings from generation (MANUAL errors)
+    val_errors: list[str] = []
+    for attempt in card.get("generation_attempts", []):
+        val_errors.extend(attempt.get("validation_errors", []))
+    if val_errors:
+        lines.append("Validation Warnings (from auto-validator):")
+        for err in dict.fromkeys(val_errors):  # dedupe, preserve order
+            lines.append(f"  - {err}")
     return "\n".join(lines)
 
 
@@ -396,12 +405,15 @@ def _build_council_synthesis_prompt(
     reviews_text = ""
     for i, review in enumerate(council_reviews, 1):
         reviews_text += f"\n### Reviewer {i}\n"
-        reviews_text += f"Verdict: {review['verdict']}\n"
+        reviews_text += f"Verdict: {review.get('verdict', 'UNKNOWN')}\n"
         analysis = review.get("analysis", "")
         if analysis:
             reviews_text += f"Analysis: {analysis}\n"
         for issue in review.get("issues", []):
-            reviews_text += f"- [{issue['severity']}] {issue['category']}: {issue['description']}\n"
+            sev = issue.get("severity", "?")
+            cat = issue.get("category", "?")
+            desc = issue.get("description", "?")
+            reviews_text += f"- [{sev}] {cat}: {desc}\n"
         revised = review.get("revised_card")
         if revised:
             reviews_text += f"\nProposed revision:\n{_format_card_for_review(revised)}\n"
@@ -471,7 +483,8 @@ def _review_single(
             break
 
         latency = time.time() - t0
-        cost = calc_cost(MODEL, result["input_tokens"], result["output_tokens"])
+        effective_model = result.get("model", MODEL)
+        cost = calc_cost(effective_model, result["input_tokens"], result["output_tokens"])
         total_in += result["input_tokens"]
         total_out += result["output_tokens"]
         total_cost += cost
@@ -496,7 +509,7 @@ def _review_single(
                 response=verdict_data,
                 verdict=verdict,
                 issues=issues,
-                model=MODEL,
+                model=effective_model,
                 input_tokens=result["input_tokens"],
                 output_tokens=result["output_tokens"],
                 cost_usd=cost,
@@ -531,11 +544,14 @@ def _review_single(
             # Track the latest revision
             revised_card = it.response.get("revised_card")
 
+    effective_model = iterations[0].model if iterations else MODEL
+
     return CardReviewResult(
         collector_number=collector_number,
         card_name=card_name,
         rarity=rarity,
         review_tier="single",
+        model=effective_model,
         original_card=card,
         final_verdict=final_verdict,
         final_issues=final_issues,
@@ -576,6 +592,7 @@ def _review_council(
     )
 
     council_reviews: list[CouncilMemberReview] = []
+    effective_model = MODEL
     total_in = 0
     total_out = 0
     total_cost = 0.0
@@ -604,7 +621,8 @@ def _review_council(
             continue
 
         latency = time.time() - t0
-        cost = calc_cost(MODEL, result["input_tokens"], result["output_tokens"])
+        effective_model = result.get("model", MODEL)
+        cost = calc_cost(effective_model, result["input_tokens"], result["output_tokens"])
         total_in += result["input_tokens"]
         total_out += result["output_tokens"]
         total_cost += cost
@@ -612,6 +630,7 @@ def _review_council(
 
         verdict_data = result["result"]
         verdict = verdict_data.get("verdict", "OK")
+        verdict_data["verdict"] = verdict  # ensure key exists for synthesis prompt
         issues = [ReviewIssue(**i) for i in verdict_data.get("issues", [])]
 
         logger.info(
@@ -645,6 +664,7 @@ def _review_council(
             card_name=card_name,
             rarity=rarity,
             review_tier="council",
+            model=effective_model,
             original_card=card,
             final_verdict="OK",
             final_issues=[],
@@ -701,7 +721,8 @@ def _review_council(
             break
 
         latency = time.time() - t0
-        cost = calc_cost(MODEL, result["input_tokens"], result["output_tokens"])
+        effective_model = result.get("model", MODEL)
+        cost = calc_cost(effective_model, result["input_tokens"], result["output_tokens"])
         total_in += result["input_tokens"]
         total_out += result["output_tokens"]
         total_cost += cost
@@ -726,7 +747,7 @@ def _review_council(
                 response=verdict_data,
                 verdict=verdict,
                 issues=issues,
-                model=MODEL,
+                model=effective_model,
                 input_tokens=result["input_tokens"],
                 output_tokens=result["output_tokens"],
                 cost_usd=cost,
@@ -752,11 +773,16 @@ def _review_council(
             card_was_changed = True
             revised_card = it.response.get("revised_card")
 
+    # Use model from synthesis iterations if available, else from council reviews
+    if iterations:
+        effective_model = iterations[0].model
+
     return CardReviewResult(
         collector_number=collector_number,
         card_name=card_name,
         rarity=rarity,
         review_tier="council",
+        model=effective_model,
         original_card=card,
         final_verdict=final_verdict,
         final_issues=final_issues,
@@ -833,14 +859,128 @@ def _apply_revision(original_card: Card, revised_data: dict) -> Card:
 
 
 def _save_review_log(review: CardReviewResult) -> Path:
-    """Save a per-card review log as JSON."""
+    """Save per-card review as JSON (machine) + markdown (human-readable)."""
     REVIEWS_DIR.mkdir(parents=True, exist_ok=True)
-    path = REVIEWS_DIR / f"{review.collector_number}.json"
-    path.write_text(
+
+    # JSON for resumability + summary report
+    json_path = REVIEWS_DIR / f"{review.collector_number}.json"
+    json_path.write_text(
         review.model_dump_json(indent=2),
         encoding="utf-8",
     )
-    return path
+
+    # Markdown for human reading
+    md_path = REVIEWS_DIR / f"{review.collector_number}.md"
+    md_path.write_text(_review_to_markdown(review), encoding="utf-8")
+
+    return json_path
+
+
+def _review_to_markdown(r: CardReviewResult) -> str:
+    """Render a CardReviewResult as readable markdown."""
+    lines = [
+        f"# Review: {r.collector_number} — {r.card_name}",
+        "",
+        f"- **Rarity:** {r.rarity}",
+        f"- **Tier:** {r.review_tier}",
+        f"- **Model:** {r.model}",
+        f"- **Verdict:** {r.final_verdict}",
+        f"- **Changed:** {'yes' if r.card_was_changed else 'no'}",
+        f"- **Cost:** ${r.total_cost_usd:.4f}",
+        f"- **Tokens:** {r.total_input_tokens:,} in / {r.total_output_tokens:,} out",
+        f"- **Latency:** {r.total_latency_s:.1f}s",
+        f"- **Timestamp:** {r.timestamp}",
+        "",
+    ]
+
+    # Original card
+    lines.append("## Original Card")
+    lines.append("")
+    for line in _format_card_for_review(r.original_card).splitlines():
+        lines.append(f"> {line}")
+    lines.append("")
+
+    # Council reviews (if any)
+    if r.council_reviews:
+        lines.append("## Council Reviews")
+        lines.append("")
+        for cr in r.council_reviews:
+            lines.append(f"### Reviewer {cr.member_id}")
+            lines.append("")
+            lines.append(f"**Verdict:** {cr.verdict} ({len(cr.issues)} issues)  ")
+            lines.append(
+                f"**Cost:** ${cr.cost_usd:.4f} "
+                f"({cr.input_tokens:,} in / {cr.output_tokens:,} out)"
+            )
+            lines.append("")
+            analysis = cr.response.get("analysis", "")
+            if analysis:
+                lines.append(analysis)
+                lines.append("")
+            for issue in cr.issues:
+                lines.append(f"- **[{issue.severity}] {issue.category}:** {issue.description}")
+            if cr.response.get("revised_card"):
+                lines.append("")
+                lines.append("**Proposed revision:**")
+                lines.append("")
+                for line in _format_card_for_review(cr.response["revised_card"]).splitlines():
+                    lines.append(f"> {line}")
+            lines.append("")
+
+    # Iterations (single review or synthesis)
+    if r.iterations:
+        label = "Synthesis Iterations" if r.council_reviews else "Review Iterations"
+        lines.append(f"## {label}")
+        lines.append("")
+        for it in r.iterations:
+            lines.append(f"### Iteration {it.iteration}")
+            lines.append("")
+            lines.append(f"**Verdict:** {it.verdict} ({len(it.issues)} issues)  ")
+            lines.append(
+                f"**Cost:** ${it.cost_usd:.4f} "
+                f"({it.input_tokens:,} in / {it.output_tokens:,} out)  "
+            )
+            lines.append(f"**Latency:** {it.latency_s:.1f}s  ")
+            lines.append(f"**Model:** {it.model}")
+            lines.append("")
+
+            # Prompt (collapsed for readability)
+            lines.append("<details>")
+            lines.append("<summary>Prompt</summary>")
+            lines.append("")
+            lines.append(it.prompt)
+            lines.append("")
+            lines.append("</details>")
+            lines.append("")
+
+            # Analysis
+            analysis = it.response.get("analysis") or it.response.get("synthesis", "")
+            if analysis:
+                lines.append("**Analysis:**")
+                lines.append("")
+                lines.append(analysis)
+                lines.append("")
+
+            for issue in it.issues:
+                lines.append(f"- **[{issue.severity}] {issue.category}:** {issue.description}")
+
+            if it.response.get("revised_card"):
+                lines.append("")
+                lines.append("**Revised card:**")
+                lines.append("")
+                for line in _format_card_for_review(it.response["revised_card"]).splitlines():
+                    lines.append(f"> {line}")
+            lines.append("")
+
+    # Final revised card
+    if r.card_was_changed and r.revised_card:
+        lines.append("## Final Revised Card")
+        lines.append("")
+        for line in _format_card_for_review(r.revised_card).splitlines():
+            lines.append(f"> {line}")
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -857,11 +997,15 @@ def _generate_summary_report(reviews: list[CardReviewResult]) -> str:
     ok_count = sum(1 for r in reviews if r.final_verdict == "OK")
     revise_count = sum(1 for r in reviews if r.final_verdict == "REVISE")
 
+    # Determine actual model used from review results
+    effective_models = {r.model for r in reviews if r.model}
+    model_str = ", ".join(sorted(effective_models)) if effective_models else MODEL
+
     lines = [
         "# AI Design Review Summary -- Phase 4B",
         "",
         f"Date: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
-        f"Model: {MODEL} (effort={EFFORT})",
+        f"Model: {model_str} (effort={EFFORT})",
         f"Cards reviewed: {len(reviews)}",
         f"Cards changed: {changed}",
         f"Final OK: {ok_count} | Final REVISE: {revise_count}",
