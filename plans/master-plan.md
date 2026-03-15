@@ -19,7 +19,7 @@ Build a complete Magic: The Gathering custom set creator — from initial set de
 | 4A Balance + Revision | COMPLETE | Balance analysis + skeleton revision pipeline. 2 bugs found & fixed in prompt pipeline. Mechanic targets met. |
 | 4B AI Design Review | COMPLETE | 59 cards reviewed (Haiku, $0.58), 6 changed, 58 OK / 1 REVISE. Post-review finalization done: reminder injection + auto-fixes. 2 validator bugs fixed. |
 | 4AB Human Review Gate | IN PROGRESS | Card-by-card "art ready" review. Gallery built for visual review. |
-| 2A Art Direction | NOT STARTED | Can run parallel with human review |
+| 2A Art Direction | IN PROGRESS | Style guide + prompts done. ComfyUI + Flux pipeline built. Batch generation running (66×3 images). |
 | 2B-5C | NOT STARTED | |
 
 ## Key Decisions

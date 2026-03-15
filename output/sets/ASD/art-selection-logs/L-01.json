@@ -1,0 +1,23 @@
+{
+  "collector_number": "L-01",
+  "name": "Plains",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best captures the post-apocalyptic sci-fantasy aesthetic with visible megastructure elements (massive steel columns, industrial bridges) integrated into the medieval city architecture. It clearly shows the \"crumbling concrete megastructures\" and \"rusted steel frames\" mentioned in the prompt, creating the distinct contrast between civilization and wilderness. V1 lacks the sci-fi infrastructure entirely and reads as purely medieval fantasy, while V3 shows a more traditional fantasy city without the post-apocalyptic industrial elements. V2 also has excellent composition with strong atmospheric perspective and wildflowers in the foreground.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Missing post-apocalyptic megastructure elements; appears as pure medieval fantasy without sci-fi infrastructure"
+    },
+    {
+      "version": "v3",
+      "issue": "Lacks visible concrete megastructures and rusted steel frames; reads as traditional fantasy rather than post-apocalyptic sci-fantasy hybrid"
+    }
+  ],
+  "version_files": [
+    "L-01_plains_v1.png",
+    "L-01_plains_v2.png",
+    "L-01_plains_v3.png"
+  ]
+}

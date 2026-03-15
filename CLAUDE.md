@@ -112,11 +112,31 @@
 - Art and rendered images are NOT version-controlled (gitignored)
 - Never commit API keys or .env files
 
-## Current State (4AB Human Review Gate)
+## Art Pipeline (`mtgai/art/`)
+- **ComfyUI** installed at `C:\Programming\ComfyUI` with Flux.1-dev Q8_0 GGUF
+- `prompt_builder.py` — Haiku generates 40-60 word Flux-optimized visual descriptions, assembles with style line
+- `visual_reference.py` — JSON-driven visual reference loader, Flux term replacements for setting-specific names
+- `image_generator.py` — batch generation via ComfyUI API
+  - Auto-starts ComfyUI, VRAM pre-check (lists GPU-hungry apps if insufficient), resumable via progress.json
+  - Settings: 30 steps, 1024×768, euler sampler, guidance 3.5, Q8_0 GGUF
+  - ~40s/image, generates 3 versions per card for selection
+  - **CRITICAL**: Must use `subprocess.DEVNULL` not `subprocess.PIPE` when starting ComfyUI (tqdm crashes on piped stderr on Windows)
+- `art_selector.py` — Haiku vision picks best version per card ($0.006/card)
+  - Evaluates: AI artifacts (hands!), prompt adherence, composition, color identity, style consistency
+  - Generates HTML report with side-by-side comparison + reasoning
+- `workflows/flux_dev_gguf.json` — ComfyUI API workflow (10 nodes)
+- `scripts/generate_all_art.py` — standalone batch runner (run in own terminal, not via Claude Code — 10min timeout limit)
+- Art files: `output/sets/<SET>/art/<collector>_<slug>_v<N>.png` (gitignored)
+- CLI: `python -m mtgai.art.image_generator --set ASD [--card W-C-01] [--dry-run]`
+- CLI: `python -m mtgai.art.art_selector --set ASD [--report-only]`
+
+## Current State (Phase 2A In Progress)
 - 66 cards generated for ASD dev set (60 main + 6 lands)
 - 3 custom mechanics: Salvage (W/U/G), Malfunction (W/U/R), Overclock (U/R/B)
 - Phases 0A-0E, 1A-1C, 4A, 4A-rev, 4B complete (review-infra, review-run, finalize)
 - AI review: 59 cards reviewed (Haiku, $0.58), 6 changed, 58 OK / 1 REVISE
 - Post-review finalization done: reminder injection + 5 auto-fixes + 2 validator bugs fixed
 - Review gallery: `output/sets/ASD/reports/card-review-gallery.html`
-- Next: 4AB-gate (human card-by-card "art ready" review), then Phase 2A (art direction)
+- Phase 2A art direction: style guide + prompts + personas done, ComfyUI pipeline built
+- Art generation: 66 cards × 3 versions batch running (overnight, ~2.2 hours)
+- Next: Haiku art selector → human review → character reference portraits

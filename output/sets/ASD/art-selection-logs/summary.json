@@ -1,0 +1,127 @@
+{
+  "set_code": "ASD",
+  "reviewed": 5,
+  "skipped": 61,
+  "errors": 0,
+  "results": [
+    {
+      "collector_number": "B-C-01",
+      "name": "Subsurface Scavenger",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best matches the prompt's core requirements: a gaunt human scavenger in a crouching pose actively reaching toward debris with a visible crude dagger. While V1 and V3 feature skull-faced undead creatures (departing from \"human scavenger\"), V2 maintains a living human form with proper anatomy, hollow cheeks, and tattered black clothing. V2's pose and composition are superior for card readability, with clear focal point and excellent use of shadow/light contrast appropriate for black color identity. The scattered bones and debris are well-rendered without being distracting.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Subject is a skeleton/undead rather than a gaunt human; deviates significantly from prompt description"
+        },
+        {
+          "version": "v3",
+          "issue": "Subject is a skeleton/undead rather than a gaunt human; also features anatomically odd spherical protrusions on knees that appear unnatural"
+        }
+      ],
+      "version_files": [
+        "B-C-01_subsurface_scavenger_v1.png",
+        "B-C-01_subsurface_scavenger_v2.png",
+        "B-C-01_subsurface_scavenger_v3.png"
+      ]
+    },
+    {
+      "collector_number": "G-C-01",
+      "name": "Elvish Mystic",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best matches the prompt's meditative pose with hands raised gently before the chest in a prayer-like position, directly embodying the \"connection to the forest\" theme. While all three versions have clean anatomy and good composition, V2's centered, symmetrical pose and serene closed-eye expression most accurately capture the requested meditative focus. V1 shows the elf in profile with only one hand raised, and V3 has hands together but with a more downward-facing gaze that feels less meditative. V2's golden light radiating from the chest area and the lush forest framing create the best overall adherence to the prompt's spiritual, naturalist aesthetic.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Profile pose with single raised hand doesn't match the 'hands raised gently before chest' meditative pose described in prompt"
+        },
+        {
+          "version": "v3",
+          "issue": "Hands positioned together at chest but with downward gaze lacks the serene, focused meditative expression requested"
+        }
+      ],
+      "version_files": [
+        "G-C-01_elvish_mystic_v1.png",
+        "G-C-01_elvish_mystic_v2.png",
+        "G-C-01_elvish_mystic_v3.png"
+      ]
+    },
+    {
+      "collector_number": "L-01",
+      "name": "Plains",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best captures the post-apocalyptic sci-fantasy aesthetic with visible megastructure elements (massive steel columns, industrial bridges) integrated into the medieval city architecture. It clearly shows the \"crumbling concrete megastructures\" and \"rusted steel frames\" mentioned in the prompt, creating the distinct contrast between civilization and wilderness. V1 lacks the sci-fi infrastructure entirely and reads as purely medieval fantasy, while V3 shows a more traditional fantasy city without the post-apocalyptic industrial elements. V2 also has excellent composition with strong atmospheric perspective and wildflowers in the foreground.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Missing post-apocalyptic megastructure elements; appears as pure medieval fantasy without sci-fi infrastructure"
+        },
+        {
+          "version": "v3",
+          "issue": "Lacks visible concrete megastructures and rusted steel frames; reads as traditional fantasy rather than post-apocalyptic sci-fantasy hybrid"
+        }
+      ],
+      "version_files": [
+        "L-01_plains_v1.png",
+        "L-01_plains_v2.png",
+        "L-01_plains_v3.png"
+      ]
+    },
+    {
+      "collector_number": "U-C-01",
+      "name": "Subsurface Surveyor",
+      "versions_reviewed": 3,
+      "pick": "v1",
+      "confidence": "high",
+      "reasoning": "V1 best matches the prompt with a lean scout in a proper crouching pose with one hand steadying against stone, rope coils visible at the belt, and alert eyes focused downward. The cool steel-blue and teal palette is perfectly executed with excellent screen-glow lighting on the torch. V2 has a watermark artifact in the bottom right corner and the pose is less dynamic (standing rather than crouching). V3 has the character in a crouch but the pose is less natural and the composition feels more cramped with the large dark cavern entrance dominating the frame.",
+      "artifacts_found": [
+        {
+          "version": "v2",
+          "issue": "Watermark/text artifact visible in bottom right corner"
+        },
+        {
+          "version": "v3",
+          "issue": "Composition too dark with oversized cavern entrance reducing character visibility at card size"
+        }
+      ],
+      "version_files": [
+        "U-C-01_subsurface_surveyor_v1.png",
+        "U-C-01_subsurface_surveyor_v2.png",
+        "U-C-01_subsurface_surveyor_v3.png"
+      ]
+    },
+    {
+      "collector_number": "W-C-01",
+      "name": "Denethix Watchguard",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 is the strongest choice. It has clean anatomy with no visible AI artifacts, excellent prompt adherence (soldier in chain mail, shield raised, sword ready, rigid watchful stance), and superior composition with the soldier centered and clearly visible at card size. The warm sandstone/ivory tones with golden-hour lighting and long shadows are perfectly executed, and the towering medieval fortifications with concrete ruins in the background create the post-apocalyptic science-fantasy setting. V1 has a cape that wasn't requested and feels less focused, while V2 has the soldier positioned awkwardly off-center and lacks the architectural grandeur of the background.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Red cape not mentioned in prompt; composition less focused with soldier positioned to the side"
+        },
+        {
+          "version": "v2",
+          "issue": "Soldier positioned off-center and awkwardly; background architecture less imposing and detailed"
+        }
+      ],
+      "version_files": [
+        "W-C-01_denethix_watchguard_v1.png",
+        "W-C-01_denethix_watchguard_v2.png",
+        "W-C-01_denethix_watchguard_v3.png"
+      ]
+    }
+  ],
+  "total_input_tokens": 29601,
+  "total_output_tokens": 1431,
+  "estimated_cost_usd": 0.0294,
+  "dry_run": false
+}

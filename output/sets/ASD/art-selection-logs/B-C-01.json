@@ -1,0 +1,23 @@
+{
+  "collector_number": "B-C-01",
+  "name": "Subsurface Scavenger",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best matches the prompt's core requirements: a gaunt human scavenger in a crouching pose actively reaching toward debris with a visible crude dagger. While V1 and V3 feature skull-faced undead creatures (departing from \"human scavenger\"), V2 maintains a living human form with proper anatomy, hollow cheeks, and tattered black clothing. V2's pose and composition are superior for card readability, with clear focal point and excellent use of shadow/light contrast appropriate for black color identity. The scattered bones and debris are well-rendered without being distracting.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Subject is a skeleton/undead rather than a gaunt human; deviates significantly from prompt description"
+    },
+    {
+      "version": "v3",
+      "issue": "Subject is a skeleton/undead rather than a gaunt human; also features anatomically odd spherical protrusions on knees that appear unnatural"
+    }
+  ],
+  "version_files": [
+    "B-C-01_subsurface_scavenger_v1.png",
+    "B-C-01_subsurface_scavenger_v2.png",
+    "B-C-01_subsurface_scavenger_v3.png"
+  ]
+}

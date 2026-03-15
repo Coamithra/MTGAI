@@ -424,6 +424,19 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
   - `prompt_builder.py` has `get_character_ref_paths()` to detect which cards need character refs and log reference image paths.
 - [x] **2A-4**: Define artist style variation personas — different "artist" prompt prefixes to simulate varied art styles
   - 8 personas mapped to card colors (W=Classical Authority, U=Clinical Futurism, B=Dark Grotesque, R=Dynamic Action, G=Naturalist Exploration, Artifact=Technical Precision, Multi=Style Collision, Land=Panoramic Wonder). No extra data plumbing — reads `card.colors` directly.
+- [x] **2A-5-infra**: ComfyUI + Flux.1-dev local image generation pipeline
+  - ComfyUI installed at `C:\Programming\ComfyUI` with Flux.1-dev Q8_0 GGUF (12GB)
+  - Built `backend/mtgai/art/image_generator.py` — batch generation via ComfyUI API, auto-start, VRAM pre-check, resumable progress
+  - Built `backend/mtgai/art/art_selector.py` — Haiku vision picks best of 3 versions per card ($0.006/card)
+  - Built `backend/scripts/generate_all_art.py` — standalone batch runner for overnight generation
+  - API workflow JSON at `backend/mtgai/art/workflows/flux_dev_gguf.json`
+  - Settings: 30 steps, 1024×768, euler sampler, guidance 3.5
+  - Performance: ~40s/image warm, ~60s cold start. Full batch (198 images) ~2.2 hours
+  - Key bug fixed: `subprocess.PIPE` crashes tqdm on Windows → use `subprocess.DEVNULL`
+  - Learnings: `learnings/phase2a-comfyui.md`
+- [ ] **2A-5-batch**: IN PROGRESS — Full 66-card × 3 versions batch generation running overnight
+- [ ] **2A-5-select**: Run Haiku art selector on full batch (~$0.40) + generate HTML report
+- [ ] **2A-5-review**: HUMAN: Review art selection report, approve/reject/regenerate
 - [ ] **2A-5**: Generate character reference portraits for all 8 legendary characters using Flux dev (text-to-image from visual-references.json descriptions). Simple neutral headshots — plain background, even lighting, front-facing. Store in `output/sets/<code>/art-direction/character-refs/`.
 - [ ] **2A-5b**: HUMAN: Review character reference portraits. Pick the best version for each character. These become the canonical identity references.
 - [ ] **2A-6**: Generate 10+ sample card arts across card types using Flux dev. For cards featuring legendary characters, use Kontext Dev + PuLID workflow to inject character identity from reference portraits while letting the text prompt control style. Evaluate consistency and quality.

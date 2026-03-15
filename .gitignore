@@ -31,6 +31,7 @@ env/
 output/sets/*/art/
 output/sets/*/renders/
 output/sets/*/print/
+output/sets/*/art-generation-logs/
 
 # Keep directory structure
 !output/.gitkeep

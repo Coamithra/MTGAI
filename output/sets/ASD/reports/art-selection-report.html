@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ASD Art Selection Report — AI Review</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 2rem; }
+  h1 { color: #f0c040; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  .subtitle { color: #888; margin-bottom: 2rem; font-size: 0.95rem; }
+  .card-section { background: #16213e; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; border: 1px solid #2a2a4a; }
+  .card-section.picked { border-color: #4ade80; box-shadow: 0 0 20px rgba(74, 222, 128, 0.1); }
+  .card-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
+  .card-name { font-size: 1.3rem; font-weight: bold; color: #e8d5b5; }
+  .card-type { color: #888; font-size: 0.85rem; }
+  .prompt { background: #0f1629; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.8rem; color: #a0a0c0; margin-bottom: 1rem; line-height: 1.4; font-style: italic; }
+  .versions { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .version { flex: 1; min-width: 280px; max-width: 33%; border-radius: 8px; overflow: hidden; border: 3px solid transparent; }
+  .version.winner { border-color: #4ade80; }
+  .version.rejected { opacity: 0.6; }
+  .version img { width: 100%; display: block; }
+  .version-label { padding: 0.5rem; text-align: center; font-size: 0.85rem; background: #0f1629; }
+  .version.winner .version-label { background: #1a3a2a; color: #4ade80; font-weight: bold; }
+  .verdict { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 6px; line-height: 1.5; font-size: 0.9rem; }
+  .verdict.pick { background: #1a3a2a; border-left: 4px solid #4ade80; }
+  .verdict strong { color: #4ade80; }
+  .issue { color: #f87171; display: inline-block; margin-right: 0.5rem; }
+  .color-pip { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+  .summary { background: #16213e; border-radius: 12px; padding: 1.5rem; margin-top: 2rem; border: 1px solid #f0c040; }
+  .summary h2 { color: #f0c040; margin-bottom: 0.75rem; }
+  .summary table { width: 100%; border-collapse: collapse; }
+  .summary th { text-align: left; padding: 0.4rem 0.5rem; color: #888; border-bottom: 1px solid #2a2a4a; font-size: 0.85rem; }
+  .summary td { padding: 0.4rem 0.5rem; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<h1>ASD Art Selection Report — AI Review</h1>
+<p class="subtitle">5 cards reviewed &bull; 3 versions each &bull; Haiku vision selector</p>
+
+
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#2b2a2a; border:1px solid #555"></span>
+      B-C-01: Subsurface Scavenger
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A gaunt human scavenger crouches in shadow, tattered black rags clinging to a wiry frame. Dirt-smudged face, hollow cheeks, fingers wrapped in frayed cloth reaching toward scattered debris. Dim torchlight catches the glint of a crude dagger. The dungeon floor stretches behind, littered with picked-over bones and broken artifacts.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/B-C-01_subsurface_scavenger_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/B-C-01_subsurface_scavenger_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/B-C-01_subsurface_scavenger_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best matches the prompt's core requirements: a gaunt human scavenger in a crouching pose actively reaching toward debris with a visible crude dagger. While V1 and V3 feature skull-faced undead creatures (departing from "human scavenger"), V2 maintains a living human form with proper anatomy, hollow cheeks, and tattered black clothing. V2's pose and composition are superior for card readability, with clear focal point and excellent use of shadow/light contrast appropriate for black color identity. The scattered bones and debris are well-rendered without being distracting.
+    <br><br>Artifacts: <span class="issue">[v1] Subject is a skeleton/undead rather than a gaunt human; deviates significantly from prompt description</span> <span class="issue">[v3] Subject is a skeleton/undead rather than a gaunt human; also features anatomically odd spherical protrusions on knees that appear unnatural</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#00733e; border:1px solid transparent"></span>
+      G-C-01: Elvish Mystic
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A slender elf with pointed ears and flowing green robes stands in a meditative pose, hands raised gently before their chest. Soft golden light radiates from their fingertips as natural vines and leaves swirl around them. Their expression is serene and focused, embodying connection to the forest.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/G-C-01_elvish_mystic_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/G-C-01_elvish_mystic_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/G-C-01_elvish_mystic_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best matches the prompt's meditative pose with hands raised gently before the chest in a prayer-like position, directly embodying the "connection to the forest" theme. While all three versions have clean anatomy and good composition, V2's centered, symmetrical pose and serene closed-eye expression most accurately capture the requested meditative focus. V1 shows the elf in profile with only one hand raised, and V3 has hands together but with a more downward-facing gaze that feels less meditative. V2's golden light radiating from the chest area and the lush forest framing create the best overall adherence to the prompt's spiritual, naturalist aesthetic.
+    <br><br>Artifacts: <span class="issue">[v1] Profile pose with single raised hand doesn't match the 'hands raised gently before chest' meditative pose described in prompt</span> <span class="issue">[v3] Hands positioned together at chest but with downward gaze lacks the serene, focused meditative expression requested</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      L-01: Plains
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">Vast golden grasslands stretch to the horizon under soft daylight. A distant dark line marks the silhouette of a walled medieval city built atop crumbling concrete megastructures, their rusted steel frames visible against the sky. Weathered stone and timber buildings cluster within the ancient ruins. Wildflowers dot the foreground, emphasizing the buffer between civilization and untamed wilderness.. Stylized digital illustration, panoramic landscape, dramatic atmospheric perspective, concept-art establishing shot, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/L-01_plains_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/L-01_plains_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/L-01_plains_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best captures the post-apocalyptic sci-fantasy aesthetic with visible megastructure elements (massive steel columns, industrial bridges) integrated into the medieval city architecture. It clearly shows the "crumbling concrete megastructures" and "rusted steel frames" mentioned in the prompt, creating the distinct contrast between civilization and wilderness. V1 lacks the sci-fi infrastructure entirely and reads as purely medieval fantasy, while V3 shows a more traditional fantasy city without the post-apocalyptic industrial elements. V2 also has excellent composition with strong atmospheric perspective and wildflowers in the foreground.
+    <br><br>Artifacts: <span class="issue">[v1] Missing post-apocalyptic megastructure elements; appears as pure medieval fantasy without sci-fi infrastructure</span> <span class="issue">[v3] Lacks visible concrete megastructures and rusted steel frames; reads as traditional fantasy rather than post-apocalyptic sci-fantasy hybrid</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#0e68ab; border:1px solid transparent"></span>
+      U-C-01: Subsurface Surveyor
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A lean human scout in practical blue-grey garments crouches at a rocky cavern entrance, one hand steadying against stone. Rope coils at their belt, eyes alert and focused downward into darkness. Torchlight catches their determined face as they prepare to descend into shadowed depths below.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version winner"><img src="../art/U-C-01_subsurface_surveyor_v1.png" alt="v1"><div class="version-label">&#x2714; PICK &mdash; v1</div></div><div class="version rejected"><img src="../art/U-C-01_subsurface_surveyor_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version rejected"><img src="../art/U-C-01_subsurface_surveyor_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v1.</strong> V1 best matches the prompt with a lean scout in a proper crouching pose with one hand steadying against stone, rope coils visible at the belt, and alert eyes focused downward. The cool steel-blue and teal palette is perfectly executed with excellent screen-glow lighting on the torch. V2 has a watermark artifact in the bottom right corner and the pose is less dynamic (standing rather than crouching). V3 has the character in a crouch but the pose is less natural and the composition feels more cramped with the large dark cavern entrance dominating the frame.
+    <br><br>Artifacts: <span class="issue">[v2] Watermark/text artifact visible in bottom right corner</span> <span class="issue">[v3] Composition too dark with oversized cavern entrance reducing character visibility at card size</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#f9faf4; border:1px solid #ccc"></span>
+      W-C-01: Denethix Watchguard
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A human soldier in chain mail stands alert at a stone gate, shield raised and long sword ready. Weathered armor catches pale light. Behind him, towering concrete ruins loom above the medieval fortifications. His stance is rigid, watchful—a sentry maintaining order over the crumbling city.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/W-C-01_denethix_watchguard_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/W-C-01_denethix_watchguard_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/W-C-01_denethix_watchguard_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 is the strongest choice. It has clean anatomy with no visible AI artifacts, excellent prompt adherence (soldier in chain mail, shield raised, sword ready, rigid watchful stance), and superior composition with the soldier centered and clearly visible at card size. The warm sandstone/ivory tones with golden-hour lighting and long shadows are perfectly executed, and the towering medieval fortifications with concrete ruins in the background create the post-apocalyptic science-fantasy setting. V1 has a cape that wasn't requested and feels less focused, while V2 has the soldier positioned awkwardly off-center and lacks the architectural grandeur of the background.
+    <br><br>Artifacts: <span class="issue">[v1] Red cape not mentioned in prompt; composition less focused with soldier positioned to the side</span> <span class="issue">[v2] Soldier positioned off-center and awkwardly; background architecture less imposing and detailed</span> 
+  </div>
+</div>
+
+<div class="summary">
+  <h2>Selection Summary</h2>
+  <table>
+    <thead><tr><th>Card</th><th>Name</th><th>Pick</th><th>Confidence</th><th>Reasoning</th></tr></thead>
+    <tbody><tr><td>B-C-01</td><td>Subsurface Scavenger</td><td>v2</td><td>high</td><td>V2 best matches the prompt's core requirements: a gaunt huma...</td></tr>
+<tr><td>G-C-01</td><td>Elvish Mystic</td><td>v2</td><td>high</td><td>V2 best matches the prompt's meditative pose with hands rais...</td></tr>
+<tr><td>L-01</td><td>Plains</td><td>v2</td><td>high</td><td>V2 best captures the post-apocalyptic sci-fantasy aesthetic ...</td></tr>
+<tr><td>U-C-01</td><td>Subsurface Surveyor</td><td>v1</td><td>high</td><td>V1 best matches the prompt with a lean scout in a proper cro...</td></tr>
+<tr><td>W-C-01</td><td>Denethix Watchguard</td><td>v3</td><td>high</td><td>V3 is the strongest choice. It has clean anatomy with no vis...</td></tr>
+</tbody>
+  </table>
+  <p style="margin-top: 1rem; color: #888; font-size: 0.85rem;">
+    Pick distribution: v1: 1, v2: 3, v3: 1
+  </p>
+</div>
+
+</body>
+</html>
