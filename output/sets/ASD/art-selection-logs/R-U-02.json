@@ -1,0 +1,19 @@
+{
+  "collector_number": "R-U-02",
+  "name": "Wasteland War-Raptor",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best captures the prompt's core requirements: a muscular lion-headed humanoid in full sprint alongside a dust-colored raptor with slate-grey striping, both charging forward with weapons raised through a barren wasteland. The composition is dynamic and tilted, with excellent warm fire-tones and high contrast. V1 has a less threatening lion character and weaker overall kinetic energy. V3 includes an extraneous background figure that wasn't requested and dilutes focus from the main pair.",
+  "artifacts_found": [
+    {
+      "version": "v3",
+      "issue": "Unnecessary background figure (humanoid with spear) distracts from the main composition and wasn't in the prompt"
+    }
+  ],
+  "version_files": [
+    "R-U-02_wasteland_warraptor_v1.png",
+    "R-U-02_wasteland_warraptor_v2.png",
+    "R-U-02_wasteland_warraptor_v3.png"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "collector_number": "B-C-04",
+  "name": "Plunder the Catacombs",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best captures the prompt's dark, unsettling atmosphere with the strongest composition for a card. It features the cloaked figure as the clear focal point emerging from the catacomb, with excellent framing by the massive concrete megastructure arch. The heavy shadows and minimal teal lighting perfectly match the black color identity and post-apocalyptic sci-fi aesthetic. V1 has too much bright cyan light that undermines the \"heavy shadows\" requirement, while V2 introduces an unnecessary second spectral figure that dilutes focus and doesn't match the singular \"plunderer\" described in the prompt.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Excessive bright cyan lighting contradicts 'heavy shadows with minimal light' requirement; too bright overall for black color identity"
+    },
+    {
+      "version": "v2",
+      "issue": "Introduces a second ghostly figure in background that wasn't in prompt; dilutes focal point and composition clarity"
+    }
+  ],
+  "version_files": [
+    "B-C-04_plunder_the_catacombs_v1.png",
+    "B-C-04_plunder_the_catacombs_v2.png",
+    "B-C-04_plunder_the_catacombs_v3.png"
+  ]
+}

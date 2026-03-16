@@ -1,0 +1,23 @@
+{
+  "collector_number": "B-R-02",
+  "name": "The Brain Engine",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best fulfills the prompt's core requirements: it features a skeletal corpse in decayed royal robes on a technological throne with neural cables/fluid tubes snaking from the head, a golden crown fused with interface nodes, and heavy shadows with minimal light in a laboratory setting. V1 lacks the neural cables and technological elements entirely, showing only a skeleton in robes without the tech integration. V2 has cables but they're too thin and subtle, and the throne lacks the technological/server rack aesthetic. V3's composition is also superior for card readability, with clear focal point and excellent color identity for black (dark, shadowy, unsettling).",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Missing neural cables and technological integration\u2014shows only skeleton and robes without the tech-fusion core of the prompt"
+    },
+    {
+      "version": "v2",
+      "issue": "Cables present but too subtle and thin; throne lacks technological/server rack aesthetic; overall less adherent to 'technological throne' requirement"
+    }
+  ],
+  "version_files": [
+    "B-R-02_the_brain_engine_v1.png",
+    "B-R-02_the_brain_engine_v2.png",
+    "B-R-02_the_brain_engine_v3.png"
+  ]
+}

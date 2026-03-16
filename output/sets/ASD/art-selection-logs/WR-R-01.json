@@ -1,0 +1,23 @@
+{
+  "collector_number": "WR-R-01",
+  "name": "Kethra, Spark Commander",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best captures the prompt's core elements: a fierce woman with visible scarring on her face, gripping dual blazing swords wreathed in white-hot flames with excellent spark effects. The dynamic mid-combat stride is clear, the composition is well-balanced with armored fighters emerging from shadow behind her, and the warm sandstone/ivory tones with golden-hour lighting are perfectly executed. V1 lacks visible scarring and the sword lacks the white-hot flame intensity; V2 has only one sword and weaker flame effects, deviating from the \"blazing sword\" singular focus implied by the prompt.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Minimal facial scarring despite prompt emphasis; sword flames are orange rather than white-hot; composition less dynamic"
+    },
+    {
+      "version": "v2",
+      "issue": "Only one sword visible instead of the dual-wielding suggested by prompt; weaker flame effects; less intense action pose"
+    }
+  ],
+  "version_files": [
+    "WR-R-01_kethra_spark_commander_v1.png",
+    "WR-R-01_kethra_spark_commander_v2.png",
+    "WR-R-01_kethra_spark_commander_v3.png"
+  ]
+}

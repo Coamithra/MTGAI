@@ -434,9 +434,9 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
   - Performance: ~40s/image warm, ~60s cold start. Full batch (198 images) ~2.2 hours
   - Key bug fixed: `subprocess.PIPE` crashes tqdm on Windows → use `subprocess.DEVNULL`
   - Learnings: `learnings/phase2a-comfyui.md`
-- [ ] **2A-5-batch**: IN PROGRESS — Full 66-card × 3 versions batch generation running overnight
-- [ ] **2A-5-select**: Run Haiku art selector on full batch (~$0.40) + generate HTML report
-- [ ] **2A-5-review**: HUMAN: Review art selection report, approve/reject/regenerate
+- [x] **2A-5-batch**: 66 cards × 3 versions = 198 images generated via Flux.1-dev Q8_0 local (~2.5 hours total across interrupted sessions)
+- [x] **2A-5-select**: Haiku art selector picked best version per card. 66/66 high confidence, $0.37. Report: `output/sets/ASD/reports/art-selection-report.html`
+- [x] **2A-5-review**: HUMAN: Reviewed. Art quality sufficient for dev set pipeline validation. Key issues: anatomy problems (mangled limbs), too photorealistic (need stronger painterly style anchors), Haiku judge doesn't catch anatomy errors. Production set will need external art model + better judge LLM. Learnings: `learnings/phase2a-art-quality.md`
 - [ ] **2A-5**: Generate character reference portraits for all 8 legendary characters using Flux dev (text-to-image from visual-references.json descriptions). Simple neutral headshots — plain background, even lighting, front-facing. Store in `output/sets/<code>/art-direction/character-refs/`.
 - [ ] **2A-5b**: HUMAN: Review character reference portraits. Pick the best version for each character. These become the canonical identity references.
 - [ ] **2A-6**: Generate 10+ sample card arts across card types using Flux dev. For cards featuring legendary characters, use Kontext Dev + PuLID workflow to inject character identity from reference portraits while letting the text prompt control style. Evaluate consistency and quality.

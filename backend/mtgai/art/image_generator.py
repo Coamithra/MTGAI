@@ -228,6 +228,51 @@ def ensure_comfyui() -> subprocess.Popen | None:
     return start_comfyui()
 
 
+def kill_comfyui(proc: subprocess.Popen | None = None) -> None:
+    """Kill ComfyUI and free VRAM. Works whether we started it or it was already running.
+
+    Tries the process handle first (if we started it), then falls back to
+    finding and killing the ComfyUI Python process by its command line.
+    """
+    # Try the process handle we have
+    if proc is not None and proc.poll() is None:
+        logger.info("Terminating ComfyUI (PID %d)...", proc.pid)
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            logger.warning("ComfyUI didn't terminate gracefully, killing...")
+            proc.kill()
+        return
+
+    # Fall back: find ComfyUI by its command line signature
+    try:
+        result = subprocess.run(
+            [
+                "powershell.exe",
+                "-Command",
+                "Get-Process python* | Where-Object {"
+                "$_.Path -like '*ComfyUI*'"
+                "} | Select-Object -ExpandProperty Id",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        pids = [int(p.strip()) for p in result.stdout.strip().splitlines() if p.strip()]
+        if not pids:
+            logger.info("No ComfyUI process found to kill.")
+            return
+        for pid in pids:
+            logger.info("Killing ComfyUI process (PID %d)...", pid)
+            subprocess.run(
+                ["powershell.exe", "-Command", f"Stop-Process -Id {pid} -Force"],
+                timeout=10,
+            )
+    except Exception as e:
+        logger.warning("Failed to find/kill ComfyUI process: %s", e)
+
+
 # ---------------------------------------------------------------------------
 # ComfyUI API interaction
 # ---------------------------------------------------------------------------
@@ -519,11 +564,8 @@ def generate_art_for_set(
                 _save_progress(progress, progress_path)
 
     finally:
-        # Clean up ComfyUI if we started it
-        if comfyui_proc is not None:
-            logger.info("Shutting down ComfyUI...")
-            comfyui_proc.terminate()
-            comfyui_proc.wait(timeout=10)
+        # Always kill ComfyUI on exit to free VRAM
+        kill_comfyui(comfyui_proc)
 
     summary = {
         "set_code": set_code,

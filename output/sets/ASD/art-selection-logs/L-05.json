@@ -1,0 +1,23 @@
+{
+  "collector_number": "L-05",
+  "name": "Forest",
+  "versions_reviewed": 3,
+  "pick": "v1",
+  "confidence": "high",
+  "reasoning": "V1 best captures the prompt's vision of a primordial forest with towering fern-like columns and crumbling stone pillars reclaimed by vegetation. The dinosaurs have correct anatomy with proper proportions and no visible artifacts. V2 features more castle-like structures (less fitting for \"crumbling pillars\") and the dinosaurs appear somewhat awkwardly proportioned. V3 has a theropod dinosaur with an exaggerated, almost cartoonish grin that feels inconsistent with the stylized-but-grounded aesthetic requested, and the anatomy looks slightly off. V1's atmospheric perspective, color palette, and composition are superior for a card-sized landscape.",
+  "artifacts_found": [
+    {
+      "version": "v2",
+      "issue": "Dinosaur proportions appear slightly unnatural; structures resemble castles rather than weathered pillars"
+    },
+    {
+      "version": "v3",
+      "issue": "Theropod has exaggerated, cartoonish facial expression; overall anatomy feels stylistically inconsistent with the prompt"
+    }
+  ],
+  "version_files": [
+    "L-05_forest_v1.png",
+    "L-05_forest_v2.png",
+    "L-05_forest_v3.png"
+  ]
+}

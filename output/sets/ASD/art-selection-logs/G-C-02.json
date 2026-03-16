@@ -1,0 +1,23 @@
+{
+  "collector_number": "G-C-02",
+  "name": "Rendon Ceratops",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 is the strongest choice. It features a properly anatomical ceratopsian with correct proportions, a well-defined broad frill, and thick horns in the right positions. The creature is charging forward with clear muscular tension, the dusty brown and slate-grey color palette matches the prompt perfectly, and the medieval city walls recede appropriately in the background. The composition is clean, readable at card size, and the stylized digital illustration style is consistent throughout. V1 has an overly aggressive expression and less naturalistic proportions, while V3's anatomy is awkward with an unnatural posture and the frill positioning feels off.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Overly aggressive/cartoonish expression with exaggerated teeth and mouth, less naturalistic ceratopsian anatomy"
+    },
+    {
+      "version": "v3",
+      "issue": "Awkward body posture and proportions, frill positioning appears unnatural, less dynamic charging pose"
+    }
+  ],
+  "version_files": [
+    "G-C-02_rendon_ceratops_v1.png",
+    "G-C-02_rendon_ceratops_v2.png",
+    "G-C-02_rendon_ceratops_v3.png"
+  ]
+}

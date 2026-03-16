@@ -1,0 +1,14 @@
+{
+  "collector_number": "R-U-01",
+  "name": "Spark Insurgent",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best captures the prompt's core elements with excellent execution: the fighter is in a dynamic crouching pose with both fists raised defiantly, eyes blazing with red energy, wearing tattered dark clothes. The massive armored treaded vehicle with twin gun turrets dominates the background with smoke and fire rising from it. The composition is tilted dynamically, the silhouette burns against the mechanical wreckage with warm fire-tones and high contrast, and the post-apocalyptic sci-fi setting is clear. V1 shows the fighter in a less defiant pose (one fist only) and lacks the intensity of red eye energy. V2 has the fighter in an awkward squat pose that doesn't read as \"crouching defiantly,\" and the overall composition feels less dynamic.",
+  "artifacts_found": [],
+  "version_files": [
+    "R-U-01_spark_insurgent_v1.png",
+    "R-U-01_spark_insurgent_v2.png",
+    "R-U-01_spark_insurgent_v3.png"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "collector_number": "W-U-01",
+  "name": "Cult Archivist",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best matches the prompt's core requirements: a kneeling cleric with hands extended in devotion before an ornate stone tablet. The composition is balanced with the figure in profile, the tablet clearly visible, and golden light radiating from the artifact. V1 shows the figure standing rather than kneeling, which deviates from the prompt. V3 depicts a male figure (not the \"pale, robed human cleric\" described) and shows the character in a less devotional pose. V2's warm sandstone tones, golden-hour lighting, dust motes, and post-apocalyptic sci-fi aesthetic all align perfectly with the prompt.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Figure standing rather than kneeling as specified in prompt"
+    },
+    {
+      "version": "v3",
+      "issue": "Character appears to be male with beard, contradicting the female cleric described in prompt"
+    }
+  ],
+  "version_files": [
+    "W-U-01_cult_archivist_v1.png",
+    "W-U-01_cult_archivist_v2.png",
+    "W-U-01_cult_archivist_v3.png"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "collector_number": "WG-U-01",
+  "name": "Reclaimed Settler",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best captures the prompt's core requirements: a kneeling settler examining salvaged technology with focused determination. The pose is natural and anatomically sound, the composition is balanced with excellent focal point on the hands and artifact, and the warm earth tones with golden-hour lighting perfectly match the color identity. V1 has the settler holding a weapon rather than examining salvage, which deviates from the prompt. V3 shows a crouching pose rather than kneeling, and while the scavenged tech is more prominent, the overall composition feels less intimate and the pose less aligned with \"kneels among scattered scavenge.\"",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Prompt deviation: settler is holding/examining a weapon/tool rather than kneeling to examine salvaged ancient technology as primary focus"
+    },
+    {
+      "version": "v3",
+      "issue": "Pose deviation: crouching rather than kneeling as specified in prompt; composition less focused on the examination action"
+    }
+  ],
+  "version_files": [
+    "WG-U-01_reclaimed_settler_v1.png",
+    "WG-U-01_reclaimed_settler_v2.png",
+    "WG-U-01_reclaimed_settler_v3.png"
+  ]
+}

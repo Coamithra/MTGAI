@@ -1,0 +1,23 @@
+{
+  "collector_number": "B-U-02",
+  "name": "Catacomb Harvester",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best adheres to the prompt with a kneeling warlock in tattered dark robes among scattered bones in a proper catacomb setting with visible stone tombs and columns. The spectral wisps coil around the outstretched hand, pale skin and hollow eyes are well-rendered, and the composition reads clearly at card size with strong focal point. V1 has too much blue-teal lighting (more blue than black) and lacks the catacomb architecture; V2 shows the character standing rather than kneeling and has less atmospheric catacomb detail. V3 maintains proper black color identity with heavy shadows, organic textures, and the unsettling asymmetry requested.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Blue-teal color cast dominates over black; lacks catacomb architecture and stone tombs; character pose is crouching rather than kneeling"
+    },
+    {
+      "version": "v2",
+      "issue": "Character is standing rather than kneeling as specified; less catacomb atmosphere; golden sparkles feel more whimsical than dark/unsettling"
+    }
+  ],
+  "version_files": [
+    "B-U-02_catacomb_harvester_v1.png",
+    "B-U-02_catacomb_harvester_v2.png",
+    "B-U-02_catacomb_harvester_v3.png"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "collector_number": "UB-U-01",
+  "name": "Subsurface Conduit",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best balances all criteria. It shows the rogue in a proper crouching pose with both hands clearly visible and anatomically correct, touching the glowing stone floor as described. The composition is clean and readable at card size, with excellent geometric framing from the archway. The cool teal/blue palette with bioluminescent veins running through the walls perfectly matches the prompt's color identity and post-apocalyptic sci-fi aesthetic. V1 has the character standing rather than crouching and lacks the hand-contact element. V3 has anatomical issues\u2014the character's posture is awkward and one hand appears distorted/fused with the body.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Character standing rather than crouching; doesn't show fingers splayed against stone as described"
+    },
+    {
+      "version": "v3",
+      "issue": "Awkward posture with distorted hand anatomy; left hand appears fused/unclear against body"
+    }
+  ],
+  "version_files": [
+    "UB-U-01_subsurface_conduit_v1.png",
+    "UB-U-01_subsurface_conduit_v2.png",
+    "UB-U-01_subsurface_conduit_v3.png"
+  ]
+}

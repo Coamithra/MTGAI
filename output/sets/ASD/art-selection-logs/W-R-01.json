@@ -1,0 +1,14 @@
+{
+  "collector_number": "W-R-01",
+  "name": "Cult Relic-Bearer",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 is the clear winner as it best matches the prompt's core requirement: a kneeling cleric cradling a relic in both hands with a devotional expression. V3 shows proper kneeling posture with the relic held at chest level, intricate scrollwork on the robes, and a contemplative downward gaze at the glowing artifact. V1 has the character standing/posed rather than kneeling, and V2 shows the character kneeling but holding the relic at arm's length rather than cradling it. V3 also excels in composition with excellent use of the columned environment, warm golden-hour lighting with strong shadows, and the post-apocalyptic aesthetic (weathered columns). All three versions have clean anatomy with no AI artifacts.",
+  "artifacts_found": [],
+  "version_files": [
+    "W-R-01_cult_relicbearer_v1.png",
+    "W-R-01_cult_relicbearer_v2.png",
+    "W-R-01_cult_relicbearer_v3.png"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "collector_number": "WR-U-01",
+  "name": "Rebel Firebrand",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best captures the prompt's core elements: the rebel holds the torch aloft with wild intensity, displays visible burn scars on bare arms, and shows clear defiance. The Fist officer is properly crumpled beneath her with the revolver nearby. V1 has the officer too upright and composed (not crumpled enough), while V2 shows the officer in an awkward, anatomically strained pose with legs splayed unnaturally. V3's composition is balanced, the character's fury is evident, and the warm sandstone/golden-hour lighting is most authentic to the prompt.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Officer not sufficiently crumpled\u2014appears too upright and dignified for a defeated enemy"
+    },
+    {
+      "version": "v2",
+      "issue": "Officer's pose is anatomically awkward with legs splayed in an unnatural, strained position"
+    }
+  ],
+  "version_files": [
+    "WR-U-01_rebel_firebrand_v1.png",
+    "WR-U-01_rebel_firebrand_v2.png",
+    "WR-U-01_rebel_firebrand_v3.png"
+  ]
+}

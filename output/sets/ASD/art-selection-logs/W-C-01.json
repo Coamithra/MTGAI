@@ -4,15 +4,15 @@
   "versions_reviewed": 3,
   "pick": "v3",
   "confidence": "high",
-  "reasoning": "V3 is the strongest choice. It has clean anatomy with no visible AI artifacts, excellent prompt adherence (soldier in chain mail, shield raised, sword ready, rigid watchful stance), and superior composition with the soldier centered and clearly visible at card size. The warm sandstone/ivory tones with golden-hour lighting and long shadows are perfectly executed, and the towering medieval fortifications with concrete ruins in the background create the post-apocalyptic science-fantasy setting. V1 has a cape that wasn't requested and feels less focused, while V2 has the soldier positioned awkwardly off-center and lacks the architectural grandeur of the background.",
+  "reasoning": "V3 is the strongest choice. It features clean anatomy with no AI artifacts, excellent prompt adherence (soldier in chain mail with shield and sword, alert stance, stone gate, medieval fortifications with towering ruins), and superior composition with the soldier centered and framed by the gate archway\u2014highly readable at card size. The warm sandstone/ivory tones and golden-hour lighting match the color identity perfectly. V1 has a photorealistic style that doesn't match the \"stylized digital illustration\" requirement, while V2's soldier is positioned too far to the right and the composition is less balanced.",
   "artifacts_found": [
     {
       "version": "v1",
-      "issue": "Red cape not mentioned in prompt; composition less focused with soldier positioned to the side"
+      "issue": "Photorealistic rendering style rather than stylized digital illustration; composition less balanced with soldier off-center"
     },
     {
       "version": "v2",
-      "issue": "Soldier positioned off-center and awkwardly; background architecture less imposing and detailed"
+      "issue": "Soldier positioned too far right, unbalanced composition; less structured framing compared to v3"
     }
   ],
   "version_files": [

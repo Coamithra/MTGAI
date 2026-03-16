@@ -1,0 +1,23 @@
+{
+  "collector_number": "WU-U-01",
+  "name": "Sanctuary Automaton",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best matches the prompt with a cylindrical head crowned with a speaker grill, luminous crystalline eyes, exposed hydraulic hoses and wiring, rust stains, and a sharpened blade in a protective stance. The composition is balanced and readable at card size, with excellent golden-hour lighting and warm sandstone/ivory tones. V1 has the blade awkwardly positioned and lacks the speaker grill detail; V2's head design is too rounded and cartoonish, missing the cylindrical crown and speaker grill specificity.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Blade positioning awkward and less prominent; head lacks the cylindrical crown with speaker grill detail specified in prompt"
+    },
+    {
+      "version": "v2",
+      "issue": "Head design too rounded and cartoonish rather than cylindrical; missing speaker grill crown detail; overall style less aligned with stylized digital illustration aesthetic"
+    }
+  ],
+  "version_files": [
+    "WU-U-01_sanctuary_automaton_v1.png",
+    "WU-U-01_sanctuary_automaton_v2.png",
+    "WU-U-01_sanctuary_automaton_v3.png"
+  ]
+}

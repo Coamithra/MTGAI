@@ -1,0 +1,23 @@
+{
+  "collector_number": "WG-R-01",
+  "name": "Sura, Rendon Ranchmaster",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best captures the prompt's vision of a commanding rancher directing prehistoric beasts. The composition is perfectly balanced with the rancher as the clear focal point, the massive ceratopsian prominently featured beside him, and raptors circling above. The warm sandstone/ivory tones and golden-hour lighting are excellent, and the post-apocalyptic science-fantasy atmosphere is well-established. V1 has the rancher too small relative to the dinosaur and uses a flying creature that doesn't match the ceratopsian focus. V2 places the rancher awkwardly on the dinosaur's back rather than commanding from the ground, which breaks the prompt's intent.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Rancher is undersized relative to the ceratopsian; composition lacks the commanding authority described in the prompt"
+    },
+    {
+      "version": "v2",
+      "issue": "Rancher positioned on the dinosaur's back rather than standing commanding beside it; loses the ground-level authority pose"
+    }
+  ],
+  "version_files": [
+    "WG-R-01_sura_rendon_ranchmaster_v1.png",
+    "WG-R-01_sura_rendon_ranchmaster_v2.png",
+    "WG-R-01_sura_rendon_ranchmaster_v3.png"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "collector_number": "B-R-01",
+  "name": "Koyl Yrenum, the Vizier",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 is the strongest choice. It perfectly captures the prompt's core elements: a lean, sharp-featured man in dark formal robes standing with absolute authority, flanked by shadowed figures that suggest orchestrated collapse, set against ancient concrete ruins with heavy shadows and minimal light. The composition is excellent for card size\u2014the protagonist is clearly focal with strong vertical emphasis, the wet surfaces and organic textures are visible, and the post-apocalyptic sci-fi aesthetic is well-executed. V1 is too photorealistic and lacks the stylized digital illustration quality; the shadowed figures are too distant and indistinct. V2 has hooded figures that obscure their humanity, making them feel less like \"collapsed\" individuals and more like cult members, which doesn't match the prompt's implication of orchestrated victims.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Overly photorealistic style, lacks stylized digital illustration quality; shadowed figures too distant and blurred to convey the 'cost of orchestration' effectively"
+    },
+    {
+      "version": "v2",
+      "issue": "Hooded/cloaked figures obscure their humanity, making them appear as willing followers rather than collapsed victims; less adherent to prompt's implication of orchestrated harm"
+    }
+  ],
+  "version_files": [
+    "B-R-01_koyl_yrenum_the_vizier_v1.png",
+    "B-R-01_koyl_yrenum_the_vizier_v2.png",
+    "B-R-01_koyl_yrenum_the_vizier_v3.png"
+  ]
+}

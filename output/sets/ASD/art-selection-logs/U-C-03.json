@@ -1,0 +1,23 @@
+{
+  "collector_number": "U-C-03",
+  "name": "Redirect Pulse",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best captures the prompt's core concept of a creature caught mid-recoil with an invisible force field rippling outward. The concentric circular patterns create a dynamic sense of displacement and rejection, while the creature's aggressive stance and forward-leaning posture convey the moment of forceful impact. The cool teal/cyan palette with glowing crystalline elements matches the color identity perfectly, and the composition is clear and readable at card size with strong focal point on the creature.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Creature is standing passively facing the structures rather than being caught mid-recoil; lacks the sense of dynamic displacement and backward motion described in the prompt"
+    },
+    {
+      "version": "v3",
+      "issue": "Features a second creature (dark silhouette in foreground) that wasn't in the prompt, creating compositional confusion; the main creature appears suspended/floating rather than actively recoiling"
+    }
+  ],
+  "version_files": [
+    "U-C-03_redirect_pulse_v1.png",
+    "U-C-03_redirect_pulse_v2.png",
+    "U-C-03_redirect_pulse_v3.png"
+  ]
+}

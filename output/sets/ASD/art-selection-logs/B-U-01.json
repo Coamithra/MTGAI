@@ -1,0 +1,23 @@
+{
+  "collector_number": "B-U-01",
+  "name": "Toothwork Familiar",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best captures the prompt's core concept of a small skeletal construct with mismatched teeth welded into a frame. It features the crystalline glowing eyes (green glow), chaotic tooth arrangement, and maintains the unsettling asymmetry requested. V1 is too large and creature-like rather than a small construct, and V3 has an overly smooth, polished aesthetic that contradicts the \"mismatched\" and \"patched\" description. V2's composition is also most readable at card size with clear focal point on the skull-frame.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Creature is too large and organic-looking; reads more as a full-sized monster than a small skeletal construct familiar"
+    },
+    {
+      "version": "v3",
+      "issue": "Design is too polished and symmetrical; lacks the chaotic, mismatched, patched aesthetic described in the prompt; tail element is extraneous"
+    }
+  ],
+  "version_files": [
+    "B-U-01_toothwork_familiar_v1.png",
+    "B-U-01_toothwork_familiar_v2.png",
+    "B-U-01_toothwork_familiar_v3.png"
+  ]
+}

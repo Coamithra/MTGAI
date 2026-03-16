@@ -1,0 +1,23 @@
+{
+  "collector_number": "G-U-03",
+  "name": "Law of the Wilderness",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best balances prompt adherence and composition. It features a ceratopsian and raptor in a crumbling city with strong glowing green energy and vine-covered ruins\u2014directly matching the prompt. The wide composition reads clearly at card size with excellent focal point and layered depth. V1 has a watermark artifact and lacks the crumbling city setting entirely. V3 includes too many dinosaurs (violates the \"two dinosaurs\" specification) and has anatomical issues with the ceratopsian's awkward posture and the raptor's distorted proportions.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Watermark/artist signature visible in bottom right corner"
+    },
+    {
+      "version": "v3",
+      "issue": "Includes 4+ dinosaurs instead of specified two; ceratopsian has awkward/unnatural posture; raptor proportions appear distorted"
+    }
+  ],
+  "version_files": [
+    "G-U-03_law_of_the_wilderness_v1.png",
+    "G-U-03_law_of_the_wilderness_v2.png",
+    "G-U-03_law_of_the_wilderness_v3.png"
+  ]
+}

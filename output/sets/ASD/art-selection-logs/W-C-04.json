@@ -1,0 +1,23 @@
+{
+  "collector_number": "W-C-04",
+  "name": "Requisition Sweep",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best captures the prompt's core elements: white-armored officials actively confiscating glowing artifacts and enchanted relics scattered across the floor, with a desiccated corpse in robes seated centrally on a throne. The composition is balanced and readable at card size, with warm sandstone/ivory tones and golden-hour lighting. V1 depicts skeletal figures rather than officials in armor and lacks the confiscation action. V3 shows fewer artifacts being seized and has a more monolithic, less dynamic composition despite good atmosphere.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Skeletal figures with skull heads rather than white-armored officials; doesn't match the prompt's description of enforcement officials"
+    },
+    {
+      "version": "v3",
+      "issue": "Fewer visible artifacts being confiscated; less emphasis on the seizure action described in the prompt"
+    }
+  ],
+  "version_files": [
+    "W-C-04_requisition_sweep_v1.png",
+    "W-C-04_requisition_sweep_v2.png",
+    "W-C-04_requisition_sweep_v3.png"
+  ]
+}

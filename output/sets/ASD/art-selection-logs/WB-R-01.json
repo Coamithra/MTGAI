@@ -1,0 +1,23 @@
+{
+  "collector_number": "WB-R-01",
+  "name": "Proclamation Enforcer",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best captures the prompt's core requirements: a stern, sharp-featured woman in rigid attention with a raised fist in command. The pose is authoritative and disciplined, with excellent anatomy and no AI artifacts. The white/black ceremonial armor with gold trim is ornate and rank-marking, and the composition is balanced with the figure in profile\u2014ideal for card readability. The warm sandstone/ivory tones and golden-hour lighting with long shadows are perfectly executed, and the post-apocalyptic sci-fi setting is evident in the environment. V1 has a more relaxed, confident pose rather than rigid attention, and V2's pose is too dynamic/action-oriented rather than standing at rigid attention as specified.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Pose is confident and dynamic rather than rigid attention; composition is too wide and less card-friendly"
+    },
+    {
+      "version": "v2",
+      "issue": "Pose is too action-oriented/dynamic rather than rigid attention; composition emphasizes movement over disciplined stillness"
+    }
+  ],
+  "version_files": [
+    "WB-R-01_proclamation_enforcer_v1.png",
+    "WB-R-01_proclamation_enforcer_v2.png",
+    "WB-R-01_proclamation_enforcer_v3.png"
+  ]
+}

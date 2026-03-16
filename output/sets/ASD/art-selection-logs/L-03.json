@@ -1,0 +1,23 @@
+{
+  "collector_number": "L-03",
+  "name": "Swamp",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best balances all criteria. It features the desolate swamp with bioluminescent greens and purples as specified, includes crumbling structures and twisted vegetation, and maintains excellent atmospheric perspective with acidic mist effects. V1 is too photorealistic and lacks the technological decay elements (no metal structures or bones visible). V3 has excessive neon green lighting and glowing windows that feel too sci-fi/cyberpunk rather than post-apocalyptic decay, plus the bright green is oversaturated and distracting at card size.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Photorealistic style rather than stylized digital illustration; lacks crumbling metal structures and bone fragments specified in prompt"
+    },
+    {
+      "version": "v3",
+      "issue": "Oversaturated neon green bioluminescence with glowing windows feels too cyberpunk; excessive bright lighting reduces readability at small card size and doesn't match post-apocalyptic decay aesthetic"
+    }
+  ],
+  "version_files": [
+    "L-03_swamp_v1.png",
+    "L-03_swamp_v2.png",
+    "L-03_swamp_v3.png"
+  ]
+}

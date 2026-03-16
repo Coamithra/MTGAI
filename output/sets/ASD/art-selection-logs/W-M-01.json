@@ -1,0 +1,23 @@
+{
+  "collector_number": "W-M-01",
+  "name": "Feretha, the Hollow Founder",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best fulfills the prompt's core vision of a tech-infused corpse-king. It features glowing red neural interface eyes, visible fluid tubes/cables snaking from the skull, a server rack with glowing conduits in the background, and maintains excellent anatomical integrity with properly rendered skeletal hands and fingers. The composition is balanced and readable at card size, with warm ivory robes and golden crown against cool blue-teal tech elements creating strong color contrast. V1 lacks the technological elements entirely (no tubes, cables, or server racks), while V2 has minimal tech integration and less dynamic composition.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Missing core prompt elements: no visible fluid tubes, cables, or server rack machinery\u2014fails to convey the tech-puppet concept"
+    },
+    {
+      "version": "v2",
+      "issue": "Minimal technological integration: lacks prominent neural interface cables and server rack; the tech elements are too subtle for the post-apocalyptic sci-fi setting"
+    }
+  ],
+  "version_files": [
+    "W-M-01_feretha_the_hollow_founder_v1.png",
+    "W-M-01_feretha_the_hollow_founder_v2.png",
+    "W-M-01_feretha_the_hollow_founder_v3.png"
+  ]
+}

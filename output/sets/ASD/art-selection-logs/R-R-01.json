@@ -1,0 +1,23 @@
+{
+  "collector_number": "R-R-01",
+  "name": "Spark Detonator",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best matches the prompt with a lean, determined male character in mid-action pose gripping a glowing artifact-weapon with visible detonation and bright sparks erupting outward. The composition is dynamically tilted, the gear is practical and worn, and the warm fire-tones with high contrast create intense kinetic energy. V1 has a more static pose and uses a firearm rather than an artifact-weapon, while V2 depicts a female character (gender-neutral in prompt but character design differs significantly) and has visible watermark artifacts (\"aidlove\" watermark in bottom left).",
+  "artifacts_found": [
+    {
+      "version": "v2",
+      "issue": "Visible watermark/text artifact ('aidlove') in bottom left corner"
+    },
+    {
+      "version": "v1",
+      "issue": "Depicts a firearm rather than a glowing artifact-weapon; less dynamic tilted composition"
+    }
+  ],
+  "version_files": [
+    "R-R-01_spark_detonator_v1.png",
+    "R-R-01_spark_detonator_v2.png",
+    "R-R-01_spark_detonator_v3.png"
+  ]
+}

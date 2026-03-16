@@ -1,0 +1,23 @@
+{
+  "collector_number": "R-C-02",
+  "name": "Wasteland Raptor",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best matches the prompt's core requirement of a \"lean, muscular raptor\" in a \"predatory sprint\" with dynamic motion. It features proper raptor anatomy with correct claw structure, excellent mottled brown/slate-grey scale coloring, and a tilted composition that conveys kinetic energy. V1 depicts a larger, bulkier theropod that lacks the lean build and sprint posture, while V2 shows an upright, stationary pose that contradicts the lunging forward motion specified in the prompt.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Bulky, non-lean body structure; static/upright posture rather than dynamic sprint; lacks the predatory lunge motion described in prompt"
+    },
+    {
+      "version": "v2",
+      "issue": "Upright, stationary stance with front leg raised awkwardly; does not convey forward lunging motion or sprint dynamics; body proportions too heavy for a 'lean' raptor"
+    }
+  ],
+  "version_files": [
+    "R-C-02_wasteland_raptor_v1.png",
+    "R-C-02_wasteland_raptor_v2.png",
+    "R-C-02_wasteland_raptor_v3.png"
+  ]
+}

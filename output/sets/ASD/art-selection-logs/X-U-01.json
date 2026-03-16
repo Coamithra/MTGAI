@@ -1,0 +1,23 @@
+{
+  "collector_number": "X-U-01",
+  "name": "Flickering Relay Node",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best matches the prompt's core requirements: a crystalline metallic node with unstable energy arcs and electromagnetic distortion. It maintains a clean, centered composition with excellent readability at card size, and the bright cyan/blue energy discharge creates the self-illuminated effect against the neutral grey background. V1 adds unnecessary architectural elements (spires, pedestal) that deviate from the \"node\" description, while V3's orange/red glow contradicts the colorless identity and shifts the aesthetic away from the intended ancient technology feel.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Includes ornate architectural spires and pedestal structure not mentioned in prompt; deviates from simple crystalline node concept"
+    },
+    {
+      "version": "v3",
+      "issue": "Orange/red luminescence contradicts colorless color identity; warm glow aesthetic inappropriate for neutral/ancient technology aesthetic"
+    }
+  ],
+  "version_files": [
+    "X-U-01_flickering_relay_node_v1.png",
+    "X-U-01_flickering_relay_node_v2.png",
+    "X-U-01_flickering_relay_node_v3.png"
+  ]
+}

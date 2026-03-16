@@ -1,0 +1,23 @@
+{
+  "collector_number": "B-M-01",
+  "name": "Koyl's Reanimated Maw",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best balances all criteria for a black card. It features excellent prompt adherence with exposed brain tissue, multiple eyes (one human, one mechanical), wet sinew wrapping joints, and strong asymmetry. The composition is clear and readable at card size with good focal point on the grotesque head. V1 is too bright and polished (lacks the deathly aura and heavy shadows required), while V3 is overly stylized with exaggerated dripping blood and more cartoonish proportions that feel less grounded. V2 maintains the unsettling, organic-mechanical fusion with appropriate dark tones and wet textures.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Too bright and polished overall; lacks heavy shadows and deathly aura specified in prompt; more 3D render than stylized illustration"
+    },
+    {
+      "version": "v3",
+      "issue": "Overly stylized with exaggerated dripping blood; teeth appear more cartoonish than grotesque; composition feels less grounded in the post-apocalyptic aesthetic"
+    }
+  ],
+  "version_files": [
+    "B-M-01_koyls_reanimated_maw_v1.png",
+    "B-M-01_koyls_reanimated_maw_v2.png",
+    "B-M-01_koyls_reanimated_maw_v3.png"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "collector_number": "WU-R-01",
+  "name": "Protonium Curator",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best fulfills the prompt's core requirements: it features a sharp-featured artificer in white and blue robes with hands in precise gesture poses, surrounded by multiple floating crystalline artifacts and mechanical relics with ethereal energy effects. The composition is balanced and structured with the character centered, the warm sandstone/ivory tones with golden-hour lighting are excellent, and the post-apocalyptic science-fantasy setting is clearly conveyed. V1 has the character looking away rather than with an intense, focused expression, and lacks the hand gestures of control. V2 has awkward hand positioning and the artifacts feel more decorative than orchestrated by the character's will.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Character's gaze directed away rather than focused/intense; lacks the precise hand gesture control described in prompt"
+    },
+    {
+      "version": "v2",
+      "issue": "Hand positioning appears awkward and less commanding; artifacts feel static rather than orchestrated by character's control"
+    }
+  ],
+  "version_files": [
+    "WU-R-01_protonium_curator_v1.png",
+    "WU-R-01_protonium_curator_v2.png",
+    "WU-R-01_protonium_curator_v3.png"
+  ]
+}

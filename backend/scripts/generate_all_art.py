@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from mtgai.art.image_generator import (
     ensure_comfyui,
     generate_image_comfyui,
+    kill_comfyui,
 )
 from mtgai.io.card_io import load_card
 from mtgai.io.paths import art_path
@@ -158,13 +159,8 @@ def main():
     except KeyboardInterrupt:
         logger.info("Interrupted! Progress saved — resume by running again.")
     finally:
-        if comfyui_proc is not None:
-            logger.info("Shutting down ComfyUI...")
-            comfyui_proc.terminate()
-            try:
-                comfyui_proc.wait(timeout=10)
-            except Exception:
-                comfyui_proc.kill()
+        # Always kill ComfyUI on exit to free VRAM
+        kill_comfyui(comfyui_proc)
 
     elapsed = time.time() - start_time
     print(f"\n{'=' * 60}")

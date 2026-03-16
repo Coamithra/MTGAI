@@ -1,0 +1,23 @@
+{
+  "collector_number": "U-R-02",
+  "name": "Anomalous Resonance",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best captures the prompt's core elements: visible energy waves rippling through the chamber, suspended metallic artifacts (gears, crystals) clearly vibrating in the central light beam, and excellent geometric composition with strong focal point. The cool steel-blue and teal palette with screen-glow lighting is perfectly executed. V1 has a watermark artifact at the bottom and lacks distinct metallic objects. V3 features organic vine-like energy patterns that don't match the \"rippling waves\" and \"geometric composition\" requirements, feeling more botanical than mechanical.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Watermark/text artifact visible at bottom of image"
+    },
+    {
+      "version": "v3",
+      "issue": "Organic vine-like energy patterns don't match geometric composition requirement; lacks clear metallic artifacts like gears and crystals"
+    }
+  ],
+  "version_files": [
+    "U-R-02_anomalous_resonance_v1.png",
+    "U-R-02_anomalous_resonance_v2.png",
+    "U-R-02_anomalous_resonance_v3.png"
+  ]
+}

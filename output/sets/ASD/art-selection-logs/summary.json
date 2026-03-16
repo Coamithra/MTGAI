@@ -1,7 +1,7 @@
 {
   "set_code": "ASD",
-  "reviewed": 5,
-  "skipped": 61,
+  "reviewed": 66,
+  "skipped": 0,
   "errors": 0,
   "results": [
     {
@@ -10,15 +10,15 @@
       "versions_reviewed": 3,
       "pick": "v2",
       "confidence": "high",
-      "reasoning": "V2 best matches the prompt's core requirements: a gaunt human scavenger in a crouching pose actively reaching toward debris with a visible crude dagger. While V1 and V3 feature skull-faced undead creatures (departing from \"human scavenger\"), V2 maintains a living human form with proper anatomy, hollow cheeks, and tattered black clothing. V2's pose and composition are superior for card readability, with clear focal point and excellent use of shadow/light contrast appropriate for black color identity. The scattered bones and debris are well-rendered without being distracting.",
+      "reasoning": "V2 best balances all criteria. It features a properly anatomical gaunt scavenger in a crouching pose with correct hand structure, excellent prompt adherence (tattered rags, hollow face, wrapped hands, torchlight, scattered bones/debris), and strong composition with clear focal point readable at card size. The heavy shadows and minimal warm torchlight perfectly match the black color identity and post-apocalyptic mood. V1 is too photorealistic and lacks the stylized digital illustration feel. V3 has anatomical issues with the hand reaching toward the glowing object appearing distorted/fused, and the overall pose feels less natural.",
       "artifacts_found": [
         {
           "version": "v1",
-          "issue": "Subject is a skeleton/undead rather than a gaunt human; deviates significantly from prompt description"
+          "issue": "Overly photorealistic rendering, lacks stylized digital illustration aesthetic specified in prompt"
         },
         {
           "version": "v3",
-          "issue": "Subject is a skeleton/undead rather than a gaunt human; also features anatomically odd spherical protrusions on knees that appear unnatural"
+          "issue": "Hand reaching toward glowing object shows distorted/fused finger anatomy, unnatural hand positioning"
         }
       ],
       "version_files": [
@@ -28,20 +28,227 @@
       ]
     },
     {
-      "collector_number": "G-C-01",
-      "name": "Elvish Mystic",
+      "collector_number": "B-C-02",
+      "name": "Fist Enforcer",
       "versions_reviewed": 3,
-      "pick": "v2",
+      "pick": "v1",
       "confidence": "high",
-      "reasoning": "V2 best matches the prompt's meditative pose with hands raised gently before the chest in a prayer-like position, directly embodying the \"connection to the forest\" theme. While all three versions have clean anatomy and good composition, V2's centered, symmetrical pose and serene closed-eye expression most accurately capture the requested meditative focus. V1 shows the elf in profile with only one hand raised, and V3 has hands together but with a more downward-facing gaze that feels less meditative. V2's golden light radiating from the chest area and the lush forest framing create the best overall adherence to the prompt's spiritual, naturalist aesthetic.",
+      "reasoning": "V1 best captures the prompt's core requirements: a muscular soldier in chain mail with clenched fists, grim determination, and scarred knuckles. The heavy shadows, minimal lighting, and wet dripping textures perfectly match the dark, unsettling aesthetic requested. V2 shifts to a brighter forest setting that contradicts the post-apocalyptic sci-fi tone, while V3's ornate plate armor and ceremonial styling feel too fantasy-medieval rather than sci-fi shock trooper. V1's composition is also most readable at card size with clear focal point on the menacing figure.",
       "artifacts_found": [
         {
-          "version": "v1",
-          "issue": "Profile pose with single raised hand doesn't match the 'hands raised gently before chest' meditative pose described in prompt"
+          "version": "v2",
+          "issue": "Brighter, more naturalistic lighting contradicts the 'heavy shadows with minimal light' requirement; forest environment doesn't match post-apocalyptic sci-fi setting"
         },
         {
           "version": "v3",
-          "issue": "Hands positioned together at chest but with downward gaze lacks the serene, focused meditative expression requested"
+          "issue": "Ornate plate armor and ceremonial styling feel too high-fantasy rather than post-apocalyptic sci-fi; less emphasis on the intimidating presence and menace"
+        }
+      ],
+      "version_files": [
+        "B-C-02_fist_enforcer_v1.png",
+        "B-C-02_fist_enforcer_v2.png",
+        "B-C-02_fist_enforcer_v3.png"
+      ]
+    },
+    {
+      "collector_number": "B-C-03",
+      "name": "Murder",
+      "versions_reviewed": 3,
+      "pick": "v1",
+      "confidence": "high",
+      "reasoning": "V1 best captures the prompt's core requirement of a figure collapsing mid-stride with a blade withdrawing from the back, showing the killer's gloved hand at frame's edge. The twisted body position conveys shock and violent finality with proper anatomy. V2 has the blade positioned awkwardly through the head rather than the back, and V3 depicts a prone figure being stabbed downward\u2014neither matches the \"collapses mid-stride\" action described. V1's tight framing, heavy shadows, dark blood pooling, and unsettling composition best serve the black color identity and post-apocalyptic tone.",
+      "artifacts_found": [
+        {
+          "version": "v2",
+          "issue": "Blade positioned through head/neck rather than withdrawing from back as specified"
+        },
+        {
+          "version": "v3",
+          "issue": "Figure in prone position being stabbed downward, not collapsing mid-stride; composition less intimate and tight"
+        }
+      ],
+      "version_files": [
+        "B-C-03_murder_v1.png",
+        "B-C-03_murder_v2.png",
+        "B-C-03_murder_v3.png"
+      ]
+    },
+    {
+      "collector_number": "B-C-04",
+      "name": "Plunder the Catacombs",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best captures the prompt's dark, unsettling atmosphere with the strongest composition for a card. It features the cloaked figure as the clear focal point emerging from the catacomb, with excellent framing by the massive concrete megastructure arch. The heavy shadows and minimal teal lighting perfectly match the black color identity and post-apocalyptic sci-fi aesthetic. V1 has too much bright cyan light that undermines the \"heavy shadows\" requirement, while V2 introduces an unnecessary second spectral figure that dilutes focus and doesn't match the singular \"plunderer\" described in the prompt.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Excessive bright cyan lighting contradicts 'heavy shadows with minimal light' requirement; too bright overall for black color identity"
+        },
+        {
+          "version": "v2",
+          "issue": "Introduces a second ghostly figure in background that wasn't in prompt; dilutes focal point and composition clarity"
+        }
+      ],
+      "version_files": [
+        "B-C-04_plunder_the_catacombs_v1.png",
+        "B-C-04_plunder_the_catacombs_v2.png",
+        "B-C-04_plunder_the_catacombs_v3.png"
+      ]
+    },
+    {
+      "collector_number": "B-M-01",
+      "name": "Koyl's Reanimated Maw",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best balances all criteria for a black card. It features excellent prompt adherence with exposed brain tissue, multiple eyes (one human, one mechanical), wet sinew wrapping joints, and strong asymmetry. The composition is clear and readable at card size with good focal point on the grotesque head. V1 is too bright and polished (lacks the deathly aura and heavy shadows required), while V3 is overly stylized with exaggerated dripping blood and more cartoonish proportions that feel less grounded. V2 maintains the unsettling, organic-mechanical fusion with appropriate dark tones and wet textures.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Too bright and polished overall; lacks heavy shadows and deathly aura specified in prompt; more 3D render than stylized illustration"
+        },
+        {
+          "version": "v3",
+          "issue": "Overly stylized with exaggerated dripping blood; teeth appear more cartoonish than grotesque; composition feels less grounded in the post-apocalyptic aesthetic"
+        }
+      ],
+      "version_files": [
+        "B-M-01_koyls_reanimated_maw_v1.png",
+        "B-M-01_koyls_reanimated_maw_v2.png",
+        "B-M-01_koyls_reanimated_maw_v3.png"
+      ]
+    },
+    {
+      "collector_number": "B-R-01",
+      "name": "Koyl Yrenum, the Vizier",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 is the strongest choice. It perfectly captures the prompt's core elements: a lean, sharp-featured man in dark formal robes standing with absolute authority, flanked by shadowed figures that suggest orchestrated collapse, set against ancient concrete ruins with heavy shadows and minimal light. The composition is excellent for card size\u2014the protagonist is clearly focal with strong vertical emphasis, the wet surfaces and organic textures are visible, and the post-apocalyptic sci-fi aesthetic is well-executed. V1 is too photorealistic and lacks the stylized digital illustration quality; the shadowed figures are too distant and indistinct. V2 has hooded figures that obscure their humanity, making them feel less like \"collapsed\" individuals and more like cult members, which doesn't match the prompt's implication of orchestrated victims.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Overly photorealistic style, lacks stylized digital illustration quality; shadowed figures too distant and blurred to convey the 'cost of orchestration' effectively"
+        },
+        {
+          "version": "v2",
+          "issue": "Hooded/cloaked figures obscure their humanity, making them appear as willing followers rather than collapsed victims; less adherent to prompt's implication of orchestrated harm"
+        }
+      ],
+      "version_files": [
+        "B-R-01_koyl_yrenum_the_vizier_v1.png",
+        "B-R-01_koyl_yrenum_the_vizier_v2.png",
+        "B-R-01_koyl_yrenum_the_vizier_v3.png"
+      ]
+    },
+    {
+      "collector_number": "B-R-02",
+      "name": "The Brain Engine",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best fulfills the prompt's core requirements: it features a skeletal corpse in decayed royal robes on a technological throne with neural cables/fluid tubes snaking from the head, a golden crown fused with interface nodes, and heavy shadows with minimal light in a laboratory setting. V1 lacks the neural cables and technological elements entirely, showing only a skeleton in robes without the tech integration. V2 has cables but they're too thin and subtle, and the throne lacks the technological/server rack aesthetic. V3's composition is also superior for card readability, with clear focal point and excellent color identity for black (dark, shadowy, unsettling).",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Missing neural cables and technological integration\u2014shows only skeleton and robes without the tech-fusion core of the prompt"
+        },
+        {
+          "version": "v2",
+          "issue": "Cables present but too subtle and thin; throne lacks technological/server rack aesthetic; overall less adherent to 'technological throne' requirement"
+        }
+      ],
+      "version_files": [
+        "B-R-02_the_brain_engine_v1.png",
+        "B-R-02_the_brain_engine_v2.png",
+        "B-R-02_the_brain_engine_v3.png"
+      ]
+    },
+    {
+      "collector_number": "B-U-01",
+      "name": "Toothwork Familiar",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best captures the prompt's core concept of a small skeletal construct with mismatched teeth welded into a frame. It features the crystalline glowing eyes (green glow), chaotic tooth arrangement, and maintains the unsettling asymmetry requested. V1 is too large and creature-like rather than a small construct, and V3 has an overly smooth, polished aesthetic that contradicts the \"mismatched\" and \"patched\" description. V2's composition is also most readable at card size with clear focal point on the skull-frame.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Creature is too large and organic-looking; reads more as a full-sized monster than a small skeletal construct familiar"
+        },
+        {
+          "version": "v3",
+          "issue": "Design is too polished and symmetrical; lacks the chaotic, mismatched, patched aesthetic described in the prompt; tail element is extraneous"
+        }
+      ],
+      "version_files": [
+        "B-U-01_toothwork_familiar_v1.png",
+        "B-U-01_toothwork_familiar_v2.png",
+        "B-U-01_toothwork_familiar_v3.png"
+      ]
+    },
+    {
+      "collector_number": "B-U-02",
+      "name": "Catacomb Harvester",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best adheres to the prompt with a kneeling warlock in tattered dark robes among scattered bones in a proper catacomb setting with visible stone tombs and columns. The spectral wisps coil around the outstretched hand, pale skin and hollow eyes are well-rendered, and the composition reads clearly at card size with strong focal point. V1 has too much blue-teal lighting (more blue than black) and lacks the catacomb architecture; V2 shows the character standing rather than kneeling and has less atmospheric catacomb detail. V3 maintains proper black color identity with heavy shadows, organic textures, and the unsettling asymmetry requested.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Blue-teal color cast dominates over black; lacks catacomb architecture and stone tombs; character pose is crouching rather than kneeling"
+        },
+        {
+          "version": "v2",
+          "issue": "Character is standing rather than kneeling as specified; less catacomb atmosphere; golden sparkles feel more whimsical than dark/unsettling"
+        }
+      ],
+      "version_files": [
+        "B-U-02_catacomb_harvester_v1.png",
+        "B-U-02_catacomb_harvester_v2.png",
+        "B-U-02_catacomb_harvester_v3.png"
+      ]
+    },
+    {
+      "collector_number": "B-U-03",
+      "name": "Subsurface Harvest",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best captures the prompt's core vision: a sprawling dungeon chamber with skeletal remains scattered across wet stone, ethereal tendrils of pale energy coalescing above the bones and pulling them upward. The bioluminescent mist is present, the composition emphasizes the bones and organic energy tendrils as the focal point, and the heavy shadows with minimal light create the unsettling, post-apocalyptic atmosphere. V1 features a lightning bolt (not described in prompt) and lacks visible skeletal remains, while V2 introduces a human figure that contradicts the prompt's focus on bones and energy\u2014this shifts the composition away from the intended subject matter.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Lightning bolt is not part of the prompt; lacks visible skeletal remains as focal point"
+        },
+        {
+          "version": "v2",
+          "issue": "Human figure introduced contradicts prompt focus on skeletal remains and ethereal energy; shifts composition away from intended subject"
+        }
+      ],
+      "version_files": [
+        "B-U-03_subsurface_harvest_v1.png",
+        "B-U-03_subsurface_harvest_v2.png",
+        "B-U-03_subsurface_harvest_v3.png"
+      ]
+    },
+    {
+      "collector_number": "G-C-01",
+      "name": "Elvish Mystic",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best matches the prompt with proper meditative hand positioning (hands raised before chest with golden light), flowing green robes, serene expression, and excellent environmental composition with dappled forest light. V1 has anatomically distorted hands with unnatural finger positioning and red/orange glow that contradicts the \"golden light\" requirement. V2 has hands in prayer pose rather than raised before chest as specified, and lacks the dynamic hand-centered light effect.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Distorted hand anatomy with unnatural finger positioning and splayed fingers; red/orange glow contradicts golden light requirement"
+        },
+        {
+          "version": "v2",
+          "issue": "Hands in prayer pose rather than raised before chest as specified in prompt; less dynamic light effect from hands"
         }
       ],
       "version_files": [
@@ -51,20 +258,204 @@
       ]
     },
     {
+      "collector_number": "G-C-02",
+      "name": "Rendon Ceratops",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 is the strongest choice. It features a properly anatomical ceratopsian with correct proportions, a well-defined broad frill, and thick horns in the right positions. The creature is charging forward with clear muscular tension, the dusty brown and slate-grey color palette matches the prompt perfectly, and the medieval city walls recede appropriately in the background. The composition is clean, readable at card size, and the stylized digital illustration style is consistent throughout. V1 has an overly aggressive expression and less naturalistic proportions, while V3's anatomy is awkward with an unnatural posture and the frill positioning feels off.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Overly aggressive/cartoonish expression with exaggerated teeth and mouth, less naturalistic ceratopsian anatomy"
+        },
+        {
+          "version": "v3",
+          "issue": "Awkward body posture and proportions, frill positioning appears unnatural, less dynamic charging pose"
+        }
+      ],
+      "version_files": [
+        "G-C-02_rendon_ceratops_v1.png",
+        "G-C-02_rendon_ceratops_v2.png",
+        "G-C-02_rendon_ceratops_v3.png"
+      ]
+    },
+    {
+      "collector_number": "G-C-03",
+      "name": "Overgrown Ambush",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best captures the prompt's core elements: a muscular vine-wrapped creature lunging forward with dense vegetation exploding outward, framed by crumbling concrete walls and exposed rebar. The composition shows raw, unstoppable force with excellent depth layering and rich earth tones with dappled light. V1 has a skull-faced design that deviates from \"muscular creature\" and lacks the dynamic lunge pose. V3 is too cartoonish and cheerful in expression, undermining the post-apocalyptic menace, though it does show good anatomy and composition.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Skull-faced design deviates from prompt's muscular creature description; less dynamic lunge pose"
+        },
+        {
+          "version": "v3",
+          "issue": "Overly cartoonish/cheerful expression undermines post-apocalyptic tone; less threatening presence"
+        }
+      ],
+      "version_files": [
+        "G-C-03_overgrown_ambush_v1.png",
+        "G-C-03_overgrown_ambush_v2.png",
+        "G-C-03_overgrown_ambush_v3.png"
+      ]
+    },
+    {
+      "collector_number": "G-C-04",
+      "name": "Reclaim the Surface",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best captures the prompt's core vision of raw primal power and destruction. The dinosaurs are positioned dynamically with open mouths showing aggression, the ruins are actively crumbling with visible destruction, and the composition conveys chaos and reclamation. V1 has overly bright, cheerful lighting that undermines the post-apocalyptic tone, while V3 feels too static and posed\u2014the dinosaurs appear calm rather than crashing through ruins. V2's muted earth tones (dusty browns and slate greys) and dappled light through the ruins best match the prompt's aesthetic requirements.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Overly bright and cheerful lighting contradicts post-apocalyptic mood; dinosaurs appear docile rather than aggressive"
+        },
+        {
+          "version": "v3",
+          "issue": "Static, posed composition lacks sense of movement and destruction; dinosaurs appear calm and controlled rather than crashing through ruins"
+        }
+      ],
+      "version_files": [
+        "G-C-04_reclaim_the_surface_v1.png",
+        "G-C-04_reclaim_the_surface_v2.png",
+        "G-C-04_reclaim_the_surface_v3.png"
+      ]
+    },
+    {
+      "collector_number": "G-R-01",
+      "name": "Spore-Nest Forager",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best matches the prompt's core concept of a small bioluminescent fungal creature with a bulbous mushroom-cap body examining machinery with curiosity. It features proper anatomy with visible hands/digits, a crouching pose, and embedded circuitry (the glowing green lens in the machinery). V1 depicts a creature that's too animal-like (resembles a chameleon/lizard hybrid) rather than fungal, with an unnatural body structure. V3 has the creature examining machinery but features distorted anatomy\u2014the hands appear malformed/fused, and the overall form is too stylized away from the fungal concept. V2's composition, color palette (pale blue-green bioluminescence with earth tones), and post-apocalyptic setting best fulfill the prompt requirements.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Creature design is too animal-like (chameleon/lizard) rather than fungal; body structure doesn't match the bulbous mushroom-cap description"
+        },
+        {
+          "version": "v3",
+          "issue": "Distorted hand/digit anatomy; fused or malformed appendages; creature form deviates significantly from fungal/gelatinous concept"
+        }
+      ],
+      "version_files": [
+        "G-R-01_sporenest_forager_v1.png",
+        "G-R-01_sporenest_forager_v2.png",
+        "G-R-01_sporenest_forager_v3.png"
+      ]
+    },
+    {
+      "collector_number": "G-R-02",
+      "name": "The Subsurface Reclaims",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best fulfills the prompt's core requirement of \"fallen warrior bodies\" being reclaimed by bioluminescent plants. It explicitly shows multiple humanoid corpses/skeletons integrated into the overgrown dungeon floor, directly matching the transformation theme. V1 and V2 feature only abstract plant-covered lumps without clear warrior anatomy, missing the crucial hybrid plant-creature element. V3 also delivers superior composition with clear focal point (central glowing light), excellent layered depth, rich earth tones with vibrant green bioluminescence, and maintains stylized digital illustration quality appropriate for card art at small size.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Fallen bodies lack clear warrior anatomy\u2014appear as generic plant-covered mounds rather than recognizable humanoid forms being transformed into hybrid creatures"
+        },
+        {
+          "version": "v2",
+          "issue": "Similar issue to v1: bodies are too abstract and sculptural, not clearly depicting warriors or the transformation process described in prompt"
+        }
+      ],
+      "version_files": [
+        "G-R-02_the_subsurface_reclaims_v1.png",
+        "G-R-02_the_subsurface_reclaims_v2.png",
+        "G-R-02_the_subsurface_reclaims_v3.png"
+      ]
+    },
+    {
+      "collector_number": "G-U-01",
+      "name": "Salvage Beetle",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best balances prompt adherence with clean anatomy and card readability. It features a stocky beetle with proper segmented legs, iridescent green-bronze coloring with rust/orange patina, curved antennae, and sits naturally on weathered metal debris. V1 is overly photorealistic and too shiny/polished, losing the post-apocalyptic worn aesthetic. V3 has anatomical issues\u2014the legs appear too spiky/mechanical and lack proper segmentation, and the overall design feels more steampunk than naturalist.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Overly photorealistic rendering with excessive glossiness; lacks the stylized digital illustration quality and post-apocalyptic weathered feel requested"
+        },
+        {
+          "version": "v3",
+          "issue": "Legs appear over-spiked and lack proper segmented beetle anatomy; design skews too heavily steampunk/mechanical rather than naturalist"
+        }
+      ],
+      "version_files": [
+        "G-U-01_salvage_beetle_v1.png",
+        "G-U-01_salvage_beetle_v2.png",
+        "G-U-01_salvage_beetle_v3.png"
+      ]
+    },
+    {
+      "collector_number": "G-U-02",
+      "name": "Rendon Apex Tracker",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best matches the prompt's core requirements: a lean, weathered scout in a crouching mid-stride pose with alert scanning posture, holding a wooden spear with proper anatomy. The composition features tangled vines and gnarled trees framing the figure against a shadowed forest backdrop with rich earth tones and dappled light. V1 depicts a standing figure with oversized musculature and excessive gear that contradicts the \"lean\" description and lacks the crouching pose. V2 shows a heavily muscled character in a wide stance rather than mid-stride crouch, with a backpack and beard that feel more fantasy-barbarian than post-apocalyptic scout.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Figure is standing upright rather than crouching mid-stride; overly muscular build contradicts 'lean' description; excessive armor and gear not specified in prompt"
+        },
+        {
+          "version": "v2",
+          "issue": "Wide stance rather than crouching mid-stride pose; heavily muscled physique contradicts 'lean' description; backpack and beard styling feel more fantasy-barbarian than post-apocalyptic scout"
+        }
+      ],
+      "version_files": [
+        "G-U-02_rendon_apex_tracker_v1.png",
+        "G-U-02_rendon_apex_tracker_v2.png",
+        "G-U-02_rendon_apex_tracker_v3.png"
+      ]
+    },
+    {
+      "collector_number": "G-U-03",
+      "name": "Law of the Wilderness",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best balances prompt adherence and composition. It features a ceratopsian and raptor in a crumbling city with strong glowing green energy and vine-covered ruins\u2014directly matching the prompt. The wide composition reads clearly at card size with excellent focal point and layered depth. V1 has a watermark artifact and lacks the crumbling city setting entirely. V3 includes too many dinosaurs (violates the \"two dinosaurs\" specification) and has anatomical issues with the ceratopsian's awkward posture and the raptor's distorted proportions.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Watermark/artist signature visible in bottom right corner"
+        },
+        {
+          "version": "v3",
+          "issue": "Includes 4+ dinosaurs instead of specified two; ceratopsian has awkward/unnatural posture; raptor proportions appear distorted"
+        }
+      ],
+      "version_files": [
+        "G-U-03_law_of_the_wilderness_v1.png",
+        "G-U-03_law_of_the_wilderness_v2.png",
+        "G-U-03_law_of_the_wilderness_v3.png"
+      ]
+    },
+    {
       "collector_number": "L-01",
       "name": "Plains",
       "versions_reviewed": 3,
       "pick": "v2",
       "confidence": "high",
-      "reasoning": "V2 best captures the post-apocalyptic sci-fantasy aesthetic with visible megastructure elements (massive steel columns, industrial bridges) integrated into the medieval city architecture. It clearly shows the \"crumbling concrete megastructures\" and \"rusted steel frames\" mentioned in the prompt, creating the distinct contrast between civilization and wilderness. V1 lacks the sci-fi infrastructure entirely and reads as purely medieval fantasy, while V3 shows a more traditional fantasy city without the post-apocalyptic industrial elements. V2 also has excellent composition with strong atmospheric perspective and wildflowers in the foreground.",
+      "reasoning": "V2 best fulfills the prompt's post-apocalyptic science-fantasy vision with visible megastructure ruins and rusted steel frames integrated into the city architecture, creating the required contrast between ancient civilization and untamed wilderness. V1 shows a traditional fantasy city without the sci-fi elements, while V3 depicts a pure medieval castle that completely misses the post-apocalyptic setting. V2's composition is also superior for card readability with clear atmospheric perspective and excellent foreground wildflower framing.",
       "artifacts_found": [
         {
           "version": "v1",
-          "issue": "Missing post-apocalyptic megastructure elements; appears as pure medieval fantasy without sci-fi infrastructure"
+          "issue": "Lacks post-apocalyptic megastructure elements; appears as traditional fantasy rather than science-fantasy hybrid"
         },
         {
           "version": "v3",
-          "issue": "Lacks visible concrete megastructures and rusted steel frames; reads as traditional fantasy rather than post-apocalyptic sci-fantasy hybrid"
+          "issue": "Missing megastructure ruins and sci-fi elements entirely; depicts pure medieval castle without post-apocalyptic setting"
         }
       ],
       "version_files": [
@@ -74,20 +465,329 @@
       ]
     },
     {
+      "collector_number": "L-02",
+      "name": "Island",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best fulfills the prompt's specific requirements for \"ancient stone arches and crumbling columns\" with its prominent architectural ruins, while maintaining the flooded cavern atmosphere with still reflective water and luminescent moss. V1 lacks the architectural elements entirely, showing only natural rock formations. V3 has columns but they appear too uniform and less like crumbling ancient ruins. V2's composition is also most readable at card size with clear focal point and excellent atmospheric perspective.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Missing key prompt elements: no stone arches or crumbling columns visible, only natural cavern formations"
+        },
+        {
+          "version": "v3",
+          "issue": "Columns appear too regular and pristine rather than crumbling/weathered ancient ruins; less adherence to post-apocalyptic decay aesthetic"
+        }
+      ],
+      "version_files": [
+        "L-02_island_v1.png",
+        "L-02_island_v2.png",
+        "L-02_island_v3.png"
+      ]
+    },
+    {
+      "collector_number": "L-03",
+      "name": "Swamp",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best balances all criteria. It features the desolate swamp with bioluminescent greens and purples as specified, includes crumbling structures and twisted vegetation, and maintains excellent atmospheric perspective with acidic mist effects. V1 is too photorealistic and lacks the technological decay elements (no metal structures or bones visible). V3 has excessive neon green lighting and glowing windows that feel too sci-fi/cyberpunk rather than post-apocalyptic decay, plus the bright green is oversaturated and distracting at card size.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Photorealistic style rather than stylized digital illustration; lacks crumbling metal structures and bone fragments specified in prompt"
+        },
+        {
+          "version": "v3",
+          "issue": "Oversaturated neon green bioluminescence with glowing windows feels too cyberpunk; excessive bright lighting reduces readability at small card size and doesn't match post-apocalyptic decay aesthetic"
+        }
+      ],
+      "version_files": [
+        "L-03_swamp_v1.png",
+        "L-03_swamp_v2.png",
+        "L-03_swamp_v3.png"
+      ]
+    },
+    {
+      "collector_number": "L-04",
+      "name": "Mountain",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best fulfills the prompt's core requirements: it features precise geometric bunker entrances (the large circular tunnels) with visible ancient machinery and flickering lights emanating from within, creating the post-apocalyptic sci-fi aesthetic. The bioluminescent warmth is evident in the orange glow contrasting the cool blue mountain tones. V1 has too much photorealism and lacks clear geometric structures, while V2 shows only a single large opening without the multiple bunker entrances and machinery details specified in the prompt.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Overly photorealistic style, lacks geometric bunker details and machinery elements from prompt"
+        },
+        {
+          "version": "v2",
+          "issue": "Single large opening without multiple geometric bunker entrances or visible machinery as described"
+        }
+      ],
+      "version_files": [
+        "L-04_mountain_v1.png",
+        "L-04_mountain_v2.png",
+        "L-04_mountain_v3.png"
+      ]
+    },
+    {
+      "collector_number": "L-05",
+      "name": "Forest",
+      "versions_reviewed": 3,
+      "pick": "v1",
+      "confidence": "high",
+      "reasoning": "V1 best captures the prompt's vision of a primordial forest with towering fern-like columns and crumbling stone pillars reclaimed by vegetation. The dinosaurs have correct anatomy with proper proportions and no visible artifacts. V2 features more castle-like structures (less fitting for \"crumbling pillars\") and the dinosaurs appear somewhat awkwardly proportioned. V3 has a theropod dinosaur with an exaggerated, almost cartoonish grin that feels inconsistent with the stylized-but-grounded aesthetic requested, and the anatomy looks slightly off. V1's atmospheric perspective, color palette, and composition are superior for a card-sized landscape.",
+      "artifacts_found": [
+        {
+          "version": "v2",
+          "issue": "Dinosaur proportions appear slightly unnatural; structures resemble castles rather than weathered pillars"
+        },
+        {
+          "version": "v3",
+          "issue": "Theropod has exaggerated, cartoonish facial expression; overall anatomy feels stylistically inconsistent with the prompt"
+        }
+      ],
+      "version_files": [
+        "L-05_forest_v1.png",
+        "L-05_forest_v2.png",
+        "L-05_forest_v3.png"
+      ]
+    },
+    {
+      "collector_number": "L-06",
+      "name": "Descent Waypoint",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best captures the prompt's core elements: a vast underground corridor with inhuman precision, perfect geometric right angles (the arched ceiling structure), impossibly high scale, and bioluminescent pathway markings (bright cyan lines on the floor). The dramatic atmospheric perspective draws the eye deep into shadow, creating the oppressive \"built for something far larger\" feeling. V1 is too photorealistic and lacks the stylized digital illustration quality; V3 introduces an unnecessary alien structure that wasn't in the prompt and feels more like a waypoint marker than an establishing shot of the corridor itself.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Overly photorealistic rendering, lacks stylized digital illustration aesthetic"
+        },
+        {
+          "version": "v3",
+          "issue": "Introduces extraneous alien/mechanical structure in center that wasn't described in prompt, detracts from corridor establishing shot"
+        }
+      ],
+      "version_files": [
+        "L-06_descent_waypoint_v1.png",
+        "L-06_descent_waypoint_v2.png",
+        "L-06_descent_waypoint_v3.png"
+      ]
+    },
+    {
+      "collector_number": "R-C-01",
+      "name": "Moktar Raider",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 is the strongest choice. It perfectly captures the aggressive crouching stance, displays excellent anatomy with proper hand/finger structure, and features the tawny fur and lion-like mane as specified. The composition is dynamic with a tilted angle, the warm fire-tones and high contrast match the red color identity, and the post-apocalyptic ruins are well-integrated. V1 has too bright/cheerful a sky that undermines the post-apocalyptic mood, while V2's aggressive snarling expression and overly ornate armor feel less like a scavenging raider and more like a fantasy warrior.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Overly bright, cheerful sky and lighting undermines post-apocalyptic atmosphere; less aggressive stance than prompt requires"
+        },
+        {
+          "version": "v2",
+          "issue": "Exaggerated snarling expression and ornate decorative armor feel more high-fantasy than post-apocalyptic scavenger; less adherent to 'crude weapons' and 'looted' aesthetic"
+        }
+      ],
+      "version_files": [
+        "R-C-01_moktar_raider_v1.png",
+        "R-C-01_moktar_raider_v2.png",
+        "R-C-01_moktar_raider_v3.png"
+      ]
+    },
+    {
+      "collector_number": "R-C-02",
+      "name": "Wasteland Raptor",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best matches the prompt's core requirement of a \"lean, muscular raptor\" in a \"predatory sprint\" with dynamic motion. It features proper raptor anatomy with correct claw structure, excellent mottled brown/slate-grey scale coloring, and a tilted composition that conveys kinetic energy. V1 depicts a larger, bulkier theropod that lacks the lean build and sprint posture, while V2 shows an upright, stationary pose that contradicts the lunging forward motion specified in the prompt.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Bulky, non-lean body structure; static/upright posture rather than dynamic sprint; lacks the predatory lunge motion described in prompt"
+        },
+        {
+          "version": "v2",
+          "issue": "Upright, stationary stance with front leg raised awkwardly; does not convey forward lunging motion or sprint dynamics; body proportions too heavy for a 'lean' raptor"
+        }
+      ],
+      "version_files": [
+        "R-C-02_wasteland_raptor_v1.png",
+        "R-C-02_wasteland_raptor_v2.png",
+        "R-C-02_wasteland_raptor_v3.png"
+      ]
+    },
+    {
+      "collector_number": "R-C-03",
+      "name": "Scorched Passage",
+      "versions_reviewed": 3,
+      "pick": "v1",
+      "confidence": "high",
+      "reasoning": "V1 best captures the prompt's core requirement: a creature silhouette consumed by fire at the tunnel's center, frozen mid-collapse. The figure is clearly visible and anatomically sound. V2 features an unnatural spider-like creature with distorted anatomy that doesn't match the prompt's description of a humanoid creature. V3 shows a standing human figure that contradicts the \"mid-collapse\" pose and lacks the sense of being consumed by flames. V1 also delivers superior composition with dynamic perspective, excellent heat distortion effects, and the strongest adherence to the post-apocalyptic sci-fi aesthetic.",
+      "artifacts_found": [
+        {
+          "version": "v2",
+          "issue": "Creature has unnatural spider-like anatomy with multiple distorted limbs that don't match the prompt's description of a creature consumed by fire"
+        },
+        {
+          "version": "v3",
+          "issue": "Figure is standing upright rather than frozen mid-collapse as specified in the prompt; lacks the sense of being consumed by flames"
+        }
+      ],
+      "version_files": [
+        "R-C-03_scorched_passage_v1.png",
+        "R-C-03_scorched_passage_v2.png",
+        "R-C-03_scorched_passage_v3.png"
+      ]
+    },
+    {
+      "collector_number": "R-C-04",
+      "name": "Ransack the Storeroom",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 is the clear winner. It perfectly captures the prompt's core elements: adventurers actively ransacking (wielding weapons, dynamic poses), scattered gold coins and treasures across the floor, intense fire with yellow-orange flames, stone walls and wooden shelves with vessels, and excellent composition with clear focal point and kinetic energy. The stylized digital illustration style is consistent and readable at card size. V1 has good fire effects but the adventurers appear passive/celebratory rather than actively ransacking, and lacks visible treasure scattering. V2 has better treasure visibility but the composition is too symmetrical and the adventurers lack dynamic action poses\u2014they appear more defensive than ransacking.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Adventurers appear celebratory/passive rather than actively ransacking; limited visible treasure scattering on ground"
+        },
+        {
+          "version": "v2",
+          "issue": "Overly symmetrical composition; adventurers lack dynamic ransacking poses, appear more defensive than destructive"
+        }
+      ],
+      "version_files": [
+        "R-C-04_ransack_the_storeroom_v1.png",
+        "R-C-04_ransack_the_storeroom_v2.png",
+        "R-C-04_ransack_the_storeroom_v3.png"
+      ]
+    },
+    {
+      "collector_number": "R-R-01",
+      "name": "Spark Detonator",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best matches the prompt with a lean, determined male character in mid-action pose gripping a glowing artifact-weapon with visible detonation and bright sparks erupting outward. The composition is dynamically tilted, the gear is practical and worn, and the warm fire-tones with high contrast create intense kinetic energy. V1 has a more static pose and uses a firearm rather than an artifact-weapon, while V2 depicts a female character (gender-neutral in prompt but character design differs significantly) and has visible watermark artifacts (\"aidlove\" watermark in bottom left).",
+      "artifacts_found": [
+        {
+          "version": "v2",
+          "issue": "Visible watermark/text artifact ('aidlove') in bottom left corner"
+        },
+        {
+          "version": "v1",
+          "issue": "Depicts a firearm rather than a glowing artifact-weapon; less dynamic tilted composition"
+        }
+      ],
+      "version_files": [
+        "R-R-01_spark_detonator_v1.png",
+        "R-R-01_spark_detonator_v2.png",
+        "R-R-01_spark_detonator_v3.png"
+      ]
+    },
+    {
+      "collector_number": "R-R-02",
+      "name": "The Burning Descent",
+      "versions_reviewed": 3,
+      "pick": "v1",
+      "confidence": "high",
+      "reasoning": "V1 best captures the prompt's core concept of a \"roiling vortex of crimson and orange flame spirals downward\" with excellent dynamic composition and heat distortion effects. While V2 introduces an unwanted human figure (not in the prompt) and V3's vortex is too linear/vertical, V1 delivers the swirling, spiraling flame motion with scattered igniting cards, proper color gradation from red to yellow, and strong cavern walls. V1 maintains stylized digital illustration quality without photorealism and reads clearly at card size.",
+      "artifacts_found": [
+        {
+          "version": "v2",
+          "issue": "Human figure added that contradicts the prompt (no character specified); shifts focus away from the vortex itself"
+        },
+        {
+          "version": "v3",
+          "issue": "Vortex is too linear and vertical rather than spiraling; lacks the dynamic tilted composition requested"
+        }
+      ],
+      "version_files": [
+        "R-R-02_the_burning_descent_v1.png",
+        "R-R-02_the_burning_descent_v2.png",
+        "R-R-02_the_burning_descent_v3.png"
+      ]
+    },
+    {
+      "collector_number": "R-U-01",
+      "name": "Spark Insurgent",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best captures the prompt's core elements with excellent execution: the fighter is in a dynamic crouching pose with both fists raised defiantly, eyes blazing with red energy, wearing tattered dark clothes. The massive armored treaded vehicle with twin gun turrets dominates the background with smoke and fire rising from it. The composition is tilted dynamically, the silhouette burns against the mechanical wreckage with warm fire-tones and high contrast, and the post-apocalyptic sci-fi setting is clear. V1 shows the fighter in a less defiant pose (one fist only) and lacks the intensity of red eye energy. V2 has the fighter in an awkward squat pose that doesn't read as \"crouching defiantly,\" and the overall composition feels less dynamic.",
+      "artifacts_found": [],
+      "version_files": [
+        "R-U-01_spark_insurgent_v1.png",
+        "R-U-01_spark_insurgent_v2.png",
+        "R-U-01_spark_insurgent_v3.png"
+      ]
+    },
+    {
+      "collector_number": "R-U-02",
+      "name": "Wasteland War-Raptor",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best captures the prompt's core requirements: a muscular lion-headed humanoid in full sprint alongside a dust-colored raptor with slate-grey striping, both charging forward with weapons raised through a barren wasteland. The composition is dynamic and tilted, with excellent warm fire-tones and high contrast. V1 has a less threatening lion character and weaker overall kinetic energy. V3 includes an extraneous background figure that wasn't requested and dilutes focus from the main pair.",
+      "artifacts_found": [
+        {
+          "version": "v3",
+          "issue": "Unnecessary background figure (humanoid with spear) distracts from the main composition and wasn't in the prompt"
+        }
+      ],
+      "version_files": [
+        "R-U-02_wasteland_warraptor_v1.png",
+        "R-U-02_wasteland_warraptor_v2.png",
+        "R-U-02_wasteland_warraptor_v3.png"
+      ]
+    },
+    {
+      "collector_number": "R-U-03",
+      "name": "Combustion Cascade",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best adheres to the prompt with a gaunt figure in a proper lab coat, mechanical arms extending from the garment (visible as articulated appendages), goggles on wild hair, and a collapsing laboratory structure with cascading flames and electrical arcs. V1 has four distinct mechanical hands but lacks the lab coat detail and feels more anime-stylized. V2 has a cartoonish art style with glowing red eyes that deviates from the prompt's science-fantasy tone and shows mechanical claws rather than arms extending from the garment. V3 maintains the best balance of stylized digital illustration, dynamic composition, warm fire-tones with high contrast, and post-apocalyptic science-fantasy aesthetic while staying true to the character description.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Character design deviates from prompt - lacks proper lab coat, has four mechanical hands instead of arms extending from garment, overly anime-stylized rather than science-fantasy"
+        },
+        {
+          "version": "v2",
+          "issue": "Cartoonish art style with glowing red eyes contradicts prompt tone, mechanical claws rather than arms from garment, less adherence to science-fantasy aesthetic"
+        }
+      ],
+      "version_files": [
+        "R-U-03_combustion_cascade_v1.png",
+        "R-U-03_combustion_cascade_v2.png",
+        "R-U-03_combustion_cascade_v3.png"
+      ]
+    },
+    {
       "collector_number": "U-C-01",
       "name": "Subsurface Surveyor",
       "versions_reviewed": 3,
       "pick": "v1",
       "confidence": "high",
-      "reasoning": "V1 best matches the prompt with a lean scout in a proper crouching pose with one hand steadying against stone, rope coils visible at the belt, and alert eyes focused downward. The cool steel-blue and teal palette is perfectly executed with excellent screen-glow lighting on the torch. V2 has a watermark artifact in the bottom right corner and the pose is less dynamic (standing rather than crouching). V3 has the character in a crouch but the pose is less natural and the composition feels more cramped with the large dark cavern entrance dominating the frame.",
+      "reasoning": "V1 best matches the prompt with a lean scout in a proper crouching pose at a cavern entrance, one hand steadying against stone, holding a torch with alert downward gaze. The composition is clean and readable at card size with excellent geometric framing. V2 has an awkward hand position (fingers splayed unnaturally on the ground) and shows a magical/tech device rather than rope at the belt. V3 depicts a female character with exaggerated features and lacks the practical scout aesthetic; the hand position is also anatomically strained.",
       "artifacts_found": [
         {
           "version": "v2",
-          "issue": "Watermark/text artifact visible in bottom right corner"
+          "issue": "Unnatural hand splaying and finger positioning on ground; magical/tech device instead of rope coils"
         },
         {
           "version": "v3",
-          "issue": "Composition too dark with oversized cavern entrance reducing character visibility at card size"
+          "issue": "Exaggerated facial features and body proportions; strained hand/arm anatomy in crouching position"
         }
       ],
       "version_files": [
@@ -97,20 +797,250 @@
       ]
     },
     {
+      "collector_number": "U-C-02",
+      "name": "Glintscale Flyer",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best balances all criteria. It features a lean, graceful drake with proper anatomy, iridescent blue scales with silver highlights, and wings spread wide in mid-flight. The composition is clean and readable at card size with excellent focal point. The cool teal/steel-blue palette with warm orange machinery glow in the background perfectly matches the prompt's post-apocalyptic sci-fi aesthetic. V1 is too photorealistic and bulky (not lean enough), while V3 has awkward anatomy with oversized claws and a less elegant pose.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Too photorealistic and lacks stylized digital illustration quality; drake appears too bulky/muscular rather than lean and graceful"
+        },
+        {
+          "version": "v3",
+          "issue": "Anatomy issues: oversized claws and feet appear disproportionate; less elegant pose; darker overall tone reduces iridescent shimmer effect"
+        }
+      ],
+      "version_files": [
+        "U-C-02_glintscale_flyer_v1.png",
+        "U-C-02_glintscale_flyer_v2.png",
+        "U-C-02_glintscale_flyer_v3.png"
+      ]
+    },
+    {
+      "collector_number": "U-C-03",
+      "name": "Redirect Pulse",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best captures the prompt's core concept of a creature caught mid-recoil with an invisible force field rippling outward. The concentric circular patterns create a dynamic sense of displacement and rejection, while the creature's aggressive stance and forward-leaning posture convey the moment of forceful impact. The cool teal/cyan palette with glowing crystalline elements matches the color identity perfectly, and the composition is clear and readable at card size with strong focal point on the creature.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Creature is standing passively facing the structures rather than being caught mid-recoil; lacks the sense of dynamic displacement and backward motion described in the prompt"
+        },
+        {
+          "version": "v3",
+          "issue": "Features a second creature (dark silhouette in foreground) that wasn't in the prompt, creating compositional confusion; the main creature appears suspended/floating rather than actively recoiling"
+        }
+      ],
+      "version_files": [
+        "U-C-03_redirect_pulse_v1.png",
+        "U-C-03_redirect_pulse_v2.png",
+        "U-C-03_redirect_pulse_v3.png"
+      ]
+    },
+    {
+      "collector_number": "U-C-04",
+      "name": "Excavate the Archives",
+      "versions_reviewed": 3,
+      "pick": "v1",
+      "confidence": "high",
+      "reasoning": "V1 best matches the prompt with a figure in tattered robes amid towering shelves of ancient scrolls, hands raised with glowing blue energy swirling upward. The composition is clean with excellent focal point and readability at card size. V2 and V3 feature lightning bolts and more sci-fi aesthetics that deviate from the \"ancient scrolls and artifacts\" archive setting described in the prompt. V1's geometric composition, cool steel-blue palette, and screen-glow lighting perfectly capture the post-apocalyptic science-fantasy tone without anatomical issues.",
+      "artifacts_found": [
+        {
+          "version": "v2",
+          "issue": "Lightning bolt effect deviates from prompt's 'glowing blue energy swirls' description; less archive-like setting"
+        },
+        {
+          "version": "v3",
+          "issue": "Wing-like appendages on figure are not mentioned in prompt and appear as added anatomical elements; lightning effect again deviates from swirling energy description"
+        }
+      ],
+      "version_files": [
+        "U-C-04_excavate_the_archives_v1.png",
+        "U-C-04_excavate_the_archives_v2.png",
+        "U-C-04_excavate_the_archives_v3.png"
+      ]
+    },
+    {
+      "collector_number": "U-M-01",
+      "name": "Vex, Architect of Systems",
+      "versions_reviewed": 3,
+      "pick": "v1",
+      "confidence": "high",
+      "reasoning": "V1 best fulfills the prompt requirements with sharp, clean anatomy, three distinct luminous holographic displays with proper hand positioning, and excellent color identity matching blue's cool steel-blue/teal palette. V2 shows only two screens and has distorted hand anatomy (fingers appear fused/malformed on the lower hand), while V3 shows only two screens and lacks the hunched-over posture and dynamic finger-dancing interaction described in the prompt. V1's composition is also most readable at card size with clear focal point and proper screen-glow lighting.",
+      "artifacts_found": [
+        {
+          "version": "v2",
+          "issue": "Distorted hand anatomy on lower hand - fingers appear fused and malformed"
+        },
+        {
+          "version": "v3",
+          "issue": "Only two screens shown instead of three; missing the dynamic hunched posture over displays"
+        }
+      ],
+      "version_files": [
+        "U-M-01_vex_architect_of_systems_v1.png",
+        "U-M-01_vex_architect_of_systems_v2.png",
+        "U-M-01_vex_architect_of_systems_v3.png"
+      ]
+    },
+    {
+      "collector_number": "U-R-01",
+      "name": "Automated Sentinel",
+      "versions_reviewed": 3,
+      "pick": "v1",
+      "confidence": "high",
+      "reasoning": "V1 best matches the prompt's core requirement of a \"cylindrical head crowned by a crystalline eye\" with a clean, geometric design. It features excellent prompt adherence with the dormant, motionless stance, strong screen-glow lighting from the crystalline core, and perfect cool steel-blue/teal color identity. V2 has a more humanoid, bulky body design that deviates from the described \"cylindrical head\" aesthetic, and V3 adds unnecessary humanoid features (visible hands/fingers, antenna-like protrusions) that weren't requested. V1's composition is also superior for card readability with clear focal point and balanced geometry.",
+      "artifacts_found": [
+        {
+          "version": "v2",
+          "issue": "Body design deviates from prompt - more humanoid and bulky rather than a towering stainless steel construct with cylindrical proportions"
+        },
+        {
+          "version": "v3",
+          "issue": "Adds humanoid features not in prompt (visible hands with fingers, antenna-like protrusions on head, more organic posture) - less geometric and more character-like than intended"
+        }
+      ],
+      "version_files": [
+        "U-R-01_automated_sentinel_v1.png",
+        "U-R-01_automated_sentinel_v2.png",
+        "U-R-01_automated_sentinel_v3.png"
+      ]
+    },
+    {
+      "collector_number": "U-R-02",
+      "name": "Anomalous Resonance",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best captures the prompt's core elements: visible energy waves rippling through the chamber, suspended metallic artifacts (gears, crystals) clearly vibrating in the central light beam, and excellent geometric composition with strong focal point. The cool steel-blue and teal palette with screen-glow lighting is perfectly executed. V1 has a watermark artifact at the bottom and lacks distinct metallic objects. V3 features organic vine-like energy patterns that don't match the \"rippling waves\" and \"geometric composition\" requirements, feeling more botanical than mechanical.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Watermark/text artifact visible at bottom of image"
+        },
+        {
+          "version": "v3",
+          "issue": "Organic vine-like energy patterns don't match geometric composition requirement; lacks clear metallic artifacts like gears and crystals"
+        }
+      ],
+      "version_files": [
+        "U-R-02_anomalous_resonance_v1.png",
+        "U-R-02_anomalous_resonance_v2.png",
+        "U-R-02_anomalous_resonance_v3.png"
+      ]
+    },
+    {
+      "collector_number": "U-U-01",
+      "name": "Flickerfield Operative",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best matches the prompt's core requirements: it depicts a lean, nimble rogue in a dynamic mid-stride crouch through a crystalline, fractured corridor with strong geometric composition. The character has sharp features, focused expression, and outstretched hands toward arcane energy. V1 shows a wide-legged stance that reads more as a power pose than nimble mid-stride movement, and the hands lack the \"outstretched toward swirling motes\" quality. V2 has a weapon (sword) not mentioned in the prompt and a less dynamic pose. V3 excels in prompt adherence, composition clarity for card size, cool steel-blue/teal palette, and screen-glow lighting throughout the crystalline corridor.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Wide-legged stance contradicts 'mid-stride' movement; less nimble appearance"
+        },
+        {
+          "version": "v2",
+          "issue": "Includes weapon (sword) not in prompt; less dynamic pose; watermark visible in lower left"
+        }
+      ],
+      "version_files": [
+        "U-U-01_flickerfield_operative_v1.png",
+        "U-U-01_flickerfield_operative_v2.png",
+        "U-U-01_flickerfield_operative_v3.png"
+      ]
+    },
+    {
+      "collector_number": "U-U-02",
+      "name": "Relay Node Technician",
+      "versions_reviewed": 3,
+      "pick": "v1",
+      "confidence": "high",
+      "reasoning": "V1 best matches the prompt with a lean technician leaning intently over a crystalline circuit mechanism with glowing counters, soft blue light casting shadows across their focused face, and floating energy wisps. The hands are anatomically correct with proper finger count and positioning. V2 has awkward hand anatomy with fingers appearing distorted/fused, and the technician wears goggles not mentioned in the prompt. V3 has the technician's face too close/distorted in perspective and the hands appear somewhat stiff, though anatomically acceptable. V1's composition is clearest for card readability and best captures the \"hovering fingers\" and geometric, cool-toned aesthetic requested.",
+      "artifacts_found": [
+        {
+          "version": "v2",
+          "issue": "Distorted hand anatomy with fused/awkward finger positioning; goggles not in prompt"
+        },
+        {
+          "version": "v3",
+          "issue": "Face perspective distorted/too close to viewer; less natural hand positioning"
+        }
+      ],
+      "version_files": [
+        "U-U-02_relay_node_technician_v1.png",
+        "U-U-02_relay_node_technician_v2.png",
+        "U-U-02_relay_node_technician_v3.png"
+      ]
+    },
+    {
+      "collector_number": "U-U-03",
+      "name": "Automated Sentry Grid",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best fulfills the prompt requirements with excellent composition and prompt adherence. It features a luminous geometric energy grid with crystalline nodes, trapped mechanical constructs clearly visible within the field, cascading arcs of ethereal light, and weathered stone architecture (towers/ruins) in the background. The cool steel-blue and teal palette with screen-glow lighting is perfect for the blue color identity, and the post-apocalyptic setting is strongly conveyed. V1 lacks mechanical constructs and architectural backdrop, while V2 shows only a single construct in a simplified geometric frame without the intricate lattice or ruins.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Missing mechanical constructs trapped in the grid and lacks weathered stone architecture backdrop"
+        },
+        {
+          "version": "v2",
+          "issue": "Overly simplified geometric design with only one construct; lacks intricate lattice network and architectural ruins"
+        }
+      ],
+      "version_files": [
+        "U-U-03_automated_sentry_grid_v1.png",
+        "U-U-03_automated_sentry_grid_v2.png",
+        "U-U-03_automated_sentry_grid_v3.png"
+      ]
+    },
+    {
+      "collector_number": "UB-U-01",
+      "name": "Subsurface Conduit",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best balances all criteria. It shows the rogue in a proper crouching pose with both hands clearly visible and anatomically correct, touching the glowing stone floor as described. The composition is clean and readable at card size, with excellent geometric framing from the archway. The cool teal/blue palette with bioluminescent veins running through the walls perfectly matches the prompt's color identity and post-apocalyptic sci-fi aesthetic. V1 has the character standing rather than crouching and lacks the hand-contact element. V3 has anatomical issues\u2014the character's posture is awkward and one hand appears distorted/fused with the body.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Character standing rather than crouching; doesn't show fingers splayed against stone as described"
+        },
+        {
+          "version": "v3",
+          "issue": "Awkward posture with distorted hand anatomy; left hand appears fused/unclear against body"
+        }
+      ],
+      "version_files": [
+        "UB-U-01_subsurface_conduit_v1.png",
+        "UB-U-01_subsurface_conduit_v2.png",
+        "UB-U-01_subsurface_conduit_v3.png"
+      ]
+    },
+    {
       "collector_number": "W-C-01",
       "name": "Denethix Watchguard",
       "versions_reviewed": 3,
       "pick": "v3",
       "confidence": "high",
-      "reasoning": "V3 is the strongest choice. It has clean anatomy with no visible AI artifacts, excellent prompt adherence (soldier in chain mail, shield raised, sword ready, rigid watchful stance), and superior composition with the soldier centered and clearly visible at card size. The warm sandstone/ivory tones with golden-hour lighting and long shadows are perfectly executed, and the towering medieval fortifications with concrete ruins in the background create the post-apocalyptic science-fantasy setting. V1 has a cape that wasn't requested and feels less focused, while V2 has the soldier positioned awkwardly off-center and lacks the architectural grandeur of the background.",
+      "reasoning": "V3 is the strongest choice. It features clean anatomy with no AI artifacts, excellent prompt adherence (soldier in chain mail with shield and sword, alert stance, stone gate, medieval fortifications with towering ruins), and superior composition with the soldier centered and framed by the gate archway\u2014highly readable at card size. The warm sandstone/ivory tones and golden-hour lighting match the color identity perfectly. V1 has a photorealistic style that doesn't match the \"stylized digital illustration\" requirement, while V2's soldier is positioned too far to the right and the composition is less balanced.",
       "artifacts_found": [
         {
           "version": "v1",
-          "issue": "Red cape not mentioned in prompt; composition less focused with soldier positioned to the side"
+          "issue": "Photorealistic rendering style rather than stylized digital illustration; composition less balanced with soldier off-center"
         },
         {
           "version": "v2",
-          "issue": "Soldier positioned off-center and awkwardly; background architecture less imposing and detailed"
+          "issue": "Soldier positioned too far right, unbalanced composition; less structured framing compared to v3"
         }
       ],
       "version_files": [
@@ -118,10 +1048,452 @@
         "W-C-01_denethix_watchguard_v2.png",
         "W-C-01_denethix_watchguard_v3.png"
       ]
+    },
+    {
+      "collector_number": "W-C-02",
+      "name": "Fault-Trained Sentinel",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best matches the prompt's requirement for a \"rigid, defensive stance with one gauntleted hand raised to shield.\" It shows the soldier in a clear, alert posture with the shield prominently raised and visible. The stylized digital illustration style is clean and readable at card size, with excellent color identity (warm sandstone/ivory tones with golden-hour lighting). V1 has the hand in a fist rather than raised to shield, and V2 shows a more aggressive forward stance rather than the defensive rigidity requested. V3's composition is balanced and the weathered metal details are clearly visible.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Hand pose doesn't match prompt - shows closed fist rather than raised shield hand"
+        },
+        {
+          "version": "v2",
+          "issue": "Stance is too aggressive/forward-leaning rather than rigid and defensive; shield held at side rather than raised"
+        }
+      ],
+      "version_files": [
+        "W-C-02_faulttrained_sentinel_v1.png",
+        "W-C-02_faulttrained_sentinel_v2.png",
+        "W-C-02_faulttrained_sentinel_v3.png"
+      ]
+    },
+    {
+      "collector_number": "W-C-03",
+      "name": "Sanctioned Exile",
+      "versions_reviewed": 3,
+      "pick": "v1",
+      "confidence": "high",
+      "reasoning": "V1 best captures the prompt's core elements: the soldier has a clear revolver-style pistol with ceremonial insignia visible on the chest, the massive armored figure is mid-vanishment with ethereal light tearing it away (bright starburst effect), and the composition is tight and dramatic with excellent golden-hour lighting and warm sandstone/ivory tones. V2 has a rifle on the soldier's back (not prompt-adherent) and lacks the vanishment effect. V3 shows weapon discharge effects but the target figure appears solid and grounded rather than ethereally vanishing, and the composition is less dramatically framed.",
+      "artifacts_found": [
+        {
+          "version": "v2",
+          "issue": "Soldier carries a rifle on back instead of revolver-style pistol as primary weapon; lacks ethereal vanishment effect on target"
+        },
+        {
+          "version": "v3",
+          "issue": "Target figure appears solid and grounded rather than mid-vanishment; weapon shows discharge effects but not ethereal light tearing the figure away"
+        }
+      ],
+      "version_files": [
+        "W-C-03_sanctioned_exile_v1.png",
+        "W-C-03_sanctioned_exile_v2.png",
+        "W-C-03_sanctioned_exile_v3.png"
+      ]
+    },
+    {
+      "collector_number": "W-C-04",
+      "name": "Requisition Sweep",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best captures the prompt's core elements: white-armored officials actively confiscating glowing artifacts and enchanted relics scattered across the floor, with a desiccated corpse in robes seated centrally on a throne. The composition is balanced and readable at card size, with warm sandstone/ivory tones and golden-hour lighting. V1 depicts skeletal figures rather than officials in armor and lacks the confiscation action. V3 shows fewer artifacts being seized and has a more monolithic, less dynamic composition despite good atmosphere.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Skeletal figures with skull heads rather than white-armored officials; doesn't match the prompt's description of enforcement officials"
+        },
+        {
+          "version": "v3",
+          "issue": "Fewer visible artifacts being confiscated; less emphasis on the seizure action described in the prompt"
+        }
+      ],
+      "version_files": [
+        "W-C-04_requisition_sweep_v1.png",
+        "W-C-04_requisition_sweep_v2.png",
+        "W-C-04_requisition_sweep_v3.png"
+      ]
+    },
+    {
+      "collector_number": "W-M-01",
+      "name": "Feretha, the Hollow Founder",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best fulfills the prompt's core vision of a tech-infused corpse-king. It features glowing red neural interface eyes, visible fluid tubes/cables snaking from the skull, a server rack with glowing conduits in the background, and maintains excellent anatomical integrity with properly rendered skeletal hands and fingers. The composition is balanced and readable at card size, with warm ivory robes and golden crown against cool blue-teal tech elements creating strong color contrast. V1 lacks the technological elements entirely (no tubes, cables, or server racks), while V2 has minimal tech integration and less dynamic composition.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Missing core prompt elements: no visible fluid tubes, cables, or server rack machinery\u2014fails to convey the tech-puppet concept"
+        },
+        {
+          "version": "v2",
+          "issue": "Minimal technological integration: lacks prominent neural interface cables and server rack; the tech elements are too subtle for the post-apocalyptic sci-fi setting"
+        }
+      ],
+      "version_files": [
+        "W-M-01_feretha_the_hollow_founder_v1.png",
+        "W-M-01_feretha_the_hollow_founder_v2.png",
+        "W-M-01_feretha_the_hollow_founder_v3.png"
+      ]
+    },
+    {
+      "collector_number": "W-R-01",
+      "name": "Cult Relic-Bearer",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 is the clear winner as it best matches the prompt's core requirement: a kneeling cleric cradling a relic in both hands with a devotional expression. V3 shows proper kneeling posture with the relic held at chest level, intricate scrollwork on the robes, and a contemplative downward gaze at the glowing artifact. V1 has the character standing/posed rather than kneeling, and V2 shows the character kneeling but holding the relic at arm's length rather than cradling it. V3 also excels in composition with excellent use of the columned environment, warm golden-hour lighting with strong shadows, and the post-apocalyptic aesthetic (weathered columns). All three versions have clean anatomy with no AI artifacts.",
+      "artifacts_found": [],
+      "version_files": [
+        "W-R-01_cult_relicbearer_v1.png",
+        "W-R-01_cult_relicbearer_v2.png",
+        "W-R-01_cult_relicbearer_v3.png"
+      ]
+    },
+    {
+      "collector_number": "W-R-02",
+      "name": "The Vizier's Decree",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 is the strongest choice. It has clean anatomy with no AI artifacts, excellent prompt adherence (desiccated corpse on throne, commanding vizier in dark robes, cables/tubes visible, ethereal light chains), and superior composition with better focal point balance and readability at card size. The warm sandstone/ivory tones and golden-hour lighting are perfectly executed. V1 has an overly ornate throne that dominates the composition and feels less balanced, while V2's throne design is simpler but the corpse's pose is less dynamic and the overall scene feels slightly static.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Overly ornate spiked throne dominates composition, making the scene feel cluttered and less balanced for card-size readability"
+        },
+        {
+          "version": "v2",
+          "issue": "Simpler throne design but corpse pose is more passive, less dynamic commanding presence overall"
+        }
+      ],
+      "version_files": [
+        "W-R-02_the_viziers_decree_v1.png",
+        "W-R-02_the_viziers_decree_v2.png",
+        "W-R-02_the_viziers_decree_v3.png"
+      ]
+    },
+    {
+      "collector_number": "W-U-01",
+      "name": "Cult Archivist",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best matches the prompt's core requirements: a kneeling cleric with hands extended in devotion before an ornate stone tablet. The composition is balanced with the figure in profile, the tablet clearly visible, and golden light radiating from the artifact. V1 shows the figure standing rather than kneeling, which deviates from the prompt. V3 depicts a male figure (not the \"pale, robed human cleric\" described) and shows the character in a less devotional pose. V2's warm sandstone tones, golden-hour lighting, dust motes, and post-apocalyptic sci-fi aesthetic all align perfectly with the prompt.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Figure standing rather than kneeling as specified in prompt"
+        },
+        {
+          "version": "v3",
+          "issue": "Character appears to be male with beard, contradicting the female cleric described in prompt"
+        }
+      ],
+      "version_files": [
+        "W-U-01_cult_archivist_v1.png",
+        "W-U-01_cult_archivist_v2.png",
+        "W-U-01_cult_archivist_v3.png"
+      ]
+    },
+    {
+      "collector_number": "W-U-02",
+      "name": "Fist Checkpoint Warden",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 is the clear winner. It perfectly captures the prompt's core elements: a stern soldier in chain mail and splint armor making a commanding halt gesture with a raised hand, a large ceremonial revolver-style pistol held prominently, rigid authoritarian posture, scattered papers on a desk, and checkpoint setting. The composition is excellent with strong focal point, warm sandstone/ivory tones, and golden-hour lighting with long shadows. V1 has photorealistic rendering that doesn't match the \"stylized digital illustration\" requirement, while V2 lacks the commanding halt gesture (hand is open/passive) and the pistol is barely visible, making it less prompt-adherent.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Photorealistic rendering style rather than stylized digital illustration; lacks the commanding halt gesture (hand is raised but not in a clear 'stop' position); pistol is holstered and not prominently featured"
+        },
+        {
+          "version": "v2",
+          "issue": "Hand gesture is open/passive rather than a commanding halt; pistol is barely visible/not prominently displayed; less adherent to the authoritarian checkpoint warden concept"
+        }
+      ],
+      "version_files": [
+        "W-U-02_fist_checkpoint_warden_v1.png",
+        "W-U-02_fist_checkpoint_warden_v2.png",
+        "W-U-02_fist_checkpoint_warden_v3.png"
+      ]
+    },
+    {
+      "collector_number": "W-U-03",
+      "name": "Edict of Continuity",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best fulfills the prompt requirements with visible exposed rebar/metal scaffolding on the left side that frames the composition as specified, creating the post-apocalyptic science-fantasy blend. It maintains excellent warm sandstone and ivory tones with golden-hour lighting and long shadows, while the ethereal white light coalesces clearly above the street. The composition is balanced and readable at card size with a strong focal point down the central street. V1 lacks the concrete/steel ruins and metal framing elements entirely, appearing too purely medieval. V2 has better atmosphere but less visible rebar/metal structures compared to V3's prominent scaffolding.",
+      "artifacts_found": [],
+      "version_files": [
+        "W-U-03_edict_of_continuity_v1.png",
+        "W-U-03_edict_of_continuity_v2.png",
+        "W-U-03_edict_of_continuity_v3.png"
+      ]
+    },
+    {
+      "collector_number": "WB-R-01",
+      "name": "Proclamation Enforcer",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best captures the prompt's core requirements: a stern, sharp-featured woman in rigid attention with a raised fist in command. The pose is authoritative and disciplined, with excellent anatomy and no AI artifacts. The white/black ceremonial armor with gold trim is ornate and rank-marking, and the composition is balanced with the figure in profile\u2014ideal for card readability. The warm sandstone/ivory tones and golden-hour lighting with long shadows are perfectly executed, and the post-apocalyptic sci-fi setting is evident in the environment. V1 has a more relaxed, confident pose rather than rigid attention, and V2's pose is too dynamic/action-oriented rather than standing at rigid attention as specified.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Pose is confident and dynamic rather than rigid attention; composition is too wide and less card-friendly"
+        },
+        {
+          "version": "v2",
+          "issue": "Pose is too action-oriented/dynamic rather than rigid attention; composition emphasizes movement over disciplined stillness"
+        }
+      ],
+      "version_files": [
+        "WB-R-01_proclamation_enforcer_v1.png",
+        "WB-R-01_proclamation_enforcer_v2.png",
+        "WB-R-01_proclamation_enforcer_v3.png"
+      ]
+    },
+    {
+      "collector_number": "WB-U-01",
+      "name": "Fist Tax Collector",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best fulfills the prompt requirements with excellent anatomy, proper hand positioning (one outstretched in demanding gesture, one gripping the revolver), and clear chain-mail visible beneath plate armor. The composition is balanced and readable at card size with strong focal point on the stern face and commanding pose. V1 has the revolver held too high and lacks the demanding outstretched hand gesture; V2 is overly photorealistic with architectural background that distracts from the character and doesn't match the stylized illustration requirement. V3's warm golden-hour lighting, sandstone/ivory tones, and post-apocalyptic sci-fantasy aesthetic perfectly match the color identity and mood.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Revolver held at awkward angle; missing the demanding outstretched hand gesture specified in prompt"
+        },
+        {
+          "version": "v2",
+          "issue": "Overly photorealistic style inconsistent with stylized digital illustration requirement; distracting architectural background; less commanding presence"
+        }
+      ],
+      "version_files": [
+        "WB-U-01_fist_tax_collector_v1.png",
+        "WB-U-01_fist_tax_collector_v2.png",
+        "WB-U-01_fist_tax_collector_v3.png"
+      ]
+    },
+    {
+      "collector_number": "WG-R-01",
+      "name": "Sura, Rendon Ranchmaster",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best captures the prompt's vision of a commanding rancher directing prehistoric beasts. The composition is perfectly balanced with the rancher as the clear focal point, the massive ceratopsian prominently featured beside him, and raptors circling above. The warm sandstone/ivory tones and golden-hour lighting are excellent, and the post-apocalyptic science-fantasy atmosphere is well-established. V1 has the rancher too small relative to the dinosaur and uses a flying creature that doesn't match the ceratopsian focus. V2 places the rancher awkwardly on the dinosaur's back rather than commanding from the ground, which breaks the prompt's intent.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Rancher is undersized relative to the ceratopsian; composition lacks the commanding authority described in the prompt"
+        },
+        {
+          "version": "v2",
+          "issue": "Rancher positioned on the dinosaur's back rather than standing commanding beside it; loses the ground-level authority pose"
+        }
+      ],
+      "version_files": [
+        "WG-R-01_sura_rendon_ranchmaster_v1.png",
+        "WG-R-01_sura_rendon_ranchmaster_v2.png",
+        "WG-R-01_sura_rendon_ranchmaster_v3.png"
+      ]
+    },
+    {
+      "collector_number": "WG-U-01",
+      "name": "Reclaimed Settler",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best captures the prompt's core requirements: a kneeling settler examining salvaged technology with focused determination. The pose is natural and anatomically sound, the composition is balanced with excellent focal point on the hands and artifact, and the warm earth tones with golden-hour lighting perfectly match the color identity. V1 has the settler holding a weapon rather than examining salvage, which deviates from the prompt. V3 shows a crouching pose rather than kneeling, and while the scavenged tech is more prominent, the overall composition feels less intimate and the pose less aligned with \"kneels among scattered scavenge.\"",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Prompt deviation: settler is holding/examining a weapon/tool rather than kneeling to examine salvaged ancient technology as primary focus"
+        },
+        {
+          "version": "v3",
+          "issue": "Pose deviation: crouching rather than kneeling as specified in prompt; composition less focused on the examination action"
+        }
+      ],
+      "version_files": [
+        "WG-U-01_reclaimed_settler_v1.png",
+        "WG-U-01_reclaimed_settler_v2.png",
+        "WG-U-01_reclaimed_settler_v3.png"
+      ]
+    },
+    {
+      "collector_number": "WR-R-01",
+      "name": "Kethra, Spark Commander",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best captures the prompt's core elements: a fierce woman with visible scarring on her face, gripping dual blazing swords wreathed in white-hot flames with excellent spark effects. The dynamic mid-combat stride is clear, the composition is well-balanced with armored fighters emerging from shadow behind her, and the warm sandstone/ivory tones with golden-hour lighting are perfectly executed. V1 lacks visible scarring and the sword lacks the white-hot flame intensity; V2 has only one sword and weaker flame effects, deviating from the \"blazing sword\" singular focus implied by the prompt.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Minimal facial scarring despite prompt emphasis; sword flames are orange rather than white-hot; composition less dynamic"
+        },
+        {
+          "version": "v2",
+          "issue": "Only one sword visible instead of the dual-wielding suggested by prompt; weaker flame effects; less intense action pose"
+        }
+      ],
+      "version_files": [
+        "WR-R-01_kethra_spark_commander_v1.png",
+        "WR-R-01_kethra_spark_commander_v2.png",
+        "WR-R-01_kethra_spark_commander_v3.png"
+      ]
+    },
+    {
+      "collector_number": "WR-U-01",
+      "name": "Rebel Firebrand",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best captures the prompt's core elements: the rebel holds the torch aloft with wild intensity, displays visible burn scars on bare arms, and shows clear defiance. The Fist officer is properly crumpled beneath her with the revolver nearby. V1 has the officer too upright and composed (not crumpled enough), while V2 shows the officer in an awkward, anatomically strained pose with legs splayed unnaturally. V3's composition is balanced, the character's fury is evident, and the warm sandstone/golden-hour lighting is most authentic to the prompt.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Officer not sufficiently crumpled\u2014appears too upright and dignified for a defeated enemy"
+        },
+        {
+          "version": "v2",
+          "issue": "Officer's pose is anatomically awkward with legs splayed in an unnatural, strained position"
+        }
+      ],
+      "version_files": [
+        "WR-U-01_rebel_firebrand_v1.png",
+        "WR-U-01_rebel_firebrand_v2.png",
+        "WR-U-01_rebel_firebrand_v3.png"
+      ]
+    },
+    {
+      "collector_number": "WU-M-01",
+      "name": "The Custodian Eternal",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best matches the prompt's vision of an ancient, jury-rigged construct with crystalline eyes glowing with intelligence. The central golden eye with surrounding smaller lights perfectly captures \"crystalline eyes that glow with ancient intelligence,\" while the visible hydraulic hoses, wiring, and patched components throughout the body strongly convey millennia of repairs. The pose with one limb raised in vigilance is more pronounced, and the composition is excellently balanced with strong focal point and readability at card size. V1 has a more generic design with less visible jury-rigging, and V2's left arm is awkwardly positioned downward rather than raised in vigilance.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Less visible jury-rigged components and patched repairs; generic design lacks the 'ancient intelligence' feel"
+        },
+        {
+          "version": "v2",
+          "issue": "Left arm positioned downward rather than raised in eternal vigilance as specified; less prominent crystalline eye design"
+        }
+      ],
+      "version_files": [
+        "WU-M-01_the_custodian_eternal_v1.png",
+        "WU-M-01_the_custodian_eternal_v2.png",
+        "WU-M-01_the_custodian_eternal_v3.png"
+      ]
+    },
+    {
+      "collector_number": "WU-R-01",
+      "name": "Protonium Curator",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best fulfills the prompt's core requirements: it features a sharp-featured artificer in white and blue robes with hands in precise gesture poses, surrounded by multiple floating crystalline artifacts and mechanical relics with ethereal energy effects. The composition is balanced and structured with the character centered, the warm sandstone/ivory tones with golden-hour lighting are excellent, and the post-apocalyptic science-fantasy setting is clearly conveyed. V1 has the character looking away rather than with an intense, focused expression, and lacks the hand gestures of control. V2 has awkward hand positioning and the artifacts feel more decorative than orchestrated by the character's will.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Character's gaze directed away rather than focused/intense; lacks the precise hand gesture control described in prompt"
+        },
+        {
+          "version": "v2",
+          "issue": "Hand positioning appears awkward and less commanding; artifacts feel static rather than orchestrated by character's control"
+        }
+      ],
+      "version_files": [
+        "WU-R-01_protonium_curator_v1.png",
+        "WU-R-01_protonium_curator_v2.png",
+        "WU-R-01_protonium_curator_v3.png"
+      ]
+    },
+    {
+      "collector_number": "WU-U-01",
+      "name": "Sanctuary Automaton",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best matches the prompt with a cylindrical head crowned with a speaker grill, luminous crystalline eyes, exposed hydraulic hoses and wiring, rust stains, and a sharpened blade in a protective stance. The composition is balanced and readable at card size, with excellent golden-hour lighting and warm sandstone/ivory tones. V1 has the blade awkwardly positioned and lacks the speaker grill detail; V2's head design is too rounded and cartoonish, missing the cylindrical crown and speaker grill specificity.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Blade positioning awkward and less prominent; head lacks the cylindrical crown with speaker grill detail specified in prompt"
+        },
+        {
+          "version": "v2",
+          "issue": "Head design too rounded and cartoonish rather than cylindrical; missing speaker grill crown detail; overall style less aligned with stylized digital illustration aesthetic"
+        }
+      ],
+      "version_files": [
+        "WU-U-01_sanctuary_automaton_v1.png",
+        "WU-U-01_sanctuary_automaton_v2.png",
+        "WU-U-01_sanctuary_automaton_v3.png"
+      ]
+    },
+    {
+      "collector_number": "X-C-01",
+      "name": "Subsurface Signal Lamp",
+      "versions_reviewed": 3,
+      "pick": "v3",
+      "confidence": "high",
+      "reasoning": "V3 best matches the prompt's description of a \"weathered brass lamp fixture mounted on a stone pedestal\" with a cylindrical glass chamber. It features the requested scratches on the glass, visible corrosion stains, and maintains excellent focus on the lamp's mechanical simplicity and worn patina. The composition is centered and object-focused with self-illumination against a dark background, perfectly capturing the ancient technology aesthetic. V1 is too photorealistic and lacks the stylized digital illustration quality, while V2 deviates significantly by adding a lantern-style frame structure not described in the prompt.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Overly photorealistic rendering rather than stylized digital illustration; lacks the cylindrical glass chamber detail and appears more like a modern Edison bulb than the ancient technology aesthetic requested"
+        },
+        {
+          "version": "v2",
+          "issue": "Significant prompt deviation - adds a lantern frame structure with handles not mentioned in the prompt; changes the fundamental design from a mounted fixture to a portable lantern"
+        }
+      ],
+      "version_files": [
+        "X-C-01_subsurface_signal_lamp_v1.png",
+        "X-C-01_subsurface_signal_lamp_v2.png",
+        "X-C-01_subsurface_signal_lamp_v3.png"
+      ]
+    },
+    {
+      "collector_number": "X-U-01",
+      "name": "Flickering Relay Node",
+      "versions_reviewed": 3,
+      "pick": "v2",
+      "confidence": "high",
+      "reasoning": "V2 best matches the prompt's core requirements: a crystalline metallic node with unstable energy arcs and electromagnetic distortion. It maintains a clean, centered composition with excellent readability at card size, and the bright cyan/blue energy discharge creates the self-illuminated effect against the neutral grey background. V1 adds unnecessary architectural elements (spires, pedestal) that deviate from the \"node\" description, while V3's orange/red glow contradicts the colorless identity and shifts the aesthetic away from the intended ancient technology feel.",
+      "artifacts_found": [
+        {
+          "version": "v1",
+          "issue": "Includes ornate architectural spires and pedestal structure not mentioned in prompt; deviates from simple crystalline node concept"
+        },
+        {
+          "version": "v3",
+          "issue": "Orange/red luminescence contradicts colorless color identity; warm glow aesthetic inappropriate for neutral/ancient technology aesthetic"
+        }
+      ],
+      "version_files": [
+        "X-U-01_flickering_relay_node_v1.png",
+        "X-U-01_flickering_relay_node_v2.png",
+        "X-U-01_flickering_relay_node_v3.png"
+      ]
     }
   ],
-  "total_input_tokens": 29601,
-  "total_output_tokens": 1431,
-  "estimated_cost_usd": 0.0294,
+  "total_input_tokens": 366346,
+  "total_output_tokens": 19219,
+  "estimated_cost_usd": 0.37,
   "dry_run": false
 }

@@ -1,0 +1,23 @@
+{
+  "collector_number": "G-U-02",
+  "name": "Rendon Apex Tracker",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best matches the prompt's core requirements: a lean, weathered scout in a crouching mid-stride pose with alert scanning posture, holding a wooden spear with proper anatomy. The composition features tangled vines and gnarled trees framing the figure against a shadowed forest backdrop with rich earth tones and dappled light. V1 depicts a standing figure with oversized musculature and excessive gear that contradicts the \"lean\" description and lacks the crouching pose. V2 shows a heavily muscled character in a wide stance rather than mid-stride crouch, with a backpack and beard that feel more fantasy-barbarian than post-apocalyptic scout.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Figure is standing upright rather than crouching mid-stride; overly muscular build contradicts 'lean' description; excessive armor and gear not specified in prompt"
+    },
+    {
+      "version": "v2",
+      "issue": "Wide stance rather than crouching mid-stride pose; heavily muscled physique contradicts 'lean' description; backpack and beard styling feel more fantasy-barbarian than post-apocalyptic scout"
+    }
+  ],
+  "version_files": [
+    "G-U-02_rendon_apex_tracker_v1.png",
+    "G-U-02_rendon_apex_tracker_v2.png",
+    "G-U-02_rendon_apex_tracker_v3.png"
+  ]
+}

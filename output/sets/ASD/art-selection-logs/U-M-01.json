@@ -1,0 +1,23 @@
+{
+  "collector_number": "U-M-01",
+  "name": "Vex, Architect of Systems",
+  "versions_reviewed": 3,
+  "pick": "v1",
+  "confidence": "high",
+  "reasoning": "V1 best fulfills the prompt requirements with sharp, clean anatomy, three distinct luminous holographic displays with proper hand positioning, and excellent color identity matching blue's cool steel-blue/teal palette. V2 shows only two screens and has distorted hand anatomy (fingers appear fused/malformed on the lower hand), while V3 shows only two screens and lacks the hunched-over posture and dynamic finger-dancing interaction described in the prompt. V1's composition is also most readable at card size with clear focal point and proper screen-glow lighting.",
+  "artifacts_found": [
+    {
+      "version": "v2",
+      "issue": "Distorted hand anatomy on lower hand - fingers appear fused and malformed"
+    },
+    {
+      "version": "v3",
+      "issue": "Only two screens shown instead of three; missing the dynamic hunched posture over displays"
+    }
+  ],
+  "version_files": [
+    "U-M-01_vex_architect_of_systems_v1.png",
+    "U-M-01_vex_architect_of_systems_v2.png",
+    "U-M-01_vex_architect_of_systems_v3.png"
+  ]
+}

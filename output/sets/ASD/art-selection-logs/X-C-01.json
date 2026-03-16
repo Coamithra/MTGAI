@@ -1,0 +1,23 @@
+{
+  "collector_number": "X-C-01",
+  "name": "Subsurface Signal Lamp",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best matches the prompt's description of a \"weathered brass lamp fixture mounted on a stone pedestal\" with a cylindrical glass chamber. It features the requested scratches on the glass, visible corrosion stains, and maintains excellent focus on the lamp's mechanical simplicity and worn patina. The composition is centered and object-focused with self-illumination against a dark background, perfectly capturing the ancient technology aesthetic. V1 is too photorealistic and lacks the stylized digital illustration quality, while V2 deviates significantly by adding a lantern-style frame structure not described in the prompt.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Overly photorealistic rendering rather than stylized digital illustration; lacks the cylindrical glass chamber detail and appears more like a modern Edison bulb than the ancient technology aesthetic requested"
+    },
+    {
+      "version": "v2",
+      "issue": "Significant prompt deviation - adds a lantern frame structure with handles not mentioned in the prompt; changes the fundamental design from a mounted fixture to a portable lantern"
+    }
+  ],
+  "version_files": [
+    "X-C-01_subsurface_signal_lamp_v1.png",
+    "X-C-01_subsurface_signal_lamp_v2.png",
+    "X-C-01_subsurface_signal_lamp_v3.png"
+  ]
+}

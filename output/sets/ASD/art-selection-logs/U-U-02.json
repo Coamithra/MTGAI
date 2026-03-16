@@ -1,0 +1,23 @@
+{
+  "collector_number": "U-U-02",
+  "name": "Relay Node Technician",
+  "versions_reviewed": 3,
+  "pick": "v1",
+  "confidence": "high",
+  "reasoning": "V1 best matches the prompt with a lean technician leaning intently over a crystalline circuit mechanism with glowing counters, soft blue light casting shadows across their focused face, and floating energy wisps. The hands are anatomically correct with proper finger count and positioning. V2 has awkward hand anatomy with fingers appearing distorted/fused, and the technician wears goggles not mentioned in the prompt. V3 has the technician's face too close/distorted in perspective and the hands appear somewhat stiff, though anatomically acceptable. V1's composition is clearest for card readability and best captures the \"hovering fingers\" and geometric, cool-toned aesthetic requested.",
+  "artifacts_found": [
+    {
+      "version": "v2",
+      "issue": "Distorted hand anatomy with fused/awkward finger positioning; goggles not in prompt"
+    },
+    {
+      "version": "v3",
+      "issue": "Face perspective distorted/too close to viewer; less natural hand positioning"
+    }
+  ],
+  "version_files": [
+    "U-U-02_relay_node_technician_v1.png",
+    "U-U-02_relay_node_technician_v2.png",
+    "U-U-02_relay_node_technician_v3.png"
+  ]
+}

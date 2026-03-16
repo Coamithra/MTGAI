@@ -1,0 +1,23 @@
+{
+  "collector_number": "G-C-04",
+  "name": "Reclaim the Surface",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best captures the prompt's core vision of raw primal power and destruction. The dinosaurs are positioned dynamically with open mouths showing aggression, the ruins are actively crumbling with visible destruction, and the composition conveys chaos and reclamation. V1 has overly bright, cheerful lighting that undermines the post-apocalyptic tone, while V3 feels too static and posed\u2014the dinosaurs appear calm rather than crashing through ruins. V2's muted earth tones (dusty browns and slate greys) and dappled light through the ruins best match the prompt's aesthetic requirements.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Overly bright and cheerful lighting contradicts post-apocalyptic mood; dinosaurs appear docile rather than aggressive"
+    },
+    {
+      "version": "v3",
+      "issue": "Static, posed composition lacks sense of movement and destruction; dinosaurs appear calm and controlled rather than crashing through ruins"
+    }
+  ],
+  "version_files": [
+    "G-C-04_reclaim_the_surface_v1.png",
+    "G-C-04_reclaim_the_surface_v2.png",
+    "G-C-04_reclaim_the_surface_v3.png"
+  ]
+}

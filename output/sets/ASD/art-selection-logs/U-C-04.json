@@ -1,0 +1,23 @@
+{
+  "collector_number": "U-C-04",
+  "name": "Excavate the Archives",
+  "versions_reviewed": 3,
+  "pick": "v1",
+  "confidence": "high",
+  "reasoning": "V1 best matches the prompt with a figure in tattered robes amid towering shelves of ancient scrolls, hands raised with glowing blue energy swirling upward. The composition is clean with excellent focal point and readability at card size. V2 and V3 feature lightning bolts and more sci-fi aesthetics that deviate from the \"ancient scrolls and artifacts\" archive setting described in the prompt. V1's geometric composition, cool steel-blue palette, and screen-glow lighting perfectly capture the post-apocalyptic science-fantasy tone without anatomical issues.",
+  "artifacts_found": [
+    {
+      "version": "v2",
+      "issue": "Lightning bolt effect deviates from prompt's 'glowing blue energy swirls' description; less archive-like setting"
+    },
+    {
+      "version": "v3",
+      "issue": "Wing-like appendages on figure are not mentioned in prompt and appear as added anatomical elements; lightning effect again deviates from swirling energy description"
+    }
+  ],
+  "version_files": [
+    "U-C-04_excavate_the_archives_v1.png",
+    "U-C-04_excavate_the_archives_v2.png",
+    "U-C-04_excavate_the_archives_v3.png"
+  ]
+}

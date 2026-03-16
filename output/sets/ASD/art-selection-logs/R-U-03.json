@@ -1,0 +1,23 @@
+{
+  "collector_number": "R-U-03",
+  "name": "Combustion Cascade",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best adheres to the prompt with a gaunt figure in a proper lab coat, mechanical arms extending from the garment (visible as articulated appendages), goggles on wild hair, and a collapsing laboratory structure with cascading flames and electrical arcs. V1 has four distinct mechanical hands but lacks the lab coat detail and feels more anime-stylized. V2 has a cartoonish art style with glowing red eyes that deviates from the prompt's science-fantasy tone and shows mechanical claws rather than arms extending from the garment. V3 maintains the best balance of stylized digital illustration, dynamic composition, warm fire-tones with high contrast, and post-apocalyptic science-fantasy aesthetic while staying true to the character description.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Character design deviates from prompt - lacks proper lab coat, has four mechanical hands instead of arms extending from garment, overly anime-stylized rather than science-fantasy"
+    },
+    {
+      "version": "v2",
+      "issue": "Cartoonish art style with glowing red eyes contradicts prompt tone, mechanical claws rather than arms from garment, less adherence to science-fantasy aesthetic"
+    }
+  ],
+  "version_files": [
+    "R-U-03_combustion_cascade_v1.png",
+    "R-U-03_combustion_cascade_v2.png",
+    "R-U-03_combustion_cascade_v3.png"
+  ]
+}

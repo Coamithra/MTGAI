@@ -1,0 +1,14 @@
+{
+  "collector_number": "W-U-03",
+  "name": "Edict of Continuity",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best fulfills the prompt requirements with visible exposed rebar/metal scaffolding on the left side that frames the composition as specified, creating the post-apocalyptic science-fantasy blend. It maintains excellent warm sandstone and ivory tones with golden-hour lighting and long shadows, while the ethereal white light coalesces clearly above the street. The composition is balanced and readable at card size with a strong focal point down the central street. V1 lacks the concrete/steel ruins and metal framing elements entirely, appearing too purely medieval. V2 has better atmosphere but less visible rebar/metal structures compared to V3's prominent scaffolding.",
+  "artifacts_found": [],
+  "version_files": [
+    "W-U-03_edict_of_continuity_v1.png",
+    "W-U-03_edict_of_continuity_v2.png",
+    "W-U-03_edict_of_continuity_v3.png"
+  ]
+}

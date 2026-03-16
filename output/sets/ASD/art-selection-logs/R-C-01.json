@@ -1,0 +1,23 @@
+{
+  "collector_number": "R-C-01",
+  "name": "Moktar Raider",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 is the strongest choice. It perfectly captures the aggressive crouching stance, displays excellent anatomy with proper hand/finger structure, and features the tawny fur and lion-like mane as specified. The composition is dynamic with a tilted angle, the warm fire-tones and high contrast match the red color identity, and the post-apocalyptic ruins are well-integrated. V1 has too bright/cheerful a sky that undermines the post-apocalyptic mood, while V2's aggressive snarling expression and overly ornate armor feel less like a scavenging raider and more like a fantasy warrior.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Overly bright, cheerful sky and lighting undermines post-apocalyptic atmosphere; less aggressive stance than prompt requires"
+    },
+    {
+      "version": "v2",
+      "issue": "Exaggerated snarling expression and ornate decorative armor feel more high-fantasy than post-apocalyptic scavenger; less adherent to 'crude weapons' and 'looted' aesthetic"
+    }
+  ],
+  "version_files": [
+    "R-C-01_moktar_raider_v1.png",
+    "R-C-01_moktar_raider_v2.png",
+    "R-C-01_moktar_raider_v3.png"
+  ]
+}

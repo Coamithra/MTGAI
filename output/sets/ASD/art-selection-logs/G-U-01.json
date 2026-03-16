@@ -1,0 +1,23 @@
+{
+  "collector_number": "G-U-01",
+  "name": "Salvage Beetle",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best balances prompt adherence with clean anatomy and card readability. It features a stocky beetle with proper segmented legs, iridescent green-bronze coloring with rust/orange patina, curved antennae, and sits naturally on weathered metal debris. V1 is overly photorealistic and too shiny/polished, losing the post-apocalyptic worn aesthetic. V3 has anatomical issues\u2014the legs appear too spiky/mechanical and lack proper segmentation, and the overall design feels more steampunk than naturalist.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Overly photorealistic rendering with excessive glossiness; lacks the stylized digital illustration quality and post-apocalyptic weathered feel requested"
+    },
+    {
+      "version": "v3",
+      "issue": "Legs appear over-spiked and lack proper segmented beetle anatomy; design skews too heavily steampunk/mechanical rather than naturalist"
+    }
+  ],
+  "version_files": [
+    "G-U-01_salvage_beetle_v1.png",
+    "G-U-01_salvage_beetle_v2.png",
+    "G-U-01_salvage_beetle_v3.png"
+  ]
+}

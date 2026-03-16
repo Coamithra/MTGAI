@@ -1,0 +1,23 @@
+{
+  "collector_number": "G-C-03",
+  "name": "Overgrown Ambush",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best captures the prompt's core elements: a muscular vine-wrapped creature lunging forward with dense vegetation exploding outward, framed by crumbling concrete walls and exposed rebar. The composition shows raw, unstoppable force with excellent depth layering and rich earth tones with dappled light. V1 has a skull-faced design that deviates from \"muscular creature\" and lacks the dynamic lunge pose. V3 is too cartoonish and cheerful in expression, undermining the post-apocalyptic menace, though it does show good anatomy and composition.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Skull-faced design deviates from prompt's muscular creature description; less dynamic lunge pose"
+    },
+    {
+      "version": "v3",
+      "issue": "Overly cartoonish/cheerful expression undermines post-apocalyptic tone; less threatening presence"
+    }
+  ],
+  "version_files": [
+    "G-C-03_overgrown_ambush_v1.png",
+    "G-C-03_overgrown_ambush_v2.png",
+    "G-C-03_overgrown_ambush_v3.png"
+  ]
+}

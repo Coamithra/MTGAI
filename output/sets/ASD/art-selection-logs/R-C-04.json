@@ -1,0 +1,23 @@
+{
+  "collector_number": "R-C-04",
+  "name": "Ransack the Storeroom",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 is the clear winner. It perfectly captures the prompt's core elements: adventurers actively ransacking (wielding weapons, dynamic poses), scattered gold coins and treasures across the floor, intense fire with yellow-orange flames, stone walls and wooden shelves with vessels, and excellent composition with clear focal point and kinetic energy. The stylized digital illustration style is consistent and readable at card size. V1 has good fire effects but the adventurers appear passive/celebratory rather than actively ransacking, and lacks visible treasure scattering. V2 has better treasure visibility but the composition is too symmetrical and the adventurers lack dynamic action poses\u2014they appear more defensive than ransacking.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Adventurers appear celebratory/passive rather than actively ransacking; limited visible treasure scattering on ground"
+    },
+    {
+      "version": "v2",
+      "issue": "Overly symmetrical composition; adventurers lack dynamic ransacking poses, appear more defensive than destructive"
+    }
+  ],
+  "version_files": [
+    "R-C-04_ransack_the_storeroom_v1.png",
+    "R-C-04_ransack_the_storeroom_v2.png",
+    "R-C-04_ransack_the_storeroom_v3.png"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "collector_number": "B-C-03",
+  "name": "Murder",
+  "versions_reviewed": 3,
+  "pick": "v1",
+  "confidence": "high",
+  "reasoning": "V1 best captures the prompt's core requirement of a figure collapsing mid-stride with a blade withdrawing from the back, showing the killer's gloved hand at frame's edge. The twisted body position conveys shock and violent finality with proper anatomy. V2 has the blade positioned awkwardly through the head rather than the back, and V3 depicts a prone figure being stabbed downward\u2014neither matches the \"collapses mid-stride\" action described. V1's tight framing, heavy shadows, dark blood pooling, and unsettling composition best serve the black color identity and post-apocalyptic tone.",
+  "artifacts_found": [
+    {
+      "version": "v2",
+      "issue": "Blade positioned through head/neck rather than withdrawing from back as specified"
+    },
+    {
+      "version": "v3",
+      "issue": "Figure in prone position being stabbed downward, not collapsing mid-stride; composition less intimate and tight"
+    }
+  ],
+  "version_files": [
+    "B-C-03_murder_v1.png",
+    "B-C-03_murder_v2.png",
+    "B-C-03_murder_v3.png"
+  ]
+}

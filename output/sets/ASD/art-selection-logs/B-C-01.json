@@ -4,15 +4,15 @@
   "versions_reviewed": 3,
   "pick": "v2",
   "confidence": "high",
-  "reasoning": "V2 best matches the prompt's core requirements: a gaunt human scavenger in a crouching pose actively reaching toward debris with a visible crude dagger. While V1 and V3 feature skull-faced undead creatures (departing from \"human scavenger\"), V2 maintains a living human form with proper anatomy, hollow cheeks, and tattered black clothing. V2's pose and composition are superior for card readability, with clear focal point and excellent use of shadow/light contrast appropriate for black color identity. The scattered bones and debris are well-rendered without being distracting.",
+  "reasoning": "V2 best balances all criteria. It features a properly anatomical gaunt scavenger in a crouching pose with correct hand structure, excellent prompt adherence (tattered rags, hollow face, wrapped hands, torchlight, scattered bones/debris), and strong composition with clear focal point readable at card size. The heavy shadows and minimal warm torchlight perfectly match the black color identity and post-apocalyptic mood. V1 is too photorealistic and lacks the stylized digital illustration feel. V3 has anatomical issues with the hand reaching toward the glowing object appearing distorted/fused, and the overall pose feels less natural.",
   "artifacts_found": [
     {
       "version": "v1",
-      "issue": "Subject is a skeleton/undead rather than a gaunt human; deviates significantly from prompt description"
+      "issue": "Overly photorealistic rendering, lacks stylized digital illustration aesthetic specified in prompt"
     },
     {
       "version": "v3",
-      "issue": "Subject is a skeleton/undead rather than a gaunt human; also features anatomically odd spherical protrusions on knees that appear unnatural"
+      "issue": "Hand reaching toward glowing object shows distorted/fused finger anatomy, unnatural hand positioning"
     }
   ],
   "version_files": [

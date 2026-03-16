@@ -1,0 +1,23 @@
+{
+  "collector_number": "L-06",
+  "name": "Descent Waypoint",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best captures the prompt's core elements: a vast underground corridor with inhuman precision, perfect geometric right angles (the arched ceiling structure), impossibly high scale, and bioluminescent pathway markings (bright cyan lines on the floor). The dramatic atmospheric perspective draws the eye deep into shadow, creating the oppressive \"built for something far larger\" feeling. V1 is too photorealistic and lacks the stylized digital illustration quality; V3 introduces an unnecessary alien structure that wasn't in the prompt and feels more like a waypoint marker than an establishing shot of the corridor itself.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Overly photorealistic rendering, lacks stylized digital illustration aesthetic"
+    },
+    {
+      "version": "v3",
+      "issue": "Introduces extraneous alien/mechanical structure in center that wasn't described in prompt, detracts from corridor establishing shot"
+    }
+  ],
+  "version_files": [
+    "L-06_descent_waypoint_v1.png",
+    "L-06_descent_waypoint_v2.png",
+    "L-06_descent_waypoint_v3.png"
+  ]
+}

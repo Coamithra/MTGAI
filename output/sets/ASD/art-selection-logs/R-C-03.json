@@ -1,0 +1,23 @@
+{
+  "collector_number": "R-C-03",
+  "name": "Scorched Passage",
+  "versions_reviewed": 3,
+  "pick": "v1",
+  "confidence": "high",
+  "reasoning": "V1 best captures the prompt's core requirement: a creature silhouette consumed by fire at the tunnel's center, frozen mid-collapse. The figure is clearly visible and anatomically sound. V2 features an unnatural spider-like creature with distorted anatomy that doesn't match the prompt's description of a humanoid creature. V3 shows a standing human figure that contradicts the \"mid-collapse\" pose and lacks the sense of being consumed by flames. V1 also delivers superior composition with dynamic perspective, excellent heat distortion effects, and the strongest adherence to the post-apocalyptic sci-fi aesthetic.",
+  "artifacts_found": [
+    {
+      "version": "v2",
+      "issue": "Creature has unnatural spider-like anatomy with multiple distorted limbs that don't match the prompt's description of a creature consumed by fire"
+    },
+    {
+      "version": "v3",
+      "issue": "Figure is standing upright rather than frozen mid-collapse as specified in the prompt; lacks the sense of being consumed by flames"
+    }
+  ],
+  "version_files": [
+    "R-C-03_scorched_passage_v1.png",
+    "R-C-03_scorched_passage_v2.png",
+    "R-C-03_scorched_passage_v3.png"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "collector_number": "B-U-03",
+  "name": "Subsurface Harvest",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best captures the prompt's core vision: a sprawling dungeon chamber with skeletal remains scattered across wet stone, ethereal tendrils of pale energy coalescing above the bones and pulling them upward. The bioluminescent mist is present, the composition emphasizes the bones and organic energy tendrils as the focal point, and the heavy shadows with minimal light create the unsettling, post-apocalyptic atmosphere. V1 features a lightning bolt (not described in prompt) and lacks visible skeletal remains, while V2 introduces a human figure that contradicts the prompt's focus on bones and energy\u2014this shifts the composition away from the intended subject matter.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Lightning bolt is not part of the prompt; lacks visible skeletal remains as focal point"
+    },
+    {
+      "version": "v2",
+      "issue": "Human figure introduced contradicts prompt focus on skeletal remains and ethereal energy; shifts composition away from intended subject"
+    }
+  ],
+  "version_files": [
+    "B-U-03_subsurface_harvest_v1.png",
+    "B-U-03_subsurface_harvest_v2.png",
+    "B-U-03_subsurface_harvest_v3.png"
+  ]
+}

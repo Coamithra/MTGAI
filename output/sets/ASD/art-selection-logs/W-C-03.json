@@ -1,0 +1,23 @@
+{
+  "collector_number": "W-C-03",
+  "name": "Sanctioned Exile",
+  "versions_reviewed": 3,
+  "pick": "v1",
+  "confidence": "high",
+  "reasoning": "V1 best captures the prompt's core elements: the soldier has a clear revolver-style pistol with ceremonial insignia visible on the chest, the massive armored figure is mid-vanishment with ethereal light tearing it away (bright starburst effect), and the composition is tight and dramatic with excellent golden-hour lighting and warm sandstone/ivory tones. V2 has a rifle on the soldier's back (not prompt-adherent) and lacks the vanishment effect. V3 shows weapon discharge effects but the target figure appears solid and grounded rather than ethereally vanishing, and the composition is less dramatically framed.",
+  "artifacts_found": [
+    {
+      "version": "v2",
+      "issue": "Soldier carries a rifle on back instead of revolver-style pistol as primary weapon; lacks ethereal vanishment effect on target"
+    },
+    {
+      "version": "v3",
+      "issue": "Target figure appears solid and grounded rather than mid-vanishment; weapon shows discharge effects but not ethereal light tearing the figure away"
+    }
+  ],
+  "version_files": [
+    "W-C-03_sanctioned_exile_v1.png",
+    "W-C-03_sanctioned_exile_v2.png",
+    "W-C-03_sanctioned_exile_v3.png"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "collector_number": "U-U-01",
+  "name": "Flickerfield Operative",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best matches the prompt's core requirements: it depicts a lean, nimble rogue in a dynamic mid-stride crouch through a crystalline, fractured corridor with strong geometric composition. The character has sharp features, focused expression, and outstretched hands toward arcane energy. V1 shows a wide-legged stance that reads more as a power pose than nimble mid-stride movement, and the hands lack the \"outstretched toward swirling motes\" quality. V2 has a weapon (sword) not mentioned in the prompt and a less dynamic pose. V3 excels in prompt adherence, composition clarity for card size, cool steel-blue/teal palette, and screen-glow lighting throughout the crystalline corridor.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Wide-legged stance contradicts 'mid-stride' movement; less nimble appearance"
+    },
+    {
+      "version": "v2",
+      "issue": "Includes weapon (sword) not in prompt; less dynamic pose; watermark visible in lower left"
+    }
+  ],
+  "version_files": [
+    "U-U-01_flickerfield_operative_v1.png",
+    "U-U-01_flickerfield_operative_v2.png",
+    "U-U-01_flickerfield_operative_v3.png"
+  ]
+}

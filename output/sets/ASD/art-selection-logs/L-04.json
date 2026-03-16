@@ -1,0 +1,23 @@
+{
+  "collector_number": "L-04",
+  "name": "Mountain",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best fulfills the prompt's core requirements: it features precise geometric bunker entrances (the large circular tunnels) with visible ancient machinery and flickering lights emanating from within, creating the post-apocalyptic sci-fi aesthetic. The bioluminescent warmth is evident in the orange glow contrasting the cool blue mountain tones. V1 has too much photorealism and lacks clear geometric structures, while V2 shows only a single large opening without the multiple bunker entrances and machinery details specified in the prompt.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Overly photorealistic style, lacks geometric bunker details and machinery elements from prompt"
+    },
+    {
+      "version": "v2",
+      "issue": "Single large opening without multiple geometric bunker entrances or visible machinery as described"
+    }
+  ],
+  "version_files": [
+    "L-04_mountain_v1.png",
+    "L-04_mountain_v2.png",
+    "L-04_mountain_v3.png"
+  ]
+}

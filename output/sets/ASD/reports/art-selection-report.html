@@ -5,38 +5,79 @@
 <title>ASD Art Selection Report — AI Review</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 2rem; }
+  body {
+    background: #1a1a2e; color: #e0e0e0;
+    font-family: 'Segoe UI', Tahoma, sans-serif; padding: 2rem;
+  }
   h1 { color: #f0c040; margin-bottom: 0.5rem; font-size: 1.8rem; }
   .subtitle { color: #888; margin-bottom: 2rem; font-size: 0.95rem; }
-  .card-section { background: #16213e; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; border: 1px solid #2a2a4a; }
-  .card-section.picked { border-color: #4ade80; box-shadow: 0 0 20px rgba(74, 222, 128, 0.1); }
-  .card-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
+  .card-section {
+    background: #16213e; border-radius: 12px;
+    padding: 1.5rem; margin-bottom: 2rem;
+    border: 1px solid #2a2a4a;
+  }
+  .card-section.picked {
+    border-color: #4ade80;
+    box-shadow: 0 0 20px rgba(74, 222, 128, 0.1);
+  }
+  .card-header {
+    display: flex; justify-content: space-between;
+    align-items: baseline; margin-bottom: 0.5rem;
+  }
   .card-name { font-size: 1.3rem; font-weight: bold; color: #e8d5b5; }
   .card-type { color: #888; font-size: 0.85rem; }
-  .prompt { background: #0f1629; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.8rem; color: #a0a0c0; margin-bottom: 1rem; line-height: 1.4; font-style: italic; }
+  .prompt {
+    background: #0f1629; padding: 0.75rem 1rem;
+    border-radius: 6px; font-size: 0.8rem; color: #a0a0c0;
+    margin-bottom: 1rem; line-height: 1.4; font-style: italic;
+  }
   .versions { display: flex; gap: 1rem; flex-wrap: wrap; }
-  .version { flex: 1; min-width: 280px; max-width: 33%; border-radius: 8px; overflow: hidden; border: 3px solid transparent; }
+  .version {
+    flex: 1; min-width: 280px; max-width: 33%;
+    border-radius: 8px; overflow: hidden;
+    border: 3px solid transparent;
+  }
   .version.winner { border-color: #4ade80; }
   .version.rejected { opacity: 0.6; }
   .version img { width: 100%; display: block; }
-  .version-label { padding: 0.5rem; text-align: center; font-size: 0.85rem; background: #0f1629; }
-  .version.winner .version-label { background: #1a3a2a; color: #4ade80; font-weight: bold; }
-  .verdict { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 6px; line-height: 1.5; font-size: 0.9rem; }
+  .version-label {
+    padding: 0.5rem; text-align: center;
+    font-size: 0.85rem; background: #0f1629;
+  }
+  .version.winner .version-label {
+    background: #1a3a2a; color: #4ade80; font-weight: bold;
+  }
+  .verdict {
+    margin-top: 1rem; padding: 0.75rem 1rem;
+    border-radius: 6px; line-height: 1.5; font-size: 0.9rem;
+  }
   .verdict.pick { background: #1a3a2a; border-left: 4px solid #4ade80; }
   .verdict strong { color: #4ade80; }
-  .issue { color: #f87171; display: inline-block; margin-right: 0.5rem; }
-  .color-pip { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
-  .summary { background: #16213e; border-radius: 12px; padding: 1.5rem; margin-top: 2rem; border: 1px solid #f0c040; }
+  .issue {
+    color: #f87171; display: inline-block; margin-right: 0.5rem;
+  }
+  .color-pip {
+    display: inline-block; width: 14px; height: 14px;
+    border-radius: 50%; vertical-align: middle; margin-right: 4px;
+  }
+  .summary {
+    background: #16213e; border-radius: 12px;
+    padding: 1.5rem; margin-top: 2rem;
+    border: 1px solid #f0c040;
+  }
   .summary h2 { color: #f0c040; margin-bottom: 0.75rem; }
   .summary table { width: 100%; border-collapse: collapse; }
-  .summary th { text-align: left; padding: 0.4rem 0.5rem; color: #888; border-bottom: 1px solid #2a2a4a; font-size: 0.85rem; }
+  .summary th {
+    text-align: left; padding: 0.4rem 0.5rem; color: #888;
+    border-bottom: 1px solid #2a2a4a; font-size: 0.85rem;
+  }
   .summary td { padding: 0.4rem 0.5rem; font-size: 0.9rem; }
 </style>
 </head>
 <body>
 
 <h1>ASD Art Selection Report — AI Review</h1>
-<p class="subtitle">5 cards reviewed &bull; 3 versions each &bull; Haiku vision selector</p>
+<p class="subtitle">66 cards reviewed &bull; 3 versions each &bull; Haiku vision selector</p>
 
 
 <div class="card-section picked">
@@ -50,8 +91,143 @@
   <div class="prompt">A gaunt human scavenger crouches in shadow, tattered black rags clinging to a wiry frame. Dirt-smudged face, hollow cheeks, fingers wrapped in frayed cloth reaching toward scattered debris. Dim torchlight catches the glint of a crude dagger. The dungeon floor stretches behind, littered with picked-over bones and broken artifacts.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.</div>
   <div class="versions"><div class="version rejected"><img src="../art/B-C-01_subsurface_scavenger_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/B-C-01_subsurface_scavenger_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/B-C-01_subsurface_scavenger_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
   <div class="verdict pick">
-    <strong>Pick: v2.</strong> V2 best matches the prompt's core requirements: a gaunt human scavenger in a crouching pose actively reaching toward debris with a visible crude dagger. While V1 and V3 feature skull-faced undead creatures (departing from "human scavenger"), V2 maintains a living human form with proper anatomy, hollow cheeks, and tattered black clothing. V2's pose and composition are superior for card readability, with clear focal point and excellent use of shadow/light contrast appropriate for black color identity. The scattered bones and debris are well-rendered without being distracting.
-    <br><br>Artifacts: <span class="issue">[v1] Subject is a skeleton/undead rather than a gaunt human; deviates significantly from prompt description</span> <span class="issue">[v3] Subject is a skeleton/undead rather than a gaunt human; also features anatomically odd spherical protrusions on knees that appear unnatural</span> 
+    <strong>Pick: v2.</strong> V2 best balances all criteria. It features a properly anatomical gaunt scavenger in a crouching pose with correct hand structure, excellent prompt adherence (tattered rags, hollow face, wrapped hands, torchlight, scattered bones/debris), and strong composition with clear focal point readable at card size. The heavy shadows and minimal warm torchlight perfectly match the black color identity and post-apocalyptic mood. V1 is too photorealistic and lacks the stylized digital illustration feel. V3 has anatomical issues with the hand reaching toward the glowing object appearing distorted/fused, and the overall pose feels less natural.
+    <br><br>Artifacts: <span class="issue">[v1] Overly photorealistic rendering, lacks stylized digital illustration aesthetic specified in prompt</span> <span class="issue">[v3] Hand reaching toward glowing object shows distorted/fused finger anatomy, unnatural hand positioning</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#2b2a2a; border:1px solid #555"></span>
+      B-C-02: Fist Enforcer
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A muscular human soldier in chain mail stands with fists clenched, jaw set in grim determination. Ceremonial insignia marks his breech-loading rifle. Scarred knuckles and a stance radiating menace—this is a shock trooper who breaks resistance through sheer intimidating presence.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version winner"><img src="../art/B-C-02_fist_enforcer_v1.png" alt="v1"><div class="version-label">&#x2714; PICK &mdash; v1</div></div><div class="version rejected"><img src="../art/B-C-02_fist_enforcer_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version rejected"><img src="../art/B-C-02_fist_enforcer_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v1.</strong> V1 best captures the prompt's core requirements: a muscular soldier in chain mail with clenched fists, grim determination, and scarred knuckles. The heavy shadows, minimal lighting, and wet dripping textures perfectly match the dark, unsettling aesthetic requested. V2 shifts to a brighter forest setting that contradicts the post-apocalyptic sci-fi tone, while V3's ornate plate armor and ceremonial styling feel too fantasy-medieval rather than sci-fi shock trooper. V1's composition is also most readable at card size with clear focal point on the menacing figure.
+    <br><br>Artifacts: <span class="issue">[v2] Brighter, more naturalistic lighting contradicts the 'heavy shadows with minimal light' requirement; forest environment doesn't match post-apocalyptic sci-fi setting</span> <span class="issue">[v3] Ornate plate armor and ceremonial styling feel too high-fantasy rather than post-apocalyptic sci-fi; less emphasis on the intimidating presence and menace</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#2b2a2a; border:1px solid #555"></span>
+      B-C-03: Murder
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A pale humanoid figure collapses mid-stride, body twisted in shock, as a gleaming blade withdraws from their back. Dark blood pools beneath them. The killer's hand—gloved, steady—remains visible at frame's edge. Frozen moment of violent finality, tight, intimate framing.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version winner"><img src="../art/B-C-03_murder_v1.png" alt="v1"><div class="version-label">&#x2714; PICK &mdash; v1</div></div><div class="version rejected"><img src="../art/B-C-03_murder_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version rejected"><img src="../art/B-C-03_murder_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v1.</strong> V1 best captures the prompt's core requirement of a figure collapsing mid-stride with a blade withdrawing from the back, showing the killer's gloved hand at frame's edge. The twisted body position conveys shock and violent finality with proper anatomy. V2 has the blade positioned awkwardly through the head rather than the back, and V3 depicts a prone figure being stabbed downward—neither matches the "collapses mid-stride" action described. V1's tight framing, heavy shadows, dark blood pooling, and unsettling composition best serve the black color identity and post-apocalyptic tone.
+    <br><br>Artifacts: <span class="issue">[v2] Blade positioned through head/neck rather than withdrawing from back as specified</span> <span class="issue">[v3] Figure in prone position being stabbed downward, not collapsing mid-stride; composition less intimate and tight</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#2b2a2a; border:1px solid #555"></span>
+      B-C-04: Plunder the Catacombs
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A cloaked figure emerges from a yawning catacomb entrance, skeletal hands of exhumed creatures trailing behind in spectral wisps. Crumbling stone vaults and exposed rebar frame the descent. Ancient concrete megastructure walls loom above, weathered and vast. The air shimmers with death magic as the plunderer rises, clutching stolen treasures from the depths.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/B-C-04_plunder_the_catacombs_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/B-C-04_plunder_the_catacombs_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/B-C-04_plunder_the_catacombs_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best captures the prompt's dark, unsettling atmosphere with the strongest composition for a card. It features the cloaked figure as the clear focal point emerging from the catacomb, with excellent framing by the massive concrete megastructure arch. The heavy shadows and minimal teal lighting perfectly match the black color identity and post-apocalyptic sci-fi aesthetic. V1 has too much bright cyan light that undermines the "heavy shadows" requirement, while V2 introduces an unnecessary second spectral figure that dilutes focus and doesn't match the singular "plunderer" described in the prompt.
+    <br><br>Artifacts: <span class="issue">[v1] Excessive bright cyan lighting contradicts 'heavy shadows with minimal light' requirement; too bright overall for black color identity</span> <span class="issue">[v2] Introduces a second ghostly figure in background that wasn't in prompt; dilutes focal point and composition clarity</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#2b2a2a; border:1px solid #555"></span>
+      B-M-01: Koyl's Reanimated Maw
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A grotesque severed head mounted on a mechanical construct, its pale features twisted in a permanent snarl. Exposed brain tissue glistens beneath translucent skull-plates fused with corroded brass and iron. Multiple eyes—some human, some not—bulge from asymmetric sockets. Wet sinew wraps around articulated metal joints. Deathly aura emanates from its form.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/B-M-01_koyls_reanimated_maw_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/B-M-01_koyls_reanimated_maw_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/B-M-01_koyls_reanimated_maw_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best balances all criteria for a black card. It features excellent prompt adherence with exposed brain tissue, multiple eyes (one human, one mechanical), wet sinew wrapping joints, and strong asymmetry. The composition is clear and readable at card size with good focal point on the grotesque head. V1 is too bright and polished (lacks the deathly aura and heavy shadows required), while V3 is overly stylized with exaggerated dripping blood and more cartoonish proportions that feel less grounded. V2 maintains the unsettling, organic-mechanical fusion with appropriate dark tones and wet textures.
+    <br><br>Artifacts: <span class="issue">[v1] Too bright and polished overall; lacks heavy shadows and deathly aura specified in prompt; more 3D render than stylized illustration</span> <span class="issue">[v3] Overly stylized with exaggerated dripping blood; teeth appear more cartoonish than grotesque; composition feels less grounded in the post-apocalyptic aesthetic</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#2b2a2a; border:1px solid #555"></span>
+      B-R-01: Koyl Yrenum, the Vizier
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A lean, sharp-featured man in his fifties wearing immaculate dark formal robes stands with absolute authority. Clean-shaven and calculating, his piercing eyes betray hidden arcane knowledge. Behind him, shadowed figures collapse—the cost of his orchestration. Ancient concrete ruins loom in the background, suggesting hidden power and control.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/B-R-01_koyl_yrenum_the_vizier_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/B-R-01_koyl_yrenum_the_vizier_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/B-R-01_koyl_yrenum_the_vizier_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 is the strongest choice. It perfectly captures the prompt's core elements: a lean, sharp-featured man in dark formal robes standing with absolute authority, flanked by shadowed figures that suggest orchestrated collapse, set against ancient concrete ruins with heavy shadows and minimal light. The composition is excellent for card size—the protagonist is clearly focal with strong vertical emphasis, the wet surfaces and organic textures are visible, and the post-apocalyptic sci-fi aesthetic is well-executed. V1 is too photorealistic and lacks the stylized digital illustration quality; the shadowed figures are too distant and indistinct. V2 has hooded figures that obscure their humanity, making them feel less like "collapsed" individuals and more like cult members, which doesn't match the prompt's implication of orchestrated victims.
+    <br><br>Artifacts: <span class="issue">[v1] Overly photorealistic style, lacks stylized digital illustration quality; shadowed figures too distant and blurred to convey the 'cost of orchestration' effectively</span> <span class="issue">[v2] Hooded/cloaked figures obscure their humanity, making them appear as willing followers rather than collapsed victims; less adherent to prompt's implication of orchestrated harm</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#2b2a2a; border:1px solid #555"></span>
+      B-R-02: The Brain Engine
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A desiccated corpse in decayed royal robes sits rigidly on a technological throne, skull hollow and empty-eyed. Neural cables and fluid tubes snake from its hollow head into a humming server rack of ancient machinery. A golden crown fused with interface nodes crowns the skeletal frame. Muted background of dim laboratory architecture.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/B-R-02_the_brain_engine_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/B-R-02_the_brain_engine_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/B-R-02_the_brain_engine_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best fulfills the prompt's core requirements: it features a skeletal corpse in decayed royal robes on a technological throne with neural cables/fluid tubes snaking from the head, a golden crown fused with interface nodes, and heavy shadows with minimal light in a laboratory setting. V1 lacks the neural cables and technological elements entirely, showing only a skeleton in robes without the tech integration. V2 has cables but they're too thin and subtle, and the throne lacks the technological/server rack aesthetic. V3's composition is also superior for card readability, with clear focal point and excellent color identity for black (dark, shadowy, unsettling).
+    <br><br>Artifacts: <span class="issue">[v1] Missing neural cables and technological integration—shows only skeleton and robes without the tech-fusion core of the prompt</span> <span class="issue">[v2] Cables present but too subtle and thin; throne lacks technological/server rack aesthetic; overall less adherent to 'technological throne' requirement</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#2b2a2a; border:1px solid #555"></span>
+      B-U-01: Toothwork Familiar
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A small skeletal construct of mismatched human teeth welded into a stainless steel frame, crystalline eyes glowing dimly. Hydraulic joints twitch beneath patched armor plating. Teeth clatter and protrude at chaotic angles from its cylindrical body, creating a chittering, unsettling silhouette against shadow.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/B-U-01_toothwork_familiar_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/B-U-01_toothwork_familiar_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/B-U-01_toothwork_familiar_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best captures the prompt's core concept of a small skeletal construct with mismatched teeth welded into a frame. It features the crystalline glowing eyes (green glow), chaotic tooth arrangement, and maintains the unsettling asymmetry requested. V1 is too large and creature-like rather than a small construct, and V3 has an overly smooth, polished aesthetic that contradicts the "mismatched" and "patched" description. V2's composition is also most readable at card size with clear focal point on the skull-frame.
+    <br><br>Artifacts: <span class="issue">[v1] Creature is too large and organic-looking; reads more as a full-sized monster than a small skeletal construct familiar</span> <span class="issue">[v3] Design is too polished and symmetrical; lacks the chaotic, mismatched, patched aesthetic described in the prompt; tail element is extraneous</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#2b2a2a; border:1px solid #555"></span>
+      B-U-02: Catacomb Harvester
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A gaunt human warlock in tattered dark robes kneels among scattered bones in a shadowed catacomb, one skeletal hand outstretched as spectral wisps coil around their fingers. Pale skin, hollow eyes, surrounded by stone tombs and glowing rune fragments embedded in the floor.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/B-U-02_catacomb_harvester_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/B-U-02_catacomb_harvester_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/B-U-02_catacomb_harvester_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best adheres to the prompt with a kneeling warlock in tattered dark robes among scattered bones in a proper catacomb setting with visible stone tombs and columns. The spectral wisps coil around the outstretched hand, pale skin and hollow eyes are well-rendered, and the composition reads clearly at card size with strong focal point. V1 has too much blue-teal lighting (more blue than black) and lacks the catacomb architecture; V2 shows the character standing rather than kneeling and has less atmospheric catacomb detail. V3 maintains proper black color identity with heavy shadows, organic textures, and the unsettling asymmetry requested.
+    <br><br>Artifacts: <span class="issue">[v1] Blue-teal color cast dominates over black; lacks catacomb architecture and stone tombs; character pose is crouching rather than kneeling</span> <span class="issue">[v2] Character is standing rather than kneeling as specified; less catacomb atmosphere; golden sparkles feel more whimsical than dark/unsettling</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#2b2a2a; border:1px solid #555"></span>
+      B-U-03: Subsurface Harvest
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A sprawling dungeon chamber thick with bioluminescent mist, skeletal remains scattered across wet stone. Ethereal tendrils of pale energy coalesce above the bones, pulling them upward. Shadows writhe with purpose—the dungeon itself breathing, feeding, transforming death into something alive and hungry.. Stylized digital illustration, heavy shadows with minimal light, organic textures and wet surfaces, unsettling asymmetry, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/B-U-03_subsurface_harvest_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/B-U-03_subsurface_harvest_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/B-U-03_subsurface_harvest_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best captures the prompt's core vision: a sprawling dungeon chamber with skeletal remains scattered across wet stone, ethereal tendrils of pale energy coalescing above the bones and pulling them upward. The bioluminescent mist is present, the composition emphasizes the bones and organic energy tendrils as the focal point, and the heavy shadows with minimal light create the unsettling, post-apocalyptic atmosphere. V1 features a lightning bolt (not described in prompt) and lacks visible skeletal remains, while V2 introduces a human figure that contradicts the prompt's focus on bones and energy—this shifts the composition away from the intended subject matter.
+    <br><br>Artifacts: <span class="issue">[v1] Lightning bolt is not part of the prompt; lacks visible skeletal remains as focal point</span> <span class="issue">[v2] Human figure introduced contradicts prompt focus on skeletal remains and ethereal energy; shifts composition away from intended subject</span> 
   </div>
 </div>
 <div class="card-section picked">
@@ -63,10 +239,130 @@
     <span class="card-type">Confidence: high</span>
   </div>
   <div class="prompt">A slender elf with pointed ears and flowing green robes stands in a meditative pose, hands raised gently before their chest. Soft golden light radiates from their fingertips as natural vines and leaves swirl around them. Their expression is serene and focused, embodying connection to the forest.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.</div>
-  <div class="versions"><div class="version rejected"><img src="../art/G-C-01_elvish_mystic_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/G-C-01_elvish_mystic_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/G-C-01_elvish_mystic_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="versions"><div class="version rejected"><img src="../art/G-C-01_elvish_mystic_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/G-C-01_elvish_mystic_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/G-C-01_elvish_mystic_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
   <div class="verdict pick">
-    <strong>Pick: v2.</strong> V2 best matches the prompt's meditative pose with hands raised gently before the chest in a prayer-like position, directly embodying the "connection to the forest" theme. While all three versions have clean anatomy and good composition, V2's centered, symmetrical pose and serene closed-eye expression most accurately capture the requested meditative focus. V1 shows the elf in profile with only one hand raised, and V3 has hands together but with a more downward-facing gaze that feels less meditative. V2's golden light radiating from the chest area and the lush forest framing create the best overall adherence to the prompt's spiritual, naturalist aesthetic.
-    <br><br>Artifacts: <span class="issue">[v1] Profile pose with single raised hand doesn't match the 'hands raised gently before chest' meditative pose described in prompt</span> <span class="issue">[v3] Hands positioned together at chest but with downward gaze lacks the serene, focused meditative expression requested</span> 
+    <strong>Pick: v3.</strong> V3 best matches the prompt with proper meditative hand positioning (hands raised before chest with golden light), flowing green robes, serene expression, and excellent environmental composition with dappled forest light. V1 has anatomically distorted hands with unnatural finger positioning and red/orange glow that contradicts the "golden light" requirement. V2 has hands in prayer pose rather than raised before chest as specified, and lacks the dynamic hand-centered light effect.
+    <br><br>Artifacts: <span class="issue">[v1] Distorted hand anatomy with unnatural finger positioning and splayed fingers; red/orange glow contradicts golden light requirement</span> <span class="issue">[v2] Hands in prayer pose rather than raised before chest as specified in prompt; less dynamic light effect from hands</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#00733e; border:1px solid transparent"></span>
+      G-C-02: Rendon Ceratops
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A stocky ceratopsian dinosaur with a broad bony frill and thick horns charges forward, muscles tensed for impact. Dusty brown and slate-grey scales cover its powerful frame. Behind it, the towering stone walls of a medieval city recede, dwarfed by the creature's sheer mass and presence.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/G-C-02_rendon_ceratops_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/G-C-02_rendon_ceratops_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/G-C-02_rendon_ceratops_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 is the strongest choice. It features a properly anatomical ceratopsian with correct proportions, a well-defined broad frill, and thick horns in the right positions. The creature is charging forward with clear muscular tension, the dusty brown and slate-grey color palette matches the prompt perfectly, and the medieval city walls recede appropriately in the background. The composition is clean, readable at card size, and the stylized digital illustration style is consistent throughout. V1 has an overly aggressive expression and less naturalistic proportions, while V3's anatomy is awkward with an unnatural posture and the frill positioning feels off.
+    <br><br>Artifacts: <span class="issue">[v1] Overly aggressive/cartoonish expression with exaggerated teeth and mouth, less naturalistic ceratopsian anatomy</span> <span class="issue">[v3] Awkward body posture and proportions, frill positioning appears unnatural, less dynamic charging pose</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#00733e; border:1px solid transparent"></span>
+      G-C-03: Overgrown Ambush
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A muscular creature with vine-wrapped limbs lunges forward through a narrow alley, dense vegetation exploding outward from its body. Crumbling concrete walls and exposed rebar frame the moment. Thick roots tear through ancient stone, wild growth overwhelming the urban decay in an instant of raw, unstoppable force.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/G-C-03_overgrown_ambush_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/G-C-03_overgrown_ambush_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/G-C-03_overgrown_ambush_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best captures the prompt's core elements: a muscular vine-wrapped creature lunging forward with dense vegetation exploding outward, framed by crumbling concrete walls and exposed rebar. The composition shows raw, unstoppable force with excellent depth layering and rich earth tones with dappled light. V1 has a skull-faced design that deviates from "muscular creature" and lacks the dynamic lunge pose. V3 is too cartoonish and cheerful in expression, undermining the post-apocalyptic menace, though it does show good anatomy and composition.
+    <br><br>Artifacts: <span class="issue">[v1] Skull-faced design deviates from prompt's muscular creature description; less dynamic lunge pose</span> <span class="issue">[v3] Overly cartoonish/cheerful expression undermines post-apocalyptic tone; less threatening presence</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#00733e; border:1px solid transparent"></span>
+      G-C-04: Reclaim the Surface
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">Two massive dinosaurs with muted earthy hides—dusty brown and slate grey—crash through crumbling stone ruins overgrown with vines. Ancient artifacts and enchanted relics shatter beneath their feet as vegetation reclaims the fractured landscape. Raw primal power dominates the frame.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/G-C-04_reclaim_the_surface_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/G-C-04_reclaim_the_surface_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/G-C-04_reclaim_the_surface_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best captures the prompt's core vision of raw primal power and destruction. The dinosaurs are positioned dynamically with open mouths showing aggression, the ruins are actively crumbling with visible destruction, and the composition conveys chaos and reclamation. V1 has overly bright, cheerful lighting that undermines the post-apocalyptic tone, while V3 feels too static and posed—the dinosaurs appear calm rather than crashing through ruins. V2's muted earth tones (dusty browns and slate greys) and dappled light through the ruins best match the prompt's aesthetic requirements.
+    <br><br>Artifacts: <span class="issue">[v1] Overly bright and cheerful lighting contradicts post-apocalyptic mood; dinosaurs appear docile rather than aggressive</span> <span class="issue">[v3] Static, posed composition lacks sense of movement and destruction; dinosaurs appear calm and controlled rather than crashing through ruins</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#00733e; border:1px solid transparent"></span>
+      G-R-01: Spore-Nest Forager
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A small bioluminescent fungal creature with a bulbous mushroom-cap body glowing pale blue-green, sprouting delicate tendrils and spore wisps. Fragments of corroded metal and ancient circuitry are embedded in its gelatinous form. It crouches low, examining a piece of rusted machinery with visible curiosity, surrounded by drifting spores.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/G-R-01_sporenest_forager_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/G-R-01_sporenest_forager_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/G-R-01_sporenest_forager_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best matches the prompt's core concept of a small bioluminescent fungal creature with a bulbous mushroom-cap body examining machinery with curiosity. It features proper anatomy with visible hands/digits, a crouching pose, and embedded circuitry (the glowing green lens in the machinery). V1 depicts a creature that's too animal-like (resembles a chameleon/lizard hybrid) rather than fungal, with an unnatural body structure. V3 has the creature examining machinery but features distorted anatomy—the hands appear malformed/fused, and the overall form is too stylized away from the fungal concept. V2's composition, color palette (pale blue-green bioluminescence with earth tones), and post-apocalyptic setting best fulfill the prompt requirements.
+    <br><br>Artifacts: <span class="issue">[v1] Creature design is too animal-like (chameleon/lizard) rather than fungal; body structure doesn't match the bulbous mushroom-cap description</span> <span class="issue">[v3] Distorted hand/digit anatomy; fused or malformed appendages; creature form deviates significantly from fungal/gelatinous concept</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#00733e; border:1px solid transparent"></span>
+      G-R-02: The Subsurface Reclaims
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A dungeon floor overgrown with bioluminescent vines and fleshy plant tendrils reclaiming fallen warrior bodies. Ethereal green light pulses through the stone, animating corpses as they sprout roots and transform into hybrid plant-creatures. The air shimmers with an otherworldly, persistent glow of regrowth and renewal.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/G-R-02_the_subsurface_reclaims_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/G-R-02_the_subsurface_reclaims_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/G-R-02_the_subsurface_reclaims_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best fulfills the prompt's core requirement of "fallen warrior bodies" being reclaimed by bioluminescent plants. It explicitly shows multiple humanoid corpses/skeletons integrated into the overgrown dungeon floor, directly matching the transformation theme. V1 and V2 feature only abstract plant-covered lumps without clear warrior anatomy, missing the crucial hybrid plant-creature element. V3 also delivers superior composition with clear focal point (central glowing light), excellent layered depth, rich earth tones with vibrant green bioluminescence, and maintains stylized digital illustration quality appropriate for card art at small size.
+    <br><br>Artifacts: <span class="issue">[v1] Fallen bodies lack clear warrior anatomy—appear as generic plant-covered mounds rather than recognizable humanoid forms being transformed into hybrid creatures</span> <span class="issue">[v2] Similar issue to v1: bodies are too abstract and sculptural, not clearly depicting warriors or the transformation process described in prompt</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#00733e; border:1px solid transparent"></span>
+      G-U-01: Salvage Beetle
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A stocky chitinous beetle with iridescent green-bronze carapace crawls across weathered metal debris. Its segmented legs grip rusted gears and broken machinery. Long spined antennae curve upward, and a faint metallic sheen clings to its armored body, suggesting it feeds on industrial remnants in a reclaimed wasteland.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/G-U-01_salvage_beetle_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/G-U-01_salvage_beetle_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/G-U-01_salvage_beetle_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best balances prompt adherence with clean anatomy and card readability. It features a stocky beetle with proper segmented legs, iridescent green-bronze coloring with rust/orange patina, curved antennae, and sits naturally on weathered metal debris. V1 is overly photorealistic and too shiny/polished, losing the post-apocalyptic worn aesthetic. V3 has anatomical issues—the legs appear too spiky/mechanical and lack proper segmentation, and the overall design feels more steampunk than naturalist.
+    <br><br>Artifacts: <span class="issue">[v1] Overly photorealistic rendering with excessive glossiness; lacks the stylized digital illustration quality and post-apocalyptic weathered feel requested</span> <span class="issue">[v3] Legs appear over-spiked and lack proper segmented beetle anatomy; design skews too heavily steampunk/mechanical rather than naturalist</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#00733e; border:1px solid transparent"></span>
+      G-U-02: Rendon Apex Tracker
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A lean, weathered human scout in earth-toned leather armor crouches mid-stride through dense wilderness, one hand gripping a wooden spear. Scarred face and alert eyes scan the overgrown path ahead. Tangled vines and gnarled trees frame the figure against a shadowed forest backdrop.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/G-U-02_rendon_apex_tracker_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/G-U-02_rendon_apex_tracker_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/G-U-02_rendon_apex_tracker_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best matches the prompt's core requirements: a lean, weathered scout in a crouching mid-stride pose with alert scanning posture, holding a wooden spear with proper anatomy. The composition features tangled vines and gnarled trees framing the figure against a shadowed forest backdrop with rich earth tones and dappled light. V1 depicts a standing figure with oversized musculature and excessive gear that contradicts the "lean" description and lacks the crouching pose. V2 shows a heavily muscled character in a wide stance rather than mid-stride crouch, with a backpack and beard that feel more fantasy-barbarian than post-apocalyptic scout.
+    <br><br>Artifacts: <span class="issue">[v1] Figure is standing upright rather than crouching mid-stride; overly muscular build contradicts 'lean' description; excessive armor and gear not specified in prompt</span> <span class="issue">[v2] Wide stance rather than crouching mid-stride pose; heavily muscled physique contradicts 'lean' description; backpack and beard styling feel more fantasy-barbarian than post-apocalyptic scout</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#00733e; border:1px solid transparent"></span>
+      G-U-03: Law of the Wilderness
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A sprawling wilderness reclaiming a crumbling city, vines and roots tearing through stone structures. Massive earthen-toned dinosaurs—a horned ceratopsian and sleek raptor—stride through the ruins. Glowing green energy radiates from the ground, dissolving the last remnants of civilization into dust and shadow.. Stylized digital illustration, wide naturalist composition, rich earth tones with dappled light, layered depth, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/G-U-03_law_of_the_wilderness_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/G-U-03_law_of_the_wilderness_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/G-U-03_law_of_the_wilderness_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best balances prompt adherence and composition. It features a ceratopsian and raptor in a crumbling city with strong glowing green energy and vine-covered ruins—directly matching the prompt. The wide composition reads clearly at card size with excellent focal point and layered depth. V1 has a watermark artifact and lacks the crumbling city setting entirely. V3 includes too many dinosaurs (violates the "two dinosaurs" specification) and has anatomical issues with the ceratopsian's awkward posture and the raptor's distorted proportions.
+    <br><br>Artifacts: <span class="issue">[v1] Watermark/artist signature visible in bottom right corner</span> <span class="issue">[v3] Includes 4+ dinosaurs instead of specified two; ceratopsian has awkward/unnatural posture; raptor proportions appear distorted</span> 
   </div>
 </div>
 <div class="card-section picked">
@@ -80,8 +376,218 @@
   <div class="prompt">Vast golden grasslands stretch to the horizon under soft daylight. A distant dark line marks the silhouette of a walled medieval city built atop crumbling concrete megastructures, their rusted steel frames visible against the sky. Weathered stone and timber buildings cluster within the ancient ruins. Wildflowers dot the foreground, emphasizing the buffer between civilization and untamed wilderness.. Stylized digital illustration, panoramic landscape, dramatic atmospheric perspective, concept-art establishing shot, post-apocalyptic science-fantasy setting.</div>
   <div class="versions"><div class="version rejected"><img src="../art/L-01_plains_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/L-01_plains_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/L-01_plains_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
   <div class="verdict pick">
-    <strong>Pick: v2.</strong> V2 best captures the post-apocalyptic sci-fantasy aesthetic with visible megastructure elements (massive steel columns, industrial bridges) integrated into the medieval city architecture. It clearly shows the "crumbling concrete megastructures" and "rusted steel frames" mentioned in the prompt, creating the distinct contrast between civilization and wilderness. V1 lacks the sci-fi infrastructure entirely and reads as purely medieval fantasy, while V3 shows a more traditional fantasy city without the post-apocalyptic industrial elements. V2 also has excellent composition with strong atmospheric perspective and wildflowers in the foreground.
-    <br><br>Artifacts: <span class="issue">[v1] Missing post-apocalyptic megastructure elements; appears as pure medieval fantasy without sci-fi infrastructure</span> <span class="issue">[v3] Lacks visible concrete megastructures and rusted steel frames; reads as traditional fantasy rather than post-apocalyptic sci-fantasy hybrid</span> 
+    <strong>Pick: v2.</strong> V2 best fulfills the prompt's post-apocalyptic science-fantasy vision with visible megastructure ruins and rusted steel frames integrated into the city architecture, creating the required contrast between ancient civilization and untamed wilderness. V1 shows a traditional fantasy city without the sci-fi elements, while V3 depicts a pure medieval castle that completely misses the post-apocalyptic setting. V2's composition is also superior for card readability with clear atmospheric perspective and excellent foreground wildflower framing.
+    <br><br>Artifacts: <span class="issue">[v1] Lacks post-apocalyptic megastructure elements; appears as traditional fantasy rather than science-fantasy hybrid</span> <span class="issue">[v3] Missing megastructure ruins and sci-fi elements entirely; depicts pure medieval castle without post-apocalyptic setting</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      L-02: Island
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">Flooded underground cavern with still, reflective water mirroring ancient stone arches and crumbling columns. Luminescent moss clings to weathered rocks. Water drips from stalactites above, rippling the surface. Dim blue-green light filters through cracks in the cavern ceiling, illuminating submerged ruins and the echoing void beyond.. Stylized digital illustration, panoramic landscape, dramatic atmospheric perspective, concept-art establishing shot, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/L-02_island_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/L-02_island_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/L-02_island_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best fulfills the prompt's specific requirements for "ancient stone arches and crumbling columns" with its prominent architectural ruins, while maintaining the flooded cavern atmosphere with still reflective water and luminescent moss. V1 lacks the architectural elements entirely, showing only natural rock formations. V3 has columns but they appear too uniform and less like crumbling ancient ruins. V2's composition is also most readable at card size with clear focal point and excellent atmospheric perspective.
+    <br><br>Artifacts: <span class="issue">[v1] Missing key prompt elements: no stone arches or crumbling columns visible, only natural cavern formations</span> <span class="issue">[v3] Columns appear too regular and pristine rather than crumbling/weathered ancient ruins; less adherence to post-apocalyptic decay aesthetic</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      L-03: Swamp
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A desolate swamp landscape where murky water pools glow with sickly bioluminescent greens and purples. Crumbling metal structures and bleached bone fragments protrude from the mire, half-submerged and corroded. Twisted vegetation clings to sunken ruins, while acidic mist rises from the toxic pools, creating an atmosphere of decay and forgotten technology consumed by nature.. Stylized digital illustration, panoramic landscape, dramatic atmospheric perspective, concept-art establishing shot, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/L-03_swamp_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/L-03_swamp_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/L-03_swamp_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best balances all criteria. It features the desolate swamp with bioluminescent greens and purples as specified, includes crumbling structures and twisted vegetation, and maintains excellent atmospheric perspective with acidic mist effects. V1 is too photorealistic and lacks the technological decay elements (no metal structures or bones visible). V3 has excessive neon green lighting and glowing windows that feel too sci-fi/cyberpunk rather than post-apocalyptic decay, plus the bright green is oversaturated and distracting at card size.
+    <br><br>Artifacts: <span class="issue">[v1] Photorealistic style rather than stylized digital illustration; lacks crumbling metal structures and bone fragments specified in prompt</span> <span class="issue">[v3] Oversaturated neon green bioluminescence with glowing windows feels too cyberpunk; excessive bright lighting reduces readability at small card size and doesn't match post-apocalyptic decay aesthetic</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      L-04: Mountain
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A rugged mountain dominates the panoramic landscape, its slopes glowing faintly with bioluminescent warmth. Precise geometric bunker entrances and ventilation shafts scar the stone face—too angular to be natural. Strange flickering lights emanate from within the dark shafts, illuminating weathered rock and ancient machinery half-buried beneath.. Stylized digital illustration, panoramic landscape, dramatic atmospheric perspective, concept-art establishing shot, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/L-04_mountain_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/L-04_mountain_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/L-04_mountain_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best fulfills the prompt's core requirements: it features precise geometric bunker entrances (the large circular tunnels) with visible ancient machinery and flickering lights emanating from within, creating the post-apocalyptic sci-fi aesthetic. The bioluminescent warmth is evident in the orange glow contrasting the cool blue mountain tones. V1 has too much photorealism and lacks clear geometric structures, while V2 shows only a single large opening without the multiple bunker entrances and machinery details specified in the prompt.
+    <br><br>Artifacts: <span class="issue">[v1] Overly photorealistic style, lacks geometric bunker details and machinery elements from prompt</span> <span class="issue">[v2] Single large opening without multiple geometric bunker entrances or visible machinery as described</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      L-05: Forest
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A dense primordial forest sprawls across the landscape, ferns towering like columns beneath a hazy canopy. Crumbling stone structures—weathered walls and fractured pillars—emerge from the overgrown vegetation. Massive dinosaurs with dusty brown and slate-grey hides move through the undergrowth. Vines and predatory plants reclaim the ruins, blending ancient civilization with wild, untamed nature.. Stylized digital illustration, panoramic landscape, dramatic atmospheric perspective, concept-art establishing shot, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version winner"><img src="../art/L-05_forest_v1.png" alt="v1"><div class="version-label">&#x2714; PICK &mdash; v1</div></div><div class="version rejected"><img src="../art/L-05_forest_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version rejected"><img src="../art/L-05_forest_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v1.</strong> V1 best captures the prompt's vision of a primordial forest with towering fern-like columns and crumbling stone pillars reclaimed by vegetation. The dinosaurs have correct anatomy with proper proportions and no visible artifacts. V2 features more castle-like structures (less fitting for "crumbling pillars") and the dinosaurs appear somewhat awkwardly proportioned. V3 has a theropod dinosaur with an exaggerated, almost cartoonish grin that feels inconsistent with the stylized-but-grounded aesthetic requested, and the anatomy looks slightly off. V1's atmospheric perspective, color palette, and composition are superior for a card-sized landscape.
+    <br><br>Artifacts: <span class="issue">[v2] Dinosaur proportions appear slightly unnatural; structures resemble castles rather than weathered pillars</span> <span class="issue">[v3] Theropod has exaggerated, cartoonish facial expression; overall anatomy feels stylistically inconsistent with the prompt</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      L-06: Descent Waypoint
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A vast underground corridor carved with inhuman precision—smooth stone walls meeting perfect right angles, impossibly high ceiling receding into shadow. Faint bioluminescent markings glow along the floor, forming a pathway deeper into the darkness. Ancient machinery hums within the walls. The scale feels wrong, oppressive, built for something far larger than human.. Stylized digital illustration, panoramic landscape, dramatic atmospheric perspective, concept-art establishing shot, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/L-06_descent_waypoint_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/L-06_descent_waypoint_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/L-06_descent_waypoint_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best captures the prompt's core elements: a vast underground corridor with inhuman precision, perfect geometric right angles (the arched ceiling structure), impossibly high scale, and bioluminescent pathway markings (bright cyan lines on the floor). The dramatic atmospheric perspective draws the eye deep into shadow, creating the oppressive "built for something far larger" feeling. V1 is too photorealistic and lacks the stylized digital illustration quality; V3 introduces an unnecessary alien structure that wasn't in the prompt and feels more like a waypoint marker than an establishing shot of the corridor itself.
+    <br><br>Artifacts: <span class="issue">[v1] Overly photorealistic rendering, lacks stylized digital illustration aesthetic</span> <span class="issue">[v3] Introduces extraneous alien/mechanical structure in center that wasn't described in prompt, detracts from corridor establishing shot</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#d3202a; border:1px solid transparent"></span>
+      R-C-01: Moktar Raider
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A seven-foot-tall muscular humanoid with short tawny fur and a thick lion-like maned head crouches in an aggressive stance. Crude weapons—sharpened metal and looted swords—hang from its frame. Scavenged trophies dangle from its body. Behind it, weathered stone buildings and exposed concrete ruins of an ancient mega-structure loom.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/R-C-01_moktar_raider_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/R-C-01_moktar_raider_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/R-C-01_moktar_raider_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 is the strongest choice. It perfectly captures the aggressive crouching stance, displays excellent anatomy with proper hand/finger structure, and features the tawny fur and lion-like mane as specified. The composition is dynamic with a tilted angle, the warm fire-tones and high contrast match the red color identity, and the post-apocalyptic ruins are well-integrated. V1 has too bright/cheerful a sky that undermines the post-apocalyptic mood, while V2's aggressive snarling expression and overly ornate armor feel less like a scavenging raider and more like a fantasy warrior.
+    <br><br>Artifacts: <span class="issue">[v1] Overly bright, cheerful sky and lighting undermines post-apocalyptic atmosphere; less aggressive stance than prompt requires</span> <span class="issue">[v2] Exaggerated snarling expression and ornate decorative armor feel more high-fantasy than post-apocalyptic scavenger; less adherent to 'crude weapons' and 'looted' aesthetic</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#d3202a; border:1px solid transparent"></span>
+      R-C-02: Wasteland Raptor
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A lean, muscular raptor dinosaur with dusty brown and slate-grey mottled scales lunges forward in a predatory sprint, its powerful hind legs driving it across barren wasteland. Sharp claws rake the dust, teeth bared, tail extended for balance. Sparse scrub and cracked earth frame the scene.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/R-C-02_wasteland_raptor_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/R-C-02_wasteland_raptor_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/R-C-02_wasteland_raptor_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best matches the prompt's core requirement of a "lean, muscular raptor" in a "predatory sprint" with dynamic motion. It features proper raptor anatomy with correct claw structure, excellent mottled brown/slate-grey scale coloring, and a tilted composition that conveys kinetic energy. V1 depicts a larger, bulkier theropod that lacks the lean build and sprint posture, while V2 shows an upright, stationary pose that contradicts the lunging forward motion specified in the prompt.
+    <br><br>Artifacts: <span class="issue">[v1] Bulky, non-lean body structure; static/upright posture rather than dynamic sprint; lacks the predatory lunge motion described in prompt</span> <span class="issue">[v2] Upright, stationary stance with front leg raised awkwardly; does not convey forward lunging motion or sprint dynamics; body proportions too heavy for a 'lean' raptor</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#d3202a; border:1px solid transparent"></span>
+      R-C-03: Scorched Passage
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A narrow underground tunnel engulfed in intense orange flames, scorching stone walls and blackened debris scattered across the floor. Heat distortion ripples through the air. A faint silhouette of a creature consumed by fire at the tunnel's center, frozen mid-collapse. Smoke billows upward into darkness.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version winner"><img src="../art/R-C-03_scorched_passage_v1.png" alt="v1"><div class="version-label">&#x2714; PICK &mdash; v1</div></div><div class="version rejected"><img src="../art/R-C-03_scorched_passage_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version rejected"><img src="../art/R-C-03_scorched_passage_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v1.</strong> V1 best captures the prompt's core requirement: a creature silhouette consumed by fire at the tunnel's center, frozen mid-collapse. The figure is clearly visible and anatomically sound. V2 features an unnatural spider-like creature with distorted anatomy that doesn't match the prompt's description of a humanoid creature. V3 shows a standing human figure that contradicts the "mid-collapse" pose and lacks the sense of being consumed by flames. V1 also delivers superior composition with dynamic perspective, excellent heat distortion effects, and the strongest adherence to the post-apocalyptic sci-fi aesthetic.
+    <br><br>Artifacts: <span class="issue">[v2] Creature has unnatural spider-like anatomy with multiple distorted limbs that don't match the prompt's description of a creature consumed by fire</span> <span class="issue">[v3] Figure is standing upright rather than frozen mid-collapse as specified in the prompt; lacks the sense of being consumed by flames</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#d3202a; border:1px solid transparent"></span>
+      R-C-04: Ransack the Storeroom
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">Adventurers ransacking a stone storeroom, overturning shelves and scattering treasures in a chaotic explosion of red flame and debris. Gold coins and jeweled vessels tumble through the air as fire engulfs the chamber, casting wild shadows across wooden crates and ancient stone walls.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/R-C-04_ransack_the_storeroom_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/R-C-04_ransack_the_storeroom_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/R-C-04_ransack_the_storeroom_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 is the clear winner. It perfectly captures the prompt's core elements: adventurers actively ransacking (wielding weapons, dynamic poses), scattered gold coins and treasures across the floor, intense fire with yellow-orange flames, stone walls and wooden shelves with vessels, and excellent composition with clear focal point and kinetic energy. The stylized digital illustration style is consistent and readable at card size. V1 has good fire effects but the adventurers appear passive/celebratory rather than actively ransacking, and lacks visible treasure scattering. V2 has better treasure visibility but the composition is too symmetrical and the adventurers lack dynamic action poses—they appear more defensive than ransacking.
+    <br><br>Artifacts: <span class="issue">[v1] Adventurers appear celebratory/passive rather than actively ransacking; limited visible treasure scattering on ground</span> <span class="issue">[v2] Overly symmetrical composition; adventurers lack dynamic ransacking poses, appear more defensive than destructive</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#d3202a; border:1px solid transparent"></span>
+      R-R-01: Spark Detonator
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A lean, determined human in worn leather armor and bandoliers of incendiary devices, mid-action pose. Scarred hands grip a glowing artifact-weapon mid-detonation, bright sparks erupting outward. Practical rebel gear, intense focus, dangerous energy crackling around them.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/R-R-01_spark_detonator_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/R-R-01_spark_detonator_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/R-R-01_spark_detonator_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best matches the prompt with a lean, determined male character in mid-action pose gripping a glowing artifact-weapon with visible detonation and bright sparks erupting outward. The composition is dynamically tilted, the gear is practical and worn, and the warm fire-tones with high contrast create intense kinetic energy. V1 has a more static pose and uses a firearm rather than an artifact-weapon, while V2 depicts a female character (gender-neutral in prompt but character design differs significantly) and has visible watermark artifacts ("aidlove" watermark in bottom left).
+    <br><br>Artifacts: <span class="issue">[v2] Visible watermark/text artifact ('aidlove') in bottom left corner</span> <span class="issue">[v1] Depicts a firearm rather than a glowing artifact-weapon; less dynamic tilted composition</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#d3202a; border:1px solid transparent"></span>
+      R-R-02: The Burning Descent
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A roiling vortex of crimson and orange flame spirals downward into darkness, consuming ethereal cards that scatter and ignite mid-air. Heat distortion ripples outward, warping the surrounding stone cavern walls. Embers drift upward in defiance of gravity, creating an otherworldly descent into infernal depths.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version winner"><img src="../art/R-R-02_the_burning_descent_v1.png" alt="v1"><div class="version-label">&#x2714; PICK &mdash; v1</div></div><div class="version rejected"><img src="../art/R-R-02_the_burning_descent_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version rejected"><img src="../art/R-R-02_the_burning_descent_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v1.</strong> V1 best captures the prompt's core concept of a "roiling vortex of crimson and orange flame spirals downward" with excellent dynamic composition and heat distortion effects. While V2 introduces an unwanted human figure (not in the prompt) and V3's vortex is too linear/vertical, V1 delivers the swirling, spiraling flame motion with scattered igniting cards, proper color gradation from red to yellow, and strong cavern walls. V1 maintains stylized digital illustration quality without photorealism and reads clearly at card size.
+    <br><br>Artifacts: <span class="issue">[v2] Human figure added that contradicts the prompt (no character specified); shifts focus away from the vortex itself</span> <span class="issue">[v3] Vortex is too linear and vertical rather than spiraling; lacks the dynamic tilted composition requested</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#d3202a; border:1px solid transparent"></span>
+      R-U-01: Spark Insurgent
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A lean human fighter in tattered clothes crouches defiantly, one fist raised, eyes blazing with red energy. Behind them looms a massive armored treaded vehicle with twin gun turrets, smoke and sparks rising from its damaged hull. The rebel's silhouette burns against the mechanical wreckage.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/R-U-01_spark_insurgent_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/R-U-01_spark_insurgent_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/R-U-01_spark_insurgent_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best captures the prompt's core elements with excellent execution: the fighter is in a dynamic crouching pose with both fists raised defiantly, eyes blazing with red energy, wearing tattered dark clothes. The massive armored treaded vehicle with twin gun turrets dominates the background with smoke and fire rising from it. The composition is tilted dynamically, the silhouette burns against the mechanical wreckage with warm fire-tones and high contrast, and the post-apocalyptic sci-fi setting is clear. V1 shows the fighter in a less defiant pose (one fist only) and lacks the intensity of red eye energy. V2 has the fighter in an awkward squat pose that doesn't read as "crouching defiantly," and the overall composition feels less dynamic.
+    
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#d3202a; border:1px solid transparent"></span>
+      R-U-02: Wasteland War-Raptor
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A muscular tawny-furred lion-headed humanoid in a full sprint, wielding a crude sharpened blade, running alongside a dust-colored raptor dinosaur with slate-grey striping. Both creatures charge forward in violent motion, weapons raised, through a barren wasteland of cracked earth and sparse rock.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/R-U-02_wasteland_warraptor_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/R-U-02_wasteland_warraptor_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/R-U-02_wasteland_warraptor_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best captures the prompt's core requirements: a muscular lion-headed humanoid in full sprint alongside a dust-colored raptor with slate-grey striping, both charging forward with weapons raised through a barren wasteland. The composition is dynamic and tilted, with excellent warm fire-tones and high contrast. V1 has a less threatening lion character and weaker overall kinetic energy. V3 includes an extraneous background figure that wasn't requested and dilutes focus from the main pair.
+    <br><br>Artifacts: <span class="issue">[v3] Unnecessary background figure (humanoid with spear) distracts from the main composition and wasn't in the prompt</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#d3202a; border:1px solid transparent"></span>
+      R-U-03: Combustion Cascade
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A towering laboratory engulfed in cascading flames and electrical arcs, its walls glowing red-hot. A gaunt figure in an oversized lab coat stands amid the inferno, multiple mechanical arms extending from the garment, goggles askew on wild hair. Embers and sparks spiral upward as the structure collapses inward.. Stylized digital illustration, dynamic tilted composition, warm fire-tones with high contrast, kinetic energy, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/R-U-03_combustion_cascade_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/R-U-03_combustion_cascade_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/R-U-03_combustion_cascade_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best adheres to the prompt with a gaunt figure in a proper lab coat, mechanical arms extending from the garment (visible as articulated appendages), goggles on wild hair, and a collapsing laboratory structure with cascading flames and electrical arcs. V1 has four distinct mechanical hands but lacks the lab coat detail and feels more anime-stylized. V2 has a cartoonish art style with glowing red eyes that deviates from the prompt's science-fantasy tone and shows mechanical claws rather than arms extending from the garment. V3 maintains the best balance of stylized digital illustration, dynamic composition, warm fire-tones with high contrast, and post-apocalyptic science-fantasy aesthetic while staying true to the character description.
+    <br><br>Artifacts: <span class="issue">[v1] Character design deviates from prompt - lacks proper lab coat, has four mechanical hands instead of arms extending from garment, overly anime-stylized rather than science-fantasy</span> <span class="issue">[v2] Cartoonish art style with glowing red eyes contradicts prompt tone, mechanical claws rather than arms from garment, less adherence to science-fantasy aesthetic</span> 
   </div>
 </div>
 <div class="card-section picked">
@@ -95,8 +601,158 @@
   <div class="prompt">A lean human scout in practical blue-grey garments crouches at a rocky cavern entrance, one hand steadying against stone. Rope coils at their belt, eyes alert and focused downward into darkness. Torchlight catches their determined face as they prepare to descend into shadowed depths below.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.</div>
   <div class="versions"><div class="version winner"><img src="../art/U-C-01_subsurface_surveyor_v1.png" alt="v1"><div class="version-label">&#x2714; PICK &mdash; v1</div></div><div class="version rejected"><img src="../art/U-C-01_subsurface_surveyor_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version rejected"><img src="../art/U-C-01_subsurface_surveyor_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
   <div class="verdict pick">
-    <strong>Pick: v1.</strong> V1 best matches the prompt with a lean scout in a proper crouching pose with one hand steadying against stone, rope coils visible at the belt, and alert eyes focused downward. The cool steel-blue and teal palette is perfectly executed with excellent screen-glow lighting on the torch. V2 has a watermark artifact in the bottom right corner and the pose is less dynamic (standing rather than crouching). V3 has the character in a crouch but the pose is less natural and the composition feels more cramped with the large dark cavern entrance dominating the frame.
-    <br><br>Artifacts: <span class="issue">[v2] Watermark/text artifact visible in bottom right corner</span> <span class="issue">[v3] Composition too dark with oversized cavern entrance reducing character visibility at card size</span> 
+    <strong>Pick: v1.</strong> V1 best matches the prompt with a lean scout in a proper crouching pose at a cavern entrance, one hand steadying against stone, holding a torch with alert downward gaze. The composition is clean and readable at card size with excellent geometric framing. V2 has an awkward hand position (fingers splayed unnaturally on the ground) and shows a magical/tech device rather than rope at the belt. V3 depicts a female character with exaggerated features and lacks the practical scout aesthetic; the hand position is also anatomically strained.
+    <br><br>Artifacts: <span class="issue">[v2] Unnatural hand splaying and finger positioning on ground; magical/tech device instead of rope coils</span> <span class="issue">[v3] Exaggerated facial features and body proportions; strained hand/arm anatomy in crouching position</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#0e68ab; border:1px solid transparent"></span>
+      U-C-02: Glintscale Flyer
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A small, iridescent blue-scaled drake in mid-flight, wings spread wide catching thermals. Its scales shimmer with pale blue and silver highlights. Lean, graceful frame. Behind it, shadowed stone shafts and faint warm orange glow from ancient machinery, hinting at vast depths below.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/U-C-02_glintscale_flyer_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/U-C-02_glintscale_flyer_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/U-C-02_glintscale_flyer_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best balances all criteria. It features a lean, graceful drake with proper anatomy, iridescent blue scales with silver highlights, and wings spread wide in mid-flight. The composition is clean and readable at card size with excellent focal point. The cool teal/steel-blue palette with warm orange machinery glow in the background perfectly matches the prompt's post-apocalyptic sci-fi aesthetic. V1 is too photorealistic and bulky (not lean enough), while V3 has awkward anatomy with oversized claws and a less elegant pose.
+    <br><br>Artifacts: <span class="issue">[v1] Too photorealistic and lacks stylized digital illustration quality; drake appears too bulky/muscular rather than lean and graceful</span> <span class="issue">[v3] Anatomy issues: oversized claws and feet appear disproportionate; less elegant pose; darker overall tone reduces iridescent shimmer effect</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#0e68ab; border:1px solid transparent"></span>
+      U-C-03: Redirect Pulse
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A creature caught mid-recoil as an invisible force field ripples outward, distorting the air around it. Ancient crystalline structures glow with cold blue energy, their geometric patterns pulsing. The creature's form blurs backward, suspended in the moment of rejection. Frozen, dramatic, the instant of forceful displacement.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/U-C-03_redirect_pulse_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/U-C-03_redirect_pulse_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/U-C-03_redirect_pulse_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best captures the prompt's core concept of a creature caught mid-recoil with an invisible force field rippling outward. The concentric circular patterns create a dynamic sense of displacement and rejection, while the creature's aggressive stance and forward-leaning posture convey the moment of forceful impact. The cool teal/cyan palette with glowing crystalline elements matches the color identity perfectly, and the composition is clear and readable at card size with strong focal point on the creature.
+    <br><br>Artifacts: <span class="issue">[v1] Creature is standing passively facing the structures rather than being caught mid-recoil; lacks the sense of dynamic displacement and backward motion described in the prompt</span> <span class="issue">[v3] Features a second creature (dark silhouette in foreground) that wasn't in the prompt, creating compositional confusion; the main creature appears suspended/floating rather than actively recoiling</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#0e68ab; border:1px solid transparent"></span>
+      U-C-04: Excavate the Archives
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A figure in tattered robes stands amid towering shelves of ancient scrolls and artifacts, hands raised as glowing blue energy swirls upward, pulling objects from the dusty archive. Scattered relics and papers drift through the air, illuminated by arcane light flooding the vast library chamber.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version winner"><img src="../art/U-C-04_excavate_the_archives_v1.png" alt="v1"><div class="version-label">&#x2714; PICK &mdash; v1</div></div><div class="version rejected"><img src="../art/U-C-04_excavate_the_archives_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version rejected"><img src="../art/U-C-04_excavate_the_archives_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v1.</strong> V1 best matches the prompt with a figure in tattered robes amid towering shelves of ancient scrolls, hands raised with glowing blue energy swirling upward. The composition is clean with excellent focal point and readability at card size. V2 and V3 feature lightning bolts and more sci-fi aesthetics that deviate from the "ancient scrolls and artifacts" archive setting described in the prompt. V1's geometric composition, cool steel-blue palette, and screen-glow lighting perfectly capture the post-apocalyptic science-fantasy tone without anatomical issues.
+    <br><br>Artifacts: <span class="issue">[v2] Lightning bolt effect deviates from prompt's 'glowing blue energy swirls' description; less archive-like setting</span> <span class="issue">[v3] Wing-like appendages on figure are not mentioned in prompt and appear as added anatomical elements; lightning effect again deviates from swirling energy description</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#0e68ab; border:1px solid transparent"></span>
+      U-M-01: Vex, Architect of Systems
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A sharp-featured woman in sleek blue attire hunches over glowing holographic displays, fingers dancing across three luminous screens simultaneously. Her eyes reflect cascading data streams. Crystalline artifacts and mechanical components scatter across her workspace, bathed in cool blue-white light.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version winner"><img src="../art/U-M-01_vex_architect_of_systems_v1.png" alt="v1"><div class="version-label">&#x2714; PICK &mdash; v1</div></div><div class="version rejected"><img src="../art/U-M-01_vex_architect_of_systems_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version rejected"><img src="../art/U-M-01_vex_architect_of_systems_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v1.</strong> V1 best fulfills the prompt requirements with sharp, clean anatomy, three distinct luminous holographic displays with proper hand positioning, and excellent color identity matching blue's cool steel-blue/teal palette. V2 shows only two screens and has distorted hand anatomy (fingers appear fused/malformed on the lower hand), while V3 shows only two screens and lacks the hunched-over posture and dynamic finger-dancing interaction described in the prompt. V1's composition is also most readable at card size with clear focal point and proper screen-glow lighting.
+    <br><br>Artifacts: <span class="issue">[v2] Distorted hand anatomy on lower hand - fingers appear fused and malformed</span> <span class="issue">[v3] Only two screens shown instead of three; missing the dynamic hunched posture over displays</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#0e68ab; border:1px solid transparent"></span>
+      U-R-01: Automated Sentinel
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A towering stainless steel construct with a cylindrical head crowned by a crystalline eye, its armored frame layered with hydraulic hoses and mismatched salvaged plating. Dormant and motionless, it stands upright in a shadowed underground vault carved into stone, faint crystalline light emanating from its core.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version winner"><img src="../art/U-R-01_automated_sentinel_v1.png" alt="v1"><div class="version-label">&#x2714; PICK &mdash; v1</div></div><div class="version rejected"><img src="../art/U-R-01_automated_sentinel_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version rejected"><img src="../art/U-R-01_automated_sentinel_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v1.</strong> V1 best matches the prompt's core requirement of a "cylindrical head crowned by a crystalline eye" with a clean, geometric design. It features excellent prompt adherence with the dormant, motionless stance, strong screen-glow lighting from the crystalline core, and perfect cool steel-blue/teal color identity. V2 has a more humanoid, bulky body design that deviates from the described "cylindrical head" aesthetic, and V3 adds unnecessary humanoid features (visible hands/fingers, antenna-like protrusions) that weren't requested. V1's composition is also superior for card readability with clear focal point and balanced geometry.
+    <br><br>Artifacts: <span class="issue">[v2] Body design deviates from prompt - more humanoid and bulky rather than a towering stainless steel construct with cylindrical proportions</span> <span class="issue">[v3] Adds humanoid features not in prompt (visible hands with fingers, antenna-like protrusions on head, more organic posture) - less geometric and more character-like than intended</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#0e68ab; border:1px solid transparent"></span>
+      U-R-02: Anomalous Resonance
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A dungeon chamber resonates with visible waves of blue-violet energy, rippling through stone and air. Metallic artifacts—gears, crystals, fragments—hover suspended, vibrating in synchronization. The light pulses rhythmically, casting dancing shadows across carved walls, creating an almost audible hum made visible.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/U-R-02_anomalous_resonance_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/U-R-02_anomalous_resonance_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/U-R-02_anomalous_resonance_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best captures the prompt's core elements: visible energy waves rippling through the chamber, suspended metallic artifacts (gears, crystals) clearly vibrating in the central light beam, and excellent geometric composition with strong focal point. The cool steel-blue and teal palette with screen-glow lighting is perfectly executed. V1 has a watermark artifact at the bottom and lacks distinct metallic objects. V3 features organic vine-like energy patterns that don't match the "rippling waves" and "geometric composition" requirements, feeling more botanical than mechanical.
+    <br><br>Artifacts: <span class="issue">[v1] Watermark/text artifact visible at bottom of image</span> <span class="issue">[v3] Organic vine-like energy patterns don't match geometric composition requirement; lacks clear metallic artifacts like gears and crystals</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#0e68ab; border:1px solid transparent"></span>
+      U-U-01: Flickerfield Operative
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A lean, nimble human rogue in dark blue leather armor crouches mid-stride through a shimmering, fractured corridor. Crystalline blue light refracts around them as they move, their hand outstretched toward swirling motes of arcane energy. Sharp features, focused expression, ready for swift action.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/U-U-01_flickerfield_operative_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/U-U-01_flickerfield_operative_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/U-U-01_flickerfield_operative_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best matches the prompt's core requirements: it depicts a lean, nimble rogue in a dynamic mid-stride crouch through a crystalline, fractured corridor with strong geometric composition. The character has sharp features, focused expression, and outstretched hands toward arcane energy. V1 shows a wide-legged stance that reads more as a power pose than nimble mid-stride movement, and the hands lack the "outstretched toward swirling motes" quality. V2 has a weapon (sword) not mentioned in the prompt and a less dynamic pose. V3 excels in prompt adherence, composition clarity for card size, cool steel-blue/teal palette, and screen-glow lighting throughout the crystalline corridor.
+    <br><br>Artifacts: <span class="issue">[v1] Wide-legged stance contradicts 'mid-stride' movement; less nimble appearance</span> <span class="issue">[v2] Includes weapon (sword) not in prompt; less dynamic pose; watermark visible in lower left</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#0e68ab; border:1px solid transparent"></span>
+      U-U-02: Relay Node Technician
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A lean human technician in sleek blue-grey robes leans intently over a crystalline circuit mechanism, fingers hovering above glowing counters embedded in its surface. Soft blue light emanates from the device, casting sharp shadows across their focused face. Delicate tools and floating energy wisps surround the scene.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version winner"><img src="../art/U-U-02_relay_node_technician_v1.png" alt="v1"><div class="version-label">&#x2714; PICK &mdash; v1</div></div><div class="version rejected"><img src="../art/U-U-02_relay_node_technician_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version rejected"><img src="../art/U-U-02_relay_node_technician_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v1.</strong> V1 best matches the prompt with a lean technician leaning intently over a crystalline circuit mechanism with glowing counters, soft blue light casting shadows across their focused face, and floating energy wisps. The hands are anatomically correct with proper finger count and positioning. V2 has awkward hand anatomy with fingers appearing distorted/fused, and the technician wears goggles not mentioned in the prompt. V3 has the technician's face too close/distorted in perspective and the hands appear somewhat stiff, though anatomically acceptable. V1's composition is clearest for card readability and best captures the "hovering fingers" and geometric, cool-toned aesthetic requested.
+    <br><br>Artifacts: <span class="issue">[v2] Distorted hand anatomy with fused/awkward finger positioning; goggles not in prompt</span> <span class="issue">[v3] Face perspective distorted/too close to viewer; less natural hand positioning</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#0e68ab; border:1px solid transparent"></span>
+      U-U-03: Automated Sentry Grid
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">An intricate lattice of luminous blue-white energy grids suspended in mid-air, crackling with ancient power. Crystalline nodes pulse rhythmically across the geometric network. Frozen mechanical constructs hover trapped within the energy field, their forms locked in place by cascading arcs of ethereal light. The backdrop fades into weathered stone architecture, suggesting ruins of forgotten technology.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/U-U-03_automated_sentry_grid_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/U-U-03_automated_sentry_grid_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/U-U-03_automated_sentry_grid_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best fulfills the prompt requirements with excellent composition and prompt adherence. It features a luminous geometric energy grid with crystalline nodes, trapped mechanical constructs clearly visible within the field, cascading arcs of ethereal light, and weathered stone architecture (towers/ruins) in the background. The cool steel-blue and teal palette with screen-glow lighting is perfect for the blue color identity, and the post-apocalyptic setting is strongly conveyed. V1 lacks mechanical constructs and architectural backdrop, while V2 shows only a single construct in a simplified geometric frame without the intricate lattice or ruins.
+    <br><br>Artifacts: <span class="issue">[v1] Missing mechanical constructs trapped in the grid and lacks weathered stone architecture backdrop</span> <span class="issue">[v2] Overly simplified geometric design with only one construct; lacks intricate lattice network and architectural ruins</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      UB-U-01: Subsurface Conduit
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A lean, dark-haired human rogue in sleek tactical gear crouches in a deep underground shaft, fingers splayed against ancient stone walls that glow with faint bioluminescent veins. Their expression shows intense focus as ethereal knowledge-streams flow visibly around them, suggesting communion with something vast and primordial beneath the earth.. Stylized digital illustration, geometric composition, cool steel-blue and teal palette, screen-glow lighting, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/UB-U-01_subsurface_conduit_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/UB-U-01_subsurface_conduit_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/UB-U-01_subsurface_conduit_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best balances all criteria. It shows the rogue in a proper crouching pose with both hands clearly visible and anatomically correct, touching the glowing stone floor as described. The composition is clean and readable at card size, with excellent geometric framing from the archway. The cool teal/blue palette with bioluminescent veins running through the walls perfectly matches the prompt's color identity and post-apocalyptic sci-fi aesthetic. V1 has the character standing rather than crouching and lacks the hand-contact element. V3 has anatomical issues—the character's posture is awkward and one hand appears distorted/fused with the body.
+    <br><br>Artifacts: <span class="issue">[v1] Character standing rather than crouching; doesn't show fingers splayed against stone as described</span> <span class="issue">[v3] Awkward posture with distorted hand anatomy; left hand appears fused/unclear against body</span> 
   </div>
 </div>
 <div class="card-section picked">
@@ -110,8 +766,308 @@
   <div class="prompt">A human soldier in chain mail stands alert at a stone gate, shield raised and long sword ready. Weathered armor catches pale light. Behind him, towering concrete ruins loom above the medieval fortifications. His stance is rigid, watchful—a sentry maintaining order over the crumbling city.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
   <div class="versions"><div class="version rejected"><img src="../art/W-C-01_denethix_watchguard_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/W-C-01_denethix_watchguard_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/W-C-01_denethix_watchguard_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
   <div class="verdict pick">
-    <strong>Pick: v3.</strong> V3 is the strongest choice. It has clean anatomy with no visible AI artifacts, excellent prompt adherence (soldier in chain mail, shield raised, sword ready, rigid watchful stance), and superior composition with the soldier centered and clearly visible at card size. The warm sandstone/ivory tones with golden-hour lighting and long shadows are perfectly executed, and the towering medieval fortifications with concrete ruins in the background create the post-apocalyptic science-fantasy setting. V1 has a cape that wasn't requested and feels less focused, while V2 has the soldier positioned awkwardly off-center and lacks the architectural grandeur of the background.
-    <br><br>Artifacts: <span class="issue">[v1] Red cape not mentioned in prompt; composition less focused with soldier positioned to the side</span> <span class="issue">[v2] Soldier positioned off-center and awkwardly; background architecture less imposing and detailed</span> 
+    <strong>Pick: v3.</strong> V3 is the strongest choice. It features clean anatomy with no AI artifacts, excellent prompt adherence (soldier in chain mail with shield and sword, alert stance, stone gate, medieval fortifications with towering ruins), and superior composition with the soldier centered and framed by the gate archway—highly readable at card size. The warm sandstone/ivory tones and golden-hour lighting match the color identity perfectly. V1 has a photorealistic style that doesn't match the "stylized digital illustration" requirement, while V2's soldier is positioned too far to the right and the composition is less balanced.
+    <br><br>Artifacts: <span class="issue">[v1] Photorealistic rendering style rather than stylized digital illustration; composition less balanced with soldier off-center</span> <span class="issue">[v2] Soldier positioned too far right, unbalanced composition; less structured framing compared to v3</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#f9faf4; border:1px solid #ccc"></span>
+      W-C-02: Fault-Trained Sentinel
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A human soldier in white plate armor stands rigid in a defensive stance, one gauntleted hand raised to shield. Their posture is stiff and mechanical, as if frozen mid-motion. Weathered metal plating shows faint scorch marks and repair seams, suggesting past failures. Alert eyes peer forward from beneath a reinforced helm.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/W-C-02_faulttrained_sentinel_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/W-C-02_faulttrained_sentinel_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/W-C-02_faulttrained_sentinel_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best matches the prompt's requirement for a "rigid, defensive stance with one gauntleted hand raised to shield." It shows the soldier in a clear, alert posture with the shield prominently raised and visible. The stylized digital illustration style is clean and readable at card size, with excellent color identity (warm sandstone/ivory tones with golden-hour lighting). V1 has the hand in a fist rather than raised to shield, and V2 shows a more aggressive forward stance rather than the defensive rigidity requested. V3's composition is balanced and the weathered metal details are clearly visible.
+    <br><br>Artifacts: <span class="issue">[v1] Hand pose doesn't match prompt - shows closed fist rather than raised shield hand</span> <span class="issue">[v2] Stance is too aggressive/forward-leaning rather than rigid and defensive; shield held at side rather than raised</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#f9faf4; border:1px solid #ccc"></span>
+      W-C-03: Sanctioned Exile
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A chain-mailed soldier with ceremonial insignia on his revolver-style pistol, pointing the weapon at a massive armored figure mid-vanishment, ethereal light tearing the target away. Frozen moment of authoritarian judgment and exile, tight dramatic framing.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version winner"><img src="../art/W-C-03_sanctioned_exile_v1.png" alt="v1"><div class="version-label">&#x2714; PICK &mdash; v1</div></div><div class="version rejected"><img src="../art/W-C-03_sanctioned_exile_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version rejected"><img src="../art/W-C-03_sanctioned_exile_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v1.</strong> V1 best captures the prompt's core elements: the soldier has a clear revolver-style pistol with ceremonial insignia visible on the chest, the massive armored figure is mid-vanishment with ethereal light tearing it away (bright starburst effect), and the composition is tight and dramatic with excellent golden-hour lighting and warm sandstone/ivory tones. V2 has a rifle on the soldier's back (not prompt-adherent) and lacks the vanishment effect. V3 shows weapon discharge effects but the target figure appears solid and grounded rather than ethereally vanishing, and the composition is less dramatically framed.
+    <br><br>Artifacts: <span class="issue">[v2] Soldier carries a rifle on back instead of revolver-style pistol as primary weapon; lacks ethereal vanishment effect on target</span> <span class="issue">[v3] Target figure appears solid and grounded rather than mid-vanishment; weapon shows discharge effects but not ethereal light tearing the figure away</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#f9faf4; border:1px solid #ccc"></span>
+      W-C-04: Requisition Sweep
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A sweeping enforcement action in a grand chamber: white-armored officials confiscate glowing artifacts and enchanted relics from shelves and pedestals. Magical items crumble and dissolve under their touch. In the background, a desiccated corpse in royal robes sits motionless on a technological throne, neural cables trailing from an empty skull, overseeing the seizure with hollow indifference.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/W-C-04_requisition_sweep_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/W-C-04_requisition_sweep_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/W-C-04_requisition_sweep_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best captures the prompt's core elements: white-armored officials actively confiscating glowing artifacts and enchanted relics scattered across the floor, with a desiccated corpse in robes seated centrally on a throne. The composition is balanced and readable at card size, with warm sandstone/ivory tones and golden-hour lighting. V1 depicts skeletal figures rather than officials in armor and lacks the confiscation action. V3 shows fewer artifacts being seized and has a more monolithic, less dynamic composition despite good atmosphere.
+    <br><br>Artifacts: <span class="issue">[v1] Skeletal figures with skull heads rather than white-armored officials; doesn't match the prompt's description of enforcement officials</span> <span class="issue">[v3] Fewer visible artifacts being confiscated; less emphasis on the seizure action described in the prompt</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#f9faf4; border:1px solid #ccc"></span>
+      W-M-01: Feretha, the Hollow Founder
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A desiccated corpse-king seated on a technological throne, skeletal frame draped in decayed royal robes. A golden crown fused with neural interface cables crowns his hollow skull. Fluid tubes and glowing conduits snake from his empty eye sockets into a humming server rack, his body a puppet of ancient machinery.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/W-M-01_feretha_the_hollow_founder_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/W-M-01_feretha_the_hollow_founder_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/W-M-01_feretha_the_hollow_founder_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best fulfills the prompt's core vision of a tech-infused corpse-king. It features glowing red neural interface eyes, visible fluid tubes/cables snaking from the skull, a server rack with glowing conduits in the background, and maintains excellent anatomical integrity with properly rendered skeletal hands and fingers. The composition is balanced and readable at card size, with warm ivory robes and golden crown against cool blue-teal tech elements creating strong color contrast. V1 lacks the technological elements entirely (no tubes, cables, or server racks), while V2 has minimal tech integration and less dynamic composition.
+    <br><br>Artifacts: <span class="issue">[v1] Missing core prompt elements: no visible fluid tubes, cables, or server rack machinery—fails to convey the tech-puppet concept</span> <span class="issue">[v2] Minimal technological integration: lacks prominent neural interface cables and server rack; the tech elements are too subtle for the post-apocalyptic sci-fi setting</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#f9faf4; border:1px solid #ccc"></span>
+      W-R-01: Cult Relic-Bearer
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A lean human cleric in white vestments kneels reverently, cradling an ornate metallic relic in both hands. Golden light radiates from the artifact. Intricate scrollwork adorns her robes. Her expression is devotional, eyes fixed on the glowing object. Ancient stone columns frame the scene.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/W-R-01_cult_relicbearer_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/W-R-01_cult_relicbearer_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/W-R-01_cult_relicbearer_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 is the clear winner as it best matches the prompt's core requirement: a kneeling cleric cradling a relic in both hands with a devotional expression. V3 shows proper kneeling posture with the relic held at chest level, intricate scrollwork on the robes, and a contemplative downward gaze at the glowing artifact. V1 has the character standing/posed rather than kneeling, and V2 shows the character kneeling but holding the relic at arm's length rather than cradling it. V3 also excels in composition with excellent use of the columned environment, warm golden-hour lighting with strong shadows, and the post-apocalyptic aesthetic (weathered columns). All three versions have clean anatomy with no AI artifacts.
+    
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#f9faf4; border:1px solid #ccc"></span>
+      W-R-02: The Vizier's Decree
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A desiccated corpse seated on a technological throne, hollow skull crowned with a neural interface, cables and fluid tubes snaking from its empty eye sockets. Beside it stands a lean man in dark formal robes, eyes sharp and calculating, one hand raised in commanding gesture. Ethereal chains of light bind the scene, transforming the air into shimmering constraint.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/W-R-02_the_viziers_decree_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/W-R-02_the_viziers_decree_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/W-R-02_the_viziers_decree_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 is the strongest choice. It has clean anatomy with no AI artifacts, excellent prompt adherence (desiccated corpse on throne, commanding vizier in dark robes, cables/tubes visible, ethereal light chains), and superior composition with better focal point balance and readability at card size. The warm sandstone/ivory tones and golden-hour lighting are perfectly executed. V1 has an overly ornate throne that dominates the composition and feels less balanced, while V2's throne design is simpler but the corpse's pose is less dynamic and the overall scene feels slightly static.
+    <br><br>Artifacts: <span class="issue">[v1] Overly ornate spiked throne dominates composition, making the scene feel cluttered and less balanced for card-size readability</span> <span class="issue">[v2] Simpler throne design but corpse pose is more passive, less dynamic commanding presence overall</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#f9faf4; border:1px solid #ccc"></span>
+      W-U-01: Cult Archivist
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A pale, robed human cleric kneels reverently before an ornate stone tablet inscribed with geometric patterns, hands extended in devotion. Soft golden light radiates from the artifact, illuminating her weathered face and worn white vestments. Dust motes drift through the reverent stillness.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/W-U-01_cult_archivist_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/W-U-01_cult_archivist_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/W-U-01_cult_archivist_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best matches the prompt's core requirements: a kneeling cleric with hands extended in devotion before an ornate stone tablet. The composition is balanced with the figure in profile, the tablet clearly visible, and golden light radiating from the artifact. V1 shows the figure standing rather than kneeling, which deviates from the prompt. V3 depicts a male figure (not the "pale, robed human cleric" described) and shows the character in a less devotional pose. V2's warm sandstone tones, golden-hour lighting, dust motes, and post-apocalyptic sci-fi aesthetic all align perfectly with the prompt.
+    <br><br>Artifacts: <span class="issue">[v1] Figure standing rather than kneeling as specified in prompt</span> <span class="issue">[v3] Character appears to be male with beard, contradicting the female cleric described in prompt</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#f9faf4; border:1px solid #ccc"></span>
+      W-U-02: Fist Checkpoint Warden
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A stern human soldier in chain mail and splint armor stands at a checkpoint, hand raised in a commanding halt gesture. A large ceremonial revolver-style pistol holstered at their hip. Rigid posture, authoritarian bearing. Papers and documents scattered on a desk behind them. Checkpoint barrier visible in background.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/W-U-02_fist_checkpoint_warden_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/W-U-02_fist_checkpoint_warden_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/W-U-02_fist_checkpoint_warden_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 is the clear winner. It perfectly captures the prompt's core elements: a stern soldier in chain mail and splint armor making a commanding halt gesture with a raised hand, a large ceremonial revolver-style pistol held prominently, rigid authoritarian posture, scattered papers on a desk, and checkpoint setting. The composition is excellent with strong focal point, warm sandstone/ivory tones, and golden-hour lighting with long shadows. V1 has photorealistic rendering that doesn't match the "stylized digital illustration" requirement, while V2 lacks the commanding halt gesture (hand is open/passive) and the pistol is barely visible, making it less prompt-adherent.
+    <br><br>Artifacts: <span class="issue">[v1] Photorealistic rendering style rather than stylized digital illustration; lacks the commanding halt gesture (hand is raised but not in a clear 'stop' position); pistol is holstered and not prominently featured</span> <span class="issue">[v2] Hand gesture is open/passive rather than a commanding halt; pistol is barely visible/not prominently displayed; less adherent to the authoritarian checkpoint warden concept</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#f9faf4; border:1px solid #ccc"></span>
+      W-U-03: Edict of Continuity
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A medieval city of stone and timber buildings nestled within towering concrete and steel ruins, ethereal white light coalescing above the scene. Exposed rebar and repurposed metal structures frame the composition. The atmosphere shimmers with a persistent, ghostly radiance—the essence of continuity itself—as the city endures beneath ancient megastructures.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/W-U-03_edict_of_continuity_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/W-U-03_edict_of_continuity_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/W-U-03_edict_of_continuity_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best fulfills the prompt requirements with visible exposed rebar/metal scaffolding on the left side that frames the composition as specified, creating the post-apocalyptic science-fantasy blend. It maintains excellent warm sandstone and ivory tones with golden-hour lighting and long shadows, while the ethereal white light coalesces clearly above the street. The composition is balanced and readable at card size with a strong focal point down the central street. V1 lacks the concrete/steel ruins and metal framing elements entirely, appearing too purely medieval. V2 has better atmosphere but less visible rebar/metal structures compared to V3's prominent scaffolding.
+    
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      WB-R-01: Proclamation Enforcer
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A stern, sharp-featured woman in ornate white and black ceremonial armor stands at rigid attention, one gauntleted fist raised in command. Her expression is cold and authoritative, eyes fixed forward. Intricate gold trim adorns her breastplate and pauldrons, marking her rank. The pose radiates absolute control and unwavering discipline.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/WB-R-01_proclamation_enforcer_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/WB-R-01_proclamation_enforcer_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/WB-R-01_proclamation_enforcer_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best captures the prompt's core requirements: a stern, sharp-featured woman in rigid attention with a raised fist in command. The pose is authoritative and disciplined, with excellent anatomy and no AI artifacts. The white/black ceremonial armor with gold trim is ornate and rank-marking, and the composition is balanced with the figure in profile—ideal for card readability. The warm sandstone/ivory tones and golden-hour lighting with long shadows are perfectly executed, and the post-apocalyptic sci-fi setting is evident in the environment. V1 has a more relaxed, confident pose rather than rigid attention, and V2's pose is too dynamic/action-oriented rather than standing at rigid attention as specified.
+    <br><br>Artifacts: <span class="issue">[v1] Pose is confident and dynamic rather than rigid attention; composition is too wide and less card-friendly</span> <span class="issue">[v2] Pose is too action-oriented/dynamic rather than rigid attention; composition emphasizes movement over disciplined stillness</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      WB-U-01: Fist Tax Collector
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A stern human official in splint mail armor grips a heavy ceremonial revolver, one hand outstretched in a demanding gesture. Chain-mail glints beneath layered plate. Insignia marks his pistol grip. His weathered face shows cold authority—a collector of debts, living and dead. Action pose, commanding presence.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/WB-U-01_fist_tax_collector_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/WB-U-01_fist_tax_collector_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/WB-U-01_fist_tax_collector_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best fulfills the prompt requirements with excellent anatomy, proper hand positioning (one outstretched in demanding gesture, one gripping the revolver), and clear chain-mail visible beneath plate armor. The composition is balanced and readable at card size with strong focal point on the stern face and commanding pose. V1 has the revolver held too high and lacks the demanding outstretched hand gesture; V2 is overly photorealistic with architectural background that distracts from the character and doesn't match the stylized illustration requirement. V3's warm golden-hour lighting, sandstone/ivory tones, and post-apocalyptic sci-fantasy aesthetic perfectly match the color identity and mood.
+    <br><br>Artifacts: <span class="issue">[v1] Revolver held at awkward angle; missing the demanding outstretched hand gesture specified in prompt</span> <span class="issue">[v2] Overly photorealistic style inconsistent with stylized digital illustration requirement; distracting architectural background; less commanding presence</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      WG-R-01: Sura, Rendon Ranchmaster
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A weathered human rancher in frontier garb stands commanding among prehistoric beasts—a massive ceratopsian with dusty brown plating beside him, smaller raptors circling. His posture radiates authority and purpose, hand raised to direct the creatures. Dusty earth and wilderness backdrop.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/WG-R-01_sura_rendon_ranchmaster_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/WG-R-01_sura_rendon_ranchmaster_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/WG-R-01_sura_rendon_ranchmaster_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best captures the prompt's vision of a commanding rancher directing prehistoric beasts. The composition is perfectly balanced with the rancher as the clear focal point, the massive ceratopsian prominently featured beside him, and raptors circling above. The warm sandstone/ivory tones and golden-hour lighting are excellent, and the post-apocalyptic science-fantasy atmosphere is well-established. V1 has the rancher too small relative to the dinosaur and uses a flying creature that doesn't match the ceratopsian focus. V2 places the rancher awkwardly on the dinosaur's back rather than commanding from the ground, which breaks the prompt's intent.
+    <br><br>Artifacts: <span class="issue">[v1] Rancher is undersized relative to the ceratopsian; composition lacks the commanding authority described in the prompt</span> <span class="issue">[v2] Rancher positioned on the dinosaur's back rather than standing commanding beside it; loses the ground-level authority pose</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      WG-U-01: Reclaimed Settler
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A weathered human settler in practical frontier clothing kneels among scattered scavenge ancient technology, examining a piece of salvaged metal or tool in their hands. Worn leather, earth tones, and dappled sunlight suggest a lived-in landscape. Their posture conveys focused determination and resourcefulness.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/WG-U-01_reclaimed_settler_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/WG-U-01_reclaimed_settler_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/WG-U-01_reclaimed_settler_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best captures the prompt's core requirements: a kneeling settler examining salvaged technology with focused determination. The pose is natural and anatomically sound, the composition is balanced with excellent focal point on the hands and artifact, and the warm earth tones with golden-hour lighting perfectly match the color identity. V1 has the settler holding a weapon rather than examining salvage, which deviates from the prompt. V3 shows a crouching pose rather than kneeling, and while the scavenged tech is more prominent, the overall composition feels less intimate and the pose less aligned with "kneels among scattered scavenge."
+    <br><br>Artifacts: <span class="issue">[v1] Prompt deviation: settler is holding/examining a weapon/tool rather than kneeling to examine salvaged ancient technology as primary focus</span> <span class="issue">[v3] Pose deviation: crouching rather than kneeling as specified in prompt; composition less focused on the examination action</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      WR-R-01: Kethra, Spark Commander
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A fierce human woman in rebel armor, scarred face set with fierce determination, gripping a blazing sword wreathed in white-hot flames. She strides forward mid-combat, sparks trailing from her weapon, rallying armored fighters emerging from shadow behind her. Intense, dynamic action pose.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/WR-R-01_kethra_spark_commander_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/WR-R-01_kethra_spark_commander_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/WR-R-01_kethra_spark_commander_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best captures the prompt's core elements: a fierce woman with visible scarring on her face, gripping dual blazing swords wreathed in white-hot flames with excellent spark effects. The dynamic mid-combat stride is clear, the composition is well-balanced with armored fighters emerging from shadow behind her, and the warm sandstone/ivory tones with golden-hour lighting are perfectly executed. V1 lacks visible scarring and the sword lacks the white-hot flame intensity; V2 has only one sword and weaker flame effects, deviating from the "blazing sword" singular focus implied by the prompt.
+    <br><br>Artifacts: <span class="issue">[v1] Minimal facial scarring despite prompt emphasis; sword flames are orange rather than white-hot; composition less dynamic</span> <span class="issue">[v2] Only one sword visible instead of the dual-wielding suggested by prompt; weaker flame effects; less intense action pose</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      WR-U-01: Rebel Firebrand
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A defiant human rebel with singed clothes and burn scars on bare arms, holding a torch aloft with wild intensity. Flames dance across their hands and face, eyes blazing with fury. Behind them, a Fist officer in splint mail and ceremonial insignia lies crumpled, their revolver-pistol fallen nearby.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/WR-U-01_rebel_firebrand_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/WR-U-01_rebel_firebrand_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/WR-U-01_rebel_firebrand_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best captures the prompt's core elements: the rebel holds the torch aloft with wild intensity, displays visible burn scars on bare arms, and shows clear defiance. The Fist officer is properly crumpled beneath her with the revolver nearby. V1 has the officer too upright and composed (not crumpled enough), while V2 shows the officer in an awkward, anatomically strained pose with legs splayed unnaturally. V3's composition is balanced, the character's fury is evident, and the warm sandstone/golden-hour lighting is most authentic to the prompt.
+    <br><br>Artifacts: <span class="issue">[v1] Officer not sufficiently crumpled—appears too upright and dignified for a defeated enemy</span> <span class="issue">[v2] Officer's pose is anatomically awkward with legs splayed in an unnatural, strained position</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      WU-M-01: The Custodian Eternal
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">An immense stainless-steel construct, 20 feet tall, with a cylindrical head crowned by crystalline eyes that glow with ancient intelligence. Its iron-and-gold frame bristles with jury-rigged components—bone plating, salvaged gears, wiring—patched across millennia. Hydraulic hoses pulse beneath plate armor. It hovers with ethereal grace, one massive limb raised in eternal vigilance.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/WU-M-01_the_custodian_eternal_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/WU-M-01_the_custodian_eternal_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/WU-M-01_the_custodian_eternal_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best matches the prompt's vision of an ancient, jury-rigged construct with crystalline eyes glowing with intelligence. The central golden eye with surrounding smaller lights perfectly captures "crystalline eyes that glow with ancient intelligence," while the visible hydraulic hoses, wiring, and patched components throughout the body strongly convey millennia of repairs. The pose with one limb raised in vigilance is more pronounced, and the composition is excellently balanced with strong focal point and readability at card size. V1 has a more generic design with less visible jury-rigging, and V2's left arm is awkwardly positioned downward rather than raised in vigilance.
+    <br><br>Artifacts: <span class="issue">[v1] Less visible jury-rigged components and patched repairs; generic design lacks the 'ancient intelligence' feel</span> <span class="issue">[v2] Left arm positioned downward rather than raised in eternal vigilance as specified; less prominent crystalline eye design</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      WU-R-01: Protonium Curator
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A sharp-featured human artificer in pristine white and blue robes, surrounded by floating crystalline artifacts and mechanical relics. Their hands gesture with precise control as ethereal energy flows between the hovering objects. Intense, focused expression—a master orchestrating ancient technology with absolute command.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/WU-R-01_protonium_curator_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/WU-R-01_protonium_curator_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/WU-R-01_protonium_curator_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best fulfills the prompt's core requirements: it features a sharp-featured artificer in white and blue robes with hands in precise gesture poses, surrounded by multiple floating crystalline artifacts and mechanical relics with ethereal energy effects. The composition is balanced and structured with the character centered, the warm sandstone/ivory tones with golden-hour lighting are excellent, and the post-apocalyptic science-fantasy setting is clearly conveyed. V1 has the character looking away rather than with an intense, focused expression, and lacks the hand gestures of control. V2 has awkward hand positioning and the artifacts feel more decorative than orchestrated by the character's will.
+    <br><br>Artifacts: <span class="issue">[v1] Character's gaze directed away rather than focused/intense; lacks the precise hand gesture control described in prompt</span> <span class="issue">[v2] Hand positioning appears awkward and less commanding; artifacts feel static rather than orchestrated by character's control</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      WU-U-01: Sanctuary Automaton
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A stainless steel automaton stands in a protective stance, its cylindrical head crowned with a speaker grill and luminous crystalline eyes. Hydraulic hoses and wiring thread through exposed gaps between polished steel plates. Minor rust stains trace its weathered frame. One sharpened steel blade hangs ready at its side, poised to defend.. Stylized digital illustration, structured balanced composition, warm sandstone and ivory tones, golden-hour lighting with long shadows, post-apocalyptic science-fantasy setting.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/WU-U-01_sanctuary_automaton_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/WU-U-01_sanctuary_automaton_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/WU-U-01_sanctuary_automaton_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best matches the prompt with a cylindrical head crowned with a speaker grill, luminous crystalline eyes, exposed hydraulic hoses and wiring, rust stains, and a sharpened blade in a protective stance. The composition is balanced and readable at card size, with excellent golden-hour lighting and warm sandstone/ivory tones. V1 has the blade awkwardly positioned and lacks the speaker grill detail; V2's head design is too rounded and cartoonish, missing the cylindrical crown and speaker grill specificity.
+    <br><br>Artifacts: <span class="issue">[v1] Blade positioning awkward and less prominent; head lacks the cylindrical crown with speaker grill detail specified in prompt</span> <span class="issue">[v2] Head design too rounded and cartoonish rather than cylindrical; missing speaker grill crown detail; overall style less aligned with stylized digital illustration aesthetic</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      X-C-01: Subsurface Signal Lamp
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A weathered brass lamp fixture mounted on a stone pedestal, its cylindrical glass chamber holding a faintly glowing filament. Three thin scratches mark the glass where light flickers unevenly. Corrosion stains streak downward. The background fades to dark stone, keeping focus on the lamp's mechanical simplicity and worn patina.. Stylized digital illustration, centered object-focused composition, self-illuminated subject against dark background, ancient technology aesthetic.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/X-C-01_subsurface_signal_lamp_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version rejected"><img src="../art/X-C-01_subsurface_signal_lamp_v2.png" alt="v2"><div class="version-label">v2</div></div><div class="version winner"><img src="../art/X-C-01_subsurface_signal_lamp_v3.png" alt="v3"><div class="version-label">&#x2714; PICK &mdash; v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v3.</strong> V3 best matches the prompt's description of a "weathered brass lamp fixture mounted on a stone pedestal" with a cylindrical glass chamber. It features the requested scratches on the glass, visible corrosion stains, and maintains excellent focus on the lamp's mechanical simplicity and worn patina. The composition is centered and object-focused with self-illumination against a dark background, perfectly capturing the ancient technology aesthetic. V1 is too photorealistic and lacks the stylized digital illustration quality, while V2 deviates significantly by adding a lantern-style frame structure not described in the prompt.
+    <br><br>Artifacts: <span class="issue">[v1] Overly photorealistic rendering rather than stylized digital illustration; lacks the cylindrical glass chamber detail and appears more like a modern Edison bulb than the ancient technology aesthetic requested</span> <span class="issue">[v2] Significant prompt deviation - adds a lantern frame structure with handles not mentioned in the prompt; changes the fundamental design from a mounted fixture to a portable lantern</span> 
+  </div>
+</div>
+<div class="card-section picked">
+  <div class="card-header">
+    <span class="card-name">
+      <span class="color-pip" style="background:#c4a24e; border:1px solid transparent"></span>
+      X-U-01: Flickering Relay Node
+    </span>
+    <span class="card-type">Confidence: high</span>
+  </div>
+  <div class="prompt">A crystalline metallic node suspended in mid-air, crackling with unstable arcs of energy. Its surface is scarred and pitted, with visible cracks leaking faint luminescence. Wisps of electromagnetic distortion shimmer around it, creating a faint humming aura. The background fades to neutral grey, keeping focus on the malfunctioning device's chaotic energy discharge.. Stylized digital illustration, centered object-focused composition, self-illuminated subject against dark background, ancient technology aesthetic.</div>
+  <div class="versions"><div class="version rejected"><img src="../art/X-U-01_flickering_relay_node_v1.png" alt="v1"><div class="version-label">v1</div></div><div class="version winner"><img src="../art/X-U-01_flickering_relay_node_v2.png" alt="v2"><div class="version-label">&#x2714; PICK &mdash; v2</div></div><div class="version rejected"><img src="../art/X-U-01_flickering_relay_node_v3.png" alt="v3"><div class="version-label">v3</div></div></div>
+  <div class="verdict pick">
+    <strong>Pick: v2.</strong> V2 best matches the prompt's core requirements: a crystalline metallic node with unstable energy arcs and electromagnetic distortion. It maintains a clean, centered composition with excellent readability at card size, and the bright cyan/blue energy discharge creates the self-illuminated effect against the neutral grey background. V1 adds unnecessary architectural elements (spires, pedestal) that deviate from the "node" description, while V3's orange/red glow contradicts the colorless identity and shifts the aesthetic away from the intended ancient technology feel.
+    <br><br>Artifacts: <span class="issue">[v1] Includes ornate architectural spires and pedestal structure not mentioned in prompt; deviates from simple crystalline node concept</span> <span class="issue">[v3] Orange/red luminescence contradicts colorless color identity; warm glow aesthetic inappropriate for neutral/ancient technology aesthetic</span> 
   </div>
 </div>
 
@@ -119,15 +1075,76 @@
   <h2>Selection Summary</h2>
   <table>
     <thead><tr><th>Card</th><th>Name</th><th>Pick</th><th>Confidence</th><th>Reasoning</th></tr></thead>
-    <tbody><tr><td>B-C-01</td><td>Subsurface Scavenger</td><td>v2</td><td>high</td><td>V2 best matches the prompt's core requirements: a gaunt huma...</td></tr>
-<tr><td>G-C-01</td><td>Elvish Mystic</td><td>v2</td><td>high</td><td>V2 best matches the prompt's meditative pose with hands rais...</td></tr>
-<tr><td>L-01</td><td>Plains</td><td>v2</td><td>high</td><td>V2 best captures the post-apocalyptic sci-fantasy aesthetic ...</td></tr>
+    <tbody><tr><td>B-C-01</td><td>Subsurface Scavenger</td><td>v2</td><td>high</td><td>V2 best balances all criteria. It features a properly anatom...</td></tr>
+<tr><td>B-C-02</td><td>Fist Enforcer</td><td>v1</td><td>high</td><td>V1 best captures the prompt's core requirements: a muscular ...</td></tr>
+<tr><td>B-C-03</td><td>Murder</td><td>v1</td><td>high</td><td>V1 best captures the prompt's core requirement of a figure c...</td></tr>
+<tr><td>B-C-04</td><td>Plunder the Catacombs</td><td>v3</td><td>high</td><td>V3 best captures the prompt's dark, unsettling atmosphere wi...</td></tr>
+<tr><td>B-M-01</td><td>Koyl's Reanimated Maw</td><td>v2</td><td>high</td><td>V2 best balances all criteria for a black card. It features ...</td></tr>
+<tr><td>B-R-01</td><td>Koyl Yrenum, the Vizier</td><td>v3</td><td>high</td><td>V3 is the strongest choice. It perfectly captures the prompt...</td></tr>
+<tr><td>B-R-02</td><td>The Brain Engine</td><td>v3</td><td>high</td><td>V3 best fulfills the prompt's core requirements: it features...</td></tr>
+<tr><td>B-U-01</td><td>Toothwork Familiar</td><td>v2</td><td>high</td><td>V2 best captures the prompt's core concept of a small skelet...</td></tr>
+<tr><td>B-U-02</td><td>Catacomb Harvester</td><td>v3</td><td>high</td><td>V3 best adheres to the prompt with a kneeling warlock in tat...</td></tr>
+<tr><td>B-U-03</td><td>Subsurface Harvest</td><td>v3</td><td>high</td><td>V3 best captures the prompt's core vision: a sprawling dunge...</td></tr>
+<tr><td>G-C-01</td><td>Elvish Mystic</td><td>v3</td><td>high</td><td>V3 best matches the prompt with proper meditative hand posit...</td></tr>
+<tr><td>G-C-02</td><td>Rendon Ceratops</td><td>v2</td><td>high</td><td>V2 is the strongest choice. It features a properly anatomica...</td></tr>
+<tr><td>G-C-03</td><td>Overgrown Ambush</td><td>v2</td><td>high</td><td>V2 best captures the prompt's core elements: a muscular vine...</td></tr>
+<tr><td>G-C-04</td><td>Reclaim the Surface</td><td>v2</td><td>high</td><td>V2 best captures the prompt's core vision of raw primal powe...</td></tr>
+<tr><td>G-R-01</td><td>Spore-Nest Forager</td><td>v2</td><td>high</td><td>V2 best matches the prompt's core concept of a small biolumi...</td></tr>
+<tr><td>G-R-02</td><td>The Subsurface Reclaims</td><td>v3</td><td>high</td><td>V3 best fulfills the prompt's core requirement of "fallen wa...</td></tr>
+<tr><td>G-U-01</td><td>Salvage Beetle</td><td>v2</td><td>high</td><td>V2 best balances prompt adherence with clean anatomy and car...</td></tr>
+<tr><td>G-U-02</td><td>Rendon Apex Tracker</td><td>v3</td><td>high</td><td>V3 best matches the prompt's core requirements: a lean, weat...</td></tr>
+<tr><td>G-U-03</td><td>Law of the Wilderness</td><td>v2</td><td>high</td><td>V2 best balances prompt adherence and composition. It featur...</td></tr>
+<tr><td>L-01</td><td>Plains</td><td>v2</td><td>high</td><td>V2 best fulfills the prompt's post-apocalyptic science-fanta...</td></tr>
+<tr><td>L-02</td><td>Island</td><td>v2</td><td>high</td><td>V2 best fulfills the prompt's specific requirements for "anc...</td></tr>
+<tr><td>L-03</td><td>Swamp</td><td>v2</td><td>high</td><td>V2 best balances all criteria. It features the desolate swam...</td></tr>
+<tr><td>L-04</td><td>Mountain</td><td>v3</td><td>high</td><td>V3 best fulfills the prompt's core requirements: it features...</td></tr>
+<tr><td>L-05</td><td>Forest</td><td>v1</td><td>high</td><td>V1 best captures the prompt's vision of a primordial forest ...</td></tr>
+<tr><td>L-06</td><td>Descent Waypoint</td><td>v2</td><td>high</td><td>V2 best captures the prompt's core elements: a vast undergro...</td></tr>
+<tr><td>R-C-01</td><td>Moktar Raider</td><td>v3</td><td>high</td><td>V3 is the strongest choice. It perfectly captures the aggres...</td></tr>
+<tr><td>R-C-02</td><td>Wasteland Raptor</td><td>v3</td><td>high</td><td>V3 best matches the prompt's core requirement of a "lean, mu...</td></tr>
+<tr><td>R-C-03</td><td>Scorched Passage</td><td>v1</td><td>high</td><td>V1 best captures the prompt's core requirement: a creature s...</td></tr>
+<tr><td>R-C-04</td><td>Ransack the Storeroom</td><td>v3</td><td>high</td><td>V3 is the clear winner. It perfectly captures the prompt's c...</td></tr>
+<tr><td>R-R-01</td><td>Spark Detonator</td><td>v3</td><td>high</td><td>V3 best matches the prompt with a lean, determined male char...</td></tr>
+<tr><td>R-R-02</td><td>The Burning Descent</td><td>v1</td><td>high</td><td>V1 best captures the prompt's core concept of a "roiling vor...</td></tr>
+<tr><td>R-U-01</td><td>Spark Insurgent</td><td>v3</td><td>high</td><td>V3 best captures the prompt's core elements with excellent e...</td></tr>
+<tr><td>R-U-02</td><td>Wasteland War-Raptor</td><td>v2</td><td>high</td><td>V2 best captures the prompt's core requirements: a muscular ...</td></tr>
+<tr><td>R-U-03</td><td>Combustion Cascade</td><td>v3</td><td>high</td><td>V3 best adheres to the prompt with a gaunt figure in a prope...</td></tr>
 <tr><td>U-C-01</td><td>Subsurface Surveyor</td><td>v1</td><td>high</td><td>V1 best matches the prompt with a lean scout in a proper cro...</td></tr>
-<tr><td>W-C-01</td><td>Denethix Watchguard</td><td>v3</td><td>high</td><td>V3 is the strongest choice. It has clean anatomy with no vis...</td></tr>
+<tr><td>U-C-02</td><td>Glintscale Flyer</td><td>v2</td><td>high</td><td>V2 best balances all criteria. It features a lean, graceful ...</td></tr>
+<tr><td>U-C-03</td><td>Redirect Pulse</td><td>v2</td><td>high</td><td>V2 best captures the prompt's core concept of a creature cau...</td></tr>
+<tr><td>U-C-04</td><td>Excavate the Archives</td><td>v1</td><td>high</td><td>V1 best matches the prompt with a figure in tattered robes a...</td></tr>
+<tr><td>U-M-01</td><td>Vex, Architect of Systems</td><td>v1</td><td>high</td><td>V1 best fulfills the prompt requirements with sharp, clean a...</td></tr>
+<tr><td>U-R-01</td><td>Automated Sentinel</td><td>v1</td><td>high</td><td>V1 best matches the prompt's core requirement of a "cylindri...</td></tr>
+<tr><td>U-R-02</td><td>Anomalous Resonance</td><td>v2</td><td>high</td><td>V2 best captures the prompt's core elements: visible energy ...</td></tr>
+<tr><td>U-U-01</td><td>Flickerfield Operative</td><td>v3</td><td>high</td><td>V3 best matches the prompt's core requirements: it depicts a...</td></tr>
+<tr><td>U-U-02</td><td>Relay Node Technician</td><td>v1</td><td>high</td><td>V1 best matches the prompt with a lean technician leaning in...</td></tr>
+<tr><td>U-U-03</td><td>Automated Sentry Grid</td><td>v3</td><td>high</td><td>V3 best fulfills the prompt requirements with excellent comp...</td></tr>
+<tr><td>UB-U-01</td><td>Subsurface Conduit</td><td>v2</td><td>high</td><td>V2 best balances all criteria. It shows the rogue in a prope...</td></tr>
+<tr><td>W-C-01</td><td>Denethix Watchguard</td><td>v3</td><td>high</td><td>V3 is the strongest choice. It features clean anatomy with n...</td></tr>
+<tr><td>W-C-02</td><td>Fault-Trained Sentinel</td><td>v3</td><td>high</td><td>V3 best matches the prompt's requirement for a "rigid, defen...</td></tr>
+<tr><td>W-C-03</td><td>Sanctioned Exile</td><td>v1</td><td>high</td><td>V1 best captures the prompt's core elements: the soldier has...</td></tr>
+<tr><td>W-C-04</td><td>Requisition Sweep</td><td>v2</td><td>high</td><td>V2 best captures the prompt's core elements: white-armored o...</td></tr>
+<tr><td>W-M-01</td><td>Feretha, the Hollow Founder</td><td>v3</td><td>high</td><td>V3 best fulfills the prompt's core vision of a tech-infused ...</td></tr>
+<tr><td>W-R-01</td><td>Cult Relic-Bearer</td><td>v3</td><td>high</td><td>V3 is the clear winner as it best matches the prompt's core ...</td></tr>
+<tr><td>W-R-02</td><td>The Vizier's Decree</td><td>v3</td><td>high</td><td>V3 is the strongest choice. It has clean anatomy with no AI ...</td></tr>
+<tr><td>W-U-01</td><td>Cult Archivist</td><td>v2</td><td>high</td><td>V2 best matches the prompt's core requirements: a kneeling c...</td></tr>
+<tr><td>W-U-02</td><td>Fist Checkpoint Warden</td><td>v3</td><td>high</td><td>V3 is the clear winner. It perfectly captures the prompt's c...</td></tr>
+<tr><td>W-U-03</td><td>Edict of Continuity</td><td>v3</td><td>high</td><td>V3 best fulfills the prompt requirements with visible expose...</td></tr>
+<tr><td>WB-R-01</td><td>Proclamation Enforcer</td><td>v3</td><td>high</td><td>V3 best captures the prompt's core requirements: a stern, sh...</td></tr>
+<tr><td>WB-U-01</td><td>Fist Tax Collector</td><td>v3</td><td>high</td><td>V3 best fulfills the prompt requirements with excellent anat...</td></tr>
+<tr><td>WG-R-01</td><td>Sura, Rendon Ranchmaster</td><td>v3</td><td>high</td><td>V3 best captures the prompt's vision of a commanding rancher...</td></tr>
+<tr><td>WG-U-01</td><td>Reclaimed Settler</td><td>v2</td><td>high</td><td>V2 best captures the prompt's core requirements: a kneeling ...</td></tr>
+<tr><td>WR-R-01</td><td>Kethra, Spark Commander</td><td>v3</td><td>high</td><td>V3 best captures the prompt's core elements: a fierce woman ...</td></tr>
+<tr><td>WR-U-01</td><td>Rebel Firebrand</td><td>v3</td><td>high</td><td>V3 best captures the prompt's core elements: the rebel holds...</td></tr>
+<tr><td>WU-M-01</td><td>The Custodian Eternal</td><td>v3</td><td>high</td><td>V3 best matches the prompt's vision of an ancient, jury-rigg...</td></tr>
+<tr><td>WU-R-01</td><td>Protonium Curator</td><td>v3</td><td>high</td><td>V3 best fulfills the prompt's core requirements: it features...</td></tr>
+<tr><td>WU-U-01</td><td>Sanctuary Automaton</td><td>v3</td><td>high</td><td>V3 best matches the prompt with a cylindrical head crowned w...</td></tr>
+<tr><td>X-C-01</td><td>Subsurface Signal Lamp</td><td>v3</td><td>high</td><td>V3 best matches the prompt's description of a "weathered bra...</td></tr>
+<tr><td>X-U-01</td><td>Flickering Relay Node</td><td>v2</td><td>high</td><td>V2 best matches the prompt's core requirements: a crystallin...</td></tr>
 </tbody>
   </table>
   <p style="margin-top: 1rem; color: #888; font-size: 0.85rem;">
-    Pick distribution: v1: 1, v2: 3, v3: 1
+    Pick distribution: v1: 11, v2: 22, v3: 33
   </p>
 </div>
 

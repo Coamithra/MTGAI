@@ -1,0 +1,23 @@
+{
+  "collector_number": "WU-M-01",
+  "name": "The Custodian Eternal",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best matches the prompt's vision of an ancient, jury-rigged construct with crystalline eyes glowing with intelligence. The central golden eye with surrounding smaller lights perfectly captures \"crystalline eyes that glow with ancient intelligence,\" while the visible hydraulic hoses, wiring, and patched components throughout the body strongly convey millennia of repairs. The pose with one limb raised in vigilance is more pronounced, and the composition is excellently balanced with strong focal point and readability at card size. V1 has a more generic design with less visible jury-rigging, and V2's left arm is awkwardly positioned downward rather than raised in vigilance.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Less visible jury-rigged components and patched repairs; generic design lacks the 'ancient intelligence' feel"
+    },
+    {
+      "version": "v2",
+      "issue": "Left arm positioned downward rather than raised in eternal vigilance as specified; less prominent crystalline eye design"
+    }
+  ],
+  "version_files": [
+    "WU-M-01_the_custodian_eternal_v1.png",
+    "WU-M-01_the_custodian_eternal_v2.png",
+    "WU-M-01_the_custodian_eternal_v3.png"
+  ]
+}

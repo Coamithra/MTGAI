@@ -4,15 +4,15 @@
   "versions_reviewed": 3,
   "pick": "v1",
   "confidence": "high",
-  "reasoning": "V1 best matches the prompt with a lean scout in a proper crouching pose with one hand steadying against stone, rope coils visible at the belt, and alert eyes focused downward. The cool steel-blue and teal palette is perfectly executed with excellent screen-glow lighting on the torch. V2 has a watermark artifact in the bottom right corner and the pose is less dynamic (standing rather than crouching). V3 has the character in a crouch but the pose is less natural and the composition feels more cramped with the large dark cavern entrance dominating the frame.",
+  "reasoning": "V1 best matches the prompt with a lean scout in a proper crouching pose at a cavern entrance, one hand steadying against stone, holding a torch with alert downward gaze. The composition is clean and readable at card size with excellent geometric framing. V2 has an awkward hand position (fingers splayed unnaturally on the ground) and shows a magical/tech device rather than rope at the belt. V3 depicts a female character with exaggerated features and lacks the practical scout aesthetic; the hand position is also anatomically strained.",
   "artifacts_found": [
     {
       "version": "v2",
-      "issue": "Watermark/text artifact visible in bottom right corner"
+      "issue": "Unnatural hand splaying and finger positioning on ground; magical/tech device instead of rope coils"
     },
     {
       "version": "v3",
-      "issue": "Composition too dark with oversized cavern entrance reducing character visibility at card size"
+      "issue": "Exaggerated facial features and body proportions; strained hand/arm anatomy in crouching position"
     }
   ],
   "version_files": [

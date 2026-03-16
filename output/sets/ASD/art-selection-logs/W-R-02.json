@@ -1,0 +1,23 @@
+{
+  "collector_number": "W-R-02",
+  "name": "The Vizier's Decree",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 is the strongest choice. It has clean anatomy with no AI artifacts, excellent prompt adherence (desiccated corpse on throne, commanding vizier in dark robes, cables/tubes visible, ethereal light chains), and superior composition with better focal point balance and readability at card size. The warm sandstone/ivory tones and golden-hour lighting are perfectly executed. V1 has an overly ornate throne that dominates the composition and feels less balanced, while V2's throne design is simpler but the corpse's pose is less dynamic and the overall scene feels slightly static.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Overly ornate spiked throne dominates composition, making the scene feel cluttered and less balanced for card-size readability"
+    },
+    {
+      "version": "v2",
+      "issue": "Simpler throne design but corpse pose is more passive, less dynamic commanding presence overall"
+    }
+  ],
+  "version_files": [
+    "W-R-02_the_viziers_decree_v1.png",
+    "W-R-02_the_viziers_decree_v2.png",
+    "W-R-02_the_viziers_decree_v3.png"
+  ]
+}

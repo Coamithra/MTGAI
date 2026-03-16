@@ -118,6 +118,7 @@
 - `visual_reference.py` — JSON-driven visual reference loader, Flux term replacements for setting-specific names
 - `image_generator.py` — batch generation via ComfyUI API
   - Auto-starts ComfyUI, VRAM pre-check (lists GPU-hungry apps if insufficient), resumable via progress.json
+  - `kill_comfyui()` — always kills ComfyUI on exit (Ctrl+C/Break, completion, crash) to free VRAM
   - Settings: 30 steps, 1024×768, euler sampler, guidance 3.5, Q8_0 GGUF
   - ~40s/image, generates 3 versions per card for selection
   - **CRITICAL**: Must use `subprocess.DEVNULL` not `subprocess.PIPE` when starting ComfyUI (tqdm crashes on piped stderr on Windows)
@@ -138,5 +139,6 @@
 - Post-review finalization done: reminder injection + 5 auto-fixes + 2 validator bugs fixed
 - Review gallery: `output/sets/ASD/reports/card-review-gallery.html`
 - Phase 2A art direction: style guide + prompts + personas done, ComfyUI pipeline built
-- Art generation: 66 cards × 3 versions batch running (overnight, ~2.2 hours)
-- Next: Haiku art selector → human review → character reference portraits
+- Art generation: 198 images complete (66 cards × 3 versions), art selection done ($0.37)
+- Art quality: sufficient for dev set, not production — anatomy issues, too realistic, violence scenes fail. See `learnings/phase2a-art-quality.md`
+- Next: character reference portraits → sample arts with character consistency → go/no-go gate

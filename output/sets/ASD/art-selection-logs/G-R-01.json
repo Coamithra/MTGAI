@@ -1,0 +1,23 @@
+{
+  "collector_number": "G-R-01",
+  "name": "Spore-Nest Forager",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best matches the prompt's core concept of a small bioluminescent fungal creature with a bulbous mushroom-cap body examining machinery with curiosity. It features proper anatomy with visible hands/digits, a crouching pose, and embedded circuitry (the glowing green lens in the machinery). V1 depicts a creature that's too animal-like (resembles a chameleon/lizard hybrid) rather than fungal, with an unnatural body structure. V3 has the creature examining machinery but features distorted anatomy\u2014the hands appear malformed/fused, and the overall form is too stylized away from the fungal concept. V2's composition, color palette (pale blue-green bioluminescence with earth tones), and post-apocalyptic setting best fulfill the prompt requirements.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Creature design is too animal-like (chameleon/lizard) rather than fungal; body structure doesn't match the bulbous mushroom-cap description"
+    },
+    {
+      "version": "v3",
+      "issue": "Distorted hand/digit anatomy; fused or malformed appendages; creature form deviates significantly from fungal/gelatinous concept"
+    }
+  ],
+  "version_files": [
+    "G-R-01_sporenest_forager_v1.png",
+    "G-R-01_sporenest_forager_v2.png",
+    "G-R-01_sporenest_forager_v3.png"
+  ]
+}

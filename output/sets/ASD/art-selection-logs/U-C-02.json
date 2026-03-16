@@ -1,0 +1,23 @@
+{
+  "collector_number": "U-C-02",
+  "name": "Glintscale Flyer",
+  "versions_reviewed": 3,
+  "pick": "v2",
+  "confidence": "high",
+  "reasoning": "V2 best balances all criteria. It features a lean, graceful drake with proper anatomy, iridescent blue scales with silver highlights, and wings spread wide in mid-flight. The composition is clean and readable at card size with excellent focal point. The cool teal/steel-blue palette with warm orange machinery glow in the background perfectly matches the prompt's post-apocalyptic sci-fi aesthetic. V1 is too photorealistic and bulky (not lean enough), while V3 has awkward anatomy with oversized claws and a less elegant pose.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Too photorealistic and lacks stylized digital illustration quality; drake appears too bulky/muscular rather than lean and graceful"
+    },
+    {
+      "version": "v3",
+      "issue": "Anatomy issues: oversized claws and feet appear disproportionate; less elegant pose; darker overall tone reduces iridescent shimmer effect"
+    }
+  ],
+  "version_files": [
+    "U-C-02_glintscale_flyer_v1.png",
+    "U-C-02_glintscale_flyer_v2.png",
+    "U-C-02_glintscale_flyer_v3.png"
+  ]
+}

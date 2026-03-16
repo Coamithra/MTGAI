@@ -1,0 +1,23 @@
+{
+  "collector_number": "WB-U-01",
+  "name": "Fist Tax Collector",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best fulfills the prompt requirements with excellent anatomy, proper hand positioning (one outstretched in demanding gesture, one gripping the revolver), and clear chain-mail visible beneath plate armor. The composition is balanced and readable at card size with strong focal point on the stern face and commanding pose. V1 has the revolver held too high and lacks the demanding outstretched hand gesture; V2 is overly photorealistic with architectural background that distracts from the character and doesn't match the stylized illustration requirement. V3's warm golden-hour lighting, sandstone/ivory tones, and post-apocalyptic sci-fantasy aesthetic perfectly match the color identity and mood.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Revolver held at awkward angle; missing the demanding outstretched hand gesture specified in prompt"
+    },
+    {
+      "version": "v2",
+      "issue": "Overly photorealistic style inconsistent with stylized digital illustration requirement; distracting architectural background; less commanding presence"
+    }
+  ],
+  "version_files": [
+    "WB-U-01_fist_tax_collector_v1.png",
+    "WB-U-01_fist_tax_collector_v2.png",
+    "WB-U-01_fist_tax_collector_v3.png"
+  ]
+}

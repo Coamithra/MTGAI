@@ -1,0 +1,23 @@
+{
+  "collector_number": "R-R-02",
+  "name": "The Burning Descent",
+  "versions_reviewed": 3,
+  "pick": "v1",
+  "confidence": "high",
+  "reasoning": "V1 best captures the prompt's core concept of a \"roiling vortex of crimson and orange flame spirals downward\" with excellent dynamic composition and heat distortion effects. While V2 introduces an unwanted human figure (not in the prompt) and V3's vortex is too linear/vertical, V1 delivers the swirling, spiraling flame motion with scattered igniting cards, proper color gradation from red to yellow, and strong cavern walls. V1 maintains stylized digital illustration quality without photorealism and reads clearly at card size.",
+  "artifacts_found": [
+    {
+      "version": "v2",
+      "issue": "Human figure added that contradicts the prompt (no character specified); shifts focus away from the vortex itself"
+    },
+    {
+      "version": "v3",
+      "issue": "Vortex is too linear and vertical rather than spiraling; lacks the dynamic tilted composition requested"
+    }
+  ],
+  "version_files": [
+    "R-R-02_the_burning_descent_v1.png",
+    "R-R-02_the_burning_descent_v2.png",
+    "R-R-02_the_burning_descent_v3.png"
+  ]
+}

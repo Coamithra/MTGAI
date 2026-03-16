@@ -1,0 +1,23 @@
+{
+  "collector_number": "W-C-02",
+  "name": "Fault-Trained Sentinel",
+  "versions_reviewed": 3,
+  "pick": "v3",
+  "confidence": "high",
+  "reasoning": "V3 best matches the prompt's requirement for a \"rigid, defensive stance with one gauntleted hand raised to shield.\" It shows the soldier in a clear, alert posture with the shield prominently raised and visible. The stylized digital illustration style is clean and readable at card size, with excellent color identity (warm sandstone/ivory tones with golden-hour lighting). V1 has the hand in a fist rather than raised to shield, and V2 shows a more aggressive forward stance rather than the defensive rigidity requested. V3's composition is balanced and the weathered metal details are clearly visible.",
+  "artifacts_found": [
+    {
+      "version": "v1",
+      "issue": "Hand pose doesn't match prompt - shows closed fist rather than raised shield hand"
+    },
+    {
+      "version": "v2",
+      "issue": "Stance is too aggressive/forward-leaning rather than rigid and defensive; shield held at side rather than raised"
+    }
+  ],
+  "version_files": [
+    "W-C-02_faulttrained_sentinel_v1.png",
+    "W-C-02_faulttrained_sentinel_v2.png",
+    "W-C-02_faulttrained_sentinel_v3.png"
+  ]
+}
