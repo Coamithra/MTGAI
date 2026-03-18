@@ -42,7 +42,7 @@ GENERATION_TIMEOUT = 600  # 10 minutes max per image (cold start model loading c
 
 
 # Minimum free VRAM required (MB) — Flux Q8_0 needs ~9.6GB for models + ~1GB compute
-MIN_VRAM_FREE_MB = 10_500
+MIN_VRAM_FREE_MB = 10_200
 
 
 # ---------------------------------------------------------------------------
@@ -184,8 +184,13 @@ def is_comfyui_running() -> bool:
         return False
 
 
-def start_comfyui() -> subprocess.Popen:
-    """Start ComfyUI server as a subprocess."""
+def start_comfyui(log_dir: Path | None = None) -> subprocess.Popen:
+    """Start ComfyUI server as a subprocess.
+
+    Args:
+        log_dir: If provided, redirect ComfyUI stdout/stderr to a log file
+                 in this directory. Otherwise uses DEVNULL.
+    """
     python_exe = COMFYUI_ROOT / "venv" / "Scripts" / "python.exe"
     main_py = COMFYUI_ROOT / "main.py"
 
@@ -193,14 +198,33 @@ def start_comfyui() -> subprocess.Popen:
         raise FileNotFoundError(f"ComfyUI Python not found: {python_exe}")
 
     logger.info("Starting ComfyUI server...")
-    # Use DEVNULL for stdout/stderr to avoid Windows pipe issues
-    # (tqdm progress bars crash with OSError: [Errno 22] on piped stderr)
+    # Can't use subprocess.PIPE — tqdm progress bars crash with
+    # OSError: [Errno 22] on piped stderr on Windows.
+    # Instead, redirect to a log file so we can diagnose crashes.
+    if log_dir is not None:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        comfyui_log = log_dir / "comfyui.log"
+        logger.info("ComfyUI output → %s", comfyui_log)
+        log_handle = open(comfyui_log, "w", encoding="utf-8", buffering=1)  # noqa: SIM115
+        stdout_dest = log_handle
+        stderr_dest = log_handle
+    else:
+        log_handle = None
+        stdout_dest = subprocess.DEVNULL
+        stderr_dest = subprocess.DEVNULL
+
     proc = subprocess.Popen(
-        [str(python_exe), str(main_py), "--listen", "127.0.0.1", "--port", "8188"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        [
+            str(python_exe), str(main_py),
+            "--listen", "127.0.0.1", "--port", "8188",
+            "--disable-cuda-malloc",  # Avoid cudaMallocAsync instability
+        ],
+        stdout=stdout_dest,
+        stderr=stderr_dest,
         cwd=str(COMFYUI_ROOT),
     )
+    # Stash the log handle on the proc so we can close it later
+    proc._log_handle = log_handle  # type: ignore[attr-defined]
 
     # Wait for server to become responsive
     for i in range(60):
@@ -215,17 +239,20 @@ def start_comfyui() -> subprocess.Popen:
     raise TimeoutError("ComfyUI failed to start within 120 seconds")
 
 
-def ensure_comfyui() -> subprocess.Popen | None:
+def ensure_comfyui(log_dir: Path | None = None) -> subprocess.Popen | None:
     """Ensure ComfyUI is running. Starts it if needed. Returns process or None.
 
     Checks VRAM availability before starting to fail fast with an
     actionable error instead of crashing mid-generation.
+
+    Args:
+        log_dir: If provided, redirect ComfyUI output to a log file here.
     """
     if is_comfyui_running():
         logger.info("ComfyUI already running at %s", COMFYUI_URL)
         return None
     check_vram()
-    return start_comfyui()
+    return start_comfyui(log_dir=log_dir)
 
 
 def kill_comfyui(proc: subprocess.Popen | None = None) -> None:
@@ -234,6 +261,15 @@ def kill_comfyui(proc: subprocess.Popen | None = None) -> None:
     Tries the process handle first (if we started it), then falls back to
     finding and killing the ComfyUI Python process by its command line.
     """
+    # Close the log file handle if we opened one
+    if proc is not None:
+        log_handle = getattr(proc, "_log_handle", None)
+        if log_handle is not None:
+            try:
+                log_handle.close()
+            except Exception:
+                pass
+
     # Try the process handle we have
     if proc is not None and proc.poll() is None:
         logger.info("Terminating ComfyUI (PID %d)...", proc.pid)
@@ -299,6 +335,8 @@ def _queue_prompt(workflow: dict) -> str:
 def _poll_completion(prompt_id: str, timeout: int = GENERATION_TIMEOUT) -> dict:
     """Poll ComfyUI history until the prompt completes. Returns output info."""
     start = time.time()
+    consecutive_failures = 0
+    max_consecutive_failures = 5  # ~15s of no response = ComfyUI is dead
     while True:
         elapsed = time.time() - start
         if elapsed > timeout:
@@ -307,7 +345,15 @@ def _poll_completion(prompt_id: str, timeout: int = GENERATION_TIMEOUT) -> dict:
         try:
             resp = urllib.request.urlopen(f"{COMFYUI_URL}/history/{prompt_id}")
             history = json.loads(resp.read())
-        except Exception:
+            consecutive_failures = 0  # Reset on success
+        except Exception as e:
+            consecutive_failures += 1
+            if consecutive_failures >= max_consecutive_failures:
+                raise RuntimeError(
+                    f"ComfyUI appears to have died — {consecutive_failures} consecutive "
+                    f"connection failures over ~{consecutive_failures * POLL_INTERVAL}s. "
+                    f"Last error: {e}"
+                ) from e
             time.sleep(POLL_INTERVAL)
             continue
 
@@ -355,6 +401,39 @@ def _download_image(filename: str, subfolder: str = "") -> bytes:
     return resp.read()
 
 
+def flush_comfyui() -> None:
+    """Flush ComfyUI's CUDA caches and history to prevent GPU memory accumulation.
+
+    Calls two ComfyUI API endpoints:
+    - POST /free — triggers torch.cuda.empty_cache() and clears internal caches
+      while keeping models loaded (no reload penalty)
+    - POST /history — clears completed generation history from RAM
+
+    Call this after each image generation to prevent the progressive GPU state
+    buildup that causes silent crashes after several images.
+    """
+    try:
+        # Free CUDA cache (keep models loaded)
+        payload = json.dumps({"unload_models": False, "free_memory": True}).encode()
+        req = urllib.request.Request(
+            f"{COMFYUI_URL}/free",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req, timeout=10)
+
+        # Clear history to free CPU-side memory
+        clear_payload = json.dumps({"clear": True}).encode()
+        req = urllib.request.Request(
+            f"{COMFYUI_URL}/history",
+            data=clear_payload,
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        logger.warning("Failed to flush ComfyUI caches: %s", e)
+
+
 # ---------------------------------------------------------------------------
 # Image generation (local ComfyUI backend)
 # ---------------------------------------------------------------------------
@@ -391,6 +470,9 @@ def generate_image_comfyui(
 
     # Download the image
     image_data = _download_image(result["filename"], result["subfolder"])
+
+    # Flush CUDA caches to prevent GPU memory accumulation across generations
+    flush_comfyui()
 
     metadata = {
         "prompt_id": prompt_id,

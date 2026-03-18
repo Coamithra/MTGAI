@@ -170,10 +170,30 @@ Human review of HTML report → approve/reject/regenerate
 - `output/sets/ASD/art-selection-logs/` — per-card Haiku review results
 - `output/sets/ASD/reports/art-selection-report.html` — visual comparison report
 
+### 11. GPU State Accumulation Causes Silent Crashes During Batch Generation
+
+Character portrait generation (768×1024) crashed silently after 2-7 images. Both Python and ComfyUI processes died with no trace — no crash.json, no Event Viewer entries, no GPU TDR errors. Pattern worsened each run (7→5→2 images), suggesting stale GPU state accumulating.
+
+**Root cause:** No CUDA cache cleanup between image generations. ComfyUI accumulates CUDA cache, history buffers, and internal state across every generation call.
+
+**Fix:** Added `flush_comfyui()` to `image_generator.py` — calls two ComfyUI API endpoints after every image:
+- `POST /free {"unload_models": false, "free_memory": true}` — triggers `torch.cuda.empty_cache()` inside ComfyUI
+- `POST /history {"clear": true}` — clears completed generation history from RAM
+
+This replaced the heavy-handed restart-every-2-images workaround that was previously needed.
+
+**Why card art (198 images) worked but portraits crashed:** Unknown. Possibly the portrait dimensions (768×1024 vs 1024×768), session length, or subtle CUDA allocator behavior differences. The flush fix prevents the issue regardless.
+
+### 12. Known MTG Characters Need Official Reference Art
+
+Flux has no concept of specific MTG characters. Generating Jace portraits produced generic "young man in blue robes" — nothing recognizable as Jace. For canonical planeswalkers/characters appearing in custom sets, fetch official art from Scryfall instead:
+- API: `https://api.scryfall.com/cards/named?fuzzy=<character_name>` → `image_uris.art_crop`
+- Pick cards where the face is clearly visible (many Jace arts have face hidden under hood)
+- Save as `<slug>_official.png` alongside generated portraits
+
 ## What's Next
 
-- Full 66-card batch generation running (3 versions each, ~2.2 hours at 1024×768)
-- Run Haiku selector on full batch (~$0.40)
-- Human review of selection report
-- Character reference portraits (2A-5) — need Flux Kontext Dev + PuLID for identity consistency
+- Character reference portraits DONE (24/24 generated, 8/8 picked)
+- Jace uses official Scryfall art (Jace, Wielder of Mysteries — best facial clarity)
+- Next: 2A-6 sample card arts with character identity injection (Kontext Dev + PuLID)
 - Evaluate cloud services for production art quality upgrade
