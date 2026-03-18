@@ -1,4 +1,9 @@
-"""Minimal LLM client for card/mechanic generation."""
+"""Minimal LLM client for card/mechanic generation.
+
+Supports Anthropic prompt caching — system prompts and tool definitions are
+marked with ``cache_control`` so sequential API calls within ~5 minutes reuse
+the cached prefix at 90 % discount on input tokens.
+"""
 
 import logging
 import os
@@ -23,6 +28,48 @@ _MODEL_TIERS: dict[str, tuple[int, str]] = {
     "sonnet": (1, "claude-sonnet-4-6"),
     "opus": (2, "claude-opus-4-6"),
 }
+
+# Pricing per 1M tokens (March 2026)
+PRICING: dict[str, dict[str, float]] = {
+    "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.00},
+    "claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
+    "claude-opus-4-6": {"input": 15.00, "output": 75.00},
+}
+
+
+def calc_cost(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cache_creation_input_tokens: int = 0,
+    cache_read_input_tokens: int = 0,
+) -> float:
+    """Calculate API cost including prompt-cache pricing.
+
+    - Non-cached input tokens: 1x base input price
+    - Cache creation tokens: 1.25x base input price
+    - Cache read tokens: 0.1x base input price
+    - Output tokens: 1x base output price
+    """
+    prices = PRICING.get(model, {"input": 0, "output": 0})
+    inp = prices["input"]
+    return (
+        input_tokens * inp
+        + cache_creation_input_tokens * inp * 1.25
+        + cache_read_input_tokens * inp * 0.1
+        + output_tokens * prices["output"]
+    ) / 1_000_000
+
+
+def cost_from_result(result: dict) -> float:
+    """Convenience: calculate cost directly from a ``generate_with_tool`` result."""
+    return calc_cost(
+        model=result["model"],
+        input_tokens=result["input_tokens"],
+        output_tokens=result["output_tokens"],
+        cache_creation_input_tokens=result.get("cache_creation_input_tokens", 0),
+        cache_read_input_tokens=result.get("cache_read_input_tokens", 0),
+    )
 
 
 def _model_tier(model: str) -> int:
@@ -73,6 +120,7 @@ def generate_with_tool(
     temperature: float = 1.0,
     max_tokens: int = 8192,
     effort: str | None = None,
+    cache: bool = True,
 ) -> dict:
     """Call Anthropic API with tool_use for structured JSON output.
 
@@ -83,24 +131,43 @@ def generate_with_tool(
         effort: Optional effort level ("max", "high", "low"). Opus-only.
                 Note: ``thinking`` is incompatible with forced tool_choice,
                 but ``effort`` works fine.
+        cache:  Enable Anthropic prompt caching.  Marks the system prompt
+                and tool definition with ``cache_control`` so that repeated
+                calls within ~5 min reuse the cached prefix (90 % cheaper).
 
     Returns a dict with:
         - result: the parsed tool input (structured JSON)
-        - input_tokens: tokens used in the prompt
+        - input_tokens: non-cached input tokens
         - output_tokens: tokens generated
+        - cache_creation_input_tokens: tokens written to cache (first call)
+        - cache_read_input_tokens: tokens read from cache (subsequent calls)
         - stop_reason: the stop reason from the API
+        - model: effective model used
     """
     model, effort = cap_model(model, effort)
 
     client = Anthropic()
 
+    if cache:
+        system: str | list[dict] = [
+            {
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+        tools = [{**tool_schema, "cache_control": {"type": "ephemeral"}}]
+    else:
+        system = system_prompt
+        tools = [tool_schema]
+
     kwargs: dict = {
         "model": model,
         "max_tokens": max_tokens,
         "temperature": temperature,
-        "system": system_prompt,
+        "system": system,
         "messages": [{"role": "user", "content": user_prompt}],
-        "tools": [tool_schema],
+        "tools": tools,
         "tool_choice": {"type": "tool", "name": tool_schema["name"]},
     }
 
@@ -116,6 +183,18 @@ def generate_with_tool(
             f"Increase max_tokens (currently {max_tokens})."
         )
 
+    # Extract cache usage stats
+    cache_creation = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+    cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
+
+    if cache and (cache_creation or cache_read):
+        logger.debug(
+            "Cache: %d created, %d read, %d non-cached",
+            cache_creation,
+            cache_read,
+            response.usage.input_tokens,
+        )
+
     # Extract tool use result
     for block in response.content:
         if block.type == "tool_use":
@@ -123,6 +202,8 @@ def generate_with_tool(
                 "result": block.input,
                 "input_tokens": response.usage.input_tokens,
                 "output_tokens": response.usage.output_tokens,
+                "cache_creation_input_tokens": cache_creation,
+                "cache_read_input_tokens": cache_read,
                 "stop_reason": response.stop_reason,
                 "model": model,
             }

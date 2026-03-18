@@ -34,10 +34,9 @@ from mtgai.generation.card_generator import (
     GenerationProgress,
     _process_batch_result,
     _save_batch_log,
-    calc_cost,
     group_slots_into_batches,
 )
-from mtgai.generation.llm_client import generate_with_tool
+from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.generation.prompts import load_system_prompt
 from mtgai.io.card_io import load_card
 from mtgai.models.card import Card
@@ -58,12 +57,6 @@ CARDS_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "cards"
 ARCHIVE_DIR = CARDS_DIR / "archive"
 REPORTS_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reports"
 REVISION_LOG_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "revision_logs"
-
-# Pricing per 1M tokens
-PRICING = {
-    "claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
-    "claude-opus-4-6": {"input": 15.00, "output": 75.00},
-}
 
 
 # ---------------------------------------------------------------------------
@@ -605,8 +598,14 @@ def regenerate_slots(
                 progress.failed_slots[s["slot_id"]] = "API call failed"
             continue
 
-        batch_cost = calc_cost(model, result["input_tokens"], result["output_tokens"])
-        progress.record_call(model, result["input_tokens"], result["output_tokens"])
+        batch_cost = cost_from_result(result)
+        progress.record_call(
+            model,
+            result["input_tokens"],
+            result["output_tokens"],
+            result.get("cache_creation_input_tokens", 0),
+            result.get("cache_read_input_tokens", 0),
+        )
 
         logger.info(
             "API response: %d in / %d out tokens, $%.4f, %.1fs",
@@ -854,7 +853,7 @@ def run_revision(
             effort=rev_effort,
         )
         revision_latency = time.time() - t0
-        revision_cost = calc_cost(rev_model, result["input_tokens"], result["output_tokens"])
+        revision_cost = cost_from_result(result)
 
         logger.info(
             "Revision API: %d in / %d out tokens, $%.4f, %.1fs",

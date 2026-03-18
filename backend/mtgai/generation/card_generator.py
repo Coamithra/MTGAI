@@ -21,7 +21,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from mtgai.generation.llm_client import generate_with_tool
+from mtgai.generation.llm_client import calc_cost, cost_from_result, generate_with_tool
 from mtgai.generation.prompts import build_user_prompt, load_system_prompt
 from mtgai.io.card_io import load_card, save_card
 from mtgai.models.card import Card, GenerationAttempt
@@ -54,13 +54,6 @@ EFFORT = "max"  # Opus-only; thinking is incompatible with forced tool_choice
 TEMPERATURE = 1.0
 BATCH_SIZE = 5
 MAX_RETRIES = 3  # Only for schema parse failures
-
-# Pricing per 1M tokens (March 2026)
-PRICING = {
-    "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.00},
-    "claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
-    "claude-opus-4-6": {"input": 15.00, "output": 75.00},
-}
 
 # Tool schemas for Anthropic tool_use
 CARD_TOOL_SCHEMA = {
@@ -128,16 +121,6 @@ CARDS_BATCH_TOOL_SCHEMA = {
 
 
 # ---------------------------------------------------------------------------
-# Cost tracking
-# ---------------------------------------------------------------------------
-
-
-def calc_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    prices = PRICING.get(model, {"input": 0, "output": 0})
-    return (input_tokens * prices["input"] + output_tokens * prices["output"]) / 1_000_000
-
-
-# ---------------------------------------------------------------------------
 # Progress tracking — resumable state
 # ---------------------------------------------------------------------------
 
@@ -183,10 +166,25 @@ class GenerationProgress:
             encoding="utf-8",
         )
 
-    def record_call(self, model: str, input_tokens: int, output_tokens: int) -> None:
-        self.total_input_tokens += input_tokens
+    def record_call(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cache_creation_input_tokens: int = 0,
+        cache_read_input_tokens: int = 0,
+    ) -> None:
+        self.total_input_tokens += (
+            input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+        )
         self.total_output_tokens += output_tokens
-        self.total_cost_usd += calc_cost(model, input_tokens, output_tokens)
+        self.total_cost_usd += calc_cost(
+            model,
+            input_tokens,
+            output_tokens,
+            cache_creation_input_tokens,
+            cache_read_input_tokens,
+        )
         self.total_api_calls += 1
 
 
@@ -262,13 +260,16 @@ def _retry_single_card(
             effort=EFFORT,
         )
         latency = time.time() - t0
-        cost = calc_cost(model, result["input_tokens"], result["output_tokens"])
+        cost = cost_from_result(result)
         logger.info(
-            "    Retry API response: %d in / %d out tokens, $%.4f, %.1fs",
+            "    Retry API response: %d in / %d out tokens, $%.4f, %.1fs%s",
             result["input_tokens"],
             result["output_tokens"],
             cost,
             latency,
+            f" (cache read {result['cache_read_input_tokens']})"
+            if result.get("cache_read_input_tokens")
+            else "",
         )
         return result
     except Exception:
@@ -599,7 +600,13 @@ def _retry_parse_failure(
         if result is None:
             continue
 
-        progress.record_call(model, result["input_tokens"], result["output_tokens"])
+        progress.record_call(
+            model,
+            result["input_tokens"],
+            result["output_tokens"],
+            result.get("cache_creation_input_tokens", 0),
+            result.get("cache_read_input_tokens", 0),
+        )
 
         retry_raw = result["result"]
         retry_raw.setdefault("set_code", DEFAULT_SET_CODE)
@@ -640,7 +647,7 @@ def _retry_parse_failure(
             model=model,
             input_tokens=result["input_tokens"],
             output_tokens=result["output_tokens"],
-            cost_usd=calc_cost(model, result["input_tokens"], result["output_tokens"]),
+            cost_usd=cost_from_result(result),
         )
 
         if card is not None:
@@ -840,16 +847,31 @@ def generate_set(
             progress.save()
             continue
 
-        batch_cost = calc_cost(model, result["input_tokens"], result["output_tokens"])
-        progress.record_call(model, result["input_tokens"], result["output_tokens"])
+        batch_cost = cost_from_result(result)
+        progress.record_call(
+            model,
+            result["input_tokens"],
+            result["output_tokens"],
+            result.get("cache_creation_input_tokens", 0),
+            result.get("cache_read_input_tokens", 0),
+        )
 
+        cache_created = result.get("cache_creation_input_tokens", 0)
+        cache_read = result.get("cache_read_input_tokens", 0)
         logger.info(
             "API response: %d input tokens, %d output tokens, $%.4f, %.1fs",
-            result["input_tokens"],
+            result["input_tokens"] + cache_created + cache_read,
             result["output_tokens"],
             batch_cost,
             api_latency,
         )
+        if cache_created or cache_read:
+            logger.info(
+                "Cache: %d created, %d read, %d non-cached",
+                cache_created,
+                cache_read,
+                result["input_tokens"],
+            )
         logger.info(
             "Stop reason: %s",
             result.get("stop_reason", "unknown"),

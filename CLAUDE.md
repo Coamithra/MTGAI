@@ -41,6 +41,10 @@
 
 ## LLM Client (`mtgai/generation/llm_client.py`)
 - `generate_with_tool()` — Anthropic API with forced `tool_choice` for structured JSON output
+- **Prompt caching** enabled by default (`cache=True`): system prompt and tool schema are marked with `cache_control` so sequential calls within ~5 min reuse the cached prefix at 90% discount on input tokens
+- Centralized `PRICING`, `calc_cost()`, and `cost_from_result()` — all callers import from here
+  - `calc_cost()` accounts for cache pricing: 1.25x for cache creation, 0.1x for cache reads
+  - `cost_from_result(result)` convenience wrapper unpacks a `generate_with_tool` result dict
 - Supports `effort` parameter (Opus-only): "max", "high", "low"
 - Model tier capping via `MTGAI_MAX_MODEL` env var (set to "haiku", "sonnet", or "opus")
   - Higher-tier requests are downgraded to the cap model

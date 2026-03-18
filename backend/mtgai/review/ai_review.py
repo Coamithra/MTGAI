@@ -26,7 +26,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from mtgai.generation.llm_client import generate_with_tool
+from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.generation.prompts import format_mechanic_block
 from mtgai.io.card_io import load_card, save_card
 from mtgai.models.card import Card
@@ -50,18 +50,6 @@ MODEL = "claude-opus-4-6"
 EFFORT = "max"
 TEMPERATURE = 1.0
 MAX_ITERATIONS = 5
-
-# Pricing per 1M tokens
-PRICING = {
-    "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.00},
-    "claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
-    "claude-opus-4-6": {"input": 15.00, "output": 75.00},
-}
-
-
-def calc_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    prices = PRICING.get(model, {"input": 0, "output": 0})
-    return (input_tokens * prices["input"] + output_tokens * prices["output"]) / 1_000_000
 
 
 # ---------------------------------------------------------------------------
@@ -482,8 +470,12 @@ def _review_single(
 
         latency = time.time() - t0
         effective_model = result.get("model", MODEL)
-        cost = calc_cost(effective_model, result["input_tokens"], result["output_tokens"])
-        total_in += result["input_tokens"]
+        cost = cost_from_result(result)
+        total_in += (
+            result["input_tokens"]
+            + result.get("cache_creation_input_tokens", 0)
+            + result.get("cache_read_input_tokens", 0)
+        )
         total_out += result["output_tokens"]
         total_cost += cost
         total_latency += latency
@@ -620,8 +612,12 @@ def _review_council(
 
         latency = time.time() - t0
         effective_model = result.get("model", MODEL)
-        cost = calc_cost(effective_model, result["input_tokens"], result["output_tokens"])
-        total_in += result["input_tokens"]
+        cost = cost_from_result(result)
+        total_in += (
+            result["input_tokens"]
+            + result.get("cache_creation_input_tokens", 0)
+            + result.get("cache_read_input_tokens", 0)
+        )
         total_out += result["output_tokens"]
         total_cost += cost
         total_latency += latency
@@ -720,8 +716,12 @@ def _review_council(
 
         latency = time.time() - t0
         effective_model = result.get("model", MODEL)
-        cost = calc_cost(effective_model, result["input_tokens"], result["output_tokens"])
-        total_in += result["input_tokens"]
+        cost = cost_from_result(result)
+        total_in += (
+            result["input_tokens"]
+            + result.get("cache_creation_input_tokens", 0)
+            + result.get("cache_read_input_tokens", 0)
+        )
         total_out += result["output_tokens"]
         total_cost += cost
         total_latency += latency
