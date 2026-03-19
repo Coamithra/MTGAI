@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Card Render Comparison — Iteration Review</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #1a1a2e; color: #e0e0e0;
+  font-family: 'Segoe UI', system-ui, sans-serif; padding: 2rem;
+}
+h1 { text-align: center; color: #c9a54e; margin-bottom: 0.5rem; }
+.subtitle { text-align: center; color: #888; margin-bottom: 0.5rem; font-size: 0.9rem; }
+.context { max-width: 80ch; margin: 0 auto 2rem; color: #aaa; font-size: 0.85rem; line-height: 1.6; }
+.context p { margin-bottom: 0.5rem; }
+.round { margin-bottom: 3rem; }
+.round h2 { color: #e0c97f; margin-bottom: 0.5rem; font-size: 1.2rem; }
+.round .notes { color: #888; font-size: 0.85rem; margin-bottom: 1rem; }
+.cards { display: flex; flex-wrap: wrap; gap: 2rem; }
+.card-pair {
+  background: #16213e; border-radius: 12px; padding: 1.5rem;
+  border: 1px solid #0f3460; flex: 0 0 auto;
+}
+.card-pair h3 { color: #aaa; font-size: 0.85rem; margin-bottom: 0.8rem; }
+.pair-images { display: flex; gap: 1rem; align-items: flex-start; }
+.pair-images .col { text-align: center; }
+.pair-images .col h4 { font-size: 0.75rem; color: #666; margin-bottom: 0.3rem; }
+.pair-images img { height: 420px; width: auto; border-radius: 8px; border: 1px solid #333; }
+.issues { margin-top: 2rem; }
+.issues h2 { color: #e0c97f; margin-bottom: 1rem; }
+.issue {
+  background: #16213e; border-radius: 8px; padding: 1rem 1.5rem;
+  border: 1px solid #0f3460; margin-bottom: 0.8rem;
+}
+.issue .tag {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 0.75rem; font-weight: 600; margin-right: 0.5rem;
+}
+.tag.critical { background: #c0392b; color: #fff; }
+.tag.major { background: #d4a017; color: #1a1a2e; }
+.tag.minor { background: #2980b9; color: #fff; }
+.issue .desc { margin-top: 0.3rem; font-size: 0.85rem; color: #bbb; }
+.checklist { margin-top: 2rem; }
+.checklist h2 { color: #e0c97f; margin-bottom: 1rem; }
+.checklist ul { list-style: none; }
+.checklist li { padding: 0.3rem 0; font-size: 0.9rem; }
+.checklist li::before { content: "☐ "; color: #c9a54e; }
+</style>
+</head>
+<body>
+
+<h1>Card Render Comparison — Iteration 1</h1>
+<p class="subtitle">Our renders vs real MTG cards — spot the differences, fix, repeat</p>
+
+<div class="context">
+  <p><strong>Where we are:</strong> Phase 2C (Card Renderer) of the MTGAI project — building an automated pipeline that renders custom Magic: The Gathering cards as print-ready images. We have 66 cards with AI-generated art, card data (names, costs, rules text, etc.), and real M15 frame templates from Card Conjurer.</p>
+  <p><strong>What this is:</strong> First render pass. We composite art + frame + text into final card images. This page compares our renders against real MTG cards from Scryfall to identify visual differences. Each iteration fixes the biggest issues, re-renders, and compares again.</p>
+  <p><strong>Goal:</strong> Near-pixel-perfect match to real MTG card layout — correct font sizes, positions, spacing, symbol rendering, and overall feel.</p>
+</div>
+
+<div class="round">
+  <h2>Sample Cards — Our Renders</h2>
+  <p class="notes">Diverse set: white creature, blue spell, black creature, red spell, green creature, multicolor, artifact, land</p>
+  <div class="cards">
+    <div class="card-pair">
+      <h3>White Creature (W-C-01)</h3>
+      <div class="pair-images">
+        <div class="col">
+          <h4>Our Render</h4>
+          <img src="../renders/W-C-01_denethix_watchguard.png" alt="Our W-C-01">
+        </div>
+      </div>
+    </div>
+    <div class="card-pair">
+      <h3>Blue Uncommon (U-U-01)</h3>
+      <div class="pair-images">
+        <div class="col">
+          <h4>Our Render</h4>
+          <img src="../renders/U-U-01_cognitive_salvager.png" alt="Our U-U-01">
+        </div>
+      </div>
+    </div>
+    <div class="card-pair">
+      <h3>Black Rare (B-R-01)</h3>
+      <div class="pair-images">
+        <div class="col">
+          <h4>Our Render</h4>
+          <img src="../renders/B-R-01_koyl_yrenum_the_vizier.png" alt="Our B-R-01">
+        </div>
+      </div>
+    </div>
+    <div class="card-pair">
+      <h3>Red Common (R-C-01)</h3>
+      <div class="pair-images">
+        <div class="col">
+          <h4>Our Render</h4>
+          <img src="../renders/R-C-01_ruin_scavenger.png" alt="Our R-C-01">
+        </div>
+      </div>
+    </div>
+    <div class="card-pair">
+      <h3>Green Creature (G-C-01)</h3>
+      <div class="pair-images">
+        <div class="col">
+          <h4>Our Render</h4>
+          <img src="../renders/G-C-01_elvish_mystic.png" alt="Our G-C-01">
+        </div>
+      </div>
+    </div>
+    <div class="card-pair">
+      <h3>Multicolor (WU-U-01)</h3>
+      <div class="pair-images">
+        <div class="col">
+          <h4>Our Render</h4>
+          <img src="../renders/WU-U-01_fist_tax_collector.png" alt="Our WU-U-01">
+        </div>
+      </div>
+    </div>
+    <div class="card-pair">
+      <h3>Artifact (X-C-01)</h3>
+      <div class="pair-images">
+        <div class="col">
+          <h4>Our Render</h4>
+          <img src="../renders/X-C-01_subsurface_signal_lamp.png" alt="Our X-C-01">
+        </div>
+      </div>
+    </div>
+    <div class="card-pair">
+      <h3>Basic Land (L-01)</h3>
+      <div class="pair-images">
+        <div class="col">
+          <h4>Our Render</h4>
+          <img src="../renders/L-01_plains.png" alt="Our L-01">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="issues">
+  <h2>Known Issues — Iteration 1</h2>
+
+  <div class="issue">
+    <span class="tag critical">CRITICAL</span> <strong>Mana cost symbols missing</strong>
+    <div class="desc">No mana symbols rendered in the top-right of the name bar. The {1}{W} cost should appear as colored circles.</div>
+  </div>
+
+  <div class="issue">
+    <span class="tag critical">CRITICAL</span> <strong>Rules text too small / wrong position</strong>
+    <div class="desc">Oracle text is barely readable. Font size appears much too small, and text may not be filling the text box properly. Compare to real cards where rules text is prominent and fills the space.</div>
+  </div>
+
+  <div class="issue">
+    <span class="tag critical">CRITICAL</span> <strong>Set symbol missing</strong>
+    <div class="desc">No set symbol visible on the right side of the type bar. Should show the ASD vortex symbol colored by rarity.</div>
+  </div>
+
+  <div class="issue">
+    <span class="tag major">MAJOR</span> <strong>P/T box text too small</strong>
+    <div class="desc">Power/toughness is present but barely visible. Should be large, bold text centered in the P/T box.</div>
+  </div>
+
+  <div class="issue">
+    <span class="tag major">MAJOR</span> <strong>Collector info missing or invisible</strong>
+    <div class="desc">The bottom collector bar (card number, set code, artist credit) is not visible.</div>
+  </div>
+
+  <div class="issue">
+    <span class="tag minor">MINOR</span> <strong>Card name font size</strong>
+    <div class="desc">May need adjustment — compare to real cards for proper weight and size.</div>
+  </div>
+
+  <div class="issue">
+    <span class="tag minor">MINOR</span> <strong>Flavor text separator</strong>
+    <div class="desc">Check if the italic flavor text separator line renders correctly between oracle and flavor text.</div>
+  </div>
+</div>
+
+<div class="checklist">
+  <h2>Iteration 2 — Fix List</h2>
+  <ul>
+    <li>Fix mana cost symbol rendering in name bar</li>
+    <li>Fix rules text font size and positioning</li>
+    <li>Fix set symbol rendering in type bar</li>
+    <li>Fix P/T box text size</li>
+    <li>Fix collector info rendering</li>
+    <li>Compare font sizes against real MTG reference</li>
+    <li>Re-render all 66 cards</li>
+    <li>Update this page with iteration 2 results</li>
+  </ul>
+</div>
+
+</body>
+</html>

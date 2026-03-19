@@ -123,6 +123,7 @@
 - `image_generator.py` — batch generation via ComfyUI API
   - Auto-starts ComfyUI, VRAM pre-check (lists GPU-hungry apps if insufficient), resumable via progress.json
   - `kill_comfyui()` — always kills ComfyUI on exit (Ctrl+C/Break, completion, crash) to free VRAM
+  - `flush_comfyui()` — calls `/free` + `/history` after each gen to prevent GPU memory accumulation
   - Settings: 30 steps, 1024×768, euler sampler, guidance 3.5, Q8_0 GGUF
   - ~40s/image, generates 3 versions per card for selection
   - **CRITICAL**: Must use `subprocess.DEVNULL` not `subprocess.PIPE` when starting ComfyUI (tqdm crashes on piped stderr on Windows)
@@ -135,14 +136,31 @@
 - CLI: `python -m mtgai.art.image_generator --set ASD [--card W-C-01] [--dry-run]`
 - CLI: `python -m mtgai.art.art_selector --set ASD [--report-only]`
 
-## Current State (Phase 2A In Progress)
+## Card Renderer (`mtgai/rendering/`)
+- `card_renderer.py` — orchestrator: loads card + art + frame → composites → saves PNG
+- `text_engine.py` — rich text: inline mana symbols, bold keywords, italic reminder text, dynamic font sizing, word wrapping
+- `layout.py` — zone bounding boxes (name bar, art window, type bar, text box, P/T, collector)
+- `symbol_renderer.py` — mana/set symbol rendering with cairosvg→Pillow fallback
+- `fonts.py` — font loading/caching (Cinzel, EB Garamond, Montserrat)
+- `colors.py` — MTG color schemes, rarity colors, frame key mapping
+- Frame templates: M15 frames from Card Conjurer in `assets/frames/m15/` (2010×2814 RGBA PNGs with transparent art windows)
+- Renders at native 2010×2814, scales to 822×1122 (300 DPI) for final output
+- CLI: `python -m mtgai.rendering --set ASD [--card W-C-01] [--force]`
+- **Iteration 1 complete** — all 66 cards render, but text sizing/positioning needs polish. See `plans/phase-2c-render-iteration.md` for improvement plan.
+
+## Character Identity Pipeline
+- `character_portraits.py` — generates reference portraits via Flux dev (text-to-image)
+- Character picks stored in `output/sets/<SET>/art-direction/character-refs/picks.json`
+- **PuLID-Flux** at weight=0.5 for face identity injection (humanoid characters only)
+  - Custom onnxruntime shim at `ComfyUI/custom_nodes/ComfyUI-PuLID-Flux/insightface_compat.py` (insightface 0.7+ can't build on Windows)
+  - PuLID `forward_orig` patched for newer ComfyUI (`timestep_zero_index` kwarg)
+  - Uses Q5_K_S Flux to leave VRAM headroom for PuLID models, fits in 12GB
+- **Kontext Dev rejected** — copies style+composition, not just identity. No strength dial.
+- Known MTG characters (Jace etc.) → use official Scryfall art as reference, not Flux
+
+## Current State (Phase 2C Rendering — Iteration)
 - 66 cards generated for ASD dev set (60 main + 6 lands)
 - 3 custom mechanics: Salvage (W/U/G), Malfunction (W/U/R), Overclock (U/R/B)
-- Phases 0A-0E, 1A-1C, 4A, 4A-rev, 4B complete (review-infra, review-run, finalize)
-- AI review: 59 cards reviewed (Haiku, $0.58), 6 changed, 58 OK / 1 REVISE
-- Post-review finalization done: reminder injection + 5 auto-fixes + 2 validator bugs fixed
-- Review gallery: `output/sets/ASD/reports/card-review-gallery.html`
-- Phase 2A art direction: style guide + prompts + personas done, ComfyUI pipeline built
-- Art generation: 198 images complete (66 cards × 3 versions), art selection done ($0.37)
-- Art quality: sufficient for dev set, not production — anatomy issues, too realistic, violence scenes fail. See `learnings/phase2a-art-quality.md`
-- Next: character reference portraits → sample arts with character consistency → go/no-go gate
+- Phases 0A-0E, 1A-1C, 4A, 4A-rev, 4B, 2A, 2B complete
+- Phase 2C: first render pass done (66 cards), iterating on text layout quality
+- Next: fix critical render issues (mana cost, rules text sizing, set symbol) per `plans/phase-2c-render-iteration.md`

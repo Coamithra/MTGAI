@@ -1,0 +1,34 @@
+{
+  "feretha": {
+    "name": "Feretha, the Hollow Founder",
+    "prompt": "Stylized digital illustration, bold shapes, strong silhouettes, painterly texture, concept art style. Not photorealistic, slightly exaggerated proportions. Dead wizard-ruler, desiccated corpse on a technological throne. Hollow skull with cables and fluid tubes plugged into it, golden crown that doubles as a neural interface headset. Empty open eyes, decayed royal robes, ancient server rack behind him. Sickly green-gold glow from machinery. Front-facing portrait, head and upper shoulders, plain dark neutral background, even soft studio lighting, character reference sheet style, clean composition, sharp focus on face and defining features"
+  },
+  "koyl": {
+    "name": "Koyl Yrenum, the Vizier",
+    "prompt": "Stylized digital illustration, bold shapes, strong silhouettes, painterly texture, concept art style. Not photorealistic, slightly exaggerated proportions. 50-year-old man with sharp calculating eyes, clean-shaven, lean build. Immaculately dressed in dark formal robes with subtle embroidery. Quiet absolute authority in his expression. Former slave who became a ruler \u2014 dignified, precise, dangerous. Front-facing portrait, head and upper shoulders, plain dark neutral background, even soft studio lighting, character reference sheet style, clean composition, sharp focus on face and defining features"
+  },
+  "marcus tyro": {
+    "name": "Captain Marcus Tyro",
+    "prompt": "Stylized digital illustration, bold shapes, strong silhouettes, painterly texture, concept art style. Not photorealistic, slightly exaggerated proportions. Battle-scarred military commander, weathered face, short-cropped hair. Practical uniform with splint mail armor, ceremonial insignia on armor. Large revolver-style pistol holstered at side. Pragmatic, tired, unyielding expression. Warm sandstone lighting. Front-facing portrait, head and upper shoulders, plain dark neutral background, even soft studio lighting, character reference sheet style, clean composition, sharp focus on face and defining features"
+  },
+  "fereyn": {
+    "name": "Fereyn, Wizard of Tab-Nakel",
+    "prompt": "Stylized digital illustration, bold shapes, strong silhouettes, painterly texture, concept art style. Not photorealistic, slightly exaggerated proportions. A wizard sitting inside a giant detachable stone head \u2014 the upper portion of a 60-foot statue with a 20-foot bearded stone face. Glowing blue eyes on the stone face that fire lasers. The wizard operates controls inside, speaks through a microphone. Majestic and absurd, treated with complete seriousness. Front-facing portrait, head and upper shoulders, plain dark neutral background, even soft studio lighting, character reference sheet style, clean composition, sharp focus on face and defining features"
+  },
+  "monsator": {
+    "name": "Monsator, Lord of the Stalks",
+    "prompt": "Stylized digital illustration, bold shapes, strong silhouettes, painterly texture, concept art style. Not photorealistic, slightly exaggerated proportions. Gaunt wizard in a ragged black cloak, mounted on a draft horse. Commands animated stalks of corn that walk on root-like feet. Weathered face, dark eyes, agricultural menace. Cornstalk warriors with crude wooden spears visible behind him. Front-facing portrait, head and upper shoulders, plain dark neutral background, even soft studio lighting, character reference sheet style, clean composition, sharp focus on face and defining features"
+  },
+  "head scientist": {
+    "name": "The Head Scientist",
+    "prompt": "Stylized digital illustration, bold shapes, strong silhouettes, painterly texture, concept art style. Not photorealistic, slightly exaggerated proportions. Towering figure standing 12 feet tall on concealed stilts. Enormous lab coat hiding the stilts completely. Multiple prosthetic tool-arms extending from the coat. Goggles pushed up on forehead, wild unkempt hair, manic expression. Tattered lab coat over improvised protective gear. Front-facing portrait, head and upper shoulders, plain dark neutral background, even soft studio lighting, character reference sheet style, clean composition, sharp focus on face and defining features"
+  },
+  "karak": {
+    "name": "Terrible Karak",
+    "prompt": "Stylized digital illustration, bold shapes, strong silhouettes, painterly texture, concept art style. Not photorealistic, slightly exaggerated proportions. Large scarred bandit king draped in stolen finery mixed with scavenged tech. Gold chains, fur-lined cloak, rings on every finger. Many visible weapons. He grins too wide \u2014 menacing smile. Rough face with prominent scars, dangerous charisma. Front-facing portrait, head and upper shoulders, plain dark neutral background, even soft studio lighting, character reference sheet style, clean composition, sharp focus on face and defining features"
+  },
+  "jace": {
+    "name": "Jace, Anomaly Seeker",
+    "prompt": "Stylized digital illustration, bold shapes, strong silhouettes, painterly texture, concept art style. Not photorealistic, slightly exaggerated proportions. Young man with glowing blue eyes, short dark hair, lean build. Clean blue robes with geometric patterns \u2014 no grime or wear. Distinctly out of place, too clean for this world. Calm intelligence in expression. Blue geometric light patterns around him. Front-facing portrait, head and upper shoulders, plain dark neutral background, even soft studio lighting, character reference sheet style, clean composition, sharp focus on face and defining features"
+  }
+}

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <!-- Set symbol: Rare (gold fill) -->
+  <!-- ASD Set Symbol: Rare (gold) -->
   <defs>
     <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#E8D44D"/>
@@ -7,5 +7,9 @@
       <stop offset="100%" style="stop-color:#A07800"/>
     </linearGradient>
   </defs>
-  <path d="M50 5 L90 25 L90 60 L50 95 L10 60 L10 25 Z" fill="url(#gold)" stroke="#8B6914" stroke-width="2"/>
+  <path d="M50 8 L88 85 L12 85 Z" fill="url(#gold)" stroke="#8B6914" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M50 28 Q62 38 58 50 Q54 62 50 72" fill="none" stroke="#6B5010" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M36 40 Q46 36 50 48 Q54 60 44 68" fill="none" stroke="#6B5010" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M64 40 Q54 36 50 48 Q46 60 56 68" fill="none" stroke="#6B5010" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="50" cy="52" r="3" fill="#6B5010"/>
 </svg>

@@ -191,9 +191,38 @@ Flux has no concept of specific MTG characters. Generating Jace portraits produc
 - Pick cards where the face is clearly visible (many Jace arts have face hidden under hood)
 - Save as `<slug>_official.png` alongside generated portraits
 
+### 13. Kontext Dev is Wrong Tool for Character Identity
+
+Flux Kontext Dev treats the reference image holistically — it copies style, composition, AND identity from the reference. There's no strength dial. Both `offset` and `index` reference methods produce identical results. `index_timestep_zero` crashes on GGUF (batch dim doubling incompatibility).
+
+**Verdict:** Kontext is an image editing model, not an identity extraction tool. Don't use it for character consistency.
+
+### 14. PuLID-Flux Works for Character Identity on 12GB
+
+PuLID extracts only face identity from reference portraits. Weight 0.5 gives the best balance — recognizable identity without dominating the art style. Weight 0.8 is too strong (face becomes too literal).
+
+**Setup required (Windows-specific pain):**
+- insightface>=0.7 needs C++ compiler to build from source (Cython extension), which pip can't find even with VS2022 installed
+- **Fix:** Wrote a custom onnxruntime-based SCRFD/GlintR100 shim (`insightface_compat.py`) that replaces insightface entirely
+- PuLID plugin also needed patching: `forward_orig()` missing `timestep_zero_index` kwarg from newer ComfyUI Flux model code
+- **VRAM:** Q5_K_S Flux + PuLID (adapter + EVA-CLIP + InsightFace) fits in 12GB comfortably, ~69s/image
+
+**Limitations:**
+- Non-human faces (skeletons, monsters) don't benefit — PuLID needs actual facial features
+- Face varies between images (artist's impression), but recognizably the same person
+- insightface 0.2.1 pre-built wheel works on Windows but model routing fails — custom shim needed
+
+### 15. SCRFD Output Layout Is Not Interleaved
+
+SCRFD 10g outputs 9 tensors grouped by **type** across 3 strides, NOT interleaved by stride:
+```
+[scores_s8, scores_s16, scores_s32, bbox_s8, bbox_s16, bbox_s32, kps_s8, kps_s16, kps_s32]
+```
+Stride 8: 12800 anchors (2 per cell), Stride 16: 3200, Stride 32: 800.
+
 ## What's Next
 
 - Character reference portraits DONE (24/24 generated, 8/8 picked)
-- Jace uses official Scryfall art (Jace, Wielder of Mysteries — best facial clarity)
-- Next: 2A-6 sample card arts with character identity injection (Kontext Dev + PuLID)
+- PuLID-Flux character identity VALIDATED (weight=0.5 recommended)
+- Next: 2A-7 go/no-go gate, then 2A-8 set symbol, 2A-9 learnings
 - Evaluate cloud services for production art quality upgrade

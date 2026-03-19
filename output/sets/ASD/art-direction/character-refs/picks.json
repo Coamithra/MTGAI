@@ -1,0 +1,46 @@
+{
+  "set_code": "ASD",
+  "picks": {
+    "feretha": {
+      "name": "Feretha, the Hollow Founder",
+      "version": 2,
+      "file": "feretha_the_hollow_founder_v2.png"
+    },
+    "koyl": {
+      "name": "Koyl Yrenum, the Vizier",
+      "version": 3,
+      "file": "koyl_yrenum_the_vizier_v3.png"
+    },
+    "marcus_tyro": {
+      "name": "Captain Marcus Tyro",
+      "version": 1,
+      "file": "captain_marcus_tyro_v1.png"
+    },
+    "fereyn": {
+      "name": "Fereyn, Wizard of Tab-Nakel",
+      "version": 3,
+      "file": "fereyn_wizard_of_tab_nakel_v3.png"
+    },
+    "monsator": {
+      "name": "Monsator, Lord of the Stalks",
+      "version": 1,
+      "file": "monsator_lord_of_the_stalks_v1.png"
+    },
+    "head_scientist": {
+      "name": "The Head Scientist",
+      "version": 1,
+      "file": "the_head_scientist_v1.png"
+    },
+    "karak": {
+      "name": "Terrible Karak",
+      "version": 1,
+      "file": "terrible_karak_v1.png"
+    },
+    "jace": {
+      "name": "Jace, Anomaly Seeker",
+      "version": null,
+      "file": "jace_anomaly_seeker_official.png",
+      "note": "Using official MTG Jace art as reference — Flux can't generate a recognizable Jace"
+    }
+  }
+}

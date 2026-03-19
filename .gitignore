@@ -32,6 +32,11 @@ output/sets/*/art/
 output/sets/*/renders/
 output/sets/*/print/
 output/sets/*/art-generation-logs/
+output/sets/*/art-direction/character-refs/*.png
+output/sets/*/art-direction/character-refs/logs/
+output/sets/*/art-direction/kontext-samples/
+output/sets/*/reports/render-summary.json
+output/install_insightface.bat
 
 # Keep directory structure
 !output/.gitkeep

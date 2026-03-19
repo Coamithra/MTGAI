@@ -1,4 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <!-- Set symbol: Common (black fill) -->
-  <path d="M50 5 L90 25 L90 60 L50 95 L10 60 L10 25 Z" fill="#000000" stroke="#000000" stroke-width="2"/>
+  <!-- ASD Set Symbol: Common (solid black) -->
+  <path d="M50 8 L88 85 L12 85 Z" fill="#1a1a1a" stroke="#000" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M50 28 Q62 38 58 50 Q54 62 50 72" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M36 40 Q46 36 50 48 Q54 60 44 68" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M64 40 Q54 36 50 48 Q46 60 56 68" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="50" cy="52" r="3" fill="#000"/>
 </svg>

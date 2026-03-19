@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Character Portrait Review — ASD</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    padding: 2rem;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.8rem;
+    margin-bottom: 0.3rem;
+    color: #c9a54e;
+  }
+  .subtitle {
+    text-align: center;
+    color: #888;
+    margin-bottom: 2rem;
+    font-size: 0.95rem;
+  }
+  .character {
+    margin-bottom: 3rem;
+    background: #16213e;
+    border-radius: 12px;
+    padding: 1.5rem;
+    border: 1px solid #0f3460;
+  }
+  .character h2 {
+    font-size: 1.3rem;
+    margin-bottom: 0.3rem;
+    color: #e0c97f;
+  }
+  .character .description {
+    font-size: 0.85rem;
+    color: #999;
+    margin-bottom: 1rem;
+    font-style: italic;
+    max-width: 80ch;
+  }
+  .versions {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .version {
+    position: relative;
+    cursor: pointer;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 3px solid transparent;
+    transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+    flex-shrink: 0;
+  }
+  .version:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  }
+  .version.selected {
+    border-color: #c9a54e;
+    box-shadow: 0 0 15px rgba(201, 165, 78, 0.4);
+  }
+  .version img {
+    display: block;
+    height: 400px;
+    width: auto;
+  }
+  .version-label {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .version .pick-badge {
+    display: none;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: #c9a54e;
+    color: #1a1a2e;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+  .version.selected .pick-badge {
+    display: block;
+  }
+  .summary-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #0f3460;
+    border-top: 2px solid #c9a54e;
+    padding: 0.8rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 100;
+    font-size: 0.9rem;
+  }
+  .summary-bar .count { color: #c9a54e; font-weight: 600; }
+  .summary-bar button {
+    background: #c9a54e;
+    color: #1a1a2e;
+    border: none;
+    padding: 0.5rem 1.5rem;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .summary-bar button:hover { opacity: 0.85; }
+  .summary-bar button:disabled { opacity: 0.4; cursor: default; }
+  .spacer { height: 4rem; }
+
+  /* Lightbox */
+  .lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.9);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+    cursor: zoom-out;
+  }
+  .lightbox.active { display: flex; }
+  .lightbox img {
+    max-height: 95vh;
+    max-width: 95vw;
+    object-fit: contain;
+  }
+</style>
+</head>
+<body>
+
+<h1>Character Portrait Review</h1>
+<p class="subtitle">Click a portrait to select it as the canonical reference. Click again to deselect. Right-click to view full size.</p>
+
+<div id="characters"></div>
+<div class="spacer"></div>
+
+<div class="summary-bar">
+  <span id="status">Picked <span class="count">0</span> / <span class="count" id="total">8</span></span>
+  <button id="export-btn" disabled onclick="exportPicks()">Copy picks to clipboard</button>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('active')">
+  <img id="lightbox-img" src="">
+</div>
+
+<script>
+const CHARACTERS = [
+  {
+    key: "feretha",
+    name: "Feretha, the Hollow Founder",
+    description: "Dead wizard-ruler, desiccated corpse on a technological throne with cables, golden neural-interface crown, sickly green-gold glow.",
+    slug: "feretha_the_hollow_founder"
+  },
+  {
+    key: "koyl",
+    name: "Koyl Yrenum, the Vizier",
+    description: "50-year-old man, sharp calculating eyes, clean-shaven, dark formal robes with subtle embroidery. Former slave turned ruler — dignified, precise, dangerous.",
+    slug: "koyl_yrenum_the_vizier"
+  },
+  {
+    key: "marcus_tyro",
+    name: "Captain Marcus Tyro",
+    description: "Battle-scarred military commander, weathered face, short-cropped hair, splint mail armor with ceremonial insignia, revolver-style pistol.",
+    slug: "captain_marcus_tyro"
+  },
+  {
+    key: "fereyn",
+    name: "Fereyn, Wizard of Tab-Nakel",
+    description: "A wizard inside a giant detachable stone head — upper portion of a 60-foot statue with a 20-foot bearded stone face. Glowing blue laser eyes.",
+    slug: "fereyn_wizard_of_tab_nakel"
+  },
+  {
+    key: "monsator",
+    name: "Monsator, Lord of the Stalks",
+    description: "Gaunt wizard in ragged black cloak on a draft horse. Commands animated corn stalks with root-like feet and crude wooden spears.",
+    slug: "monsator_lord_of_the_stalks"
+  },
+  {
+    key: "head_scientist",
+    name: "The Head Scientist",
+    description: "Towering 12-foot figure on concealed stilts, enormous lab coat, multiple prosthetic tool-arms, goggles, wild hair, manic expression.",
+    slug: "the_head_scientist"
+  },
+  {
+    key: "karak",
+    name: "Terrible Karak",
+    description: "Large scarred bandit king in stolen finery + scavenged tech. Gold chains, fur-lined cloak, many weapons. Grins too wide — dangerous charisma.",
+    slug: "terrible_karak"
+  },
+  {
+    key: "jace",
+    name: "Jace, Anomaly Seeker",
+    description: "Young man with glowing blue eyes, short dark hair, clean blue robes with geometric patterns. Distinctly out of place — too clean for this world.",
+    slug: "jace_anomaly_seeker"
+  }
+];
+
+const picks = {};
+
+function render() {
+  const container = document.getElementById('characters');
+  container.innerHTML = '';
+
+  for (const char of CHARACTERS) {
+    const section = document.createElement('div');
+    section.className = 'character';
+    section.innerHTML = `
+      <h2>${char.name}</h2>
+      <p class="description">${char.description}</p>
+      <div class="versions" id="versions-${char.key}"></div>
+    `;
+    container.appendChild(section);
+
+    const versionsDiv = section.querySelector('.versions');
+    for (let v = 1; v <= 3; v++) {
+      const filename = `${char.slug}_v${v}.png`;
+      const div = document.createElement('div');
+      div.className = 'version' + (picks[char.key] === v ? ' selected' : '');
+      div.innerHTML = `
+        <span class="version-label">v${v}</span>
+        <span class="pick-badge">Picked</span>
+        <img src="${filename}" alt="${char.name} v${v}" loading="lazy">
+      `;
+      div.addEventListener('click', (e) => {
+        if (picks[char.key] === v) {
+          delete picks[char.key];
+        } else {
+          picks[char.key] = v;
+        }
+        updateUI();
+      });
+      div.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const lb = document.getElementById('lightbox');
+        document.getElementById('lightbox-img').src = filename;
+        lb.classList.add('active');
+      });
+      versionsDiv.appendChild(div);
+    }
+  }
+}
+
+function updateUI() {
+  // Update selection highlights
+  for (const char of CHARACTERS) {
+    for (let v = 1; v <= 3; v++) {
+      const versions = document.getElementById(`versions-${char.key}`);
+      const cards = versions.querySelectorAll('.version');
+      cards[v-1].className = 'version' + (picks[char.key] === v ? ' selected' : '');
+    }
+  }
+  // Update status bar
+  const count = Object.keys(picks).length;
+  document.querySelector('#status .count').textContent = count;
+  document.getElementById('export-btn').disabled = count === 0;
+}
+
+function exportPicks() {
+  const lines = CHARACTERS
+    .filter(c => picks[c.key])
+    .map(c => `${c.name}: v${picks[c.key]} (${c.slug}_v${picks[c.key]}.png)`);
+
+  if (lines.length === 0) return;
+
+  const text = "Character Portrait Picks\n" +
+    "========================\n" +
+    lines.join("\n") + "\n" +
+    `\n${lines.length}/8 selected`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('export-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy picks to clipboard'; }, 1500);
+  });
+}
+
+// Lightbox close on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.getElementById('lightbox').classList.remove('active');
+});
+
+render();
+</script>
+</body>
+</html>

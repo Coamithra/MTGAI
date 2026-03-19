@@ -18,9 +18,11 @@ Build a complete Magic: The Gathering custom set creator — from initial set de
 | 1C Human Review | COMPLETE | See learnings/phase1c.md for findings |
 | 4A Balance + Revision | COMPLETE | Balance analysis + skeleton revision pipeline. 2 bugs found & fixed in prompt pipeline. Mechanic targets met. |
 | 4B AI Design Review | COMPLETE | 59 cards reviewed (Haiku, $0.58), 6 changed, 58 OK / 1 REVISE. Post-review finalization done: reminder injection + auto-fixes. 2 validator bugs fixed. |
-| 4AB Human Review Gate | IN PROGRESS | Card-by-card "art ready" review. Gallery built for visual review. |
-| 2A Art Direction | IN PROGRESS | Style guide + prompts done. ComfyUI + Flux pipeline built. Batch generation running (66×3 images). |
-| 2B-5C | NOT STARTED | |
+| 4AB Human Review Gate | COMPLETE | Card-by-card "art ready" review. Gallery built for visual review. |
+| 2A Art Direction | COMPLETE | Style guide + prompts + character portraits + PuLID identity injection. GO gate passed. $0.77 total. |
+| 2B Art Generation | COMPLETE | 198 images (66×3) via Flux.1-dev Q8_0. Art selection via Haiku ($0.37). Character identity via PuLID w=0.5. |
+| 2C Card Renderer | IN PROGRESS | Rendering engine built, M15 frames from Card Conjurer, first pass done (66 cards). Iterating on text layout. |
+| 3A-5C | NOT STARTED | |
 
 ## Key Decisions
 - **Stack**: Python backend (FastAPI) + lightweight review UI (CLI primary, simple HTML viewer for visual review)

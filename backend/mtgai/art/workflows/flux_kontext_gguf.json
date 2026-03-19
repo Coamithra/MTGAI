@@ -1,0 +1,120 @@
+{
+  "1": {
+    "class_type": "UnetLoaderGGUF",
+    "inputs": {
+      "unet_name": "flux1-kontext-dev-Q4_K_S.gguf"
+    }
+  },
+  "2": {
+    "class_type": "DualCLIPLoaderGGUF",
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "t5-v1_1-xxl-encoder-Q8_0.gguf",
+      "type": "flux"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    }
+  },
+  "11": {
+    "class_type": "LoadImage",
+    "_meta": { "title": "Load Reference Portrait" },
+    "inputs": {
+      "image": "REFERENCE_IMAGE_PLACEHOLDER"
+    }
+  },
+  "12": {
+    "class_type": "FluxKontextImageScale",
+    "_meta": { "title": "Scale Reference for Kontext" },
+    "inputs": {
+      "image": ["11", 0]
+    }
+  },
+  "13": {
+    "class_type": "VAEEncode",
+    "_meta": { "title": "Encode Reference to Latent" },
+    "inputs": {
+      "pixels": ["12", 0],
+      "vae": ["3", 0]
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "_meta": { "title": "Positive Prompt" },
+    "inputs": {
+      "text": "PROMPT_PLACEHOLDER",
+      "clip": ["2", 0]
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "_meta": { "title": "Negative Prompt (empty for Flux)" },
+    "inputs": {
+      "text": "",
+      "clip": ["2", 0]
+    }
+  },
+  "6": {
+    "class_type": "FluxGuidance",
+    "inputs": {
+      "conditioning": ["15", 0],
+      "guidance": 3.5
+    }
+  },
+  "14": {
+    "class_type": "ReferenceLatent",
+    "_meta": { "title": "Attach Reference Identity" },
+    "inputs": {
+      "conditioning": ["4", 0],
+      "latent": ["13", 0]
+    }
+  },
+  "15": {
+    "class_type": "FluxKontextMultiReferenceLatentMethod",
+    "_meta": { "title": "Reference Method Control" },
+    "inputs": {
+      "conditioning": ["14", 0],
+      "reference_latents_method": "index_timestep_zero"
+    }
+  },
+  "7": {
+    "class_type": "EmptySD3LatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 768,
+      "batch_size": 1
+    }
+  },
+  "8": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "seed": 42,
+      "steps": 30,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "positive": ["6", 0],
+      "negative": ["5", 0],
+      "latent_image": ["7", 0],
+      "denoise": 1.0
+    }
+  },
+  "9": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["8", 0],
+      "vae": ["3", 0]
+    }
+  },
+  "10": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["9", 0],
+      "filename_prefix": "mtgai_kontext"
+    }
+  }
+}
