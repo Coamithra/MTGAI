@@ -2,14 +2,16 @@
 
 ## Context
 
-We're in Phase 2C of the MTGAI project, building an automated card renderer that composites AI-generated art + M15 frame templates + text into print-ready MTG card images. The first render pass (Iteration 1) produces recognizable cards but has significant layout and sizing issues compared to real MTG cards.
+We're in Phase 2C of the MTGAI project, building an automated card renderer that composites AI-generated art + M15 frame templates + text into print-ready MTG card images.
 
-**Current state:**
+**Current state (Iteration 3 complete):**
 - 66 cards rendered at 822x1122 (300 DPI) in ~25 seconds total
 - M15 frame templates from Card Conjurer (2010x2814 RGBA PNGs with transparent art windows)
-- Fonts: Cinzel (names), EB Garamond (rules), Montserrat (P/T, info)
-- Mana symbols: Pillow fallback circles (cairosvg unavailable on Windows)
-- Renderer code: `backend/mtgai/rendering/` package (layout, colors, fonts, symbols, text_engine, card_renderer)
+- Fonts: Cinzel Bold (names/types), EB Garamond (rules), Montserrat Bold (P/T, info)
+- Mana symbols: SVG glyphs via pycairo + svg.path (proper MTG icons)
+- Set symbol: ASD descending vortex triangle via pycairo, rarity-colored
+- TextEngine: dynamic font sizing, keyword bolding, italic reminder text, vertical centering
+- Renderer code: `backend/mtgai/rendering/` package
 
 **Comparison page:** `output/sets/ASD/reports/render-comparison.html`
 
@@ -17,106 +19,100 @@ We're in Phase 2C of the MTGAI project, building an automated card renderer that
 
 ## Iteration Process
 
-Each iteration follows this loop:
+Each iteration follows this **pixel-level comparison loop**:
 
-1. **Compare** — Open comparison page, look at our renders vs real MTG cards side-by-side
-2. **Identify** — List specific visual differences, categorized by severity (critical/major/minor)
-3. **Fix** — Address top issues in code (highest severity first)
-4. **Re-render** — `cd backend && python -m mtgai.rendering --set ASD --force`
-5. **Review** — Refresh comparison page, verify fixes, identify remaining issues
-6. **Repeat** — Until renders are near-indistinguishable from real cards at normal viewing distance
+1. **Fetch reference** — Pull a real MTG card from Scryfall that matches the card type
+2. **Zoom-compare** — Compare each visual element at 200%+ zoom, one element at a time:
+   - [ ] **Card name** — font, weight, size, position, letter spacing
+   - [ ] **Mana cost symbols** — colors, glyph style, size relative to name bar, spacing
+   - [ ] **Type line** — font, size, em dash, position
+   - [ ] **Set symbol** — shape, colors, size relative to type bar
+   - [ ] **Rules text** — font, size, line spacing, paragraph spacing, fills text box naturally
+   - [ ] **Inline mana symbols** — colors match name bar symbols, size relative to text, baseline alignment
+   - [ ] **Keyword formatting** — bold keywords, italic reminder text in parens
+   - [ ] **Flavor text** — italic, separator line, color (slightly lighter than rules)
+   - [ ] **P/T box** — text size, centering, position, doesn't overlap flavor
+   - [ ] **Collector bar** — text content, size, color, position
+   - [ ] **Frame color/tint** — does our frame match the real color for this identity?
+   - [ ] **Art window** — crop/position/scale correct?
+   - [ ] **Overall spacing** — margins, padding, proportions feel right?
+3. **Log differences** — Note specific pixel-level gaps (e.g., "our {G} is dark green bg + white glyph; real is pale sage bg + dark green glyph")
+4. **Fix** — Address gaps in code, highest impact first
+5. **Re-render** — `cd backend && python -m mtgai.rendering --set ASD --force`
+6. **Verify** — Re-fetch reference, re-zoom, confirm fix didn't break other cards
+7. **Repeat** — Until a non-MTG-player can't tell which is ours at normal viewing distance
 
-### How to compare against real cards
+### Scryfall reference cards
 
-Use Scryfall's API to fetch high-res images of comparable real MTG cards:
+Use Scryfall's API to fetch high-res images:
 ```
+# JSON (get image URLs)
+https://api.scryfall.com/cards/named?fuzzy=<card_name>&format=json
+
+# Direct image
 https://api.scryfall.com/cards/named?fuzzy=<card_name>&format=image&version=normal
 ```
 
-Good reference cards (common real MTG cards with similar characteristics):
-- **White creature:** Traveling Minister, Savannah Lions, Elite Vanguard
-- **Blue uncommon:** Negate, Essence Scatter
-- **Black rare:** Murderous Rider, Doom Blade
-- **Red common:** Shock, Goblin Arsonist
-- **Green creature:** Elvish Mystic, Llanowar Elves
-- **Multicolor:** Lightning Helix, Baleful Strix
+**Reference cards to compare against** (pick ones matching our card's characteristics):
+- **Simple creature:** Elvish Mystic, Savannah Lions, Grizzly Bears
+- **Complex creature:** Murderous Rider, Thalia Guardian of Thraben
+- **Instant/Sorcery:** Negate, Shock, Murder, Lightning Helix
+- **Enchantment:** Pacifism, Oblivion Ring
 - **Artifact:** Mind Stone, Sol Ring
-- **Land:** Any basic land (Plains, Island, etc.)
+- **Land:** Any basic, plus Command Tower or Evolving Wilds
+- **Multicolor:** Lightning Helix, Baleful Strix
+- **Legendary:** Jace Beleren (planeswalker), Omnath Locus of Creation
+
+### What to zoom into
+
+When comparing, **zoom to 200%+ and compare each element in isolation**. It's easy to miss color mismatches, spacing issues, and font weight differences at normal viewing size. Key things to catch:
+
+- **Color accuracy** — mana symbol circle colors (pale bg + dark glyph for W/U/R/G, dark bg + light glyph for B), frame tints
+- **Proportions** — symbol size vs text height, padding ratios, text box fill percentage
+- **Font rendering** — weight (bold vs regular), kerning, baseline alignment of inline symbols
+- **Edge cases** — very long names with wide mana costs, cards with 4+ abilities, vanilla creatures with only flavor text, lands with mana abilities
 
 ---
 
-## Iteration 1 → 2: Critical Fixes
+## Completed Iterations
 
-These are the issues identified from the first render pass. Fix ALL critical issues before moving to major.
+### Iteration 1 → 2: Critical Fixes ✅
+- [x] Mana cost symbols — SVG glyph rendering via pycairo
+- [x] Rules text sizing — TextEngine with dynamic font sizing (85→55px range)
+- [x] Set symbol — ASD vortex triangle via pycairo
+- [x] P/T box text — bumped to 48px print (117px native)
+- [x] Collector info — 22px print, white text, vertically centered
+- [x] Escaped newlines — normalize literal `\n` in 43/66 cards
 
-### CRITICAL: Mana cost symbols missing
-- **What's wrong:** No mana symbols appear in the top-right of the name bar
-- **Root cause:** Likely `render_mana_cost()` in text_engine.py — either not being called, symbols rendering off-screen, or mana_cost field is None/empty
-- **Debug:** Add logging to `render_mana_cost()`, print the mana_cost value, check symbol positions
-- **Fix:** Ensure symbols render right-aligned within the name bar, verify card.mana_cost is populated
-- **Verify:** Rendered card should show colored circles like {1}{W} for a 1W cost
+### Iteration 2 → 3: Major + Polish Fixes ✅
+- [x] P/T overlapping flavor text — reserve 200px in text box for PT overlay
+- [x] Type line truncation — shrink-to-fit for long types
+- [x] Card name shrink-to-fit — auto-size around mana cost width
+- [x] Bold card names — Cinzel weight 700 via variable font axis
+- [x] Bold keywords + P/T — EB Garamond and Montserrat at weight 700
+- [x] Vertical text centering — center content in text box when sparse
+- [x] Mana symbol colors — pale bg + dark glyph (matching real MTG)
+- [x] Tap symbol — proper curved arrow from tap.svg
+- [x] Comparison page — rebuilt with correct filenames
 
-### CRITICAL: Rules text too small / wrong position
-- **What's wrong:** Oracle text is barely readable, much smaller than real MTG cards
-- **Root cause:** Font size calculation may be off. At native 2010x2814, body text should be ~42-50px (which scales to ~17-20px at 822x1122). Check `find_best_font_size()` range — it may start too small.
-- **Debug:** Log the chosen font size, compare to expected. Render with a fixed known-good size to isolate.
-- **Fix:** Adjust font size range in `find_best_font_size()`. For reference, real MTG rules text is ~8.5pt at print size (63x88mm) which is ~35px at 300 DPI → ~85px at native 2010x2814 resolution
-- **Verify:** Rules text should be clearly readable at card size, filling most of the text box
+---
 
-### CRITICAL: Set symbol missing
-- **What's wrong:** No set symbol on the right side of the type bar
-- **Root cause:** `render_set_symbol()` may not be called, or symbol renders off-screen, or SVG loading fails silently
-- **Debug:** Check if `render_set_symbol()` is called in card_renderer.py, add logging
-- **Fix:** Ensure set symbol renders right-aligned in type bar at ~40px height (native), colored by rarity
+## Next Iterations
 
-## Iteration 2 → 3: Major Fixes
+### Iteration 4: Fine-tuning
+- [ ] **Mana symbol outline** — real symbols have a thin dark outline/border ring
+- [ ] **Symbol baseline alignment** — inline symbols should sit on the text baseline, not float
+- [ ] **Flavor text for reprints** — Elvish Mystic and Murder need flavor text (data fix)
+- [ ] **Text kerning** — compare individual character spacing against real cards
+- [ ] **Color matching** — compare frame tint when scaled (any color shift from LANCZOS downscale?)
 
-### MAJOR: P/T box text too small
-- **What's wrong:** Power/toughness numbers are barely visible
-- **Root cause:** Font size for P/T rendering is too small relative to the P/T box overlay
-- **Fix:** P/T text should be large and bold — at native res the P/T box is 377x206, so text should be ~100-120px font size, centered
-- **Verify:** P/T should be immediately readable (e.g., "2/3" fills most of the box)
-
-### MAJOR: Collector info missing
-- **What's wrong:** Bottom bar text (collector number, set code, artist) not visible
-- **Root cause:** Text may be rendering in wrong color (dark on dark), or position is off
-- **Fix:** Collector info should be light gray or white text on the dark bottom strip, ~16-20px at native res
-
-### MAJOR: Text box spacing
-- **What's wrong:** Text doesn't fill the text box naturally — too much empty space or cramped
-- **Fix:** Adjust padding, line spacing, paragraph spacing. Real MTG cards have ~4-6px line spacing and ~8-12px paragraph spacing (at print size). Scale accordingly.
-
-## Iteration 3 → 4: Polish
-
-### MINOR: Font weight/style matching
-- Compare font weights to real cards — Cinzel for names may need to be bolder, EB Garamond may need specific weight selection
-- **How:** Place our render next to a Scryfall image at same size, compare letter thickness
-
-### MINOR: Mana symbol quality
-- Pillow circle fallbacks look OK but not great. Options:
-  1. Pre-rasterize SVGs using an external tool (Inkscape CLI, or a one-time batch script)
-  2. Find pre-rasterized mana symbol PNGs online (andrewgioia/mana has PNG exports)
-  3. Accept circle fallbacks for dev set
-
-### MINOR: Flavor text separator
-- Should be a thin centered line between oracle and flavor text
-- Real cards use a small ornate line ~60% of text box width
-
-### MINOR: Keyword bolding
-- Keywords like "Flying" and "Salvage 2" should be bolded in rules text
-- Verify the keyword detection regex catches all keywords in the set
-
-### MINOR: Reminder text italics
-- Text in parentheses (20+ chars) should be italic
-- Verify rendering matches real cards
-
-## Iteration 4+: Fine-tuning
-
-- **Text kerning** — compare individual character spacing
-- **Color matching** — compare frame tint when scaled (any color shift from LANCZOS downscale?)
-- **Edge cases** — cards with very long names, no flavor text, many abilities, X in mana cost
-- **Basic lands** — consider full-art land frames (we have `lw.png`, `lu.png`, etc.)
-- **Card back** — design and render custom card back
+### Iteration 5: Edge cases
+- [ ] Cards with very long names + wide mana costs (e.g., 5-symbol costs)
+- [ ] Cards with no flavor text — verify text box spacing
+- [ ] Cards with many abilities (4+ paragraphs) — verify dynamic sizing
+- [ ] X in mana cost
+- [ ] Basic lands — consider full-art land frames (we have `lw.png`, `lu.png`, etc.)
+- [ ] Card back — design and render custom card back
 
 ---
 
@@ -135,16 +131,17 @@ start "" "C:\Programming\MTGAI\output\sets\ASD\reports\render-comparison.html"
 ```
 
 ### Key files to edit
-- `backend/mtgai/rendering/text_engine.py` — font sizes, text positioning, symbol rendering
-- `backend/mtgai/rendering/card_renderer.py` — compositing order, zone usage, P/T overlay
+- `backend/mtgai/rendering/card_renderer.py` — compositing order, zone rendering, shrink-to-fit
+- `backend/mtgai/rendering/text_engine.py` — font sizes, text positioning, dynamic sizing, vertical centering
+- `backend/mtgai/rendering/symbol_renderer.py` — mana/set symbol rendering, pycairo SVG backend
 - `backend/mtgai/rendering/layout.py` — zone bounding boxes (if positions are wrong)
-- `backend/mtgai/rendering/symbol_renderer.py` — mana/set symbol appearance
-- `backend/mtgai/rendering/fonts.py` — font loading, weight selection
+- `backend/mtgai/rendering/fonts.py` — font loading, weight selection, variable font axes
+- `backend/mtgai/rendering/colors.py` — mana symbol colors, rarity colors, frame key mapping
 
 ### Real card references
-- Scryfall image API: `https://api.scryfall.com/cards/named?fuzzy=<name>&format=image&version=large`
-- Scryfall art crop: add `&version=art_crop`
-- Card Conjurer frame reference: `assets/frames/m15/m15Frame{W,U,B,R,G,M,A,L}.png`
+- Scryfall JSON API: `https://api.scryfall.com/cards/named?fuzzy=<name>&format=json`
+- Scryfall image: `https://api.scryfall.com/cards/named?fuzzy=<name>&format=image&version=large`
+- Card Conjurer frames: `assets/frames/m15/m15Frame{W,U,B,R,G,M,A,L}.png`
 
 ---
 
@@ -158,4 +155,4 @@ The renderer is "done" when:
 5. Flavor text is italic with separator line
 6. P/T box is readable with correct size
 7. Collector info bar is present
-8. A non-MTG-player looking at our render and a real card side-by-side would say "those look the same"
+8. **A non-MTG-player looking at our render and a real card side-by-side would say "those look the same"**

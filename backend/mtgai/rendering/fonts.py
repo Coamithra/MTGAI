@@ -31,28 +31,42 @@ FONTS_DIR = PROJECT_ROOT / "assets" / "fonts"
 # ---------------------------------------------------------------------------
 # Font file paths — project assets with Windows system-font fallbacks
 # ---------------------------------------------------------------------------
+# Real MTG fonts: Beleren Bold (names/types), MPlantin (rules), Relay Medium (info)
+# Fallback chain: MTG font → previous project font → Windows system font
 FONT_PATHS: dict[str, list[Path]] = {
     "name": [
+        FONTS_DIR / "beleren" / "beleren2016-bold.ttf",
+        FONTS_DIR / "beleren" / "beleren-bold.ttf",
         FONTS_DIR / "cinzel" / "Cinzel-Variable.ttf",
         Path("C:/Windows/Fonts/arialbd.ttf"),
     ],
+    "name_sc": [
+        FONTS_DIR / "beleren" / "beleren2016-smallcaps-bold.ttf",
+        FONTS_DIR / "beleren" / "belerensmallcaps-bold.ttf",
+        Path("C:/Windows/Fonts/arialbd.ttf"),
+    ],
     "body": [
+        FONTS_DIR / "mplantin" / "mplantin.ttf",
         FONTS_DIR / "eb-garamond" / "EBGaramond-Variable.ttf",
         Path("C:/Windows/Fonts/georgia.ttf"),
     ],
     "body_italic": [
+        FONTS_DIR / "mplantin" / "mplantin-italic.ttf",
         FONTS_DIR / "eb-garamond" / "EBGaramond-Italic-Variable.ttf",
         Path("C:/Windows/Fonts/georgiai.ttf"),
     ],
     "body_bold": [
+        FONTS_DIR / "mplantin" / "mplantin-bold.ttf",
         FONTS_DIR / "eb-garamond" / "EBGaramond-Variable.ttf",
         Path("C:/Windows/Fonts/georgiab.ttf"),
     ],
     "info": [
+        FONTS_DIR / "relay" / "relay-medium.ttf",
         FONTS_DIR / "montserrat" / "Montserrat-Variable.ttf",
         Path("C:/Windows/Fonts/arial.ttf"),
     ],
     "info_bold": [
+        FONTS_DIR / "relay" / "relay-medium.ttf",
         FONTS_DIR / "montserrat" / "Montserrat-Variable.ttf",
         Path("C:/Windows/Fonts/arialbd.ttf"),
     ],
@@ -60,6 +74,18 @@ FONT_PATHS: dict[str, list[Path]] = {
 
 # Supported role names (for validation)
 FONT_ROLES = frozenset(FONT_PATHS.keys())
+
+# Variable font weight axis values per role (None = use default)
+# Beleren Bold and MPlantin Bold are already bold, no axis needed.
+FONT_WEIGHTS: dict[str, int | None] = {
+    "name": None,  # Beleren Bold is already bold weight
+    "name_sc": None,  # Beleren Small Caps Bold
+    "body": None,  # MPlantin Regular
+    "body_italic": None,  # MPlantin Italic
+    "body_bold": None,  # MPlantin Bold (separate file)
+    "info": None,  # Relay Medium
+    "info_bold": None,  # Relay Medium (already medium weight)
+}
 
 # ---------------------------------------------------------------------------
 # Default font sizes (pixels) for each rendering purpose
@@ -69,15 +95,15 @@ FONT_ROLES = frozenset(FONT_PATHS.keys())
 # For native resolution (2010x2814), multiply by ~2.45.
 # ---------------------------------------------------------------------------
 DEFAULT_SIZES: dict[str, int] = {
-    "card_name": 28,
-    "mana_cost": 22,
-    "type_line": 22,
-    "rules_text": 21,
-    "rules_bold": 21,
-    "flavor_text": 19,
-    "pt_text": 30,
-    "collector": 14,
-    "mana_label": 16,
+    "card_name": 44,    # 3.81% of card height (Card Conjurer reference)
+    "mana_cost": 36,
+    "type_line": 37,    # 3.24% of card height
+    "rules_text": 40,   # 3.52% of card height
+    "rules_bold": 40,
+    "flavor_text": 38,
+    "pt_text": 42,      # 3.71% of card height
+    "collector": 22,
+    "mana_label": 24,
 }
 
 
@@ -138,6 +164,13 @@ class FontManager:
         if font_path is not None:
             try:
                 font = ImageFont.truetype(str(font_path), size)
+                # Apply variable font weight if specified
+                weight = FONT_WEIGHTS.get(role)
+                if weight is not None:
+                    import contextlib
+
+                    with contextlib.suppress(Exception):
+                        font.set_variation_by_axes([weight])
                 self._cache[cache_key] = font
                 return font
             except OSError as exc:

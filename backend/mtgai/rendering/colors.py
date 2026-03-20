@@ -9,12 +9,14 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 # Mana symbol colors — circle backgrounds for mana cost rendering
 # ---------------------------------------------------------------------------
+# Real MTG mana symbols use pale/pastel backgrounds with dark glyphs,
+# except Black which is dark with a light glyph.
 MANA_COLORS: dict[str, tuple[int, int, int]] = {
-    "W": (248, 231, 185),  # White — pale gold
-    "U": (14, 104, 171),  # Blue
-    "B": (21, 11, 0),  # Black
-    "R": (211, 32, 42),  # Red
-    "G": (0, 115, 62),  # Green
+    "W": (248, 231, 185),  # White — pale gold/cream
+    "U": (170, 224, 250),  # Blue — pale sky blue
+    "B": (32, 28, 28),  # Black — near-black
+    "R": (235, 159, 130),  # Red — pale salmon/coral
+    "G": (196, 211, 180),  # Green — pale sage
     "C": (204, 194, 193),  # Colorless — gray
     "X": (204, 194, 193),  # Variable — gray
     "T": (204, 194, 193),  # Tap — gray
@@ -25,11 +27,11 @@ MANA_COLORS: dict[str, tuple[int, int, int]] = {
 
 # Foreground / glyph colors drawn on top of the mana circle
 MANA_FG_COLORS: dict[str, tuple[int, int, int]] = {
-    "W": (33, 28, 20),  # Dark on light background
-    "U": (255, 255, 255),  # White on blue
+    "W": (33, 28, 20),  # Dark on pale gold
+    "U": (10, 40, 100),  # Dark blue on pale blue
     "B": (204, 194, 193),  # Light on dark background
-    "R": (255, 255, 255),  # White on red
-    "G": (255, 255, 255),  # White on green
+    "R": (120, 20, 10),  # Dark red on pale salmon
+    "G": (10, 60, 20),  # Dark green on pale sage
     "C": (33, 28, 20),  # Dark on gray
     "X": (33, 28, 20),
     "T": (33, 28, 20),

@@ -137,7 +137,8 @@ NATIVE_TEXT_BOX = BoundingBox(left=148, top=1760, right=1861, bottom=2595)
 # P/T box — overlays bottom-right of text box
 # The PT overlay image is 377x206. Positioned right-aligned with rules box,
 # bottom-aligned with rules box bottom.
-NATIVE_PT_BOX = BoundingBox(left=1484, top=2389, right=1861, bottom=2595)
+# Calibrated from Card Conjurer: 1136/1500, 1858/2100, 282x154 scaled to 2010x2814
+NATIVE_PT_BOX = BoundingBox(left=1522, top=2490, right=1900, bottom=2696)
 
 # Collector bar — dark region at the very bottom of the card
 NATIVE_COLLECTOR_BAR = BoundingBox(left=148, top=2610, right=1861, bottom=2750)

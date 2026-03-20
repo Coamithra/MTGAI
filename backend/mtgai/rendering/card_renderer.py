@@ -30,8 +30,6 @@ from mtgai.io.paths import card_slug, render_path
 from mtgai.models.card import Card
 from mtgai.rendering.colors import (
     BLACK,
-    DARK_GRAY,
-    MID_GRAY,
     WHITE,
     frame_key_for_identity,
 )
@@ -47,6 +45,7 @@ from mtgai.rendering.layout import (
     FRAME_W,
     NATIVE_ART_WINDOW,
     NATIVE_COLLECTOR_BAR,
+    NATIVE_CONTENT,
     NATIVE_NAME_BAR,
     NATIVE_PT_BOX,
     NATIVE_TEXT_BOX,
@@ -61,6 +60,7 @@ from mtgai.rendering.symbol_renderer import (
     get_set_symbol,
     parse_mana_cost,
 )
+from mtgai.rendering.text_engine import TextEngine
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +165,7 @@ class CardRenderer:
         self.assets_root = Path(assets_root)
         self.output_root = Path(output_root)
         self.fm: FontManager = get_font_manager()
+        self.text_engine = TextEngine(self.fm)
         # Frame image cache to avoid reloading per card
         self._frame_cache: dict[str, Image.Image] = {}
         self._pt_cache: dict[str, Image.Image] = {}
@@ -244,6 +245,80 @@ class CardRenderer:
             return v1
 
         return None
+
+    # ------------------------------------------------------------------
+    # Legendary crown
+    # ------------------------------------------------------------------
+    _crown_cache: dict[str, Image.Image] = {}
+
+    # Map color identity to crown filename (wingedsheep naming convention)
+    CROWN_KEY_MAP: dict[str, str] = {
+        "W": "W", "U": "U", "B": "B", "R": "R", "G": "G",
+        "M": "Gold", "A": "Artifact", "L": "Land",
+    }
+    # Two-color pairs
+    CROWN_PAIR_MAP: dict[tuple[str, ...], str] = {
+        ("U", "W"): "WU", ("B", "W"): "WB", ("R", "W"): "WR", ("G", "W"): "WG",
+        ("B", "U"): "UB", ("R", "U"): "UR", ("G", "U"): "UG",
+        ("B", "R"): "BR", ("B", "G"): "BG", ("R", "G"): "RG",
+    }
+
+    def _load_legendary_crown(self, card: Card) -> Image.Image | None:
+        """Load and scale the legendary crown overlay for this card's colors.
+
+        Returns a full-canvas-size RGBA image to alpha-composite on top of the
+        frame, or None if no crown file is found.
+        """
+        identity = sorted(
+            c.value if hasattr(c, "value") else str(c) for c in card.color_identity
+        )
+        is_land = "land" in card.type_line.lower()
+
+        # Determine crown filename
+        if is_land:
+            crown_name = "Land"
+        elif len(identity) == 0:
+            crown_name = "Artifact"
+        elif len(identity) == 1:
+            crown_name = self.CROWN_KEY_MAP.get(identity[0], "Gold")
+        elif len(identity) == 2:
+            pair = tuple(identity)
+            crown_name = self.CROWN_PAIR_MAP.get(pair, "Gold")
+        else:
+            crown_name = "Gold"
+
+        if crown_name in self._crown_cache:
+            return self._crown_cache[crown_name]
+
+        crown_dir = self.assets_root / "frames" / "m15" / "crowns"
+        crown_path = crown_dir / f"{crown_name}.png"
+        if not crown_path.is_file():
+            logger.debug("No crown file: %s", crown_path)
+            return None
+
+        crown_img = Image.open(crown_path).convert("RGBA")
+
+        # Scale crown to frame width, position at top of card
+        scale = FRAME_W / crown_img.width
+        new_w = FRAME_W
+        new_h = round(crown_img.height * scale)
+        crown_scaled = crown_img.resize((new_w, new_h), Image.LANCZOS)
+
+        # Create full-canvas overlay and paste crown at top
+        # The crown sits above/around the name bar (top of the card)
+        # mtgrender CSS: left=1mm, top=1.5mm, width=61.1mm, height=14mm
+        # At our native res (2010x2814): left=31, top=47, w=1934, h=443
+        crown_w = 1934
+        crown_h = 443
+        crown_x = 31
+        crown_y = 47
+        crown_fitted = crown_scaled.resize((crown_w, crown_h), Image.LANCZOS)
+
+        overlay = Image.new("RGBA", (FRAME_W, FRAME_H), (0, 0, 0, 0))
+        overlay.paste(crown_fitted, (crown_x, crown_y), crown_fitted)
+
+        self._crown_cache[crown_name] = overlay
+        return overlay
 
     # ------------------------------------------------------------------
     # Frame / PT box loading (cached)
@@ -375,13 +450,60 @@ class CardRenderer:
         """Render card name (left) and mana cost symbols (right)."""
         draw = ImageDraw.Draw(canvas)
         box = NATIVE_NAME_BAR
-        pad = 30  # px padding inside bar
+        pad = 50  # px padding inside bar (matches real MTG card inset)
 
-        # Card name — left-aligned, vertically centered
-        name_size = self._native_size("card_name")
-        name_font = self.fm.get("name", name_size)
+        # Mana cost — right-aligned as symbol images (render first to know width)
+        mana_width = 0
+        if card.mana_cost:
+            symbols = parse_mana_cost(card.mana_cost)
+            if symbols:
+                sym_size = self._native_size("mana_cost")
+                gap = 6
+                mana_width = len(symbols) * sym_size + (len(symbols) - 1) * gap
+                start_x = box.right - pad - mana_width
+                sym_y = box.top + (box.height - sym_size) // 2
+
+                # Drop shadow: -0.2mm left, 0.2mm down, 85% opacity black
+                # 0.2mm at native res = 0.2/25.4 * 300 * NATIVE_SCALE ≈ 6px
+                shadow_offset = max(3, round(6 * NATIVE_SCALE / 2.45))
+
+                for i, sym in enumerate(symbols):
+                    sym_img = get_mana_symbol(sym, sym_size)
+                    px = start_x + i * (sym_size + gap)
+
+                    # Draw shadow: dark circle behind symbol
+                    shadow = Image.new("RGBA", (sym_size, sym_size), (0, 0, 0, 0))
+                    shadow_draw = ImageDraw.Draw(shadow)
+                    shadow_draw.ellipse(
+                        [0, 0, sym_size - 1, sym_size - 1],
+                        fill=(0, 0, 0, 217),  # 85% opacity
+                    )
+                    canvas.paste(
+                        shadow,
+                        (px - shadow_offset, sym_y + shadow_offset),
+                        shadow,
+                    )
+
+                    # Draw symbol on top
+                    canvas.paste(sym_img, (px, sym_y), sym_img)
+
+        # Card name — left-aligned, shrink-to-fit around mana cost
         name_text = card.name
+        max_name_width = box.width - 2 * pad - mana_width - 20  # gap before symbols
+        name_size = self._native_size("card_name")
+        min_size = max(40, name_size // 2)
 
+        for _ in range(30):
+            name_font = self.fm.get("name", name_size)
+            nw = name_font.getlength(name_text)
+            if nw <= max_name_width or name_size <= min_size:
+                break
+            name_size -= 2
+
+        name_font = self.fm.get("name", name_size)
+
+        # Re-acquire draw after symbol pasting
+        draw = ImageDraw.Draw(canvas)
         nbbox = draw.textbbox((0, 0), name_text, font=name_font)
         nh = nbbox[3] - nbbox[1]
         name_y = box.top + (box.height - nh) // 2 - nbbox[1]
@@ -392,21 +514,6 @@ class CardRenderer:
             fill=BLACK,
         )
 
-        # Mana cost — right-aligned as symbol images
-        if card.mana_cost:
-            symbols = parse_mana_cost(card.mana_cost)
-            if symbols:
-                sym_size = self._native_size("mana_cost")
-                gap = 6
-                total_w = len(symbols) * sym_size + (len(symbols) - 1) * gap
-                start_x = box.right - pad - total_w
-                sym_y = box.top + (box.height - sym_size) // 2
-
-                for i, sym in enumerate(symbols):
-                    sym_img = get_mana_symbol(sym, sym_size)
-                    px = start_x + i * (sym_size + gap)
-                    canvas.paste(sym_img, (px, sym_y), sym_img)
-
     def _render_type_bar(
         self,
         canvas: Image.Image,
@@ -415,15 +522,31 @@ class CardRenderer:
         """Render type line (left) and set symbol (right)."""
         draw = ImageDraw.Draw(canvas)
         box = NATIVE_TYPE_BAR
-        pad = 30
+        pad = 50
 
-        # Type line — left-aligned
-        type_size = self._native_size("type_line")
-        type_font = self.fm.get("name", type_size)
+        # Set symbol — right-aligned (render first to know reserved width)
+        rarity_code = _rarity_letter(str(card.rarity))
+        sym_size = self._native_size("mana_cost")
+        set_sym = get_set_symbol(rarity_code, sym_size)
+        sym_x = box.right - pad - sym_size
+        sym_y = box.top + (box.height - sym_size) // 2
+        canvas.paste(set_sym, (sym_x, sym_y), set_sym)
 
-        # Replace -- with em dash for display
+        # Type line — left-aligned, shrink-to-fit
         type_text = card.type_line.replace(" -- ", " \u2014 ")
+        max_type_width = sym_x - box.left - pad - 20  # leave gap before symbol
 
+        type_size = self._native_size("type_line")
+        min_size = max(40, type_size // 2)
+
+        for _ in range(30):
+            type_font = self.fm.get("name", type_size)
+            tw = type_font.getlength(type_text)
+            if tw <= max_type_width or type_size <= min_size:
+                break
+            type_size -= 2
+
+        type_font = self.fm.get("name", type_size)
         tbbox = draw.textbbox((0, 0), type_text, font=type_font)
         th = tbbox[3] - tbbox[1]
         ty = box.top + (box.height - th) // 2 - tbbox[1]
@@ -434,104 +557,25 @@ class CardRenderer:
             fill=BLACK,
         )
 
-        # Set symbol — right-aligned
-        rarity_code = _rarity_letter(str(card.rarity))
-        sym_size = self._native_size("mana_cost")  # same scale
-        set_sym = get_set_symbol(rarity_code, sym_size)
-        sym_x = box.right - pad - sym_size
-        sym_y = box.top + (box.height - sym_size) // 2
-        canvas.paste(set_sym, (sym_x, sym_y), set_sym)
-
     def _render_text_box(
         self,
         canvas: Image.Image,
         card: Card,
         has_pt: bool,
     ) -> None:
-        """Render oracle text and flavor text in the text box.
+        """Render oracle text and flavor text via TextEngine.
 
-        Handles inline mana symbols {X} in oracle text.
+        Uses dynamic font sizing to fit all content, with inline mana
+        symbols, bold keywords, italic reminder text, and flavor separator.
         """
-        draw = ImageDraw.Draw(canvas)
-        box = NATIVE_TEXT_BOX
-        pad_x = 40
-        pad_y = 30
-        text_left = box.left + pad_x
-        text_right = box.right - pad_x
-        max_w = text_right - text_left
-
-        rules_size = self._native_size("rules_text")
-        rules_font = self.fm.get("body", rules_size)
-        rules_bold = self.fm.get("body_bold", rules_size)
-        flavor_size = self._native_size("flavor_text")
-        flavor_font = self.fm.get("body_italic", flavor_size)
-
-        line_spacing = round(8 * NATIVE_SCALE)
-        ability_spacing = round(12 * NATIVE_SCALE)
-
-        current_y = box.top + pad_y
-
-        # Oracle text
-        if card.oracle_text:
-            abilities = card.oracle_text.split("\n")
-            for i, ability in enumerate(abilities):
-                ability = ability.strip()
-                if not ability:
-                    current_y += ability_spacing
-                    continue
-
-                # Render ability with inline symbols
-                current_y = self._render_text_with_symbols(
-                    canvas,
-                    draw,
-                    ability,
-                    rules_font,
-                    rules_bold,
-                    text_left,
-                    current_y,
-                    max_w,
-                    BLACK,
-                    line_spacing,
-                    rules_size,
-                )
-
-                # Spacing between abilities
-                if i < len(abilities) - 1:
-                    current_y += ability_spacing
-
-        # Flavor text
-        if card.flavor_text:
-            # Separator line
-            sep_y = current_y + round(10 * NATIVE_SCALE)
-            sep_inset = round(80 * NATIVE_SCALE)
-            draw.line(
-                [
-                    (text_left + sep_inset, sep_y),
-                    (text_right - sep_inset, sep_y),
-                ],
-                fill=MID_GRAY,
-                width=max(1, round(NATIVE_SCALE)),
-            )
-            current_y = sep_y + round(14 * NATIVE_SCALE)
-
-            # Flavor lines
-            flavor_lines = card.flavor_text.split("\n")
-            for fl in flavor_lines:
-                fl = fl.strip()
-                if not fl:
-                    current_y += line_spacing
-                    continue
-                wrapped = _wrap_text(fl, flavor_font, max_w)
-                for line in wrapped:
-                    draw.text(
-                        (text_left, current_y),
-                        line,
-                        font=flavor_font,
-                        fill=DARK_GRAY,
-                    )
-                    lbbox = flavor_font.getbbox(line)
-                    lh = lbbox[3] - lbbox[1] if lbbox else flavor_size
-                    current_y += lh + line_spacing
+        self.text_engine.render_text_box(
+            canvas,
+            card.oracle_text or "",
+            card.flavor_text,
+            card.name,
+            NATIVE_TEXT_BOX,
+            has_pt=has_pt,
+        )
 
     def _render_text_with_symbols(
         self,
@@ -642,7 +686,7 @@ class CardRenderer:
         # Draw P/T text centered within the active region
         draw = ImageDraw.Draw(canvas)
         pt_size = self._native_size("pt_text")
-        pt_font = self.fm.get("info_bold", pt_size)
+        pt_font = self.fm.get("name_sc", pt_size)  # Card Conjurer uses belerenbsc for P/T
         pt_text = f"{card.power}/{card.toughness}"
 
         # Active region offset within the overlay
@@ -671,21 +715,25 @@ class CardRenderer:
         rarity_char = _rarity_letter(str(card.rarity))
         cn = card.collector_number
 
-        # Left side: collector number / total • set code • rarity
-        left_text = f"{cn}/{total_cards} {card.set_code} \u2022 {rarity_char}"
+        # Left side: rarity • collector number / total • set code • EN
+        left_text = f"{rarity_char} \u2022 {cn}/{total_cards} {card.set_code} \u2022 EN"
+        lbbox = draw.textbbox((0, 0), left_text, font=coll_font)
+        lh = lbbox[3] - lbbox[1]
+        ly = box.top + (box.height - lh) // 2 - lbbox[1]
         draw.text(
-            (box.left + pad, box.top + 10),
+            (box.left + pad, ly),
             left_text,
             font=coll_font,
             fill=WHITE,
         )
 
-        # Right side: artist credit
-        artist_text = card.artist or "AI Generated"
+        # Right side: paintbrush + artist credit
+        artist_name = card.artist or "AI Generated"
+        artist_text = f"\u270e {artist_name}"  # ✎ pencil icon as paintbrush stand-in
         abbox = draw.textbbox((0, 0), artist_text, font=coll_font)
         aw = abbox[2] - abbox[0]
         draw.text(
-            (box.right - pad - aw, box.top + 10),
+            (box.right - pad - aw, ly),
             artist_text,
             font=coll_font,
             fill=WHITE,
@@ -755,6 +803,14 @@ class CardRenderer:
         frame_key = self.determine_frame_key(card)
         frame_img = self._load_frame(frame_key)
         canvas = Image.alpha_composite(canvas, frame_img)
+
+        # 4b. Legendary crown: overlay on top of frame (mtgrender approach)
+        # Crown sits ABOVE frame but BELOW name text — no frame modification needed
+        is_legendary = "legendary" in card.type_line.lower()
+        if is_legendary:
+            crown = self._load_legendary_crown(card)
+            if crown is not None:
+                canvas = Image.alpha_composite(canvas, crown)
 
         # 5. Text zones
         self._render_name_bar(canvas, card)

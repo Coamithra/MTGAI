@@ -145,8 +145,13 @@
 - `colors.py` — MTG color schemes, rarity colors, frame key mapping
 - Frame templates: M15 frames from Card Conjurer in `assets/frames/m15/` (2010×2814 RGBA PNGs with transparent art windows)
 - Renders at native 2010×2814, scales to 822×1122 (300 DPI) for final output
+- **SVG symbol rendering** via pycairo + svg.path (cairosvg/libcairo unavailable on Windows, but pycairo 1.29 bundles its own Cairo)
+  - `_rasterize_svg_pycairo()` — parses SVG path `d` attr, draws with Cairo's antialiased path engine
+  - `_make_pycairo_set_symbol()` — draws ASD descending vortex triangle directly with pycairo
+  - Symbol code → SVG filename mapping in `SYMBOL_SVG_MAP` (T→tap.svg, Q→untap.svg)
+- **Variable font weights** — Cinzel Bold (700) for card names, EB Garamond Bold for keywords, Montserrat Bold for P/T
 - CLI: `python -m mtgai.rendering --set ASD [--card W-C-01] [--force]`
-- **Iteration 1 complete** — all 66 cards render, but text sizing/positioning needs polish. See `plans/phase-2c-render-iteration.md` for improvement plan.
+- **Iteration 3 complete** — SVG mana/tap/set symbols, dynamic text sizing, shrink-to-fit name+type lines, bold fonts, P/T overlap fix
 
 ## Character Identity Pipeline
 - `character_portraits.py` — generates reference portraits via Flux dev (text-to-image)
@@ -158,9 +163,15 @@
 - **Kontext Dev rejected** — copies style+composition, not just identity. No strength dial.
 - Known MTG characters (Jace etc.) → use official Scryfall art as reference, not Flux
 
-## Current State (Phase 2C Rendering — Iteration)
+## Current State (Phase 2C Rendering — Iteration 3 complete, in progress)
 - 66 cards generated for ASD dev set (60 main + 6 lands)
 - 3 custom mechanics: Salvage (W/U/G), Malfunction (W/U/R), Overclock (U/R/B)
 - Phases 0A-0E, 1A-1C, 4A, 4A-rev, 4B, 2A, 2B complete
-- Phase 2C: first render pass done (66 cards), iterating on text layout quality
-- Next: fix critical render issues (mana cost, rules text sizing, set symbol) per `plans/phase-2c-render-iteration.md`
+- Phase 2C: iteration 3 done — all critical/major/polish issues fixed
+  - SVG mana glyphs, tap symbol, ASD set symbol (pycairo)
+  - Dynamic text sizing via TextEngine, shrink-to-fit name/type bars
+  - Bold Cinzel card names, P/T overlap fix, collector info bar
+  - Comparison page: `output/sets/ASD/reports/render-comparison.html`
+  - Researched Card Conjurer + wingedsheep renderers for pixel-accurate reference data
+  - Downloaded Beleren/MPlantin/Relay fonts (real MTG fonts) for future font swap
+- Remaining: switch to Beleren+MPlantin fonts, mana symbol outlines, baseline alignment, edge cases

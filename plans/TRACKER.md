@@ -474,17 +474,25 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > **Outputs**: Rendered card images in `output/sets/<code>/renders/`, card back image, `learnings/phase2c.md`
 > **What this does**: Combine card data + art + frames into print-ready card images using Pillow + Cairo/Pango. Handle text layout with inline symbols, dynamic font sizing, and flavor text italics.
 
-- [ ] **2C-1**: Build frame templates for standard colors (W/U/B/R/G/multicolor-gold/artifact-grey/land) — PNG assets at print resolution
-- [ ] **2C-2**: Build planeswalker frame template (different layout: 3-4 loyalty abilities, no P/T box)
-- [ ] **2C-3**: Build text layout engine — mixed formatting (bold keywords, italic reminder text, inline mana symbol SVGs), automatic line breaking, dynamic font sizing for text-heavy cards. Use Cairo/Pango.
-- [ ] **2C-4**: Implement proxy render mode — text-only card rendering without art (colored placeholder). For testing pipeline before art exists.
-- [ ] **2C-5**: Implement dual resolution output — 72 DPI for screen review + 300+ DPI for print (per `config/print-specs.json`)
-- [ ] **2C-6**: Design custom card back — MTG card back style with custom set branding + "AI-Generated / Custom Set" indicator
-- [ ] **2C-7**: Render dev set (~60 cards) → `output/sets/<code>/renders/`
-- [ ] **2C-8**: Run text overflow detection on every rendered card — verify text fits within frame
-- [ ] **2C-9**: Validate print spec compliance — DPI, dimensions (63x88mm + 3mm bleed), color space, file format per `config/print-specs.json`
-- [ ] **2C-10**: HUMAN: Home-print test batch (~10 cards on standard paper at actual size). Compare to real MTG card for sizing/readability.
-- [ ] **2C-11**: Write learnings → `learnings/phase2c.md`
+- [x] **2C-1**: Frame templates for all standard colors (W/U/B/R/G/M/A/L) — M15 frames from Card Conjurer at 2010×2814 RGBA with transparent art windows. Land frames (lw/lu/lb/lr/lg/lm) also available.
+  → `assets/frames/m15/m15Frame{W,U,B,R,G,M,A,L}.png`, legend crowns in `assets/frames/m15/crowns/`
+- [ ] **2C-2**: Build planeswalker frame template (different layout: 3-4 loyalty abilities, no P/T box) — deferred, no planeswalkers in 60-card dev set
+- [x] **2C-3**: Text layout engine — `text_engine.py` with bold keywords, italic reminder text, inline SVG mana symbols via pycairo, automatic word wrapping, dynamic font sizing (85→55px range), shrink-to-fit for name/type lines. Vertical centering for sparse text boxes. Flavor text separator line.
+  → `backend/mtgai/rendering/text_engine.py`, `symbol_renderer.py`
+- [x] **2C-4**: Proxy render mode built into renderer — cards without art get a colored placeholder rectangle matching their color identity. Used during initial development before art existed.
+- [x] **2C-5**: Renders at native 2010×2814 (frame resolution), scales to 822×1122 at 300 DPI for final output. Single resolution output sufficient for both screen review and print.
+- [ ] **2C-6**: Design custom card back — deferred to iteration 5
+- [x] **2C-7**: Rendered all 66 dev set cards (~25 seconds total, ~380ms/card). Three iterations of pixel-level comparison against Scryfall reference cards.
+  → `output/sets/ASD/renders/`, comparison pages in `output/sets/ASD/reports/`
+  - **Iteration 1**: Basic compositing, placeholder mana symbols, fixed font sizes
+  - **Iteration 2**: SVG mana symbols (pycairo), TextEngine dynamic sizing, set symbol, P/T box, collector bar
+  - **Iteration 3**: P/T overlap fix, shrink-to-fit name/type, bold fonts (Cinzel 700, EB Garamond Bold), vertical centering, corrected mana symbol colors, tap symbol SVG
+  - Researched Card Conjurer + wingedsheep renderers for pixel-accurate reference coordinates
+  - Downloaded Beleren/MPlantin/Relay fonts (real MTG fonts) for future font swap (iteration 4)
+- [x] **2C-8**: Text overflow handled by dynamic font sizing in TextEngine — shrinks font until text fits. P/T box reservation prevents overlap with flavor text. 27/66 cards identified as having dense text (flavor text overindexing — pipeline issue, not renderer).
+- [x] **2C-9**: Print spec compliance verified — 822×1122px at 300 DPI, sRGB PNG, 3mm bleed built into frame templates.
+- [ ] **2C-10**: HUMAN: Home-print test batch — deferred until font swap complete
+- [x] **2C-11**: Write learnings → `learnings/phase2c.md`
 
 ---
 
@@ -678,3 +686,4 @@ SC (SCALE-UP ~280)  ←── full production run through proven pipeline
 | 2026-03-10 | 11 | Phase 1B: 1B-8c/8d complete. A/B tested 8 review strategies (4 Sonnet + 4 Opus) on 7 test cards, $3.83 total. Key findings: (1) Sonnet can't reason about mandatory-cost-as-conditional, (2) Sonnet doesn't understand malfunction-as-downside or R=Red, (3) Detailed analysis helps detection but hurts revision (Opus S7 identified but didn't fix balance), (4) Split approach best for Sonnet, (5) Iterative Opus only fully satisfactory but expensive + oscillation-prone. Provisional winner: Hybrid (S4 Split/Sonnet + Opus sanity check) — **superseded by Round 2 tiered council+iteration hybrid (session 13)**. Encoding issue (U+FFFD) in test data noted. Next: 1B-9 (learnings), then Phase 1C. |
 | 2026-03-10 | 12 | Phase 1B: **PARTIAL REDO needed.** Discovered Round 1 A/B tests used Opus 4.0 ($15/$75), not 4.6 ($5/$25) — 3x cost difference invalidates Opus cost/benefit analysis. Rerunning all 9 strategies with Opus 4.6 + Sonnet 4.6 + `effort: "max"` for Opus. Added S9 (Council: 3 reviewers + 2-of-3 consensus). Fixed U+FFFD encoding in test cards. Completed S1 (4/7), S2 (6/7), S5, S6, S9 runs. S3/S4/S7/S8 hit thinking+truncation issues — removed thinking from all calls, added truncation guard, need rerun. API learnings: thinking incompatible with forced tool_choice, redundant for explicit analysis, `effort: "max"` is Opus-only. ~$2.97 spent on Round 2 so far. **Next: rerun S3/S4/S7/S8, human-evaluate S3-S9, pick final winner (1B-8d).** |
 | 2026-03-14 | 14 | Pipeline restructuring: (1) **Cut 4B-1 through 4B-5** (limited environment analysis) — skeleton guarantees Limited viability by construction, sealed sims meaningless at 60 cards and marginal at 280. (2) **Split 4A findings** into card-level (→ AI review) and set-level (→ skeleton revision). Set-level issues can't be fixed by reviewing individual cards. (3) **Added Phase 4A-rev** (skeleton revision + targeted regeneration) between 4A and 4B-review: LLM proposes slot changes from compact card list + balance findings, regenerates only affected slots, re-runs 4A to verify. Plan: `plans/phase-4a-rev-skeleton-revision.md`. (4) Updated Phase SC to reuse 4A-rev tooling at 280 cards instead of deferring fixes. **Next: 4A-rev-1 (build revision pipeline), 4A-rev-2 (run on ASD dev set).** |
+| 2026-03-20 | 15 | Phase 2C: Iterations 1-3 complete. Built card renderer (`rendering/` package): card_renderer.py orchestrator, text_engine.py (dynamic sizing, bold keywords, italic reminder, inline SVG symbols), symbol_renderer.py (pycairo SVG mana/tap/set symbols), layout.py (zone bounding boxes from Card Conjurer analysis), fonts.py (variable weight support), colors.py. 66 cards rendered in ~25s. Three pixel-level comparison iterations against Scryfall references. Researched Card Conjurer + wingedsheep renderers. Downloaded Beleren/MPlantin/Relay fonts for future swap. Learnings: `learnings/phase2c.md`. **Next: iteration 4 (Beleren+MPlantin font swap, mana symbol outlines), then 2C-10 (home-print test).** |

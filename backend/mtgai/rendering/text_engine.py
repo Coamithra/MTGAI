@@ -94,23 +94,29 @@ PARAMETERIZED_KEYWORDS: frozenset[str] = frozenset(
 ZONE_PADDING = 20
 
 # Default and minimum font sizes (pixels at native resolution 2010x2814)
-DEFAULT_BODY_SIZE = 42
-MIN_BODY_SIZE = 28
+# Real MTG rules text is ~8.5pt at print size (63x88mm) = ~85px at native res.
+# Bumped to 95 so sparse-text cards (vanilla creatures, simple spells) fill the
+# text box at a size matching real MTG cards. Dense cards shrink via find_best_font_size.
+# Card Conjurer reference: rules text = 3.52% of 2814 = 99px native
+DEFAULT_BODY_SIZE = 99
+MIN_BODY_SIZE = 55
 
 # Line spacing as fraction of font size
-LINE_SPACING_RATIO = 0.30
+# Card Conjurer: line height is implicit textSize advance (tight spacing)
+LINE_SPACING_RATIO = 0.15
 
-# Paragraph spacing (between oracle paragraphs) as fraction of font size
-PARAGRAPH_SPACING_RATIO = 0.50
+# Card Conjurer: paragraph breaks add textSize * 0.35 extra spacing
+PARAGRAPH_SPACING_RATIO = 0.35
 
-# Flavor separator: fraction of text box width
-FLAVOR_SEPARATOR_WIDTH_RATIO = 0.60
+# Card Conjurer: flavor separator = 95% of text box width
+FLAVOR_SEPARATOR_WIDTH_RATIO = 0.95
 
-# Symbol inline size relative to font size
-SYMBOL_SIZE_RATIO = 1.10
+# Card Conjurer: inline symbol diameter = textSize * 0.78
+SYMBOL_SIZE_RATIO = 0.78
 
-# Gap between inline symbols and adjacent text (px)
-SYMBOL_GAP = 2
+# Gap between inline symbols and adjacent text (px at native res)
+# wingedsheep reference: 0.07em margin each side of inline symbols
+SYMBOL_GAP = 14
 
 
 # ---------------------------------------------------------------------------
@@ -259,8 +265,12 @@ class TextEngine:
         if not oracle_text:
             return []
 
+        # Normalize literal "\n" (two chars: backslash + n) to actual newlines.
+        # Some card JSONs store escaped newlines that json.load preserves as literal.
+        text = oracle_text.replace("\\n", "\n")
+
         # Replace self-reference
-        text = oracle_text.replace("~", card_name) if card_name else oracle_text
+        text = text.replace("~", card_name) if card_name else text
 
         paragraphs: list[ParsedParagraph] = []
         for raw_line in text.split("\n"):
@@ -269,7 +279,8 @@ class TextEngine:
                 continue
 
             is_kw = self._is_keyword_line(line)
-            segments = self._parse_line_segments(line, bold_all=is_kw)
+            # Real MTG cards do NOT bold keywords — same weight as rules text
+            segments = self._parse_line_segments(line, bold_all=False)
             paragraphs.append(ParsedParagraph(segments, is_keyword_line=is_kw))
 
         return paragraphs
@@ -285,6 +296,9 @@ class TextEngine:
         """
         if not flavor_text:
             return []
+
+        # Normalize literal "\n" to actual newlines
+        flavor_text = flavor_text.replace("\\n", "\n")
 
         paragraphs: list[ParsedParagraph] = []
         for raw_line in flavor_text.split("\n"):
@@ -578,6 +592,11 @@ class TextEngine:
                 w = font.getlength(content)
                 elements.append(WrappedElement(seg.kind, content, w))
 
+            # Preserve trailing space (e.g., "Add " before a symbol)
+            if text.endswith(" "):
+                space_w = font.getlength(" ")
+                elements.append(WrappedElement(seg.kind, " ", space_w))
+
         return elements
 
     def _font_for_element(
@@ -628,6 +647,21 @@ class TextEngine:
             if i < len(paragraphs) - 1:
                 total += para_spacing
 
+        return total
+
+    def _count_wrapped_lines(
+        self,
+        oracle_paras: list[ParsedParagraph],
+        flavor_paras: list[ParsedParagraph],
+        font_size: int,
+        max_width: int,
+    ) -> int:
+        """Count total wrapped lines across all paragraphs."""
+        total = 0
+        for para in oracle_paras:
+            total += len(self.wrap_paragraph(para, font_size, max_width))
+        for para in flavor_paras:
+            total += len(self.wrap_paragraph(para, font_size, max_width))
         return total
 
     # ------------------------------------------------------------------
@@ -685,9 +719,9 @@ class TextEngine:
             total += self.measure_text_height(oracle_paras, font_size, max_width)
 
         if oracle_paras and flavor_paras:
-            # Separator line + spacing above and below
-            separator_space = font_size * PARAGRAPH_SPACING_RATIO * 2
-            separator_line = 2.0  # 2px line
+            # Separator line + more space above (2x) than below (1x)
+            separator_space = font_size * PARAGRAPH_SPACING_RATIO * 3
+            separator_line = 6.0
             total += separator_space + separator_line
 
         if flavor_paras:
@@ -791,10 +825,11 @@ class TextEngine:
         sep_w = int(box_w * FLAVOR_SEPARATOR_WIDTH_RATIO)
         sep_left = box_left + (box_w - sep_w) // 2
         sep_right = sep_left + sep_w
+        # Subtle separator matching real MTG cards
         draw.line(
             [(sep_left, int(y)), (sep_right, int(y))],
-            fill=MID_GRAY,
-            width=2,
+            fill=(140, 140, 140),
+            width=3,
         )
 
     # ------------------------------------------------------------------
@@ -979,6 +1014,7 @@ class TextEngine:
         flavor_text: str | None,
         card_name: str,
         box: BoundingBox,
+        has_pt: bool = False,
     ) -> None:
         """Render the full text box: oracle + separator + flavor.
 
@@ -992,7 +1028,14 @@ class TextEngine:
             flavor_text: Card flavor text (may be None or empty).
             card_name: Card name for ``~`` substitution.
             box: BoundingBox of the text box zone.
+            has_pt: If True, reserve 200px at the bottom for the P/T overlay.
         """
+        # PT box overlaps bottom-right corner only — don't shrink the full
+        # text box height. Real cards let text fill naturally. But if text
+        # fills >90% of the box on a creature, shrink font 5% to avoid
+        # the last line colliding with the PT overlay (wingedsheep trick).
+        pt_shrink = has_pt  # flag for post-sizing check
+
         oracle_paras = self.parse_oracle(oracle_text, card_name)
         flavor_paras = self.parse_flavor(flavor_text or "")
 
@@ -1002,11 +1045,57 @@ class TextEngine:
         # Dynamic font sizing
         font_size = self.find_best_font_size(oracle_paras, flavor_paras, box)
 
+        # Max 8 lines rule: if text is bloated, drop flavor first,
+        # then strip reminder text if still too many lines.
+        max_lines = 8
+        padded_check = box.padded(ZONE_PADDING)
+        total_lines = self._count_wrapped_lines(
+            oracle_paras, flavor_paras, font_size, padded_check.width
+        )
+        if total_lines > max_lines and flavor_paras:
+            logger.info("  Dropping flavor text (%d lines > %d max)", total_lines, max_lines)
+            flavor_paras = []
+            font_size = self.find_best_font_size(oracle_paras, flavor_paras, box)
+            total_lines = self._count_wrapped_lines(
+                oracle_paras, flavor_paras, font_size, padded_check.width
+            )
+        if total_lines > max_lines and oracle_paras:
+            # Strip reminder text (parenthesized text >=20 chars)
+            logger.info(
+                "  Stripping reminder text (%d lines > %d max)", total_lines, max_lines
+            )
+            stripped_oracle = REMINDER_RE.sub("", oracle_text or "").strip()
+            oracle_paras = self.parse_oracle(stripped_oracle, card_name)
+            font_size = self.find_best_font_size(oracle_paras, flavor_paras, box)
+
         padded = box.padded(ZONE_PADDING)
         max_width = padded.width
+
+        # Creatures: iteratively shrink font if text would overrun the PT box
+        # area (bottom ~12% of text box where PT overlay sits).
+        # Runs AFTER line-dropping so the font size is final.
+        if pt_shrink:
+            pt_limit = padded.height * 0.80
+            while font_size > MIN_BODY_SIZE:
+                total_check = self._total_content_height(
+                    oracle_paras, flavor_paras, font_size, max_width
+                )
+                if total_check <= pt_limit:
+                    break
+                font_size -= 1
+
         para_spacing = font_size * PARAGRAPH_SPACING_RATIO
 
-        cur_y = float(padded.top)
+        # Card Conjurer: true vertical centering (containerHeight - totalTextHeight) / 2
+        total_h = self._total_content_height(
+            oracle_paras, flavor_paras, font_size, max_width
+        )
+        available_h = padded.height
+        if total_h < available_h:
+            y_offset = (available_h - total_h) / 2
+            cur_y = float(padded.top + y_offset)
+        else:
+            cur_y = float(padded.top)
 
         # Draw oracle text
         if oracle_paras:
@@ -1023,12 +1112,12 @@ class TextEngine:
         # Draw flavor separator + flavor text
         if flavor_paras:
             if oracle_paras:
-                # Spacing before separator
-                cur_y += para_spacing
+                # More space above separator to push it down
+                cur_y += para_spacing * 2
                 # Draw separator line
                 draw = ImageDraw.Draw(img)
                 self._draw_flavor_separator(draw, cur_y, padded.left, padded.right)
-                cur_y += 2.0  # separator line height
+                cur_y += 6.0  # separator line height
                 cur_y += para_spacing
 
             self.draw_wrapped_paragraphs(
