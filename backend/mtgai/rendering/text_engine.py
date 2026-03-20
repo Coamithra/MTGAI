@@ -24,6 +24,7 @@ from PIL import Image, ImageDraw, ImageFont
 from mtgai.rendering.colors import BLACK, DARK_GRAY, MID_GRAY
 from mtgai.rendering.fonts import FontManager, get_font_manager
 from mtgai.rendering.layout import (
+    NATIVE_PT_BOX,
     PT_OVERLAY_ACTIVE,
     BoundingBox,
 )
@@ -729,6 +730,79 @@ class TextEngine:
 
         return total
 
+    def _would_overlap_pt(
+        self,
+        oracle_paras: list[ParsedParagraph],
+        flavor_paras: list[ParsedParagraph],
+        font_size: int,
+        padded: BoundingBox,
+    ) -> bool:
+        """Check if rendered text would overlap the P/T box.
+
+        Simulates the full text layout (with vertical centering) and checks
+        whether any line's bounding box intersects the P/T box region.
+        Only lines whose right edge extends past the P/T box left edge count.
+
+        Args:
+            oracle_paras: Parsed oracle paragraphs.
+            flavor_paras: Parsed flavor paragraphs.
+            font_size: Font size to test.
+            padded: Padded text box bounding box.
+
+        Returns:
+            True if any text line would visually overlap the P/T box.
+        """
+        max_width = padded.width
+        line_spacing = font_size * LINE_SPACING_RATIO
+        para_spacing = font_size * PARAGRAPH_SPACING_RATIO
+
+        # Compute starting Y with vertical centering (same logic as render)
+        total_h = self._total_content_height(oracle_paras, flavor_paras, font_size, max_width)
+        available_h = padded.height
+        if total_h < available_h:
+            y_offset = (available_h - total_h) / 2
+            cur_y = float(padded.top + y_offset)
+        else:
+            cur_y = float(padded.top)
+
+        # P/T overlap boundary — use active region left edge with 15px margin
+        pt_y_top = float(NATIVE_PT_BOX.top)
+        pt_x_left = float(NATIVE_PT_BOX.left + PT_OVERLAY_ACTIVE.left - 15)
+
+        # Walk all paragraphs: oracle, then separator gap, then flavor
+        all_sections: list[tuple[list[ParsedParagraph], float]] = []
+        if oracle_paras:
+            all_sections.append((oracle_paras, cur_y))
+        if oracle_paras and flavor_paras:
+            # Account for separator space (same as render_text_box)
+            oracle_h = self.measure_text_height(oracle_paras, font_size, max_width)
+            separator_space = para_spacing * 2 + 6.0 + para_spacing
+            flavor_start = cur_y + oracle_h + separator_space
+            all_sections.append((flavor_paras, flavor_start))
+        elif flavor_paras:
+            all_sections.append((flavor_paras, cur_y))
+
+        for paras, section_y in all_sections:
+            y = section_y
+            for p_idx, para in enumerate(paras):
+                lines = self.wrap_paragraph(para, font_size, max_width)
+                for l_idx, wl in enumerate(lines):
+                    line_bottom = y + wl.line_height
+                    # Only check lines that are in the P/T vertical zone
+                    if line_bottom > pt_y_top:
+                        # Compute right edge of this line
+                        line_width = sum(e.width for e in wl.elements)
+                        line_right = padded.left + line_width
+                        if line_right > pt_x_left:
+                            return True
+                    y += wl.line_height
+                    if l_idx < len(lines) - 1:
+                        y += line_spacing
+                if p_idx < len(paras) - 1:
+                    y += para_spacing
+
+        return False
+
     # ------------------------------------------------------------------
     # 6. Rendering primitives
     # ------------------------------------------------------------------
@@ -1018,9 +1092,13 @@ class TextEngine:
     ) -> None:
         """Render the full text box: oracle + separator + flavor.
 
-        Performs dynamic font sizing to fit all content, then draws
-        oracle paragraphs, a separator line (if flavor exists), and
-        italic flavor text.
+        Uses a unified iterative fit loop that evaluates all constraints
+        (box height, PT overlap, line count) together at each content
+        reduction level before deciding to escalate:
+
+            Level 0: oracle + reminder + flavor  (full content)
+            Level 1: oracle + reminder           (drop flavor)
+            Level 2: oracle only                 (drop flavor + strip reminder)
 
         Args:
             img: PIL Image to draw on.
@@ -1028,62 +1106,70 @@ class TextEngine:
             flavor_text: Card flavor text (may be None or empty).
             card_name: Card name for ``~`` substitution.
             box: BoundingBox of the text box zone.
-            has_pt: If True, reserve 200px at the bottom for the P/T overlay.
+            has_pt: If True, check for P/T box overlap and shrink to avoid it.
         """
-        # PT box overlaps bottom-right corner only — don't shrink the full
-        # text box height. Real cards let text fill naturally. But if text
-        # fills >90% of the box on a creature, shrink font 5% to avoid
-        # the last line colliding with the PT overlay (wingedsheep trick).
-        pt_shrink = has_pt  # flag for post-sizing check
-
-        oracle_paras = self.parse_oracle(oracle_text, card_name)
-        flavor_paras = self.parse_flavor(flavor_text or "")
-
-        if not oracle_paras and not flavor_paras:
-            return
-
-        # Dynamic font sizing
-        font_size = self.find_best_font_size(oracle_paras, flavor_paras, box)
-
-        # Max 8 lines rule: if text is bloated, drop flavor first,
-        # then strip reminder text if still too many lines.
         max_lines = 8
-        padded_check = box.padded(ZONE_PADDING)
-        total_lines = self._count_wrapped_lines(
-            oracle_paras, flavor_paras, font_size, padded_check.width
-        )
-        if total_lines > max_lines and flavor_paras:
-            logger.info("  Dropping flavor text (%d lines > %d max)", total_lines, max_lines)
-            flavor_paras = []
-            font_size = self.find_best_font_size(oracle_paras, flavor_paras, box)
-            total_lines = self._count_wrapped_lines(
-                oracle_paras, flavor_paras, font_size, padded_check.width
-            )
-        if total_lines > max_lines and oracle_paras:
-            # Strip reminder text (parenthesized text >=20 chars)
-            logger.info(
-                "  Stripping reminder text (%d lines > %d max)", total_lines, max_lines
-            )
-            stripped_oracle = REMINDER_RE.sub("", oracle_text or "").strip()
-            oracle_paras = self.parse_oracle(stripped_oracle, card_name)
-            font_size = self.find_best_font_size(oracle_paras, flavor_paras, box)
-
         padded = box.padded(ZONE_PADDING)
         max_width = padded.width
 
-        # Creatures: iteratively shrink font if text would overrun the PT box
-        # area (bottom ~12% of text box where PT overlay sits).
-        # Runs AFTER line-dropping so the font size is final.
-        if pt_shrink:
-            pt_limit = padded.height * 0.80
-            while font_size > MIN_BODY_SIZE:
-                total_check = self._total_content_height(
-                    oracle_paras, flavor_paras, font_size, max_width
-                )
-                if total_check <= pt_limit:
-                    break
-                font_size -= 1
+        # Pre-parse content for each reduction level
+        full_oracle_paras = self.parse_oracle(oracle_text, card_name)
+        full_flavor_paras = self.parse_flavor(flavor_text or "")
 
+        if not full_oracle_paras and not full_flavor_paras:
+            return
+
+        has_flavor = bool(full_flavor_paras)
+        has_reminder = bool(REMINDER_RE.search(oracle_text or ""))
+        stripped_oracle = REMINDER_RE.sub("", oracle_text or "").strip() if has_reminder else None
+        stripped_oracle_paras = (
+            self.parse_oracle(stripped_oracle, card_name) if stripped_oracle else None
+        )
+
+        # Content reduction levels: (oracle_paras, flavor_paras, label)
+        levels: list[tuple[list[ParsedParagraph], list[ParsedParagraph], str]] = [
+            (full_oracle_paras, full_flavor_paras, "full"),
+        ]
+        if has_flavor:
+            levels.append((full_oracle_paras, [], "no flavor"))
+        if has_reminder:
+            levels.append((stripped_oracle_paras, [], "no flavor + no reminder"))  # type: ignore[arg-type]
+
+        # Unified fit loop — evaluate all constraints at each level
+        oracle_paras = full_oracle_paras
+        flavor_paras = full_flavor_paras
+        font_size = DEFAULT_BODY_SIZE
+
+        for oracle_paras, flavor_paras, label in levels:
+            # Find largest font where content fits the text box height
+            font_size = self.find_best_font_size(oracle_paras, flavor_paras, box)
+
+            # If creature, shrink further until no PT overlap
+            if has_pt:
+                while font_size > MIN_BODY_SIZE and self._would_overlap_pt(
+                    oracle_paras, flavor_paras, font_size, padded
+                ):
+                    font_size -= 1
+
+            # Check line count at the final render font size
+            total_lines = self._count_wrapped_lines(
+                oracle_paras, flavor_paras, font_size, max_width
+            )
+
+            if total_lines <= max_lines:
+                break  # all constraints satisfied
+
+            logger.info(
+                "  Content level '%s': %d lines > %d max, escalating", label, total_lines, max_lines
+            )
+
+        # Post-loop warnings
+        if has_pt and self._would_overlap_pt(oracle_paras, flavor_paras, font_size, padded):
+            logger.warning("  Text still overlaps PT box at min font size %d", MIN_BODY_SIZE)
+        if self._count_wrapped_lines(oracle_paras, flavor_paras, font_size, max_width) > max_lines:
+            logger.warning("  Still > %d lines at max content reduction", max_lines)
+
+        # --- Render with final parameters ---
         para_spacing = font_size * PARAGRAPH_SPACING_RATIO
 
         # Card Conjurer: true vertical centering (containerHeight - totalTextHeight) / 2

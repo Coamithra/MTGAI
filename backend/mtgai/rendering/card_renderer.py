@@ -340,10 +340,8 @@ class CardRenderer:
             crown_name = "Artifact"
         elif len(identity) == 1:
             crown_name = self.CROWN_KEY_MAP.get(identity[0], "Gold")
-        elif len(identity) == 2:
-            pair = tuple(identity)
-            crown_name = self.CROWN_PAIR_MAP.get(pair, "Gold")
         else:
+            # Multicolor: always use Gold crown (we use gold frames, not 2-color)
             crown_name = "Gold"
 
         if crown_name in self._crown_cache:
@@ -759,6 +757,7 @@ class CardRenderer:
         canvas: Image.Image,
         card: Card,
         total_cards: int,
+        has_pt: bool = False,
     ) -> None:
         """Render collector number, set code, rarity, and artist."""
         draw = ImageDraw.Draw(canvas)
@@ -771,11 +770,17 @@ class CardRenderer:
         rarity_char = _rarity_letter(str(card.rarity))
         cn = card.collector_number
 
-        # Left side: rarity • collector number / total • set code • EN
+        # Vertical positioning: creatures center in the bar (PT box pushes things
+        # down), non-creatures hug the top edge so text sits near the frame.
         left_text = f"{rarity_char} \u2022 {cn}/{total_cards} {card.set_code} \u2022 EN"
         lbbox = draw.textbbox((0, 0), left_text, font=coll_font)
         lh = lbbox[3] - lbbox[1]
-        ly = box.top + (box.height - lh) // 2 - lbbox[1]
+        if has_pt:
+            ly = box.top + (box.height - lh) // 2 - lbbox[1]
+        else:
+            ly = box.top + 8 - lbbox[1]  # near top edge of collector bar
+
+        # Left side: rarity • collector number / total • set code • EN
         draw.text(
             (box.left + pad, ly),
             left_text,
@@ -784,12 +789,15 @@ class CardRenderer:
         )
 
         # Right side: paintbrush + artist credit
+        # On creatures, right-align to PT box edge and nudge down slightly
         artist_name = card.artist or "AI Generated"
         artist_text = f"\u270e {artist_name}"  # ✎ pencil icon as paintbrush stand-in
         abbox = draw.textbbox((0, 0), artist_text, font=coll_font)
         aw = abbox[2] - abbox[0]
+        right_edge = NATIVE_PT_BOX.right - pad if has_pt else box.right - pad
+        artist_y = ly + 10 if has_pt else ly
         draw.text(
-            (box.right - pad - aw, ly),
+            (right_edge - aw, artist_y),
             artist_text,
             font=coll_font,
             fill=WHITE,
@@ -884,7 +892,7 @@ class CardRenderer:
             self._render_pt_box(canvas, card, frame_key)
 
         # 7. Collector bar
-        self._render_collector_bar(canvas, card, total_cards)
+        self._render_collector_bar(canvas, card, total_cards, has_pt=has_pt)
 
         # 8. Scale to print resolution
         final = canvas.resize((CANVAS_W, CANVAS_H), Image.LANCZOS)

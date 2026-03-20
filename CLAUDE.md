@@ -152,10 +152,20 @@
 - **Variable font weights** — Cinzel Bold (700) for card names, EB Garamond Bold for keywords, Montserrat Bold for P/T
 - **Legendary crown** for legendary creatures only (not artifacts/enchantments)
   - Crown assets in `assets/frames/m15/crowns/` (per color identity, from Card Conjurer)
+  - Multicolor legendaries always use Gold crown (matching gold frames)
   - `m15MaskTitle.png` used to punch out the title bar shape from the crown (so frame name bar shows through)
   - Black underlay composited behind the crown (above art window, excluding title bar) to prevent frame colors bleeding through
   - Compositing order: canvas → art → frame → black underlay → crown (with title cutout) → text
   - Learned from mtgrender (github.com/Senryoku/mtgrender): they shift background down + black base behind crown
+- **Text box fitting** — unified iterative loop in `render_text_box()`:
+  - Three content reduction levels: full (oracle+reminder+flavor) → no flavor → no flavor + no reminder
+  - At each level: find best font size → shrink for PT overlap → check ≤8 lines
+  - PT overlap detection: `_would_overlap_pt()` simulates full layout (with vertical centering) and checks actual line bounding boxes against PT box region
+  - Escalates to next reduction level only if constraints can't be met
+- **Collector bar** positioning adapts to card type:
+  - Creatures: text centered in bar, artist credit right-aligned to PT box edge
+  - Non-creatures: text hugs top of collector bar, near text box frame edge
+- **Colored artifact frames** not yet implemented — see `learnings/colored-artifact-frames.md` for research and future plan
 - CLI: `python -m mtgai.rendering --set ASD [--card W-C-01] [--force]`
 - **Iteration 3 complete** — SVG mana/tap/set symbols, dynamic text sizing, shrink-to-fit name+type lines, bold fonts, P/T overlap fix
 
