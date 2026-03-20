@@ -184,9 +184,15 @@ class CardRenderer:
         """
         type_lower = card.type_line.lower()
         is_land = "land" in type_lower
+        is_artifact = "artifact" in type_lower
 
         # Color identity as list of single-letter strings
         identity = [c.value if hasattr(c, "value") else str(c) for c in card.color_identity]
+
+        # Colored artifacts still get the artifact frame (until colored artifact
+        # frames are implemented — see learnings/colored-artifact-frames.md)
+        if is_artifact and not is_land:
+            return "A"
 
         return frame_key_for_identity(identity, is_land=is_land)
 
