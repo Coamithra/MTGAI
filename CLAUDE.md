@@ -150,6 +150,12 @@
   - `_make_pycairo_set_symbol()` — draws ASD descending vortex triangle directly with pycairo
   - Symbol code → SVG filename mapping in `SYMBOL_SVG_MAP` (T→tap.svg, Q→untap.svg)
 - **Variable font weights** — Cinzel Bold (700) for card names, EB Garamond Bold for keywords, Montserrat Bold for P/T
+- **Legendary crown** for legendary creatures only (not artifacts/enchantments)
+  - Crown assets in `assets/frames/m15/crowns/` (per color identity, from Card Conjurer)
+  - `m15MaskTitle.png` used to punch out the title bar shape from the crown (so frame name bar shows through)
+  - Black underlay composited behind the crown (above art window, excluding title bar) to prevent frame colors bleeding through
+  - Compositing order: canvas → art → frame → black underlay → crown (with title cutout) → text
+  - Learned from mtgrender (github.com/Senryoku/mtgrender): they shift background down + black base behind crown
 - CLI: `python -m mtgai.rendering --set ASD [--card W-C-01] [--force]`
 - **Iteration 3 complete** — SVG mana/tap/set symbols, dynamic text sizing, shrink-to-fit name+type lines, bold fonts, P/T overlap fix
 
@@ -174,4 +180,4 @@
   - Comparison page: `output/sets/ASD/reports/render-comparison.html`
   - Researched Card Conjurer + wingedsheep renderers for pixel-accurate reference data
   - Downloaded Beleren/MPlantin/Relay fonts (real MTG fonts) for future font swap
-- Remaining: switch to Beleren+MPlantin fonts, mana symbol outlines, baseline alignment, edge cases
+- Remaining: switch to Beleren+MPlantin fonts, mana symbol outlines, baseline alignment, remaining edge cases

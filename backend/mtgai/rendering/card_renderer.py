@@ -23,7 +23,7 @@ import logging
 import time
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 from mtgai.io.card_io import load_card
 from mtgai.io.paths import card_slug, render_path
@@ -169,6 +169,9 @@ class CardRenderer:
         # Frame image cache to avoid reloading per card
         self._frame_cache: dict[str, Image.Image] = {}
         self._pt_cache: dict[str, Image.Image] = {}
+        self._crown_cache: dict[str, Image.Image] = {}
+        self._title_mask: Image.Image | None = None
+        self._crown_underlay: Image.Image | None = None
 
     # ------------------------------------------------------------------
     # Frame key
@@ -249,7 +252,6 @@ class CardRenderer:
     # ------------------------------------------------------------------
     # Legendary crown
     # ------------------------------------------------------------------
-    _crown_cache: dict[str, Image.Image] = {}
 
     # Map color identity to crown filename (wingedsheep naming convention)
     CROWN_KEY_MAP: dict[str, str] = {
@@ -263,11 +265,68 @@ class CardRenderer:
         ("B", "R"): "BR", ("B", "G"): "BG", ("R", "G"): "RG",
     }
 
-    def _load_legendary_crown(self, card: Card) -> Image.Image | None:
-        """Load and scale the legendary crown overlay for this card's colors.
+    # Crown positioning (mtgrender CSS: left=1mm, top=1.5mm, w=61.1mm, h=14mm)
+    # At native res (2010x2814): 1mm ≈ 32px
+    CROWN_X = 31
+    CROWN_Y = 47
+    CROWN_W = 1934
+    CROWN_H = 443
 
-        Returns a full-canvas-size RGBA image to alpha-composite on top of the
-        frame, or None if no crown file is found.
+    def _load_title_mask(self) -> Image.Image:
+        """Load and cache the title bar mask alpha channel.
+
+        Returns an L-mode image (FRAME_W x FRAME_H) where white pixels
+        indicate the name bar shape.
+        """
+        if self._title_mask is not None:
+            return self._title_mask
+
+        path = self.assets_root / "frames" / "m15" / "m15MaskTitle.png"
+        img = Image.open(path).convert("RGBA")
+        self._title_mask = img.split()[3]
+        return self._title_mask
+
+    def _make_crown_underlay(self) -> Image.Image:
+        """Create and cache the black underlay for the legendary crown zone.
+
+        Returns a full-canvas RGBA image that is opaque black everywhere
+        above the art window EXCEPT where the title bar mask is. This
+        blacks out the frame's colored pixels behind the crown while
+        preserving the name bar.
+        """
+        if self._crown_underlay is not None:
+            return self._crown_underlay
+
+        title_alpha = self._load_title_mask()
+        title_inv = ImageChops.invert(title_alpha)
+
+        # Mask: opaque in rows 0 to art window top, transparent elsewhere
+        zone_mask = Image.new("L", (FRAME_W, FRAME_H), 0)
+        draw = ImageDraw.Draw(zone_mask)
+        draw.rectangle(
+            [(0, 0), (FRAME_W - 1, NATIVE_ART_WINDOW.top - 1)],
+            fill=255,
+        )
+
+        # Remove title bar area: keep it transparent so the name bar is preserved
+        combined = ImageChops.multiply(zone_mask, title_inv)
+
+        underlay = Image.new("RGBA", (FRAME_W, FRAME_H), (0, 0, 0, 255))
+        underlay.putalpha(combined)
+
+        self._crown_underlay = underlay
+        return self._crown_underlay
+
+    def _load_legendary_crown(self, card: Card) -> Image.Image | None:
+        """Load the legendary crown overlay with title bar punched out.
+
+        Uses m15MaskTitle to create a transparent cutout in the crown
+        where the frame's name bar should show through. The crown's
+        decorative filigree renders on top of a black background
+        (provided by _make_crown_underlay), while the title bar
+        area is left transparent so the frame's own name bar is visible.
+
+        Returns a full-canvas-size RGBA image, or None if no crown file found.
         """
         identity = sorted(
             c.value if hasattr(c, "value") else str(c) for c in card.color_identity
@@ -298,24 +357,21 @@ class CardRenderer:
 
         crown_img = Image.open(crown_path).convert("RGBA")
 
-        # Scale crown to frame width, position at top of card
-        scale = FRAME_W / crown_img.width
-        new_w = FRAME_W
-        new_h = round(crown_img.height * scale)
-        crown_scaled = crown_img.resize((new_w, new_h), Image.LANCZOS)
+        # Scale directly to target dimensions
+        crown_fitted = crown_img.resize(
+            (self.CROWN_W, self.CROWN_H), Image.LANCZOS
+        )
 
-        # Create full-canvas overlay and paste crown at top
-        # The crown sits above/around the name bar (top of the card)
-        # mtgrender CSS: left=1mm, top=1.5mm, width=61.1mm, height=14mm
-        # At our native res (2010x2814): left=31, top=47, w=1934, h=443
-        crown_w = 1934
-        crown_h = 443
-        crown_x = 31
-        crown_y = 47
-        crown_fitted = crown_scaled.resize((crown_w, crown_h), Image.LANCZOS)
-
+        # Place on full-canvas overlay
         overlay = Image.new("RGBA", (FRAME_W, FRAME_H), (0, 0, 0, 0))
-        overlay.paste(crown_fitted, (crown_x, crown_y), crown_fitted)
+        overlay.paste(crown_fitted, (self.CROWN_X, self.CROWN_Y), crown_fitted)
+
+        # Punch out the title bar shape so the frame's name bar shows through
+        title_alpha = self._load_title_mask()
+        title_inv = ImageChops.invert(title_alpha)
+        crown_alpha = overlay.split()[3]
+        new_alpha = ImageChops.multiply(crown_alpha, title_inv)
+        overlay.putalpha(new_alpha)
 
         self._crown_cache[crown_name] = overlay
         return overlay
@@ -804,12 +860,16 @@ class CardRenderer:
         frame_img = self._load_frame(frame_key)
         canvas = Image.alpha_composite(canvas, frame_img)
 
-        # 4b. Legendary crown: overlay on top of frame (mtgrender approach)
-        # Crown sits ABOVE frame but BELOW name text — no frame modification needed
-        is_legendary = "legendary" in card.type_line.lower()
-        if is_legendary:
+        # 4b. Legendary crown (mtgrender approach: black base + crown + title cutout)
+        # 1. Black underlay: blacks out the frame behind the crown (except title bar)
+        # 2. Crown overlay: has title bar punched out so frame name bar shows through
+        type_lower = card.type_line.lower()
+        is_legendary_creature = "legendary" in type_lower and "creature" in type_lower
+        if is_legendary_creature:
             crown = self._load_legendary_crown(card)
             if crown is not None:
+                underlay = self._make_crown_underlay()
+                canvas = Image.alpha_composite(canvas, underlay)
                 canvas = Image.alpha_composite(canvas, crown)
 
         # 5. Text zones
