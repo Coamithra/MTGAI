@@ -25,7 +25,7 @@ from mtgai.review.formatters import (
     build_stats_header,
     build_type_table,
 )
-from mtgai.review.loaders import load_cards, load_skeleton, load_theme
+from mtgai.review.loaders import load_cards_raw, load_skeleton, load_theme
 from mtgai.skeleton.generator import SkeletonResult
 
 app = typer.Typer(
@@ -195,7 +195,7 @@ def show_slot(
     # Try to find a generated card for this slot
     card_data: dict | None = None
     if match.card_id:
-        cards = load_cards(set_code)
+        cards = load_cards_raw(set_code)
         for card in cards:
             if card.get("slot_id") == match.slot_id or card.get("id") == match.card_id:
                 card_data = card
@@ -472,6 +472,39 @@ def finalize(
             f"[yellow]MANUAL errors found — see "
             f"output/sets/{set_code}/reports/finalize-report.md[/yellow]"
         )
+
+
+# ---------------------------------------------------------------------------
+# review serve (Phase 3B — review server)
+# ---------------------------------------------------------------------------
+
+
+@app.command("serve")
+def serve(
+    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code.")] = "ASD",
+    port: Annotated[int, typer.Option("--port", "-p", help="Server port.")] = 8080,
+    open_browser: Annotated[bool, typer.Option("--open", help="Open browser on startup.")] = False,
+) -> None:
+    """Start the local review server (FastAPI + uvicorn)."""
+    import os
+    import threading
+    import webbrowser
+
+    import uvicorn
+
+    # Set the set_code for the server via environment variable
+    os.environ["MTGAI_REVIEW_SET"] = set_code
+
+    if open_browser:
+        threading.Timer(1.5, lambda: webbrowser.open(f"http://localhost:{port}")).start()
+
+    console.print(f"[bold]Starting review server for {set_code} on port {port}...[/bold]")
+    console.print(f"  Review:   http://localhost:{port}/review")
+    console.print(f"  Progress: http://localhost:{port}/progress")
+    console.print(f"  Booster:  http://localhost:{port}/booster")
+    console.print("[dim]Press Ctrl+C to stop.[/dim]")
+
+    uvicorn.run("mtgai.review.server:app", host="127.0.0.1", port=port, log_level="warning")
 
 
 # ---------------------------------------------------------------------------

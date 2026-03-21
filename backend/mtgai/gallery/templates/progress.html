@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Progress — {{ set_code }}{% endblock %}
+
+{% block nav_progress %}active{% endblock %}
+
+{% block content %}
+<div class="progress-page">
+  <h1>Review Progress — {{ set_code }}</h1>
+  <div class="progress-summary" id="progress-summary">
+    <p>Loading progress data...</p>
+  </div>
+  <div class="progress-list" id="progress-list">
+    <!-- Filled by JavaScript -->
+  </div>
+  <div class="progress-actions">
+    <button id="reload-manual-btn" class="submit-btn" onclick="reloadManualEdits()"
+            style="display:none;">
+      Reload Manual Edits
+    </button>
+    <button id="refresh-btn" class="submit-btn" onclick="refreshProgress()">
+      Refresh
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const PROGRESS_DATA = {{ progress_json | safe }};
+</script>
+<script src="/static/progress.js"></script>
+{% endblock %}

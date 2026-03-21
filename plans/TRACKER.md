@@ -487,52 +487,58 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
   - **Iteration 1**: Basic compositing, placeholder mana symbols, fixed font sizes
   - **Iteration 2**: SVG mana symbols (pycairo), TextEngine dynamic sizing, set symbol, P/T box, collector bar
   - **Iteration 3**: P/T overlap fix, shrink-to-fit name/type, bold fonts (Cinzel 700, EB Garamond Bold), vertical centering, corrected mana symbol colors, tap symbol SVG
-  - **Iteration 4 (partial)**: Legendary crown for creatures — m15MaskTitle cutout + black underlay behind crown. Researched mtgrender (github.com/Senryoku/mtgrender) for crown compositing approach.
+  - **Iteration 4**: Legendary crown for creatures (m15MaskTitle cutout + black underlay). Real MTG font swap: Beleren Bold (names/types), MPlantin (rules text), Relay Medium (info/P/T). Colored artifact frame for all artifact cards.
   - Researched Card Conjurer + wingedsheep + mtgrender renderers for pixel-accurate reference coordinates
-  - Downloaded Beleren/MPlantin/Relay fonts (real MTG fonts) for future font swap
 - [x] **2C-8**: Text overflow handled by dynamic font sizing in TextEngine — shrinks font until text fits. P/T box reservation prevents overlap with flavor text. 27/66 cards identified as having dense text (flavor text overindexing — pipeline issue, not renderer).
 - [x] **2C-9**: Print spec compliance verified — 822×1122px at 300 DPI, sRGB PNG, 3mm bleed built into frame templates.
-- [ ] **2C-10**: HUMAN: Home-print test batch — deferred until font swap complete
+- [ ] **2C-10**: HUMAN: Home-print test batch — font swap complete, deferred to later
 - [x] **2C-11**: Write learnings → `learnings/phase2c.md`
 
 ---
 
-## Phase 3A: CLI Review Tools
-> **Plan**: `plans/phase-3-review-tools.md` Section 3A
-> **Needs**: 0C (card schema), 1A (CLI skeleton with Typer stubs)
+## Phase 3A: Data Layer + Utilities
+> **Plan**: `plans/phase-3-review-workflow.md` (Phase 3A section)
+> **Needs**: 0C (card schema), card data in `output/sets/<code>/cards/`
 > **Inputs**: `backend/mtgai/models/card.py`, `output/sets/<code>/cards/*.json`
-> **Outputs**: Full CLI review toolkit under `mtgai review` command group
-> **What this does**: Extend the minimal CLI from Phase 1A into a full review toolkit with batch approve/reject/flag, side-by-side comparison, export (CSV/JSON/Cockatrice), and art review commands.
+> **Outputs**: Upgraded card loader, export command, booster pack module
+> **What this does**: Build the shared data layer that the HTML review workflow and CLI both consume. Upgrade the card loader from raw dicts to Card models with filtering. Add export and booster pack generation.
+>
+> **Note**: Old 3A plan (10-task CLI review toolkit) replaced. CLI approve/reject/flag/compare/show/art commands cut — replaced by HTML review workflow in 3B. Existing CLI commands (list, stats, balance, ai-review, finalize) kept as-is.
 
-- [ ] **3A-1**: Card loader + filter module — load card JSON from `output/` dir, filter by color/rarity/type/status/CMC/keyword/mechanic. Shared by CLI and gallery.
-- [ ] **3A-2**: Status transition engine — enforce forward-only transitions (draft→validated→approved→art_generated→rendered→print_ready), rejection resets to draft, audit trail with timestamps
-- [ ] **3A-3**: Rich formatters — table rendering, card panels, color-coded status/MTG colors, mana cost display
-- [ ] **3A-4**: `review list` — full filter/sort, table + compact + JSON output modes
-- [ ] **3A-5**: `review show <card>` — pretty-printed card detail with all fields + status history
-- [ ] **3A-6**: `review stats` — dashboard with bar charts (status pipeline, rarity/color/type distribution, mana curve, flagged cards)
-- [ ] **3A-7**: `review approve/reject/flag` — batch operations (comma IDs, filter-based, all+status gate), confirmation prompts, dry-run, required reason for reject
-- [ ] **3A-8**: `review compare <card1> <card2>` — side-by-side Rich panels with diff section
-- [ ] **3A-9**: `review export <format>` — CSV (flat spreadsheet), JSON (full card data), print (copy render files), Cockatrice (XML for playtesting)
-- [ ] **3A-10**: `review art <card>` — show art file info, all attempts, `--open` to launch in system viewer
+- [x] **3A-1**: Card loader upgrade — `load_cards()` returns `list[Card]` (Pydantic models), `CardFilter` dataclass with 10 filter fields (AND-combined), `filter_cards()`, `sort_cards()` by name/cmc/rarity/color/collector#. `load_cards_raw()` preserved for backward compat. 52 tests.
+  → `backend/mtgai/review/loaders.py`, `backend/tests/test_review/test_loaders.py`
+- [ ] **3A-2**: Export command — `review export <format>` for CSV (flat spreadsheet), JSON (full card data), print (copy render files to flat dir). Cockatrice XML deferred to Phase 5.
+- [x] **3A-3**: Booster pack module — `generate_booster_pack()` (10C + 3U + 1R/M + 1 land) with mythic upgrade (~1/8), graceful degradation for small pools. `generate_sealed_pool()` for sealed. 19 tests.
+  → `backend/mtgai/packs.py`, `backend/tests/test_packs.py`
 
 ---
 
-## Phase 3B: HTML Gallery Viewer
-> **Plan**: `plans/phase-3-review-tools.md` Section 3B
-> **Needs**: 3A-1 (card loader), rendered images (or placeholder colored rectangles)
-> **Inputs**: `output/sets/<code>/cards/*.json`, `output/sets/<code>/renders/`
-> **Outputs**: Static HTML gallery in `output/sets/<code>/gallery/`, `mtgai/packs.py` (shared booster generation)
-> **What this does**: Generate a static HTML site (Jinja2 + vanilla JS) for visual card review. Card grid with filters, detail pages, side-by-side comparison, booster pack viewer, art consistency review. Dark theme. No server needed.
+## Phase 3B: HTML Review Workflow
+> **Plan**: `plans/phase-3-review-workflow.md` (Phase 3B section)
+> **Needs**: 3A-1 (card loader), rendered card images, art images
+> **Inputs**: `output/sets/<code>/cards/*.json`, `output/sets/<code>/renders/`, `output/sets/<code>/art/`
+> **Outputs**: Local FastAPI review server, HTML review gallery, progress tracker, booster viewer, review-decisions.json
+> **What this does**: HTML-based review workflow for full-set review at scale. User reviews all cards visually, marks each as OK/Remake/Art Redo/Manual Tweak, submits. Pipeline dispatches remakes and art redos automatically. Progress page tracks pending work. Manual tweaks are done by editing card JSONs directly.
+>
+> **Note**: Replaces old 3B plan (static HTML gallery). Key difference: backed by a lightweight FastAPI server instead of pure static HTML, enabling submit actions, progress tracking, and manual edit reloading.
 
-- [ ] **3B-1**: Gallery generator scaffolding — Jinja2 template setup, output structure, `cards.json` data export for client-side filtering
-- [ ] **3B-2**: Base HTML template + CSS — dark theme, responsive grid (CSS Grid), card image sizing
-- [ ] **3B-3**: Card grid page — `index.html` with toggle filters (color/rarity/type/status/CMC), sort options, card count, URL hash state
-- [ ] **3B-4**: Card detail pages — `cards/NNN.html` with large image, all card fields, status timeline, CLI command copy buttons, prev/next nav
-- [ ] **3B-5**: Booster pack viewer — `booster.html` randomized 15-card pack display. Build `mtgai/packs.py` `generate_booster_pack()` (shared with Phase 4B)
-- [ ] **3B-6**: Comparison mode — `compare.html` select 2-4 cards side-by-side with diff
-- [ ] **3B-7**: Art review page — `art-review.html` art-only grid grouped by color/type for consistency review
-- [ ] **3B-8**: `review gallery` CLI command — generates gallery, `--open` launches browser, `--watch` optional auto-regenerate
-- [ ] **3B-9**: File watcher (optional) — `watchdog` monitors card/render dirs, debounced gallery rebuild
+- [x] **3B-1**: Gallery builder scaffolding — `export_cards_json()` serializes cards to lightweight JSON (18 fields, relative image paths), `copy_static_assets()`, `build_gallery()` orchestrator. 21 tests.
+  → `backend/mtgai/gallery/generator.py`, `backend/tests/test_gallery/test_generator.py`
+- [x] **3B-2**: Base HTML template + dark theme CSS — Jinja2 `base.html` with nav, dark palette (#1a1a2e), responsive card grid, modal system, MTG color accents, rarity badges, radio groups, filter bar, summary bar.
+  → `backend/mtgai/gallery/templates/base.html`, `backend/mtgai/gallery/templates/static/style.css`
+- [x] **3B-3**: Review gallery page (`/review`) — card grid with filter controls (color/rarity/type/CMC/sort/show), per-card decision radios (OK/Remake/Art Redo/Manual Tweak), notes inputs, submit button, summary bar. ~445 lines JS for filtering, sorting, rendering, decision state, and submit POST.
+  → `backend/mtgai/gallery/templates/review.html`, `backend/mtgai/gallery/templates/static/review.js`
+- [x] **3B-4**: Card detail modal — click-to-expand with full card fields, mana cost rendering, prev/next keyboard nav, decision/notes sync with grid, XSS-safe escaping. ~385 lines JS.
+  → `backend/mtgai/gallery/templates/card_modal.html`, `review.js` (modal section)
+- [x] **3B-5**: Review decisions model + dispatcher — `ReviewAction` enum, `CardDecision`/`ReviewDecisions` Pydantic models, save/load with round audit trail, `dispatch_decisions()` writes remake-queue/art-redo-queue JSONs, `ReviewProgress` tracking. 34 tests.
+  → `backend/mtgai/review/decisions.py`, `backend/tests/test_review/test_decisions.py`
+- [x] **3B-6**: FastAPI review server — serves gallery pages, handles submit POST, progress/cards/booster APIs. Lifespan handler mounts render/art dirs. `serve` CLI command added. Progress + booster HTML templates included. 14 tests.
+  → `backend/mtgai/review/server.py`, `backend/mtgai/review/cli.py` (serve cmd), `backend/mtgai/gallery/templates/progress.html`, `backend/mtgai/gallery/templates/booster.html`, `backend/tests/test_review/test_server.py`
+- [x] **3B-7**: Progress page JS — auto-refresh polling (10s), progress bar with percentage, pending/completed/error tile rendering, "Reload Manual Edits" button, "Start New Review Round" redirect, CSS spinner for in-progress cards. 488 lines JS + 337 lines CSS.
+  → `backend/mtgai/gallery/templates/static/progress.js`
+- [x] **3B-8**: Booster pack viewer JS — random pack display (5-per-row grid, rarity-sorted), pack stats sidebar (color/rarity/creature/CMC/mechanic breakdown), client-side fallback generation, hover tooltip with mana cost rendering, rarity glow borders. 380+ lines JS + 380 lines CSS.
+  → `backend/mtgai/gallery/templates/static/booster.js`, `booster.html` updated
+- [ ] **3B-9**: Pipeline queue integration — generation pipeline reads `remake-queue.json`, art pipeline reads `art-redo-queue.json`, progress API reads status files to show completion. Deferred to Phase SC (scale-up) — queue files are written, pipeline readers not yet wired.
 
 ---
 

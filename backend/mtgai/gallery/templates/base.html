@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}MTGAI Review{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+  <!-- Navigation bar -->
+  <nav class="nav">
+    <div class="nav-brand">MTGAI</div>
+    <div class="nav-links">
+      <a href="/review" class="nav-link {% block nav_review %}{% endblock %}">Review</a>
+      <a href="/progress" class="nav-link {% block nav_progress %}{% endblock %}">Progress</a>
+      <a href="/booster" class="nav-link {% block nav_booster %}{% endblock %}">Booster</a>
+    </div>
+  </nav>
+
+  <!-- Page content -->
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <span class="footer-stats">
+      {% block footer_stats %}{% endblock %}
+    </span>
+    <span class="footer-brand">MTGAI</span>
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

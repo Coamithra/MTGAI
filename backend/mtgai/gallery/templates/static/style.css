@@ -1,0 +1,1722 @@
+/* ==========================================================================
+   MTGAI Review Gallery — Dark Theme
+   Local review tool for MTG AI-generated card sets.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   CSS Custom Properties
+   -------------------------------------------------------------------------- */
+:root {
+  /* Core palette */
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-card: #0f3460;
+  --bg-surface: #1e2a3a;
+  --text-primary: #e8e8e8;
+  --text-secondary: #a0a0a0;
+  --text-muted: #6a6a7a;
+  --accent: #e94560;
+  --accent-hover: #ff6b81;
+  --success: #2ecc71;
+  --warning: #f39c12;
+  --border: #2a2a4a;
+
+  /* MTG color identity accents */
+  --mtg-white: #f9faf4;
+  --mtg-blue: #0e68ab;
+  --mtg-black: #150b00;
+  --mtg-red: #d3202a;
+  --mtg-green: #00733e;
+  --mtg-gold: #c9a953;
+  --mtg-colorless: #8a8f93;
+
+  /* Rarity colors */
+  --rarity-common: #8a8f93;
+  --rarity-uncommon: #c0c0c0;
+  --rarity-rare: #c9a953;
+  --rarity-mythic: #e94560;
+
+  /* Layout constants */
+  --nav-height: 44px;
+  --footer-height: 32px;
+  --card-min-width: 220px;
+  --card-gap: 16px;
+  --radius: 6px;
+  --transition-speed: 0.2s;
+}
+
+/* --------------------------------------------------------------------------
+   Reset & Base
+   -------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--transition-speed);
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+/* --------------------------------------------------------------------------
+   Scrollbar (Webkit)
+   -------------------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Navigation Bar
+   -------------------------------------------------------------------------- */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  height: var(--nav-height);
+  padding: 0 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-brand {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text-muted);
+  margin-right: 24px;
+  letter-spacing: 0.05em;
+}
+
+.nav-links {
+  display: flex;
+  gap: 4px;
+}
+
+.nav-link {
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  transition: background var(--transition-speed), color var(--transition-speed);
+}
+
+.nav-link:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.nav-link.active {
+  background: var(--bg-card);
+  color: var(--accent);
+}
+
+/* --------------------------------------------------------------------------
+   Main Content Area
+   -------------------------------------------------------------------------- */
+.main-content {
+  flex: 1;
+  padding: 16px;
+  /* Leave room for sticky summary bar (48px) + footer */
+  padding-bottom: calc(var(--footer-height) + 64px);
+}
+
+/* --------------------------------------------------------------------------
+   Filter Bar
+   Sticky bar below nav with color/rarity toggles and search.
+   -------------------------------------------------------------------------- */
+.filter-bar {
+  position: sticky;
+  top: var(--nav-height);
+  z-index: 90;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: -16px -16px 16px -16px; /* bleed to edges */
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.filter-bar .filter-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.filter-bar .filter-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-right: 4px;
+}
+
+.filter-bar button {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background var(--transition-speed), color var(--transition-speed),
+    border-color var(--transition-speed);
+}
+
+.filter-bar button:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.filter-bar button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* MTG color filter buttons — colored left border as hint */
+.filter-bar button[data-color="W"] { border-left: 3px solid var(--mtg-white); }
+.filter-bar button[data-color="U"] { border-left: 3px solid var(--mtg-blue); }
+.filter-bar button[data-color="B"] { border-left: 3px solid var(--mtg-black); }
+.filter-bar button[data-color="R"] { border-left: 3px solid var(--mtg-red); }
+.filter-bar button[data-color="G"] { border-left: 3px solid var(--mtg-green); }
+.filter-bar button[data-color="M"] { border-left: 3px solid var(--mtg-gold); }
+.filter-bar button[data-color="C"] { border-left: 3px solid var(--mtg-colorless); }
+
+/* Filter dropdowns (select elements) */
+.filter-select {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition-speed);
+}
+
+.filter-select:focus {
+  border-color: var(--accent);
+}
+
+/* "Showing X of Y" count */
+.filter-count {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   Card Grid
+   Responsive CSS Grid for card tiles. Uses auto-fill so the browser decides
+   how many columns fit — no media-query breakpoints needed for the grid itself.
+   -------------------------------------------------------------------------- */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width), 1fr));
+  gap: var(--card-gap);
+}
+
+/* --------------------------------------------------------------------------
+   Card Tile
+   Each tile: card image + name label + decision radio buttons.
+   -------------------------------------------------------------------------- */
+.card-tile {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+  cursor: pointer;
+}
+
+.card-tile:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Card image — tall MTG cards (822x1122), full tile width */
+.card-tile img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Card name below image */
+.card-tile .card-name {
+  padding: 6px 8px 2px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Card tile image wrapper — clickable area */
+.card-tile-image {
+  cursor: pointer;
+}
+
+.card-tile-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Card placeholder for missing images */
+.card-placeholder {
+  width: 100%;
+  aspect-ratio: 822 / 1122;  /* MTG card ratio */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  border-radius: 4px;
+  opacity: 0.6;
+}
+
+/* Card info area below image */
+.card-tile-info {
+  padding: 6px 8px 2px;
+}
+
+/* Card meta line (collector # and rarity) */
+.card-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+/* Notes input at the bottom of each tile */
+.card-notes {
+  display: block;
+  width: calc(100% - 12px);
+  margin: 4px 6px 6px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-family: inherit;
+}
+
+.card-notes::placeholder {
+  color: var(--text-muted);
+}
+
+.card-notes:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Decision radio group below card name */
+.card-tile .card-controls {
+  padding: 4px 8px 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Radio Group
+   Compact horizontal row of radio buttons for review decisions.
+   Four options: OK / Remake / Art Redo / Manual Tweak
+   -------------------------------------------------------------------------- */
+.radio-group {
+  display: flex;
+  gap: 2px;
+  padding: 0 6px;
+}
+
+.radio-group label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 2px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: center;
+  transition: background var(--transition-speed), color var(--transition-speed),
+    border-color var(--transition-speed);
+  line-height: 1.2;
+}
+
+.radio-group label:hover {
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+
+/* Hide the actual radio input */
+.radio-group input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* Highlight selected radio option */
+.radio-group input[type="radio"]:checked + span {
+  /* The label wraps input + span; target the span after checked input */
+}
+
+/* Alternative: use :has() for modern browsers to style the label */
+.radio-group label:has(input:checked) {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* Decision-specific colors when selected */
+.radio-group label.decision-ok:has(input:checked) {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.radio-group label.decision-remake:has(input:checked) {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.radio-group label.decision-art:has(input:checked) {
+  background: var(--warning);
+  border-color: var(--warning);
+}
+
+.radio-group label.decision-tweak:has(input:checked) {
+  background: var(--mtg-blue);
+  border-color: var(--mtg-blue);
+}
+
+/* --------------------------------------------------------------------------
+   Summary Bar
+   Sticky bottom bar showing decision counts + submit button.
+   -------------------------------------------------------------------------- */
+.summary-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+}
+
+.summary-bar .summary-counts {
+  display: flex;
+  gap: 16px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.summary-bar .summary-counts span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.summary-bar .btn-submit {
+  padding: 6px 20px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-speed);
+}
+
+.summary-bar .btn-submit:hover {
+  background: var(--accent-hover);
+}
+
+.summary-bar .btn-submit:disabled {
+  background: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Submit button (alternate class name used by review.html) */
+.submit-btn {
+  padding: 6px 20px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-speed);
+}
+
+.submit-btn:hover {
+  background: var(--accent-hover);
+}
+
+.submit-btn:disabled {
+  background: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Summary count color accents */
+.summary-ok       { color: var(--success); }
+.summary-remake    { color: var(--accent); }
+.summary-art-redo  { color: var(--warning); }
+.summary-tweak     { color: var(--mtg-blue); }
+
+/* --------------------------------------------------------------------------
+   Modal Overlay
+   Full-screen overlay for card detail / zoom view.
+   -------------------------------------------------------------------------- */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.8);
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-overlay.visible {
+  display: flex;
+}
+
+.modal-content {
+  position: relative;
+  max-width: 800px;
+  max-height: 90vh;
+  width: 90%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.modal-content .modal-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.4rem;
+  cursor: pointer;
+  transition: color var(--transition-speed);
+}
+
+.modal-content .modal-close:hover {
+  color: var(--text-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Card Detail Modal
+   Extended styles for the two-column card detail view.
+   -------------------------------------------------------------------------- */
+
+/* Wider max-width for the detail variant */
+.modal-content.modal-detail {
+  max-width: 960px;
+}
+
+/* Prev/Next navigation bar */
+.modal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-nav button {
+  padding: 4px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background var(--transition-speed), color var(--transition-speed);
+}
+
+.modal-nav button:hover {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.modal-card-number {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  min-width: 60px;
+  text-align: center;
+}
+
+/* Two-column body: image + details */
+.modal-body {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.modal-image {
+  flex: 0 0 auto;
+  width: 300px;
+}
+
+.modal-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.modal-details {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Name + mana cost header */
+.modal-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.modal-card-name {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.modal-mana-cost {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+/* Type line */
+.modal-type-line {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Oracle text */
+.modal-oracle-text {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius);
+}
+
+/* Flavor text */
+.modal-flavor-text {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--border);
+}
+
+/* Stats (P/T or Loyalty) */
+.modal-stats {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  padding: 4px 10px;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  display: inline-block;
+}
+
+/* Metadata table */
+.modal-meta-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin-top: 8px;
+}
+
+.modal-meta-table td {
+  padding: 4px 0;
+  vertical-align: top;
+}
+
+.modal-meta-table .meta-label {
+  color: var(--text-muted);
+  width: 100px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  padding-right: 8px;
+}
+
+.modal-meta-table .meta-value {
+  color: var(--text-secondary);
+}
+
+/* Decision + notes row at the bottom */
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.modal-decision {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-decision-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.modal-actions .radio-group {
+  flex-shrink: 0;
+}
+
+.modal-actions .radio-group label {
+  padding: 5px 10px;
+  font-size: 0.75rem;
+}
+
+.modal-notes-input {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-notes-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.modal-notes-field {
+  flex: 1;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-family: inherit;
+}
+
+.modal-notes-field::placeholder {
+  color: var(--text-muted);
+}
+
+.modal-notes-field:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* --------------------------------------------------------------------------
+   Mana Symbols
+   Inline colored circles for mana cost display.
+   -------------------------------------------------------------------------- */
+.mana-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* MTG mana colors */
+.mana-w { background: #f9f5e3; color: #33302b; }
+.mana-u { background: #0e68ab; color: #fff; }
+.mana-b { background: #2b2520; color: #ccc; }
+.mana-r { background: #d3202a; color: #fff; }
+.mana-g { background: #00733e; color: #fff; }
+
+/* Generic mana (numbers) */
+.mana-0, .mana-1, .mana-2, .mana-3, .mana-4, .mana-5,
+.mana-6, .mana-7, .mana-8, .mana-9, .mana-10, .mana-11,
+.mana-12, .mana-13, .mana-14, .mana-15, .mana-16 {
+  background: #a0a0a0;
+  color: #1a1a2e;
+}
+
+/* Variable / special */
+.mana-x { background: #a0a0a0; color: #1a1a2e; }
+.mana-c { background: #cbc5bf; color: #1a1a2e; }
+.mana-s { background: #8a8f93; color: #1a1a2e; } /* Snow */
+
+/* --------------------------------------------------------------------------
+   Badges
+   Small colored labels for rarity, status, card type, etc.
+   -------------------------------------------------------------------------- */
+.badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge-common    { background: var(--rarity-common);   color: #1a1a2e; }
+.badge-uncommon  { background: var(--rarity-uncommon);  color: #1a1a2e; }
+.badge-rare      { background: var(--rarity-rare);      color: #1a1a2e; }
+.badge-mythic    { background: var(--rarity-mythic);    color: #fff; }
+
+.badge-success   { background: var(--success); color: #1a1a2e; }
+.badge-warning   { background: var(--warning); color: #1a1a2e; }
+.badge-error     { background: var(--accent);  color: #fff; }
+
+/* MTG color identity badges */
+.badge-white     { background: var(--mtg-white);     color: #1a1a2e; }
+.badge-blue      { background: var(--mtg-blue);      color: #fff; }
+.badge-black     { background: var(--mtg-black);     color: #e8e8e8; }
+.badge-red       { background: var(--mtg-red);       color: #fff; }
+.badge-green     { background: var(--mtg-green);     color: #fff; }
+.badge-gold      { background: var(--mtg-gold);      color: #1a1a2e; }
+.badge-colorless { background: var(--mtg-colorless); color: #1a1a2e; }
+
+/* --------------------------------------------------------------------------
+   Footer
+   -------------------------------------------------------------------------- */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--footer-height);
+  padding: 0 16px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.footer-brand {
+  letter-spacing: 0.1em;
+}
+
+/* --------------------------------------------------------------------------
+   Utility Classes
+   -------------------------------------------------------------------------- */
+.text-muted   { color: var(--text-muted); }
+.text-success { color: var(--success); }
+.text-warning { color: var(--warning); }
+.text-error   { color: var(--accent); }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Adjustments
+   The card grid is inherently responsive via auto-fill. These breakpoints
+   adjust surrounding UI for smaller screens.
+   -------------------------------------------------------------------------- */
+
+/* Tablet: slightly smaller cards, tighter spacing */
+@media (max-width: 1200px) {
+  :root {
+    --card-min-width: 200px;
+    --card-gap: 12px;
+  }
+
+  .filter-bar {
+    padding: 6px 12px;
+  }
+}
+
+/* Mobile: 2 columns min, compact filter bar */
+@media (max-width: 768px) {
+  :root {
+    --card-min-width: 160px;
+    --card-gap: 8px;
+  }
+
+  .nav {
+    padding: 0 8px;
+  }
+
+  .nav-brand {
+    margin-right: 12px;
+    font-size: 0.85rem;
+  }
+
+  .nav-link {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+  }
+
+  .filter-bar {
+    padding: 4px 8px;
+    gap: 4px;
+  }
+
+  .filter-bar button {
+    padding: 3px 6px;
+    font-size: 0.7rem;
+  }
+
+  .main-content {
+    padding: 8px;
+  }
+
+  .radio-group label {
+    font-size: 0.6rem;
+    padding: 2px 1px;
+  }
+
+  .summary-bar {
+    height: 40px;
+    padding: 0 8px;
+  }
+
+  .modal-content {
+    width: 95%;
+    padding: 12px;
+  }
+
+  /* Stack modal body vertically on mobile */
+  .modal-body {
+    flex-direction: column;
+  }
+
+  .modal-image {
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto;
+  }
+
+  .modal-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .modal-decision {
+    flex-wrap: wrap;
+  }
+
+  .modal-notes-input {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+}
+
+/* ==========================================================================
+   Progress Page
+   Tiles, summary bar, sections for pending/completed/error cards.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Progress page layout
+   -------------------------------------------------------------------------- */
+.progress-page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.progress-page h1 {
+  margin-bottom: 16px;
+  font-size: 1.4rem;
+  color: var(--text-primary);
+}
+
+.progress-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* --------------------------------------------------------------------------
+   Progress summary header
+   -------------------------------------------------------------------------- */
+.progress-summary {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.progress-summary-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.progress-round {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.progress-total {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   Progress bar
+   -------------------------------------------------------------------------- */
+.progress-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-bar-track {
+  flex: 1;
+  height: 12px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--success);
+  border-radius: 6px;
+  transition: width 0.5s ease;
+}
+
+.progress-bar-fill.complete {
+  background: linear-gradient(90deg, var(--success), #27ae60);
+}
+
+.progress-bar-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   All-done banner
+   -------------------------------------------------------------------------- */
+.progress-done-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(46, 204, 113, 0.1);
+  border: 1px solid var(--success);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.progress-done-banner .submit-btn {
+  margin-left: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Empty state
+   -------------------------------------------------------------------------- */
+.progress-empty {
+  text-align: center;
+  padding: 40px 16px;
+  color: var(--text-secondary);
+}
+
+.progress-empty p {
+  margin-bottom: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Progress sections (Pending / Completed / Error groups)
+   -------------------------------------------------------------------------- */
+.progress-section {
+  margin-bottom: 24px;
+}
+
+.progress-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--border);
+}
+
+.progress-section-pending .progress-section-title,
+.progress-section-title.progress-section-pending {
+  border-bottom-color: var(--warning);
+  color: var(--warning);
+}
+
+.progress-section-title.progress-section-completed {
+  border-bottom-color: var(--success);
+  color: var(--success);
+}
+
+.progress-section-title.progress-section-error {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.progress-section-count {
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Progress tiles — base styles
+   Uses the same card-grid (auto-fill) as the review page tiles.
+   -------------------------------------------------------------------------- */
+.progress-tile {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.progress-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+.progress-tile-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 12px;
+  text-align: center;
+  min-height: 160px;
+}
+
+/* --------------------------------------------------------------------------
+   Progress tile — icons
+   -------------------------------------------------------------------------- */
+.progress-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+.completed-icon {
+  color: var(--success);
+}
+
+/* --------------------------------------------------------------------------
+   Progress tile — labels and text
+   -------------------------------------------------------------------------- */
+.progress-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.progress-collector {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.progress-note {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  line-height: 1.3;
+  max-width: 180px;
+  word-wrap: break-word;
+}
+
+.progress-action-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   Progress tile — status variants
+   -------------------------------------------------------------------------- */
+
+/* Pending: muted/dimmed, dashed border */
+.progress-tile.pending {
+  border-style: dashed;
+  border-color: var(--warning);
+  opacity: 0.85;
+}
+
+.progress-tile.pending .progress-label {
+  color: var(--warning);
+}
+
+/* Completed: green accent */
+.progress-tile.completed {
+  border-color: var(--success);
+}
+
+.progress-tile.completed .progress-label {
+  color: var(--success);
+}
+
+/* Error: red border and accent */
+.progress-tile.error {
+  border-color: var(--accent);
+  border-width: 2px;
+}
+
+.progress-tile.error .progress-label {
+  color: var(--accent);
+}
+
+.progress-error-msg {
+  color: var(--accent);
+  font-style: normal;
+  font-weight: 500;
+}
+
+/* --------------------------------------------------------------------------
+   Spinner animation (for in_progress cards)
+   -------------------------------------------------------------------------- */
+.spinner {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--warning);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --------------------------------------------------------------------------
+   Progress page responsive
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .progress-summary-header {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .progress-bar-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .progress-bar-label {
+    text-align: center;
+  }
+
+  .progress-done-banner {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .progress-done-banner .submit-btn {
+    margin-left: 0;
+  }
+
+  .progress-actions {
+    flex-direction: column;
+  }
+
+  .progress-tile-body {
+    padding: 14px 8px;
+    min-height: 120px;
+  }
+}
+
+/* ==========================================================================
+   Booster Pack Viewer
+   Pack grid, stats sidebar, card tiles with rarity glow, tooltip.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Booster page layout
+   -------------------------------------------------------------------------- */
+.booster-page {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.booster-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.booster-header h1 {
+  font-size: 1.4rem;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.booster-header #pack-seed {
+  font-size: 0.75rem;
+  margin-left: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Booster container — pack grid + stats sidebar
+   -------------------------------------------------------------------------- */
+.booster-container {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+/* --------------------------------------------------------------------------
+   Booster pack grid — 5 cards per row
+   -------------------------------------------------------------------------- */
+.booster-pack {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Booster card tile
+   -------------------------------------------------------------------------- */
+.booster-card {
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+  cursor: pointer;
+  position: relative;
+}
+
+.booster-card:hover {
+  transform: translateY(-4px) scale(1.03);
+  z-index: 10;
+}
+
+/* Rarity border glow */
+.booster-rarity-common {
+  border-color: var(--rarity-common);
+}
+
+.booster-rarity-common:hover {
+  box-shadow: 0 4px 16px rgba(138, 143, 147, 0.3);
+}
+
+.booster-rarity-uncommon {
+  border-color: var(--rarity-uncommon);
+}
+
+.booster-rarity-uncommon:hover {
+  box-shadow: 0 4px 16px rgba(192, 192, 192, 0.4),
+              0 0 8px rgba(192, 192, 192, 0.2);
+}
+
+.booster-rarity-rare {
+  border-color: var(--rarity-rare);
+}
+
+.booster-rarity-rare:hover {
+  box-shadow: 0 4px 20px rgba(201, 169, 83, 0.5),
+              0 0 12px rgba(201, 169, 83, 0.3);
+}
+
+.booster-rarity-mythic {
+  border-color: var(--rarity-mythic);
+}
+
+.booster-rarity-mythic:hover {
+  box-shadow: 0 4px 24px rgba(233, 69, 96, 0.5),
+              0 0 16px rgba(233, 69, 96, 0.3);
+}
+
+.booster-rarity-land {
+  border-color: var(--border);
+}
+
+.booster-rarity-land:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* --------------------------------------------------------------------------
+   Booster card image
+   -------------------------------------------------------------------------- */
+.booster-card-image {
+  width: 100%;
+}
+
+.booster-card-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.booster-card-image .card-placeholder {
+  width: 100%;
+  aspect-ratio: 822 / 1122;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  opacity: 0.6;
+}
+
+/* --------------------------------------------------------------------------
+   Booster card label (name + rarity badge below image)
+   -------------------------------------------------------------------------- */
+.booster-card-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 4px 6px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+}
+
+.booster-card-name {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.booster-card-label .badge {
+  flex-shrink: 0;
+  font-size: 0.55rem;
+  padding: 1px 4px;
+}
+
+/* --------------------------------------------------------------------------
+   Booster stats sidebar
+   -------------------------------------------------------------------------- */
+.booster-stats {
+  flex: 0 0 200px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  position: sticky;
+  top: calc(var(--nav-height) + 16px);
+}
+
+.booster-stat-section {
+  margin-bottom: 16px;
+}
+
+.booster-stat-section:last-child {
+  margin-bottom: 0;
+}
+
+.booster-stat-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* --------------------------------------------------------------------------
+   Booster stat items
+   -------------------------------------------------------------------------- */
+.booster-stat-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.booster-stat-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.booster-stat-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Booster color counts with colored dots
+   -------------------------------------------------------------------------- */
+.booster-color-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.booster-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.booster-dot-w { background: var(--mtg-white); }
+.booster-dot-u { background: var(--mtg-blue); }
+.booster-dot-b { background: var(--mtg-black); border: 1px solid var(--text-muted); }
+.booster-dot-r { background: var(--mtg-red); }
+.booster-dot-g { background: var(--mtg-green); }
+.booster-dot-multi { background: var(--mtg-gold); }
+.booster-dot-colorless { background: var(--mtg-colorless); }
+
+.booster-color-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.booster-color-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Booster mechanic tags
+   -------------------------------------------------------------------------- */
+.booster-mechanic-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 0.75rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   Booster card tooltip
+   -------------------------------------------------------------------------- */
+.booster-tooltip {
+  position: fixed;
+  z-index: 300;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  max-width: 260px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.booster-tooltip-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.booster-tooltip-mana {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.booster-tooltip-mana .mana-symbol {
+  width: 18px;
+  height: 18px;
+  font-size: 0.65rem;
+}
+
+.booster-tooltip-type {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.booster-tooltip-pt {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 6px;
+}
+
+/* --------------------------------------------------------------------------
+   Booster responsive
+   -------------------------------------------------------------------------- */
+@media (max-width: 1200px) {
+  .booster-pack {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .booster-stats {
+    flex: 0 0 180px;
+  }
+}
+
+@media (max-width: 900px) {
+  .booster-container {
+    flex-direction: column;
+  }
+
+  .booster-pack {
+    grid-template-columns: repeat(5, 1fr);
+  }
+
+  .booster-stats {
+    flex: none;
+    width: 100%;
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+
+  .booster-stat-section {
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .booster-pack {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .booster-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .booster-header #pack-seed {
+    margin-left: 0;
+  }
+
+  .booster-card-name {
+    font-size: 0.6rem;
+  }
+
+  .booster-card-label .badge {
+    font-size: 0.5rem;
+  }
+}

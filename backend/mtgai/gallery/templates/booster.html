@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Booster Pack — {{ set_code }}{% endblock %}
+
+{% block nav_booster %}active{% endblock %}
+
+{% block content %}
+<div class="booster-page">
+  <div class="booster-header">
+    <h1>Booster Pack — {{ set_code }}</h1>
+    <button id="open-pack-btn" class="submit-btn" onclick="openNewPack()">
+      Open New Pack
+    </button>
+    <span id="pack-seed" class="text-muted"></span>
+  </div>
+  <div class="booster-container">
+    <div class="booster-pack" id="booster-grid">
+      <!-- Filled by JavaScript -->
+    </div>
+    <aside class="booster-stats" id="booster-stats">
+      <!-- Filled by JavaScript -->
+    </aside>
+  </div>
+</div>
+
+<!-- Card detail tooltip (hidden by default) -->
+<div class="booster-tooltip" id="booster-tooltip" style="display:none;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const ALL_CARDS = {{ cards_json | safe }};
+</script>
+<script src="/static/booster.js"></script>
+{% endblock %}

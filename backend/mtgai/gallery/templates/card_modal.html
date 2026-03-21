@@ -1,0 +1,114 @@
+{# Card Detail Modal — included as a partial in the review page. #}
+{# Shown/hidden by JavaScript (review.js). All content populated dynamically. #}
+
+<div id="card-modal" class="modal-overlay" role="dialog" aria-modal="true"
+     aria-label="Card detail view" style="display:none;">
+  <div class="modal-content modal-detail">
+
+    <!-- Close button -->
+    <button class="modal-close" onclick="closeModal()" aria-label="Close modal">&times;</button>
+
+    <!-- Prev / Next navigation -->
+    <div class="modal-nav">
+      <button class="modal-prev" onclick="prevCard()" aria-label="Previous card">&#8592; Prev</button>
+      <span class="modal-card-number" id="modal-card-number">1 / 1</span>
+      <button class="modal-next" onclick="nextCard()" aria-label="Next card">Next &#8594;</button>
+    </div>
+
+    <!-- Two-column body: image left, details right -->
+    <div class="modal-body">
+      <div class="modal-image">
+        <img id="modal-card-img" src="" alt="Card render" loading="lazy">
+      </div>
+
+      <div class="modal-details">
+        <!-- Name + mana cost header -->
+        <div class="modal-header-row">
+          <h2 id="modal-card-name" class="modal-card-name"></h2>
+          <span id="modal-mana-cost" class="modal-mana-cost"></span>
+        </div>
+
+        <!-- Type line -->
+        <div id="modal-type-line" class="modal-type-line"></div>
+
+        <!-- Oracle text -->
+        <div id="modal-oracle-text" class="modal-oracle-text"></div>
+
+        <!-- Flavor text -->
+        <div id="modal-flavor-text" class="modal-flavor-text"></div>
+
+        <!-- Stats row: P/T or Loyalty -->
+        <div id="modal-stats" class="modal-stats"></div>
+
+        <!-- Metadata table -->
+        <table class="modal-meta-table">
+          <tbody>
+            <tr>
+              <td class="meta-label">Rarity</td>
+              <td id="modal-rarity" class="meta-value"></td>
+            </tr>
+            <tr>
+              <td class="meta-label">Collector #</td>
+              <td id="modal-collector" class="meta-value"></td>
+            </tr>
+            <tr>
+              <td class="meta-label">Set</td>
+              <td id="modal-set-code" class="meta-value"></td>
+            </tr>
+            <tr>
+              <td class="meta-label">Colors</td>
+              <td id="modal-colors" class="meta-value"></td>
+            </tr>
+            <tr>
+              <td class="meta-label">CMC</td>
+              <td id="modal-cmc" class="meta-value"></td>
+            </tr>
+            <tr id="modal-mechanic-row" style="display:none;">
+              <td class="meta-label">Mechanics</td>
+              <td id="modal-mechanics" class="meta-value"></td>
+            </tr>
+            <tr id="modal-reprint-row" style="display:none;">
+              <td class="meta-label">Reprint</td>
+              <td id="modal-reprint" class="meta-value"></td>
+            </tr>
+            <tr id="modal-notes-row" style="display:none;">
+              <td class="meta-label">Design Notes</td>
+              <td id="modal-design-notes" class="meta-value"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Decision controls (synced with grid) -->
+    <div class="modal-actions">
+      <div class="modal-decision">
+        <span class="modal-decision-label">Decision:</span>
+        <div class="radio-group" id="modal-radio-group">
+          <label class="decision-ok">
+            <input type="radio" name="modal-decision" value="ok">
+            <span>OK</span>
+          </label>
+          <label class="decision-remake">
+            <input type="radio" name="modal-decision" value="remake">
+            <span>Remake</span>
+          </label>
+          <label class="decision-art">
+            <input type="radio" name="modal-decision" value="art_redo">
+            <span>Art Redo</span>
+          </label>
+          <label class="decision-tweak">
+            <input type="radio" name="modal-decision" value="manual_tweak">
+            <span>Tweak</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-notes-input">
+        <label for="modal-notes-field" class="modal-notes-label">Notes:</label>
+        <input type="text" id="modal-notes-field" class="modal-notes-field"
+               placeholder="Optional notes for this card...">
+      </div>
+    </div>
+
+  </div>
+</div>
