@@ -21,8 +21,10 @@ Build a complete Magic: The Gathering custom set creator — from initial set de
 | 4AB Human Review Gate | COMPLETE | Card-by-card "art ready" review. Gallery built for visual review. |
 | 2A Art Direction | COMPLETE | Style guide + prompts + character portraits + PuLID identity injection. GO gate passed. $0.77 total. |
 | 2B Art Generation | COMPLETE | 198 images (66×3) via Flux.1-dev Q8_0. Art selection via Haiku ($0.37). Character identity via PuLID w=0.5. |
-| 2C Card Renderer | IN PROGRESS | Rendering engine built, M15 frames from Card Conjurer, first pass done (66 cards). Iterating on text layout. |
-| 3A-5C | NOT STARTED | |
+| 2C Card Renderer | COMPLETE | 4 iterations: SVG mana symbols, dynamic text sizing, legendary crowns, real MTG fonts (Beleren/MPlantin/Relay). 66 cards rendered. |
+| 3A Data Layer | COMPLETE | Card loader upgrade (list[Card] + filters + sorting, 52 tests), booster pack module (color-balanced collation, 23 tests). Export deferred. |
+| 3B HTML Review Workflow | COMPLETE | FastAPI review server, card gallery with filters/decisions, card detail modal, progress page, booster viewer. 672 tests total. `python -m mtgai.review serve --open` |
+| 4C-5C | NOT STARTED | |
 
 ## Key Decisions
 - **Stack**: Python backend (FastAPI) + lightweight review UI (CLI primary, simple HTML viewer for visual review)
@@ -277,24 +279,25 @@ Build a complete Magic: The Gathering custom set creator — from initial set de
 
 ## Phase 3: Review & Human-in-the-Loop
 
-> Lightweight tooling — CLI primary, simple HTML viewer for visual review. Full UI only if this proves insufficient.
+> HTML-based review workflow backed by local FastAPI server. Original CLI-heavy plan replaced after dev set experience showed visual review is more practical.
 
-### 3A: CLI Review Tools (extends minimal CLI from Phase 1A)
-- Batch approve/reject/flag commands (card status transitions)
-- Side-by-side card comparison
-- Export commands (print files, card list CSV, full set JSON)
-- Art review integration (show card data alongside art file path/thumbnail)
+### 3A: Data Layer + Utilities (COMPLETE)
+- Card loader upgrade: `load_cards()` returns `list[Card]`, `CardFilter` dataclass, `filter_cards()`, `sort_cards()`
+- Booster pack module: `generate_booster_pack()` with color-balanced collation mimicking real MTG draft boosters (WUBRG guarantee, ~2 per color, multicolor/colorless in separate "run")
+- Export command deferred to Phase 5
 
-### 3B: HTML Gallery Viewer
-- Static HTML generation showing all cards as rendered images
-- Filter/sort by color, rarity, type, CMC
-- Side-by-side view for art consistency review
-- Flagged cards highlighted
-- Sample booster pack viewer
-- Regenerate from the gallery? Only if CLI workflow proves painful
+### 3B: HTML Review Workflow (COMPLETE)
+- **Review gallery** (`/review`): card grid with filters (color/rarity/type/CMC/sort), per-card decisions (OK/Remake/Art Redo/Manual Tweak), submit dispatches to pipeline queues
+- **Card detail modal**: click-to-expand, full card fields, mana cost rendering, keyboard nav (arrows/escape)
+- **Progress page** (`/progress`): auto-refresh polling, pending/completed/error sections, "Reload Manual Edits" button
+- **Booster pack viewer** (`/booster`): random packs with stats sidebar, rarity glow borders, client-side fallback
+- **FastAPI server**: serves gallery, handles submit POST, opens manual-tweak JSONs in system editor, discovers images from disk
+- **CLI**: `python -m mtgai.review serve [--port 8081] [--open]`
+- **Plan**: `plans/phase-3-review-workflow.md`
+- **Remaining**: 3B-9 (pipeline queue readers) deferred to Phase SC — queue files are written but pipelines don't consume them yet
 
-**Test**: Validation tests for card data integrity. Manual review of HTML output.
-**Learnings -> `learnings/phase3.md`**
+**Test**: 140+ tests across loaders, packs, gallery, decisions, server. 672 total project tests.
+**Learnings -> `learnings/phase3.md`** (not yet written)
 
 ---
 
