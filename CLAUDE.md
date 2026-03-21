@@ -105,12 +105,16 @@
 - Also: `python -m mtgai.review.ai_review [--dry-run] [--card W-C-01]`
 
 ## Balance Analysis (`mtgai/analysis/`)
-- `analyze_set(set_code)` runs skeleton conformance, CMC curve, creature size, removal density, card advantage, mechanic distribution, mana fixing, and color balance checks
+- `analyze_set(set_code)` runs skeleton conformance, CMC curve, creature size, removal density, card advantage, mechanic distribution, mana fixing, color balance, and **interaction analysis** checks
+- **Interaction analysis** (`interactions.py`): LLM-based degenerate combo detection — feeds full card pool to Sonnet, flags infinite combos / degenerate synergies / unintended loops
+  - Identifies the "enabler" card (root cause) for each flagged interaction
+  - Returns `InteractionFlag` with `enabler_slot_id` and `replacement_constraint`
+  - Feeds into skeleton reviser for automatic enabler replacement
 - CLI: `python -m mtgai.review balance --set ASD`
 - Reports saved to `output/sets/<SET_CODE>/reports/balance-{report,analysis}.{md,json}`
 
 ## Skeleton Revision (`mtgai/generation/skeleton_reviser.py`)
-- LLM proposes slot changes based on balance findings, then regenerates affected cards
+- LLM proposes slot changes based on balance findings (including interaction flags), then regenerates affected cards
 - CLI: `python -m mtgai.generation.skeleton_reviser [--dry-run] [--max-rounds N]`
 
 ## Testing

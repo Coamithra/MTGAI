@@ -322,6 +322,19 @@ def _extract_set_level_issues(balance: dict) -> str:
                 f"slot expects {issue['expected']}, card is {issue['actual']}"
             )
 
+    # Degenerate interactions
+    interaction_flags = balance.get("interaction_flags", [])
+    if interaction_flags:
+        lines.append(f"\nDegenerate interactions ({len(interaction_flags)} flagged):")
+        for flag in interaction_flags:
+            cards = ", ".join(flag.get("cards_involved", []))
+            enabler = flag.get("enabler_card", "?")
+            slot = flag.get("enabler_slot_id", "?")
+            desc = flag.get("description", "")[:120]
+            constraint = flag.get("replacement_constraint", "")
+            lines.append(f"- [{flag.get('severity', 'WARN')}] {cards}: {desc}")
+            lines.append(f"  Enabler: {enabler} ({slot}) — replace with: {constraint}")
+
     return "\n".join(lines)
 
 

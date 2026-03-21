@@ -46,5 +46,11 @@
     "question": "Does this card have 'enters tapped' or similar effects that are irrelevant for the card type? For example, a noncreature artifact with no tap abilities entering tapped has no mechanical impact.",
     "category": "enters_tapped_irrelevant",
     "source": "1B-8 human review"
+  },
+  {
+    "id": "red_flag_mechanics",
+    "question": "Does this card have any mechanics that are classic combo enablers? Red flags include: free or repeated untap effects, cost reduction to zero, repeatable recursion without meaningful mana cost, unbounded token generation, copying spells/permanents without restriction, or replacing itself while triggering other effects in a loop. Also consider whether this effect would be degenerate with well-known MTG cards (0-cost artifacts, free sacrifice outlets like Ashnod's Altar, mass untap effects like Paradox Engine). These patterns are fine at rare/mythic with appropriate costs but dangerous at common/uncommon if undercosted.",
+    "category": "red_flag_mechanics",
+    "source": "4C-5 interaction analysis"
   }
 ]

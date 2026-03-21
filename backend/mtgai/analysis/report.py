@@ -143,6 +143,27 @@ def generate_markdown_report(result: BalanceAnalysisResult) -> str:
         lines.append(f"| {color} | {count} |")
     lines.append("")
 
+    # --- Interaction Analysis ---
+    lines.append("## Interaction Analysis")
+    lines.append("")
+    if result.interaction_flags:
+        lines.append(
+            f"**{len(result.interaction_flags)} potential degenerate interaction(s) flagged:**"
+        )
+        lines.append("")
+        for flag in result.interaction_flags:
+            severity = "FAIL" if flag.severity == "FAIL" else "WARN"
+            lines.append(f"### [{severity}] {flag.interaction_type}")
+            lines.append(f"**Cards:** {', '.join(flag.cards_involved)}")
+            lines.append(f"**Description:** {flag.description}")
+            lines.append(f"**Enabler:** {flag.enabler_card} ({flag.enabler_slot_id})")
+            lines.append(f"**Why enabler:** {flag.why_enabler}")
+            lines.append(f"**Replacement constraint:** {flag.replacement_constraint}")
+            lines.append("")
+    else:
+        lines.append("No degenerate interactions found.")
+        lines.append("")
+
     # --- All Issues ---
     lines.append("## All Issues")
     lines.append("")

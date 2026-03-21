@@ -15,6 +15,7 @@ from mtgai.analysis.coverage import (
     analyze_mana_fixing,
     analyze_mechanic_distribution,
 )
+from mtgai.analysis.interactions import analyze_interactions
 from mtgai.analysis.models import BalanceAnalysisResult
 from mtgai.io.card_io import load_card
 from mtgai.models.card import Card
@@ -104,6 +105,10 @@ def analyze_set(set_code: str) -> BalanceAnalysisResult:
     color_balance, balance_issues = analyze_color_balance(cards)
     all_issues.extend(balance_issues)
 
+    # --- Interactions ---
+    interaction_flags, interaction_issues = analyze_interactions(cards, mechanics)
+    all_issues.extend(interaction_issues)
+
     # --- Summary ---
     summary = {
         "PASS": 0,
@@ -117,6 +122,11 @@ def analyze_set(set_code: str) -> BalanceAnalysisResult:
     matched_slots = sum(1 for r in conformance if r.matched)
     summary["PASS"] += matched_slots
 
+    # Extract LLM analysis text from flags (logged separately)
+    interaction_analysis = ""
+    if interaction_flags:
+        interaction_analysis = f"{len(interaction_flags)} interaction(s) flagged for review"
+
     return BalanceAnalysisResult(
         set_code=set_code,
         total_cards=len(cards),
@@ -126,6 +136,8 @@ def analyze_set(set_code: str) -> BalanceAnalysisResult:
         mechanic_distribution=mech_dist,
         mana_fixing_sources=fixing_sources,
         color_balance=color_balance,
+        interaction_flags=interaction_flags,
+        interaction_analysis=interaction_analysis,
         issues=all_issues,
         summary=summary,
     )

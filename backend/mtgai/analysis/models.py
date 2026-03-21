@@ -70,6 +70,19 @@ class MechanicDistribution(BaseModel):
     total_actual: int = 0
 
 
+class InteractionFlag(BaseModel):
+    """A degenerate card interaction flagged by the LLM interaction scanner."""
+
+    cards_involved: list[str]
+    interaction_type: str  # infinite_combo, degenerate_synergy, unintended_loop
+    description: str
+    severity: str  # WARN or FAIL
+    enabler_card: str
+    enabler_slot_id: str
+    why_enabler: str
+    replacement_constraint: str
+
+
 class BalanceAnalysisResult(BaseModel):
     """Top-level result of the full Phase 4A balance analysis."""
 
@@ -85,6 +98,10 @@ class BalanceAnalysisResult(BaseModel):
     mechanic_distribution: list[MechanicDistribution] = Field(default_factory=list)
     mana_fixing_sources: list[str] = Field(default_factory=list)
     color_balance: dict[str, int] = Field(default_factory=dict)  # color -> count
+
+    # Interaction analysis
+    interaction_flags: list[InteractionFlag] = Field(default_factory=list)
+    interaction_analysis: str = ""  # LLM's overall assessment
 
     # All issues aggregated
     issues: list[AnalysisIssue] = Field(default_factory=list)

@@ -17,6 +17,7 @@ from mtgai.analysis.models import (
     AnalysisSeverity,
     BalanceAnalysisResult,
     ColorCoverageResult,
+    InteractionFlag,
     MechanicDistribution,
     SlotConformanceResult,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "AnalysisSeverity",
     "BalanceAnalysisResult",
     "ColorCoverageResult",
+    "InteractionFlag",
     "MechanicDistribution",
     "SlotConformanceResult",
     "analyze_set",
