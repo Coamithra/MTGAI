@@ -95,13 +95,13 @@ FONT_WEIGHTS: dict[str, int | None] = {
 # For native resolution (2010x2814), multiply by ~2.45.
 # ---------------------------------------------------------------------------
 DEFAULT_SIZES: dict[str, int] = {
-    "card_name": 44,    # 3.81% of card height (Card Conjurer reference)
+    "card_name": 44,  # 3.81% of card height (Card Conjurer reference)
     "mana_cost": 36,
-    "type_line": 37,    # 3.24% of card height
-    "rules_text": 40,   # 3.52% of card height
+    "type_line": 37,  # 3.24% of card height
+    "rules_text": 40,  # 3.52% of card height
     "rules_bold": 40,
     "flavor_text": 38,
-    "pt_text": 42,      # 3.71% of card height
+    "pt_text": 42,  # 3.71% of card height
     "collector": 22,
     "mana_label": 24,
 }

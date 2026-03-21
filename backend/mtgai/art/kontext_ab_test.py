@@ -31,9 +31,7 @@ logger = logging.getLogger(__name__)
 
 OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
 COMFYUI_INPUT_DIR = Path("C:/Programming/ComfyUI/input")
-WORKFLOW_PATH = Path(
-    "C:/Programming/MTGAI/backend/mtgai/art/workflows/flux_kontext_gguf.json"
-)
+WORKFLOW_PATH = Path("C:/Programming/MTGAI/backend/mtgai/art/workflows/flux_kontext_gguf.json")
 
 # Test with 2 cards that had the worst copy-paste effect
 TEST_CARDS = [
@@ -74,9 +72,7 @@ def _poll_completion(prompt_id: str) -> dict:
         if elapsed > GENERATION_TIMEOUT:
             raise TimeoutError(f"Timed out after {GENERATION_TIMEOUT}s")
         try:
-            resp = urllib.request.urlopen(
-                f"{COMFYUI_URL}/history/{prompt_id}"
-            )
+            resp = urllib.request.urlopen(f"{COMFYUI_URL}/history/{prompt_id}")
             history = json.loads(resp.read())
             consecutive_failures = 0
         except Exception as e:
@@ -104,8 +100,7 @@ def _poll_completion(prompt_id: str) -> dict:
             for msg_type, msg_data in status.get("messages", []):
                 if msg_type == "execution_error":
                     raise RuntimeError(
-                        f"{msg_data.get('exception_type')}: "
-                        f"{msg_data.get('exception_message')}"
+                        f"{msg_data.get('exception_type')}: {msg_data.get('exception_message')}"
                     )
             raise RuntimeError("Unknown ComfyUI error")
         time.sleep(POLL_INTERVAL)
@@ -122,19 +117,14 @@ def _download_image(filename: str, subfolder: str = "") -> bytes:
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="A/B test Kontext reference methods"
-    )
+    parser = argparse.ArgumentParser(description="A/B test Kontext reference methods")
     parser.add_argument("--set", default="ASD")
     args = parser.parse_args()
 
     set_code = args.set
     refs_dir = OUTPUT_ROOT / "sets" / set_code / "art-direction" / "character-refs"
     cards_dir = OUTPUT_ROOT / "sets" / set_code / "cards"
-    out_dir = (
-        OUTPUT_ROOT / "sets" / set_code / "art-direction"
-        / "kontext-samples" / "ab-test"
-    )
+    out_dir = OUTPUT_ROOT / "sets" / set_code / "art-direction" / "kontext-samples" / "ab-test"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(
@@ -158,9 +148,7 @@ def main():
             if not card_file:
                 logger.warning("Card %s not found, skipping", cn)
                 continue
-            card_data = json.loads(
-                card_file[0].read_text(encoding="utf-8")
-            )
+            card_data = json.loads(card_file[0].read_text(encoding="utf-8"))
             art_prompt = card_data.get("art_prompt", "")
 
             # Copy portrait to ComfyUI input
@@ -176,13 +164,9 @@ def main():
                     logger.info("SKIP %s %s — exists", cn, method)
                     continue
 
-                logger.info(
-                    "GENERATE %s [%s] %s...", cn, method, card["name"]
-                )
+                logger.info("GENERATE %s [%s] %s...", cn, method, card["name"])
 
-                workflow = json.loads(
-                    WORKFLOW_PATH.read_text(encoding="utf-8")
-                )
+                workflow = json.loads(WORKFLOW_PATH.read_text(encoding="utf-8"))
 
                 # Set reference image, prompt, seed
                 workflow["11"]["inputs"]["image"] = portrait_path.name
@@ -191,21 +175,15 @@ def main():
                 workflow["8"]["inputs"]["steps"] = 30
 
                 # Set the reference method
-                workflow["15"]["inputs"][
-                    "reference_latents_method"
-                ] = method
+                workflow["15"]["inputs"]["reference_latents_method"] = method
 
                 prompt_id = _queue_prompt(workflow)
                 logger.info("  Queued %s (method=%s)", prompt_id[:8], method)
 
                 result = _poll_completion(prompt_id)
-                image_data = _download_image(
-                    result["filename"], result["subfolder"]
-                )
+                image_data = _download_image(result["filename"], result["subfolder"])
                 dest.write_bytes(image_data)
-                logger.info(
-                    "  SAVED %s (%.1fs)", dest.name, result["elapsed"]
-                )
+                logger.info("  SAVED %s (%.1fs)", dest.name, result["elapsed"])
 
                 flush_comfyui()
 
@@ -235,10 +213,7 @@ def _generate_html(
             f'<img src="{ref_path}" class="portrait"></div>'
         )
         for method in METHODS:
-            rows.append(
-                f'<div class="col"><h3>{method}</h3>'
-                f'<img src="{slug}_{method}.png"></div>'
-            )
+            rows.append(f'<div class="col"><h3>{method}</h3><img src="{slug}_{method}.png"></div>')
         rows.append("</div></div>")
 
     body = "\n".join(rows)

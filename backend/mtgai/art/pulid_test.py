@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 
 OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
 COMFYUI_INPUT_DIR = Path("C:/Programming/ComfyUI/input")
-WORKFLOW_PATH = Path(
-    "C:/Programming/MTGAI/backend/mtgai/art/workflows/flux_pulid_gguf.json"
-)
+WORKFLOW_PATH = Path("C:/Programming/MTGAI/backend/mtgai/art/workflows/flux_pulid_gguf.json")
 
 TEST_CARDS = [
     {
@@ -67,9 +65,7 @@ def _poll_completion(prompt_id: str) -> dict:
         if elapsed > GENERATION_TIMEOUT:
             raise TimeoutError(f"Timed out after {GENERATION_TIMEOUT}s")
         try:
-            resp = urllib.request.urlopen(
-                f"{COMFYUI_URL}/history/{prompt_id}"
-            )
+            resp = urllib.request.urlopen(f"{COMFYUI_URL}/history/{prompt_id}")
             history = json.loads(resp.read())
             consecutive_failures = 0
         except Exception as e:
@@ -103,9 +99,7 @@ def _poll_completion(prompt_id: str) -> dict:
                         f"(node: {msg_data.get('node_type')})"
                         f"\n{tb}"
                     )
-            raise RuntimeError(
-                f"Unknown ComfyUI error: {status}"
-            )
+            raise RuntimeError(f"Unknown ComfyUI error: {status}")
         time.sleep(POLL_INTERVAL)
 
 
@@ -125,14 +119,9 @@ def main():
     args = parser.parse_args()
 
     set_code = args.set
-    refs_dir = (
-        OUTPUT_ROOT / "sets" / set_code / "art-direction" / "character-refs"
-    )
+    refs_dir = OUTPUT_ROOT / "sets" / set_code / "art-direction" / "character-refs"
     cards_dir = OUTPUT_ROOT / "sets" / set_code / "cards"
-    out_dir = (
-        OUTPUT_ROOT / "sets" / set_code / "art-direction"
-        / "kontext-samples" / "pulid-test"
-    )
+    out_dir = OUTPUT_ROOT / "sets" / set_code / "art-direction" / "kontext-samples" / "pulid-test"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(
@@ -154,9 +143,7 @@ def main():
             if not card_file:
                 logger.warning("Card %s not found", cn)
                 continue
-            card_data = json.loads(
-                card_file[0].read_text(encoding="utf-8")
-            )
+            card_data = json.loads(card_file[0].read_text(encoding="utf-8"))
             art_prompt = card_data.get("art_prompt", "")
 
             # Copy portrait to ComfyUI input
@@ -175,12 +162,12 @@ def main():
 
                 logger.info(
                     "GENERATE %s [w=%.1f] %s...",
-                    cn, weight, card["name"],
+                    cn,
+                    weight,
+                    card["name"],
                 )
 
-                workflow = json.loads(
-                    WORKFLOW_PATH.read_text(encoding="utf-8")
-                )
+                workflow = json.loads(WORKFLOW_PATH.read_text(encoding="utf-8"))
 
                 # Set reference, prompt, seed, weight
                 workflow["11"]["inputs"]["image"] = portrait_path.name
@@ -189,18 +176,12 @@ def main():
                 workflow["23"]["inputs"]["weight"] = weight
 
                 prompt_id = _queue_prompt(workflow)
-                logger.info(
-                    "  Queued %s (weight=%.1f)", prompt_id[:8], weight
-                )
+                logger.info("  Queued %s (weight=%.1f)", prompt_id[:8], weight)
 
                 result = _poll_completion(prompt_id)
-                image_data = _download_image(
-                    result["filename"], result["subfolder"]
-                )
+                image_data = _download_image(result["filename"], result["subfolder"])
                 dest.write_bytes(image_data)
-                logger.info(
-                    "  SAVED %s (%.1fs)", dest.name, result["elapsed"]
-                )
+                logger.info("  SAVED %s (%.1fs)", dest.name, result["elapsed"])
 
                 flush_comfyui()
 

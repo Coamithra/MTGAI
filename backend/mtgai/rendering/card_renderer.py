@@ -45,7 +45,6 @@ from mtgai.rendering.layout import (
     FRAME_W,
     NATIVE_ART_WINDOW,
     NATIVE_COLLECTOR_BAR,
-    NATIVE_CONTENT,
     NATIVE_NAME_BAR,
     NATIVE_PT_BOX,
     NATIVE_TEXT_BOX,
@@ -261,14 +260,27 @@ class CardRenderer:
 
     # Map color identity to crown filename (wingedsheep naming convention)
     CROWN_KEY_MAP: dict[str, str] = {
-        "W": "W", "U": "U", "B": "B", "R": "R", "G": "G",
-        "M": "Gold", "A": "Artifact", "L": "Land",
+        "W": "W",
+        "U": "U",
+        "B": "B",
+        "R": "R",
+        "G": "G",
+        "M": "Gold",
+        "A": "Artifact",
+        "L": "Land",
     }
     # Two-color pairs
     CROWN_PAIR_MAP: dict[tuple[str, ...], str] = {
-        ("U", "W"): "WU", ("B", "W"): "WB", ("R", "W"): "WR", ("G", "W"): "WG",
-        ("B", "U"): "UB", ("R", "U"): "UR", ("G", "U"): "UG",
-        ("B", "R"): "BR", ("B", "G"): "BG", ("R", "G"): "RG",
+        ("U", "W"): "WU",
+        ("B", "W"): "WB",
+        ("R", "W"): "WR",
+        ("G", "W"): "WG",
+        ("B", "U"): "UB",
+        ("R", "U"): "UR",
+        ("G", "U"): "UG",
+        ("B", "R"): "BR",
+        ("B", "G"): "BG",
+        ("R", "G"): "RG",
     }
 
     # Crown positioning (mtgrender CSS: left=1mm, top=1.5mm, w=61.1mm, h=14mm)
@@ -334,9 +346,7 @@ class CardRenderer:
 
         Returns a full-canvas-size RGBA image, or None if no crown file found.
         """
-        identity = sorted(
-            c.value if hasattr(c, "value") else str(c) for c in card.color_identity
-        )
+        identity = sorted(c.value if hasattr(c, "value") else str(c) for c in card.color_identity)
         is_land = "land" in card.type_line.lower()
 
         # Determine crown filename
@@ -362,9 +372,7 @@ class CardRenderer:
         crown_img = Image.open(crown_path).convert("RGBA")
 
         # Scale directly to target dimensions
-        crown_fitted = crown_img.resize(
-            (self.CROWN_W, self.CROWN_H), Image.LANCZOS
-        )
+        crown_fitted = crown_img.resize((self.CROWN_W, self.CROWN_H), Image.LANCZOS)
 
         # Place on full-canvas overlay
         overlay = Image.new("RGBA", (FRAME_W, FRAME_H), (0, 0, 0, 0))

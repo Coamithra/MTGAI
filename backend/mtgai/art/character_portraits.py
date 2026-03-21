@@ -92,13 +92,15 @@ def _build_portrait_prompts(visual_refs: dict) -> list[dict]:
 
         prompt = f"{STYLE_PREFIX}{portrait_desc}. {PORTRAIT_SUFFIX}"
 
-        prompts.append({
-            "key": key,
-            "name": char_name,
-            "slug": _slugify(char_name),
-            "prompt": prompt,
-            "description": description,
-        })
+        prompts.append(
+            {
+                "key": key,
+                "name": char_name,
+                "slug": _slugify(char_name),
+                "prompt": prompt,
+                "description": description,
+            }
+        )
 
     return prompts
 
@@ -319,14 +321,10 @@ def generate_character_portraits(
                     "elapsed_seconds": round(time.time() - start_time, 1),
                     "last_completed": f"{p['name']} v{version}",
                 }
-                progress_path.write_text(
-                    json.dumps(progress_data, indent=2), encoding="utf-8"
-                )
+                progress_path.write_text(json.dumps(progress_data, indent=2), encoding="utf-8")
 
             except Exception as e:
-                logger.error(
-                    "%s FAILED %s v%d: %s", progress_label, p["name"], version, e
-                )
+                logger.error("%s FAILED %s v%d: %s", progress_label, p["name"], version, e)
                 failed += 1
                 errors.append({"character": p["key"], "version": version, "error": str(e)})
 

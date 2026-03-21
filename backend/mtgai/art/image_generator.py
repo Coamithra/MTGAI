@@ -215,8 +215,12 @@ def start_comfyui(log_dir: Path | None = None) -> subprocess.Popen:
 
     proc = subprocess.Popen(
         [
-            str(python_exe), str(main_py),
-            "--listen", "127.0.0.1", "--port", "8188",
+            str(python_exe),
+            str(main_py),
+            "--listen",
+            "127.0.0.1",
+            "--port",
+            "8188",
             "--disable-cuda-malloc",  # Avoid cudaMallocAsync instability
         ],
         stdout=stdout_dest,

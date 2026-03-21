@@ -164,9 +164,12 @@ def _draw_svg_path_data(ctx, d: str) -> None:
             ctx.line_to(seg.end.real, seg.end.imag)
         elif isinstance(seg, CubicBezier):
             ctx.curve_to(
-                seg.control1.real, seg.control1.imag,
-                seg.control2.real, seg.control2.imag,
-                seg.end.real, seg.end.imag,
+                seg.control1.real,
+                seg.control1.imag,
+                seg.control2.real,
+                seg.control2.imag,
+                seg.end.real,
+                seg.end.imag,
             )
         elif isinstance(seg, QuadraticBezier):
             qp0, qp1, qp2 = seg.start, seg.control, seg.end
@@ -259,9 +262,7 @@ def _rasterize_svg_pycairo(
         _render_elem(elem)
 
     buf = surface.get_data()
-    return Image.frombuffer(
-        "RGBA", (width, height), bytes(buf), "raw", "BGRA", 0, 1
-    )
+    return Image.frombuffer("RGBA", (width, height), bytes(buf), "raw", "BGRA", 0, 1)
 
 
 # ---------------------------------------------------------------------------

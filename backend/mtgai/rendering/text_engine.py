@@ -21,7 +21,7 @@ from enum import StrEnum
 
 from PIL import Image, ImageDraw, ImageFont
 
-from mtgai.rendering.colors import BLACK, DARK_GRAY, MID_GRAY
+from mtgai.rendering.colors import BLACK, DARK_GRAY
 from mtgai.rendering.fonts import FontManager, get_font_manager
 from mtgai.rendering.layout import (
     NATIVE_PT_BOX,
@@ -1173,9 +1173,7 @@ class TextEngine:
         para_spacing = font_size * PARAGRAPH_SPACING_RATIO
 
         # Card Conjurer: true vertical centering (containerHeight - totalTextHeight) / 2
-        total_h = self._total_content_height(
-            oracle_paras, flavor_paras, font_size, max_width
-        )
+        total_h = self._total_content_height(oracle_paras, flavor_paras, font_size, max_width)
         available_h = padded.height
         if total_h < available_h:
             y_offset = (available_h - total_h) / 2
