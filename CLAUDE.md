@@ -40,11 +40,20 @@
 - Pipeline is resumable: interrupted operations resume from the last incomplete card
 
 ## LLM Client (`mtgai/generation/llm_client.py`)
-- `generate_with_tool()` — Anthropic API with forced `tool_choice` for structured JSON output
-- **Prompt caching** enabled by default (`cache=True`): system prompt and tool schema are marked with `cache_control` so sequential calls within ~5 min reuse the cached prefix at 90% discount on input tokens
+- `generate_with_tool()` — unified entry point, provider selected by `MTGAI_PROVIDER` env var
+- **Two providers:**
+  - `anthropic` (default): Anthropic API with forced `tool_choice`, prompt caching, effort levels
+  - `ollama`: local models via Ollama's OpenAI-compatible API (cost = $0.00)
+- **Ollama config** (env vars):
+  - `MTGAI_PROVIDER=ollama` — switch to local model
+  - `MTGAI_OLLAMA_MODEL=qwen2.5:14b` — model name (default: qwen2.5:14b)
+  - `MTGAI_OLLAMA_URL=http://localhost:11434` — Ollama API endpoint
+- **Ollama tool extraction**: tries native function calling first, falls back to JSON extraction from text (fenced blocks, Qwen-style, bare JSON), retries up to 2x on garbage output
+- **Prompt caching** (Anthropic only, `cache=True`): system prompt and tool schema marked with `cache_control` so sequential calls within ~5 min reuse the cached prefix at 90% discount
 - Centralized `PRICING`, `calc_cost()`, and `cost_from_result()` — all callers import from here
   - `calc_cost()` accounts for cache pricing: 1.25x for cache creation, 0.1x for cache reads
   - `cost_from_result(result)` convenience wrapper unpacks a `generate_with_tool` result dict
+  - Returns 0.0 for local/unknown models
 - Supports `effort` parameter (Opus-only): "max", "high", "low"
 - Model tier capping via `MTGAI_MAX_MODEL` env var (set to "haiku", "sonnet", or "opus")
   - Higher-tier requests are downgraded to the cap model

@@ -1,12 +1,17 @@
 """Minimal LLM client for card/mechanic generation.
 
-Supports Anthropic prompt caching — system prompts and tool definitions are
-marked with ``cache_control`` so sequential API calls within ~5 minutes reuse
-the cached prefix at 90 % discount on input tokens.
+Supports two providers:
+  - **Anthropic** (default): prompt caching, effort levels, forced tool_choice
+  - **Ollama** (local): OpenAI-compatible API, text-based tool extraction fallback
+
+Set ``MTGAI_PROVIDER=ollama`` to use a local model via Ollama.
 """
 
+import json
 import logging
 import os
+import re
+import time
 from pathlib import Path
 
 from anthropic import Anthropic
@@ -21,6 +26,12 @@ if _ENV_PATH.exists():
         if line and not line.startswith("#") and "=" in line:
             key, _, value = line.partition("=")
             os.environ.setdefault(key.strip(), value.strip())
+
+# ── Provider config ──────────────────────────────────────────────────
+
+PROVIDER = os.environ.get("MTGAI_PROVIDER", "anthropic").strip().lower()
+OLLAMA_MODEL = os.environ.get("MTGAI_OLLAMA_MODEL", "qwen2.5:14b").strip()
+OLLAMA_URL = os.environ.get("MTGAI_OLLAMA_URL", "http://localhost:11434").strip()
 
 # Model tiers: family name → (rank, latest model ID)
 _MODEL_TIERS: dict[str, tuple[int, str]] = {
@@ -50,6 +61,8 @@ def calc_cost(
     - Cache creation tokens: 1.25x base input price
     - Cache read tokens: 0.1x base input price
     - Output tokens: 1x base output price
+
+    Returns 0.0 for local models (not in PRICING).
     """
     prices = PRICING.get(model, {"input": 0, "output": 0})
     inp = prices["input"]
@@ -112,40 +125,20 @@ def cap_model(model: str, effort: str | None = None) -> tuple[str, str | None]:
     return model, effort
 
 
-def generate_with_tool(
+# ── Anthropic provider ───────────────────────────────────────────────
+
+
+def _generate_anthropic(
     system_prompt: str,
     user_prompt: str,
     tool_schema: dict,
-    model: str = "claude-sonnet-4-6",
-    temperature: float = 1.0,
-    max_tokens: int = 8192,
-    effort: str | None = None,
-    cache: bool = True,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    effort: str | None,
+    cache: bool,
 ) -> dict:
-    """Call Anthropic API with tool_use for structured JSON output.
-
-    Uses forced tool_choice so the model always returns structured data
-    matching the provided tool_schema.
-
-    Args:
-        effort: Optional effort level ("max", "high", "low"). Opus-only.
-                Note: ``thinking`` is incompatible with forced tool_choice,
-                but ``effort`` works fine.
-        cache:  Enable Anthropic prompt caching.  Marks the system prompt
-                and tool definition with ``cache_control`` so that repeated
-                calls within ~5 min reuse the cached prefix (90 % cheaper).
-
-    Returns a dict with:
-        - result: the parsed tool input (structured JSON)
-        - input_tokens: non-cached input tokens
-        - output_tokens: tokens generated
-        - cache_creation_input_tokens: tokens written to cache (first call)
-        - cache_read_input_tokens: tokens read from cache (subsequent calls)
-        - stop_reason: the stop reason from the API
-        - model: effective model used
-    """
-    model, effort = cap_model(model, effort)
-
+    """Call Anthropic API with forced tool_choice."""
     client = Anthropic()
 
     if cache:
@@ -176,14 +169,12 @@ def generate_with_tool(
 
     response = client.messages.create(**kwargs)
 
-    # Check for truncation (silent failure — must check stop_reason)
     if response.stop_reason == "max_tokens":
         raise ValueError(
             f"Response truncated (stop_reason=max_tokens). "
             f"Increase max_tokens (currently {max_tokens})."
         )
 
-    # Extract cache usage stats
     cache_creation = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
     cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
 
@@ -195,7 +186,6 @@ def generate_with_tool(
             response.usage.input_tokens,
         )
 
-    # Extract tool use result
     for block in response.content:
         if block.type == "tool_use":
             return {
@@ -208,3 +198,256 @@ def generate_with_tool(
                 "model": model,
             }
     raise ValueError("No tool_use block in response")
+
+
+# ── Ollama provider (OpenAI-compatible) ──────────────────────────────
+
+# Max retries for Ollama connection errors
+_OLLAMA_MAX_RETRIES = 3
+_OLLAMA_RETRY_DELAY = 1.0
+
+# Max retries when Ollama produces malformed tool output
+_OLLAMA_MAX_TOOL_RETRIES = 2
+
+
+def _ollama_translate_tool(tool_schema: dict) -> dict:
+    """Convert Anthropic tool schema to OpenAI function-calling format."""
+    return {
+        "type": "function",
+        "function": {
+            "name": tool_schema["name"],
+            "description": tool_schema.get("description", ""),
+            "parameters": tool_schema.get("input_schema", {"type": "object", "properties": {}}),
+        },
+    }
+
+
+def _ollama_extract_json(text: str, tool_name: str) -> dict | None:
+    """Try to extract a JSON object from model text output.
+
+    Strategies (in order):
+      1. JSON code block (```json ... ```)
+      2. Qwen-style tool call: {"name": "tool", "arguments": {...}}
+      3. First top-level JSON object in text
+    """
+    # Strategy 1: fenced JSON code block
+    fence_match = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
+    if fence_match:
+        try:
+            return json.loads(fence_match.group(1).strip())
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    # Strategy 2: Qwen-style {"name": "tool", "arguments": {...}}
+    qwen_pattern = r'\{"name":\s*"' + re.escape(tool_name) + r'",\s*"arguments":\s*(\{.*\})\}'
+    qwen_match = re.search(qwen_pattern, text, re.DOTALL)
+    if qwen_match:
+        try:
+            return json.loads(qwen_match.group(1))
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    # Strategy 3: first { ... } block (greedy from first { to last })
+    brace_start = text.find("{")
+    if brace_start != -1:
+        # Find matching closing brace
+        depth = 0
+        for i in range(brace_start, len(text)):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[brace_start : i + 1])
+                    except (json.JSONDecodeError, ValueError):
+                        break
+
+    return None
+
+
+def _ollama_call_with_retry(client, kwargs: dict) -> object:
+    """Call Ollama with connection retry."""
+    import openai
+
+    last_error: Exception | None = None
+    for attempt in range(_OLLAMA_MAX_RETRIES):
+        try:
+            return client.chat.completions.create(**kwargs)
+        except (openai.APITimeoutError, openai.APIConnectionError) as e:
+            last_error = e
+            if attempt < _OLLAMA_MAX_RETRIES - 1:
+                logger.warning("Ollama connection error (attempt %d): %s", attempt + 1, e)
+                time.sleep(_OLLAMA_RETRY_DELAY * (2**attempt))
+    raise last_error  # type: ignore[misc]
+
+
+def _generate_ollama(
+    system_prompt: str,
+    user_prompt: str,
+    tool_schema: dict,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+) -> dict:
+    """Call Ollama via OpenAI-compatible API, with text-based tool extraction fallback."""
+    import openai
+
+    client = openai.OpenAI(
+        base_url=f"{OLLAMA_URL}/v1",
+        api_key="ollama",  # Ollama ignores this but the SDK requires it
+    )
+
+    ollama_model = model  # already set to OLLAMA_MODEL by caller
+    tool_name = tool_schema["name"]
+    oai_tool = _ollama_translate_tool(tool_schema)
+
+    messages: list[dict] = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    kwargs: dict = {
+        "model": ollama_model,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "messages": messages,
+        "tools": [oai_tool],
+    }
+
+    for attempt in range(_OLLAMA_MAX_TOOL_RETRIES + 1):
+        response = _ollama_call_with_retry(client, kwargs)
+        choice = response.choices[0]
+        msg = choice.message
+
+        usage = response.usage
+        input_tokens = usage.prompt_tokens if usage else 0
+        output_tokens = usage.completion_tokens if usage else 0
+
+        # Try 1: native function calling
+        if msg.tool_calls:
+            for tc in msg.tool_calls:
+                if tc.function.name == tool_name:
+                    try:
+                        result = json.loads(tc.function.arguments)
+                    except (json.JSONDecodeError, TypeError):
+                        result = {}
+                    logger.info(
+                        "Ollama [%s] tool call via native function calling (%d in, %d out)",
+                        ollama_model,
+                        input_tokens,
+                        output_tokens,
+                    )
+                    return {
+                        "result": result,
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                        "stop_reason": "tool_use",
+                        "model": ollama_model,
+                    }
+
+        # Try 2: extract JSON from text response
+        if msg.content:
+            extracted = _ollama_extract_json(msg.content, tool_name)
+            if extracted and isinstance(extracted, dict):
+                logger.info(
+                    "Ollama [%s] tool call via text extraction (%d in, %d out)",
+                    ollama_model,
+                    input_tokens,
+                    output_tokens,
+                )
+                return {
+                    "result": extracted,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "stop_reason": "tool_use",
+                    "model": ollama_model,
+                }
+
+        # Retry: append the bad response and ask again
+        if attempt < _OLLAMA_MAX_TOOL_RETRIES:
+            logger.warning(
+                "Ollama [%s] failed to produce valid tool output (attempt %d/%d), retrying",
+                ollama_model,
+                attempt + 1,
+                _OLLAMA_MAX_TOOL_RETRIES,
+            )
+            kwargs["messages"] = list(kwargs["messages"])
+            kwargs["messages"].append(
+                {
+                    "role": "assistant",
+                    "content": msg.content or "(empty response)",
+                }
+            )
+            kwargs["messages"].append(
+                {
+                    "role": "user",
+                    "content": (
+                        f"Please respond with ONLY a JSON object matching the '{tool_name}' "
+                        f"tool schema. No explanation, just the JSON."
+                    ),
+                }
+            )
+
+    raise ValueError(
+        f"Ollama [{ollama_model}] failed to produce valid tool output "
+        f"after {_OLLAMA_MAX_TOOL_RETRIES + 1} attempts"
+    )
+
+
+# ── Public API ───────────────────────────────────────────────────────
+
+
+def generate_with_tool(
+    system_prompt: str,
+    user_prompt: str,
+    tool_schema: dict,
+    model: str = "claude-sonnet-4-6",
+    temperature: float = 1.0,
+    max_tokens: int = 8192,
+    effort: str | None = None,
+    cache: bool = True,
+) -> dict:
+    """Call an LLM with tool_use for structured JSON output.
+
+    Provider is selected by the ``MTGAI_PROVIDER`` env var:
+      - ``anthropic`` (default): Anthropic API with forced tool_choice
+      - ``ollama``: local model via Ollama's OpenAI-compatible API
+
+    For Ollama, the ``model`` and ``effort`` params are ignored — the model
+    is set by ``MTGAI_OLLAMA_MODEL`` (default: qwen2.5:14b). Prompt caching
+    is also skipped (Ollama doesn't support it).
+
+    Returns a dict with:
+        - result: the parsed tool input (structured JSON)
+        - input_tokens / output_tokens: token counts
+        - cache_creation_input_tokens / cache_read_input_tokens: cache stats (0 for Ollama)
+        - stop_reason: the stop reason
+        - model: effective model used
+    """
+    if PROVIDER == "ollama":
+        return _generate_ollama(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            tool_schema=tool_schema,
+            model=OLLAMA_MODEL,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+    # Default: Anthropic
+    model, effort = cap_model(model, effort)
+    return _generate_anthropic(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        tool_schema=tool_schema,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        effort=effort,
+        cache=cache,
+    )
