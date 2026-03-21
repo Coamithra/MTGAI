@@ -26,6 +26,10 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from mtgai.pipeline.server import api_router as pipeline_api_router
+from mtgai.pipeline.server import get_pipeline_banner_context
+from mtgai.pipeline.server import router as pipeline_router
+
 if TYPE_CHECKING:
     from mtgai.models.card import Card
 
@@ -98,6 +102,21 @@ app.mount("/static", StaticFiles(directory=str(_static_dir())), name="static")
 
 # Jinja2 templates
 templates = Jinja2Templates(directory=str(_templates_dir()))
+
+# Mount pipeline routes
+app.include_router(pipeline_router)
+app.include_router(pipeline_api_router)
+
+# Inject pipeline banner context into all Jinja2 templates
+templates.env.globals["pipeline_banner"] = None  # default
+
+
+@app.middleware("http")
+async def inject_pipeline_banner(request: Request, call_next):
+    """Inject pipeline banner context for Jinja2 templates on each request."""
+    templates.env.globals["pipeline_banner"] = get_pipeline_banner_context()
+    response = await call_next(request)
+    return response
 
 
 # ---------------------------------------------------------------------------

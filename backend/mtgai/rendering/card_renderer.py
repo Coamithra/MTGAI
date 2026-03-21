@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
@@ -963,6 +964,7 @@ class CardRenderer:
         card_filter: str | None = None,
         dry_run: bool = False,
         force: bool = False,
+        progress_callback: Callable[[str, int, int, str, float], None] | None = None,
     ) -> dict:
         """Render all cards in a set.
 
@@ -1065,6 +1067,9 @@ class CardRenderer:
                 )
                 self.render_and_save(card, set_code, total_cards)
                 rendered += 1
+                if progress_callback is not None:
+                    completed = rendered + skipped + failed
+                    progress_callback(cn, completed, len(card_files), f"Rendered {card.name}", 0.0)
             except Exception as exc:
                 logger.error(
                     "FAILED %s: %s — %s",

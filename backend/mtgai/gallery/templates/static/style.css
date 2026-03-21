@@ -887,6 +887,41 @@ a:hover {
 }
 
 /* --------------------------------------------------------------------------
+   Pipeline Status Banner
+   -------------------------------------------------------------------------- */
+.pipeline-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 1rem;
+  background: linear-gradient(90deg, #1a2a4e, #16213e);
+  border-bottom: 1px solid #4a9eff44;
+  font-size: 0.8rem;
+}
+.pipeline-banner-text {
+  color: #aac4e8;
+}
+.pipeline-banner-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.pipeline-banner-btn {
+  padding: 3px 12px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+  background: #4a9eff22;
+  color: #4a9eff;
+  border: 1px solid #4a9eff44;
+  transition: all 0.2s;
+}
+.pipeline-banner-btn:hover {
+  background: #4a9eff33;
+  border-color: #4a9eff;
+}
+
+/* --------------------------------------------------------------------------
    Utility Classes
    -------------------------------------------------------------------------- */
 .text-muted   { color: var(--text-muted); }

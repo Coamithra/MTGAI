@@ -192,10 +192,30 @@
 - **Kontext Dev rejected** — copies style+composition, not just identity. No strength dial.
 - Known MTG characters (Jace etc.) → use official Scryfall art as reference, not Flux
 
-## Current State (Phase 3 Complete, Phase 4C next)
+## Unified Pipeline (`mtgai/pipeline/`)
+- **End-to-end orchestrator**: 17 stages from skeleton generation through final review
+- `python -m mtgai.review serve --open` starts the server with pipeline dashboard
+- **Dashboard** at `/pipeline` — vertical stage stepper with real-time SSE progress
+- **Configuration** at `/pipeline/configure` — set identity + per-stage review toggles (Auto/Review/Skip)
+- **Three presets**: Full Auto, Review Everything, Recommended (balance + AI review + art selection)
+- **Human checkpoints**: Card Review, Art Review, Final Review always pause for human input
+- **SSE real-time updates** via `/api/pipeline/events` — stage_update, item_progress, cost_update events
+- **Pipeline state**: persisted to `output/sets/<SET>/pipeline-state.json` for crash recovery
+- **Key files**:
+  - `pipeline/models.py` — PipelineState, StageState, PipelineConfig (Pydantic)
+  - `pipeline/engine.py` — PipelineEngine: run/resume/cancel/retry/skip
+  - `pipeline/events.py` — Thread-safe EventBus for SSE
+  - `pipeline/server.py` — FastAPI routes (page + API)
+  - `pipeline/stages.py` — Stage registry mapping stage_id → library function
+- **Status banner** in `base.html` shows pipeline status across all pages
+- `card_generator.generate_set()` now accepts `set_code` and `progress_callback` params
+- `generation/land_generator.py` — extracted from `scripts/generate_lands.py` as callable function
+
+## Current State (Phase 4C Complete, Pipeline built, Phase SC next)
 - 66 cards generated for ASD dev set (60 main + 6 lands)
 - 3 custom mechanics: Salvage (W/U/G), Malfunction (W/U/R), Overclock (U/R/B)
-- Phases 0A-0E, 1A-1C, 4A, 4A-rev, 4B, 2A, 2B, 2C, 3A, 3B complete
+- Phases 0A-0E, 1A-1C, 4A, 4A-rev, 4B, 2A, 2B, 2C, 3A, 3B, 4C complete
+- Unified pipeline dashboard built (Phases A-C of pipeline plan)
 - Phase 3: HTML review workflow with FastAPI server
   - `python -m mtgai.review serve --open` starts local review server
   - Review gallery: card grid with filters, per-card OK/Remake/Art Redo/Manual Tweak decisions
@@ -205,4 +225,4 @@
   - Manual tweak opens card JSONs in system editor on submit
   - Server discovers render/art images from disk (no card JSON path dependency)
   - Plan: `plans/phase-3-review-workflow.md`
-- Next: Phase 4C (quality checks), then Phase SC (scale-up to ~280 cards)
+- Next: Phase SC (scale-up to ~280 cards) via unified pipeline

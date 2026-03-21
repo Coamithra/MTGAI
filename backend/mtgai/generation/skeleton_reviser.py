@@ -121,10 +121,11 @@ def _save_revision_log(
     output_tokens: int,
     cost_usd: float,
     latency_s: float,
+    revision_log_dir: Path = REVISION_LOG_DIR,
 ) -> Path:
     """Save detailed revision log with full prompts and LLM response."""
-    REVISION_LOG_DIR.mkdir(parents=True, exist_ok=True)
-    log_path = REVISION_LOG_DIR / f"revision_round_{round_num:02d}.json"
+    revision_log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = revision_log_dir / f"revision_round_{round_num:02d}.json"
 
     log_data = {
         "round_number": round_num,
@@ -527,6 +528,9 @@ def regenerate_slots(
     skeleton: dict,
     set_code: str,
     model: str | None = None,
+    mechanics_path: Path = MECHANICS_PATH,
+    cards_dir: Path = CARDS_DIR,
+    revision_log_dir: Path = REVISION_LOG_DIR,
 ) -> list[Card]:
     """Regenerate specific slots using the 1C card generation pipeline.
 
@@ -541,14 +545,17 @@ def regenerate_slots(
         logger.warning("No slots found to regenerate")
         return []
 
+    # Derive theme path from mechanics_path location
+    theme_path = mechanics_path.parent.parent / "theme.json"
+
     # Load mechanics and theme
-    mechanics = json.loads(MECHANICS_PATH.read_text(encoding="utf-8"))
-    theme = json.loads(THEME_PATH.read_text(encoding="utf-8"))
+    mechanics = json.loads(mechanics_path.read_text(encoding="utf-8"))
+    theme = json.loads(theme_path.read_text(encoding="utf-8"))
 
     # Load existing cards (excluding archived ones — only what's in cards_dir)
     existing_cards: list[Card] = []
-    if CARDS_DIR.exists():
-        for p in sorted(CARDS_DIR.glob("*.json")):
+    if cards_dir.exists():
+        for p in sorted(cards_dir.glob("*.json")):
             try:
                 existing_cards.append(load_card(p))
             except Exception:
@@ -652,8 +659,8 @@ def regenerate_slots(
         )
 
         # Also save a copy to revision_logs with full detail
-        REVISION_LOG_DIR.mkdir(parents=True, exist_ok=True)
-        regen_log_path = REVISION_LOG_DIR / f"regen_batch_{batch_idx:02d}.json"
+        revision_log_dir.mkdir(parents=True, exist_ok=True)
+        regen_log_path = revision_log_dir / f"regen_batch_{batch_idx:02d}.json"
         regen_log_data = {
             "batch_index": batch_idx,
             "slot_ids": batch_slot_ids,
@@ -791,7 +798,7 @@ def run_revision(
     max_rounds: int = 2,
     dry_run: bool = False,
     model: str | None = None,
-) -> RevisionReport:
+) -> dict:
     """Full revision pipeline.
 
     1. Serialize cards compactly
@@ -800,7 +807,22 @@ def run_revision(
     4. Regenerate affected slots
     5. Re-run balance analysis
     6. Loop if issues remain (max max_rounds)
+
+    Returns:
+        Summary dict (model_dump of RevisionReport).
     """
+    # Derive all paths from set_code
+    set_dir = OUTPUT_ROOT / "sets" / set_code
+    skeleton_path = set_dir / "skeleton.json"
+    mechanics_path = set_dir / "mechanics" / "approved.json"
+    distribution_path = set_dir / "mechanics" / "distribution.json"
+    theme_path = set_dir / "theme.json"
+    balance_path = set_dir / "reports" / "balance-analysis.json"
+    cards_dir = set_dir / "cards"
+    archive_dir = cards_dir / "archive"
+    reports_dir = set_dir / "reports"
+    revision_log_dir = set_dir / "revision_logs"
+
     report = RevisionReport(set_code=set_code)
 
     for round_num in range(1, max_rounds + 1):
@@ -809,15 +831,15 @@ def run_revision(
         logger.info("=" * 70)
 
         # Load current state
-        skeleton = json.loads(SKELETON_PATH.read_text(encoding="utf-8"))
-        mechanics = json.loads(MECHANICS_PATH.read_text(encoding="utf-8"))
-        distribution = json.loads(DISTRIBUTION_PATH.read_text(encoding="utf-8"))
-        theme = json.loads(THEME_PATH.read_text(encoding="utf-8"))
-        balance = json.loads(BALANCE_PATH.read_text(encoding="utf-8"))
+        skeleton = json.loads(skeleton_path.read_text(encoding="utf-8"))
+        mechanics = json.loads(mechanics_path.read_text(encoding="utf-8"))
+        distribution = json.loads(distribution_path.read_text(encoding="utf-8"))
+        theme = json.loads(theme_path.read_text(encoding="utf-8"))
+        balance = json.loads(balance_path.read_text(encoding="utf-8"))
 
         # Load cards
         cards: list[Card] = []
-        for p in sorted(CARDS_DIR.glob("*.json")):
+        for p in sorted(cards_dir.glob("*.json")):
             try:
                 cards.append(load_card(p))
             except Exception:
@@ -896,6 +918,7 @@ def run_revision(
             output_tokens=result["output_tokens"],
             cost_usd=revision_cost,
             latency_s=revision_latency,
+            revision_log_dir=revision_log_dir,
         )
 
         logger.info("Revision plan: %d changes proposed", len(plan.changes))
@@ -915,18 +938,26 @@ def run_revision(
 
         # Apply the plan
         logger.info("\n--- Applying revision plan ---")
-        slots_to_regen = apply_revision_plan(plan, skeleton, CARDS_DIR, ARCHIVE_DIR)
+        slots_to_regen = apply_revision_plan(plan, skeleton, cards_dir, archive_dir)
 
         # Save updated skeleton
-        SKELETON_PATH.write_text(
+        skeleton_path.write_text(
             json.dumps(skeleton, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-        logger.info("Skeleton updated: %s", SKELETON_PATH)
+        logger.info("Skeleton updated: %s", skeleton_path)
 
         # Regenerate affected slots
         logger.info("\n--- Regenerating %d slots ---", len(slots_to_regen))
-        regen_cards = regenerate_slots(slots_to_regen, skeleton, set_code, model=model)
+        regen_cards = regenerate_slots(
+            slots_to_regen,
+            skeleton,
+            set_code,
+            model=model,
+            mechanics_path=mechanics_path,
+            cards_dir=cards_dir,
+            revision_log_dir=revision_log_dir,
+        )
         regen_cost = sum((a.cost_usd or 0) for c in regen_cards for a in c.generation_attempts)
 
         # Re-run balance analysis
@@ -935,7 +966,7 @@ def run_revision(
         new_balance = new_analysis.model_dump()
 
         # Save updated balance analysis
-        BALANCE_PATH.write_text(
+        balance_path.write_text(
             json.dumps(new_balance, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
@@ -977,11 +1008,12 @@ def run_revision(
         )
 
     # Write revision report
-    report_path = REPORTS_DIR / "revision-report.md"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    report_path = reports_dir / "revision-report.md"
     write_revision_report(report, report_path)
 
     # Also save structured JSON
-    json_path = REPORTS_DIR / "revision-report.json"
+    json_path = reports_dir / "revision-report.json"
     json_path.write_text(
         report.model_dump_json(indent=2),
         encoding="utf-8",
@@ -995,7 +1027,7 @@ def run_revision(
     logger.info("Total cost: $%.4f", report.total_cost_usd)
     logger.info("Report: %s", report_path)
 
-    return report
+    return report.model_dump()
 
 
 # ---------------------------------------------------------------------------

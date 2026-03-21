@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from anthropic import Anthropic
@@ -185,6 +186,7 @@ def select_art_for_set(
     set_code: str,
     card_filter: str | None = None,
     dry_run: bool = False,
+    progress_callback: Callable[[str, int, int, str, float], None] | None = None,
 ) -> dict:
     """Run art selection for all cards with multiple versions.
 
@@ -264,6 +266,18 @@ def select_art_for_set(
                 selection["confidence"],
                 selection["reasoning"][:80] + "...",
             )
+
+            if progress_callback is not None:
+                card_cost = (selection["input_tokens"] * 0.80 / 1_000_000) + (
+                    selection["output_tokens"] * 4.0 / 1_000_000
+                )
+                progress_callback(
+                    cn,
+                    len([r for r in results if "pick" in r]) + skipped,
+                    len(card_files),
+                    f"Selected art for {card.name}",
+                    card_cost,
+                )
 
             time.sleep(0.1)  # rate limit
 

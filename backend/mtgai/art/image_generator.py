@@ -20,6 +20,7 @@ import random
 import subprocess
 import time
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 from mtgai.io.card_io import load_card
@@ -515,6 +516,7 @@ def generate_art_for_set(
     dry_run: bool = False,
     force: bool = False,
     max_attempts: int = 2,
+    progress_callback: Callable[[str, int, int, str, float], None] | None = None,
 ) -> dict:
     """Generate art images for all cards in a set.
 
@@ -634,6 +636,16 @@ def generate_art_for_set(
                     _save_progress(progress, progress_path)
 
                     generated += 1
+
+                    if progress_callback is not None:
+                        progress_callback(
+                            cn,
+                            generated + skipped,
+                            len(card_files),
+                            f"Generated art for {card.name}",
+                            0.0,
+                        )
+
                     break
 
                 except Exception as e:

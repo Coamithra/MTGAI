@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -856,19 +857,22 @@ def _apply_revision(original_card: Card, revised_data: dict) -> Card:
 # ---------------------------------------------------------------------------
 
 
-def _save_review_log(review: CardReviewResult) -> Path:
+def _save_review_log(
+    review: CardReviewResult,
+    reviews_dir: Path = REVIEWS_DIR,
+) -> Path:
     """Save per-card review as JSON (machine) + markdown (human-readable)."""
-    REVIEWS_DIR.mkdir(parents=True, exist_ok=True)
+    reviews_dir.mkdir(parents=True, exist_ok=True)
 
     # JSON for resumability + summary report
-    json_path = REVIEWS_DIR / f"{review.collector_number}.json"
+    json_path = reviews_dir / f"{review.collector_number}.json"
     json_path.write_text(
         review.model_dump_json(indent=2),
         encoding="utf-8",
     )
 
     # Markdown for human reading
-    md_path = REVIEWS_DIR / f"{review.collector_number}.md"
+    md_path = reviews_dir / f"{review.collector_number}.md"
     md_path.write_text(_review_to_markdown(review), encoding="utf-8")
 
     return json_path
@@ -1133,6 +1137,7 @@ def review_set(
     card_filter: str | None = None,
     skip_lands: bool = True,
     skip_reprints: bool = True,
+    progress_callback: Callable[[str, int, int, str, float], None] | None = None,
 ) -> list[CardReviewResult]:
     """Run AI design review on all cards in a set.
 
@@ -1142,6 +1147,8 @@ def review_set(
         card_filter: If set, only review cards matching this collector number.
         skip_lands: Skip basic land cards (no design review needed).
         skip_reprints: Skip reprint cards (already designed).
+        progress_callback: Optional callback(slot_id, completed, total, message, cost)
+            invoked after each card is reviewed.
 
     Returns list of CardReviewResult.
     """
@@ -1151,6 +1158,13 @@ def review_set(
         datefmt="%H:%M:%S",
     )
 
+    # Derive paths from set_code
+    set_dir = OUTPUT_ROOT / "sets" / set_code
+    mechanics_path = set_dir / "mechanics" / "approved.json"
+    pointed_q_path = set_dir / "mechanics" / "pointed-questions.json"
+    reviews_dir = set_dir / "reviews"
+    reports_dir = set_dir / "reports"
+
     logger.info("=" * 70)
     logger.info("MTGAI AI Design Review Pipeline -- Phase 4B")
     logger.info("=" * 70)
@@ -1159,8 +1173,8 @@ def review_set(
     logger.info("")
 
     # Load inputs
-    mechanics = json.loads(MECHANICS_PATH.read_text(encoding="utf-8"))
-    pointed_questions = json.loads(POINTED_Q_PATH.read_text(encoding="utf-8"))
+    mechanics = json.loads(mechanics_path.read_text(encoding="utf-8"))
+    pointed_questions = json.loads(pointed_q_path.read_text(encoding="utf-8"))
     logger.info(
         "Loaded: %d mechanics, %d pointed questions",
         len(mechanics),
@@ -1190,8 +1204,8 @@ def review_set(
 
     # Check for existing review progress
     completed: set[str] = set()
-    if REVIEWS_DIR.exists() and not card_filter:
-        for rp in REVIEWS_DIR.glob("*.json"):
+    if reviews_dir.exists() and not card_filter:
+        for rp in reviews_dir.glob("*.json"):
             completed.add(rp.stem)
     if completed:
         logger.info("Found %d existing reviews -- will skip those", len(completed))
@@ -1245,7 +1259,7 @@ def review_set(
         reviews.append(result)
 
         # Save per-card log
-        log_path = _save_review_log(result)
+        log_path = _save_review_log(result, reviews_dir=reviews_dir)
         logger.info(
             "  [%s] Done: %s, %d issues, changed=%s, $%.4f -> %s",
             cn,
@@ -1273,6 +1287,17 @@ def review_set(
             except Exception:
                 logger.exception("  [%s] Failed to apply revision to card JSON", cn)
 
+        # Notify progress callback
+        if progress_callback is not None:
+            card_name = card.get("name", "???")
+            progress_callback(
+                cn,
+                i,
+                len(cards),
+                f"Reviewed {card_name}: {result.final_verdict}",
+                result.total_cost_usd,
+            )
+
         logger.info("")
 
     elapsed = time.time() - start_time
@@ -1290,8 +1315,8 @@ def review_set(
 
     # Load any previously completed reviews for the full summary
     all_reviews = list(reviews)
-    if REVIEWS_DIR.exists():
-        for rp in REVIEWS_DIR.glob("*.json"):
+    if reviews_dir.exists():
+        for rp in reviews_dir.glob("*.json"):
             cn_stem = rp.stem
             if cn_stem not in {r.collector_number for r in reviews}:
                 try:
@@ -1302,13 +1327,49 @@ def review_set(
 
     # Generate summary report
     report = _generate_summary_report(all_reviews)
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    report_path = REPORTS_DIR / "ai-review-summary.md"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    report_path = reports_dir / "ai-review-summary.md"
     report_path.write_text(report, encoding="utf-8")
     logger.info("Summary report:  %s", report_path)
-    logger.info("Review logs:     %s", REVIEWS_DIR)
+    logger.info("Review logs:     %s", reviews_dir)
 
     return reviews
+
+
+def review_all_cards(
+    *,
+    set_code: str = DEFAULT_SET_CODE,
+    progress_callback: Callable[[str, int, int, str, float], None] | None = None,
+) -> dict:
+    """Run AI design review on all cards, returning a summary dict.
+
+    This is the pipeline orchestration entry point. It delegates to ``review_set``
+    and returns a dict with keys ``reviewed``, ``revised``, ``cost_usd``, and
+    ``summary``.
+
+    Args:
+        set_code: Set code to review.
+        progress_callback: Optional callback(slot_id, completed, total, message, cost)
+            invoked after each card is reviewed.
+    """
+    reviews = review_set(
+        set_code=set_code,
+        progress_callback=progress_callback,
+    )
+    reviewed = len(reviews)
+    revised = sum(1 for r in reviews if r.card_was_changed)
+    cost_usd = sum(r.total_cost_usd for r in reviews)
+    ok_count = sum(1 for r in reviews if r.final_verdict == "OK")
+    summary = (
+        f"AI review complete: {reviewed} cards reviewed, {revised} revised, "
+        f"{ok_count} OK, ${cost_usd:.2f} total cost"
+    )
+    return {
+        "reviewed": reviewed,
+        "revised": revised,
+        "cost_usd": cost_usd,
+        "summary": summary,
+    }
 
 
 # ---------------------------------------------------------------------------

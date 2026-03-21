@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}MTGAI Pipeline{% endblock %}
+{% block nav_pipeline %}active{% endblock %}
+
+{% block head %}
+<style>
+  /* Pipeline dashboard styles */
+  .pipeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .pipeline-header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #e0e0e0;
+  }
+  .pipeline-stats {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+  }
+  .pipeline-stat {
+    text-align: center;
+  }
+  .pipeline-stat .stat-value {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #e0e0e0;
+  }
+  .pipeline-stat .stat-label {
+    font-size: 0.75rem;
+    color: #888;
+    text-transform: uppercase;
+  }
+
+  /* Overall progress bar */
+  .overall-progress {
+    background: #1a1a2e;
+    border-radius: 8px;
+    height: 8px;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+  }
+  .overall-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4a9eff, #00d4aa);
+    transition: width 0.5s ease;
+    border-radius: 8px;
+  }
+
+  /* Action buttons */
+  .pipeline-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  .pipeline-actions .btn {
+    padding: 0.5rem 1.25rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .btn-resume {
+    background: #00d4aa;
+    color: #0a0a1a;
+  }
+  .btn-resume:hover { background: #00e8bb; }
+  .btn-cancel {
+    background: #ff4757;
+    color: white;
+  }
+  .btn-cancel:hover { background: #ff6b7a; }
+  .btn-retry {
+    background: #ffa502;
+    color: #0a0a1a;
+  }
+  .btn-retry:hover { background: #ffb830; }
+  .btn-skip {
+    background: #555;
+    color: #e0e0e0;
+  }
+  .btn-skip:hover { background: #666; }
+  .btn-configure {
+    background: #4a9eff;
+    color: white;
+  }
+  .btn-configure:hover { background: #6ab0ff; }
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* Stage list */
+  .stage-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .stage-card {
+    background: #16213e;
+    border: 1px solid #1a1a3e;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.3s;
+  }
+  .stage-card.running {
+    border-color: #4a9eff;
+    box-shadow: 0 0 12px rgba(74, 158, 255, 0.15);
+  }
+  .stage-card.completed {
+    border-color: #00d4aa33;
+  }
+  .stage-card.paused_for_review {
+    border-color: #ffa502;
+    box-shadow: 0 0 12px rgba(255, 165, 2, 0.15);
+  }
+  .stage-card.failed {
+    border-color: #ff4757;
+  }
+  .stage-card.skipped {
+    opacity: 0.4;
+  }
+
+  /* Stage number */
+  .stage-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: bold;
+    flex-shrink: 0;
+    background: #1a1a2e;
+    color: #666;
+    border: 2px solid #333;
+  }
+  .stage-card.completed .stage-num {
+    background: #00d4aa;
+    color: #0a0a1a;
+    border-color: #00d4aa;
+  }
+  .stage-card.running .stage-num {
+    background: #4a9eff;
+    color: white;
+    border-color: #4a9eff;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .stage-card.paused_for_review .stage-num {
+    background: #ffa502;
+    color: #0a0a1a;
+    border-color: #ffa502;
+  }
+  .stage-card.failed .stage-num {
+    background: #ff4757;
+    color: white;
+    border-color: #ff4757;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(74, 158, 255, 0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(74, 158, 255, 0); }
+  }
+
+  /* Stage info */
+  .stage-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .stage-name {
+    font-weight: 600;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+  }
+  .stage-detail {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Stage progress bar */
+  .stage-progress-bar {
+    width: 120px;
+    height: 6px;
+    background: #1a1a2e;
+    border-radius: 3px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .stage-progress-fill {
+    height: 100%;
+    background: #4a9eff;
+    transition: width 0.3s ease;
+    border-radius: 3px;
+  }
+
+  /* Stage meta (cost, time) */
+  .stage-meta {
+    display: flex;
+    gap: 1rem;
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: #888;
+  }
+
+  /* Status badge */
+  .stage-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .badge-pending { background: #333; color: #888; }
+  .badge-running { background: #4a9eff33; color: #4a9eff; }
+  .badge-completed { background: #00d4aa22; color: #00d4aa; }
+  .badge-paused { background: #ffa50233; color: #ffa502; }
+  .badge-failed { background: #ff475733; color: #ff4757; }
+  .badge-skipped { background: #33333366; color: #666; }
+
+  /* No pipeline state */
+  .no-pipeline {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #888;
+  }
+  .no-pipeline h2 {
+    color: #e0e0e0;
+    margin-bottom: 1rem;
+  }
+  .no-pipeline p {
+    margin-bottom: 2rem;
+  }
+
+  /* Review mode indicator */
+  .review-indicator {
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: #ffa50222;
+    color: #ffa502;
+    margin-left: 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="pipeline-app">
+  <!-- Populated by JavaScript -->
+  <div class="no-pipeline" id="no-pipeline">
+    <h2>No Pipeline Running</h2>
+    <p>Configure and start a new pipeline run to generate a complete MTG set.</p>
+    <a href="/pipeline/configure" class="btn btn-configure">Configure Pipeline</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const PIPELINE_STATE = {{ pipeline_state | safe }};
+</script>
+<script src="/static/pipeline.js"></script>
+{% endblock %}

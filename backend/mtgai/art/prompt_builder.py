@@ -19,6 +19,7 @@ import argparse
 import json
 import logging
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from mtgai.art.visual_reference import (
@@ -330,6 +331,7 @@ def generate_prompts_for_set(
     card_filter: str | None = None,
     dry_run: bool = False,
     force: bool = False,
+    progress_callback: Callable[[str, int, int, str, float], None] | None = None,
 ) -> dict:
     """Generate art prompts for all cards in a set.
 
@@ -414,6 +416,16 @@ def generate_prompts_for_set(
                 len(char_refs),
                 visual_desc[:80] + "..." if len(visual_desc) > 80 else visual_desc,
             )
+
+            if progress_callback is not None:
+                card_cost = (in_tok * 0.80 / 1_000_000) + (out_tok * 4.0 / 1_000_000)
+                progress_callback(
+                    card.collector_number,
+                    processed + skipped,
+                    len(card_files),
+                    f"Generated prompt for {card.name}",
+                    card_cost,
+                )
 
             # Rate limit: small delay between API calls
             time.sleep(0.1)

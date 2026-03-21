@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -673,20 +674,35 @@ def _retry_parse_failure(
 
 def generate_set(
     *,
+    set_code: str = DEFAULT_SET_CODE,
     dry_run: bool = False,
     resume: bool = True,
-) -> None:
+    progress_callback: Callable[[str, int, int, str, float], None] | None = None,
+) -> dict:
     """Generate all unfilled slots in the skeleton.
 
     Args:
+        set_code: Set code to generate for (default: ASD).
         dry_run: If True, print batches and exit without calling the LLM.
         resume: If True, skip slots already in generation_progress.json.
+        progress_callback: Optional (item, completed, total, detail, cost) callback.
+
+    Returns:
+        Summary dict with total_slots, filled, failed, cost_usd, summary.
     """
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
+
+    # Derive paths from set_code
+    set_dir = OUTPUT_ROOT / "sets" / set_code
+    skeleton_path = set_dir / "skeleton.json"
+    mechanics_path = set_dir / "mechanics" / "approved.json"
+    theme_path = set_dir / "theme.json"
+    progress_path = set_dir / "generation_progress.json"
+    log_dir = set_dir / "generation_logs"
 
     logger.info("=" * 70)
     logger.info("MTGAI Card Generation Pipeline — Phase 1C")
@@ -698,14 +714,14 @@ def generate_set(
         TEMPERATURE,
         BATCH_SIZE,
     )
-    logger.info("Set: %s | Output: %s", DEFAULT_SET_CODE, OUTPUT_ROOT)
-    logger.info("Logs: %s", LOG_DIR)
+    logger.info("Set: %s | Output: %s", set_code, OUTPUT_ROOT)
+    logger.info("Logs: %s", log_dir)
     logger.info("")
 
     # Load inputs
-    skeleton = json.loads(SKELETON_PATH.read_text(encoding="utf-8"))
-    mechanics = json.loads(MECHANICS_PATH.read_text(encoding="utf-8"))
-    theme = json.loads(THEME_PATH.read_text(encoding="utf-8"))
+    skeleton = json.loads(skeleton_path.read_text(encoding="utf-8"))
+    mechanics = json.loads(mechanics_path.read_text(encoding="utf-8"))
+    theme = json.loads(theme_path.read_text(encoding="utf-8"))
 
     logger.info(
         "Loaded: skeleton (%d slots), %d mechanics, theme '%s'",
@@ -714,7 +730,7 @@ def generate_set(
         theme.get("name", "?"),
     )
 
-    progress = GenerationProgress()
+    progress = GenerationProgress(path=progress_path)
     if progress.total_api_calls > 0:
         logger.info(
             "Resuming: %d filled, %d failed, %d API calls so far ($%.4f)",
@@ -749,7 +765,7 @@ def generate_set(
         return
 
     # Load existing cards for set context + uniqueness checks
-    cards_dir = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "cards"
+    cards_dir = set_dir / "cards"
     existing_cards: list[Card] = []
     if cards_dir.exists():
         for p in sorted(cards_dir.glob("*.json")):
@@ -771,7 +787,13 @@ def generate_set(
 
     if dry_run:
         logger.info("DRY RUN — no API calls made.")
-        return
+        return {
+            "total_slots": len(all_slots),
+            "filled": len(progress.filled_slots),
+            "failed": len(progress.failed_slots),
+            "cost_usd": 0.0,
+            "summary": "Dry run — no API calls made",
+        }
 
     # Generate!
     system_prompt = load_system_prompt()
@@ -911,6 +933,10 @@ def generate_set(
             logger.info("  Card %d: %s", j + 1, _card_one_liner(rc))
         logger.info("")
 
+        # Inject set_code into raw cards before validation
+        for rc in raw_cards:
+            rc.setdefault("set_code", set_code)
+
         # Process: validate, auto-fix, save
         logger.info("--- Validation + Save ---")
         saved = _process_batch_result(
@@ -930,6 +956,16 @@ def generate_set(
         )
         total_saved += len(saved)
         progress.save()
+
+        # Report progress via callback
+        if progress_callback is not None:
+            progress_callback(
+                f"batch {batch_idx}/{len(batches)}",
+                total_saved,
+                len(all_slots),
+                f"Batch {batch_idx}: {len(saved)}/{len(batch)} saved",
+                batch_cost,
+            )
 
         batch_elapsed = time.time() - batch_start
         logger.info("")
@@ -970,9 +1006,18 @@ def generate_set(
         for sid, reason in progress.failed_slots.items():
             logger.info("  %s: %s", sid, reason)
     logger.info("")
-    logger.info("Progress saved: %s", PROGRESS_PATH)
-    logger.info("Logs saved:     %s", LOG_DIR)
-    logger.info("Cards saved:    %s", OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "cards")
+    logger.info("Progress saved: %s", progress_path)
+    logger.info("Logs saved:     %s", log_dir)
+    logger.info("Cards saved:    %s", cards_dir)
+
+    return {
+        "total_slots": len(all_slots),
+        "filled": total_saved,
+        "failed": len(progress.failed_slots),
+        "cost_usd": progress.total_cost_usd,
+        "summary": f"Generated {total_saved} cards in {elapsed:.0f}s ($"
+        f"{progress.total_cost_usd:.4f})",
+    }
 
 
 # ---------------------------------------------------------------------------

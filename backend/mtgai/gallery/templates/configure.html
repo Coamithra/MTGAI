@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+
+{% block title %}Configure Pipeline{% endblock %}
+{% block nav_pipeline %}active{% endblock %}
+
+{% block head %}
+<style>
+  .config-page {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .config-page h1 {
+    margin-bottom: 0.5rem;
+    color: #e0e0e0;
+  }
+  .config-page .subtitle {
+    color: #888;
+    margin-bottom: 2rem;
+  }
+
+  /* Sections */
+  .config-section {
+    background: #16213e;
+    border: 1px solid #1a1a3e;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .config-section h2 {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+    color: #e0e0e0;
+  }
+
+  /* Form fields */
+  .form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .form-group {
+    flex: 1;
+  }
+  .form-group label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.85rem;
+    color: #aaa;
+  }
+  .form-group input,
+  .form-group select {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+  }
+  .form-group input:focus,
+  .form-group select:focus {
+    outline: none;
+    border-color: #4a9eff;
+  }
+
+  /* Stage toggles table */
+  .stage-toggles {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .stage-toggles th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #333;
+    color: #aaa;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .stage-toggles td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #1a1a2e;
+    font-size: 0.85rem;
+    color: #e0e0e0;
+  }
+  .stage-toggles tr:last-child td {
+    border-bottom: none;
+  }
+  .stage-toggles tr.locked td {
+    color: #888;
+  }
+
+  /* Radio group for toggle */
+  .toggle-group {
+    display: flex;
+    gap: 0.25rem;
+  }
+  .toggle-group label {
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    background: #1a1a2e;
+    color: #888;
+    border: 1px solid #333;
+    transition: all 0.2s;
+  }
+  .toggle-group input {
+    display: none;
+  }
+  .toggle-group input:checked + label {
+    border-color: #4a9eff;
+    color: #4a9eff;
+    background: #4a9eff15;
+  }
+  .toggle-group input[value="review"]:checked + label {
+    border-color: #ffa502;
+    color: #ffa502;
+    background: #ffa50215;
+  }
+  .toggle-group input[value="skip"]:checked + label {
+    border-color: #666;
+    color: #666;
+    background: #66666615;
+  }
+  .toggle-group label.disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  /* Presets */
+  .presets {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .preset-btn {
+    padding: 0.4rem 1rem;
+    border: 1px solid #333;
+    border-radius: 6px;
+    background: #1a1a2e;
+    color: #aaa;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .preset-btn:hover {
+    border-color: #4a9eff;
+    color: #e0e0e0;
+  }
+  .preset-btn.active {
+    border-color: #4a9eff;
+    background: #4a9eff15;
+    color: #4a9eff;
+  }
+
+  /* Submit */
+  .config-submit {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+  .btn-start {
+    padding: 0.75rem 2rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    background: linear-gradient(135deg, #4a9eff, #00d4aa);
+    color: #0a0a1a;
+    transition: all 0.2s;
+  }
+  .btn-start:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(74, 158, 255, 0.3);
+  }
+  .btn-start:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Size presets */
+  .size-presets {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+  }
+  .size-preset {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    background: #1a1a2e;
+    color: #888;
+    border: 1px solid #333;
+  }
+  .size-preset:hover {
+    color: #e0e0e0;
+    border-color: #4a9eff;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="config-page">
+  <h1>Configure Pipeline</h1>
+  <p class="subtitle">Set up your MTG set generation pipeline</p>
+
+  <!-- Section 1: Set Identity -->
+  <div class="config-section">
+    <h2>Set Identity</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="set-name">Set Name</label>
+        <input type="text" id="set-name" placeholder="e.g. Anomalous Descent">
+      </div>
+      <div class="form-group" style="max-width: 120px;">
+        <label for="set-code">Set Code</label>
+        <input type="text" id="set-code" placeholder="ASD" maxlength="3" style="text-transform: uppercase;">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="max-width: 180px;">
+        <label for="set-size">Set Size</label>
+        <input type="number" id="set-size" value="60" min="20" max="400">
+        <div class="size-presets">
+          <span class="size-preset" onclick="document.getElementById('set-size').value=60">Dev (60)</span>
+          <span class="size-preset" onclick="document.getElementById('set-size').value=277">Full (277)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 2: Stage Review Toggles -->
+  <div class="config-section">
+    <h2>Stage Review Settings</h2>
+    <p style="color: #888; font-size: 0.85rem; margin-bottom: 1rem;">
+      Choose which stages pause for your review. Human review stages always pause.
+    </p>
+
+    <div class="presets">
+      <button class="preset-btn" onclick="applyPreset('auto')">Full Auto</button>
+      <button class="preset-btn" onclick="applyPreset('review')">Review Everything</button>
+      <button class="preset-btn active" onclick="applyPreset('recommended')">Recommended</button>
+    </div>
+
+    <table class="stage-toggles">
+      <thead>
+        <tr>
+          <th style="width: 30px">#</th>
+          <th>Stage</th>
+          <th>Mode</th>
+        </tr>
+      </thead>
+      <tbody id="stage-toggles-body">
+        <!-- Populated by JavaScript -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Submit -->
+  <div class="config-submit">
+    <button class="btn-start" id="start-btn" onclick="startPipeline()">
+      Start Pipeline
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const STAGE_DEFINITIONS = {{ stage_definitions | safe }};
+</script>
+<script src="/static/configure.js"></script>
+{% endblock %}
