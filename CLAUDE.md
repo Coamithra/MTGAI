@@ -179,15 +179,17 @@
 - **Kontext Dev rejected** — copies style+composition, not just identity. No strength dial.
 - Known MTG characters (Jace etc.) → use official Scryfall art as reference, not Flux
 
-## Current State (Phase 2C Rendering — Complete, Phase 3 next)
+## Current State (Phase 3 Complete, Phase 4C next)
 - 66 cards generated for ASD dev set (60 main + 6 lands)
 - 3 custom mechanics: Salvage (W/U/G), Malfunction (W/U/R), Overclock (U/R/B)
-- Phases 0A-0E, 1A-1C, 4A, 4A-rev, 4B, 2A, 2B, 2C complete
-- Phase 2C highlights: 4 rendering iterations, pixel-accurate MTG card rendering
-  - Real MTG fonts: Beleren Bold (names/types), MPlantin (rules), Relay Medium (info/P/T)
-  - SVG mana glyphs, tap symbol, ASD set symbol (pycairo)
-  - Dynamic text sizing, shrink-to-fit, P/T overlap fix, legendary crowns
-  - Comparison page: `output/sets/ASD/reports/render-comparison.html`
-- Next: Phase 3A (data layer + utilities), 3B (HTML review workflow), 4C (quality checks)
-- Phase 3 revised: old CLI-heavy review replaced with HTML review workflow backed by local FastAPI server
-- Plan: `plans/phase-3-review-workflow.md` (replaces `plans/phase-3-review-tools.md`)
+- Phases 0A-0E, 1A-1C, 4A, 4A-rev, 4B, 2A, 2B, 2C, 3A, 3B complete
+- Phase 3: HTML review workflow with FastAPI server
+  - `python -m mtgai.review serve --open` starts local review server
+  - Review gallery: card grid with filters, per-card OK/Remake/Art Redo/Manual Tweak decisions
+  - Card detail modal with keyboard nav, mana cost rendering
+  - Progress page with auto-refresh polling
+  - Booster pack viewer with color-balanced collation (mimics real MTG draft boosters)
+  - Manual tweak opens card JSONs in system editor on submit
+  - Server discovers render/art images from disk (no card JSON path dependency)
+  - Plan: `plans/phase-3-review-workflow.md`
+- Next: Phase 4C (quality checks), then Phase SC (scale-up to ~280 cards)
