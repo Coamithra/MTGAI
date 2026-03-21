@@ -270,3 +270,124 @@ class TestGenerateSealedPool:
         names = [c.name for c in sealed]
         # With 6 packs from a 43-card pool, duplicates are guaranteed
         assert len(names) > len(set(names))
+
+
+def _make_colored_card(
+    name: str,
+    color: str,
+    rarity: Rarity = Rarity.COMMON,
+    collector_number: str = "T-01",
+) -> Card:
+    """Create a card with a specific color identity."""
+    return Card(
+        name=name,
+        rarity=rarity,
+        collector_number=collector_number,
+        type_line="Creature — Human",
+        set_code="TST",
+        colors=[color] if color != "C" else [],
+        color_identity=[color] if color != "C" else [],
+    )
+
+
+def _make_colored_pool() -> list[Card]:
+    """Create a pool with 4 commons per color, 2 uncommons per color, 1 rare per color."""
+    cards: list[Card] = []
+    for color in ["W", "U", "B", "R", "G"]:
+        for i in range(4):
+            cards.append(
+                _make_colored_card(
+                    f"{color} Common {i}", color, Rarity.COMMON, f"{color}-C-{i:02d}"
+                )
+            )
+        for i in range(2):
+            cards.append(
+                _make_colored_card(
+                    f"{color} Uncommon {i}", color, Rarity.UNCOMMON, f"{color}-U-{i:02d}"
+                )
+            )
+        cards.append(
+            _make_colored_card(f"{color} Rare", color, Rarity.RARE, f"{color}-R-01")
+        )
+    # Add basic lands
+    for i, land in enumerate(["Plains", "Island", "Swamp", "Mountain", "Forest"]):
+        cards.append(
+            Card(
+                name=land,
+                rarity=Rarity.COMMON,
+                collector_number=f"L-{i:02d}",
+                type_line=f"Basic Land — {land}",
+                set_code="TST",
+            )
+        )
+    return cards
+
+
+class TestColorBalance:
+    def test_commons_all_five_colors_represented(self):
+        """Real draft boosters guarantee all 5 WUBRG colors at common."""
+        pool = _make_colored_pool()
+        for seed in range(50):
+            pack = generate_booster_pack(pool, seed=seed)
+            commons = [c for c in pack if c.rarity == Rarity.COMMON and "Basic Land" not in c.type_line]
+            colors_present = {
+                c.color_identity[0].value for c in commons if c.color_identity
+            }
+            assert len(colors_present) == 5, (
+                f"Seed {seed}: only {colors_present} in commons (need all WUBRG)"
+            )
+
+    def test_commons_spread_across_colors(self):
+        """Commons should be ~2 per color, no color dominating."""
+        pool = _make_colored_pool()
+        for seed in range(50):
+            pack = generate_booster_pack(pool, seed=seed)
+            commons = [c for c in pack if c.rarity == Rarity.COMMON and "Basic Land" not in c.type_line]
+            counts: dict[str, int] = {}
+            for c in commons:
+                ci = c.color_identity[0].value if c.color_identity else "C"
+                counts[ci] = counts.get(ci, 0) + 1
+
+            # No single color should dominate (max 3 of one color in 10 commons)
+            for color, n in counts.items():
+                assert n <= 3, f"Seed {seed}: too many {color} commons: {n}"
+
+    def test_uncommons_different_colors(self):
+        """Uncommons should tend toward different colors."""
+        pool = _make_colored_pool()
+        packs_with_diverse_uncommons = 0
+        for seed in range(50):
+            pack = generate_booster_pack(pool, seed=seed)
+            uncommons = [c for c in pack if c.rarity == Rarity.UNCOMMON]
+            colors = set()
+            for c in uncommons:
+                if c.color_identity:
+                    colors.add(c.color_identity[0].value)
+            if len(colors) >= 2:
+                packs_with_diverse_uncommons += 1
+
+        # At least 80% of packs should have 2+ colors in uncommons
+        assert packs_with_diverse_uncommons >= 40, (
+            f"Only {packs_with_diverse_uncommons}/50 packs had diverse uncommons"
+        )
+
+    def test_color_balance_over_many_packs(self):
+        """Over many packs, each color should appear roughly equally in commons."""
+        pool = _make_colored_pool()
+        total_by_color: dict[str, int] = {}
+        n_packs = 100
+        for seed in range(n_packs):
+            pack = generate_booster_pack(pool, seed=seed)
+            commons = [c for c in pack if c.rarity == Rarity.COMMON and "Basic Land" not in c.type_line]
+            for c in commons:
+                ci = c.color_identity[0].value if c.color_identity else "C"
+                total_by_color[ci] = total_by_color.get(ci, 0) + 1
+
+        # With 100 packs * 10 commons = 1000 common slots across 5 colors,
+        # expect ~200 per color. Allow ±30% (140-260).
+        for color in ["W", "U", "B", "R", "G"]:
+            count = total_by_color.get(color, 0)
+            assert 140 <= count <= 260, (
+                f"Color {color} appeared {count} times in {n_packs} packs "
+                f"(expected ~200 ± 60)"
+            )

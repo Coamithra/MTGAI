@@ -67,6 +67,134 @@ def _partition_by_rarity(
     return commons, uncommons, rares, mythics, basic_lands
 
 
+# WUBRG color order for balanced distribution
+_WUBRG = ["W", "U", "B", "R", "G"]
+
+
+def _get_primary_color(card: Card) -> str:
+    """Return the card's primary color letter, 'M' for multi, 'C' for colorless."""
+    if not card.color_identity:
+        return "C"
+    if len(card.color_identity) > 1:
+        return "M"
+    return card.color_identity[0].value
+
+
+def _pick_color_balanced(
+    pool: list[Card],
+    count: int,
+    rng: random.Random,
+    exclude: list[Card],
+) -> list[Card]:
+    """Pick cards with color balance mimicking real MTG print sheet collation.
+
+    Real MTG draft boosters use print sheet runs to guarantee color balance:
+    - **Commons (10)**: All 5 WUBRG colors represented, ~2 per color.
+      Multicolor/colorless are in a separate run and fill remaining slots.
+    - **Uncommons (3)**: Drawn from A/B runs ensuring 3 different colors.
+
+    Algorithm:
+    1. Bucket available cards by primary color (WUBRG + multicolor + colorless)
+    2. Guarantee pass: pick 1 from each WUBRG color (ensures all 5 represented)
+    3. Round-robin pass: continue cycling WUBRG to fill remaining mono-color slots
+    4. Fill remaining from multicolor/colorless pool (separate "run")
+    5. Fall back to any remaining cards if pool is thin
+
+    Args:
+        pool: Cards to pick from (all same rarity).
+        count: How many to pick.
+        rng: Random number generator.
+        exclude: Cards already in the pack (by identity).
+
+    Returns:
+        List of picked cards (may be fewer than count if pool is thin).
+    """
+    exclude_ids = {id(c) for c in exclude}
+    available = [c for c in pool if id(c) not in exclude_ids]
+
+    if len(available) <= count:
+        if len(available) < count:
+            logger.warning(
+                "Only %d cards available (need %d) — filling what we can.",
+                len(available),
+                count,
+            )
+        return list(available)
+
+    # Bucket by color
+    by_color: dict[str, list[Card]] = {c: [] for c in [*_WUBRG, "M", "C"]}
+    for card in available:
+        color = _get_primary_color(card)
+        by_color.setdefault(color, []).append(card)
+
+    # Shuffle each bucket
+    for bucket in by_color.values():
+        rng.shuffle(bucket)
+
+    picked: list[Card] = []
+    picked_ids: set[int] = set()
+
+    def _pick_from(bucket_key: str) -> bool:
+        """Pick one card from a bucket. Returns True if successful."""
+        bucket = by_color[bucket_key]
+        while bucket:
+            card = bucket.pop()
+            if id(card) not in picked_ids:
+                picked.append(card)
+                picked_ids.add(id(card))
+                return True
+        return False
+
+    # Phase 1 — Guarantee pass: one card from each WUBRG color.
+    # Real draft boosters guarantee all 5 colors at common.
+    # Randomize order so no color is systematically favored.
+    color_order = list(_WUBRG)
+    rng.shuffle(color_order)
+    for color in color_order:
+        if len(picked) >= count:
+            break
+        _pick_from(color)
+
+    # Phase 2 — Round-robin pass: continue cycling WUBRG for remaining
+    # mono-color slots (~1 more per color for commons, giving ~2 each).
+    rng.shuffle(color_order)
+    for color in color_order:
+        if len(picked) >= count:
+            break
+        _pick_from(color)
+
+    # Phase 3 — Multicolor/colorless fill (separate "run" in real collation).
+    # Real sheets put multicolor + colorless on a dedicated run sheet.
+    for fallback_key in ["M", "C"]:
+        if len(picked) >= count:
+            break
+        while len(picked) < count and by_color.get(fallback_key):
+            _pick_from(fallback_key)
+
+    # Phase 4 — Overflow: if still short, take from any remaining WUBRG
+    # (a third pass, for when count > 10 or pool is uneven).
+    if len(picked) < count:
+        rng.shuffle(color_order)
+        for color in color_order:
+            if len(picked) >= count:
+                break
+            _pick_from(color)
+
+    # Phase 5 — Last resort: grab whatever's left (very thin pools).
+    if len(picked) < count:
+        all_remaining = [
+            c for bucket in by_color.values() for c in bucket if id(c) not in picked_ids
+        ]
+        rng.shuffle(all_remaining)
+        for card in all_remaining:
+            if len(picked) >= count:
+                break
+            picked.append(card)
+            picked_ids.add(id(card))
+
+    return picked
+
+
 def generate_booster_pack(
     cards: list[Card],
     seed: int | None = None,
@@ -114,28 +242,13 @@ def generate_booster_pack(
     if rare_or_mythic:
         pack.append(rare_or_mythic)
 
-    # --- Uncommon slots ---
-    uc_count = min(UNCOMMON_COUNT, len(uncommons))
-    if uc_count < UNCOMMON_COUNT:
-        logger.warning(
-            "Only %d uncommons available (need %d) — filling what we can.",
-            len(uncommons),
-            UNCOMMON_COUNT,
-        )
-    pack.extend(rng.sample(uncommons, uc_count))
+    # --- Uncommon slots (color-balanced: try for 3 different colors) ---
+    pack.extend(_pick_color_balanced(uncommons, UNCOMMON_COUNT, rng, pack))
 
-    # --- Common slots ---
-    # Exclude any cards already in the pack (shouldn't happen across rarities, but safety)
+    # --- Common slots (color-balanced: ~2 per color like real MTG collation) ---
     pack_ids = {id(c) for c in pack}
     available_commons = [c for c in commons if id(c) not in pack_ids]
-    cm_count = min(COMMON_COUNT, len(available_commons))
-    if cm_count < COMMON_COUNT:
-        logger.warning(
-            "Only %d commons available (need %d) — filling what we can.",
-            len(available_commons),
-            COMMON_COUNT,
-        )
-    pack.extend(rng.sample(available_commons, cm_count))
+    pack.extend(_pick_color_balanced(available_commons, COMMON_COUNT, rng, pack))
 
     # --- Basic land slot ---
     if basic_lands:
