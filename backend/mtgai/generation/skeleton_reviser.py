@@ -27,8 +27,6 @@ from mtgai.analysis.balance import analyze_set
 from mtgai.generation.card_generator import (
     CARD_TOOL_SCHEMA,
     CARDS_BATCH_TOOL_SCHEMA,
-    EFFORT,
-    MODEL_DEFAULT,
     OUTPUT_ROOT,
     TEMPERATURE,
     GenerationProgress,
@@ -40,6 +38,7 @@ from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.generation.prompts import load_system_prompt
 from mtgai.io.card_io import load_card
 from mtgai.models.card import Card
+from mtgai.settings.model_settings import get_effort, get_llm_model
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +131,7 @@ def _save_revision_log(
         "timestamp": datetime.now(UTC).isoformat(),
         "model": model,
         "temperature": 0.5,
-        "effort": EFFORT,
+        "effort": get_effort("skeleton_rev") or "default",
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "cost_usd": round(cost_usd, 6),
@@ -537,7 +536,7 @@ def regenerate_slots(
     Reuses the existing batch generation infrastructure but only for
     the specified slot_ids.  Pass ``model`` to override the default.
     """
-    gen_model = model or MODEL_DEFAULT
+    gen_model = model or get_llm_model("skeleton_rev")
     # Get slot dicts for the slots we need to regenerate
     slots_to_gen = [s for s in skeleton["slots"] if s["slot_id"] in slot_ids]
 
@@ -600,8 +599,6 @@ def regenerate_slots(
 
         try:
             t0 = time.time()
-            # effort is Opus-only; skip for other models
-            use_effort = EFFORT if "opus" in model else None
             result = generate_with_tool(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
@@ -609,7 +606,7 @@ def regenerate_slots(
                 model=model,
                 temperature=TEMPERATURE,
                 max_tokens=8192,
-                effort=use_effort,
+                effort=get_effort("skeleton_rev"),
             )
             api_latency = time.time() - t0
         except Exception:
@@ -666,7 +663,7 @@ def regenerate_slots(
             "slot_ids": batch_slot_ids,
             "timestamp": datetime.now(UTC).isoformat(),
             "model": model,
-            "effort": EFFORT,
+            "effort": get_effort("skeleton_rev") or "default",
             "input_tokens": result["input_tokens"],
             "output_tokens": result["output_tokens"],
             "cost_usd": round(batch_cost, 6),
@@ -875,8 +872,7 @@ def run_revision(
             logger.info("User prompt (first 2000 chars):\n%s", user_prompt[:2000])
             break
 
-        rev_model = model or MODEL_DEFAULT
-        rev_effort = EFFORT if "opus" in rev_model else None
+        rev_model = model or get_llm_model("skeleton_rev")
         t0 = time.time()
         result = generate_with_tool(
             system_prompt=system_prompt,
@@ -885,7 +881,7 @@ def run_revision(
             model=rev_model,
             temperature=0.5,  # Lower temp for analytical task
             max_tokens=8192,
-            effort=rev_effort,
+            effort=get_effort("skeleton_rev"),
         )
         revision_latency = time.time() - t0
         revision_cost = cost_from_result(result)

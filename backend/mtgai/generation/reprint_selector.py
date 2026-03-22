@@ -492,11 +492,13 @@ def _llm_select_reprints(
     )
 
     try:
+        from mtgai.settings.model_settings import get_llm_model
+
         response = generate_with_tool(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             tool_schema=tool_schema,
-            model="claude-haiku-4-5-20251001",
+            model=get_llm_model("reprints"),
             temperature=0.0,
             max_tokens=2048,
         )

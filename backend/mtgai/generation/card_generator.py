@@ -44,10 +44,8 @@ THEME_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "theme.json"
 PROGRESS_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "generation_progress.json"
 LOG_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "generation_logs"
 
-# LLM settings — Opus with effort=max for all generation (stronger initial
-# generation means fewer issues caught in review, net cheaper overall).
-# Phase 0E experiments used Sonnet, but 1B A/B testing showed strong
-# generation > cheap review.
+# LLM settings — defaults kept as constants for backward compat, but the
+# active values come from model_settings at runtime (configured via /settings).
 MODEL_DEFAULT = "claude-opus-4-6"
 MODEL_SONNET = "claude-sonnet-4-6"
 MODEL_OPUS = "claude-opus-4-6"
@@ -258,7 +256,7 @@ def _retry_single_card(
             model=model,
             temperature=TEMPERATURE,
             max_tokens=4096,
-            effort=EFFORT,
+            effort=_select_effort(),
         )
         latency = time.time() - t0
         cost = cost_from_result(result)
@@ -364,7 +362,7 @@ def _save_batch_log(
         "card_count_returned": len(raw_cards),
         "model": model,
         "temperature": TEMPERATURE,
-        "effort": EFFORT,
+        "effort": _select_effort() or EFFORT,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "cost_usd": round(cost_usd, 6),
@@ -409,9 +407,17 @@ def _card_one_liner(raw: dict) -> str:
 
 
 def _select_model() -> str:
-    """Return the generation model.  Opus for everything — strong generation
-    beats cheap generation + expensive review."""
-    return MODEL_DEFAULT
+    """Return the generation model from settings (falls back to Opus default)."""
+    from mtgai.settings.model_settings import get_llm_model
+
+    return get_llm_model("card_gen")
+
+
+def _select_effort() -> str | None:
+    """Return the effort level from settings (falls back to 'max')."""
+    from mtgai.settings.model_settings import get_effort
+
+    return get_effort("card_gen")
 
 
 def _process_batch_result(
@@ -707,10 +713,12 @@ def generate_set(
     logger.info("=" * 70)
     logger.info("MTGAI Card Generation Pipeline — Phase 1C")
     logger.info("=" * 70)
+    active_model = _select_model()
+    active_effort = _select_effort()
     logger.info(
         "Model: %s | Effort: %s | Temp: %s | Batch size: %d",
-        MODEL_DEFAULT,
-        EFFORT,
+        active_model,
+        active_effort or "default",
         TEMPERATURE,
         BATCH_SIZE,
     )
@@ -856,7 +864,7 @@ def generate_set(
                 model=model,
                 temperature=TEMPERATURE,
                 max_tokens=8192,
-                effort=EFFORT,
+                effort=_select_effort(),
             )
             api_latency = time.time() - t0
         except Exception:

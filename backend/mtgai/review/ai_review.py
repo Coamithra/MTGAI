@@ -46,11 +46,25 @@ THEME_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "theme.json"
 REVIEWS_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reviews"
 REPORTS_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reports"
 
-# LLM settings — Opus with effort=max for all review.
+# LLM settings — defaults (active values come from model_settings at runtime)
 MODEL = "claude-opus-4-6"
 EFFORT = "max"
 TEMPERATURE = 1.0
 MAX_ITERATIONS = 5
+
+
+def _review_model() -> str:
+    """Get the review model from settings."""
+    from mtgai.settings.model_settings import get_llm_model
+
+    return get_llm_model("ai_review")
+
+
+def _review_effort() -> str | None:
+    """Get the review effort from settings."""
+    from mtgai.settings.model_settings import get_effort
+
+    return get_effort("ai_review")
 
 
 # ---------------------------------------------------------------------------
@@ -460,17 +474,17 @@ def _review_single(
                 system_prompt=REVIEW_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
                 tool_schema=REVIEW_TOOL_SCHEMA,
-                model=MODEL,
+                model=_review_model(),
                 temperature=TEMPERATURE,
                 max_tokens=8192,
-                effort=EFFORT,
+                effort=_review_effort(),
             )
         except Exception:
             logger.exception("    API call failed on iteration %d", iteration)
             break
 
         latency = time.time() - t0
-        effective_model = result.get("model", MODEL)
+        effective_model = result.get("model", _review_model())
         cost = cost_from_result(result)
         total_in += (
             result["input_tokens"]
@@ -535,7 +549,7 @@ def _review_single(
             # Track the latest revision
             revised_card = it.response.get("revised_card")
 
-    effective_model = iterations[0].model if iterations else MODEL
+    effective_model = iterations[0].model if iterations else _review_model()
 
     return CardReviewResult(
         collector_number=collector_number,
@@ -583,7 +597,7 @@ def _review_council(
     )
 
     council_reviews: list[CouncilMemberReview] = []
-    effective_model = MODEL
+    effective_model = _review_model()
     total_in = 0
     total_out = 0
     total_cost = 0.0
@@ -602,17 +616,17 @@ def _review_council(
                 system_prompt=REVIEW_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
                 tool_schema=REVIEW_TOOL_SCHEMA,
-                model=MODEL,
+                model=_review_model(),
                 temperature=TEMPERATURE,
                 max_tokens=8192,
-                effort=EFFORT,
+                effort=_review_effort(),
             )
         except Exception:
             logger.exception("    Reviewer %d API call failed", member_id)
             continue
 
         latency = time.time() - t0
-        effective_model = result.get("model", MODEL)
+        effective_model = result.get("model", _review_model())
         cost = cost_from_result(result)
         total_in += (
             result["input_tokens"]
@@ -706,17 +720,17 @@ def _review_council(
                 system_prompt=REVIEW_SYSTEM_PROMPT,
                 user_prompt=prompt,
                 tool_schema=tool,
-                model=MODEL,
+                model=_review_model(),
                 temperature=TEMPERATURE,
                 max_tokens=8192,
-                effort=EFFORT,
+                effort=_review_effort(),
             )
         except Exception:
             logger.exception("    Synthesis API call failed on iteration %d", iteration)
             break
 
         latency = time.time() - t0
-        effective_model = result.get("model", MODEL)
+        effective_model = result.get("model", _review_model())
         cost = cost_from_result(result)
         total_in += (
             result["input_tokens"]
@@ -1000,13 +1014,13 @@ def _generate_summary_report(reviews: list[CardReviewResult]) -> str:
 
     # Determine actual model used from review results
     effective_models = {r.model for r in reviews if r.model}
-    model_str = ", ".join(sorted(effective_models)) if effective_models else MODEL
+    model_str = ", ".join(sorted(effective_models)) if effective_models else _review_model()
 
     lines = [
         "# AI Design Review Summary -- Phase 4B",
         "",
         f"Date: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
-        f"Model: {model_str} (effort={EFFORT})",
+        f"Model: {model_str} (effort={_review_effort() or 'default'})",
         f"Cards reviewed: {len(reviews)}",
         f"Cards changed: {changed}",
         f"Final OK: {ok_count} | Final REVISE: {revise_count}",
@@ -1168,7 +1182,12 @@ def review_set(
     logger.info("=" * 70)
     logger.info("MTGAI AI Design Review Pipeline -- Phase 4B")
     logger.info("=" * 70)
-    logger.info("Model: %s | Effort: %s | Max iterations: %d", MODEL, EFFORT, MAX_ITERATIONS)
+    logger.info(
+        "Model: %s | Effort: %s | Max iterations: %d",
+        _review_model(),
+        _review_effort() or "default",
+        MAX_ITERATIONS,
+    )
     logger.info("Set: %s", set_code)
     logger.info("")
 

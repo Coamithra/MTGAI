@@ -248,14 +248,16 @@ def analyze_interactions(
         len(user_prompt),
     )
 
+    from mtgai.settings.model_settings import get_effort, get_llm_model
+
     result = generate_with_tool(
         system_prompt=INTERACTION_SYSTEM_PROMPT,
         user_prompt=user_prompt,
         tool_schema=INTERACTION_TOOL_SCHEMA,
-        model=MODEL,
+        model=get_llm_model("balance"),
         temperature=TEMPERATURE,
         max_tokens=MAX_TOKENS,
-        effort=EFFORT,
+        effort=get_effort("balance"),
     )
 
     cost = cost_from_result(result)

@@ -60,6 +60,21 @@
   - `effort` is removed if dropping below Opus
 - `thinking` is incompatible with forced `tool_choice` — don't use together
 - Always use full color names in prompts (not abbreviations like "R")
+- **Provider routing**: `_resolve_provider(model_id)` checks model registry first, falls back to `MTGAI_PROVIDER` env var
+
+## Model Settings (`mtgai/settings/`)
+- **Model registry** (`models.toml`): TOML file listing all available LLM and image-gen models with provider, pricing, capabilities (effort, vision, caching)
+- **Model settings** (`model_settings.py`): per-stage model assignments, presets, save/load profiles
+  - `get_llm_model(stage_id)` → returns API model_id for the stage
+  - `get_effort(stage_id)` → returns effort level or None
+  - `get_image_model(stage_id)` → returns image model key
+  - `apply_settings(settings)` → saves as `output/settings/current.toml`
+  - `ModelSettings.from_preset(name)` → "recommended", "all-haiku", "all-local"
+- **Settings UI** at `/settings` — per-stage model dropdowns, presets, profile save/load, cost estimation
+- LLM stages: reprints, card_gen, balance, skeleton_rev, ai_review, art_prompts, art_select
+- Image stages: char_portraits, art_gen
+- Profiles saved as TOML in `output/settings/<name>.toml`
+- Add new models by editing `backend/mtgai/settings/models.toml`
 
 ## Validation Library (`mtgai/validation/`)
 - Two severity levels: **AUTO** (deterministically fixable) and **MANUAL** (needs LLM retry)
@@ -207,6 +222,7 @@
   - `pipeline/events.py` — Thread-safe EventBus for SSE
   - `pipeline/server.py` — FastAPI routes (page + API)
   - `pipeline/stages.py` — Stage registry mapping stage_id → library function
+- **Model Settings** at `/settings` — per-stage LLM/image model selection, presets, profile save/load
 - **Status banner** in `base.html` shows pipeline status across all pages
 - `card_generator.generate_set()` now accepts `set_code` and `progress_callback` params
 - `generation/land_generator.py` — extracted from `scripts/generate_lands.py` as callable function

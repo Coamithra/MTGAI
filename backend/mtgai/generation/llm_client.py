@@ -62,9 +62,21 @@ def calc_cost(
     - Cache read tokens: 0.1x base input price
     - Output tokens: 1x base output price
 
-    Returns 0.0 for local models (not in PRICING).
+    Returns 0.0 for local models (not in PRICING or registry).
     """
-    prices = PRICING.get(model, {"input": 0, "output": 0})
+    prices = PRICING.get(model)
+    if prices is None:
+        # Fall back to model registry pricing
+        try:
+            from mtgai.settings.model_registry import get_registry
+
+            info = get_registry().get_llm_by_model_id(model)
+            if info:
+                prices = {"input": info.input_price, "output": info.output_price}
+        except Exception:
+            pass
+    if prices is None:
+        prices = {"input": 0, "output": 0}
     inp = prices["input"]
     return (
         input_tokens * inp
@@ -402,6 +414,24 @@ def _generate_ollama(
 # ── Public API ───────────────────────────────────────────────────────
 
 
+def _resolve_provider(model: str) -> str:
+    """Determine the provider for a model by checking the registry.
+
+    Falls back to the MTGAI_PROVIDER env var for backward compatibility.
+    """
+    try:
+        from mtgai.settings.model_registry import get_registry
+
+        registry = get_registry()
+        model_info = registry.get_llm_by_model_id(model)
+        if model_info:
+            return model_info.provider
+    except Exception:
+        pass  # Registry not available — fall back to env var
+
+    return PROVIDER
+
+
 def generate_with_tool(
     system_prompt: str,
     user_prompt: str,
@@ -414,13 +444,10 @@ def generate_with_tool(
 ) -> dict:
     """Call an LLM with tool_use for structured JSON output.
 
-    Provider is selected by the ``MTGAI_PROVIDER`` env var:
-      - ``anthropic`` (default): Anthropic API with forced tool_choice
+    Provider is determined automatically from the model registry, or falls
+    back to the ``MTGAI_PROVIDER`` env var for backward compatibility:
+      - ``anthropic``: Anthropic API with forced tool_choice
       - ``ollama``: local model via Ollama's OpenAI-compatible API
-
-    For Ollama, the ``model`` and ``effort`` params are ignored — the model
-    is set by ``MTGAI_OLLAMA_MODEL`` (default: qwen2.5:14b). Prompt caching
-    is also skipped (Ollama doesn't support it).
 
     Returns a dict with:
         - result: the parsed tool input (structured JSON)
@@ -429,12 +456,14 @@ def generate_with_tool(
         - stop_reason: the stop reason
         - model: effective model used
     """
-    if PROVIDER == "ollama":
+    provider = _resolve_provider(model)
+
+    if provider == "ollama":
         return _generate_ollama(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             tool_schema=tool_schema,
-            model=OLLAMA_MODEL,
+            model=model,  # model_id is the Ollama model name (e.g. "qwen2.5:14b")
             temperature=temperature,
             max_tokens=max_tokens,
         )

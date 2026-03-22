@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block title %}Theme Wizard{% endblock %}
+{% block nav_theme %}active{% endblock %}
+
+{% block head %}
+<style>
+  .theme-page {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .theme-page h1 {
+    margin-bottom: 0.5rem;
+    color: #e0e0e0;
+  }
+  .theme-page .subtitle {
+    color: #888;
+    margin-bottom: 2rem;
+  }
+
+  /* Sections */
+  .theme-section {
+    background: var(--bg-secondary, #16213e);
+    border: 1px solid var(--border, #2a2a4a);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .theme-section h2 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.1rem;
+    color: #e0e0e0;
+  }
+  .theme-section .section-desc {
+    color: #888;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  /* Form fields */
+  .form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .form-group {
+    flex: 1;
+  }
+  .form-group label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.85rem;
+    color: #aaa;
+  }
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-primary, #1a1a2e);
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    font-family: inherit;
+    box-sizing: border-box;
+  }
+  .form-group input:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: #4a9eff;
+  }
+  .form-group textarea {
+    resize: vertical;
+    line-height: 1.5;
+  }
+
+  /* Size presets */
+  .size-presets {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+  }
+  .size-preset {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    background: var(--bg-primary, #1a1a2e);
+    color: #888;
+    border: 1px solid #333;
+  }
+  .size-preset:hover {
+    color: #e0e0e0;
+    border-color: #4a9eff;
+  }
+
+  /* Extract from file bar */
+  .extract-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: rgba(74, 158, 255, 0.05);
+    border: 1px solid rgba(74, 158, 255, 0.15);
+    border-radius: 6px;
+    margin-bottom: 1rem;
+  }
+  .extract-bar label {
+    color: #aaa;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+  .extract-bar input[type="file"] {
+    flex: 1;
+    font-size: 0.8rem;
+    color: #aaa;
+  }
+  .extract-bar input[type="file"]::file-selector-button {
+    padding: 0.3rem 0.75rem;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: var(--bg-primary, #1a1a2e);
+    color: #e0e0e0;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin-right: 0.5rem;
+  }
+  .extract-bar input[type="file"]::file-selector-button:hover {
+    border-color: #4a9eff;
+  }
+
+  /* Dynamic list */
+  .list-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .list-item {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  .list-item input,
+  .list-item textarea {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-primary, #1a1a2e);
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 0.85rem;
+    font-family: inherit;
+  }
+  .list-item input:focus,
+  .list-item textarea:focus {
+    outline: none;
+    border-color: #4a9eff;
+  }
+  .list-item textarea {
+    resize: vertical;
+    min-height: 2.5rem;
+  }
+  .btn-remove {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: transparent;
+    color: #666;
+    cursor: pointer;
+    font-size: 0.8rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .btn-remove:hover {
+    border-color: #e94560;
+    color: #e94560;
+  }
+  .btn-add {
+    align-self: flex-start;
+    padding: 0.35rem 0.75rem;
+    border: 1px dashed #444;
+    border-radius: 6px;
+    background: transparent;
+    color: #888;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+  }
+  .btn-add:hover {
+    border-color: #4a9eff;
+    color: #4a9eff;
+  }
+
+  /* Buttons */
+  .btn {
+    padding: 0.5rem 1.25rem;
+    border: 1px solid #333;
+    border-radius: 6px;
+    background: var(--bg-primary, #1a1a2e);
+    color: #aaa;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn:hover {
+    border-color: #4a9eff;
+    color: #e0e0e0;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #4a9eff, #00d4aa);
+    color: #0a0a1a;
+    border: none;
+    font-weight: 700;
+    padding: 0.75rem 2rem;
+    font-size: 1rem;
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(74, 158, 255, 0.3);
+  }
+  .btn-primary:disabled {
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Bottom action bar */
+  .action-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+  .action-bar .left {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #4a9eff40;
+    border-top-color: #4a9eff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 0.5rem;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    z-index: 999;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast-success { background: #2ecc71; color: #0a0a1a; }
+  .toast-error { background: #e94560; color: #fff; }
+
+  /* Status indicator */
+  .theme-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .theme-status.new {
+    background: #4a9eff15;
+    color: #4a9eff;
+    border: 1px solid #4a9eff30;
+  }
+  .theme-status.loaded {
+    background: #2ecc7115;
+    color: #2ecc71;
+    border: 1px solid #2ecc7130;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="theme-page">
+  <h1>Theme Wizard</h1>
+  <p class="subtitle">Define your set's creative identity. The pipeline handles the rest.</p>
+
+  <!-- Section 1: Identity + Setting -->
+  <div class="theme-section">
+    <h2>Set Identity</h2>
+    <p class="section-desc">Name your set and describe the world.</p>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="set-name">Set Name</label>
+        <input type="text" id="set-name" placeholder="e.g. Anomalous Descent">
+      </div>
+      <div class="form-group" style="max-width: 120px;">
+        <label for="set-code">Set Code</label>
+        <input type="text" id="set-code" placeholder="ASD" maxlength="3" style="text-transform: uppercase;">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group" style="max-width: 150px;">
+        <label for="set-size">Set Size</label>
+        <input type="number" id="set-size" value="60" min="20" max="400">
+        <div class="size-presets">
+          <span class="size-preset" onclick="document.getElementById('set-size').value=60">Dev (60)</span>
+          <span class="size-preset" onclick="document.getElementById('set-size').value=277">Full (277)</span>
+        </div>
+      </div>
+      <div class="form-group" style="max-width: 150px;">
+        <label for="mechanic-count">Custom Mechanics</label>
+        <input type="number" id="mechanic-count" value="3" min="1" max="6">
+      </div>
+    </div>
+  </div>
+
+  <!-- Setting prose -->
+  <div class="theme-section">
+    <h2>Setting</h2>
+    <p class="section-desc">
+      Describe your world in as much detail as you like. Include characters, factions, creature types,
+      locations, tone, and flavor guidelines. This prose feeds directly into card generation.
+    </p>
+
+    <div class="extract-bar">
+      <label>Extract from file:</label>
+      <input type="file" id="extract-file" accept=".txt,.md,.pdf,.doc,.docx">
+      <button class="btn" id="extract-btn" onclick="extractFromFile()">Extract Setting</button>
+    </div>
+
+    <div class="form-group">
+      <textarea id="setting" rows="16"
+        placeholder="A science-fantasy megadungeon in far-future post-apocalyptic Earth...&#10;&#10;Notable characters: The Vizier who rules Denethix, Captain Tyro the soldier...&#10;&#10;Factions: Moktars (intelligent ape-men), the Cult of Science...&#10;&#10;Creature types: Moktar, Automaton, Morlock, Screechman...&#10;&#10;Tone: Deadpan and darkly humorous. The world takes itself seriously; the absurdity speaks for itself."></textarea>
+    </div>
+  </div>
+
+  <!-- Section 2: Constraints -->
+  <div class="theme-section">
+    <h2>Set Constraints</h2>
+    <p class="section-desc">
+      Structural directives for the skeleton and card generation. Things like artifact density,
+      color balance, card type requirements.
+    </p>
+    <div class="list-items" id="constraints-list">
+      <!-- Populated by JS -->
+    </div>
+    <button class="btn-add" onclick="addConstraint()">+ Add constraint</button>
+  </div>
+
+  <!-- Section 3: Card Requests -->
+  <div class="theme-section">
+    <h2>Card Requests</h2>
+    <p class="section-desc">
+      Cards you definitely want in the set. Describe them in natural language &mdash;
+      they'll get reserved slots in the skeleton.
+    </p>
+    <div class="list-items" id="card-requests-list">
+      <!-- Populated by JS -->
+    </div>
+    <button class="btn-add" onclick="addCardRequest()">+ Add card request</button>
+  </div>
+
+  <!-- Action bar -->
+  <div class="action-bar">
+    <div class="left">
+      <span class="theme-status new" id="theme-status">New theme</span>
+    </div>
+    <div>
+      <button class="btn" onclick="loadExisting()" id="load-btn" style="margin-right: 0.5rem;">Load Existing</button>
+      <button class="btn-primary" id="save-btn" onclick="saveTheme()">Save Theme</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const EXISTING_THEME = {{ existing_theme | safe }};
+</script>
+<script src="/static/theme.js"></script>
+{% endblock %}

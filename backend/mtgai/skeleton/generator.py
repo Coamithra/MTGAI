@@ -61,15 +61,24 @@ class SlotCardType(StrEnum):
 
 
 class SetConfig(BaseModel):
-    """User-supplied configuration for a new set."""
+    """User-supplied configuration for a new set.
+
+    Accepts both the new theme.json format (setting, constraints, card_requests)
+    and the legacy format (theme, flavor_description, special_constraints).
+    """
 
     name: str
     code: str  # 3-letter set code
-    theme: str
-    flavor_description: str
+    # New format: single prose blob
+    setting: str = ""
+    constraints: list[str] = Field(default_factory=list)
+    card_requests: list[str] = Field(default_factory=list)
+    # Legacy format fields (still accepted for backward compat)
+    theme: str = ""
+    flavor_description: str = ""
+    special_constraints: list[str] = Field(default_factory=list)
     set_size: int = 60  # dev-set default
     mechanic_count: int = 3
-    special_constraints: list[str] = Field(default_factory=list)
 
 
 class SkeletonSlot(BaseModel):

@@ -56,21 +56,20 @@ class StageResult:
 
 def run_skeleton(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
     """Generate the set skeleton."""
-    from mtgai.skeleton.generator import generate_skeleton
-    from mtgai.skeleton.models import SetConfig
+    from mtgai.skeleton.generator import SetConfig, generate_skeleton
 
     set_dir = _set_dir(set_code)
-    config_path = set_dir / "set-config.json"
+    theme_path = set_dir / "theme.json"
     template_path = Path("C:/Programming/MTGAI/config/set-template.json")
 
-    if not config_path.exists():
+    if not theme_path.exists():
         return StageResult(
             success=False,
-            error_message=f"Set config not found: {config_path}",
+            error_message=f"Theme not found: {theme_path}. Create one at /pipeline/theme first.",
         )
 
-    config_data = json.loads(config_path.read_text(encoding="utf-8"))
-    config = SetConfig(**config_data)
+    theme_data = json.loads(theme_path.read_text(encoding="utf-8"))
+    config = SetConfig(**theme_data)
 
     result = generate_skeleton(config, template_path)
 

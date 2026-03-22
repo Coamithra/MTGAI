@@ -1,0 +1,93 @@
+# MTGAI Model Registry
+#
+# Defines all available LLM and image-generation models.
+# Edit this file to add new models or providers.
+# Keys (e.g. [llm.opus]) are short identifiers used in settings profiles.
+
+# ── LLM Models ──────────────────────────────────────────────────────────────
+
+[llm.opus]
+name = "Claude Opus 4.6"
+provider = "anthropic"
+model_id = "claude-opus-4-6"
+tier = 3
+input_price = 15.00   # per 1M tokens
+output_price = 75.00  # per 1M tokens
+supports_effort = true
+supports_vision = false
+supports_caching = true
+
+[llm.sonnet]
+name = "Claude Sonnet 4.6"
+provider = "anthropic"
+model_id = "claude-sonnet-4-6"
+tier = 2
+input_price = 3.00
+output_price = 15.00
+supports_effort = false
+supports_vision = false
+supports_caching = true
+
+[llm.haiku]
+name = "Claude Haiku 4.5"
+provider = "anthropic"
+model_id = "claude-haiku-4-5-20251001"
+tier = 1
+input_price = 0.80
+output_price = 4.00
+supports_effort = false
+supports_vision = true
+supports_caching = true
+
+[llm.qwen-14b]
+name = "Qwen 2.5 14B (Local)"
+provider = "ollama"
+model_id = "qwen2.5:14b"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+supports_effort = false
+supports_vision = false
+supports_caching = false
+
+[llm.qwen-7b]
+name = "Qwen 2.5 7B (Local)"
+provider = "ollama"
+model_id = "qwen2.5:7b"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+supports_effort = false
+supports_vision = false
+supports_caching = false
+
+[llm.qwen3-vl-8b]
+name = "Qwen3-VL 8B (Local Vision)"
+provider = "ollama"
+model_id = "qwen3-vl:8b"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+supports_effort = false
+supports_vision = true
+supports_caching = false
+
+# ── Image Generation Models ─────────────────────────────────────────────────
+
+[image.flux-local]
+name = "Flux.1-dev (Local ComfyUI)"
+provider = "comfyui"
+cost_per_image = 0.00
+implemented = true
+
+[image.gemini-imagen]
+name = "Gemini Imagen"
+provider = "gemini"
+cost_per_image = 0.00
+implemented = false
+
+[image.openai-dalle]
+name = "OpenAI DALL-E 3"
+provider = "openai"
+cost_per_image = 0.04
+implemented = false

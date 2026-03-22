@@ -293,6 +293,35 @@ async def progress_page(request: Request, set_code: str | None = None) -> HTMLRe
     )
 
 
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request) -> HTMLResponse:
+    """Serve the model settings configuration page."""
+    from mtgai.settings.model_registry import get_registry
+    from mtgai.settings.model_settings import (
+        IMAGE_STAGE_NAMES,
+        LLM_STAGE_NAMES,
+        PRESETS,
+        get_settings,
+        list_profiles,
+    )
+
+    registry = get_registry()
+    settings = get_settings()
+
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {
+            "model_registry": json.dumps(registry.to_dict()),
+            "current_settings": json.dumps(settings.model_dump()),
+            "saved_profiles": json.dumps(list_profiles()),
+            "llm_stages": json.dumps(LLM_STAGE_NAMES),
+            "image_stages": json.dumps(IMAGE_STAGE_NAMES),
+            "presets": json.dumps(PRESETS),
+        },
+    )
+
+
 @app.get("/booster", response_class=HTMLResponse)
 async def booster_page(request: Request, set_code: str | None = None) -> HTMLResponse:
     """Serve the booster pack viewer page."""
@@ -381,15 +410,15 @@ async def submit_review(request: Request, set_code: str | None = None) -> JSONRe
         for p in dispatch_result.manual_tweak_paths:
             if p.exists():
                 if sys.platform == "win32":
-                    os.startfile(str(p))  # noqa: S606
+                    os.startfile(str(p))
                 elif sys.platform == "darwin":
                     import subprocess
 
-                    subprocess.Popen(["open", str(p)])  # noqa: S603, S607
+                    subprocess.Popen(["open", str(p)])
                 else:
                     import subprocess
 
-                    subprocess.Popen(["xdg-open", str(p)])  # noqa: S603, S607
+                    subprocess.Popen(["xdg-open", str(p)])
 
     return JSONResponse(
         {
@@ -495,6 +524,60 @@ async def reload_manual_edits(set_code: str | None = None) -> JSONResponse:
             "cards": updated_cards,
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Settings API routes
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/settings/apply", response_class=JSONResponse)
+async def apply_settings(request: Request) -> JSONResponse:
+    """Apply model settings as the active configuration."""
+    from mtgai.settings.model_settings import ModelSettings
+    from mtgai.settings.model_settings import apply_settings as _apply
+
+    body = await request.json()
+    try:
+        settings = ModelSettings(**body)
+        _apply(settings)
+        return JSONResponse({"success": True})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.post("/api/settings/save", response_class=JSONResponse)
+async def save_settings_profile(request: Request) -> JSONResponse:
+    """Save model settings as a named profile."""
+    from mtgai.settings.model_settings import ModelSettings
+
+    body = await request.json()
+    name = body.get("name", "").strip()
+    if not name:
+        return JSONResponse({"error": "Profile name required"}, status_code=400)
+
+    try:
+        settings = ModelSettings(**body.get("settings", {}))
+        path = settings.save(name=name)
+        return JSONResponse({"success": True, "path": str(path)})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.get("/api/settings/load", response_class=JSONResponse)
+async def load_settings_profile(name: str) -> JSONResponse:
+    """Load a named settings profile."""
+    from mtgai.settings.model_settings import SETTINGS_DIR, ModelSettings
+
+    path = SETTINGS_DIR / f"{name}.toml"
+    if not path.exists():
+        return JSONResponse({"error": f"Profile '{name}' not found"}, status_code=404)
+
+    try:
+        settings = ModelSettings.load_from_file(path)
+        return JSONResponse({"settings": settings.model_dump()})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
 
 
 @app.get("/api/booster", response_class=JSONResponse)

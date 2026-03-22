@@ -149,13 +149,18 @@ def select_best_version(
     colors: list[str],
     prompt: str,
     image_paths: list[Path],
-    model: str = "claude-haiku-4-5-20251001",
+    model: str | None = None,
 ) -> dict:
     """Send images to Claude vision and get the best version pick.
 
     Returns dict with pick, confidence, reasoning, artifacts_found,
     plus token counts.
     """
+    from mtgai.settings.model_settings import get_llm_model
+
+    if model is None:
+        model = get_llm_model("art_select")
+
     client = Anthropic()
 
     content = _build_message_content(card_name, collector_number, colors, prompt, image_paths)

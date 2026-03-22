@@ -83,6 +83,128 @@ async def pipeline_configure(request: Request):
     )
 
 
+@router.get("/pipeline/theme", response_class=HTMLResponse)
+async def pipeline_theme(request: Request):
+    """Theme creation wizard page."""
+    return templates.TemplateResponse(
+        "theme.html",
+        {
+            "request": request,
+            "existing_theme": "null",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Theme API routes
+# ---------------------------------------------------------------------------
+
+
+@api_router.post("/theme/save")
+async def save_theme(request: Request):
+    """Save theme.json for a set."""
+    body = await request.json()
+    code = body.get("code", "").strip().upper()
+    if not code:
+        return JSONResponse({"error": "Set code required"}, status_code=400)
+
+    set_dir = Path("C:/Programming/MTGAI/output/sets") / code
+    set_dir.mkdir(parents=True, exist_ok=True)
+    theme_path = set_dir / "theme.json"
+
+    theme_path.write_text(
+        json.dumps(body, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    logger.info("Theme saved to %s", theme_path)
+    return JSONResponse({"success": True, "path": str(theme_path)})
+
+
+@api_router.get("/theme/load/{set_code}")
+async def load_theme(set_code: str):
+    """Load existing theme.json for a set."""
+    theme_path = Path("C:/Programming/MTGAI/output/sets") / set_code.upper() / "theme.json"
+    if not theme_path.exists():
+        return JSONResponse({"error": f"No theme found for {set_code}"}, status_code=404)
+
+    theme = json.loads(theme_path.read_text(encoding="utf-8"))
+    return JSONResponse({"theme": theme})
+
+
+@api_router.post("/theme/extract")
+async def extract_theme_from_file(request: Request):
+    """Extract setting info from an uploaded file using LLM."""
+    form = await request.form()
+    file = form.get("file")
+    if file is None or not hasattr(file, "read"):
+        return JSONResponse({"error": "No file uploaded"}, status_code=400)
+
+    # Read file content
+    content = (await file.read()).decode("utf-8", errors="replace")
+
+    # Truncate to ~50k chars to fit in context
+    if len(content) > 50_000:
+        content = content[:50_000] + "\n\n[...truncated...]"
+
+    # Call LLM to extract setting
+    from mtgai.generation.llm_client import generate_with_tool
+    from mtgai.settings.model_settings import get_llm_model
+
+    extract_prompt = (
+        "You are a creative worldbuilding assistant for a Magic: The Gathering card set.\n\n"
+        "The user has uploaded a document describing a setting. Extract and summarize the key "
+        "worldbuilding information that would be useful for designing an MTG card set.\n\n"
+        "Your summary should cover:\n"
+        "- **World overview**: What is this place? What's the tone and genre?\n"
+        "- **Notable characters**: Named characters with brief descriptions\n"
+        "- **Factions/groups**: Organizations, races, political entities\n"
+        "- **Creature types**: What kinds of beings inhabit this world?\n"
+        "- **Key locations**: Important places\n"
+        "- **Tone and flavor**: How should card flavor text feel?\n"
+        "- **Conflicts and themes**: What drives the narrative?\n\n"
+        "Write in prose paragraphs, 300-800 words. Be specific — include names, details, "
+        "and anything that would help a card designer capture this world's feel."
+    )
+
+    tool_schema = {
+        "name": "setting_extraction",
+        "description": "Extract setting information from a document.",
+        "input_schema": {
+            "type": "object",
+            "required": ["setting", "constraints"],
+            "properties": {
+                "setting": {
+                    "type": "string",
+                    "description": "Prose summary of the world, characters, factions, tone.",
+                },
+                "constraints": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Suggested set design constraints based on the source material.",
+                },
+            },
+        },
+    }
+
+    try:
+        result = generate_with_tool(
+            system_prompt=extract_prompt,
+            user_prompt=f"Extract setting info from this document:\n\n{content}",
+            tool_schema=tool_schema,
+            model=get_llm_model("theme_extract"),
+            temperature=0.7,
+            max_tokens=4096,
+        )
+        extracted = result.get("result", {})
+        return JSONResponse({
+            "setting": extracted.get("setting", ""),
+            "constraints": extracted.get("constraints", []),
+        })
+    except Exception as e:
+        logger.error("Theme extraction failed: %s", e, exc_info=True)
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 # ---------------------------------------------------------------------------
 # API routes
 # ---------------------------------------------------------------------------

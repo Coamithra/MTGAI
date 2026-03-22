@@ -233,11 +233,13 @@ def generate_visual_description(card: Card, set_code: str = "ASD") -> tuple[str,
 
     user_prompt = _build_llm_user_prompt(card, visual_refs)
 
+    from mtgai.settings.model_settings import get_llm_model
+
     result = generate_with_tool(
         system_prompt=SYSTEM_PROMPT,
         user_prompt=user_prompt,
         tool_schema=TOOL_SCHEMA,
-        model="claude-haiku-4-5-20251001",
+        model=get_llm_model("art_prompts"),
         temperature=0.6,
         max_tokens=512,
     )
