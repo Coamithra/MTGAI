@@ -1,5 +1,21 @@
 # MTGAI Project Conventions
 
+## Toolchain Buildout (in progress)
+Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain buildout" to resume.
+
+**Done:** Model settings system (/settings), theme wizard (/pipeline/theme), per-stage LLM routing, set-config.json eliminated.
+
+**Remaining:**
+- Mechanic generation pipeline stage (refactor mechanic_generator.py, review UI for picking 3 from 6)
+- Archetype generation pipeline stage (LLM generates 10 color-pair archetypes)
+- Visual reference extraction stage (LLM extracts visual-references.json from setting prose)
+- Pointed questions template (mechanic name substitution)
+- Prompts module update (use setting prose + archetypes.json)
+- Skeleton integration (card_requests → reserved slots, constraints → revision)
+- Configure page integration (check theme.json exists before pipeline start)
+
+**Design:** Human provides setting prose + constraints + card requests. Pipeline generates mechanics, archetypes, visual refs, skeleton, cards. See `memory/project_toolchain_buildout.md` for details.
+
 ## Project Structure
 - Backend code lives in `backend/mtgai/`
 - Tests live in `backend/tests/`, mirroring the source structure
