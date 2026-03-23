@@ -568,6 +568,7 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > **What this does**: Refactor all ASD-specific code into generic pipeline stages driven by theme.json. After this phase, a user can drop in a source document, extract a theme, generate mechanics, and run the full pipeline for any setting.
 
 - [x] **TC-1**: Theme extraction upgrade — PDF/text extraction, token counting, cost estimation, streaming LLM output, chunking for large docs, constraints + card suggestion extraction, AI-generated badge tracking with refresh. Prompts in `pipeline/prompts/`. PyMuPDF for PDF parsing.
+- [ ] **TC-1b**: Ollama native API migration — rewrite `llm_client.py` `_generate_ollama()` to use native `/api/chat` endpoint instead of OpenAI compat layer. The compat layer silently ignores `num_ctx`, causing all Ollama calls to run on 2048-token default context. Affects every pipeline stage using local models. Also add `format: "json"` support for structured output without tool use.
 - [ ] **TC-2**: Mechanic generation pipeline stage — refactor `mechanic_generator.py` to accept setting prose from theme.json, add as pipeline stage before skeleton. Build review UI for picking 3 from 6 candidates.
 - [ ] **TC-3**: Archetype generation pipeline stage — LLM generates 10 color-pair draft archetypes from setting + approved mechanics.
 - [ ] **TC-4**: Visual reference extraction stage — LLM extracts `visual-references.json` from setting prose (creature appearances, Flux term replacements for art pipeline).
