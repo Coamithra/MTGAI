@@ -1,0 +1,15 @@
+Below is new source text (part {chunk_num} of {total_chunks}), followed by the theme we have built so far.
+
+Only add important and novel information from the new text. Do not re-summarize or rewrite entries that already exist in the theme — keep them as-is. Add new entries under the appropriate section headers. If the new text has nothing relevant for a section, leave that section unchanged.
+
+You MUST preserve all 7 section headers and all existing entries. Your output replaces the current theme, so anything you leave out is lost.
+
+NEW SOURCE TEXT:
+
+{chunk_text}
+
+---
+
+CURRENT THEME (preserve and extend this):
+
+{accumulated_theme}

@@ -276,6 +276,127 @@
   .toast-success { background: #2ecc71; color: #0a0a1a; }
   .toast-error { background: #e94560; color: #fff; }
 
+  /* Pre-extraction confirmation panel */
+  .extract-panel {
+    display: none;
+    background: var(--bg-primary, #1a1a2e);
+    border: 1px solid rgba(74, 158, 255, 0.25);
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .extract-panel.visible { display: block; }
+  .extract-panel h3 {
+    margin: 0 0 1rem 0;
+    font-size: 0.95rem;
+    color: #e0e0e0;
+  }
+  .extract-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .extract-stat {
+    padding: 0.5rem 0.75rem;
+    background: rgba(255,255,255,0.03);
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .extract-stat .label { font-size: 0.75rem; color: #888; }
+  .extract-stat .value { font-size: 1rem; color: #e0e0e0; font-weight: 600; }
+  .extract-stat .value.warning { color: #f39c12; }
+  .extract-stat .value.ok { color: #2ecc71; }
+  .extract-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  .extract-panel .model-select {
+    max-width: 320px;
+    padding: 0.4rem 0.6rem;
+    background: var(--bg-secondary, #16213e);
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 0.85rem;
+  }
+  .checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: #aaa;
+  }
+  .checkbox-group input[type="checkbox"] { accent-color: #4a9eff; }
+  .extract-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  /* Progress bar */
+  .extract-progress {
+    display: none;
+    margin-bottom: 1rem;
+  }
+  .extract-progress.visible { display: block; }
+  .progress-bar-outer {
+    height: 6px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+  .progress-bar-inner {
+    height: 100%;
+    background: linear-gradient(90deg, #4a9eff, #00d4aa);
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+  .progress-status {
+    font-size: 0.8rem;
+    color: #888;
+  }
+
+  /* AI-generated badge */
+  .ai-badge {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    background: #9b59b620;
+    color: #9b59b6;
+    border: 1px solid #9b59b640;
+    margin-left: 6px;
+    vertical-align: middle;
+    flex-shrink: 0;
+    align-self: center;
+  }
+  /* Section header with refresh button */
+  .section-header-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .btn-refresh {
+    padding: 2px 8px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: transparent;
+    color: #888;
+    cursor: pointer;
+    font-size: 0.75rem;
+  }
+  .btn-refresh:hover {
+    border-color: #9b59b6;
+    color: #9b59b6;
+  }
+
   /* Status indicator */
   .theme-status {
     display: inline-flex;
@@ -346,8 +467,56 @@
 
     <div class="extract-bar">
       <label>Extract from file:</label>
-      <input type="file" id="extract-file" accept=".txt,.md,.pdf,.doc,.docx">
-      <button class="btn" id="extract-btn" onclick="extractFromFile()">Extract Setting</button>
+      <input type="file" id="extract-file" accept=".txt,.md,.pdf">
+      <button class="btn" id="extract-btn" onclick="uploadFile()">Analyze File</button>
+    </div>
+
+    <!-- Pre-extraction confirmation panel -->
+    <div class="extract-panel" id="extract-panel">
+      <h3>Extraction Preview</h3>
+      <div class="extract-stats">
+        <div class="extract-stat">
+          <div class="label">Tokens</div>
+          <div class="value" id="stat-tokens">--</div>
+        </div>
+        <div class="extract-stat">
+          <div class="label">Context Window</div>
+          <div class="value" id="stat-context">--</div>
+        </div>
+        <div class="extract-stat">
+          <div class="label">Chunks</div>
+          <div class="value" id="stat-chunks">--</div>
+        </div>
+        <div class="extract-stat">
+          <div class="label">Estimated Cost</div>
+          <div class="value" id="stat-cost">--</div>
+        </div>
+      </div>
+      <div id="chunk-warning" style="display:none; color:#f39c12; font-size:0.8rem; margin-bottom:0.75rem;">
+        Document exceeds context window. It will be processed in multiple chunks — quality may be reduced.
+      </div>
+      <div class="extract-controls">
+        <select class="model-select" id="extract-model" onchange="onExtractModelChange()">
+        </select>
+        <label class="checkbox-group" id="images-checkbox-group" style="opacity:0.5" title="No file analyzed yet">
+          <input type="checkbox" id="include-images" onchange="onIncludeImagesChange()" disabled>
+          Include images
+        </label>
+      </div>
+      <div class="extract-actions">
+        <button class="btn-primary" id="run-extract-btn" onclick="runExtraction()" style="padding:0.5rem 1.5rem; font-size:0.9rem;">
+          Extract Theme
+        </button>
+        <button class="btn" onclick="cancelExtraction()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Extraction progress -->
+    <div class="extract-progress" id="extract-progress">
+      <div class="progress-bar-outer">
+        <div class="progress-bar-inner" id="progress-bar"></div>
+      </div>
+      <div class="progress-status" id="progress-status">Preparing...</div>
     </div>
 
     <div class="form-group">
@@ -358,7 +527,10 @@
 
   <!-- Section 2: Constraints -->
   <div class="theme-section">
-    <h2>Set Constraints</h2>
+    <div class="section-header-row">
+      <h2>Set Constraints</h2>
+      <button class="btn-refresh" id="refresh-constraints" onclick="refreshConstraints()" style="display:none" title="Re-generate AI constraints">Refresh AI</button>
+    </div>
     <p class="section-desc">
       Structural directives for the skeleton and card generation. Things like artifact density,
       color balance, card type requirements.
@@ -371,7 +543,10 @@
 
   <!-- Section 3: Card Requests -->
   <div class="theme-section">
-    <h2>Card Requests</h2>
+    <div class="section-header-row">
+      <h2>Card Requests</h2>
+      <button class="btn-refresh" id="refresh-card-requests" onclick="refreshCardRequests()" style="display:none" title="Re-generate AI card suggestions">Refresh AI</button>
+    </div>
     <p class="section-desc">
       Cards you definitely want in the set. Describe them in natural language &mdash;
       they'll get reserved slots in the skeleton.

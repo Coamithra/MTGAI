@@ -3,7 +3,7 @@
 ## Toolchain Buildout (in progress)
 Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain buildout" to resume.
 
-**Done:** Model settings system (/settings), theme wizard (/pipeline/theme), per-stage LLM routing, set-config.json eliminated.
+**Done:** Model settings system (/settings), theme wizard (/pipeline/theme), per-stage LLM routing, set-config.json eliminated, theme extraction upgrade (PDF/text extraction, streaming LLM output, token counting, chunking, constraints + card suggestion extraction with AI-generated badges).
 
 **Remaining:**
 - Mechanic generation pipeline stage (refactor mechanic_generator.py, review UI for picking 3 from 6)

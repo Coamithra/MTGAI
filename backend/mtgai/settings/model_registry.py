@@ -34,6 +34,7 @@ class LLMModel:
     supports_effort: bool = False
     supports_vision: bool = False
     supports_caching: bool = False
+    context_window: int = 200_000
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,7 @@ class ModelRegistry:
                 supports_effort=raw.get("supports_effort", False),
                 supports_vision=raw.get("supports_vision", False),
                 supports_caching=raw.get("supports_caching", False),
+                context_window=raw.get("context_window", 200_000),
             )
             registry.llm_models[key] = model
             registry._model_id_to_key[model.model_id] = key

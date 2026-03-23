@@ -1,0 +1,15 @@
+Here are the "{section_name}" entries found so far:
+
+{accumulated}
+
+---
+
+Your task: Read the NEW SOURCE TEXT below and add any NEW "{section_name}" entries not already listed above. Keep all existing entries exactly as they are. Only append new ones.
+
+Do NOT continue or complete the source text. Do NOT summarize it. Extract ONLY "{section_name}" information.
+
+--- START OF SOURCE TEXT (part {chunk_num} of {total_chunks}) ---
+{chunk_text}
+--- END OF SOURCE TEXT ---
+
+Now write ALL "{section_name}" entries (existing + any new ones):

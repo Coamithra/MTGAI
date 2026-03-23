@@ -1,0 +1,3 @@
+Extract a comprehensive theme from the following source material:
+
+{text}

@@ -131,77 +131,266 @@ async def load_theme(set_code: str):
     return JSONResponse({"theme": theme})
 
 
-@api_router.post("/theme/extract")
-async def extract_theme_from_file(request: Request):
-    """Extract setting info from an uploaded file using LLM."""
+# In-memory cache for uploaded file content (cleared after extraction or timeout)
+_upload_cache: dict[str, dict[str, Any]] = {}
+
+
+@api_router.post("/theme/upload")
+async def upload_for_extraction(request: Request):
+    """Upload a file and extract its text + images (no LLM call yet)."""
+    import uuid
+
     form = await request.form()
     file = form.get("file")
     if file is None or not hasattr(file, "read"):
         return JSONResponse({"error": "No file uploaded"}, status_code=400)
 
-    # Read file content
-    content = (await file.read()).decode("utf-8", errors="replace")
+    filename = getattr(file, "filename", "unknown.txt")
+    file_bytes = await file.read()
 
-    # Truncate to ~50k chars to fit in context
-    if len(content) > 50_000:
-        content = content[:50_000] + "\n\n[...truncated...]"
-
-    # Call LLM to extract setting
-    from mtgai.generation.llm_client import generate_with_tool
-    from mtgai.settings.model_settings import get_llm_model
-
-    extract_prompt = (
-        "You are a creative worldbuilding assistant for a Magic: The Gathering card set.\n\n"
-        "The user has uploaded a document describing a setting. Extract and summarize the key "
-        "worldbuilding information that would be useful for designing an MTG card set.\n\n"
-        "Your summary should cover:\n"
-        "- **World overview**: What is this place? What's the tone and genre?\n"
-        "- **Notable characters**: Named characters with brief descriptions\n"
-        "- **Factions/groups**: Organizations, races, political entities\n"
-        "- **Creature types**: What kinds of beings inhabit this world?\n"
-        "- **Key locations**: Important places\n"
-        "- **Tone and flavor**: How should card flavor text feel?\n"
-        "- **Conflicts and themes**: What drives the narrative?\n\n"
-        "Write in prose paragraphs, 300-800 words. Be specific — include names, details, "
-        "and anything that would help a card designer capture this world's feel."
-    )
-
-    tool_schema = {
-        "name": "setting_extraction",
-        "description": "Extract setting information from a document.",
-        "input_schema": {
-            "type": "object",
-            "required": ["setting", "constraints"],
-            "properties": {
-                "setting": {
-                    "type": "string",
-                    "description": "Prose summary of the world, characters, factions, tone.",
-                },
-                "constraints": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Suggested set design constraints based on the source material.",
-                },
-            },
-        },
-    }
+    from mtgai.pipeline.theme_extractor import extract_file_content
 
     try:
-        result = generate_with_tool(
-            system_prompt=extract_prompt,
-            user_prompt=f"Extract setting info from this document:\n\n{content}",
-            tool_schema=tool_schema,
-            model=get_llm_model("theme_extract"),
-            temperature=0.7,
-            max_tokens=4096,
-        )
-        extracted = result.get("result", {})
-        return JSONResponse({
-            "setting": extracted.get("setting", ""),
-            "constraints": extracted.get("constraints", []),
-        })
+        text, images = await asyncio.to_thread(extract_file_content, file_bytes, filename)
     except Exception as e:
-        logger.error("Theme extraction failed: %s", e, exc_info=True)
+        logger.error("File extraction failed: %s", e, exc_info=True)
+        return JSONResponse({"error": f"Failed to read file: {e}"}, status_code=400)
+
+    if not text.strip():
+        return JSONResponse({"error": "No text content found in file"}, status_code=400)
+
+    upload_id = uuid.uuid4().hex[:8]
+    _upload_cache[upload_id] = {
+        "text": text,
+        "images": images,
+        "filename": filename,
+    }
+
+    return JSONResponse(
+        {
+            "upload_id": upload_id,
+            "filename": filename,
+            "char_count": len(text),
+            "image_count": len(images),
+            "preview": text[:500],
+        }
+    )
+
+
+@api_router.post("/theme/analyze")
+async def analyze_extraction_endpoint(request: Request):
+    """Analyze uploaded content: count tokens, estimate cost."""
+    body = await request.json()
+    upload_id = body.get("upload_id", "")
+    model_key = body.get("model_key", "haiku")
+    include_images = body.get("include_images", False)
+
+    cached = _upload_cache.get(upload_id)
+    if not cached:
+        return JSONResponse({"error": "Upload expired or not found"}, status_code=404)
+
+    from mtgai.pipeline.theme_extractor import analyze_extraction
+
+    try:
+        plan = await asyncio.to_thread(
+            analyze_extraction,
+            cached["text"],
+            len(cached["images"]),
+            model_key,
+            include_images,
+        )
+    except Exception as e:
+        logger.error("Extraction analysis failed: %s", e, exc_info=True)
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+    return JSONResponse(
+        {
+            "token_count": plan.token_count,
+            "context_window": plan.context_window,
+            "fits_in_context": plan.fits_in_context,
+            "chunk_count": plan.chunk_count,
+            "estimated_cost_usd": round(plan.estimated_cost_usd, 4),
+            "model_key": plan.model_key,
+            "model_name": plan.model_name,
+            "supports_vision": plan.supports_vision,
+        }
+    )
+
+
+@api_router.get("/theme/models")
+async def list_extraction_models():
+    """List available LLM models for theme extraction."""
+    from mtgai.settings.model_registry import get_registry
+    from mtgai.settings.model_settings import get_settings
+
+    registry = get_registry()
+    settings = get_settings()
+    # Get the configured model key for theme_extract stage
+    default_key = settings.llm_assignments.get("theme_extract", "haiku")
+    models = []
+    for m in registry.list_llm():
+        models.append(
+            {
+                "key": m.key,
+                "name": m.name,
+                "provider": m.provider,
+                "input_price": m.input_price,
+                "output_price": m.output_price,
+                "supports_vision": m.supports_vision,
+                "context_window": m.context_window,
+            }
+        )
+    return JSONResponse({"models": models, "default_key": default_key})
+
+
+@api_router.get("/theme/extract-stream")
+async def extract_theme_stream(
+    request: Request,
+    upload_id: str,
+    model_key: str = "haiku",
+    include_images: bool = False,
+):
+    """SSE endpoint: stream theme extraction from uploaded document."""
+    cached = _upload_cache.get(upload_id)
+    if not cached:
+        return JSONResponse({"error": "Upload expired"}, status_code=404)
+
+    import queue
+    import threading
+
+    from mtgai.pipeline.theme_extractor import extract_constraints, stream_theme_extraction
+
+    def _sse(event_type: str, data: dict) -> str:
+        return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+    async def event_stream():
+        q: queue.Queue[dict | None] = queue.Queue()
+        theme_parts: list[str] = []
+
+        def run_extraction():
+            try:
+                for event in stream_theme_extraction(
+                    cached["text"],
+                    model_key,
+                    include_images=include_images,
+                    images=cached["images"] if include_images else None,
+                ):
+                    if event.get("type") == "theme_chunk":
+                        theme_parts.append(event["text"])
+                    q.put(event)
+            except Exception as e:
+                q.put({"type": "error", "message": str(e)})
+            finally:
+                q.put(None)  # sentinel
+
+        thread = threading.Thread(target=run_extraction, daemon=True)
+        thread.start()
+
+        theme_cost = 0.0
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.to_thread(q.get, timeout=30.0)
+                except Exception:
+                    yield ": keepalive\n\n"
+                    continue
+
+                if event is None:
+                    break
+
+                yield _sse(event["type"], event)
+
+                # After theme complete, run constraints pass
+                if event["type"] == "complete":
+                    theme_cost = event.get("cost_usd", 0)
+                    full_theme = "".join(theme_parts)
+
+                    msg = "Extracting constraints and card suggestions..."
+                    yield _sse("status", {"type": "status", "message": msg})
+
+                    try:
+                        cr = await asyncio.to_thread(extract_constraints, full_theme, model_key)
+                        yield _sse(
+                            "constraints",
+                            {
+                                "type": "constraints",
+                                "constraints": cr.constraints,
+                            },
+                        )
+                        suggestions = [
+                            {"name": s.get("name", ""), "description": s.get("description", "")}
+                            for s in cr.card_suggestions
+                        ]
+                        yield _sse(
+                            "card_suggestions",
+                            {
+                                "type": "card_suggestions",
+                                "suggestions": suggestions,
+                            },
+                        )
+                        total_cost = theme_cost + cr.cost_usd
+                        yield _sse(
+                            "done",
+                            {
+                                "type": "done",
+                                "total_cost_usd": round(total_cost, 4),
+                            },
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "Constraints extraction failed: %s",
+                            e,
+                            exc_info=True,
+                        )
+                        yield _sse(
+                            "error",
+                            {
+                                "type": "error",
+                                "message": str(e),
+                            },
+                        )
+
+                elif event["type"] == "error":
+                    break
+        finally:
+            _upload_cache.pop(upload_id, None)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@api_router.post("/theme/extract-constraints")
+async def extract_constraints_endpoint(request: Request):
+    """Extract constraints + card suggestions from theme text (for refresh)."""
+    body = await request.json()
+    theme_text = body.get("theme_text", "")
+    model_key = body.get("model_key", "haiku")
+
+    if not theme_text.strip():
+        return JSONResponse({"error": "No theme text provided"}, status_code=400)
+
+    from mtgai.pipeline.theme_extractor import extract_constraints
+
+    try:
+        result = await asyncio.to_thread(extract_constraints, theme_text, model_key)
+        return JSONResponse(
+            {
+                "constraints": result.constraints,
+                "card_suggestions": result.card_suggestions,
+                "cost_usd": round(result.cost_usd, 4),
+            }
+        )
+    except Exception as e:
+        logger.error("Constraints extraction failed: %s", e, exc_info=True)
         return JSONResponse({"error": str(e)}, status_code=500)
 
 

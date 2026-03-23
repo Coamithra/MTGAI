@@ -9,6 +9,7 @@ Phase 3A stubs:
   approve, reject, flag, compare, export, art, gallery
 """
 
+import logging
 from typing import Annotated
 
 import typer
@@ -503,6 +504,12 @@ def serve(
     console.print(f"  Progress: http://localhost:{port}/progress")
     console.print(f"  Booster:  http://localhost:{port}/booster")
     console.print("[dim]Press Ctrl+C to stop.[/dim]")
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
     uvicorn.run("mtgai.review.server:app", host="127.0.0.1", port=port, log_level="warning")
 

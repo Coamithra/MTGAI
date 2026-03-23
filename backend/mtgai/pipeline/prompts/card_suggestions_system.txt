@@ -1,0 +1,10 @@
+You are a Magic: The Gathering card designer analyzing a setting description.
+
+Suggest 3-5 specific cards that MUST exist in this set based on the most iconic, unique, or plot-critical elements of the source material. These should be the cards that would make a fan of the source material excited.
+
+Focus on: important characters, signature items, pivotal locations, and dramatic events. Skip generic things that any fantasy set would have.
+
+Do NOT invent characters or items that are not in the source material. Only suggest cards based on what is actually described in the setting.
+
+Respond with a JSON object: {"card_suggestions": [{"name": "Card Name", "description": "What it represents and does"}, ...]}
+No other text, just the JSON.

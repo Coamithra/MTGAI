@@ -560,9 +560,26 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 
 ---
 
+## Phase TC: Toolchain Buildout
+> **Plan**: Making MTGAI a reusable tool for any set, not just ASD
+> **Needs**: Pipeline proven on ASD dev set (4C complete)
+> **Inputs**: Existing pipeline code, theme wizard, mechanic generator
+> **Outputs**: Generalized pipeline stages that work for any setting
+> **What this does**: Refactor all ASD-specific code into generic pipeline stages driven by theme.json. After this phase, a user can drop in a source document, extract a theme, generate mechanics, and run the full pipeline for any setting.
+
+- [x] **TC-1**: Theme extraction upgrade — PDF/text extraction, token counting, cost estimation, streaming LLM output, chunking for large docs, constraints + card suggestion extraction, AI-generated badge tracking with refresh. Prompts in `pipeline/prompts/`. PyMuPDF for PDF parsing.
+- [ ] **TC-2**: Mechanic generation pipeline stage — refactor `mechanic_generator.py` to accept setting prose from theme.json, add as pipeline stage before skeleton. Build review UI for picking 3 from 6 candidates.
+- [ ] **TC-3**: Archetype generation pipeline stage — LLM generates 10 color-pair draft archetypes from setting + approved mechanics.
+- [ ] **TC-4**: Visual reference extraction stage — LLM extracts `visual-references.json` from setting prose (creature appearances, Flux term replacements for art pipeline).
+- [ ] **TC-5**: Pointed questions template — 9 standard review questions with mechanic name substitution (no LLM needed, templating only).
+- [ ] **TC-6**: Prompts module update — `build_user_prompt()` uses setting prose from theme.json instead of structured theme fields, `format_slot_specs()` loads archetypes from `archetypes.json`.
+- [ ] **TC-7**: Skeleton integration — card_requests from theme.json become reserved slots, constraints feed into skeleton revision. Configure page checks theme.json exists before allowing pipeline start.
+
+---
+
 ## Phase SC: Scale-Up — Full Set Production
 > **Plan**: Uses proven pipeline from Phases 1C, 4A+4B, 2B, 2C, 4C
-> **Needs**: 4C passed on dev set — all tooling validated end-to-end
+> **Needs**: TC complete + 4C passed on dev set — all tooling validated end-to-end
 > **Inputs**: `output/sets/<code>/skeleton.json` (regenerated at full ~280 size), all pipeline code from prior phases
 > **Outputs**: Full ~280-card set: cards, art, renders, balance + quality reports, `learnings/phase-sc.md`
 > **What this does**: Now that the entire pipeline is proven on the ~60-card dev set, regenerate the skeleton at full size and run every card through the same pipeline. This is a production run, not a development phase — all tooling already works.
