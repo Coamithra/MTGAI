@@ -64,6 +64,9 @@ Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain 
   - `MTGAI_PROVIDER=ollama` — switch to local model
   - `MTGAI_OLLAMA_MODEL=qwen2.5:14b` — model name (default: qwen2.5:14b)
   - `MTGAI_OLLAMA_URL=http://localhost:11434` — Ollama API endpoint
+- **Local models available**: Qwen 2.5 (7B/14B), Qwen3-VL 8B (vision), Gemma 4 E4B (fast, vision), Gemma 4 26B MoE (quality, vision, 128K context)
+  - Gemma 4 models support native tool calling and vision across all sizes
+  - `all-local` preset uses Gemma 4 26B MoE for all stages
 - **Ollama tool extraction**: tries native function calling first, falls back to JSON extraction from text (fenced blocks, Qwen-style, bare JSON), retries up to 2x on garbage output
 - **Prompt caching** (Anthropic only, `cache=True`): system prompt and tool schema marked with `cache_control` so sequential calls within ~5 min reuse the cached prefix at 90% discount
 - Centralized `PRICING`, `calc_cost()`, and `cost_from_result()` — all callers import from here

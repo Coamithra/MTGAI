@@ -105,10 +105,7 @@ PRESETS: dict[str, dict] = {
         "effort": {},
     },
     "all-local": {
-        "llm": {
-            **{k: "qwen-14b" for k in DEFAULT_LLM_ASSIGNMENTS},
-            "art_select": "qwen3-vl-8b",  # vision-capable local model
-        },
+        "llm": {k: "gemma4-26b" for k in DEFAULT_LLM_ASSIGNMENTS},
         "image": dict(DEFAULT_IMAGE_ASSIGNMENTS),
         "effort": {},
     },

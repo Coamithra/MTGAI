@@ -78,6 +78,30 @@ supports_effort = false
 supports_vision = true
 supports_caching = false
 
+[llm.gemma4-e4b]
+name = "Gemma 4 E4B (Local)"
+provider = "ollama"
+model_id = "gemma4:e4b"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_effort = false
+supports_vision = true
+supports_caching = false
+
+[llm.gemma4-26b]
+name = "Gemma 4 26B MoE (Local)"
+provider = "ollama"
+model_id = "gemma4:26b"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_effort = false
+supports_vision = true
+supports_caching = false
+
 # ── Image Generation Models ─────────────────────────────────────────────────
 
 [image.flux-local]
