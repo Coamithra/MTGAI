@@ -102,6 +102,30 @@ supports_effort = false
 supports_vision = true
 supports_caching = false
 
+[llm.gemma4-26b-vram]
+name = "Gemma 4 26B 16GB-VRAM (Local)"
+provider = "ollama"
+model_id = "VladimirGav/gemma4-26b-16GB-VRAM"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_effort = false
+supports_vision = true
+supports_caching = false
+
+[llm.gemma4-31b]
+name = "Gemma 4 31B Dense (Local)"
+provider = "ollama"
+model_id = "gemma4:31b"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_effort = false
+supports_vision = true
+supports_caching = false
+
 # ── Image Generation Models ─────────────────────────────────────────────────
 
 [image.flux-local]
