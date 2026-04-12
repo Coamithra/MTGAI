@@ -315,19 +315,14 @@ def _count_tokens_anthropic(
 
 
 def _count_tokens_tiktoken(text: str) -> int:
-    """Count tokens using tiktoken (works offline, used for local models).
+    """Count tokens using the shared token_utils module.
 
-    Falls back to chars//4 if tiktoken is not available.
+    Delegates to mtgai.generation.token_utils.count_tokens (tiktoken
+    cl100k_base, with chars//4 fallback).
     """
-    try:
-        import tiktoken
+    from mtgai.generation.token_utils import count_tokens as _count
 
-        # cl100k_base covers GPT-4/GPT-3.5 and is close enough for Qwen
-        enc = tiktoken.get_encoding("cl100k_base")
-        return len(enc.encode(text))
-    except ImportError:
-        logger.debug("tiktoken not installed, using chars//4 heuristic")
-        return len(text) // 4
+    return _count(text)
 
 
 # ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@
 
 Supports two providers:
   - **Anthropic** (default): prompt caching, effort levels, forced tool_choice
-  - **Ollama** (local): OpenAI-compatible API, text-based tool extraction fallback
+  - **Ollama** (local): native ``/api/chat`` endpoint with ``num_ctx`` support
 
 Set ``MTGAI_PROVIDER=ollama`` to use a local model via Ollama.
 """
@@ -212,7 +212,7 @@ def _generate_anthropic(
     raise ValueError("No tool_use block in response")
 
 
-# ── Ollama provider (OpenAI-compatible) ──────────────────────────────
+# ── Ollama provider (native /api/chat) ───────────────────────────────
 
 # Max retries for Ollama connection errors
 _OLLAMA_MAX_RETRIES = 3
@@ -221,9 +221,12 @@ _OLLAMA_RETRY_DELAY = 1.0
 # Max retries when Ollama produces malformed tool output
 _OLLAMA_MAX_TOOL_RETRIES = 2
 
+# Default context window when model isn't in registry
+_OLLAMA_DEFAULT_CONTEXT = 32768
+
 
 def _ollama_translate_tool(tool_schema: dict) -> dict:
-    """Convert Anthropic tool schema to OpenAI function-calling format."""
+    """Convert Anthropic tool schema to Ollama function-calling format."""
     return {
         "type": "function",
         "function": {
@@ -278,15 +281,30 @@ def _ollama_extract_json(text: str, tool_name: str) -> dict | None:
     return None
 
 
-def _ollama_call_with_retry(client, kwargs: dict) -> object:
-    """Call Ollama with connection retry."""
-    import openai
+def _ollama_get_context_window(model: str) -> int:
+    """Look up context window for a model from the registry, or use default."""
+    try:
+        from mtgai.settings.model_registry import get_registry
+
+        info = get_registry().get_llm_by_model_id(model)
+        if info:
+            return info.context_window
+    except Exception:
+        pass
+    return _OLLAMA_DEFAULT_CONTEXT
+
+
+def _ollama_post(url: str, body: dict, timeout: int = 600) -> dict:
+    """POST to Ollama native API with connection retry."""
+    import requests
 
     last_error: Exception | None = None
     for attempt in range(_OLLAMA_MAX_RETRIES):
         try:
-            return client.chat.completions.create(**kwargs)
-        except (openai.APITimeoutError, openai.APIConnectionError) as e:
+            resp = requests.post(url, json=body, timeout=timeout)
+            resp.raise_for_status()
+            return resp.json()
+        except (requests.ConnectionError, requests.Timeout) as e:
             last_error = e
             if attempt < _OLLAMA_MAX_RETRIES - 1:
                 logger.warning("Ollama connection error (attempt %d): %s", attempt + 1, e)
@@ -302,71 +320,116 @@ def _generate_ollama(
     temperature: float,
     max_tokens: int,
 ) -> dict:
-    """Call Ollama via OpenAI-compatible API, with text-based tool extraction fallback."""
-    import openai
+    """Call Ollama via native /api/chat endpoint with num_ctx support.
 
-    client = openai.OpenAI(
-        base_url=f"{OLLAMA_URL}/v1",
-        api_key="ollama",  # Ollama ignores this but the SDK requires it
+    Uses the native API instead of the OpenAI compatibility layer because
+    the compat layer silently ignores num_ctx, causing all calls to run on
+    the VRAM-based default (4k on 12GB GPU).
+
+    Raises ContextOverflowError if input is too large before calling.
+    Raises InputTruncatedError/OutputTruncatedError if Ollama silently
+    truncates input or output.
+    """
+    from mtgai.generation.ollama_debug import check_ollama_debug_mode
+    from mtgai.generation.token_utils import (
+        check_post_call,
+        check_pre_call,
+        count_messages_tokens,
     )
 
-    ollama_model = model  # already set to OLLAMA_MODEL by caller
+    # One-time debug mode check on first Ollama call
+    if not getattr(_generate_ollama, "_debug_checked", False):
+        check_ollama_debug_mode()
+        _generate_ollama._debug_checked = True  # type: ignore[attr-defined]
+
     tool_name = tool_schema["name"]
-    oai_tool = _ollama_translate_tool(tool_schema)
+    ollama_tool = _ollama_translate_tool(tool_schema)
+    num_ctx = _ollama_get_context_window(model)
 
     messages: list[dict] = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
 
-    kwargs: dict = {
-        "model": ollama_model,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
+    body: dict = {
+        "model": model,
         "messages": messages,
-        "tools": [oai_tool],
+        "tools": [ollama_tool],
+        "stream": False,
+        "options": {
+            "num_ctx": num_ctx,
+            "temperature": temperature,
+            "num_predict": max_tokens,
+        },
     }
 
-    for attempt in range(_OLLAMA_MAX_TOOL_RETRIES + 1):
-        response = _ollama_call_with_retry(client, kwargs)
-        choice = response.choices[0]
-        msg = choice.message
+    # Pre-call check: will this fit in context?
+    check_pre_call(model, messages, tools=[ollama_tool], output_reserve=max_tokens)
+    estimated_input = count_messages_tokens(messages, tools=[ollama_tool])
 
-        usage = response.usage
-        input_tokens = usage.prompt_tokens if usage else 0
-        output_tokens = usage.completion_tokens if usage else 0
+    logger.info(
+        "Ollama [%s] call: num_ctx=%d, num_predict=%d, estimated_input=%d",
+        model,
+        num_ctx,
+        max_tokens,
+        estimated_input,
+    )
+
+    url = f"{OLLAMA_URL}/api/chat"
+
+    for attempt in range(_OLLAMA_MAX_TOOL_RETRIES + 1):
+        data = _ollama_post(url, body)
+
+        # Post-call check: did Ollama truncate anything?
+        check_post_call(data, estimated_input, model, num_predict=max_tokens)
+
+        # In debug mode, also check Ollama's own logs for warnings
+        from mtgai.generation.ollama_debug import scan_after_call
+
+        scan_after_call(since_lines=20)
+
+        msg = data.get("message", {})
+        content = msg.get("content", "")
+        tool_calls = msg.get("tool_calls", [])
+
+        input_tokens = data.get("prompt_eval_count", 0)
+        output_tokens = data.get("eval_count", 0)
 
         # Try 1: native function calling
-        if msg.tool_calls:
-            for tc in msg.tool_calls:
-                if tc.function.name == tool_name:
-                    try:
-                        result = json.loads(tc.function.arguments)
-                    except (json.JSONDecodeError, TypeError):
-                        result = {}
+        if tool_calls:
+            for tc in tool_calls:
+                fn = tc.get("function", {})
+                if fn.get("name") == tool_name:
+                    args = fn.get("arguments", {})
+                    # Ollama may return args as string or dict
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args)
+                        except (json.JSONDecodeError, TypeError):
+                            args = {}
                     logger.info(
                         "Ollama [%s] tool call via native function calling (%d in, %d out)",
-                        ollama_model,
+                        model,
                         input_tokens,
                         output_tokens,
                     )
                     return {
-                        "result": result,
+                        "result": args,
                         "input_tokens": input_tokens,
                         "output_tokens": output_tokens,
                         "cache_creation_input_tokens": 0,
                         "cache_read_input_tokens": 0,
                         "stop_reason": "tool_use",
-                        "model": ollama_model,
+                        "model": model,
                     }
 
         # Try 2: extract JSON from text response
-        if msg.content:
-            extracted = _ollama_extract_json(msg.content, tool_name)
+        if content:
+            extracted = _ollama_extract_json(content, tool_name)
             if extracted and isinstance(extracted, dict):
                 logger.info(
                     "Ollama [%s] tool call via text extraction (%d in, %d out)",
-                    ollama_model,
+                    model,
                     input_tokens,
                     output_tokens,
                 )
@@ -377,25 +440,25 @@ def _generate_ollama(
                     "cache_creation_input_tokens": 0,
                     "cache_read_input_tokens": 0,
                     "stop_reason": "tool_use",
-                    "model": ollama_model,
+                    "model": model,
                 }
 
         # Retry: append the bad response and ask again
         if attempt < _OLLAMA_MAX_TOOL_RETRIES:
             logger.warning(
                 "Ollama [%s] failed to produce valid tool output (attempt %d/%d), retrying",
-                ollama_model,
+                model,
                 attempt + 1,
                 _OLLAMA_MAX_TOOL_RETRIES,
             )
-            kwargs["messages"] = list(kwargs["messages"])
-            kwargs["messages"].append(
+            body["messages"] = list(body["messages"])
+            body["messages"].append(
                 {
                     "role": "assistant",
-                    "content": msg.content or "(empty response)",
+                    "content": content or "(empty response)",
                 }
             )
-            kwargs["messages"].append(
+            body["messages"].append(
                 {
                     "role": "user",
                     "content": (
@@ -406,7 +469,7 @@ def _generate_ollama(
             )
 
     raise ValueError(
-        f"Ollama [{ollama_model}] failed to produce valid tool output "
+        f"Ollama [{model}] failed to produce valid tool output "
         f"after {_OLLAMA_MAX_TOOL_RETRIES + 1} attempts"
     )
 

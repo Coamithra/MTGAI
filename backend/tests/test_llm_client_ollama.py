@@ -32,7 +32,7 @@ SAMPLE_TOOL = {
 SAMPLE_CARD = {
     "name": "Test Creature",
     "mana_cost": "{1}{W}",
-    "type_line": "Creature — Human",
+    "type_line": "Creature - Human",
     "oracle_text": "Vigilance",
 }
 
@@ -100,10 +100,7 @@ class TestJsonExtraction:
 
     def test_fenced_block_preferred_over_bare(self):
         """Fenced block should be tried first."""
-        text = (
-            'Bad: {"wrong": true}\n'
-            '```json\n{"correct": true}\n```'
-        )
+        text = 'Bad: {"wrong": true}\n' '```json\n{"correct": true}\n```'
         result = _ollama_extract_json(text, "tool")
         assert result == {"correct": True}
 
@@ -121,49 +118,51 @@ class TestLocalCost:
         assert cost == 0.0
 
 
+# ── Helpers for native API responses ─────────────────────────────────
+
+
+def _make_ollama_response(
+    content: str = "",
+    tool_calls: list | None = None,
+    prompt_eval_count: int = 100,
+    eval_count: int = 50,
+) -> dict:
+    """Build a mock Ollama native API response dict."""
+    msg: dict = {"role": "assistant", "content": content}
+    if tool_calls is not None:
+        msg["tool_calls"] = tool_calls
+    return {
+        "message": msg,
+        "done": True,
+        "prompt_eval_count": prompt_eval_count,
+        "eval_count": eval_count,
+    }
+
+
+def _make_native_tool_call(name: str, arguments: dict) -> dict:
+    """Build a tool_call entry for the native API format."""
+    return {"function": {"name": name, "arguments": arguments}}
+
+
 # ── End-to-end Ollama generate_with_tool ─────────────────────────────
 
 
-def _make_ollama_response(content: str = "", tool_calls=None):
-    """Build a mock OpenAI-compatible response."""
-    msg = MagicMock()
-    msg.content = content
-    msg.tool_calls = tool_calls
-
-    choice = MagicMock()
-    choice.message = msg
-    choice.finish_reason = "tool_calls" if tool_calls else "stop"
-
-    usage = MagicMock()
-    usage.prompt_tokens = 100
-    usage.completion_tokens = 50
-
-    response = MagicMock()
-    response.choices = [choice]
-    response.usage = usage
-    return response
-
-
 class TestOllamaGenerateWithTool:
-    """Test generate_with_tool with MTGAI_PROVIDER=ollama."""
+    """Test generate_with_tool routed to Ollama via _resolve_provider."""
 
-    @patch.dict("os.environ", {"MTGAI_PROVIDER": "ollama"})
-    @patch("mtgai.generation.llm_client.PROVIDER", "ollama")
-    @patch("mtgai.generation.llm_client.OLLAMA_MODEL", "qwen2.5:14b")
+    def _patch_ollama(self):
+        """Patch _resolve_provider to route to Ollama regardless of model name."""
+        return patch("mtgai.generation.llm_client._resolve_provider", return_value="ollama")
+
     def test_native_tool_calling(self):
-        """Model uses OpenAI function calling properly."""
-        tc = MagicMock()
-        tc.function.name = "generate_card"
-        tc.function.arguments = json.dumps(SAMPLE_CARD)
-        tc.id = "call_123"
-
+        """Model uses native function calling properly."""
+        tc = _make_native_tool_call("generate_card", SAMPLE_CARD)
         response = _make_ollama_response(tool_calls=[tc])
 
-        with patch("openai.OpenAI") as mock_cls:
-            mock_client = MagicMock()
-            mock_cls.return_value = mock_client
-            mock_client.chat.completions.create.return_value = response
-
+        with (
+            self._patch_ollama(),
+            patch("mtgai.generation.llm_client._ollama_post", return_value=response) as mock_post,
+        ):
             result = generate_with_tool(
                 system_prompt="You are a card designer.",
                 user_prompt="Make a card.",
@@ -171,24 +170,39 @@ class TestOllamaGenerateWithTool:
             )
 
         assert result["result"] == SAMPLE_CARD
-        assert result["model"] == "qwen2.5:14b"
         assert result["stop_reason"] == "tool_use"
+        assert result["input_tokens"] == 100
+        assert result["output_tokens"] == 50
         assert result["cache_creation_input_tokens"] == 0
         assert result["cache_read_input_tokens"] == 0
+        mock_post.assert_called_once()
 
-    @patch.dict("os.environ", {"MTGAI_PROVIDER": "ollama"})
-    @patch("mtgai.generation.llm_client.PROVIDER", "ollama")
-    @patch("mtgai.generation.llm_client.OLLAMA_MODEL", "qwen2.5:14b")
+    def test_tool_args_as_string(self):
+        """Ollama may return tool arguments as a JSON string instead of dict."""
+        tc = {"function": {"name": "generate_card", "arguments": json.dumps(SAMPLE_CARD)}}
+        response = _make_ollama_response(tool_calls=[tc])
+
+        with (
+            self._patch_ollama(),
+            patch("mtgai.generation.llm_client._ollama_post", return_value=response),
+        ):
+            result = generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+            )
+
+        assert result["result"] == SAMPLE_CARD
+
     def test_text_extraction_fallback(self):
         """Model outputs JSON as text instead of using function calling."""
         text = f"Here is the card:\n```json\n{json.dumps(SAMPLE_CARD)}\n```"
         response = _make_ollama_response(content=text)
 
-        with patch("openai.OpenAI") as mock_cls:
-            mock_client = MagicMock()
-            mock_cls.return_value = mock_client
-            mock_client.chat.completions.create.return_value = response
-
+        with (
+            self._patch_ollama(),
+            patch("mtgai.generation.llm_client._ollama_post", return_value=response),
+        ):
             result = generate_with_tool(
                 system_prompt="You are a card designer.",
                 user_prompt="Make a card.",
@@ -196,21 +210,19 @@ class TestOllamaGenerateWithTool:
             )
 
         assert result["result"] == SAMPLE_CARD
-        assert result["model"] == "qwen2.5:14b"
 
-    @patch.dict("os.environ", {"MTGAI_PROVIDER": "ollama"})
-    @patch("mtgai.generation.llm_client.PROVIDER", "ollama")
-    @patch("mtgai.generation.llm_client.OLLAMA_MODEL", "qwen2.5:14b")
     def test_retry_on_garbage(self):
         """Model produces garbage, retries, then succeeds."""
         bad_response = _make_ollama_response(content="I don't know how to do that.")
         good_response = _make_ollama_response(content=json.dumps(SAMPLE_CARD))
 
-        with patch("openai.OpenAI") as mock_cls:
-            mock_client = MagicMock()
-            mock_cls.return_value = mock_client
-            mock_client.chat.completions.create.side_effect = [bad_response, good_response]
-
+        with (
+            self._patch_ollama(),
+            patch(
+                "mtgai.generation.llm_client._ollama_post",
+                side_effect=[bad_response, good_response],
+            ),
+        ):
             result = generate_with_tool(
                 system_prompt="You are a card designer.",
                 user_prompt="Make a card.",
@@ -218,20 +230,15 @@ class TestOllamaGenerateWithTool:
             )
 
         assert result["result"] == SAMPLE_CARD
-        assert mock_client.chat.completions.create.call_count == 2
 
-    @patch.dict("os.environ", {"MTGAI_PROVIDER": "ollama"})
-    @patch("mtgai.generation.llm_client.PROVIDER", "ollama")
-    @patch("mtgai.generation.llm_client.OLLAMA_MODEL", "qwen2.5:14b")
     def test_all_retries_exhausted(self):
         """Raises ValueError after all retries fail."""
         bad_response = _make_ollama_response(content="no json here")
 
-        with patch("openai.OpenAI") as mock_cls:
-            mock_client = MagicMock()
-            mock_cls.return_value = mock_client
-            mock_client.chat.completions.create.return_value = bad_response
-
+        with (
+            self._patch_ollama(),
+            patch("mtgai.generation.llm_client._ollama_post", return_value=bad_response),
+        ):
             with pytest.raises(ValueError, match="failed to produce valid tool output"):
                 generate_with_tool(
                     system_prompt="System",
@@ -239,38 +246,49 @@ class TestOllamaGenerateWithTool:
                     tool_schema=SAMPLE_TOOL,
                 )
 
-        # 1 initial + 2 retries = 3
-        assert mock_client.chat.completions.create.call_count == 3
-
-    @patch.dict("os.environ", {"MTGAI_PROVIDER": "ollama"})
-    @patch("mtgai.generation.llm_client.PROVIDER", "ollama")
-    @patch("mtgai.generation.llm_client.OLLAMA_MODEL", "qwen2.5:14b")
-    def test_ollama_url_and_model_used(self):
-        """Verify the OpenAI client is configured with the right URL."""
-        tc = MagicMock()
-        tc.function.name = "generate_card"
-        tc.function.arguments = json.dumps(SAMPLE_CARD)
+    def test_native_api_url_used(self):
+        """Verify calls go to /api/chat, not /v1."""
+        tc = _make_native_tool_call("generate_card", SAMPLE_CARD)
         response = _make_ollama_response(tool_calls=[tc])
 
-        with patch("openai.OpenAI") as mock_cls:
-            mock_client = MagicMock()
-            mock_cls.return_value = mock_client
-            mock_client.chat.completions.create.return_value = response
-
+        with (
+            self._patch_ollama(),
+            patch("mtgai.generation.llm_client._ollama_post", return_value=response) as mock_post,
+        ):
             generate_with_tool(
                 system_prompt="Sys",
                 user_prompt="User",
                 tool_schema=SAMPLE_TOOL,
             )
 
-            # Check OpenAI client was created with Ollama URL
-            mock_cls.assert_called_once()
-            call_kwargs = mock_cls.call_args
-            assert "/v1" in call_kwargs.kwargs.get("base_url", call_kwargs[1].get("base_url", ""))
+            call_args = mock_post.call_args
+            assert "/api/chat" in call_args[0][0]
+
+    def test_num_ctx_passed(self):
+        """Verify num_ctx is included in the request body."""
+        tc = _make_native_tool_call("generate_card", SAMPLE_CARD)
+        response = _make_ollama_response(tool_calls=[tc])
+
+        with (
+            self._patch_ollama(),
+            patch("mtgai.generation.llm_client._ollama_post", return_value=response) as mock_post,
+            patch(
+                "mtgai.generation.llm_client._ollama_get_context_window", return_value=128000
+            ),
+        ):
+            generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+            )
+
+            call_body = mock_post.call_args[0][1]
+            assert call_body["options"]["num_ctx"] == 128000
+            assert call_body["options"]["num_predict"] == 8192  # default max_tokens
 
     @patch("mtgai.generation.llm_client.PROVIDER", "anthropic")
     def test_anthropic_path_unchanged(self):
-        """When PROVIDER=anthropic, the old code path is used (no OpenAI import)."""
+        """When PROVIDER=anthropic, the old code path is used."""
         with patch("mtgai.generation.llm_client._generate_anthropic") as mock_anth:
             mock_anth.return_value = {
                 "result": SAMPLE_CARD,
@@ -288,3 +306,44 @@ class TestOllamaGenerateWithTool:
             )
             assert result["model"] == "claude-sonnet-4-6"
             mock_anth.assert_called_once()
+
+
+# ── Connection retry tests ───────────────────────────────────────────
+
+
+class TestOllamaRetry:
+    def test_retries_on_connection_error(self):
+        """_ollama_post retries on connection errors."""
+        import requests
+
+        with patch("mtgai.generation.llm_client.time.sleep"):
+            with patch("requests.post") as mock_post:
+                mock_post.side_effect = [
+                    requests.ConnectionError("refused"),
+                    MagicMock(
+                        status_code=200,
+                        raise_for_status=lambda: None,
+                        json=lambda: {"message": {}, "done": True},
+                    ),
+                ]
+
+                from mtgai.generation.llm_client import _ollama_post
+
+                result = _ollama_post("http://localhost:11434/api/chat", {})
+                assert result["done"] is True
+                assert mock_post.call_count == 2
+
+    def test_raises_after_max_retries(self):
+        """_ollama_post raises after exhausting retries."""
+        import requests
+
+        with patch("mtgai.generation.llm_client.time.sleep"):
+            with patch("requests.post") as mock_post:
+                mock_post.side_effect = requests.ConnectionError("refused")
+
+                from mtgai.generation.llm_client import _ollama_post
+
+                with pytest.raises(requests.ConnectionError):
+                    _ollama_post("http://localhost:11434/api/chat", {})
+
+                assert mock_post.call_count == 3

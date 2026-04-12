@@ -1,5 +1,12 @@
 # MTGAI Project Conventions
 
+## Local LLM Notes (Gemma 4, 12GB VRAM)
+- **Gemma 4 26B-A4B** (MoE) is viable on 12GB VRAM with partial CPU offloading. Benchmarks show ~44 tok/s at 128k context with `--flash-attn` and Q4/Q5 quantization. MoE offloading penalty is much lower than dense models because inactive experts sitting on CPU don't incur PCIe transfer costs per token.
+- **Gemma 4 E4B** fits entirely in 12GB at Q8_0 (~4.87 GB base, ~7 GB left for KV cache). Simpler, more consistent latency, zero offloading risk.
+- Context vs VRAM: KV cache grows linearly. Formula: `VRAM = (P x b_w) + (0.55 + 0.08 x P) + KV_cache`. At Q4_K_M, b_w = 0.57 bytes/weight. See https://localllm.in/blog/interactive-vram-calculator for details.
+- **Gemma 4 31B dense (PolarQuant Q5)** may also be viable on 12GB. PolarQuant normalizes weight vectors onto a unit hypersphere, applies Hadamard rotation to make the distribution Gaussian, then uses Lloyd-Max optimal quantization. Near-lossless (perplexity 6.39 vs 6.37 FP16). Combined with Q3 KV cache (TurboQuant), this could fit the 31B dense model on consumer hardware. HuggingFace: `caiovicentino1/Gemma-4-31B-it-PolarQuant-Q5`. Worth testing vs the 26B MoE for quality.
+- If using Ollama, set `OLLAMA_CONTEXT_LENGTH` explicitly (default is only 4k on <24GB VRAM) and enable `OLLAMA_KV_CACHE_TYPE=q4_0` to cut KV cache VRAM by 50-75%.
+
 ## Toolchain Buildout (in progress)
 Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain buildout" to resume.
 
@@ -59,7 +66,7 @@ Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain 
 - `generate_with_tool()` — unified entry point, provider selected by `MTGAI_PROVIDER` env var
 - **Two providers:**
   - `anthropic` (default): Anthropic API with forced `tool_choice`, prompt caching, effort levels
-  - `ollama`: local models via Ollama's OpenAI-compatible API (cost = $0.00)
+  - `ollama`: local models via Ollama's native `/api/chat` endpoint (cost = $0.00)
 - **Ollama config** (env vars):
   - `MTGAI_PROVIDER=ollama` — switch to local model
   - `MTGAI_OLLAMA_MODEL=qwen2.5:14b` — model name (default: qwen2.5:14b)
@@ -67,7 +74,10 @@ Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain 
 - **Local models available**: Qwen 2.5 (7B/14B), Qwen3-VL 8B (vision), Gemma 4 E4B (fast, vision), Gemma 4 26B MoE (quality, vision, 128K context)
   - Gemma 4 models support native tool calling and vision across all sizes
   - `all-local` preset uses Gemma 4 26B MoE for all stages
+- **Ollama native API**: uses `/api/chat` (not OpenAI compat `/v1`) so `num_ctx` is respected. Context window looked up from model registry. `num_predict` set per-call to avoid 128-token default cap.
 - **Ollama tool extraction**: tries native function calling first, falls back to JSON extraction from text (fenced blocks, Qwen-style, bare JSON), retries up to 2x on garbage output
+- **Token counting** (`token_utils.py`): tiktoken cl100k_base for approximate counts. Pre-call overflow check raises `ContextOverflowError`. Post-call check raises `InputTruncatedError` / `OutputTruncatedError` if Ollama silently truncates.
+- **Ollama debug** (`ollama_debug.py`): log scanner for Ollama's `server.log`. Set `MTGAI_DEBUG=1` to enable post-call log scanning and startup debug mode verification. CLI: `python -m mtgai.generation.ollama_debug [--since=N]`. Scans for truncation, OOM, CUDA errors, and generic warn/error lines.
 - **Prompt caching** (Anthropic only, `cache=True`): system prompt and tool schema marked with `cache_control` so sequential calls within ~5 min reuse the cached prefix at 90% discount
 - Centralized `PRICING`, `calc_cost()`, and `cost_from_result()` — all callers import from here
   - `calc_cost()` accounts for cache pricing: 1.25x for cache creation, 0.1x for cache reads
