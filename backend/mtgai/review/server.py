@@ -79,6 +79,17 @@ async def _lifespan(application: FastAPI) -> AsyncGenerator[None]:
     This allows the gallery to load card images via /renders/... and /art/...
     instead of relative file paths.
     """
+    from mtgai.settings.model_settings import get_settings
+
+    # Eagerly load the last-applied model settings (output/settings/current.toml)
+    # so they are in effect before any request arrives. get_settings() is a
+    # lazy singleton; calling it here just forces the load + log up front.
+    settings = get_settings()
+    logger.info(
+        "Active model settings: %s",
+        {k: v for k, v in settings.llm_assignments.items()},
+    )
+
     set_code = _get_set_code()
     set_dir = _set_dir(set_code)
 

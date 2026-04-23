@@ -33,6 +33,20 @@ PROVIDER = os.environ.get("MTGAI_PROVIDER", "anthropic").strip().lower()
 OLLAMA_MODEL = os.environ.get("MTGAI_OLLAMA_MODEL", "qwen2.5:14b").strip()
 OLLAMA_URL = os.environ.get("MTGAI_OLLAMA_URL", "http://localhost:11434").strip()
 
+# Total attempts per prompt before giving up (initial + retries). Local models
+# (Gemma 4 in particular) have a documented intrinsic risk of repetition loops
+# and malformed JSON under constrained sampling - see
+# learnings/gemma-repetition-loops.md. Retrying typically clears it.
+try:
+    MAX_RETRIES = max(1, int(os.environ.get("MTGAI_MAX_RETRIES", "3").strip()))
+except ValueError:
+    MAX_RETRIES = 3
+
+# Repetition penalty applied to all Ollama calls (single-knob mitigation
+# recommended by Google staff for Gemma 3 loops; not always effective on
+# Gemma 4 but has no known downside).
+OLLAMA_REPEAT_PENALTY = 1.1
+
 # Model tiers: family name → (rank, latest model ID)
 _MODEL_TIERS: dict[str, tuple[int, str]] = {
     "haiku": (0, "claude-haiku-4-5-20251001"),
@@ -219,7 +233,7 @@ _OLLAMA_MAX_RETRIES = 3
 _OLLAMA_RETRY_DELAY = 1.0
 
 # Max retries when Ollama produces malformed tool output
-_OLLAMA_MAX_TOOL_RETRIES = 2
+_OLLAMA_MAX_TOOL_RETRIES = MAX_RETRIES - 1
 
 # Default context window when model isn't in registry
 _OLLAMA_DEFAULT_CONTEXT = 32768
@@ -360,6 +374,7 @@ def _generate_ollama(
             "num_ctx": num_ctx,
             "temperature": temperature,
             "num_predict": max_tokens,
+            "repeat_penalty": OLLAMA_REPEAT_PENALTY,
         },
     }
 

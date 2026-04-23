@@ -105,7 +105,26 @@ PRESETS: dict[str, dict] = {
         "effort": {},
     },
     "all-local": {
-        "llm": {k: "gemma4-26b" for k in DEFAULT_LLM_ASSIGNMENTS},
+        "llm": {
+            # Theme extraction is the only large-context stage (58K+ input tokens
+            # on full source PDFs). Use the TC-1f winner: Vlad IQ4_XS with
+            # num_gpu override + q4_0 KV cache + flash attention runs this in
+            # ~4 min vs 15+ min on standard gemma4:26b. Requires
+            # OLLAMA_FLASH_ATTENTION=1 and OLLAMA_KV_CACHE_TYPE=q4_0 set on
+            # the Ollama server.
+            "theme_extract": "gemma4-26b-vram-dynamic",
+            # Remaining stages run at small context (<32K), where standard
+            # gemma4:26b wins on per-token speed (TC-1e round 1).
+            "mechanics": "gemma4-26b",
+            "archetypes": "gemma4-26b",
+            "reprints": "gemma4-26b",
+            "card_gen": "gemma4-26b",
+            "balance": "gemma4-26b",
+            "skeleton_rev": "gemma4-26b",
+            "ai_review": "gemma4-26b",
+            "art_prompts": "gemma4-26b",
+            "art_select": "gemma4-26b",
+        },
         "image": dict(DEFAULT_IMAGE_ASSIGNMENTS),
         "effort": {},
     },

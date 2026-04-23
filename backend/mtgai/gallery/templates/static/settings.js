@@ -189,6 +189,7 @@ function onModelChange(select) {
 
   clearActivePreset();
   updateCostEstimate();
+  autoApply();
 }
 
 function onEffortChange(select) {
@@ -202,12 +203,14 @@ function onEffortChange(select) {
   }
 
   clearActivePreset();
+  autoApply();
 }
 
 function onImageModelChange(select) {
   const stageId = select.dataset.stage;
   CURRENT_SETTINGS.image_assignments[stageId] = select.value;
   clearActivePreset();
+  autoApply();
 }
 
 // ---------------------------------------------------------------------------
@@ -233,6 +236,8 @@ function applyPreset(presetName) {
     const btnPreset = btn.getAttribute('onclick').match(/applyPreset\('(.+?)'\)/);
     btn.classList.toggle('active', btnPreset && btnPreset[1] === presetName);
   });
+
+  autoApply();
 }
 
 function clearActivePreset() {
@@ -333,6 +338,7 @@ async function saveProfile() {
       showToast('Error: ' + (data.error || 'Unknown'), 'error');
     }
   } catch (err) {
+    console.error('[settings.js] Network error:', err);
     showToast('Network error: ' + err.message, 'error');
   }
 }
@@ -355,20 +361,28 @@ async function loadProfile() {
       renderImageAssignments();
       updateCostEstimate();
       clearActivePreset();
+      autoApply();
       showToast(`Loaded profile "${name}"`, 'success');
     } else {
       showToast('Error: ' + (data.error || 'Profile not found'), 'error');
     }
   } catch (err) {
+    console.error('[settings.js] Network error:', err);
     showToast('Network error: ' + err.message, 'error');
   }
 }
 
 // ---------------------------------------------------------------------------
-// Apply settings (save as current + activate)
+// Auto-apply (every change persists immediately)
 // ---------------------------------------------------------------------------
 
-async function applySettings() {
+let _autoSaveTimer = null;
+function autoApply() {
+  if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(_doApply, 250);
+}
+
+async function _doApply() {
   try {
     const resp = await fetch('/api/settings/apply', {
       method: 'POST',
@@ -376,13 +390,13 @@ async function applySettings() {
       body: JSON.stringify(CURRENT_SETTINGS),
     });
     const data = await resp.json();
-
     if (data.success) {
-      showToast('Settings applied', 'success');
+      showToast('Saved', 'success');
     } else {
       showToast('Error: ' + (data.error || 'Unknown'), 'error');
     }
   } catch (err) {
+    console.error('[settings.js] Network error:', err);
     showToast('Network error: ' + err.message, 'error');
   }
 }

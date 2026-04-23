@@ -102,10 +102,44 @@ supports_effort = false
 supports_vision = true
 supports_caching = false
 
+# NOTE: upstream Vlad with hardcoded PARAMETER num_gpu 99. Do NOT set
+# OLLAMA_KV_CACHE_TYPE=q4_0 at the server level on <16 GB VRAM while this
+# model is loaded - the smaller KV cache trips the placement estimator into
+# honoring num_gpu=99, causing CUDA OOM and a Windows display-driver reset.
+# Use gemma4-26b-vram-dynamic instead.
 [llm.gemma4-26b-vram]
 name = "Gemma 4 26B 16GB-VRAM (Local)"
 provider = "ollama"
 model_id = "VladimirGav/gemma4-26b-16GB-VRAM"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_effort = false
+supports_vision = true
+supports_caching = false
+
+[llm.gemma4-26b-unsloth-q4kxl]
+name = "Gemma 4 26B Unsloth UD-Q4_K_XL (Local)"
+provider = "ollama"
+model_id = "unsloth-gemma4-26b-q4kxl"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_effort = false
+supports_vision = true
+supports_caching = false
+
+# Best long-context config on 12 GB VRAM per TC-1f: Vlad IQ4_XS + dynamic
+# placement. ~346 s for a 58K-token extraction at 128K (2.5x faster than
+# pre-flash-attention baseline). Relies on Ollama 0.21+ auto-enabling flash
+# attention. q4_0 KV cache would save another ~100 s but requires a global
+# OLLAMA_KV_CACHE_TYPE env var - skipped to preserve per-model flexibility.
+[llm.gemma4-26b-vram-dynamic]
+name = "Gemma 4 26B Vlad IQ4_XS (num_gpu unset for dynamic placement)"
+provider = "ollama"
+model_id = "vlad-gemma4-26b-dynamic"
 tier = 0
 input_price = 0.00
 output_price = 0.00
