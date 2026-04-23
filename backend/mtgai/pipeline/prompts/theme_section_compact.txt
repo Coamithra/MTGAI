@@ -1,0 +1,13 @@
+You are compacting the "{section_name}" section of a worldbuilding extraction.
+
+Below are the entries collected so far. Compact them: keep all distinct entries, but tighten language, merge near-duplicate entries, and drop minor flavor text. Preserve every distinct named entity (creatures, characters, factions, places, etc.) - those MUST survive into the compacted output.
+
+Target length: roughly {target_tokens} tokens (about half the current size).
+
+CURRENT ENTRIES:
+
+{accumulated}
+
+---
+
+Now write the compacted version. Output entries only, no preamble or explanation:

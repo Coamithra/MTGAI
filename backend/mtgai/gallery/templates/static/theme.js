@@ -9,7 +9,6 @@
 // ---------------------------------------------------------------------------
 
 let _uploadId = null;
-let _extractionModels = [];
 let _currentAnalysis = null;
 let _uploadData = null;
 
@@ -18,9 +17,6 @@ let _uploadData = null;
 // ---------------------------------------------------------------------------
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Always load model list (needed for refresh buttons)
-  loadExtractionModels();
-
   if (EXISTING_THEME) {
     populateFromTheme(EXISTING_THEME);
   } else {
@@ -208,6 +204,7 @@ async function saveTheme() {
       showToast('Error: ' + (result.error || 'Unknown'), 'error');
     }
   } catch (err) {
+    console.error('[theme.js] Network error:', err);
     showToast('Network error: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
@@ -238,6 +235,7 @@ async function loadExisting() {
       showToast(data.error || `No theme found for ${code}`, 'error');
     }
   } catch (err) {
+    console.error('[theme.js] Network error:', err);
     showToast('Network error: ' + err.message, 'error');
   }
 }
@@ -275,55 +273,15 @@ async function uploadFile() {
     _uploadId = data.upload_id;
     _uploadData = data;
 
-    // Load model list and show panel
-    await loadExtractionModels();
-    showExtractionPanel(data);
+    document.getElementById('extract-panel').classList.add('visible');
     await analyzeExtraction();
 
   } catch (err) {
+    console.error('[theme.js] Network error:', err);
     showToast('Network error: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Analyze File';
-  }
-}
-
-async function loadExtractionModels() {
-  const resp = await fetch('/api/pipeline/theme/models');
-  const data = await resp.json();
-  _extractionModels = data.models;
-
-  const select = document.getElementById('extract-model');
-  select.innerHTML = _extractionModels.map(m => {
-    const price = m.input_price > 0
-      ? `$${m.input_price.toFixed(2)}/$${m.output_price.toFixed(2)}`
-      : 'Free';
-    const vision = m.supports_vision ? ' [vision]' : '';
-    return `<option value="${escapeAttr(m.key)}">${escapeHtml(m.name)}${vision} &mdash; ${price}</option>`;
-  }).join('');
-
-  // Default to whatever is configured in settings for theme_extract
-  const defaultKey = data.default_key || 'haiku';
-  if (select.querySelector(`option[value="${defaultKey}"]`)) {
-    select.value = defaultKey;
-  }
-}
-
-function showExtractionPanel(uploadData) {
-  document.getElementById('extract-panel').classList.add('visible');
-
-  // Enable/disable images checkbox based on image count
-  const imgGroup = document.getElementById('images-checkbox-group');
-  const imgCheckbox = document.getElementById('include-images');
-  if (uploadData.image_count === 0) {
-    imgCheckbox.disabled = true;
-    imgCheckbox.checked = false;
-    imgGroup.style.opacity = '0.5';
-    imgGroup.title = 'No images found in document';
-  } else {
-    imgCheckbox.disabled = false;
-    imgGroup.style.opacity = '1';
-    imgGroup.title = `${uploadData.image_count} image${uploadData.image_count !== 1 ? 's' : ''} found`;
   }
 }
 
@@ -332,10 +290,6 @@ function showExtractionPanel(uploadData) {
 // ---------------------------------------------------------------------------
 
 async function analyzeExtraction() {
-  const modelKey = document.getElementById('extract-model').value;
-  const includeImages = document.getElementById('include-images').checked;
-
-  // Show loading state in stats
   document.getElementById('stat-tokens').textContent = '...';
   document.getElementById('stat-cost').textContent = '...';
 
@@ -343,11 +297,7 @@ async function analyzeExtraction() {
     const resp = await fetch('/api/pipeline/theme/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        upload_id: _uploadId,
-        model_key: modelKey,
-        include_images: includeImages,
-      }),
+      body: JSON.stringify({ upload_id: _uploadId }),
     });
     const data = await resp.json();
     if (data.error) {
@@ -357,7 +307,6 @@ async function analyzeExtraction() {
 
     _currentAnalysis = data;
 
-    // Update stats display
     document.getElementById('stat-tokens').textContent = data.token_count.toLocaleString();
     document.getElementById('stat-tokens').className =
       'value ' + (data.fits_in_context ? 'ok' : 'warning');
@@ -374,42 +323,33 @@ async function analyzeExtraction() {
         ? '$' + data.estimated_cost_usd.toFixed(4)
         : 'Free';
 
-    // Chunk warning
     document.getElementById('chunk-warning').style.display =
       data.chunk_count > 1 ? 'block' : 'none';
 
-    // Update images checkbox based on model vision support
-    const imgCheckbox = document.getElementById('include-images');
-    const imgGroup = document.getElementById('images-checkbox-group');
-    if (!data.supports_vision) {
-      imgCheckbox.disabled = true;
-      imgCheckbox.checked = false;
-      imgGroup.title = 'Selected model does not support vision';
-      imgGroup.style.opacity = '0.5';
-    } else if (_uploadData && _uploadData.image_count > 0) {
-      imgCheckbox.disabled = false;
-      imgGroup.style.opacity = '1';
-      imgGroup.title = `${_uploadData.image_count} image${_uploadData.image_count !== 1 ? 's' : ''} found`;
-    }
-
   } catch (err) {
+    console.error('[theme.js] Analysis failed:', err);
     showToast('Analysis failed: ' + err.message, 'error');
   }
 }
 
-function onExtractModelChange() {
-  analyzeExtraction();
-}
-
-function onIncludeImagesChange() {
-  analyzeExtraction();
-}
-
-function cancelExtraction() {
+function dismissExtractionPanel() {
   document.getElementById('extract-panel').classList.remove('visible');
   _uploadId = null;
   _currentAnalysis = null;
   _uploadData = null;
+}
+
+async function cancelRunningExtraction() {
+  const btn = document.getElementById('cancel-extract-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Cancelling...';
+  }
+  try {
+    await fetch('/api/pipeline/theme/cancel', { method: 'POST' });
+  } catch (err) {
+    console.error('[theme.js] Cancel failed:', err);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -417,31 +357,38 @@ function cancelExtraction() {
 // ---------------------------------------------------------------------------
 
 async function runExtraction() {
-  const modelKey = document.getElementById('extract-model').value;
-  const includeImages = document.getElementById('include-images').checked;
-
-  // Hide panel, show progress
   document.getElementById('extract-panel').classList.remove('visible');
   document.getElementById('extract-progress').classList.add('visible');
 
   const progressBar = document.getElementById('progress-bar');
   const progressStatus = document.getElementById('progress-status');
+  const cancelBtn = document.getElementById('cancel-extract-btn');
   const textarea = document.getElementById('setting');
 
   textarea.value = '';
   progressBar.style.width = '10%';
   progressStatus.textContent = 'Starting extraction...';
+  clearExtractionError('constraints-list');
+  clearExtractionError('card-requests-list');
 
   const extractBtn = document.getElementById('run-extract-btn');
   extractBtn.disabled = true;
+  if (cancelBtn) {
+    cancelBtn.disabled = false;
+    cancelBtn.textContent = 'Cancel Extraction';
+  }
+
+  const state = { gotDone: false, gotError: false, gotCancelled: false };
 
   try {
-    const params = new URLSearchParams({
-      upload_id: _uploadId,
-      model_key: modelKey,
-      include_images: includeImages,
-    });
+    const params = new URLSearchParams({ upload_id: _uploadId });
     const response = await fetch(`/api/pipeline/theme/extract-stream?${params}`);
+    if (!response.ok) {
+      if (response.status === 409) {
+        throw new Error('Another extraction is already running');
+      }
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
 
@@ -453,9 +400,8 @@ async function runExtraction() {
 
       buffer += decoder.decode(value, { stream: true });
 
-      // Parse SSE events from buffer
       const parts = buffer.split('\n\n');
-      buffer = parts.pop(); // keep incomplete event in buffer
+      buffer = parts.pop();
 
       for (const part of parts) {
         if (!part.trim()) continue;
@@ -474,21 +420,42 @@ async function runExtraction() {
         }
 
         if (eventType && eventData) {
-          handleExtractionEvent(eventType, eventData, textarea, progressBar, progressStatus);
+          handleExtractionEvent(eventType, eventData, textarea, progressBar, progressStatus, state);
         }
       }
     }
+
+    if (!state.gotDone && !state.gotError && !state.gotCancelled) {
+      progressStatus.textContent = 'Extraction aborted before completion';
+      showToast('Extraction aborted before completion - see server logs', 'error');
+      const settingText = textarea.value.trim();
+      if (settingText) {
+        showExtractionError('constraints-list',
+          'Extraction stream ended before constraints were produced.',
+          '',
+          { label: 'Retry constraints', fn: refreshConstraints });
+        showExtractionError('card-requests-list',
+          'Extraction stream ended before card suggestions were produced.',
+          '',
+          { label: 'Retry card requests', fn: refreshCardRequests });
+      }
+    }
   } catch (err) {
+    progressStatus.textContent = 'Extraction failed: ' + err.message;
+    console.error('[theme.js] Extraction failed:', err);
     showToast('Extraction failed: ' + err.message, 'error');
   } finally {
-    document.getElementById('extract-progress').classList.remove('visible');
     extractBtn.disabled = false;
+    if (cancelBtn) cancelBtn.disabled = true;
     _uploadId = null;
     _uploadData = null;
+    if (state.gotDone) {
+      document.getElementById('extract-progress').classList.remove('visible');
+    }
   }
 }
 
-function handleExtractionEvent(type, data, textarea, progressBar, progressStatus) {
+function handleExtractionEvent(type, data, textarea, progressBar, progressStatus, state) {
   switch (type) {
     case 'status':
       progressStatus.textContent = data.message;
@@ -522,13 +489,23 @@ function handleExtractionEvent(type, data, textarea, progressBar, progressStatus
       break;
 
     case 'constraints':
+      clearExtractionError('constraints-list');
       if (data.constraints) {
         data.constraints.forEach(c => addConstraint(c, true));
         document.getElementById('refresh-constraints').style.display = 'inline-block';
       }
       break;
 
+    case 'constraints_error':
+      progressStatus.textContent = 'Constraints extraction failed - see section below';
+      showExtractionError('constraints-list', data.message || 'Constraints extraction failed', data.raw || '',
+        { label: 'Retry', fn: refreshConstraints });
+      document.getElementById('refresh-constraints').style.display = 'inline-block';
+      showToast('Constraints extraction failed', 'error');
+      break;
+
     case 'card_suggestions':
+      clearExtractionError('card-requests-list');
       if (data.suggestions) {
         data.suggestions.forEach(s => {
           const desc = `${s.name}: ${s.description}`;
@@ -538,15 +515,82 @@ function handleExtractionEvent(type, data, textarea, progressBar, progressStatus
       }
       break;
 
+    case 'suggestions_error':
+      progressStatus.textContent = 'Card-suggestion extraction failed - see section below';
+      showExtractionError('card-requests-list', data.message || 'Card suggestions extraction failed', data.raw || '',
+        { label: 'Retry', fn: refreshCardRequests });
+      document.getElementById('refresh-card-requests').style.display = 'inline-block';
+      showToast('Card suggestions failed', 'error');
+      break;
+
     case 'done':
+      if (state) state.gotDone = true;
       progressBar.style.width = '100%';
-      showToast(`Extraction complete — $${data.total_cost_usd.toFixed(4)}`, 'success');
+      progressStatus.textContent = `Extraction complete ($${data.total_cost_usd.toFixed(4)})`;
+      showToast(`Extraction complete - $${data.total_cost_usd.toFixed(4)}`, 'success');
       break;
 
     case 'error':
+      if (state) state.gotError = true;
+      progressStatus.textContent = 'Error: ' + (data.message || 'unknown error');
+      if (data.log_path) {
+        progressStatus.textContent += ' - log: ' + data.log_path;
+      }
       showToast('Error: ' + data.message, 'error');
       break;
+
+    case 'cancelled':
+      if (state) state.gotCancelled = true;
+      progressStatus.textContent = 'Extraction cancelled';
+      showToast('Extraction cancelled', 'success');
+      break;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Inline error banner helpers
+// ---------------------------------------------------------------------------
+
+function showExtractionError(listId, message, raw, retry) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  clearExtractionError(listId);
+  const banner = document.createElement('div');
+  banner.className = 'extraction-error';
+  banner.dataset.errorFor = listId;
+
+  const title = document.createElement('div');
+  title.className = 'err-title';
+  title.textContent = 'Extraction error';
+  banner.appendChild(title);
+
+  const msg = document.createElement('div');
+  msg.textContent = message;
+  banner.appendChild(msg);
+
+  if (raw) {
+    const rawBox = document.createElement('div');
+    rawBox.className = 'err-raw';
+    rawBox.textContent = raw.length > 1200 ? raw.slice(0, 1200) + '\n...[truncated]' : raw;
+    banner.appendChild(rawBox);
+  }
+
+  if (retry && typeof retry.fn === 'function') {
+    const actions = document.createElement('div');
+    actions.className = 'err-actions';
+    const btn = document.createElement('button');
+    btn.textContent = retry.label || 'Retry';
+    btn.addEventListener('click', () => retry.fn());
+    actions.appendChild(btn);
+    banner.appendChild(actions);
+  }
+
+  list.parentNode.insertBefore(banner, list);
+}
+
+function clearExtractionError(listId) {
+  const existing = document.querySelector(`.extraction-error[data-error-for="${listId}"]`);
+  if (existing) existing.remove();
 }
 
 // ---------------------------------------------------------------------------
@@ -568,27 +612,38 @@ async function refreshConstraints() {
     return;
   }
 
-  const modelKey = document.getElementById('extract-model')?.value || 'haiku';
   const btn = document.getElementById('refresh-constraints');
   btn.disabled = true;
   btn.textContent = 'Refreshing...';
 
+  clearExtractionError('constraints-list');
   try {
     const resp = await fetch('/api/pipeline/theme/extract-constraints', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme_text: settingText, model_key: modelKey }),
+      body: JSON.stringify({ theme_text: settingText }),
     });
     const data = await resp.json();
     if (data.error) {
+      showExtractionError('constraints-list', data.error, '',
+        { label: 'Retry', fn: refreshConstraints });
       showToast('Refresh error: ' + data.error, 'error');
+      return;
+    }
+    if (data.constraints_error) {
+      showExtractionError('constraints-list', data.constraints_error, data.constraints_raw || '',
+        { label: 'Retry', fn: refreshConstraints });
+      showToast('Constraints extraction failed', 'error');
       return;
     }
     if (data.constraints) {
       data.constraints.forEach(c => addConstraint(c, true));
     }
-    showToast(`Constraints refreshed ($${data.cost_usd.toFixed(4)})`, 'success');
+    showToast(`Constraints refreshed ($${(data.cost_usd || 0).toFixed(4)})`, 'success');
   } catch (err) {
+    showExtractionError('constraints-list', err.message, '',
+      { label: 'Retry', fn: refreshConstraints });
+    console.error('[theme.js] Refresh failed:', err);
     showToast('Refresh failed: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
@@ -611,20 +666,28 @@ async function refreshCardRequests() {
     return;
   }
 
-  const modelKey = document.getElementById('extract-model')?.value || 'haiku';
   const btn = document.getElementById('refresh-card-requests');
   btn.disabled = true;
   btn.textContent = 'Refreshing...';
 
+  clearExtractionError('card-requests-list');
   try {
     const resp = await fetch('/api/pipeline/theme/extract-constraints', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme_text: settingText, model_key: modelKey }),
+      body: JSON.stringify({ theme_text: settingText }),
     });
     const data = await resp.json();
     if (data.error) {
+      showExtractionError('card-requests-list', data.error, '',
+        { label: 'Retry', fn: refreshCardRequests });
       showToast('Refresh error: ' + data.error, 'error');
+      return;
+    }
+    if (data.suggestions_error) {
+      showExtractionError('card-requests-list', data.suggestions_error, data.suggestions_raw || '',
+        { label: 'Retry', fn: refreshCardRequests });
+      showToast('Card suggestions extraction failed', 'error');
       return;
     }
     if (data.card_suggestions) {
@@ -633,8 +696,11 @@ async function refreshCardRequests() {
         addCardRequest(desc, true);
       });
     }
-    showToast(`Card suggestions refreshed ($${data.cost_usd.toFixed(4)})`, 'success');
+    showToast(`Card suggestions refreshed ($${(data.cost_usd || 0).toFixed(4)})`, 'success');
   } catch (err) {
+    showExtractionError('card-requests-list', err.message, '',
+      { label: 'Retry', fn: refreshCardRequests });
+    console.error('[theme.js] Refresh failed:', err);
     showToast('Refresh failed: ' + err.message, 'error');
   } finally {
     btn.disabled = false;

@@ -136,6 +136,51 @@
     flex-direction: column;
     gap: 0.5rem;
   }
+  .extraction-error {
+    margin-bottom: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: rgba(233, 69, 96, 0.08);
+    border: 1px solid var(--accent, #e94560);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: #ffbac4;
+  }
+  .extraction-error .err-title {
+    font-weight: 600;
+    color: var(--accent, #e94560);
+    margin-bottom: 0.35rem;
+  }
+  .extraction-error .err-raw {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 4px;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 0.75rem;
+    max-height: 8rem;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #d0a0a8;
+  }
+  .extraction-error .err-actions {
+    margin-top: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+  }
+  .extraction-error button {
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--accent, #e94560);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--accent, #e94560);
+    cursor: pointer;
+    font-size: 0.8rem;
+  }
+  .extraction-error button:hover {
+    background: var(--accent, #e94560);
+    color: #fff;
+  }
   .list-item {
     display: flex;
     gap: 0.5rem;
@@ -314,15 +359,13 @@
     flex-wrap: wrap;
     margin-bottom: 1rem;
   }
-  .extract-panel .model-select {
-    max-width: 320px;
-    padding: 0.4rem 0.6rem;
-    background: var(--bg-secondary, #16213e);
-    border: 1px solid #333;
-    border-radius: 6px;
-    color: #e0e0e0;
-    font-size: 0.85rem;
+  .extract-model-hint {
+    font-size: 0.8rem;
+    color: #888;
+    margin-left: auto;
   }
+  .extract-model-hint a { color: #4a9eff; text-decoration: none; }
+  .extract-model-hint a:hover { text-decoration: underline; }
   .checkbox-group {
     display: flex;
     align-items: center;
@@ -496,18 +539,15 @@
         Document exceeds context window. It will be processed in multiple chunks — quality may be reduced.
       </div>
       <div class="extract-controls">
-        <select class="model-select" id="extract-model" onchange="onExtractModelChange()">
-        </select>
-        <label class="checkbox-group" id="images-checkbox-group" style="opacity:0.5" title="No file analyzed yet">
-          <input type="checkbox" id="include-images" onchange="onIncludeImagesChange()" disabled>
-          Include images
-        </label>
+        <span class="extract-model-hint" id="extract-model-hint">
+          Model: <a href="/settings">configured in settings</a>
+        </span>
       </div>
       <div class="extract-actions">
         <button class="btn-primary" id="run-extract-btn" onclick="runExtraction()" style="padding:0.5rem 1.5rem; font-size:0.9rem;">
           Extract Theme
         </button>
-        <button class="btn" onclick="cancelExtraction()">Cancel</button>
+        <button class="btn" onclick="dismissExtractionPanel()">Dismiss</button>
       </div>
     </div>
 
@@ -516,7 +556,12 @@
       <div class="progress-bar-outer">
         <div class="progress-bar-inner" id="progress-bar"></div>
       </div>
-      <div class="progress-status" id="progress-status">Preparing...</div>
+      <div class="progress-row" style="display:flex; align-items:center; gap:0.75rem; justify-content:space-between;">
+        <div class="progress-status" id="progress-status">Preparing...</div>
+        <button class="btn" id="cancel-extract-btn" onclick="cancelRunningExtraction()" style="padding:0.3rem 0.75rem; font-size:0.8rem;">
+          Cancel Extraction
+        </button>
+      </div>
     </div>
 
     <div class="form-group">

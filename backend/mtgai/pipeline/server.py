@@ -131,27 +131,50 @@ async def load_theme(set_code: str):
     return JSONResponse({"theme": theme})
 
 
-# In-memory cache for uploaded file content (cleared after extraction or timeout)
+# In-memory cache for uploaded file content. Entries are evicted by TTL or
+# when their extraction completes.
+_UPLOAD_TTL_SECONDS = 30 * 60  # 30 minutes
 _upload_cache: dict[str, dict[str, Any]] = {}
+
+
+def _evict_stale_uploads() -> None:
+    """Drop upload-cache entries older than _UPLOAD_TTL_SECONDS."""
+    import time as _time
+
+    now = _time.monotonic()
+    stale = [
+        uid
+        for uid, entry in _upload_cache.items()
+        if now - entry.get("created_at", now) > _UPLOAD_TTL_SECONDS
+    ]
+    for uid in stale:
+        _upload_cache.pop(uid, None)
+    if stale:
+        logger.info("Evicted %d stale upload(s) from cache", len(stale))
 
 
 @api_router.post("/theme/upload")
 async def upload_for_extraction(request: Request):
-    """Upload a file and extract its text + images (no LLM call yet)."""
+    """Upload a file and extract its text (no LLM call yet)."""
+    import time as _time
     import uuid
+
+    from starlette.datastructures import UploadFile
+
+    _evict_stale_uploads()
 
     form = await request.form()
     file = form.get("file")
-    if file is None or not hasattr(file, "read"):
+    if not isinstance(file, UploadFile):
         return JSONResponse({"error": "No file uploaded"}, status_code=400)
 
-    filename = getattr(file, "filename", "unknown.txt")
+    filename = file.filename or "unknown.txt"
     file_bytes = await file.read()
 
     from mtgai.pipeline.theme_extractor import extract_file_content
 
     try:
-        text, images = await asyncio.to_thread(extract_file_content, file_bytes, filename)
+        text = await asyncio.to_thread(extract_file_content, file_bytes, filename)
     except Exception as e:
         logger.error("File extraction failed: %s", e, exc_info=True)
         return JSONResponse({"error": f"Failed to read file: {e}"}, status_code=400)
@@ -162,8 +185,8 @@ async def upload_for_extraction(request: Request):
     upload_id = uuid.uuid4().hex[:8]
     _upload_cache[upload_id] = {
         "text": text,
-        "images": images,
         "filename": filename,
+        "created_at": _time.monotonic(),
     }
 
     return JSONResponse(
@@ -171,10 +194,16 @@ async def upload_for_extraction(request: Request):
             "upload_id": upload_id,
             "filename": filename,
             "char_count": len(text),
-            "image_count": len(images),
             "preview": text[:500],
         }
     )
+
+
+def _theme_extract_model_key() -> str:
+    """Look up the configured model key for the theme_extract stage."""
+    from mtgai.settings.model_settings import get_settings
+
+    return get_settings().llm_assignments.get("theme_extract", "haiku")
 
 
 @api_router.post("/theme/analyze")
@@ -182,8 +211,7 @@ async def analyze_extraction_endpoint(request: Request):
     """Analyze uploaded content: count tokens, estimate cost."""
     body = await request.json()
     upload_id = body.get("upload_id", "")
-    model_key = body.get("model_key", "haiku")
-    include_images = body.get("include_images", False)
+    model_key = body.get("model_key") or _theme_extract_model_key()
 
     cached = _upload_cache.get(upload_id)
     if not cached:
@@ -195,9 +223,7 @@ async def analyze_extraction_endpoint(request: Request):
         plan = await asyncio.to_thread(
             analyze_extraction,
             cached["text"],
-            len(cached["images"]),
             model_key,
-            include_images,
         )
     except Exception as e:
         logger.error("Extraction analysis failed: %s", e, exc_info=True)
@@ -212,45 +238,43 @@ async def analyze_extraction_endpoint(request: Request):
             "estimated_cost_usd": round(plan.estimated_cost_usd, 4),
             "model_key": plan.model_key,
             "model_name": plan.model_name,
-            "supports_vision": plan.supports_vision,
         }
     )
 
 
-@api_router.get("/theme/models")
-async def list_extraction_models():
-    """List available LLM models for theme extraction."""
-    from mtgai.settings.model_registry import get_registry
-    from mtgai.settings.model_settings import get_settings
+@api_router.post("/theme/cancel")
+async def cancel_theme_extraction():
+    """Signal the active extraction to abort. No-op if nothing is running."""
+    from mtgai.pipeline.theme_extractor import is_running, request_cancel
 
-    registry = get_registry()
-    settings = get_settings()
-    # Get the configured model key for theme_extract stage
-    default_key = settings.llm_assignments.get("theme_extract", "haiku")
-    models = []
-    for m in registry.list_llm():
-        models.append(
-            {
-                "key": m.key,
-                "name": m.name,
-                "provider": m.provider,
-                "input_price": m.input_price,
-                "output_price": m.output_price,
-                "supports_vision": m.supports_vision,
-                "context_window": m.context_window,
-            }
-        )
-    return JSONResponse({"models": models, "default_key": default_key})
+    was_running = is_running()
+    request_cancel()
+    return JSONResponse({"was_running": was_running})
+
+
+@api_router.get("/theme/status")
+async def theme_extraction_status():
+    """Report whether an extraction is currently running."""
+    from mtgai.pipeline.theme_extractor import get_current_log_path, is_running
+
+    log_path = get_current_log_path()
+    return JSONResponse(
+        {
+            "running": is_running(),
+            "log_path": str(log_path) if log_path else None,
+        }
+    )
 
 
 @api_router.get("/theme/extract-stream")
 async def extract_theme_stream(
     request: Request,
     upload_id: str,
-    model_key: str = "haiku",
-    include_images: bool = False,
+    model_key: str | None = None,
 ):
     """SSE endpoint: stream theme extraction from uploaded document."""
+    if not model_key:
+        model_key = _theme_extract_model_key()
     cached = _upload_cache.get(upload_id)
     if not cached:
         return JSONResponse({"error": "Upload expired"}, status_code=404)
@@ -258,7 +282,18 @@ async def extract_theme_stream(
     import queue
     import threading
 
-    from mtgai.pipeline.theme_extractor import extract_constraints, stream_theme_extraction
+    from mtgai.pipeline.theme_extractor import (
+        is_running,
+        request_cancel,
+        stream_constraints_extraction,
+        stream_theme_extraction,
+    )
+
+    if is_running():
+        return JSONResponse(
+            {"error": "Another extraction is already running"},
+            status_code=409,
+        )
 
     def _sse(event_type: str, data: dict) -> str:
         return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
@@ -268,17 +303,50 @@ async def extract_theme_stream(
         theme_parts: list[str] = []
 
         def run_extraction():
+            theme_cost = 0.0
             try:
-                for event in stream_theme_extraction(
-                    cached["text"],
-                    model_key,
-                    include_images=include_images,
-                    images=cached["images"] if include_images else None,
-                ):
-                    if event.get("type") == "theme_chunk":
+                # Step 1: theme extraction
+                for event in stream_theme_extraction(cached["text"], model_key):
+                    etype = event.get("type")
+                    if etype == "theme_chunk":
                         theme_parts.append(event["text"])
+                    elif etype == "complete":
+                        theme_cost = event.get("cost_usd", 0.0)
+                    q.put(event)
+                    if etype in ("error", "cancelled"):
+                        return
+
+                # Step 2: constraints + card suggestions (streamed so each
+                # appears in the UI the moment its subcall returns - the
+                # batch version blocks both events behind the slower of the
+                # two LLM calls).
+                full_theme = "".join(theme_parts)
+                if not full_theme.strip():
+                    return
+                q.put({
+                    "type": "status",
+                    "message": "Extracting constraints and card suggestions...",
+                })
+                for event in stream_constraints_extraction(full_theme, model_key):
+                    etype = event.get("type")
+                    if etype == "card_suggestions":
+                        event["suggestions"] = [
+                            {
+                                "name": s.get("name", ""),
+                                "description": s.get("description", ""),
+                            }
+                            for s in event.get("suggestions", [])
+                        ]
+                    if etype == "done":
+                        total_cost = theme_cost + event.get("cost_usd", 0.0)
+                        q.put({
+                            "type": "done",
+                            "total_cost_usd": round(total_cost, 4),
+                        })
+                        continue
                     q.put(event)
             except Exception as e:
+                logger.error("Theme extraction stream failed: %s", e, exc_info=True)
                 q.put({"type": "error", "message": str(e)})
             finally:
                 q.put(None)  # sentinel
@@ -286,10 +354,12 @@ async def extract_theme_stream(
         thread = threading.Thread(target=run_extraction, daemon=True)
         thread.start()
 
-        theme_cost = 0.0
         try:
             while True:
                 if await request.is_disconnected():
+                    # Browser closed / refreshed mid-stream. Tell the worker
+                    # to abort so it releases the run lock.
+                    request_cancel()
                     break
                 try:
                     event = await asyncio.to_thread(q.get, timeout=30.0)
@@ -302,57 +372,7 @@ async def extract_theme_stream(
 
                 yield _sse(event["type"], event)
 
-                # After theme complete, run constraints pass
-                if event["type"] == "complete":
-                    theme_cost = event.get("cost_usd", 0)
-                    full_theme = "".join(theme_parts)
-
-                    msg = "Extracting constraints and card suggestions..."
-                    yield _sse("status", {"type": "status", "message": msg})
-
-                    try:
-                        cr = await asyncio.to_thread(extract_constraints, full_theme, model_key)
-                        yield _sse(
-                            "constraints",
-                            {
-                                "type": "constraints",
-                                "constraints": cr.constraints,
-                            },
-                        )
-                        suggestions = [
-                            {"name": s.get("name", ""), "description": s.get("description", "")}
-                            for s in cr.card_suggestions
-                        ]
-                        yield _sse(
-                            "card_suggestions",
-                            {
-                                "type": "card_suggestions",
-                                "suggestions": suggestions,
-                            },
-                        )
-                        total_cost = theme_cost + cr.cost_usd
-                        yield _sse(
-                            "done",
-                            {
-                                "type": "done",
-                                "total_cost_usd": round(total_cost, 4),
-                            },
-                        )
-                    except Exception as e:
-                        logger.error(
-                            "Constraints extraction failed: %s",
-                            e,
-                            exc_info=True,
-                        )
-                        yield _sse(
-                            "error",
-                            {
-                                "type": "error",
-                                "message": str(e),
-                            },
-                        )
-
-                elif event["type"] == "error":
+                if event["type"] in ("error", "cancelled"):
                     break
         finally:
             _upload_cache.pop(upload_id, None)
@@ -373,7 +393,7 @@ async def extract_constraints_endpoint(request: Request):
     """Extract constraints + card suggestions from theme text (for refresh)."""
     body = await request.json()
     theme_text = body.get("theme_text", "")
-    model_key = body.get("model_key", "haiku")
+    model_key = body.get("model_key") or _theme_extract_model_key()
 
     if not theme_text.strip():
         return JSONResponse({"error": "No theme text provided"}, status_code=400)
@@ -387,6 +407,10 @@ async def extract_constraints_endpoint(request: Request):
                 "constraints": result.constraints,
                 "card_suggestions": result.card_suggestions,
                 "cost_usd": round(result.cost_usd, 4),
+                "constraints_error": result.constraints_error,
+                "constraints_raw": result.constraints_raw,
+                "suggestions_error": result.suggestions_error,
+                "suggestions_raw": result.suggestions_raw,
             }
         )
     except Exception as e:
