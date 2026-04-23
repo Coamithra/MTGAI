@@ -55,6 +55,39 @@ _JSON_SUBCALL_MAX_TOKENS = 4096
 _COMPACT_AT_FRACTION = 0.40
 
 
+# The section system prompt asks for exactly "No information found." but local
+# models emit many near-misses ("no relevant information", "I found no
+# information in this portion.", "nothing to report", etc.). We treat ANY
+# short response (<= 200 chars, after stripping markdown fencing) that
+# matches a "no info" semantic marker as empty. Long outputs are always
+# treated as real content even if they start with "No information
+# found..." because that pattern appears legitimately in narrative writing.
+_NO_INFO_RE = re.compile(
+    r"("
+    r"no\s+(?:relevant\s+|new\s+|further\s+|additional\s+|other\s+|"
+    r"specific\s+|explicit\s+)?information"
+    r"|nothing\s+(?:to\s+)?(?:report|extract|note|add|found|mentioned)"
+    r"|(?:did\s*n'?t|could\s*n'?t|cannot|can'?t|unable\s+to)\s+find"
+    r"|no\s+(?:entries|matches|details|mentions)\s+found"
+    r"|not\s+(?:enough|any|mentioned)"
+    r"|none\s+(?:found|mentioned|present)"
+    r"|n/?a\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_no_info(text: str) -> bool:
+    """True if the model effectively said "nothing to extract here"."""
+    if not text:
+        return True
+    # Strip common markdown / fencing noise before matching.
+    stripped = text.strip("` \n\r\t*_#")
+    if len(stripped) > 200:
+        return False
+    return bool(_NO_INFO_RE.search(stripped))
+
+
 # =============================================================================
 # Cancellation + run lock (single extraction at a time)
 # =============================================================================
@@ -118,6 +151,8 @@ class _RunStats:
     aborted_reason: str | None = None
 
 
+# Module-global: safe because `_run_lock` enforces a single active run. Tests
+# or ad-hoc scripts that bypass the lock MUST NOT touch this concurrently.
 _run_stats: _RunStats | None = None
 
 
@@ -170,7 +205,18 @@ def _truncate_user_prompt(user_prompt: str) -> str:
     )
 
 
-def _log_call_start(step: str, system_prompt: str, user_prompt: str) -> None:
+def _log_call_start(
+    step: str,
+    system_prompt: str,
+    user_prompt: str,
+    extras: dict[str, str] | None = None,
+) -> None:
+    """Open a new call section in the conversation log.
+
+    ``extras`` lets the caller dump critical mid-prompt state verbatim
+    (e.g. accumulated section text, chunk text) as separate fenced blocks,
+    so debugging doesn't depend on what survives :func:`_truncate_user_prompt`.
+    """
     global _log_handle
     if _conversation_log is None:
         return
@@ -187,6 +233,11 @@ def _log_call_start(step: str, system_prompt: str, user_prompt: str) -> None:
     _log_handle.write(
         f"### User Prompt\n\n```\n{_truncate_user_prompt(user_prompt)}\n```\n\n"
     )
+    if extras:
+        for label, value in extras.items():
+            if value is None:
+                continue
+            _log_handle.write(f"### {label}\n\n```\n{value}\n```\n\n")
     _log_handle.write("### Response\n\n")
     _log_handle.flush()
 
@@ -223,6 +274,41 @@ def _log_marker(text: str) -> None:
     ts = datetime.datetime.now().strftime("%H:%M:%S")
     with open(_conversation_log, "a", encoding="utf-8") as f:
         f.write(f"_[{ts}] {text}_\n\n")
+
+
+def _write_plan_header(
+    *,
+    model_key: str,
+    model_info: Any,
+    text: str,
+    token_count: int,
+    available: int,
+    fits: bool,
+    est_chunks: int,
+) -> None:
+    """Dump the pre-extraction plan into the log so post-mortems don't need
+    to reconstruct what we thought was going to happen."""
+    if _conversation_log is None:
+        return
+    with open(_conversation_log, "a", encoding="utf-8") as f:
+        f.write("## Extraction Plan\n\n")
+        f.write(f"- Model key: `{model_key}`\n")
+        f.write(f"- Model id: `{model_info.model_id}`\n")
+        f.write(f"- Provider: `{model_info.provider}`\n")
+        f.write(f"- Context window: {model_info.context_window:,}\n")
+        f.write(f"- Output budget: {_OUTPUT_BUDGET:,}\n")
+        f.write(f"- Available budget: {available:,}\n")
+        f.write(f"- Input length: {len(text):,} chars\n")
+        f.write(f"- Estimated input tokens: {token_count:,}\n")
+        f.write(f"- Fits single pass: {'yes' if fits else 'no'}\n")
+        if not fits:
+            f.write(f"- Planned chunks: {est_chunks}\n")
+            f.write(f"- Sections: {len(_SECTIONS)}\n")
+            f.write(
+                f"- Planned section x chunk calls: "
+                f"{len(_SECTIONS) * est_chunks}\n"
+            )
+        f.write("\n")
 
 
 def _write_summary_footer() -> None:
@@ -407,7 +493,17 @@ def _count_tokens_anthropic(text: str, system_prompt: str, model_id: str) -> int
     from anthropic import Anthropic
 
     client = Anthropic()
-    user_content = f"Extract theme from:\n\n{text}"
+    # Use the actual single-pass user template so the count matches what we
+    # would really send. For multi-chunk runs this is only a planning
+    # estimate anyway, but keeping the string honest avoids a subtle drift
+    # between "planned" tokens and "actually sent" tokens.
+    try:
+        single_template = (_PROMPTS_DIR / "theme_chunk_single.txt").read_text(
+            encoding="utf-8"
+        )
+        user_content = single_template.format(text=text)
+    except Exception:
+        user_content = text
     try:
         result = client.messages.count_tokens(
             model=model_id,
@@ -417,7 +513,7 @@ def _count_tokens_anthropic(text: str, system_prompt: str, model_id: str) -> int
         return result.input_tokens
     except Exception as e:
         logger.warning("count_tokens API failed, using heuristic: %s", e)
-        return (len(system_prompt) + len(text)) // 4
+        return (len(system_prompt) + len(user_content)) // 4
 
 
 def _count_tokens_tiktoken(text: str) -> int:
@@ -517,7 +613,9 @@ def _split_oversized_paragraph(para: str, max_tokens: int) -> list[str]:
             if current:
                 chunks.append(" ".join(current))
                 current, current_tokens = [], 0
-            char_budget = max_tokens * 3  # conservative ~3 chars/token
+            # Conservative chars/token. tiktoken underestimates Gemma/Qwen
+            # by 10-30%, so 3x would overshoot; 2.5x leaves headroom.
+            char_budget = int(max_tokens * 2.5)
             for i in range(0, len(sent), char_budget):
                 chunks.append(sent[i : i + char_budget])
             continue
@@ -635,7 +733,22 @@ def stream_theme_extraction(
                 model_info.context_window,
             )
 
-            if token_count <= available:
+            fits = token_count <= available
+            chunk_budget = model_info.context_window // 2
+            est_chunks = (
+                1 if fits else max(1, math.ceil(token_count / max(chunk_budget, 1)))
+            )
+            _write_plan_header(
+                model_key=model_key,
+                model_info=model_info,
+                text=text,
+                token_count=token_count,
+                available=available,
+                fits=fits,
+                est_chunks=est_chunks,
+            )
+
+            if fits:
                 yield from _run_single_pass(text, system_prompt, model_info)
             else:
                 yield from _run_multi_chunk(text, model_info)
@@ -664,9 +777,75 @@ def _run_single_pass(
     yield {"type": "status", "message": "Generating theme..."}
     template = (_PROMPTS_DIR / "theme_chunk_single.txt").read_text(encoding="utf-8")
     user_msg = template.format(text=text)
-    yield from _stream_single_call(
-        user_msg, system_prompt, model_info, stream_to_ui=True
-    )
+
+    # Intercept the stream so we can post-check structural completeness:
+    # the single-pass path trusts the LLM to emit all 7 section headers,
+    # unlike multi-chunk which builds them explicitly. Downstream consumers
+    # (constraints, card-suggestion prompts, any parser that keys off
+    # "# Creature Types" etc.) break silently if one is missing.
+    theme_text = ""
+    complete_event: dict | None = None
+    for event in _stream_single_call(
+        user_msg,
+        system_prompt,
+        model_info,
+        stream_to_ui=True,
+        step_label="Single-pass extraction",
+    ):
+        etype = event.get("type")
+        if etype == "theme_chunk":
+            theme_text += event.get("text", "")
+            yield event
+        elif etype == "complete":
+            complete_event = event
+        else:
+            yield event
+
+    if complete_event is None:
+        # No complete event arrived (upstream already yielded an error or
+        # cancellation). Nothing to post-check.
+        return
+
+    final_text = complete_event.get("theme_text") or theme_text
+    fixed, missing = _ensure_section_headers(final_text)
+    if missing:
+        warn = (
+            "SINGLE-PASS STRUCTURE WARNING: model omitted section header(s): "
+            + ", ".join(missing)
+            + ". Injected empty stubs so downstream parsers don't break."
+        )
+        logger.warning(warn)
+        _log_marker(warn)
+        yield {
+            "type": "status",
+            "message": (
+                f"Model omitted {len(missing)} section header(s): "
+                f"{', '.join(missing)}. Added empty stubs."
+            ),
+        }
+        complete_event = dict(complete_event)
+        complete_event["theme_text"] = fixed
+    yield complete_event
+
+
+def _ensure_section_headers(text: str) -> tuple[str, list[str]]:
+    """Guarantee all 7 canonical section headers are present in *text*.
+
+    Returns (possibly_repaired_text, list_of_missing_header_names).
+    """
+    missing: list[str] = []
+    # Use a case-insensitive match to catch "# creature types" etc.
+    lower = text.lower()
+    to_append: list[str] = []
+    for sec_name, _ in _SECTIONS:
+        marker = f"# {sec_name.lower()}"
+        if marker not in lower:
+            missing.append(sec_name)
+            to_append.append(f"# {sec_name}\n\nNo information found.")
+    if not missing:
+        return text, []
+    repaired = text.rstrip() + "\n\n" + "\n\n".join(to_append) + "\n"
+    return repaired, missing
 
 
 def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
@@ -716,6 +895,9 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
 
     for sec_idx, (sec_name, sec_guidance) in enumerate(_SECTIONS):
         _check_cancelled()
+        _log_marker(
+            f"=== Section {sec_idx + 1}/{len(_SECTIONS)}: {sec_name} ==="
+        )
         yield {
             "type": "status",
             "message": (
@@ -758,11 +940,21 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                         accumulated=accumulated,
                         target_tokens=compact_target_tokens,
                     )
+                    compact_label = (
+                        f"COMPACTION section {sec_idx + 1}/{len(_SECTIONS)} "
+                        f"{sec_name} ({acc_tokens} tok -> target {compact_target_tokens})"
+                    )
                     compact_result = ""
                     compact_cost = 0.0
                     compact_failed = False
+                    compact_err = ""
                     for event in _stream_single_call(
-                        compact_msg, section_prompt, model_info, stream_to_ui=False
+                        compact_msg,
+                        section_prompt,
+                        model_info,
+                        stream_to_ui=False,
+                        step_label=compact_label,
+                        log_extras={"accumulated (input to compaction)": accumulated},
                     ):
                         if event["type"] == "theme_chunk":
                             compact_result += event["text"]
@@ -770,34 +962,57 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                             compact_result = event.get("theme_text", compact_result)
                             compact_cost += event.get("cost_usd", 0)
                         elif event["type"] == "error":
+                            compact_err = event.get("message", "unknown")
                             logger.warning(
                                 "Compaction failed for %s: %s; truncating instead",
                                 sec_name,
-                                event["message"],
+                                compact_err,
                             )
                             compact_failed = True
                             break
                     total_cost += compact_cost
                     if compact_failed or not compact_result.strip():
-                        # Fallback: hard-truncate. Better than overflowing the
-                        # next call.
-                        keep = int(len(accumulated) * 0.6)
+                        # Fallback: hard-truncate. Keep the first slice
+                        # (founding entries, likely the ones that came up
+                        # early) AND the last slice (most recently added
+                        # from the chunk that just triggered compaction)
+                        # with a gap marker in the middle. Losing the
+                        # middle hurts less than losing either end, and
+                        # the previous head-only approach silently
+                        # dropped the just-added chunk's contribution.
+                        head_frac = 0.35
+                        tail_frac = 0.35
+                        head_n = int(len(accumulated) * head_frac)
+                        tail_n = int(len(accumulated) * tail_frac)
                         accumulated = (
-                            accumulated[:keep]
-                            + "\n\n[earlier entries truncated to stay within budget]"
+                            accumulated[:head_n].rstrip()
+                            + "\n\n[middle entries truncated to stay within budget]\n\n"
+                            + accumulated[-tail_n:].lstrip()
+                        )
+                        _log_marker(
+                            f"COMPACTION FALLBACK (hard-truncate): {sec_name} "
+                            f"head+tail kept, middle dropped (reason: "
+                            f"{compact_err or 'empty result'})"
                         )
                         logger.info(
-                            "  compaction fallback (hard-truncate): %s -> %d chars",
+                            "  compaction fallback (hard-truncate head+tail): "
+                            "%s -> %d chars",
                             sec_name,
                             len(accumulated),
                         )
                     else:
-                        accumulated = compact_result.strip()
+                        new_acc = compact_result.strip()
+                        new_tok = _count_tokens_tiktoken(new_acc)
+                        accumulated = new_acc
+                        _log_marker(
+                            f"COMPACTION OK: {sec_name} "
+                            f"{acc_tokens} tok -> {new_tok} tok"
+                        )
                         logger.info(
                             "  compacted %s: %d -> %d tokens",
                             sec_name,
                             acc_tokens,
-                            _count_tokens_tiktoken(accumulated),
+                            new_tok,
                         )
 
             yield {
@@ -815,6 +1030,7 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                     total_chunks=len(chunks),
                     chunk_text=chunk_part,
                 )
+                chunk_extras = {"chunk_text (input)": chunk_part}
             else:
                 user_msg = next_template.format(
                     section_name=sec_name,
@@ -823,10 +1039,25 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                     accumulated=accumulated,
                     chunk_text=chunk_part,
                 )
+                chunk_extras = {
+                    "accumulated (input)": accumulated,
+                    "chunk_text (input)": chunk_part,
+                }
+
+            chunk_label = (
+                f"Section {sec_idx + 1}/{len(_SECTIONS)} {sec_name} "
+                f"chunk {ci + 1}/{len(chunks)}"
+                f"{' (first)' if ci == 0 else ' (next)'}"
+            )
 
             chunk_result = ""
             for event in _stream_single_call(
-                user_msg, section_prompt, model_info, stream_to_ui=False
+                user_msg,
+                section_prompt,
+                model_info,
+                stream_to_ui=False,
+                step_label=chunk_label,
+                log_extras=chunk_extras,
             ):
                 if event["type"] == "theme_chunk":
                     chunk_result += event["text"]
@@ -834,11 +1065,16 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                     chunk_result = event.get("theme_text", chunk_result)
                     total_cost += event.get("cost_usd", 0)
                 elif event["type"] == "error":
+                    err_msg = (
+                        f"{sec_name} chunk {ci + 1}/{len(chunks)} failed: "
+                        f"{event['message']}"
+                    )
+                    if _run_stats and not _run_stats.aborted_reason:
+                        _run_stats.aborted_reason = err_msg
+                    _log_marker(f"ABORT: {err_msg}")
                     yield {
                         "type": "error",
-                        "message": (
-                            f"{sec_name} chunk {ci + 1} failed: {event['message']}"
-                        ),
+                        "message": err_msg,
                         "log_path": (
                             str(_conversation_log) if _conversation_log else None
                         ),
@@ -846,7 +1082,7 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                     return
 
             stripped = chunk_result.strip()
-            if stripped.lower().startswith("no information found"):
+            if _looks_like_no_info(stripped):
                 logger.info(
                     "  chunk %d/%d: no info for %s",
                     ci + 1,
@@ -854,6 +1090,35 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                     sec_name,
                 )
                 continue
+
+            # --- Copy-through diff guard ----------------------------------
+            # "next" calls ask the model to output existing entries + new
+            # ones. Models sometimes drop existing entries in the rewrite.
+            # Warn when the output is meaningfully shorter than what we fed
+            # in, so the log surfaces silent information loss.
+            if ci > 0 and accumulated:
+                old_len = len(accumulated)
+                new_len = len(stripped)
+                # "Much shorter" = below 70% of prior length.
+                if new_len < int(old_len * 0.7):
+                    warn = (
+                        f"COPY-THROUGH SHRINK: {sec_name} chunk "
+                        f"{ci + 1}/{len(chunks)} shrank accumulated "
+                        f"{old_len} -> {new_len} chars "
+                        f"({new_len / max(old_len, 1):.0%}). Model likely "
+                        f"dropped existing entries."
+                    )
+                    _log_marker(warn)
+                    logger.warning(warn)
+                    yield {
+                        "type": "status",
+                        "message": (
+                            f"{sec_name} chunk {ci + 1}: model shrank "
+                            f"accumulated {old_len} -> {new_len} chars; "
+                            f"entries may have been dropped (see log)."
+                        ),
+                    }
+
             accumulated = stripped
             logger.info(
                 "  chunk %d/%d: %d chars for %s",
@@ -896,19 +1161,39 @@ def _stream_single_call(
     model_info,
     stream_to_ui: bool = True,
     json_mode: bool = False,
+    step_label: str | None = None,
+    log_extras: dict[str, str] | None = None,
 ) -> Generator[dict, None, None]:
     """Dispatch one streaming call to the configured provider.
 
     Yields theme_chunk events (if *stream_to_ui*), then a final ``complete``
     event with the full text and cost - or an ``error`` event on failure.
+
+    ``step_label`` tags the call in the conversation log (e.g.
+    "Section 3/7 Creature Types chunk 4/10" or "COMPACTION: ..."). If None,
+    falls back to a generic provider label.
+
+    ``log_extras`` gets written as separate fenced blocks in the log so large
+    mid-prompt state (accumulated, chunk_text) survives user-prompt truncation.
     """
     if model_info.provider == "anthropic":
         yield from _stream_anthropic_call(
-            user_msg, system_prompt, model_info, stream_to_ui
+            user_msg,
+            system_prompt,
+            model_info,
+            stream_to_ui,
+            step_label=step_label,
+            log_extras=log_extras,
         )
     elif model_info.provider == "ollama":
         yield from _stream_ollama_call(
-            user_msg, system_prompt, model_info, stream_to_ui, json_mode=json_mode
+            user_msg,
+            system_prompt,
+            model_info,
+            stream_to_ui,
+            json_mode=json_mode,
+            step_label=step_label,
+            log_extras=log_extras,
         )
     else:
         yield {
@@ -922,6 +1207,8 @@ def _stream_anthropic_call(
     system_prompt: str,
     model_info,
     stream_to_ui: bool,
+    step_label: str | None = None,
+    log_extras: dict[str, str] | None = None,
 ) -> Generator[dict, None, None]:
     from anthropic import Anthropic
 
@@ -947,7 +1234,8 @@ def _stream_anthropic_call(
     metadata: dict[str, Any] = {}
     cost = 0.0
 
-    _log_call_start("Anthropic call", system_prompt, user_msg)
+    label = f"Anthropic call - {step_label}" if step_label else "Anthropic call"
+    _log_call_start(label, system_prompt, user_msg, extras=log_extras)
     try:
         with client.messages.stream(
             model=model_id,
@@ -1016,6 +1304,8 @@ def _stream_ollama_call(
     model_info,
     stream_to_ui: bool,
     json_mode: bool = False,
+    step_label: str | None = None,
+    log_extras: dict[str, str] | None = None,
 ) -> Generator[dict, None, None]:
     """Single Ollama streaming call using the native ``/api/chat`` endpoint.
 
@@ -1043,6 +1333,8 @@ def _stream_ollama_call(
     estimated_input_tokens = count_messages_tokens(messages)
     safe_budget = int(num_ctx * 0.95) - output_reserve
 
+    call_label = f"Ollama call - {step_label}" if step_label else "Ollama call"
+
     # --- Pre-call overflow check ---
     if estimated_input_tokens > safe_budget:
         msg = (
@@ -1052,7 +1344,9 @@ def _stream_ollama_call(
             f"Reduce input or increase context window."
         )
         logger.error(msg)
-        _log_call_start("Ollama call (skipped)", system_prompt, user_msg)
+        _log_call_start(
+            f"{call_label} (skipped)", system_prompt, user_msg, extras=log_extras
+        )
         _log_call_end(note=f"OVERFLOW: {msg}")
         yield {"type": "error", "message": msg}
         return
@@ -1086,7 +1380,7 @@ def _stream_ollama_call(
     chars_since_check = 0
     final_data: dict = {}
 
-    _log_call_start("Ollama call", system_prompt, user_msg)
+    _log_call_start(call_label, system_prompt, user_msg, extras=log_extras)
     resp = None
     try:
         resp = requests.post(
@@ -1162,8 +1456,37 @@ def _stream_ollama_call(
         # Cut the loop off mid-sentence so the caller still gets usable text.
         # The repetition detector inspects the last 4000 chars; the run-up to
         # the loop is intact and can sometimes be salvaged.
+        # Record token estimates so the run footer doesn't undercount aborted
+        # calls (no `done` frame arrives when we close the connection early).
+        _record_call(
+            estimated_input_tokens,
+            _count_tokens_tiktoken(theme_text),
+            0.0,
+        )
         _log_call_end(note=f"ABORTED: {loop_err}")
         yield {"type": "error", "message": loop_err}
+        return
+
+    # --- Missing-done detection ---
+    # If the Ollama stream ended (iter_lines exhausted) without ever
+    # seeing a `{"done": true}` frame, treat it as an error rather than
+    # silently returning whatever partial text accumulated. Dropped
+    # connections, proxy resets, and Ollama internal errors can all land
+    # here.
+    if not final_data:
+        msg = (
+            f"Ollama stream ended without a 'done' frame after "
+            f"{len(theme_text)} chars. Possible connection drop or server "
+            f"error - check Ollama server.log."
+        )
+        logger.error(msg)
+        _record_call(
+            estimated_input_tokens,
+            _count_tokens_tiktoken(theme_text),
+            0.0,
+        )
+        _log_call_end(note=f"MISSING DONE FRAME: {msg}")
+        yield {"type": "error", "message": msg}
         return
 
     metadata: dict[str, Any] = {}
@@ -1211,6 +1534,9 @@ def _stream_ollama_call(
 # =============================================================================
 
 
+_PUNCT_STRIP = ".,;:!?\"'"
+
+
 def _detect_token_repetition(text: str, min_repeats: int = 15) -> str | None:
     """Catch a single token (the last word) repeating N+ times at the tail."""
     if not text:
@@ -1219,17 +1545,24 @@ def _detect_token_repetition(text: str, min_repeats: int = 15) -> str | None:
     words = tail.split()
     if len(words) < min_repeats:
         return None
-    last = words[-1].strip(".,;:!?\"'")
-    if not last:
-        return None
+
+    # Prefer the stripped form so "word." and "word" count as one, but if
+    # stripping leaves nothing (pure punctuation like "---" or "..."), fall
+    # back to the raw token so pure-punctuation loops still get caught.
+    raw_last = words[-1]
+    stripped_last = raw_last.strip(_PUNCT_STRIP)
+    use_stripped = bool(stripped_last)
+    compare_val = stripped_last if use_stripped else raw_last
+
     streak = 0
     for w in reversed(words):
-        if w.strip(".,;:!?\"'") == last:
+        cmp = w.strip(_PUNCT_STRIP) if use_stripped else w
+        if cmp == compare_val:
             streak += 1
         else:
             break
     if streak >= min_repeats:
-        return f"Token '{last}' repeated {streak}+ times at end of output"
+        return f"Token {compare_val!r} repeated {streak}+ times at end of output"
     return None
 
 
@@ -1320,7 +1653,7 @@ def stream_constraints_extraction(
     )
 
     def _attempt_json_subcall(
-        prompt: str, json_key: str
+        prompt: str, json_key: str, step_label: str
     ) -> tuple[list, str | None, str]:
         raw = ""
         stream_err: str | None = None
@@ -1331,6 +1664,7 @@ def stream_constraints_extraction(
                 model_info,
                 stream_to_ui=False,
                 json_mode=True,
+                step_label=step_label,
             ):
                 if event["type"] == "complete":
                     raw = event.get("theme_text", "")
@@ -1367,11 +1701,13 @@ def stream_constraints_extraction(
         label: str, prompt_file: str, json_key: str
     ) -> Generator[dict, None, tuple[list, str | None, str]]:
         prompt = (_PROMPTS_DIR / prompt_file).read_text(encoding="utf-8")
-        last_raw = ""
-        last_err: str | None = None
+        # Collect every attempt so the UI error surface shows the full
+        # retry history, not just the final attempt.
+        attempts: list[tuple[int, str, str]] = []  # (attempt_no, err, raw)
 
         for attempt in range(1, MAX_RETRIES + 1):
             _check_cancelled()
+            last_err = attempts[-1][1] if attempts else None
             if attempt == 1:
                 yield {"type": "status", "message": f"{label}..."}
             else:
@@ -1384,9 +1720,11 @@ def stream_constraints_extraction(
                 }
                 _record_retry()
 
-            items, err, raw = _attempt_json_subcall(prompt, json_key)
-            last_raw = raw
-            last_err = err
+            step_label = (
+                f"{label} attempt {attempt}/{MAX_RETRIES} "
+                f"(json_mode, key='{json_key}')"
+            )
+            items, err, raw = _attempt_json_subcall(prompt, json_key, step_label)
 
             if err is None:
                 if attempt > 1:
@@ -1403,6 +1741,7 @@ def stream_constraints_extraction(
                     _log_marker(f"{label} succeeded")
                 return items, None, raw
 
+            attempts.append((attempt, err or "unknown", raw))
             logger.warning(
                 "%s attempt %d/%d failed: %s; raw head: %s",
                 label,
@@ -1417,11 +1756,26 @@ def stream_constraints_extraction(
                     f"{err} - retrying"
                 )
 
+        final_err = attempts[-1][1] if attempts else "no attempts"
         _log_marker(
             f"{label} FINAL FAILURE after {MAX_RETRIES}/{MAX_RETRIES} "
-            f"attempts: {last_err}"
+            f"attempts: {final_err}"
         )
-        return [], last_err, last_raw
+        # Build an aggregated raw view surfacing every attempt's output.
+        # Kept modest in size (~400 chars per attempt) so the UI error
+        # panel stays readable; the full output for each attempt lives in
+        # the extraction log.
+        per_attempt_cap = 400
+        rendered = []
+        for att_no, att_err, att_raw in attempts:
+            head = (att_raw or "").strip()
+            if len(head) > per_attempt_cap:
+                head = head[:per_attempt_cap] + " [... truncated ...]"
+            rendered.append(
+                f"--- Attempt {att_no}/{MAX_RETRIES} ({att_err}) ---\n{head}"
+            )
+        aggregated_raw = "\n\n".join(rendered)
+        return [], final_err, aggregated_raw
 
     # Acquire the run lock for the entire constraints pass. Reentrant: if the
     # caller (theme extraction) already holds it, this is free.

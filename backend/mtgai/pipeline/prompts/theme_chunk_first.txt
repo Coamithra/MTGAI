@@ -1,3 +1,0 @@
-This is part {chunk_num} of {total_chunks} of a larger document. You are seeing only a portion — do not treat this as the complete picture. Extract what is present in this part:
-
-{chunk_text}
