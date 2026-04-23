@@ -10,6 +10,9 @@ __pycache__/
 dist/
 build/
 .eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
 # Virtual environments
 .venv/
@@ -36,7 +39,21 @@ output/sets/*/art-direction/character-refs/*.png
 output/sets/*/art-direction/character-refs/logs/
 output/sets/*/art-direction/kontext-samples/
 output/sets/*/reports/render-summary.json
+output/sets/*/reports/overlay_*.png
 output/install_insightface.bat
+
+# Per-set runtime state and queues (regenerated each run)
+output/sets/*/pipeline-state.json
+output/sets/*/review-decisions*.json
+output/sets/*/review-progress.json
+output/sets/*/art-redo-queue.json
+output/sets/*/remake-queue.json
+output/sets/*/theme.txt
+
+# Top-level generated output (benchmarks, extraction logs, saved settings)
+output/benchmarks/
+output/extraction_logs/
+output/settings/
 
 # Keep directory structure
 !output/.gitkeep
@@ -48,7 +65,13 @@ inspiration/
 # OS files
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Coverage
 .coverage
 htmlcov/
+
+# Scratch / temp
+tmp/
+*.log
+*.bak

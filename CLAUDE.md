@@ -15,7 +15,7 @@
 ## Toolchain Buildout (in progress)
 Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain buildout" to resume.
 
-**Done:** Model settings system (/settings), theme wizard (/pipeline/theme), per-stage LLM routing, set-config.json eliminated, theme extraction upgrade (PDF/text extraction, streaming LLM output, token counting, chunking, constraints + card suggestion extraction with AI-generated badges).
+**Done:** Model settings system (/settings), theme wizard (/pipeline/theme), per-stage LLM routing, set-config.json eliminated, theme extraction upgrade (PDF/text extraction, streaming LLM output, token counting, chunking, constraints + card suggestion extraction with AI-generated badges), theme extraction hardening (single-extraction lock + cancel button, per-section compaction guard, pre/post overflow + truncation checks, Anthropic prompt caching, summary footer + Ollama metadata in extraction logs, SSE retry visibility - see "Theme Extraction" section).
 
 **Remaining:**
 - Mechanic generation pipeline stage (refactor mechanic_generator.py, review UI for picking 3 from 6)
@@ -34,8 +34,9 @@ Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain 
 - Research outputs go in `research/`
 - Learnings go in `learnings/`
 - Plans and tracker in `plans/` (TRACKER.md is the master progress file)
-- Generated files (art, renders, print files) go in `output/` (gitignored)
-- Card JSON files are version-controlled in `output/sets/<SET_CODE>/cards/`
+- Generated files (art binaries, renders, print files, runtime queues, extraction logs) go in `output/` and are gitignored - see `.gitignore` for the exact patterns
+- **Tracked under `output/sets/<SET>/`**: `cards/`, `mechanics/`, `reports/*.{md,html,json}`, `reports/references/`, `reviews/`, `revision_logs/`, `generation_logs/`, `art-direction/` (logs only, no PNGs), `art-selection-logs/`, `skeleton.json`, `skeleton-overview.txt`, `theme.json`, `set-config.json`, `card_gallery.md`, `reprint_selection.json`, `generation_progress.json`
+- **Gitignored under `output/`**: `benchmarks/`, `extraction_logs/`, `settings/`, and per-set `art/`, `renders/`, `art-generation-logs/`, `pipeline-state.json`, `review-decisions*.json`, `review-progress.json`, `art-redo-queue.json`, `remake-queue.json`, `theme.txt`, `reports/overlay_*.png`
 
 ## Development
 - Python 3.12+, managed with uv
@@ -66,6 +67,23 @@ Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain 
 - Cards progress through statuses: draft -> validated -> approved -> art_generated -> rendered -> print_ready
 - Every generation attempt is tracked (prompt, model, timestamp, success/failure)
 - Pipeline is resumable: interrupted operations resume from the last incomplete card
+
+## Theme Extraction (`mtgai/pipeline/theme_extractor.py`)
+- Front door for the theme wizard at `/pipeline/theme`. Reads PDF/text upload, runs a multi-stage LLM extraction, then a JSON pass for constraints + card suggestions.
+- **Single extraction at a time**: reentrant `_run_lock` + `_cancel_event` enforce one run per process. `request_cancel()` aborts mid-stream from any thread; SSE handler also calls it on browser disconnect. UI exposes a "Cancel Extraction" button.
+- **Endpoints**: `POST /api/pipeline/theme/upload`, `/analyze`, `/cancel`. `GET /extract-stream` (SSE) returns 409 if a run is already active. `GET /status` reports `running` + active log path.
+- **Two extraction paths** based on token count vs. context window:
+  - **Single-pass** (fits in one call): one LLM call with the full document.
+  - **Per-section multi-chunk** (large docs): 7 sections × N chunks. Each section is built incrementally - first chunk seeds it, each subsequent chunk passes back the accumulated section for extension.
+- **Compaction guard**: per-section accumulated text is bounded at 40% of chunk budget. When it exceeds, runs a compaction LLM call (with hard-truncate fallback) before the next chunk. Prevents quadratic context growth on long documents; trade-off is controlled information loss.
+- **Pre/post overflow checks** (Ollama only, via `mtgai.generation.token_utils`): `count_messages_tokens` checks input fits before sending; `check_post_call` raises `InputTruncatedError` / `OutputTruncatedError` from `done` metadata.
+- **Anthropic prompt caching**: system prompt marked `cache_control: ephemeral` so the per-section calls within ~5 min reuse the cached prefix (90% input discount).
+- **Ollama hygiene**: native `/api/chat`, `keep_alive=15m`, stop sequences for source-text divider markers, captured `prompt_eval_count` / `eval_count` / duration metadata, error-body capture before raising.
+- **Repetition loop detection**: incremental (`_detect_token_repetition` + `_detect_phrase_repetition`) runs every 200 chars; aborts mid-stream so a runaway loop can't fill `num_predict`.
+- **Extraction log** (`output/extraction_logs/extraction_<ts>.md`, gitignored): one file per run with system + user prompts, streamed response, per-call Ollama metadata, retry markers, and a summary footer (wall time, total calls, tokens, retries, sections-with-content, cancel/abort reason). `tail -f` mirrors live LLM output.
+- **SSE retry visibility**: every JSON-subcall retry yields a `status` event with attempt number + previous failure reason - keeps the progress bar moving on slow local models.
+- **Upload cache TTL**: 30 min. Stale entries evicted on every upload.
+- **Image / vision support removed** - was bloating logs with base64 and only the single-pass path ever used images.
 
 ## LLM Client (`mtgai/generation/llm_client.py`)
 - `generate_with_tool()` — unified entry point, provider selected by `MTGAI_PROVIDER` env var
@@ -177,6 +195,7 @@ Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain 
 - Card JSON is version-controlled
 - Art and rendered images are NOT version-controlled (gitignored)
 - Never commit API keys or .env files
+- Full ignore patterns in `.gitignore` at repo root; see "Project Structure" for the tracked-vs-ignored breakdown under `output/`
 
 ## Art Pipeline (`mtgai/art/`)
 - **ComfyUI** installed at `C:\Programming\ComfyUI` with Flux.1-dev Q8_0 GGUF
