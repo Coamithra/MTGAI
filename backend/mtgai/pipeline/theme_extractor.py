@@ -45,8 +45,13 @@ _OLLAMA_KEEP_ALIVE = "15m"
 
 # Hard cap on JSON subcall output (constraints / card_suggestions). With
 # num_predict=-1 a model in a repetition loop fills the entire context window
-# before the post-hoc detector even runs.
-_JSON_SUBCALL_MAX_TOKENS = 4096
+# before the post-hoc detector even runs. Mid-stream repetition detection (every
+# 200 chars) is the primary runaway guard; this cap is just a backstop.
+# Constraints output is tiny (3-8 short strings). Card suggestions (3-5 cards
+# with descriptions) needs more room - local models sometimes pad descriptions
+# or emit extra cards before the JSON closes.
+_JSON_SUBCALL_CONSTRAINTS_MAX_TOKENS = 4096
+_JSON_SUBCALL_SUGGESTIONS_MAX_TOKENS = 8192
 
 # Compaction threshold. Per-section "next" chunks pass back the accumulated
 # section text so far. If accumulated grows beyond this fraction of the chunk
@@ -677,6 +682,138 @@ def _chunk_text_by_tokens(text: str, max_tokens: int) -> list[str]:
 # =============================================================================
 
 
+# TEMPORARY TEST HACK: hardcoded theme used when MTGAI_THEME_HACK_LOG is set.
+# Lets us skip the slow theme-extraction step while iterating on downstream
+# constraints / card-suggestions passes. Delete this constant and the
+# _replay_hardcoded_theme helper (plus the caller block at the top of
+# stream_theme_extraction) when no longer needed.
+_HARDCODED_THEME = """\
+# World Overview
+
+Athas is a brutal, sun-scorched desert wasteland characterized by extreme temperatures, ranging from blistering heat during the day to freezing temperatures at night. The world is defined by a "crimson sun" and an "olive-tinged sky," where the scarcity of water and metal dictates every aspect of life. It is described as a "barbaric shadow of some better world," a place where once-lush landscapes have been warped into a savage, dying environment.
+
+The central conflict revolves around survival in a land of "mortal desolation." Societies are divided by how they interact with the world's dwindling life force: the destructive "Defilers" who drain magic from the land, and the "Preservers" who attempt to balance it. Political strife is constant, with powerful Sorcerer-Kings ruling city-states as absolute dictators, while nomadic tribes, raiding groups, and escaped slaves struggle for autonomy in the vast, dangerous wilds.
+
+# Themes
+
+- **Scarcity and Survival:** The desperate struggle for water, food, and metal.
+- **Ecological Decay:** The tension between Defilers (who wither the land) and Preservers (who sustain it).
+- **The Power of the Mind:** The widespread use of psionics as a "great equalizer."
+- **Tyranny vs. Freedom:** The absolute rule of Sorcerer-Kings and Templars against the desperate efforts of slave tribes and the Veiled Alliance.
+- **The Shadow of a Golden Age:** The presence of massive, decaying ruins from a more prosperous past.
+- **Brutality and Darwinism:** A "kill or be killed" social order where even herbivores have deadly defenses.
+
+# Creature Types
+
+- **Human:** Versatile and common; often found in any social role from farmer to sorcerer-king.
+- **Wizard:** Magic users who either drain the life from the world (Defilers) or work to balance it (Preservers).
+- **Cleric:** Priests who pay homage to the four elemental forces (air, earth, fire, water) or serve as Druids.
+- **Druid:** Special clerics who serve nature and the planetary equilibrium, often living in isolation to protect their "guarded land."
+- **Templar:** Clergy who tap into the magical energy of a Sorcerer-King rather than elemental forces; they act as the king's bureaucratic and religious agents.
+- **Soldier:** Often composed of burly slaves or highly trained elite units; can include half-giants.
+- **Gladiator:** Highly trained combatants, often muls, used for public entertainment in arenas.
+- **Erdlu:** Large, flightless, featherless birds. They have massive, round bodies, lanky legs with four-toed feet and razor-sharp claws, and yellow, snake-like necks with small, round heads and wedge-shaped beaks. Their skin is covered in flaky gray-to-red scales.
+- **Kank:** Giant, six-legged insects. They are gentle, docile beasts of burden that produce a thick green honey on their abdomens.
+- **Mekillot:** Massive, six-ton lizards with incredibly thick hides. They are cantankerous and predatory.
+- **Thri-Kreen:** Giant, intelligent insects that never sleep. They are highly aggressive and organize by dominance.
+- **Mul:** A crossbreed of human and dwarf. They stand over six feet tall, weigh 200-300 pounds, and have hairless, coppery skin as tough as gith hide. They are sterile and possess a single-minded, vicious nature.
+- **Half-Giant:** A magical crossbreed of human and giant. They are immensely strong but possess limited intellectual capacity.
+- **Silt Horror:** A creature consisting of huge, white, fleshy tentacles attached to a bulbous, malleable body that resembles soft clay.
+- **Kluzd:** Ten-foot-long, snake-like reptiles that live in mudflats.
+- **Braxat:** Predatory creatures of the Tablelands.
+- **Tembo:** Predatory creatures of the Tablelands.
+- **Belgoi:** Predatory creatures of the Tablelands.
+- **Silk Wyrm:** A dangerous monster of the Hinterlands.
+- **Gaj:** Ferocious, mid-sized predators found on islands.
+- **Klars:** Huge, nocturnal bears that hunt using psionics.
+
+# Factions
+
+- **Sorcerer-Kings:** Absolute dictators of the city-states. They are powerful wizards (mostly Defilers) who use magic to prolong their lives for centuries. They rule from fortified palaces.
+- **Templars:** The religious and bureaucratic agents of the Sorcerer-Kings. They control the population, manage the bureaucracy, and are the sole guardians of reading and writing. Their rank is often denoted by necklaces (in Gulg).
+- **Nobility:** Families that control the farms and water of the cities. They sit on advisory councils and maintain private armies of slave soldiers.
+- **Merchant Houses:** Sophisticated, family-owned trading companies. They operate through headquarters, emporiums, outposts, and caravans. They follow a strict, secret Merchant Code.
+- **Veiled Alliance:** A secret confederation of Preservers working together to protect their members from the persecution of Sorcerer-Kings.
+- **Raiding Tribes:** Despicable bands of cutthroats that live in desolate places and survive by pillaging caravans, villages, and herds.
+- **Slave Tribes:** Groups of escaped slaves who live in remote villages. They are diverse in race and often target city-states or caravans for revenge.
+- **Nomadic Herdsmen (Douars):** Small groups of families that wander the wastes with flocks of animals. They are led by a magic-wielding patriarch/wizard.
+- **Hunting and Gathering Clans:** Small, primitive groups (often thri-kreen or halflings) that live most freely, following game and foraging.
+- **Dwarven Villages:** Communities centered around a specific purpose (like mining or building), governed by a strict code of honor and a leader chosen by arrival order.
+- **Halfling Tribes:** Small, isolated clans that inhabit forest ridges. They are led by a Preserver chief and value racial harmony among themselves, but view other races as food.
+- **Giant Clans:** Groups inhabiting islands in the Sea of Silt; they are polite but highly territorial.
+
+# Landmarks
+
+- **Sea of Silt:** A vast, sunken basin filled with pearly gray, fine dust. It can be a calm, flat plain or a churning, dark storm that obscures all vision. It is deep enough to swallow travelers.
+- **Tablelands:** A wide band of terrain surrounding the Sea of Silt, consisting of stony barrens, sandy wastes, salt flats, rocky badlands, scrub plains, and silt basins.
+- **Ringing Mountains:** A massive range of mountains and foothills encircling the Tablelands. They feature deep canyons, high peaks, and a lush "Forest Ridge" at the summit.
+- **Hinterlands:** The vast, flat, and largely unexplored plains lying beyond the Ringing Mountains.
+- **Tyr:** A major city-state in the Tyr region, known for its iron mines and a massive ziggurat currently under construction by Kalak.
+- **Balic:** A city ruled by Andropinis, featuring a white marble palace on a fortified bluff and an agora filled with merchant emporiums.
+- **Draj:** A city built on a large mudflat, featuring a massive stone pyramid and a large gladiatorial arena.
+- **Gulg:** A city hidden behind a thick hedge of thorny trees, with houses made of mud and thatched vines.
+- **Nibenay:** A city near the Crescent Forest, characterized by buildings decorated with elaborate stone reliefs and bubbling springs.
+- **Raam:** A chaotic city ruled by Abalach-Re, featuring an ivory-walled palace on a grassy knoll.
+- **Urik:** A powerful city-state with a massive fortress and economy based on obsidian quarrying.
+- **Smoking Crown:** A volcanic mountain/region with yellowish steam and obsidian deposits.
+- **Dragon's Bowl:** A great, awe-inspiring basin formed by the birth of a dragon, containing the cerulean Lake Pit.
+- **Lake Pit:** A large, pristine, cerulean lake located at the northern end of the Dragon's Bowl.
+- **Lake of Golden Dreams:** A boiling lake with yellowish steam and a network of underwater tunnels.
+- **Lost Oasis:** A geyser in a salt flat surrounded by a forest of pinyon trees.
+- **Mud Palace:** A magnificent white marble castle with no doors or windows, rising from a jungle-like mudflat.
+- **Waverly:** An ancient, walled city on an island, featuring petrified wood crafts and a central fountain.
+- **Lake Island:** A massive volcano rising from the Sea of Silt, featuring a crater with a clear blue lake and bluish steam.
+- **Dragon Crown Mountain:** An ancient volcano in the Hinterlands with a hidden pine forest and an alabaster palace.
+
+# Notable Characters
+
+- **Andropinis:** The Dictator of Balic. A powerful sorcerer-king who has ruled for over 700 years.
+- **Tectuktitlay:** The Sorcerer-king of Draj, known as "The Mighty and Omnipotent." He claims to be a god and rules from a stone pyramid.
+- **Lalali-Puy:** The "Oba" (forest goddess) and Sorcerer-queen of Gulg. She rules from an agafari tree.
+- **Nibenay:** The "Shadow King" of Nibenay. An enigmatic ruler who lives in a palace shaped like a giant bust of his own head.
+- **Abalach-Re:** The "Great Vizier" of Raam. A sorcerer-queen who claims to be a servant of a higher, mysterious power.
+- **Kalak:** The "Tyrant of Tyr." A pragmatic, ruthless ruler who is currently obsessed with building a massive ziggurat.
+- **Hamanu:** The warrior king of Urik. A legendary general who leads his armies personally and has never been defeated.
+- **Urga-Zoltapl:** The halfling chief of the Ogo village.
+- **Xaynon:** An ex-gladiator mul who leads the slave-tribe village of Salt View.
+- **Enola:** A mul who protects the Dragon's Bowl.
+- **Durwadala:** A thri-kreen druid who protects the Lost Oasis.
+
+# Races
+
+- **Humans:** The most common and versatile race; they occupy all social strata and are noted for their talent for political intrigue and treachery.
+- **Dwarves:** Strong and determined; they are often found as laborers, soldiers, or craftsmen, and follow a strict code of honor.
+- **Elves:** Nomadic and restless; they are expert traders, fast, and stealthy, but are considered untrustworthy by outsiders. They maintain strict honor within their own tribes.
+- **Half-Elves:** Often loners who grow up between cultures; they are frequently found as templars or farmers.
+- **Half-Giants:** A magical crossbreed of human and giant; they are immensely strong but have limited intelligence.
+- **Muls:** A sterile crossbreed of human and dwarf; they are characterized by their strength, coppery skin, and fierce, single-minded nature.
+- **Thri-Kreen:** Giant, intelligent insects that live in packs and follow a strict dominance hierarchy. They are tireless hunters.
+- **Halflings:** Feral and primitive; they live in small clans in the mountains and view most other races as potential food.
+- **Giants:** A large, polite, but highly territorial race that inhabits islands in the Sea of Silt."""
+
+
+def _replay_hardcoded_theme() -> Generator[dict, None, None]:
+    """TEMPORARY TEST HACK: emit _HARDCODED_THEME as if it came from the LLM.
+
+    Keeps the SSE event shape identical to a real extraction run so downstream
+    code (UI progress bar, constraints/card-suggestions pass) can't tell the
+    difference.
+    """
+    yield {"type": "status", "message": "[HACK] Using hardcoded theme"}
+    # Chunk so the UI progress bar animates a bit; any chunk size works.
+    chunk_size = 2000
+    for i in range(0, len(_HARDCODED_THEME), chunk_size):
+        yield {
+            "type": "theme_chunk",
+            "text": _HARDCODED_THEME[i : i + chunk_size],
+        }
+    yield {
+        "type": "complete",
+        "theme_text": _HARDCODED_THEME,
+        "cost_usd": 0.0,
+    }
+
+
 def stream_theme_extraction(
     text: str,
     model_key: str,
@@ -693,6 +830,34 @@ def stream_theme_extraction(
         {"type": "error", "message": "...", "log_path": "..."}
         {"type": "cancelled"}
     """
+    # =========================================================================
+    # TEMPORARY TEST HACK: skip LLM, emit a hardcoded theme so downstream
+    # constraints / card-suggestions passes can be iterated on without
+    # waiting for the slow real extraction. Controlled by MTGAI_THEME_HACK_LOG
+    # (env-var name kept for continuity with existing .env entries - any
+    # truthy value enables the hack). Remove the env lookup, the helper
+    # _replay_hardcoded_theme, and the _HARDCODED_THEME constant at the
+    # module bottom when no longer needed.
+    # =========================================================================
+    # Mirror the .env loader from llm_client.py so the hack flag works even
+    # if llm_client hasn't been imported yet in this process.
+    _env_path = Path("C:/Programming/MTGAI/.env")
+    if _env_path.exists():
+        for _line in _env_path.read_text(encoding="utf-8").splitlines():
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _, _v = _line.partition("=")
+                os.environ.setdefault(_k.strip(), _v.strip())
+
+    if os.environ.get("MTGAI_THEME_HACK_LOG", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        yield from _replay_hardcoded_theme()
+        return
+
     from mtgai.settings.model_registry import get_registry
 
     if not _run_lock.acquire(blocking=False):
@@ -1163,6 +1328,7 @@ def _stream_single_call(
     json_mode: bool = False,
     step_label: str | None = None,
     log_extras: dict[str, str] | None = None,
+    output_budget_override: int | None = None,
 ) -> Generator[dict, None, None]:
     """Dispatch one streaming call to the configured provider.
 
@@ -1175,6 +1341,9 @@ def _stream_single_call(
 
     ``log_extras`` gets written as separate fenced blocks in the log so large
     mid-prompt state (accumulated, chunk_text) survives user-prompt truncation.
+
+    ``output_budget_override`` forces a specific Ollama ``num_predict`` for
+    this call (ignored on Anthropic, which uses its own fixed max_tokens).
     """
     if model_info.provider == "anthropic":
         yield from _stream_anthropic_call(
@@ -1194,6 +1363,7 @@ def _stream_single_call(
             json_mode=json_mode,
             step_label=step_label,
             log_extras=log_extras,
+            output_budget_override=output_budget_override,
         )
     else:
         yield {
@@ -1288,7 +1458,11 @@ def _stream_anthropic_call(
     except Exception as e:
         logger.error("Anthropic streaming call failed: %s", e, exc_info=True)
         _log_call_end(note=f"STREAM ERROR: {e}")
-        yield {"type": "error", "message": str(e)}
+        yield {
+            "type": "error",
+            "message": str(e),
+            "partial_text": theme_text,
+        }
         return
 
     logger.info(
@@ -1306,12 +1480,17 @@ def _stream_ollama_call(
     json_mode: bool = False,
     step_label: str | None = None,
     log_extras: dict[str, str] | None = None,
+    output_budget_override: int | None = None,
 ) -> Generator[dict, None, None]:
     """Single Ollama streaming call using the native ``/api/chat`` endpoint.
 
     Performs a pre-call overflow check (errors out if input exceeds budget)
     and a post-call truncation check (warns if Ollama silently dropped input
     or hit the output cap).
+
+    ``output_budget_override`` overrides the default ``num_predict`` for this
+    call. Used by JSON subcalls that need a larger budget than the default
+    constraints cap (e.g. card suggestions).
     """
     import requests
 
@@ -1324,7 +1503,12 @@ def _stream_ollama_call(
     )
 
     num_ctx = model_info.context_window
-    output_reserve = _JSON_SUBCALL_MAX_TOKENS if json_mode else _OUTPUT_BUDGET
+    if output_budget_override is not None:
+        output_reserve = output_budget_override
+    elif json_mode:
+        output_reserve = _JSON_SUBCALL_CONSTRAINTS_MAX_TOKENS
+    else:
+        output_reserve = _OUTPUT_BUDGET
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -1379,6 +1563,8 @@ def _stream_ollama_call(
     loop_err: str | None = None
     chars_since_check = 0
     final_data: dict = {}
+    frames_total = 0
+    frames_with_content = 0
 
     _log_call_start(call_label, system_prompt, user_msg, extras=log_extras)
     resp = None
@@ -1410,16 +1596,23 @@ def _stream_ollama_call(
                     "Ollama: skipping malformed line %s", str(line)[:120]
                 )
                 continue
+            frames_total += 1
+            # Some Ollama versions (notably with format=json) deliver all
+            # generated text inside the final done frame's message.content
+            # instead of streaming it chunk-by-chunk. Extract content from
+            # every frame, done or not, so we don't lose output.
+            content = data.get("message", {}).get("content", "")
+            if content:
+                frames_with_content += 1
+                theme_text += content
+                _log_call_chunk(content)
+                if stream_to_ui:
+                    yield {"type": "theme_chunk", "text": content}
             if data.get("done"):
                 final_data = data
                 break
-            content = data.get("message", {}).get("content", "")
             if not content:
                 continue
-            theme_text += content
-            _log_call_chunk(content)
-            if stream_to_ui:
-                yield {"type": "theme_chunk", "text": content}
 
             chars_since_check += len(content)
             if chars_since_check >= 200:
@@ -1464,7 +1657,11 @@ def _stream_ollama_call(
             0.0,
         )
         _log_call_end(note=f"ABORTED: {loop_err}")
-        yield {"type": "error", "message": loop_err}
+        yield {
+            "type": "error",
+            "message": loop_err,
+            "partial_text": theme_text,
+        }
         return
 
     # --- Missing-done detection ---
@@ -1486,7 +1683,11 @@ def _stream_ollama_call(
             0.0,
         )
         _log_call_end(note=f"MISSING DONE FRAME: {msg}")
-        yield {"type": "error", "message": msg}
+        yield {
+            "type": "error",
+            "message": msg,
+            "partial_text": theme_text,
+        }
         return
 
     metadata: dict[str, Any] = {}
@@ -1504,6 +1705,9 @@ def _stream_ollama_call(
                 (final_data.get("eval_duration") or 0) // 1_000_000
             ),
             "done_reason": final_data.get("done_reason"),
+            "frames_total": frames_total,
+            "frames_with_content": frames_with_content,
+            "theme_text_chars": len(theme_text),
         }
         _record_call(
             final_data.get("prompt_eval_count", 0) or estimated_input_tokens,
@@ -1521,7 +1725,11 @@ def _stream_ollama_call(
         except (InputTruncatedError, OutputTruncatedError) as trunc:
             logger.warning("Truncation detected: %s", trunc)
             _log_call_end(metadata=metadata, note=f"TRUNCATION: {trunc}")
-            yield {"type": "error", "message": str(trunc)}
+            yield {
+                "type": "error",
+                "message": str(trunc),
+                "partial_text": theme_text,
+            }
             return
 
     logger.info("Ollama call complete: %d chars extracted", len(theme_text))
@@ -1653,7 +1861,7 @@ def stream_constraints_extraction(
     )
 
     def _attempt_json_subcall(
-        prompt: str, json_key: str, step_label: str
+        prompt: str, json_key: str, step_label: str, output_budget: int
     ) -> tuple[list, str | None, str]:
         raw = ""
         stream_err: str | None = None
@@ -1665,11 +1873,20 @@ def stream_constraints_extraction(
                 stream_to_ui=False,
                 json_mode=True,
                 step_label=step_label,
+                output_budget_override=output_budget,
             ):
                 if event["type"] == "complete":
                     raw = event.get("theme_text", "")
                 elif event["type"] == "error":
                     stream_err = event.get("message") or "stream error"
+                    # Preserve partial streamed content so the UI error panel
+                    # and the retry-aggregation loop can show what the model
+                    # produced before TRUNCATION / repetition abort. Without
+                    # this the raw field stays "" and failed attempts look
+                    # empty even though 4K tokens of JSON streamed out.
+                    partial = event.get("partial_text")
+                    if partial and not raw:
+                        raw = partial
         except _CancelledError:
             raise
         except Exception as exc:
@@ -1698,7 +1915,7 @@ def stream_constraints_extraction(
         return items, None, raw
 
     def _run_json_subcall(
-        label: str, prompt_file: str, json_key: str
+        label: str, prompt_file: str, json_key: str, output_budget: int
     ) -> Generator[dict, None, tuple[list, str | None, str]]:
         prompt = (_PROMPTS_DIR / prompt_file).read_text(encoding="utf-8")
         # Collect every attempt so the UI error surface shows the full
@@ -1722,9 +1939,11 @@ def stream_constraints_extraction(
 
             step_label = (
                 f"{label} attempt {attempt}/{MAX_RETRIES} "
-                f"(json_mode, key='{json_key}')"
+                f"(json_mode, key='{json_key}', num_predict={output_budget})"
             )
-            items, err, raw = _attempt_json_subcall(prompt, json_key, step_label)
+            items, err, raw = _attempt_json_subcall(
+                prompt, json_key, step_label, output_budget
+            )
 
             if err is None:
                 if attempt > 1:
@@ -1789,7 +2008,10 @@ def stream_constraints_extraction(
     try:
         # --- Call 1: Constraints (JSON mode) ---
         gen = _run_json_subcall(
-            "Constraints extraction", "constraints_system.txt", "constraints"
+            "Constraints extraction",
+            "constraints_system.txt",
+            "constraints",
+            _JSON_SUBCALL_CONSTRAINTS_MAX_TOKENS,
         )
         try:
             while True:
@@ -1816,6 +2038,7 @@ def stream_constraints_extraction(
             "Card suggestions extraction",
             "card_suggestions_system.txt",
             "card_suggestions",
+            _JSON_SUBCALL_SUGGESTIONS_MAX_TOKENS,
         )
         try:
             while True:

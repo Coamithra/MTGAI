@@ -717,3 +717,26 @@ SC (SCALE-UP ~280)  ←── full production run through proven pipeline
 | 2026-03-14 | 14 | Pipeline restructuring: (1) **Cut 4B-1 through 4B-5** (limited environment analysis) — skeleton guarantees Limited viability by construction, sealed sims meaningless at 60 cards and marginal at 280. (2) **Split 4A findings** into card-level (→ AI review) and set-level (→ skeleton revision). Set-level issues can't be fixed by reviewing individual cards. (3) **Added Phase 4A-rev** (skeleton revision + targeted regeneration) between 4A and 4B-review: LLM proposes slot changes from compact card list + balance findings, regenerates only affected slots, re-runs 4A to verify. Plan: `plans/phase-4a-rev-skeleton-revision.md`. (4) Updated Phase SC to reuse 4A-rev tooling at 280 cards instead of deferring fixes. **Next: 4A-rev-1 (build revision pipeline), 4A-rev-2 (run on ASD dev set).** |
 | 2026-03-20 | 15 | Phase 2C: Iterations 1-3 complete. Built card renderer (`rendering/` package): card_renderer.py orchestrator, text_engine.py (dynamic sizing, bold keywords, italic reminder, inline SVG symbols), symbol_renderer.py (pycairo SVG mana/tap/set symbols), layout.py (zone bounding boxes from Card Conjurer analysis), fonts.py (variable weight support), colors.py. 66 cards rendered in ~25s. Three pixel-level comparison iterations against Scryfall references. Researched Card Conjurer + wingedsheep renderers. Downloaded Beleren/MPlantin/Relay fonts for future swap. Learnings: `learnings/phase2c.md`. **Next: iteration 4 (Beleren+MPlantin font swap, mana symbol outlines), then 2C-10 (home-print test).** |
 | 2026-03-20 | 16 | Phase 2C iteration 4 (partial): Legendary crown fix. Researched mtgrender (github.com/Senryoku/mtgrender) crown compositing. Used m15MaskTitle.png to punch title-bar-shaped cutout from crown so frame name bar shows through. Added black underlay behind crown zone (above art window) to prevent frame colors bleeding through. Crown only for legendary creatures (not artifacts/enchantments). **Next: Beleren+MPlantin font swap, mana symbol outlines, remaining edge cases.** |
+
+---
+
+## Appendix: Future Improvements (Deferred)
+
+Low-priority ideas captured for later, not on the critical path.
+
+### Token-count calibration for local models
+
+**Problem:** `token_utils.py` uses tiktoken cl100k_base to pre-check prompt size against Ollama context windows, but Gemma (and other non-OpenAI models) use SentencePiece-family tokenizers with different ratios. tiktoken systematically undercounts Gemma tokens, so our `SAFETY_MARGIN` (currently 5%) is a guess. Too low and we silently truncate; too high and we waste context budget.
+
+**Proper fix:** Ollama PR #12030 adds `/api/tokenize` for exact per-model counts. When it lands, replace tiktoken with that endpoint and delete the margin.
+
+**Stopgap (offline calibration pass):**
+- Script reads `output/extraction_logs/*.md`, pulls `prompt_eval_count` (ground truth from Ollama) and reruns tiktoken over the same prompts.
+- Groups by model, computes the `real_tokens / tiktoken_tokens` ratio distribution.
+- Writes p99 (or max) per model to `token_ratios.toml`.
+- `count_messages_tokens` multiplies its tiktoken count by the model's ratio instead of applying a blanket 5% margin.
+- Cold start for a brand-new model: fall back to a conservative default (~1.25x) until enough samples accumulate.
+
+**Why offline, not dynamic or startup:** Dynamic learns only after the first overflow has already happened, and adds logic to the hot path. Startup probes burn tokens on every boot against synthetic prompts that may not match real extraction distributions. An offline pass uses real workload data we already log, costs nothing at runtime, and is trivially re-runnable when adding models or accumulating more data.
+
+**Trigger to revisit:** either Ollama PR #12030 merges (preferred), or we start hitting `InputTruncatedError` / `ContextOverflowError` on Gemma runs in practice.
