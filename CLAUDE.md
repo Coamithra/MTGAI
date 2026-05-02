@@ -90,33 +90,34 @@ Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain 
 - **TODO (active): reproduce degenerate output with diagnostics**. With the hack enabled, run the constraints + card_suggestions flow multiple times to try to trigger `done_reason=length` at 4096 + empty Response section again. The new frame-count fields will answer the open question: if `frames_with_content: 0`, Ollama was buffering in the done frame (the defensive fix already handles this). If `frames_with_content` is nonzero, the original empty-log behavior was caused by something else (iter_lines delimiter quirk, log handle state, etc.) and needs further investigation. Also: the ~12-16 empty frames per content frame ratio is unexplained; worth comparing across models (Anthropic vs Ollama, different Ollama models) to see if it's a format=json artifact or a general pattern.
 
 ## LLM Client (`mtgai/generation/llm_client.py`)
-- `generate_with_tool()` — unified entry point, provider selected by `MTGAI_PROVIDER` env var
-- **Two providers:**
-  - `anthropic` (default): Anthropic API with forced `tool_choice`, prompt caching, effort levels
-  - `ollama`: local models via Ollama's native `/api/chat` endpoint (cost = $0.00)
-- **Ollama config** (env vars):
-  - `MTGAI_PROVIDER=ollama` — switch to local model
-  - `MTGAI_OLLAMA_MODEL=qwen2.5:14b` — model name (default: qwen2.5:14b)
+- **All transport goes through [llmfacade](https://pypi.org/project/llmfacade/)** — a unified Provider/Model/Conversation API over Anthropic and Ollama. MTGAI no longer talks to either provider's HTTP layer directly. Both `llm_client.py` (card/mechanic generation) and `theme_extractor.py` (streaming theme extraction) build llmfacade `Conversation` objects via `_get_provider("anthropic" | "ollama")` and call `convo.send(...)` or `convo.stream(...)`. `art_selector.py` does the same for vision calls (Anthropic image blocks via `ImageBlock.from_path`).
+- `generate_with_tool()` — unified entry point, provider selected by `MTGAI_PROVIDER` env var (Anthropic by default).
+- **Tool schemas**: callers still pass MTGAI/Anthropic-shaped tool schema dicts (`name`, `description`, `input_schema`). `_make_tool()` wraps them as `llmfacade.Tool` objects with a no-op callable; we read structured args from `Response.tool_calls[0].input` directly and never invoke the tool fn. `tool_choice=tool_schema["name"]` forces the model to emit a tool call.
+- **Provider config** (env vars):
+  - `MTGAI_PROVIDER=ollama` — switch to local model (default `anthropic`)
+  - `MTGAI_OLLAMA_MODEL=qwen2.5:14b` — model name
   - `MTGAI_OLLAMA_URL=http://localhost:11434` — Ollama API endpoint
-- **Local models available**: Qwen 2.5 (7B/14B), Qwen3-VL 8B (vision), Gemma 4 E4B (fast, vision), Gemma 4 26B MoE (quality, vision, 128K context)
-  - Gemma 4 models support native tool calling and vision across all sizes
-  - `all-local` preset uses Gemma 4 26B MoE for all stages
-- **Ollama native API**: uses `/api/chat` (not OpenAI compat `/v1`) so `num_ctx` is respected. Context window looked up from model registry. `num_predict` set per-call to avoid 128-token default cap.
-- **Ollama tool extraction**: tries native function calling first, falls back to JSON extraction from text (fenced blocks, Qwen-style, bare JSON), retries up to 2x on garbage output
-- **Token counting** (`token_utils.py`): tiktoken cl100k_base for approximate counts. Pre-call overflow check raises `ContextOverflowError`. Post-call check raises `InputTruncatedError` / `OutputTruncatedError` if Ollama silently truncates.
+- **Anthropic provider settings** (set on the cached llmfacade Provider):
+  - `exact_count_tokens=True` — hits Anthropic's free server-side `count_tokens` endpoint when `theme_extractor` asks for an exact pre-call estimate.
+  - `auto_cache_tools=True` — reproduces the pre-migration `cache_control: ephemeral` on the tool schema so sequential calls within ~5 min reuse the cached prefix (90% discount). Per-call `cache=False` honours the contract by overriding to `auto_cache_tools=False` on that conversation.
+  - System prompt caching: pass `SystemBlock(text=..., cache=True)` to mark for ephemeral caching.
+- **Ollama provider settings**:
+  - `keep_alive="15m"` — keeps the model loaded between calls.
+  - `repeat_penalty=1.1` — Gemma-loop mitigation (see `learnings/gemma-repetition-loops.md`).
+  - llmfacade uses Ollama's native `/api/chat` under the hood, so `num_ctx` is respected. We look the context window up from the model registry per-call and pass it via `convo.send(num_ctx=...)`.
+- **Local models available**: Qwen 2.5 (7B/14B), Qwen3-VL 8B (vision), Gemma 4 E4B (fast, vision), Gemma 4 26B MoE (quality, vision, 128K context). Gemma 4 supports native tool calling and vision across all sizes. `all-local` preset uses Gemma 4 26B MoE for all stages.
+- **Ollama tool extraction**: native function calling first via llmfacade's `resp.tool_calls`, falls back to JSON extraction from raw text (fenced blocks, Qwen-style, bare JSON) when the model emits args inline as text. Retries up to `MTGAI_MAX_RETRIES` (default 3) on garbage output.
+- **Token counting** (`token_utils.py`): tiktoken cl100k_base for approximate counts on the Ollama path. Pre-call overflow check raises `ContextOverflowError`. Post-call `check_post_call_response(resp)` raises `InputTruncatedError` / `OutputTruncatedError` from llmfacade's `Response.usage` + `finish_reason="length"`.
 - **Ollama debug** (`ollama_debug.py`): log scanner for Ollama's `server.log`. Set `MTGAI_DEBUG=1` to enable post-call log scanning and startup debug mode verification. CLI: `python -m mtgai.generation.ollama_debug [--since=N]`. Scans for truncation, OOM, CUDA errors, and generic warn/error lines.
-- **Prompt caching** (Anthropic only, `cache=True`): system prompt and tool schema marked with `cache_control` so sequential calls within ~5 min reuse the cached prefix at 90% discount
-- Centralized `PRICING`, `calc_cost()`, and `cost_from_result()` — all callers import from here
-  - `calc_cost()` accounts for cache pricing: 1.25x for cache creation, 0.1x for cache reads
-  - `cost_from_result(result)` convenience wrapper unpacks a `generate_with_tool` result dict
-  - Returns 0.0 for local/unknown models
-- Supports `effort` parameter (Opus-only): "max", "high", "low"
-- Model tier capping via `MTGAI_MAX_MODEL` env var (set to "haiku", "sonnet", or "opus")
-  - Higher-tier requests are downgraded to the cap model
-  - `effort` is removed if dropping below Opus
-- `thinking` is incompatible with forced `tool_choice` — don't use together
-- Always use full color names in prompts (not abbreviations like "R")
-- **Provider routing**: `_resolve_provider(model_id)` checks model registry first, falls back to `MTGAI_PROVIDER` env var
+- **Pricing**: centralized `PRICING`, `calc_cost()`, and `cost_from_result()` — all callers import from here.
+  - `calc_cost()` accounts for cache pricing: 1.25x for cache creation, 0.1x for cache reads (read from llmfacade's `usage.cache_creation_input_tokens` / `cache_read_input_tokens`).
+  - `cost_from_result(result)` convenience wrapper unpacks a `generate_with_tool` result dict.
+  - Returns 0.0 for local/unknown models.
+- **Effort + capping**: `effort` parameter (Opus-only: "max", "high", "low") forwarded as `convo.send(effort=...)`. `MTGAI_MAX_MODEL` env var caps the tier (haiku/sonnet/opus); higher-tier requests are downgraded and `effort` is dropped if below Opus.
+- `thinking` is incompatible with forced `tool_choice` — don't use together.
+- Always use full color names in prompts (not abbreviations like "R").
+- **Provider routing**: `_resolve_provider(model_id)` checks model registry first, falls back to `MTGAI_PROVIDER` env var.
+- **Frame diagnostics for theme extraction**: per-call `<NNN>-<slug>.meta.json` sidecars are written alongside llmfacade's JSONL log on every termination path (complete, stream_exception, repetition_abort, no_usage_frame, truncated, cancelled). Records `frames_total`, `frames_with_content`, `theme_text_chars`, prompt/completion tokens, finish_reason, outcome. See `_write_call_meta()` in `theme_extractor.py`.
 
 ## Model Settings (`mtgai/settings/`)
 - **Model registry** (`models.toml`): TOML file listing all available LLM and image-gen models with provider, pricing, capabilities (effort, vision, caching)
