@@ -47,8 +47,9 @@ _OLLAMA_STOP_SEQUENCES = [
 
 # Hard cap on JSON subcall output (constraints / card_suggestions). With
 # num_predict=-1 a model in a repetition loop fills the entire context window
-# before the post-hoc detector even runs. Mid-stream repetition detection (every
-# 200 chars) is the primary runaway guard; this cap is just a backstop.
+# before the post-hoc detector even runs. Mid-stream repetition detection
+# (`_detect_tandem_repeat`, run every 64 chars of new content) is the primary
+# runaway guard; this cap is just a backstop.
 # Constraints output is tiny (3-8 short strings). Card suggestions (3-5 cards
 # with descriptions) needs more room - local models sometimes pad descriptions
 # or emit extra cards before the JSON closes.
@@ -394,9 +395,7 @@ def _count_tokens_anthropic(text: str, system_prompt: str, model_id: str) -> int
     from mtgai.generation.llm_client import _get_provider
 
     try:
-        single_template = (_PROMPTS_DIR / "theme_chunk_single.txt").read_text(
-            encoding="utf-8"
-        )
+        single_template = (_PROMPTS_DIR / "theme_chunk_single.txt").read_text(encoding="utf-8")
         user_content = single_template.format(text=text)
     except Exception:
         user_content = text
@@ -457,14 +456,12 @@ def analyze_extraction(text: str, model_key: str) -> ExtractionPlan:
             + next_calls * (chunk_token_budget + accumulated_avg + scaffold)
             + compaction_calls * (accumulated_avg + scaffold)
         )
-        total_output_tokens = (
-            (first_calls + next_calls) * _OUTPUT_BUDGET
-            + compaction_calls * int(accumulated_avg * 0.7)
+        total_output_tokens = (first_calls + next_calls) * _OUTPUT_BUDGET + compaction_calls * int(
+            accumulated_avg * 0.7
         )
 
     estimated_cost = (
-        total_input_tokens * model_info.input_price
-        + total_output_tokens * model_info.output_price
+        total_input_tokens * model_info.input_price + total_output_tokens * model_info.output_price
     ) / 1_000_000
 
     return ExtractionPlan(
@@ -592,8 +589,7 @@ def stream_theme_extraction(
         yield {
             "type": "error",
             "message": (
-                "Another extraction is already running. Cancel it first or wait "
-                "for it to finish."
+                "Another extraction is already running. Cancel it first or wait for it to finish."
             ),
         }
         return
@@ -648,9 +644,7 @@ def stream_theme_extraction(
         _run_lock.release()
 
 
-def _run_single_pass(
-    text: str, system_prompt: str, model_info
-) -> Generator[dict, None, None]:
+def _run_single_pass(text: str, system_prompt: str, model_info) -> Generator[dict, None, None]:
     yield {"type": "status", "message": "Generating theme..."}
     template = (_PROMPTS_DIR / "theme_chunk_single.txt").read_text(encoding="utf-8")
     user_msg = template.format(text=text)
@@ -745,23 +739,14 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
     yield {
         "type": "status",
         "message": (
-            f"Large document - extracting {len(_SECTIONS)} sections "
-            f"across {len(chunks)} chunks..."
+            f"Large document - extracting {len(_SECTIONS)} sections across {len(chunks)} chunks..."
         ),
     }
 
-    sys_template = (_PROMPTS_DIR / "theme_section_system.txt").read_text(
-        encoding="utf-8"
-    )
-    first_template = (_PROMPTS_DIR / "theme_section_first.txt").read_text(
-        encoding="utf-8"
-    )
-    next_template = (_PROMPTS_DIR / "theme_section_next.txt").read_text(
-        encoding="utf-8"
-    )
-    compact_template = (_PROMPTS_DIR / "theme_section_compact.txt").read_text(
-        encoding="utf-8"
-    )
+    sys_template = (_PROMPTS_DIR / "theme_section_system.txt").read_text(encoding="utf-8")
+    first_template = (_PROMPTS_DIR / "theme_section_first.txt").read_text(encoding="utf-8")
+    next_template = (_PROMPTS_DIR / "theme_section_next.txt").read_text(encoding="utf-8")
+    compact_template = (_PROMPTS_DIR / "theme_section_compact.txt").read_text(encoding="utf-8")
 
     completed_sections: list[str] = []
     total_cost = 0.0
@@ -774,9 +759,7 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
         logger.info("=== Section %d/%d: %s ===", sec_idx + 1, len(_SECTIONS), sec_name)
         yield {
             "type": "status",
-            "message": (
-                f"Extracting {sec_name} ({sec_idx + 1}/{len(_SECTIONS)})..."
-            ),
+            "message": (f"Extracting {sec_name} ({sec_idx + 1}/{len(_SECTIONS)})..."),
         }
         logger.info("Section %d/%d: %s", sec_idx + 1, len(_SECTIONS), sec_name)
 
@@ -883,8 +866,7 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
             yield {
                 "type": "status",
                 "message": (
-                    f"{sec_name} ({sec_idx + 1}/{len(_SECTIONS)}): "
-                    f"chunk {ci + 1}/{len(chunks)}..."
+                    f"{sec_name} ({sec_idx + 1}/{len(_SECTIONS)}): chunk {ci + 1}/{len(chunks)}..."
                 ),
             }
 
@@ -924,10 +906,7 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                     chunk_result = event.get("theme_text", chunk_result)
                     total_cost += event.get("cost_usd", 0)
                 elif event["type"] == "error":
-                    err_msg = (
-                        f"{sec_name} chunk {ci + 1}/{len(chunks)} failed: "
-                        f"{event['message']}"
-                    )
+                    err_msg = f"{sec_name} chunk {ci + 1}/{len(chunks)} failed: {event['message']}"
                     if _run_stats and not _run_stats.aborted_reason:
                         _run_stats.aborted_reason = err_msg
                     logger.error("ABORT: %s", err_msg)
@@ -1167,9 +1146,7 @@ def _stream_anthropic_call(
                 cost,
             )
 
-        logger.info(
-            "Anthropic call complete: %d chars, cost=$%.4f", len(theme_text), cost
-        )
+        logger.info("Anthropic call complete: %d chars, cost=$%.4f", len(theme_text), cost)
         meta["outcome"] = "complete"
         meta["cost_usd"] = cost
         yield {"type": "complete", "theme_text": theme_text, "cost_usd": cost}
@@ -1294,7 +1271,7 @@ def _stream_ollama_call(
                     if stream_to_ui:
                         yield {"type": "theme_chunk", "text": ev.text_delta}
                     chars_since_check += len(ev.text_delta)
-                    if chars_since_check >= 200:
+                    if chars_since_check >= 64:
                         chars_since_check = 0
                         loop_err = _detect_repetition_loop(theme_text)
                         if loop_err:
@@ -1341,9 +1318,7 @@ def _stream_ollama_call(
             # run footer doesn't undercount aborted calls.
             _record_call(
                 last_usage.prompt_tokens if last_usage else estimated_input_tokens,
-                last_usage.completion_tokens
-                if last_usage
-                else _count_tokens_tiktoken(theme_text),
+                last_usage.completion_tokens if last_usage else _count_tokens_tiktoken(theme_text),
                 0.0,
             )
             meta["outcome"] = "repetition_abort"
@@ -1431,83 +1406,82 @@ def _stream_ollama_call(
 # =============================================================================
 
 
-_PUNCT_STRIP = ".,;:!?\"'"
+# Tail size for the suffix-periodicity scan. Bounded so the detector cost
+# stays trivial regardless of total stream length.
+_REPETITION_TAIL_CHARS = 4096
+
+# Largest period we scan for. Beyond this, the per-call cost grows and real
+# LLM loops are vanishingly rare (degeneration cycles are short phrases).
+_REPETITION_MAX_PERIOD = 120
 
 
-def _detect_token_repetition(text: str, min_repeats: int = 15) -> str | None:
-    """Catch a single token (the last word) repeating N+ times at the tail."""
-    if not text:
-        return None
-    tail = text[-4000:]
-    words = tail.split()
-    if len(words) < min_repeats:
-        return None
-
-    # Prefer the stripped form so "word." and "word" count as one, but if
-    # stripping leaves nothing (pure punctuation like "---" or "..."), fall
-    # back to the raw token so pure-punctuation loops still get caught.
-    raw_last = words[-1]
-    stripped_last = raw_last.strip(_PUNCT_STRIP)
-    use_stripped = bool(stripped_last)
-    compare_val = stripped_last if use_stripped else raw_last
-
-    streak = 0
-    for w in reversed(words):
-        cmp = w.strip(_PUNCT_STRIP) if use_stripped else w
-        if cmp == compare_val:
-            streak += 1
-        else:
-            break
-    if streak >= min_repeats:
-        return f"Token {compare_val!r} repeated {streak}+ times at end of output"
-    return None
+# Period-length-aware confidence thresholds. Index = period in characters.
+# A hit requires both: (1) at least MIN_REPS[p] consecutive copies of the
+# period at the suffix, and (2) total repeated content >= MIN_TOTAL[p] chars.
+# Probability of a random tandem repeat at the suffix falls geometrically
+# with period length, so longer periods need fewer reps to be confident.
+def _build_repetition_thresholds() -> tuple[list[int], list[int]]:
+    reps = [0] * (_REPETITION_MAX_PERIOD + 1)
+    total = [0] * (_REPETITION_MAX_PERIOD + 1)
+    bands = [
+        (1, 1, 20, 20),
+        (2, 4, 8, 24),
+        (5, 10, 5, 30),
+        (11, 25, 4, 50),
+        (26, 60, 3, 90),
+        (61, _REPETITION_MAX_PERIOD, 2, 130),
+    ]
+    for lo, hi, r, t in bands:
+        for p in range(lo, hi + 1):
+            reps[p] = r
+            total[p] = t
+    return reps, total
 
 
-def _detect_phrase_repetition(
-    text: str, max_phrase_len: int = 60, min_repeats: int = 6
-) -> str | None:
-    """Catch a multi-token phrase repeating verbatim at the tail.
+_MIN_REPS_BY_PERIOD, _MIN_TOTAL_BY_PERIOD = _build_repetition_thresholds()
 
-    The model's output sometimes degenerates into a loop where a fixed
-    multi-word phrase repeats verbatim, e.g.::
 
-        "...preserver of life. A preserver of life. A preserver of life..."
+def _detect_tandem_repeat(text: str) -> str | None:
+    """Detect a tandem repeat at the suffix of ``text``.
 
-    The simple last-token detector misses these because the last token rotates
-    through several distinct words. This scanner walks phrase lengths
-    2..max_phrase_len chars and checks whether the last ``plen * min_repeats``
-    chars of the tail consist of the same ``plen``-char block repeated
-    ``min_repeats`` times.
+    Scans the last ``_REPETITION_TAIL_CHARS`` of the buffer for the smallest
+    period ``p`` (1..``_REPETITION_MAX_PERIOD``) such that the suffix consists
+    of at least ``_MIN_REPS_BY_PERIOD[p]`` consecutive copies of a ``p``-char
+    window, totalling at least ``_MIN_TOTAL_BY_PERIOD[p]`` characters.
 
-    Trade-off: ``min_repeats=6`` avoids false positives on legitimate
-    rhetorical repetition (lists, parallel structure). A 17-char phrase looped
-    only 5 times slips through, which is acceptable - 5 repetitions are short
-    enough that the post-hoc loop killer plus retry recover cleanly.
+    Iterating ``p`` upward and returning on the first hit guarantees the
+    canonical smallest period (Fine and Wilf): reporting ``p=8 "thethethe"``
+    when the real period is ``3 "the"`` would distort the threshold check.
+
+    The period window must contain at least one alphanumeric character. This
+    suppresses realistic non-loop patterns that look superficially periodic
+    (ASCII-art separators, markdown horizontal rules ``"-"*N``, table borders
+    ``"|---|---|"``, blank-fill underscores, runs of whitespace). Real LLM
+    repetition loops always cycle through tokens with letters/digits.
+
+    Returns a human-readable hit description or ``None``.
     """
     if not text:
         return None
-    tail = text[-4000:]
+    tail = text[-_REPETITION_TAIL_CHARS:]
     n = len(tail)
-    for plen in range(2, max_phrase_len + 1):
-        if plen * min_repeats > n:
-            break
-        phrase = tail[n - plen :]
-        ok = True
-        for i in range(1, min_repeats):
-            if tail[n - plen * (i + 1) : n - plen * i] != phrase:
-                ok = False
-                break
-        if ok:
-            display = phrase if len(phrase) <= 40 else phrase[:37] + "..."
-            return (
-                f"Phrase {display!r} (len={plen}) repeated {min_repeats}+ times"
-            )
+    max_p = min(_REPETITION_MAX_PERIOD, n // 2)
+    for p in range(1, max_p + 1):
+        window = tail[n - p :]
+        if not any(c.isalnum() for c in window):
+            continue
+        copies = 1
+        while n - p * (copies + 1) >= 0 and (tail[n - p * (copies + 1) : n - p * copies] == window):
+            copies += 1
+        if copies >= _MIN_REPS_BY_PERIOD[p] and p * copies >= _MIN_TOTAL_BY_PERIOD[p]:
+            display = window if len(window) <= 40 else window[:37] + "..."
+            return f"Period {display!r} (len={p}) repeated {copies}+ times at tail"
     return None
 
 
 def _detect_repetition_loop(text: str) -> str | None:
-    """Composite check: token-level OR phrase-level loop."""
-    return _detect_token_repetition(text) or _detect_phrase_repetition(text)
+    """Public detector entry point. See :func:`_detect_tandem_repeat`."""
+    return _detect_tandem_repeat(text)
 
 
 # =============================================================================
@@ -1515,9 +1489,7 @@ def _detect_repetition_loop(text: str) -> str | None:
 # =============================================================================
 
 
-def stream_constraints_extraction(
-    theme_text: str, model_key: str
-) -> Iterator[dict[str, Any]]:
+def stream_constraints_extraction(theme_text: str, model_key: str) -> Iterator[dict[str, Any]]:
     """Yield constraints + card-suggestion events as each subcall completes.
 
     Two sequential JSON subcalls. Each retries up to MAX_RETRIES on parse /
@@ -1627,9 +1599,7 @@ def stream_constraints_extraction(
                 f"{label} attempt {attempt}/{MAX_RETRIES} "
                 f"(json_mode, key='{json_key}', num_predict={output_budget})"
             )
-            items, err, raw = _attempt_json_subcall(
-                prompt, json_key, step_label, output_budget
-            )
+            items, err, raw = _attempt_json_subcall(prompt, json_key, step_label, output_budget)
 
             if err is None:
                 if attempt > 1:
@@ -1669,9 +1639,7 @@ def stream_constraints_extraction(
             head = (att_raw or "").strip()
             if len(head) > per_attempt_cap:
                 head = head[:per_attempt_cap] + " [... truncated ...]"
-            rendered.append(
-                f"--- Attempt {att_no}/{MAX_RETRIES} ({att_err}) ---\n{head}"
-            )
+            rendered.append(f"--- Attempt {att_no}/{MAX_RETRIES} ({att_err}) ---\n{head}")
         aggregated_raw = "\n\n".join(rendered)
         return [], final_err, aggregated_raw
 
