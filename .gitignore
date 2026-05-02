@@ -30,34 +30,8 @@ env/
 .env.*
 !.env.example
 
-# Output directory (art, renders, print files are binary, not version-controlled)
-output/sets/*/art/
-output/sets/*/renders/
-output/sets/*/print/
-output/sets/*/art-generation-logs/
-output/sets/*/art-direction/character-refs/*.png
-output/sets/*/art-direction/character-refs/logs/
-output/sets/*/art-direction/kontext-samples/
-output/sets/*/reports/render-summary.json
-output/sets/*/reports/overlay_*.png
-output/install_insightface.bat
-
-# Per-set runtime state and queues (regenerated each run)
-output/sets/*/pipeline-state.json
-output/sets/*/review-decisions*.json
-output/sets/*/review-progress.json
-output/sets/*/art-redo-queue.json
-output/sets/*/remake-queue.json
-output/sets/*/theme.txt
-
-# Top-level generated output (benchmarks, extraction logs, saved settings)
-output/benchmarks/
-output/extraction_logs/
-output/settings/
-
-# Keep directory structure
-!output/.gitkeep
-!output/sets/.gitkeep
+# Output directory (everything generated — cards, art, renders, logs, state)
+output/
 
 # Inspiration / reference PDFs (large binaries)
 inspiration/
