@@ -191,11 +191,33 @@ Two 64 K context attempts were made (per the original TC-1f plan). At 64 K the D
 ## Recommendation summary
 
 ### Env vars (Ollama 0.21+)
-- Nothing required. Flash attention is automatic.
-- `OLLAMA_KV_CACHE_TYPE=q4_0` intentionally not set. Would save ~100 s per 128K theme extraction on Vlad-dynamic, but 0.21 only exposes it globally - applying system-wide risks OOM on models with hardcoded `num_gpu` (e.g., upstream Vlad). Trade ~100 s for per-model flexibility. Revisit if Ollama adds per-request KV cache control.
+- Flash attention: nothing required, automatic.
+- `OLLAMA_KV_CACHE_TYPE=q8_0`: persisted at User scope (system-wide default for all Ollama projects). See "2026-05-02 update" below for the decision history.
 
 ### Env vars (legacy, Ollama ≤ 0.20.5)
 - `OLLAMA_FLASH_ATTENTION=1` was required to get flash attention. No longer needed on 0.21+.
+
+### 2026-05-02 update: enabling KV cache quantization globally
+
+**Decision**: persist `OLLAMA_KV_CACHE_TYPE=q8_0` at User scope. Default for every Ollama project on this machine.
+
+**Why this changed from the original "intentionally not set" stance**:
+
+The original deferred-decision trigger ("revisit if Ollama adds per-request KV cache control") will never fire — [PR #7983](https://github.com/ollama/ollama/pull/7983), which would have added per-Modelfile config, was rejected by maintainers as too hacky, and Ollama 0.22.1's `Options` struct still has no per-call KV cache field. So the conditions that triggered the revisit are different from what was originally written:
+
+1. **MTGAI standardized on `vlad-gemma4-26b-dynamic` everywhere** (CLAUDE.md "Default everywhere" line) — the OOM-on-hardcoded-`num_gpu`-99 concern is purely theoretical inside MTGAI now.
+2. **Architectural quality argument confirmed for Gemma 4**: sliding-window attention is empirically robust to KV cache quantization. TC-1f's quality comparison already produced indistinguishable 7-section output between fp16 and q4_0 cells (line 168 above), and a follow-up research agent confirmed the architectural reasoning in May 2026.
+3. **q8_0 chosen over q4_0** as the global default: q4_0 is Gemma-4-safe but introduces architecture-dependent quality risk for other projects on the same machine (Llama 3, Mistral, smaller models). q8_0 is the community-conventional "safe everywhere" KV quantization (~99% of f16 quality across architectures), so it's appropriate as a system-wide default. The trade-off: q8_0 is ~half the size of f16 but twice the size of q4_0, so on Vlad-dynamic at 128K it recovers ~70% of the q4_0 speedup, not 100%.
+
+**Expected speeds on Vlad-dynamic, 58K-token extraction at 128K context**:
+
+| Config | Wall clock | KV cache size at 128K | Source |
+|---|---|---|---|
+| f16 | 345.8 s | 3.4 GB | TC-1f benchmark line 69 |
+| q8_0 | ~270-290 s (interpolated) | 1.7 GB | not separately benchmarked |
+| q4_0 | 238.7 s | 0.8 GB | TC-1f benchmark line 70 |
+
+q8_0 leaves a measurable speedup vs. q4_0 on the table (~30-50 s per extraction) but is the right default given it'll inherit to non-MTGAI Ollama work where the architectural-robustness argument doesn't necessarily hold. If MTGAI ever needs the absolute fastest extraction, run the `start-ollama.ps1` "boost mode" launcher at the repo root — it stops the tray-launched Ollama and restarts a fresh `serve` with `OLLAMA_KV_CACHE_TYPE=q4_0` in process scope.
 
 ### Models in Ollama registry
 - `vlad-gemma4-26b-dynamic` — built from `FROM VladimirGav/gemma4-26b-16GB-VRAM:latest` + `PARAMETER num_gpu -1`. Primary choice for long context.
