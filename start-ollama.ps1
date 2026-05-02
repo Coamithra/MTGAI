@@ -47,8 +47,26 @@ Start-Sleep -Seconds 2
 Write-Host ''
 Write-Host '==> Starting ollama serve with OLLAMA_KV_CACHE_TYPE=q4_0'
 $env:OLLAMA_KV_CACHE_TYPE = 'q4_0'
-$proc = Start-Process -FilePath 'ollama' -ArgumentList 'serve' -WindowStyle Hidden -PassThru
+
+# Redirect stderr/stdout to disk so failures during a boost-mode session
+# (connection drops, crashes, repetition loops) are forensically recoverable.
+# The tray-managed C:\Users\coami\AppData\Local\Ollama\server.log goes silent
+# the moment we kill its serve process, so without this the entire boost
+# session is logging into the void.
+# Overwrites on each launch — copy the file aside if you want to keep it.
+$logDir = Join-Path $PSScriptRoot 'output'
+if (-not (Test-Path $logDir)) {
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+}
+$logStderr = Join-Path $logDir 'ollama-boost.log'
+$logStdout = Join-Path $logDir 'ollama-boost.stdout.log'
+
+$proc = Start-Process -FilePath 'ollama' -ArgumentList 'serve' `
+    -WindowStyle Hidden -PassThru `
+    -RedirectStandardError $logStderr `
+    -RedirectStandardOutput $logStdout
 Write-Host "    ollama serve started, PID = $($proc.Id)"
+Write-Host "    log: $logStderr"
 
 Start-Sleep -Seconds 3
 try {
