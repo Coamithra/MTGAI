@@ -57,6 +57,15 @@ def _static_dir() -> Path:
     return _templates_dir() / "static"
 
 
+class NoCacheStaticFiles(StaticFiles):
+    # Browsers heavily cache JS/CSS; that hides server-side renames until a
+    # hard refresh. Force revalidation so dev edits land on next reload.
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
+
 def _set_dir(set_code: str) -> Path:
     """Return the output directory for a set code."""
     return _project_root() / "output" / "sets" / set_code
@@ -109,7 +118,7 @@ async def _lifespan(application: FastAPI) -> AsyncGenerator[None]:
 app = FastAPI(title="MTGAI Review Server", lifespan=_lifespan)
 
 # Mount static assets (CSS, JS)
-app.mount("/static", StaticFiles(directory=str(_static_dir())), name="static")
+app.mount("/static", NoCacheStaticFiles(directory=str(_static_dir())), name="static")
 
 # Jinja2 templates
 templates = Jinja2Templates(directory=str(_templates_dir()))
