@@ -34,9 +34,7 @@ Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain 
 - Research outputs go in `research/`
 - Learnings go in `learnings/`
 - Plans and tracker in `plans/` (TRACKER.md is the master progress file)
-- Generated files (art binaries, renders, print files, runtime queues, extraction logs) go in `output/` and are gitignored - see `.gitignore` for the exact patterns
-- **Tracked under `output/sets/<SET>/`**: `cards/`, `mechanics/`, `reports/*.{md,html,json}`, `reports/references/`, `reviews/`, `revision_logs/`, `generation_logs/`, `art-direction/` (logs only, no PNGs), `art-selection-logs/`, `skeleton.json`, `skeleton-overview.txt`, `theme.json`, `set-config.json`, `card_gallery.md`, `reprint_selection.json`, `generation_progress.json`
-- **Gitignored under `output/`**: `benchmarks/`, `extraction_logs/`, `settings/`, and per-set `art/`, `renders/`, `art-generation-logs/`, `pipeline-state.json`, `review-decisions*.json`, `review-progress.json`, `art-redo-queue.json`, `remake-queue.json`, `theme.txt`, `reports/overlay_*.png`
+- Everything under `output/` is gitignored. Pre-existing tracked files (e.g. ASD's `cards/`, `mechanics/`, `reports/`) remain tracked because git won't auto-untrack them, but anything new in `output/` won't be picked up by git. If you need a generated artifact in version control, put it somewhere else.
 
 ## Development
 - Python 3.12+, managed with uv
