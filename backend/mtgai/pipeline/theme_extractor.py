@@ -56,6 +56,24 @@ _OLLAMA_STOP_SEQUENCES = [
 _JSON_SUBCALL_CONSTRAINTS_MAX_TOKENS = 4096
 _JSON_SUBCALL_SUGGESTIONS_MAX_TOKENS = 8192
 
+# Per-attempt sampler-knob escalation for the JSON subcall retry loop.
+# Index = attempt-1. None means "use provider default".
+#
+# IMPORTANT: As of Ollama 0.20.x (May 2026) the Go-native sampler used by
+# Gemma 4 and other ollamarunner models silently ignores repeat_penalty,
+# frequency_penalty, and presence_penalty — only temperature/top_k/top_p/
+# min_p actually take effect. See https://github.com/ollama/ollama/issues/15783
+# (PR #15784 is open but unmerged). So on our default model
+# (vlad-gemma4-26b-dynamic) the repeat_penalty schedule is a no-op until
+# upstream merges; temperature is the only knob currently moving the model
+# off a repetition loop. Schedule kept for forward-compat once #15784 lands.
+#
+# >1.20 repeat_penalty noticeably degrades JSON token output, so that's the
+# ceiling. Temperature 1.0 is the practical ceiling for JSON mode -
+# higher values start producing malformed structure on smaller models.
+_RETRY_REPEAT_PENALTIES: list[float | None] = [None, 1.15, 1.20]
+_RETRY_TEMPERATURES: list[float | None] = [None, 0.85, 1.0]
+
 # Compaction threshold. Per-section "next" chunks pass back the accumulated
 # section text so far. If accumulated grows beyond this fraction of the chunk
 # token budget, we run a compaction call to shrink it back. Keeps total per
@@ -998,6 +1016,8 @@ def _stream_single_call(
     json_mode: bool = False,
     step_label: str | None = None,
     output_budget_override: int | None = None,
+    repeat_penalty_override: float | None = None,
+    temperature_override: float | None = None,
 ) -> Generator[dict, None, None]:
     """Dispatch one streaming call to the configured provider.
 
@@ -1009,6 +1029,10 @@ def _stream_single_call(
 
     ``output_budget_override`` forces a specific Ollama ``num_predict`` for
     this call (ignored on Anthropic, which uses its own fixed max_tokens).
+
+    ``repeat_penalty_override`` overrides the provider-default Ollama
+    repeat_penalty for this call (ignored on Anthropic). Used by the JSON
+    subcall retry loop to escalate the penalty on repetition-loop retries.
     """
     if model_info.provider == "anthropic":
         yield from _stream_anthropic_call(
@@ -1027,6 +1051,8 @@ def _stream_single_call(
             json_mode=json_mode,
             step_label=step_label,
             output_budget_override=output_budget_override,
+            repeat_penalty_override=repeat_penalty_override,
+            temperature_override=temperature_override,
         )
     else:
         yield {
@@ -1170,6 +1196,8 @@ def _stream_ollama_call(
     json_mode: bool = False,
     step_label: str | None = None,
     output_budget_override: int | None = None,
+    repeat_penalty_override: float | None = None,
+    temperature_override: float | None = None,
 ) -> Generator[dict, None, None]:
     """Single Ollama streaming call via llmfacade.
 
@@ -1228,15 +1256,21 @@ def _stream_ollama_call(
     provider = _get_provider("ollama")
     facade_model = provider.new_model(model_info.model_id, context_size=num_ctx)
     log_path = _build_call_log_path(step_label, "ollama-call")
+    effective_temperature = temperature_override if temperature_override is not None else 0.7
     convo_kwargs: dict[str, Any] = {
         "system_blocks": [SystemBlock(text=system_prompt)],
         "max_tokens": output_reserve,
-        "temperature": 0.7,
+        "temperature": effective_temperature,
         "log_path": log_path,
         "log_max_message_lines": _LOG_MAX_MESSAGE_LINES,
     }
     if json_mode:
         convo_kwargs["output_format"] = "json"
+    if repeat_penalty_override is not None:
+        # Per-call override of provider-default repeat_penalty. Note: as of
+        # Ollama 0.20.x, the ollamarunner Go sampler (Gemma 4 et al.)
+        # silently ignores this. Kept here for forward-compat with PR #15784.
+        convo_kwargs["repeat_penalty"] = repeat_penalty_override
     convo = facade_model.new_conversation(**convo_kwargs)
 
     theme_text = ""
@@ -1256,6 +1290,10 @@ def _stream_ollama_call(
         "estimated_input_tokens": estimated_input_tokens,
         "outcome": "unknown",
     }
+    if repeat_penalty_override is not None:
+        meta["repeat_penalty"] = repeat_penalty_override
+    if temperature_override is not None:
+        meta["temperature"] = temperature_override
 
     try:
         stream_iter = convo.stream(user_msg, stop=_OLLAMA_STOP_SEQUENCES)
@@ -1489,6 +1527,250 @@ def _detect_repetition_loop(text: str) -> str | None:
 # =============================================================================
 
 
+def _attempt_json_subcall(
+    theme_text: str,
+    model_info,
+    prompt: str,
+    json_key: str,
+    step_label: str,
+    output_budget: int,
+    repeat_penalty_override: float | None = None,
+    temperature_override: float | None = None,
+) -> tuple[list, str | None, str]:
+    raw = ""
+    stream_err: str | None = None
+    try:
+        for event in _stream_single_call(
+            f"Setting:\n\n{theme_text}",
+            prompt,
+            model_info,
+            stream_to_ui=False,
+            json_mode=True,
+            step_label=step_label,
+            output_budget_override=output_budget,
+            repeat_penalty_override=repeat_penalty_override,
+            temperature_override=temperature_override,
+        ):
+            if event["type"] == "complete":
+                raw = event.get("theme_text", "")
+            elif event["type"] == "error":
+                stream_err = event.get("message") or "stream error"
+                # Preserve partial streamed content so the UI error panel
+                # and the retry-aggregation loop can show what the model
+                # produced before TRUNCATION / repetition abort. Without
+                # this the raw field stays "" and failed attempts look
+                # empty even though 4K tokens of JSON streamed out.
+                partial = event.get("partial_text")
+                if partial and not raw:
+                    raw = partial
+    except _CancelledError:
+        raise
+    except Exception as exc:
+        stream_err = f"{type(exc).__name__}: {exc}"
+        logger.exception("subcall stream raised")
+
+    if stream_err:
+        return [], f"Stream failed: {stream_err}", raw
+
+    loop_err = _detect_repetition_loop(raw)
+    if loop_err:
+        return [], loop_err, raw
+
+    try:
+        parsed = _json.loads(raw)
+    except _json.JSONDecodeError as exc:
+        return [], f"Malformed JSON output ({exc.msg} at pos {exc.pos})", raw
+
+    items = parsed.get(json_key, [])
+    if not isinstance(items, list):
+        return (
+            [],
+            f"Expected list at '{json_key}', got {type(items).__name__}",
+            raw,
+        )
+    return items, None, raw
+
+
+def _run_json_subcall(
+    theme_text: str,
+    model_info,
+    label: str,
+    prompt_file: str,
+    json_key: str,
+    output_budget: int,
+) -> Generator[dict, None, tuple[list, str | None, str]]:
+    from mtgai.generation.llm_client import MAX_RETRIES
+
+    prompt = (_PROMPTS_DIR / prompt_file).read_text(encoding="utf-8")
+    # Collect every attempt so the UI error surface shows the full
+    # retry history, not just the final attempt.
+    attempts: list[tuple[int, str, str]] = []  # (attempt_no, err, raw)
+
+    for attempt in range(1, MAX_RETRIES + 1):
+        _check_cancelled()
+        # Escalate sampler knobs on retries so a model that fell into a
+        # tandem-repeat on attempt 1 has a real chance of breaking out on
+        # attempt 2/3. temperature is the workhorse here - on Gemma 4 via
+        # ollamarunner, repeat_penalty is currently a no-op (Ollama issue
+        # #15783), so temperature is the only knob actually changing the
+        # sampling distribution between attempts.
+        rp_override = _RETRY_REPEAT_PENALTIES[attempt - 1] if attempt - 1 < len(
+            _RETRY_REPEAT_PENALTIES
+        ) else _RETRY_REPEAT_PENALTIES[-1]
+        temp_override = _RETRY_TEMPERATURES[attempt - 1] if attempt - 1 < len(
+            _RETRY_TEMPERATURES
+        ) else _RETRY_TEMPERATURES[-1]
+
+        knob_parts: list[str] = []
+        if temp_override is not None:
+            knob_parts.append(f"temperature={temp_override}")
+        if rp_override is not None:
+            knob_parts.append(f"repeat_penalty={rp_override}")
+        knob_note = (", " + ", ".join(knob_parts)) if knob_parts else ""
+
+        last_err = attempts[-1][1] if attempts else None
+        if attempt == 1:
+            yield {"type": "status", "message": f"{label}..."}
+        else:
+            yield {
+                "type": "status",
+                "message": (
+                    f"{label}: retry attempt {attempt}/{MAX_RETRIES} "
+                    f"(previous failed: {last_err}{knob_note})..."
+                ),
+            }
+            _record_retry()
+
+        step_label = (
+            f"{label} attempt {attempt}/{MAX_RETRIES} "
+            f"(json_mode, key='{json_key}', num_predict={output_budget}{knob_note})"
+        )
+        items, err, raw = _attempt_json_subcall(
+            theme_text,
+            model_info,
+            prompt,
+            json_key,
+            step_label,
+            output_budget,
+            repeat_penalty_override=rp_override,
+            temperature_override=temp_override,
+        )
+
+        if err is None:
+            if attempt > 1:
+                logger.info(
+                    "%s: succeeded on attempt %d/%d",
+                    label,
+                    attempt,
+                    MAX_RETRIES,
+                )
+            return items, None, raw
+
+        attempts.append((attempt, err or "unknown", raw))
+        logger.warning(
+            "%s attempt %d/%d failed: %s; raw head: %s",
+            label,
+            attempt,
+            MAX_RETRIES,
+            err,
+            raw[:200],
+        )
+
+    final_err = attempts[-1][1] if attempts else "no attempts"
+    logger.error(
+        "%s FINAL FAILURE after %d/%d attempts: %s",
+        label,
+        MAX_RETRIES,
+        MAX_RETRIES,
+        final_err,
+    )
+    # Build an aggregated raw view surfacing every attempt's output.
+    # Kept modest in size (~400 chars per attempt) so the UI error
+    # panel stays readable; the full output for each attempt lives in
+    # the extraction log.
+    per_attempt_cap = 400
+    rendered = []
+    for att_no, att_err, att_raw in attempts:
+        head = (att_raw or "").strip()
+        if len(head) > per_attempt_cap:
+            head = head[:per_attempt_cap] + " [... truncated ...]"
+        rendered.append(f"--- Attempt {att_no}/{MAX_RETRIES} ({att_err}) ---\n{head}")
+    aggregated_raw = "\n\n".join(rendered)
+    return [], final_err, aggregated_raw
+
+
+# Per-section subcall specs. Each entry maps `kind` → the args needed to drive
+# `_run_json_subcall` plus the success/error event types emitted to the UI.
+_SECTION_SPECS: dict[str, dict[str, Any]] = {
+    "constraints": {
+        "label": "Constraints extraction",
+        "prompt_file": "constraints_system.txt",
+        "json_key": "constraints",
+        "output_budget": _JSON_SUBCALL_CONSTRAINTS_MAX_TOKENS,
+        "success_event": "constraints",
+        "error_event": "constraints_error",
+        "items_field": "constraints",
+    },
+    "card_suggestions": {
+        "label": "Card suggestions extraction",
+        "prompt_file": "card_suggestions_system.txt",
+        "json_key": "card_suggestions",
+        "output_budget": _JSON_SUBCALL_SUGGESTIONS_MAX_TOKENS,
+        "success_event": "card_suggestions",
+        "error_event": "suggestions_error",
+        "items_field": "suggestions",
+    },
+}
+
+
+def _stream_section_subcall(
+    theme_text: str, model_info, kind: str
+) -> Iterator[dict[str, Any]]:
+    """Yield status + result events for one section subcall.
+
+    Used by both the full constraints pass and the per-section refresh path.
+    """
+    spec = _SECTION_SPECS[kind]
+    gen = _run_json_subcall(
+        theme_text,
+        model_info,
+        spec["label"],
+        spec["prompt_file"],
+        spec["json_key"],
+        spec["output_budget"],
+    )
+    try:
+        while True:
+            yield next(gen)
+    except StopIteration as stop:
+        items, err, raw = stop.value
+
+    logger.info(
+        "%s: %d items (err=%s)",
+        spec["label"],
+        len(items),
+        err,
+    )
+    if err:
+        yield {
+            "type": spec["error_event"],
+            "message": err,
+            "raw": (raw or "")[:2000],
+        }
+    else:
+        yield {"type": spec["success_event"], spec["items_field"]: items}
+
+
+def _resolve_model_info(model_key: str):
+    from mtgai.settings.model_registry import get_registry
+
+    registry = get_registry()
+    model_info = registry.get_llm(model_key)
+    if model_info is None:
+        raise ValueError(f"Unknown model key: {model_key}")
+    return model_info
+
+
 def stream_constraints_extraction(theme_text: str, model_key: str) -> Iterator[dict[str, Any]]:
     """Yield constraints + card-suggestion events as each subcall completes.
 
@@ -1504,144 +1786,13 @@ def stream_constraints_extraction(theme_text: str, model_key: str) -> Iterator[d
         {"type": "suggestions_error", "message": "...", "raw": "..."}
         {"type": "done", "cost_usd": 0.0}
     """
-    from mtgai.generation.llm_client import MAX_RETRIES
-    from mtgai.settings.model_registry import get_registry
-
-    registry = get_registry()
-    model_info = registry.get_llm(model_key)
-    if model_info is None:
-        raise ValueError(f"Unknown model key: {model_key}")
+    model_info = _resolve_model_info(model_key)
 
     logger.info(
         "Extracting constraints + suggestions: model=%s, theme_len=%d",
         model_info.model_id,
         len(theme_text),
     )
-
-    def _attempt_json_subcall(
-        prompt: str, json_key: str, step_label: str, output_budget: int
-    ) -> tuple[list, str | None, str]:
-        raw = ""
-        stream_err: str | None = None
-        try:
-            for event in _stream_single_call(
-                f"Setting:\n\n{theme_text}",
-                prompt,
-                model_info,
-                stream_to_ui=False,
-                json_mode=True,
-                step_label=step_label,
-                output_budget_override=output_budget,
-            ):
-                if event["type"] == "complete":
-                    raw = event.get("theme_text", "")
-                elif event["type"] == "error":
-                    stream_err = event.get("message") or "stream error"
-                    # Preserve partial streamed content so the UI error panel
-                    # and the retry-aggregation loop can show what the model
-                    # produced before TRUNCATION / repetition abort. Without
-                    # this the raw field stays "" and failed attempts look
-                    # empty even though 4K tokens of JSON streamed out.
-                    partial = event.get("partial_text")
-                    if partial and not raw:
-                        raw = partial
-        except _CancelledError:
-            raise
-        except Exception as exc:
-            stream_err = f"{type(exc).__name__}: {exc}"
-            logger.exception("subcall stream raised")
-
-        if stream_err:
-            return [], f"Stream failed: {stream_err}", raw
-
-        loop_err = _detect_repetition_loop(raw)
-        if loop_err:
-            return [], loop_err, raw
-
-        try:
-            parsed = _json.loads(raw)
-        except _json.JSONDecodeError as exc:
-            return [], f"Malformed JSON output ({exc.msg} at pos {exc.pos})", raw
-
-        items = parsed.get(json_key, [])
-        if not isinstance(items, list):
-            return (
-                [],
-                f"Expected list at '{json_key}', got {type(items).__name__}",
-                raw,
-            )
-        return items, None, raw
-
-    def _run_json_subcall(
-        label: str, prompt_file: str, json_key: str, output_budget: int
-    ) -> Generator[dict, None, tuple[list, str | None, str]]:
-        prompt = (_PROMPTS_DIR / prompt_file).read_text(encoding="utf-8")
-        # Collect every attempt so the UI error surface shows the full
-        # retry history, not just the final attempt.
-        attempts: list[tuple[int, str, str]] = []  # (attempt_no, err, raw)
-
-        for attempt in range(1, MAX_RETRIES + 1):
-            _check_cancelled()
-            last_err = attempts[-1][1] if attempts else None
-            if attempt == 1:
-                yield {"type": "status", "message": f"{label}..."}
-            else:
-                yield {
-                    "type": "status",
-                    "message": (
-                        f"{label}: retry attempt {attempt}/{MAX_RETRIES} "
-                        f"(previous failed: {last_err})..."
-                    ),
-                }
-                _record_retry()
-
-            step_label = (
-                f"{label} attempt {attempt}/{MAX_RETRIES} "
-                f"(json_mode, key='{json_key}', num_predict={output_budget})"
-            )
-            items, err, raw = _attempt_json_subcall(prompt, json_key, step_label, output_budget)
-
-            if err is None:
-                if attempt > 1:
-                    logger.info(
-                        "%s: succeeded on attempt %d/%d",
-                        label,
-                        attempt,
-                        MAX_RETRIES,
-                    )
-                return items, None, raw
-
-            attempts.append((attempt, err or "unknown", raw))
-            logger.warning(
-                "%s attempt %d/%d failed: %s; raw head: %s",
-                label,
-                attempt,
-                MAX_RETRIES,
-                err,
-                raw[:200],
-            )
-
-        final_err = attempts[-1][1] if attempts else "no attempts"
-        logger.error(
-            "%s FINAL FAILURE after %d/%d attempts: %s",
-            label,
-            MAX_RETRIES,
-            MAX_RETRIES,
-            final_err,
-        )
-        # Build an aggregated raw view surfacing every attempt's output.
-        # Kept modest in size (~400 chars per attempt) so the UI error
-        # panel stays readable; the full output for each attempt lives in
-        # the extraction log.
-        per_attempt_cap = 400
-        rendered = []
-        for att_no, att_err, att_raw in attempts:
-            head = (att_raw or "").strip()
-            if len(head) > per_attempt_cap:
-                head = head[:per_attempt_cap] + " [... truncated ...]"
-            rendered.append(f"--- Attempt {att_no}/{MAX_RETRIES} ({att_err}) ---\n{head}")
-        aggregated_raw = "\n\n".join(rendered)
-        return [], final_err, aggregated_raw
 
     # Acquire the run lock for the entire constraints pass. Reentrant: if the
     # caller (theme extraction) already holds it, this is free.
@@ -1660,59 +1811,8 @@ def stream_constraints_extraction(theme_text: str, model_key: str) -> Iterator[d
         if _run_log_dir is None:
             _init_run_log_dir()
 
-        # --- Call 1: Constraints (JSON mode) ---
-        gen = _run_json_subcall(
-            "Constraints extraction",
-            "constraints_system.txt",
-            "constraints",
-            _JSON_SUBCALL_CONSTRAINTS_MAX_TOKENS,
-        )
-        try:
-            while True:
-                yield next(gen)
-        except StopIteration as stop:
-            constraints, constraints_err, constraints_raw = stop.value
-
-        logger.info(
-            "Constraints extracted: %d items (err=%s)",
-            len(constraints),
-            constraints_err,
-        )
-        if constraints_err:
-            yield {
-                "type": "constraints_error",
-                "message": constraints_err,
-                "raw": (constraints_raw or "")[:2000],
-            }
-        else:
-            yield {"type": "constraints", "constraints": constraints}
-
-        # --- Call 2: Card suggestions (JSON mode) ---
-        gen = _run_json_subcall(
-            "Card suggestions extraction",
-            "card_suggestions_system.txt",
-            "card_suggestions",
-            _JSON_SUBCALL_SUGGESTIONS_MAX_TOKENS,
-        )
-        try:
-            while True:
-                yield next(gen)
-        except StopIteration as stop:
-            card_suggestions, suggestions_err, suggestions_raw = stop.value
-
-        logger.info(
-            "Card suggestions extracted: %d items (err=%s)",
-            len(card_suggestions),
-            suggestions_err,
-        )
-        if suggestions_err:
-            yield {
-                "type": "suggestions_error",
-                "message": suggestions_err,
-                "raw": (suggestions_raw or "")[:2000],
-            }
-        else:
-            yield {"type": "card_suggestions", "suggestions": card_suggestions}
+        yield from _stream_section_subcall(theme_text, model_info, "constraints")
+        yield from _stream_section_subcall(theme_text, model_info, "card_suggestions")
 
         yield {"type": "done", "cost_usd": 0.0}
     except _CancelledError:
@@ -1723,12 +1823,55 @@ def stream_constraints_extraction(theme_text: str, model_key: str) -> Iterator[d
         _run_lock.release()
 
 
-def extract_constraints(theme_text: str, model_key: str) -> ConstraintsResult:
-    """Aggregating wrapper around :func:`stream_constraints_extraction`.
+def stream_section_extraction(
+    theme_text: str, model_key: str, kind: str
+) -> Iterator[dict[str, Any]]:
+    """Run only one of the constraints / card-suggestions subcalls.
 
-    Used by the non-streaming refresh endpoint. Streaming SSE handlers should
-    call ``stream_constraints_extraction`` directly so per-subcall results
-    flush to the browser as soon as they're ready.
+    Used by the per-section refresh endpoints so a "Refresh AI" click on
+    Set Constraints doesn't also pay for the (discarded) card-suggestions
+    subcall, and vice versa.
+    """
+    if kind not in _SECTION_SPECS:
+        raise ValueError(f"Unknown section kind: {kind}")
+
+    model_info = _resolve_model_info(model_key)
+
+    logger.info(
+        "Extracting section=%s: model=%s, theme_len=%d",
+        kind,
+        model_info.model_id,
+        len(theme_text),
+    )
+
+    if not _run_lock.acquire(blocking=False):
+        yield {
+            "type": "error",
+            "message": "Another extraction is already running.",
+        }
+        return
+
+    try:
+        if _run_log_dir is None:
+            _init_run_log_dir()
+
+        yield from _stream_section_subcall(theme_text, model_info, kind)
+
+        yield {"type": "done", "cost_usd": 0.0}
+    except _CancelledError:
+        if _run_stats:
+            _run_stats.cancelled = True
+        yield {"type": "cancelled"}
+    finally:
+        _run_lock.release()
+
+
+def extract_section(theme_text: str, model_key: str, kind: str) -> ConstraintsResult:
+    """Non-streaming wrapper around :func:`stream_section_extraction`.
+
+    Used by the per-section refresh endpoints (one LLM subcall per click).
+    Returns a :class:`ConstraintsResult` with only the requested section
+    populated; the unrelated section's fields stay at their defaults.
     """
     constraints: list = []
     card_suggestions: list = []
@@ -1737,7 +1880,7 @@ def extract_constraints(theme_text: str, model_key: str) -> ConstraintsResult:
     suggestions_error: str | None = None
     suggestions_raw: str | None = None
     cost = 0.0
-    for event in stream_constraints_extraction(theme_text, model_key):
+    for event in stream_section_extraction(theme_text, model_key, kind):
         t = event.get("type")
         if t == "constraints":
             constraints = event["constraints"]

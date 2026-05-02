@@ -388,20 +388,28 @@ async def extract_theme_stream(
     )
 
 
-@api_router.post("/theme/extract-constraints")
-async def extract_constraints_endpoint(request: Request):
-    """Extract constraints + card suggestions from theme text (for refresh)."""
+@api_router.post("/theme/extract-section")
+async def extract_section_endpoint(request: Request):
+    """Refresh one of the AI-extracted sections (constraints OR card_suggestions).
+
+    Splits the old combined endpoint so a "Refresh AI" click on a single
+    section only fires its own LLM subcall instead of paying for both and
+    discarding half.
+    """
     body = await request.json()
     theme_text = body.get("theme_text", "")
+    kind = body.get("kind", "constraints")
     model_key = body.get("model_key") or _theme_extract_model_key()
 
     if not theme_text.strip():
         return JSONResponse({"error": "No theme text provided"}, status_code=400)
+    if kind not in ("constraints", "card_suggestions"):
+        return JSONResponse({"error": f"Unknown kind: {kind}"}, status_code=400)
 
-    from mtgai.pipeline.theme_extractor import extract_constraints
+    from mtgai.pipeline.theme_extractor import extract_section
 
     try:
-        result = await asyncio.to_thread(extract_constraints, theme_text, model_key)
+        result = await asyncio.to_thread(extract_section, theme_text, model_key, kind)
         return JSONResponse(
             {
                 "constraints": result.constraints,
@@ -414,7 +422,7 @@ async def extract_constraints_endpoint(request: Request):
             }
         )
     except Exception as e:
-        logger.error("Constraints extraction failed: %s", e, exc_info=True)
+        logger.error("Section extraction (%s) failed: %s", kind, e, exc_info=True)
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
