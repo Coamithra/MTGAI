@@ -618,12 +618,19 @@ async function refreshConstraints() {
 
   clearExtractionError('constraints-list');
   try {
-    const resp = await fetch('/api/pipeline/theme/extract-constraints', {
+    const resp = await fetch('/api/pipeline/theme/extract-section', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme_text: settingText }),
+      body: JSON.stringify({ theme_text: settingText, kind: 'constraints' }),
     });
-    const data = await resp.json();
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const msg = data.error || data.detail || `HTTP ${resp.status}`;
+      showExtractionError('constraints-list', msg, '',
+        { label: 'Retry', fn: refreshConstraints });
+      showToast('Refresh failed: ' + msg + ' (try Ctrl+Shift+R if stale)', 'error');
+      return;
+    }
     if (data.error) {
       showExtractionError('constraints-list', data.error, '',
         { label: 'Retry', fn: refreshConstraints });
@@ -636,10 +643,13 @@ async function refreshConstraints() {
       showToast('Constraints extraction failed', 'error');
       return;
     }
-    if (data.constraints) {
-      data.constraints.forEach(c => addConstraint(c, true));
+    const items = Array.isArray(data.constraints) ? data.constraints : [];
+    items.forEach(c => addConstraint(c, true));
+    if (items.length === 0) {
+      showToast('LLM returned no constraints for this setting', 'warn');
+    } else {
+      showToast(`Constraints refreshed ($${(data.cost_usd || 0).toFixed(4)})`, 'success');
     }
-    showToast(`Constraints refreshed ($${(data.cost_usd || 0).toFixed(4)})`, 'success');
   } catch (err) {
     showExtractionError('constraints-list', err.message, '',
       { label: 'Retry', fn: refreshConstraints });
@@ -672,12 +682,19 @@ async function refreshCardRequests() {
 
   clearExtractionError('card-requests-list');
   try {
-    const resp = await fetch('/api/pipeline/theme/extract-constraints', {
+    const resp = await fetch('/api/pipeline/theme/extract-section', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme_text: settingText }),
+      body: JSON.stringify({ theme_text: settingText, kind: 'card_suggestions' }),
     });
-    const data = await resp.json();
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const msg = data.error || data.detail || `HTTP ${resp.status}`;
+      showExtractionError('card-requests-list', msg, '',
+        { label: 'Retry', fn: refreshCardRequests });
+      showToast('Refresh failed: ' + msg + ' (try Ctrl+Shift+R if stale)', 'error');
+      return;
+    }
     if (data.error) {
       showExtractionError('card-requests-list', data.error, '',
         { label: 'Retry', fn: refreshCardRequests });
@@ -690,13 +707,16 @@ async function refreshCardRequests() {
       showToast('Card suggestions extraction failed', 'error');
       return;
     }
-    if (data.card_suggestions) {
-      data.card_suggestions.forEach(s => {
-        const desc = `${s.name}: ${s.description}`;
-        addCardRequest(desc, true);
-      });
+    const items = Array.isArray(data.card_suggestions) ? data.card_suggestions : [];
+    items.forEach(s => {
+      const desc = `${s.name}: ${s.description}`;
+      addCardRequest(desc, true);
+    });
+    if (items.length === 0) {
+      showToast('LLM returned no card suggestions for this setting', 'warn');
+    } else {
+      showToast(`Card suggestions refreshed ($${(data.cost_usd || 0).toFixed(4)})`, 'success');
     }
-    showToast(`Card suggestions refreshed ($${(data.cost_usd || 0).toFixed(4)})`, 'success');
   } catch (err) {
     showExtractionError('card-requests-list', err.message, '',
       { label: 'Retry', fn: refreshCardRequests });
