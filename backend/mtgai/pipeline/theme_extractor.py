@@ -23,6 +23,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from llmfacade import SystemBlock
+from llmfacade.exceptions import LLMError
+
 logger = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
@@ -31,17 +34,12 @@ _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 _OUTPUT_BUDGET = 16384
 _LOG_DIR = Path("C:/Programming/MTGAI/output/extraction_logs")
 
-OLLAMA_URL = os.environ.get("MTGAI_OLLAMA_URL", "http://localhost:11434").strip()
-
 # Stop sequences keep the model from echoing the source-text divider markers
 # back into the extraction (a real failure mode on weaker local models).
 _OLLAMA_STOP_SEQUENCES = [
     "--- START OF SOURCE TEXT ---",
     "--- END OF SOURCE TEXT ---",
 ]
-
-# Keep model warm between theme + constraints calls (Ollama default = 5m).
-_OLLAMA_KEEP_ALIVE = "15m"
 
 # Hard cap on JSON subcall output (constraints / card_suggestions). With
 # num_predict=-1 a model in a repetition loop fills the entire context window
@@ -175,166 +173,53 @@ def _record_retry() -> None:
 
 
 # =============================================================================
-# Conversation log (one file per run)
+# Per-run log directory
 # =============================================================================
+#
+# llmfacade writes one JSONL (and HTML twin) per Conversation. We give every
+# extraction its own subdirectory under output/extraction_logs/ so all of a
+# run's calls live together and can be tail-ed / browsed as a unit. The UI
+# /api/pipeline/theme/status endpoint exposes this directory path.
 
-_conversation_log: Path | None = None
-_log_handle: Any = None  # open file when streaming a call; None otherwise
+_run_log_dir: Path | None = None
+_run_call_counter: int = 0
 
 
-def _init_conversation_log() -> Path:
-    global _conversation_log, _run_stats
+def _init_run_log_dir() -> Path:
+    """Create a fresh per-run log directory. Resets _run_stats and the
+    per-run call counter used to disambiguate per-call log filenames."""
+    global _run_log_dir, _run_stats, _run_call_counter
     _LOG_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    _conversation_log = _LOG_DIR / f"extraction_{ts}.md"
-    _conversation_log.write_text(
-        f"# Theme Extraction Log - {ts}\n\n",
-        encoding="utf-8",
-    )
+    _run_log_dir = _LOG_DIR / f"extraction_{ts}"
+    _run_log_dir.mkdir(parents=True, exist_ok=True)
     _run_stats = _RunStats()
-    return _conversation_log
+    _run_call_counter = 0
+    return _run_log_dir
 
 
 def get_current_log_path() -> Path | None:
-    """Path of the active extraction log (None if no run in progress)."""
-    return _conversation_log
+    """Directory holding the active extraction's call logs (None if idle)."""
+    return _run_log_dir
 
 
-def _truncate_user_prompt(user_prompt: str) -> str:
-    if len(user_prompt) <= 2000:
-        return user_prompt
-    return (
-        user_prompt[:1000]
-        + f"\n\n[... {len(user_prompt) - 2000} chars truncated ...]\n\n"
-        + user_prompt[-1000:]
-    )
+_SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 
-def _log_call_start(
-    step: str,
-    system_prompt: str,
-    user_prompt: str,
-    extras: dict[str, str] | None = None,
-) -> None:
-    """Open a new call section in the conversation log.
-
-    ``extras`` lets the caller dump critical mid-prompt state verbatim
-    (e.g. accumulated section text, chunk text) as separate fenced blocks,
-    so debugging doesn't depend on what survives :func:`_truncate_user_prompt`.
-    """
-    global _log_handle
-    if _conversation_log is None:
-        return
-    if _log_handle is not None:
-        try:
-            _log_handle.close()
-        except Exception:
-            pass
-        _log_handle = None
-    ts = datetime.datetime.now().strftime("%H:%M:%S")
-    _log_handle = open(_conversation_log, "a", encoding="utf-8")
-    _log_handle.write(f"---\n\n## [{ts}] {step}\n\n")
-    _log_handle.write(f"### System Prompt\n\n```\n{system_prompt}\n```\n\n")
-    _log_handle.write(
-        f"### User Prompt\n\n```\n{_truncate_user_prompt(user_prompt)}\n```\n\n"
-    )
-    if extras:
-        for label, value in extras.items():
-            if value is None:
-                continue
-            _log_handle.write(f"### {label}\n\n```\n{value}\n```\n\n")
-    _log_handle.write("### Response\n\n")
-    _log_handle.flush()
+def _slugify(label: str | None, fallback: str) -> str:
+    if not label:
+        return fallback
+    s = _SLUG_RE.sub("-", label.lower()).strip("-")
+    return s[:80] or fallback
 
 
-def _log_call_chunk(text: str) -> None:
-    if _log_handle is None or not text:
-        return
-    _log_handle.write(text)
-    _log_handle.flush()
-
-
-def _log_call_end(note: str | None = None, metadata: dict | None = None) -> None:
-    global _log_handle
-    if _log_handle is None:
-        return
-    if metadata:
-        _log_handle.write("\n\n```\n")
-        for k, v in metadata.items():
-            _log_handle.write(f"{k}: {v}\n")
-        _log_handle.write("```\n")
-    if note:
-        _log_handle.write(f"\n\n_{note}_\n\n")
-    else:
-        _log_handle.write("\n\n")
-    _log_handle.flush()
-    _log_handle.close()
-    _log_handle = None
-
-
-def _log_marker(text: str) -> None:
-    """One-line italics marker between call sections."""
-    if _conversation_log is None:
-        return
-    ts = datetime.datetime.now().strftime("%H:%M:%S")
-    with open(_conversation_log, "a", encoding="utf-8") as f:
-        f.write(f"_[{ts}] {text}_\n\n")
-
-
-def _write_plan_header(
-    *,
-    model_key: str,
-    model_info: Any,
-    text: str,
-    token_count: int,
-    available: int,
-    fits: bool,
-    est_chunks: int,
-) -> None:
-    """Dump the pre-extraction plan into the log so post-mortems don't need
-    to reconstruct what we thought was going to happen."""
-    if _conversation_log is None:
-        return
-    with open(_conversation_log, "a", encoding="utf-8") as f:
-        f.write("## Extraction Plan\n\n")
-        f.write(f"- Model key: `{model_key}`\n")
-        f.write(f"- Model id: `{model_info.model_id}`\n")
-        f.write(f"- Provider: `{model_info.provider}`\n")
-        f.write(f"- Context window: {model_info.context_window:,}\n")
-        f.write(f"- Output budget: {_OUTPUT_BUDGET:,}\n")
-        f.write(f"- Available budget: {available:,}\n")
-        f.write(f"- Input length: {len(text):,} chars\n")
-        f.write(f"- Estimated input tokens: {token_count:,}\n")
-        f.write(f"- Fits single pass: {'yes' if fits else 'no'}\n")
-        if not fits:
-            f.write(f"- Planned chunks: {est_chunks}\n")
-            f.write(f"- Sections: {len(_SECTIONS)}\n")
-            f.write(
-                f"- Planned section x chunk calls: "
-                f"{len(_SECTIONS) * est_chunks}\n"
-            )
-        f.write("\n")
-
-
-def _write_summary_footer() -> None:
-    if _conversation_log is None or _run_stats is None:
-        return
-    elapsed = time.monotonic() - _run_stats.started_at
-    with open(_conversation_log, "a", encoding="utf-8") as f:
-        f.write("---\n\n## Run Summary\n\n")
-        f.write(f"- Wall time: {elapsed:.1f}s ({elapsed / 60:.1f} min)\n")
-        f.write(f"- Total LLM calls: {_run_stats.total_calls}\n")
-        f.write(f"- Input tokens (recorded): {_run_stats.total_input_tokens:,}\n")
-        f.write(f"- Output tokens (recorded): {_run_stats.total_output_tokens:,}\n")
-        f.write(f"- Total cost: ${_run_stats.total_cost_usd:.4f}\n")
-        f.write(f"- Retries: {_run_stats.retries}\n")
-        f.write(f"- Sections with content: {_run_stats.sections_with_content}\n")
-        f.write(f"- Sections empty: {_run_stats.sections_empty}\n")
-        if _run_stats.cancelled:
-            f.write("- **CANCELLED by user**\n")
-        if _run_stats.aborted_reason:
-            f.write(f"- **ABORTED**: {_run_stats.aborted_reason}\n")
-        f.write("\n")
+def _next_call_id() -> int:
+    """Monotonically increasing per-run id used to prefix log filenames so
+    two calls with the same step_label slug never share a JSONL/HTML pair
+    (llmfacade's HtmlLogger overwrites on each Conversation construction)."""
+    global _run_call_counter
+    _run_call_counter += 1
+    return _run_call_counter
 
 
 # =============================================================================
@@ -495,13 +380,15 @@ def count_tokens(text: str, model_key: str) -> int:
 
 
 def _count_tokens_anthropic(text: str, system_prompt: str, model_id: str) -> int:
-    from anthropic import Anthropic
+    """Exact server-side count via llmfacade (uses the free Anthropic
+    messages.count_tokens endpoint - exact_count_tokens=True is set on the
+    cached provider in llm_client._get_provider).
 
-    client = Anthropic()
-    # Use the actual single-pass user template so the count matches what we
-    # would really send. For multi-chunk runs this is only a planning
-    # estimate anyway, but keeping the string honest avoids a subtle drift
-    # between "planned" tokens and "actually sent" tokens.
+    Use the actual single-pass user template so the count matches what we
+    would really send. Falls back to a chars/4 heuristic on any error.
+    """
+    from mtgai.generation.llm_client import _get_provider
+
     try:
         single_template = (_PROMPTS_DIR / "theme_chunk_single.txt").read_text(
             encoding="utf-8"
@@ -510,12 +397,9 @@ def _count_tokens_anthropic(text: str, system_prompt: str, model_id: str) -> int
     except Exception:
         user_content = text
     try:
-        result = client.messages.count_tokens(
-            model=model_id,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_content}],
-        )
-        return result.input_tokens
+        provider = _get_provider("anthropic")
+        full = system_prompt + "\n\n" + user_content
+        return provider.count_tokens(full, model_id=model_id)
     except Exception as e:
         logger.warning("count_tokens API failed, using heuristic: %s", e)
         return (len(system_prompt) + len(user_content)) // 4
@@ -879,13 +763,13 @@ def stream_theme_extraction(
             return
 
         system_prompt = _get_system_prompt()
-        log_path = _init_conversation_log()
+        log_dir = _init_run_log_dir()
         logger.info(
-            "Starting theme extraction: model=%s provider=%s text_len=%d log=%s",
+            "Starting theme extraction: model=%s provider=%s text_len=%d log_dir=%s",
             model_info.model_id,
             model_info.provider,
             len(text),
-            log_path,
+            log_dir,
         )
 
         try:
@@ -899,20 +783,6 @@ def stream_theme_extraction(
             )
 
             fits = token_count <= available
-            chunk_budget = model_info.context_window // 2
-            est_chunks = (
-                1 if fits else max(1, math.ceil(token_count / max(chunk_budget, 1)))
-            )
-            _write_plan_header(
-                model_key=model_key,
-                model_info=model_info,
-                text=text,
-                token_count=token_count,
-                available=available,
-                fits=fits,
-                est_chunks=est_chunks,
-            )
-
             if fits:
                 yield from _run_single_pass(text, system_prompt, model_info)
             else:
@@ -928,10 +798,8 @@ def stream_theme_extraction(
             yield {
                 "type": "error",
                 "message": str(e),
-                "log_path": str(_conversation_log) if _conversation_log else None,
+                "log_path": str(_run_log_dir) if _run_log_dir else None,
             }
-        finally:
-            _write_summary_footer()
     finally:
         _run_lock.release()
 
@@ -980,7 +848,6 @@ def _run_single_pass(
             + ". Injected empty stubs so downstream parsers don't break."
         )
         logger.warning(warn)
-        _log_marker(warn)
         yield {
             "type": "status",
             "message": (
@@ -1060,9 +927,7 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
 
     for sec_idx, (sec_name, sec_guidance) in enumerate(_SECTIONS):
         _check_cancelled()
-        _log_marker(
-            f"=== Section {sec_idx + 1}/{len(_SECTIONS)}: {sec_name} ==="
-        )
+        logger.info("=== Section %d/%d: %s ===", sec_idx + 1, len(_SECTIONS), sec_name)
         yield {
             "type": "status",
             "message": (
@@ -1119,7 +984,6 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                         model_info,
                         stream_to_ui=False,
                         step_label=compact_label,
-                        log_extras={"accumulated (input to compaction)": accumulated},
                     ):
                         if event["type"] == "theme_chunk":
                             compact_result += event["text"]
@@ -1154,25 +1018,17 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                             + "\n\n[middle entries truncated to stay within budget]\n\n"
                             + accumulated[-tail_n:].lstrip()
                         )
-                        _log_marker(
-                            f"COMPACTION FALLBACK (hard-truncate): {sec_name} "
-                            f"head+tail kept, middle dropped (reason: "
-                            f"{compact_err or 'empty result'})"
-                        )
                         logger.info(
                             "  compaction fallback (hard-truncate head+tail): "
-                            "%s -> %d chars",
+                            "%s -> %d chars (reason: %s)",
                             sec_name,
                             len(accumulated),
+                            compact_err or "empty result",
                         )
                     else:
                         new_acc = compact_result.strip()
                         new_tok = _count_tokens_tiktoken(new_acc)
                         accumulated = new_acc
-                        _log_marker(
-                            f"COMPACTION OK: {sec_name} "
-                            f"{acc_tokens} tok -> {new_tok} tok"
-                        )
                         logger.info(
                             "  compacted %s: %d -> %d tokens",
                             sec_name,
@@ -1195,7 +1051,6 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                     total_chunks=len(chunks),
                     chunk_text=chunk_part,
                 )
-                chunk_extras = {"chunk_text (input)": chunk_part}
             else:
                 user_msg = next_template.format(
                     section_name=sec_name,
@@ -1204,10 +1059,6 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                     accumulated=accumulated,
                     chunk_text=chunk_part,
                 )
-                chunk_extras = {
-                    "accumulated (input)": accumulated,
-                    "chunk_text (input)": chunk_part,
-                }
 
             chunk_label = (
                 f"Section {sec_idx + 1}/{len(_SECTIONS)} {sec_name} "
@@ -1222,7 +1073,6 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                 model_info,
                 stream_to_ui=False,
                 step_label=chunk_label,
-                log_extras=chunk_extras,
             ):
                 if event["type"] == "theme_chunk":
                     chunk_result += event["text"]
@@ -1236,13 +1086,11 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                     )
                     if _run_stats and not _run_stats.aborted_reason:
                         _run_stats.aborted_reason = err_msg
-                    _log_marker(f"ABORT: {err_msg}")
+                    logger.error("ABORT: %s", err_msg)
                     yield {
                         "type": "error",
                         "message": err_msg,
-                        "log_path": (
-                            str(_conversation_log) if _conversation_log else None
-                        ),
+                        "log_path": str(_run_log_dir) if _run_log_dir else None,
                     }
                     return
 
@@ -1273,7 +1121,6 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                         f"({new_len / max(old_len, 1):.0%}). Model likely "
                         f"dropped existing entries."
                     )
-                    _log_marker(warn)
                     logger.warning(warn)
                     yield {
                         "type": "status",
@@ -1327,7 +1174,6 @@ def _stream_single_call(
     stream_to_ui: bool = True,
     json_mode: bool = False,
     step_label: str | None = None,
-    log_extras: dict[str, str] | None = None,
     output_budget_override: int | None = None,
 ) -> Generator[dict, None, None]:
     """Dispatch one streaming call to the configured provider.
@@ -1335,12 +1181,8 @@ def _stream_single_call(
     Yields theme_chunk events (if *stream_to_ui*), then a final ``complete``
     event with the full text and cost - or an ``error`` event on failure.
 
-    ``step_label`` tags the call in the conversation log (e.g.
-    "Section 3/7 Creature Types chunk 4/10" or "COMPACTION: ..."). If None,
-    falls back to a generic provider label.
-
-    ``log_extras`` gets written as separate fenced blocks in the log so large
-    mid-prompt state (accumulated, chunk_text) survives user-prompt truncation.
+    ``step_label`` tags the call in the conversation log filename (e.g.
+    "section-3-7-creature-types-chunk-4-10"). If None, a generic name is used.
 
     ``output_budget_override`` forces a specific Ollama ``num_predict`` for
     this call (ignored on Anthropic, which uses its own fixed max_tokens).
@@ -1352,7 +1194,6 @@ def _stream_single_call(
             model_info,
             stream_to_ui,
             step_label=step_label,
-            log_extras=log_extras,
         )
     elif model_info.provider == "ollama":
         yield from _stream_ollama_call(
@@ -1362,7 +1203,6 @@ def _stream_single_call(
             stream_to_ui,
             json_mode=json_mode,
             step_label=step_label,
-            log_extras=log_extras,
             output_budget_override=output_budget_override,
         )
     else:
@@ -1372,104 +1212,132 @@ def _stream_single_call(
         }
 
 
+def _build_call_log_path(step_label: str | None, fallback: str) -> Path | None:
+    """Return the per-call jsonl path under the active run dir, or None.
+
+    Filename is ``<NNN>-<slug>.jsonl`` where NNN is a per-run call counter -
+    guarantees uniqueness so retries / repeated compactions don't collide
+    on the HTML twin (llmfacade's HtmlLogger overwrites the .html on each
+    Conversation construction even when the .jsonl is append-only)."""
+    if _run_log_dir is None:
+        return None
+    n = _next_call_id()
+    return _run_log_dir / f"{n:03d}-{_slugify(step_label, fallback)}.jsonl"
+
+
+def _write_call_meta(jsonl_path: Path | None, data: dict) -> None:
+    """Write MTGAI-derived per-call diagnostics to ``<NNN>-<slug>.meta.json``.
+
+    llmfacade owns the .jsonl (raw stream events, prompts, usage); this is
+    our sibling file for derived counters and outcomes that don't fit its
+    format - frame tallies for buffering diagnosis, finish_reason, outcome
+    classification, etc. No-op if jsonl_path is None (no run dir active).
+    Best-effort: a failed write logs a warning but never raises."""
+    if jsonl_path is None:
+        return
+    meta_path = jsonl_path.with_suffix(".meta.json")
+    try:
+        meta_path.write_text(_json.dumps(data, indent=2), encoding="utf-8")
+    except Exception as e:
+        logger.warning("Failed to write call meta to %s: %s", meta_path, e)
+
+
 def _stream_anthropic_call(
     user_msg: str,
     system_prompt: str,
     model_info,
     stream_to_ui: bool,
     step_label: str | None = None,
-    log_extras: dict[str, str] | None = None,
 ) -> Generator[dict, None, None]:
-    from anthropic import Anthropic
+    """Single Anthropic streaming call via llmfacade.
 
-    from mtgai.generation.llm_client import calc_cost
+    System prompt is marked cacheable; the provider also has
+    auto_cache_tools=True (no tools here, but harmless). The cached prefix
+    survives across calls within the 5-minute TTL window, so per-section
+    multi-chunk runs share the system-block discount.
+    """
+    from mtgai.generation.llm_client import _get_provider, calc_cost
 
-    client = Anthropic()
-    model_id = model_info.model_id
-
-    # Prompt caching: the system prompt is identical across all per-section
-    # calls in a multi-chunk run. Marking it as ephemeral cache cuts input
-    # cost on subsequent calls within the ~5 min window by 90%.
-    from anthropic.types import TextBlockParam
-
-    system_blocks: list[TextBlockParam] = [
-        {
-            "type": "text",
-            "text": system_prompt,
-            "cache_control": {"type": "ephemeral"},
-        }
-    ]
+    provider = _get_provider("anthropic")
+    facade_model = provider.new_model(model_info.model_id)
+    log_path = _build_call_log_path(step_label, "anthropic-call")
+    convo = facade_model.new_conversation(
+        system_blocks=[SystemBlock(text=system_prompt, cache=True)],
+        max_tokens=_OUTPUT_BUDGET,
+        temperature=0.7,
+        log_path=log_path,
+    )
 
     theme_text = ""
-    metadata: dict[str, Any] = {}
+    last_usage = None
     cost = 0.0
-
-    label = f"Anthropic call - {step_label}" if step_label else "Anthropic call"
-    _log_call_start(label, system_prompt, user_msg, extras=log_extras)
+    frames_total = 0
+    frames_with_content = 0
+    meta: dict[str, Any] = {
+        "provider": "anthropic",
+        "model_id": model_info.model_id,
+        "step_label": step_label,
+        "outcome": "unknown",
+    }
     try:
-        with client.messages.stream(
-            model=model_id,
-            max_tokens=_OUTPUT_BUDGET,
-            system=system_blocks,
-            messages=[{"role": "user", "content": user_msg}],
-            temperature=0.7,
-        ) as stream:
-            for event in stream:
+        try:
+            for ev in convo.stream(user_msg):
                 if _cancel_event.is_set():
+                    meta["outcome"] = "cancelled"
                     raise _CancelledError("cancelled mid-stream")
-                delta_text: str | None = None
-                if getattr(event, "type", None) == "content_block_delta":
-                    delta = getattr(event, "delta", None)  # pyright: ignore[reportAttributeAccessIssue]
-                    delta_text = getattr(delta, "text", None)
-                if delta_text:
-                    theme_text += delta_text
-                    _log_call_chunk(delta_text)
+                frames_total += 1
+                if ev.text_delta:
+                    frames_with_content += 1
+                    theme_text += ev.text_delta
                     if stream_to_ui:
-                        yield {"type": "theme_chunk", "text": delta_text}
-
-            final = stream.get_final_message()
-            usage = final.usage
-            cache_creation = (
-                getattr(usage, "cache_creation_input_tokens", 0) or 0
-            )
-            cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
-            cost = calc_cost(
-                model_id,
-                usage.input_tokens,
-                usage.output_tokens,
-                cache_creation_input_tokens=cache_creation,
-                cache_read_input_tokens=cache_read,
-            )
-            metadata = {
-                "input_tokens": usage.input_tokens,
-                "output_tokens": usage.output_tokens,
-                "cache_creation": cache_creation,
-                "cache_read": cache_read,
-                "cost_usd": f"{cost:.4f}",
+                        yield {"type": "theme_chunk", "text": ev.text_delta}
+                if ev.usage is not None:
+                    last_usage = ev.usage
+        except _CancelledError:
+            raise
+        except Exception as e:
+            logger.error("Anthropic streaming call failed: %s", e, exc_info=True)
+            meta["outcome"] = "stream_exception"
+            meta["error"] = str(e)
+            yield {
+                "type": "error",
+                "message": str(e),
+                "partial_text": theme_text,
             }
+            return
+
+        if last_usage is not None:
+            cost = calc_cost(
+                model_info.model_id,
+                last_usage.prompt_tokens,
+                last_usage.completion_tokens,
+                cache_creation_input_tokens=last_usage.cache_creation_tokens,
+                cache_read_input_tokens=last_usage.cache_read_tokens,
+            )
             _record_call(
-                usage.input_tokens + cache_creation + cache_read,
-                usage.output_tokens,
+                last_usage.prompt_tokens
+                + last_usage.cache_creation_tokens
+                + last_usage.cache_read_tokens,
+                last_usage.completion_tokens,
                 cost,
             )
-    except _CancelledError:
-        _log_call_end(note="CANCELLED")
-        raise
-    except Exception as e:
-        logger.error("Anthropic streaming call failed: %s", e, exc_info=True)
-        _log_call_end(note=f"STREAM ERROR: {e}")
-        yield {
-            "type": "error",
-            "message": str(e),
-            "partial_text": theme_text,
-        }
-        return
 
-    logger.info(
-        "Anthropic call complete: %d chars, cost=$%.4f", len(theme_text), cost
-    )
-    _log_call_end(metadata=metadata, note=f"cost: ${cost:.4f}")
-    yield {"type": "complete", "theme_text": theme_text, "cost_usd": cost}
+        logger.info(
+            "Anthropic call complete: %d chars, cost=$%.4f", len(theme_text), cost
+        )
+        meta["outcome"] = "complete"
+        meta["cost_usd"] = cost
+        yield {"type": "complete", "theme_text": theme_text, "cost_usd": cost}
+    finally:
+        meta["frames_total"] = frames_total
+        meta["frames_with_content"] = frames_with_content
+        meta["theme_text_chars"] = len(theme_text)
+        if last_usage is not None:
+            meta["prompt_tokens"] = last_usage.prompt_tokens
+            meta["completion_tokens"] = last_usage.completion_tokens
+            meta["cache_creation_tokens"] = last_usage.cache_creation_tokens
+            meta["cache_read_tokens"] = last_usage.cache_read_tokens
+        _write_call_meta(log_path, meta)
 
 
 def _stream_ollama_call(
@@ -1479,23 +1347,22 @@ def _stream_ollama_call(
     stream_to_ui: bool,
     json_mode: bool = False,
     step_label: str | None = None,
-    log_extras: dict[str, str] | None = None,
     output_budget_override: int | None = None,
 ) -> Generator[dict, None, None]:
-    """Single Ollama streaming call using the native ``/api/chat`` endpoint.
+    """Single Ollama streaming call via llmfacade.
 
-    Performs a pre-call overflow check (errors out if input exceeds budget)
-    and a post-call truncation check (warns if Ollama silently dropped input
-    or hit the output cap).
+    Pre-checks input fits in context, post-checks llmfacade Usage for
+    truncation. Also runs MTGAI's mid-stream repetition detector every 200
+    chars - local models (Gemma 4 in particular) sometimes loop forever
+    inside ``num_predict``, and breaking the iterator early salvages the
+    pre-loop text.
 
-    ``output_budget_override`` overrides the default ``num_predict`` for this
-    call. Used by JSON subcalls that need a larger budget than the default
-    constraints cap (e.g. card suggestions).
+    ``output_budget_override`` overrides the default ``num_predict`` for
+    this call (used by JSON subcalls that need a larger output budget).
     """
-    import requests
-
-    from mtgai.generation.llm_client import OLLAMA_REPEAT_PENALTY
+    from mtgai.generation.llm_client import _get_provider
     from mtgai.generation.token_utils import (
+        SAFETY_MARGIN,
         InputTruncatedError,
         OutputTruncatedError,
         check_post_call,
@@ -1510,16 +1377,13 @@ def _stream_ollama_call(
     else:
         output_reserve = _OUTPUT_BUDGET
 
-    messages = [
+    legacy_messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_msg},
     ]
-    estimated_input_tokens = count_messages_tokens(messages)
-    safe_budget = int(num_ctx * 0.95) - output_reserve
+    estimated_input_tokens = count_messages_tokens(legacy_messages)
+    safe_budget = int(num_ctx * (1 - SAFETY_MARGIN)) - output_reserve
 
-    call_label = f"Ollama call - {step_label}" if step_label else "Ollama call"
-
-    # --- Pre-call overflow check ---
     if estimated_input_tokens > safe_budget:
         msg = (
             f"Input too large for {model_info.model_id}: ~{estimated_input_tokens} "
@@ -1528,10 +1392,6 @@ def _stream_ollama_call(
             f"Reduce input or increase context window."
         )
         logger.error(msg)
-        _log_call_start(
-            f"{call_label} (skipped)", system_prompt, user_msg, extras=log_extras
-        )
-        _log_call_end(note=f"OVERFLOW: {msg}")
         yield {"type": "error", "message": msg}
         return
 
@@ -1543,188 +1403,161 @@ def _stream_ollama_call(
         output_reserve,
     )
 
-    body: dict = {
-        "model": model_info.model_id,
-        "messages": messages,
-        "options": {
-            "num_ctx": num_ctx,
-            "temperature": 0.7,
-            "num_predict": output_reserve,
-            "repeat_penalty": OLLAMA_REPEAT_PENALTY,
-            "stop": _OLLAMA_STOP_SEQUENCES,
-        },
-        "keep_alive": _OLLAMA_KEEP_ALIVE,
-        "stream": True,
+    provider = _get_provider("ollama")
+    facade_model = provider.new_model(model_info.model_id, context_size=num_ctx)
+    log_path = _build_call_log_path(step_label, "ollama-call")
+    convo_kwargs: dict[str, Any] = {
+        "max_tokens": output_reserve,
+        "temperature": 0.7,
+        "log_path": log_path,
     }
     if json_mode:
-        body["format"] = "json"
+        convo_kwargs["output_format"] = "json"
+    convo = facade_model.new_conversation(**convo_kwargs)
 
     theme_text = ""
     loop_err: str | None = None
     chars_since_check = 0
-    final_data: dict = {}
+    last_usage = None
+    last_finish_reason: str | None = None
     frames_total = 0
     frames_with_content = 0
+    meta: dict[str, Any] = {
+        "provider": "ollama",
+        "model_id": model_info.model_id,
+        "step_label": step_label,
+        "json_mode": json_mode,
+        "num_ctx": num_ctx,
+        "output_reserve": output_reserve,
+        "estimated_input_tokens": estimated_input_tokens,
+        "outcome": "unknown",
+    }
 
-    _log_call_start(call_label, system_prompt, user_msg, extras=log_extras)
-    resp = None
     try:
-        resp = requests.post(
-            f"{OLLAMA_URL}/api/chat",
-            json=body,
-            stream=True,
-            timeout=1800,
-        )
-        if resp.status_code != 200:
-            body_txt = resp.text[:1000] if resp.text else ""
-            err_msg = f"Ollama HTTP {resp.status_code}: {body_txt}"
-            logger.error(err_msg)
-            _log_call_end(note=f"HTTP ERROR: {err_msg}")
-            yield {"type": "error", "message": err_msg}
+        stream_iter = convo.stream(user_msg, stop=_OLLAMA_STOP_SEQUENCES)
+        try:
+            for ev in stream_iter:
+                if _cancel_event.is_set():
+                    meta["outcome"] = "cancelled"
+                    raise _CancelledError("cancelled mid-stream")
+                frames_total += 1
+                if ev.text_delta:
+                    frames_with_content += 1
+                    theme_text += ev.text_delta
+                    if stream_to_ui:
+                        yield {"type": "theme_chunk", "text": ev.text_delta}
+                    chars_since_check += len(ev.text_delta)
+                    if chars_since_check >= 200:
+                        chars_since_check = 0
+                        loop_err = _detect_repetition_loop(theme_text)
+                        if loop_err:
+                            logger.warning(
+                                "Repetition loop detected mid-stream after %d chars: %s",
+                                len(theme_text),
+                                loop_err,
+                            )
+                            break
+                if ev.usage is not None:
+                    last_usage = ev.usage
+                if ev.finish_reason is not None:
+                    last_finish_reason = ev.finish_reason
+        except _CancelledError:
+            raise
+        except Exception as e:
+            logger.error("Ollama streaming call failed: %s", e, exc_info=True)
+            meta["outcome"] = "stream_exception"
+            meta["error"] = str(e)
+            yield {
+                "type": "error",
+                "message": str(e),
+                "partial_text": theme_text,
+            }
+            return
+        finally:
+            # convo.stream() returns a Generator at runtime; closing it eagerly
+            # releases the underlying HTTP connection on early break (cancel,
+            # repetition-loop). getattr keeps the static Iterator type annotation
+            # happy.
+            close = getattr(stream_iter, "close", None)
+            if close is not None:
+                try:
+                    close()
+                except Exception:
+                    pass
+
+        if loop_err:
+            logger.info(
+                "Ollama call aborted (repetition): %d chars before abort",
+                len(theme_text),
+            )
+            # No usage frame on early-break; record with our estimate so the
+            # run footer doesn't undercount aborted calls.
+            _record_call(
+                last_usage.prompt_tokens if last_usage else estimated_input_tokens,
+                last_usage.completion_tokens
+                if last_usage
+                else _count_tokens_tiktoken(theme_text),
+                0.0,
+            )
+            meta["outcome"] = "repetition_abort"
+            meta["error"] = loop_err
+            yield {
+                "type": "error",
+                "message": loop_err,
+                "partial_text": theme_text,
+            }
             return
 
-        for line in resp.iter_lines():
-            if _cancel_event.is_set():
-                resp.close()
-                raise _CancelledError("cancelled mid-stream")
-            if not line:
-                continue
-            try:
-                data = _json.loads(line)
-            except _json.JSONDecodeError:
-                logger.warning(
-                    "Ollama: skipping malformed line %s", str(line)[:120]
-                )
-                continue
-            frames_total += 1
-            # Some Ollama versions (notably with format=json) deliver all
-            # generated text inside the final done frame's message.content
-            # instead of streaming it chunk-by-chunk. Extract content from
-            # every frame, done or not, so we don't lose output.
-            content = data.get("message", {}).get("content", "")
-            if content:
-                frames_with_content += 1
-                theme_text += content
-                _log_call_chunk(content)
-                if stream_to_ui:
-                    yield {"type": "theme_chunk", "text": content}
-            if data.get("done"):
-                final_data = data
-                break
-            if not content:
-                continue
+        if last_usage is None:
+            msg = (
+                f"Ollama stream ended with no usage frame after {len(theme_text)} "
+                "chars. Possible connection drop or server error."
+            )
+            logger.error(msg)
+            _record_call(
+                estimated_input_tokens,
+                _count_tokens_tiktoken(theme_text),
+                0.0,
+            )
+            meta["outcome"] = "no_usage_frame"
+            meta["error"] = msg
+            yield {
+                "type": "error",
+                "message": msg,
+                "partial_text": theme_text,
+            }
+            return
 
-            chars_since_check += len(content)
-            if chars_since_check >= 200:
-                chars_since_check = 0
-                loop_err = _detect_repetition_loop(theme_text)
-                if loop_err:
-                    logger.warning(
-                        "Repetition loop detected mid-stream after %d chars: %s",
-                        len(theme_text),
-                        loop_err,
-                    )
-                    resp.close()
-                    break
-    except _CancelledError:
-        _log_call_end(note="CANCELLED")
-        raise
-    except Exception as e:
-        logger.error("Ollama streaming call failed: %s", e, exc_info=True)
-        _log_call_end(note=f"STREAM ERROR: {e}")
-        yield {"type": "error", "message": str(e)}
-        return
-    finally:
-        if resp is not None:
-            try:
-                resp.close()
-            except Exception:
-                pass
-
-    if loop_err:
+        _record_call(
+            last_usage.prompt_tokens or estimated_input_tokens,
+            last_usage.completion_tokens,
+            0.0,
+        )
         logger.info(
-            "Ollama call aborted (repetition): %d chars before abort",
+            "Ollama call complete: %d chars, prompt_tokens=%d, completion_tokens=%d, "
+            "frames_total=%d, frames_with_content=%d",
             len(theme_text),
+            last_usage.prompt_tokens,
+            last_usage.completion_tokens,
+            frames_total,
+            frames_with_content,
         )
-        # Cut the loop off mid-sentence so the caller still gets usable text.
-        # The repetition detector inspects the last 4000 chars; the run-up to
-        # the loop is intact and can sometimes be salvaged.
-        # Record token estimates so the run footer doesn't undercount aborted
-        # calls (no `done` frame arrives when we close the connection early).
-        _record_call(
-            estimated_input_tokens,
-            _count_tokens_tiktoken(theme_text),
-            0.0,
-        )
-        _log_call_end(note=f"ABORTED: {loop_err}")
-        yield {
-            "type": "error",
-            "message": loop_err,
-            "partial_text": theme_text,
-        }
-        return
 
-    # --- Missing-done detection ---
-    # If the Ollama stream ended (iter_lines exhausted) without ever
-    # seeing a `{"done": true}` frame, treat it as an error rather than
-    # silently returning whatever partial text accumulated. Dropped
-    # connections, proxy resets, and Ollama internal errors can all land
-    # here.
-    if not final_data:
-        msg = (
-            f"Ollama stream ended without a 'done' frame after "
-            f"{len(theme_text)} chars. Possible connection drop or server "
-            f"error - check Ollama server.log."
-        )
-        logger.error(msg)
-        _record_call(
-            estimated_input_tokens,
-            _count_tokens_tiktoken(theme_text),
-            0.0,
-        )
-        _log_call_end(note=f"MISSING DONE FRAME: {msg}")
-        yield {
-            "type": "error",
-            "message": msg,
-            "partial_text": theme_text,
-        }
-        return
-
-    metadata: dict[str, Any] = {}
-    if final_data:
-        metadata = {
-            "prompt_eval_count": final_data.get("prompt_eval_count"),
-            "eval_count": final_data.get("eval_count"),
-            "total_duration_ms": (
-                (final_data.get("total_duration") or 0) // 1_000_000
-            ),
-            "prompt_eval_duration_ms": (
-                (final_data.get("prompt_eval_duration") or 0) // 1_000_000
-            ),
-            "eval_duration_ms": (
-                (final_data.get("eval_duration") or 0) // 1_000_000
-            ),
-            "done_reason": final_data.get("done_reason"),
-            "frames_total": frames_total,
-            "frames_with_content": frames_with_content,
-            "theme_text_chars": len(theme_text),
-        }
-        _record_call(
-            final_data.get("prompt_eval_count", 0) or estimated_input_tokens,
-            final_data.get("eval_count", 0),
-            0.0,
-        )
-        # --- Post-call truncation check ---
         try:
             check_post_call(
-                final_data,
+                {
+                    "prompt_eval_count": last_usage.prompt_tokens,
+                    "eval_count": last_usage.completion_tokens,
+                    "done_reason": last_finish_reason or "",
+                },
                 estimated_input_tokens=estimated_input_tokens,
                 model=model_info.model_id,
                 num_predict=output_reserve,
             )
         except (InputTruncatedError, OutputTruncatedError) as trunc:
             logger.warning("Truncation detected: %s", trunc)
-            _log_call_end(metadata=metadata, note=f"TRUNCATION: {trunc}")
+            meta["outcome"] = "truncated"
+            meta["error"] = str(trunc)
             yield {
                 "type": "error",
                 "message": str(trunc),
@@ -1732,9 +1565,18 @@ def _stream_ollama_call(
             }
             return
 
-    logger.info("Ollama call complete: %d chars extracted", len(theme_text))
-    _log_call_end(metadata=metadata)
-    yield {"type": "complete", "theme_text": theme_text, "cost_usd": 0.0}
+        meta["outcome"] = "complete"
+        yield {"type": "complete", "theme_text": theme_text, "cost_usd": 0.0}
+    finally:
+        meta["frames_total"] = frames_total
+        meta["frames_with_content"] = frames_with_content
+        meta["theme_text_chars"] = len(theme_text)
+        if last_usage is not None:
+            meta["prompt_tokens"] = last_usage.prompt_tokens
+            meta["completion_tokens"] = last_usage.completion_tokens
+        if last_finish_reason is not None:
+            meta["finish_reason"] = last_finish_reason
+        _write_call_meta(log_path, meta)
 
 
 # =============================================================================
@@ -1851,9 +1693,6 @@ def stream_constraints_extraction(
     if model_info is None:
         raise ValueError(f"Unknown model key: {model_key}")
 
-    if _conversation_log is None:
-        _init_conversation_log()
-
     logger.info(
         "Extracting constraints + suggestions: model=%s, theme_len=%d",
         model_info.model_id,
@@ -1953,11 +1792,6 @@ def stream_constraints_extraction(
                         attempt,
                         MAX_RETRIES,
                     )
-                    _log_marker(
-                        f"{label} succeeded on attempt {attempt}/{MAX_RETRIES}"
-                    )
-                else:
-                    _log_marker(f"{label} succeeded")
                 return items, None, raw
 
             attempts.append((attempt, err or "unknown", raw))
@@ -1969,16 +1803,14 @@ def stream_constraints_extraction(
                 err,
                 raw[:200],
             )
-            if attempt < MAX_RETRIES:
-                _log_marker(
-                    f"{label} attempt {attempt}/{MAX_RETRIES} FAILED: "
-                    f"{err} - retrying"
-                )
 
         final_err = attempts[-1][1] if attempts else "no attempts"
-        _log_marker(
-            f"{label} FINAL FAILURE after {MAX_RETRIES}/{MAX_RETRIES} "
-            f"attempts: {final_err}"
+        logger.error(
+            "%s FINAL FAILURE after %d/%d attempts: %s",
+            label,
+            MAX_RETRIES,
+            MAX_RETRIES,
+            final_err,
         )
         # Build an aggregated raw view surfacing every attempt's output.
         # Kept modest in size (~400 chars per attempt) so the UI error
@@ -2006,6 +1838,13 @@ def stream_constraints_extraction(
         return
 
     try:
+        # Init the per-run log dir under the lock so a concurrent theme
+        # extraction can't clobber our directory / stats / call counter, and
+        # vice versa. Reentrant lock: when the caller is theme extraction it
+        # already initialised these and we no-op.
+        if _run_log_dir is None:
+            _init_run_log_dir()
+
         # --- Call 1: Constraints (JSON mode) ---
         gen = _run_json_subcall(
             "Constraints extraction",

@@ -16,6 +16,8 @@ dependencies = [
     "jinja2>=3.1,<4",
     "pymupdf>=1.24,<2",
     "tiktoken>=0.7",
+    "ollama>=0.3",
+    "llmfacade @ git+https://github.com/Coamithra/LLMFacade.git@main",
 ]
 
 [project.optional-dependencies]

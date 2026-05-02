@@ -10,7 +10,6 @@ CLI usage:
 """
 
 import argparse
-import base64
 import json
 import logging
 import os
@@ -18,7 +17,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from anthropic import Anthropic
+from llmfacade import ImageBlock, TextBlock
 
 logger = logging.getLogger(__name__)
 
@@ -95,51 +94,28 @@ TOOL_SCHEMA = {
 }
 
 
-def _image_to_base64(path: Path) -> str:
-    """Read an image file and return base64-encoded string."""
-    return base64.standard_b64encode(path.read_bytes()).decode("ascii")
-
-
 def _build_message_content(
     card_name: str,
     collector_number: str,
     colors: list[str],
     prompt: str,
     image_paths: list[Path],
-) -> list[dict]:
-    """Build multimodal message content with images and text."""
-    content: list[dict] = []
-
-    # Text context first
+) -> list:
+    """Build multimodal message content with text + image blocks."""
     color_names = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green"}
     color_str = "/".join(color_names.get(c, c) for c in colors) if colors else "Colorless"
 
-    content.append(
-        {
-            "type": "text",
-            "text": (
-                f"Card: {card_name} ({collector_number})\n"
-                f"Color: {color_str}\n"
-                f"Art prompt: {prompt}\n\n"
-                f"Below are {len(image_paths)} versions. Pick the best one."
-            ),
-        }
-    )
-
-    # Add images with labels
-    for i, path in enumerate(image_paths, 1):
-        content.append({"type": "text", "text": f"\n--- Version {i} (v{i}) ---"})
-        content.append(
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/png",
-                    "data": _image_to_base64(path),
-                },
-            }
+    content: list = [
+        TextBlock(
+            f"Card: {card_name} ({collector_number})\n"
+            f"Color: {color_str}\n"
+            f"Art prompt: {prompt}\n\n"
+            f"Below are {len(image_paths)} versions. Pick the best one."
         )
-
+    ]
+    for i, path in enumerate(image_paths, 1):
+        content.append(TextBlock(f"\n--- Version {i} (v{i}) ---"))
+        content.append(ImageBlock.from_path(path))
     return content
 
 
@@ -156,35 +132,35 @@ def select_best_version(
     Returns dict with pick, confidence, reasoning, artifacts_found,
     plus token counts.
     """
+    from mtgai.generation.llm_client import _get_provider, _make_tool
     from mtgai.settings.model_settings import get_llm_model
 
     if model is None:
         model = get_llm_model("art_select")
 
-    client = Anthropic()
-
-    content = _build_message_content(card_name, collector_number, colors, prompt, image_paths)
-
-    response = client.messages.create(
-        model=model,
-        max_tokens=1024,
-        temperature=0.0,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": content}],
-        tools=[TOOL_SCHEMA],
-        tool_choice={"type": "tool", "name": TOOL_SCHEMA["name"]},
+    provider = _get_provider("anthropic")
+    facade_model = provider.new_model(model)
+    convo = facade_model.new_conversation(
+        system_blocks=[SYSTEM_PROMPT],
+        tools=[_make_tool(TOOL_SCHEMA)],
+        tool_choice=TOOL_SCHEMA["name"],
+        log_dir=False,
     )
+    convo.add_user_message(
+        content=_build_message_content(card_name, collector_number, colors, prompt, image_paths)
+    )
+    resp = convo.send(max_tokens=1024, temperature=0.0)
 
-    for block in response.content:
-        if block.type == "tool_use":
-            return {
-                **block.input,
-                "input_tokens": response.usage.input_tokens,
-                "output_tokens": response.usage.output_tokens,
-                "model": model,
-            }
+    if not resp.tool_calls:
+        raise ValueError("No tool_use block in response")
 
-    raise ValueError("No tool_use block in response")
+    usage = resp.usage
+    return {
+        **resp.tool_calls[0].input,
+        "input_tokens": usage.prompt_tokens if usage else 0,
+        "output_tokens": usage.completion_tokens if usage else 0,
+        "model": model,
+    }
 
 
 def select_art_for_set(

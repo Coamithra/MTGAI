@@ -185,6 +185,36 @@ def check_pre_call(
         )
 
 
+def check_post_call_response(
+    resp,
+    model: str,
+    num_predict: int | None = None,
+    estimated_input_tokens: int | None = None,
+) -> None:
+    """Check an llmfacade Response from Ollama for signs of truncation.
+
+    Mirrors check_post_call but consumes an llmfacade.Response (resp.usage,
+    resp.finish_reason) instead of a raw Ollama dict. llmfacade maps
+    Ollama's done_reason directly into resp.finish_reason, so "length"
+    surfaces here as a real signal alongside the eval_count >= num_predict
+    fallback.
+    """
+    usage = resp.usage
+    if usage is None:
+        return
+    response_data = {
+        "prompt_eval_count": usage.prompt_tokens,
+        "eval_count": usage.completion_tokens,
+        "done_reason": resp.finish_reason or "",
+    }
+    check_post_call(
+        response_data,
+        estimated_input_tokens or 0,
+        model,
+        num_predict=num_predict,
+    )
+
+
 def check_post_call(
     response_data: dict,
     estimated_input_tokens: int,
@@ -197,8 +227,10 @@ def check_post_call(
     is detected.
 
     Args:
-        response_data: Raw Ollama /api/chat response dict.
+        response_data: Raw Ollama /api/chat response dict (or a dict
+            built from an llmfacade Response via check_post_call_response).
         estimated_input_tokens: Our tiktoken estimate of input tokens.
+            Pass 0 to skip the input-truncation check.
         model: Model name for error messages.
         num_predict: The num_predict value sent in the request (if any).
     """
