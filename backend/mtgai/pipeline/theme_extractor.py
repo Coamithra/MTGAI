@@ -33,6 +33,11 @@ _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 _OUTPUT_BUDGET = 16384
 _LOG_DIR = Path("C:/Programming/MTGAI/output/extraction_logs")
 
+# Cap how many lines of each message llmfacade dumps into its JSONL/HTML logs.
+# Theme extraction sends the entire source PDF as the user message; without
+# this, every per-section call would re-quote the whole document into the log.
+_LOG_MAX_MESSAGE_LINES = 50
+
 # Stop sequences keep the model from echoing the source-text divider markers
 # back into the extraction (a real failure mode on weaker local models).
 _OLLAMA_STOP_SEQUENCES = [
@@ -1105,6 +1110,7 @@ def _stream_anthropic_call(
         max_tokens=_OUTPUT_BUDGET,
         temperature=0.7,
         log_path=log_path,
+        log_max_message_lines=_LOG_MAX_MESSAGE_LINES,
     )
 
     theme_text = ""
@@ -1246,9 +1252,11 @@ def _stream_ollama_call(
     facade_model = provider.new_model(model_info.model_id, context_size=num_ctx)
     log_path = _build_call_log_path(step_label, "ollama-call")
     convo_kwargs: dict[str, Any] = {
+        "system_blocks": [SystemBlock(text=system_prompt)],
         "max_tokens": output_reserve,
         "temperature": 0.7,
         "log_path": log_path,
+        "log_max_message_lines": _LOG_MAX_MESSAGE_LINES,
     }
     if json_mode:
         convo_kwargs["output_format"] = "json"
