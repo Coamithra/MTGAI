@@ -4,9 +4,11 @@ Uses tiktoken (cl100k_base encoding) as an approximation for all models.
 This is ~10-30% off for non-OpenAI models (Gemma, Qwen, etc.) but good
 enough for context budget calculations with a safety margin.
 
-NOTE: Ollama has an open PR (#12030) for a native /api/tokenize endpoint
-that would give exact model-specific token counts. When that merges, this
-module should be upgraded to use it for Ollama models.
+Note: llama-server exposes an exact ``/tokenize`` endpoint and llmfacade's
+llamacpp provider already calls it from ``Provider.count_tokens(...)``.
+This module stays on tiktoken because it's the cross-provider common
+denominator and the safety margin absorbs the drift; switch a specific
+caller over to llmfacade's exact path if it's worth the precision.
 """
 
 from __future__ import annotations
@@ -20,10 +22,10 @@ logger = logging.getLogger(__name__)
 _encoder = None
 
 # Safety margin: reserve this fraction of context to account for tiktoken
-# approximation error and Ollama overhead (chat template tokens, etc.)
+# approximation error and provider overhead (chat-template tokens, etc.)
 SAFETY_MARGIN = 0.05  # 5%
 
-# Tokens per image estimate (Ollama vision models)
+# Tokens per image estimate (vision-capable local models)
 TOKENS_PER_IMAGE = 1600
 
 
@@ -37,7 +39,7 @@ class ContextOverflowError(Exception):
 
 
 class InputTruncatedError(Exception):
-    """Raised when Ollama silently truncated the input."""
+    """Raised when the local backend silently truncated the input."""
 
     def __init__(self, message: str, expected_tokens: int, actual_tokens: int):
         super().__init__(message)
@@ -191,24 +193,20 @@ def check_post_call_response(
     num_predict: int | None = None,
     estimated_input_tokens: int | None = None,
 ) -> None:
-    """Check an llmfacade Response from Ollama for signs of truncation.
+    """Check an llmfacade Response from a local backend for truncation.
 
-    Mirrors check_post_call but consumes an llmfacade.Response (resp.usage,
-    resp.finish_reason) instead of a raw Ollama dict. llmfacade maps
-    Ollama's done_reason directly into resp.finish_reason, so "length"
-    surfaces here as a real signal alongside the eval_count >= num_predict
-    fallback.
+    Convenience wrapper that pulls usage / finish_reason off the Response
+    and forwards to check_post_call.
     """
     usage = resp.usage
     if usage is None:
         return
-    response_data = {
-        "prompt_eval_count": usage.prompt_tokens,
-        "eval_count": usage.completion_tokens,
-        "done_reason": resp.finish_reason or "",
-    }
     check_post_call(
-        response_data,
+        {
+            "prompt_tokens": usage.prompt_tokens,
+            "completion_tokens": usage.completion_tokens,
+            "finish_reason": resp.finish_reason or "",
+        },
         estimated_input_tokens or 0,
         model,
         num_predict=num_predict,
@@ -221,42 +219,43 @@ def check_post_call(
     model: str,
     num_predict: int | None = None,
 ) -> None:
-    """Check an Ollama response for signs of truncation.
+    """Check a provider response for signs of truncation.
 
     Raises InputTruncatedError or OutputTruncatedError if truncation
     is detected.
 
     Args:
-        response_data: Raw Ollama /api/chat response dict (or a dict
-            built from an llmfacade Response via check_post_call_response).
+        response_data: Dict with ``prompt_tokens`` / ``completion_tokens`` /
+            ``finish_reason`` keys (provider-neutral; matches OpenAI/llmfacade
+            usage shape).
         estimated_input_tokens: Our tiktoken estimate of input tokens.
             Pass 0 to skip the input-truncation check.
         model: Model name for error messages.
-        num_predict: The num_predict value sent in the request (if any).
+        num_predict: The output-token limit sent in the request (if any).
     """
-    prompt_eval = response_data.get("prompt_eval_count", 0)
-    eval_count = response_data.get("eval_count", 0)
-    done_reason = response_data.get("done_reason", "")
+    prompt_eval = response_data.get("prompt_tokens", 0)
+    eval_count = response_data.get("completion_tokens", 0)
+    done_reason = response_data.get("finish_reason", "")
 
     # --- Input truncation detection ---
-    # If Ollama processed significantly fewer tokens than we estimated,
+    # If the backend processed significantly fewer tokens than we estimated,
     # the input was silently truncated from the front.
     # Allow 30% tolerance because tiktoken counts differ from model tokenizer.
     if prompt_eval > 0 and estimated_input_tokens > 0:
         ratio = prompt_eval / estimated_input_tokens
         if ratio < 0.6:
             raise InputTruncatedError(
-                f"Ollama [{model}] likely truncated input: processed {prompt_eval} "
+                f"[{model}] likely truncated input: processed {prompt_eval} "
                 f"prompt tokens but we estimated ~{estimated_input_tokens}. "
                 f"Ratio: {ratio:.2f} (expected ~0.7-1.3). "
                 f"The model may have silently dropped the beginning of your input. "
-                f"Reduce input size or increase num_ctx.",
+                f"Reduce input size or increase the model's context_size.",
                 expected_tokens=estimated_input_tokens,
                 actual_tokens=prompt_eval,
             )
         elif ratio < 0.7:
             logger.warning(
-                "Ollama [%s] token count mismatch: %d processed vs ~%d estimated (ratio %.2f). "
+                "[%s] token count mismatch: %d processed vs ~%d estimated (ratio %.2f). "
                 "Possible partial truncation - verify output quality.",
                 model,
                 prompt_eval,
@@ -268,9 +267,9 @@ def check_post_call(
     # done_reason="length" means the model hit the token limit
     if done_reason == "length":
         raise OutputTruncatedError(
-            f"Ollama [{model}] output was truncated (done_reason=length). "
+            f"[{model}] output was truncated (finish_reason=length). "
             f"Generated {eval_count} tokens before hitting the limit. "
-            f"Increase num_predict or reduce input to leave more room for output.",
+            f"Increase max_tokens or reduce input to leave more room for output.",
             eval_count=eval_count,
             num_predict=num_predict or -1,
         )
@@ -278,9 +277,9 @@ def check_post_call(
     # Also check if eval_count hit num_predict exactly (another truncation signal)
     if num_predict and num_predict > 0 and eval_count >= num_predict:
         raise OutputTruncatedError(
-            f"Ollama [{model}] output likely truncated: generated exactly "
-            f"{eval_count} tokens (num_predict={num_predict}). "
-            f"Increase num_predict to allow longer output.",
+            f"[{model}] output likely truncated: generated exactly "
+            f"{eval_count} tokens (max_tokens={num_predict}). "
+            f"Increase max_tokens to allow longer output.",
             eval_count=eval_count,
             num_predict=num_predict,
         )

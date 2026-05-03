@@ -106,24 +106,20 @@ PRESETS: dict[str, dict] = {
     },
     "all-local": {
         "llm": {
-            # Theme extraction is the only large-context stage (58K+ input tokens
-            # on full source PDFs). Use the TC-1f winner: Vlad IQ4_XS with
-            # num_gpu override + q4_0 KV cache + flash attention runs this in
-            # ~4 min vs 15+ min on standard gemma4:26b. Requires
-            # OLLAMA_FLASH_ATTENTION=1 and OLLAMA_KV_CACHE_TYPE=q4_0 set on
-            # the Ollama server.
+            # Vlad IQ4_XS is the long-context winner on 12 GB VRAM (TC-1f).
+            # llamacpp managed mode handles per-server KV-cache quantization,
+            # so cache_type_k=q8_0 is set on the model entry directly — no
+            # global env var needed.
             "theme_extract": "gemma4-26b-vram-dynamic",
-            # Remaining stages run at small context (<32K), where standard
-            # gemma4:26b wins on per-token speed (TC-1e round 1).
-            "mechanics": "gemma4-26b",
-            "archetypes": "gemma4-26b",
-            "reprints": "gemma4-26b",
-            "card_gen": "gemma4-26b",
-            "balance": "gemma4-26b",
-            "skeleton_rev": "gemma4-26b",
-            "ai_review": "gemma4-26b",
-            "art_prompts": "gemma4-26b",
-            "art_select": "gemma4-26b",
+            "mechanics": "gemma4-26b-vram-dynamic",
+            "archetypes": "gemma4-26b-vram-dynamic",
+            "reprints": "gemma4-26b-vram-dynamic",
+            "card_gen": "gemma4-26b-vram-dynamic",
+            "balance": "gemma4-26b-vram-dynamic",
+            "skeleton_rev": "gemma4-26b-vram-dynamic",
+            "ai_review": "gemma4-26b-vram-dynamic",
+            "art_prompts": "gemma4-26b-vram-dynamic",
+            "art_select": "gemma4-26b-vram-dynamic",
         },
         "image": dict(DEFAULT_IMAGE_ASSIGNMENTS),
         "effort": {},

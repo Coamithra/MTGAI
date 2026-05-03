@@ -26,8 +26,8 @@ class LLMModel:
 
     key: str  # short identifier, e.g. "opus"
     name: str  # display name
-    provider: str  # "anthropic" or "ollama"
-    model_id: str  # API model identifier
+    provider: str  # "anthropic" or "llamacpp"
+    model_id: str  # API model identifier (llama-swap YAML key for llamacpp)
     tier: int = 0  # quality ranking (higher = better)
     input_price: float = 0.0  # per 1M tokens
     output_price: float = 0.0
@@ -35,6 +35,11 @@ class LLMModel:
     supports_vision: bool = False
     supports_caching: bool = False
     context_window: int = 200_000
+    # llamacpp launch knobs (managed-mode only). Ignored by other providers.
+    gguf_path: str | None = None
+    cache_type_k: str | None = None
+    cache_type_v: str | None = None
+    n_gpu_layers: int | None = None
 
 
 @dataclass(frozen=True)
@@ -86,6 +91,10 @@ class ModelRegistry:
                 supports_vision=raw.get("supports_vision", False),
                 supports_caching=raw.get("supports_caching", False),
                 context_window=raw.get("context_window", 200_000),
+                gguf_path=raw.get("gguf_path"),
+                cache_type_k=raw.get("cache_type_k"),
+                cache_type_v=raw.get("cache_type_v"),
+                n_gpu_layers=raw.get("n_gpu_layers"),
             )
             registry.llm_models[key] = model
             registry._model_id_to_key[model.model_id] = key

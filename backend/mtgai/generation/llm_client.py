@@ -7,10 +7,16 @@ Public surface (preserved across refactor):
   - ``PRICING``                       per-model pricing table
 
 Provider for a given ``model_id`` is resolved through the model registry
-first, then via the ``MTGAI_PROVIDER`` env var as a fallback. Both Anthropic
-and Ollama are routed through llmfacade's Provider/Model/Conversation
-hierarchy. Tool schemas are accepted in Anthropic's ``input_schema`` dict
-shape (the same shape MTGAI call sites have always used); we wrap them as
+first, then via the ``MTGAI_PROVIDER`` env var as a fallback. Anthropic
+runs through llmfacade's Anthropic provider; local models run through
+llmfacade's ``llamacpp`` provider in **managed mode** — llmfacade owns a
+``llama-swap`` subprocess that lazily spawns ``llama-server`` instances
+on first use. Per-model launch knobs (gguf path, context size, KV cache
+quantization, GPU offload) live in the registry and are passed at
+``provider.new_model(...)`` time.
+
+Tool schemas are accepted in Anthropic's ``input_schema`` dict shape (the
+same shape MTGAI call sites have always used); we wrap them as
 ``llmfacade.Tool`` objects with a no-op ``fn`` since we read
 ``resp.tool_calls[0].input`` directly and never invoke the tool callable.
 """
@@ -39,25 +45,28 @@ if _ENV_PATH.exists():
 
 # ── Provider config ──────────────────────────────────────────────────
 
-PROVIDER = os.environ.get("MTGAI_PROVIDER", "anthropic").strip().lower()
-OLLAMA_MODEL = os.environ.get("MTGAI_OLLAMA_MODEL", "qwen2.5:14b").strip()
-OLLAMA_URL = os.environ.get("MTGAI_OLLAMA_URL", "http://localhost:11434").strip()
+_PROVIDER_RAW = os.environ.get("MTGAI_PROVIDER", "anthropic").strip().lower()
+# Migration alias: stale .env files still set MTGAI_PROVIDER=ollama. Treat as
+# llamacpp + warn, instead of letting _get_provider raise on an unknown name.
+if _PROVIDER_RAW == "ollama":
+    logger.warning(
+        "MTGAI_PROVIDER=ollama is no longer supported; routing to llamacpp. "
+        "Update your .env to remove the variable or set it to 'llamacpp'."
+    )
+    _PROVIDER_RAW = "llamacpp"
+PROVIDER = _PROVIDER_RAW
 
 try:
     MAX_RETRIES = max(1, int(os.environ.get("MTGAI_MAX_RETRIES", "3").strip()))
 except ValueError:
     MAX_RETRIES = 3
 
-# Repetition penalty applied to all Ollama calls (single-knob mitigation
-# recommended by Google staff for Gemma 3 loops; not always effective on
-# Gemma 4 but has no known downside).
-OLLAMA_REPEAT_PENALTY = 1.1
-
-# Default context window when an Ollama model isn't in the registry.
-_OLLAMA_DEFAULT_CONTEXT = 32768
-
-# One-shot guard for the Ollama debug-mode check (run on first Ollama call).
-_ollama_debug_checked = False
+# Repetition penalty applied to all llamacpp calls. Unlike Ollama (where
+# the Go-native sampler silently dropped repeat_penalty on Gemma-class
+# models — issue ollama#15783), llama.cpp honours this knob across every
+# architecture. theme_extractor's streaming path overrides per-call on
+# JSON-subcall retries; the structured tool-use path here uses this default.
+LLAMACPP_REPEAT_PENALTY = 1.1
 
 # Model tiers: family name -> (rank, latest model ID)
 _MODEL_TIERS: dict[str, tuple[int, str]] = {
@@ -170,10 +179,10 @@ def cap_model(model: str, effort: str | None = None) -> tuple[str, str | None]:
 
 # ── llmfacade plumbing ───────────────────────────────────────────────
 
-# Cached llmfacade providers — one Anthropic, one Ollama. Constructed once
-# per process; conversations are built fresh per call. Lock-guarded because
-# the FastAPI SSE handler + cancel/status routes can call generate_with_tool
-# from multiple threads.
+# Cached llmfacade providers — one per backend. Constructed once per process;
+# conversations are built fresh per call. Lock-guarded because the FastAPI
+# SSE handler + cancel/status routes can call generate_with_tool from
+# multiple threads.
 _PROVIDERS: dict[str, Provider] = {}
 _PROVIDERS_LOCK = threading.Lock()
 
@@ -201,15 +210,17 @@ def _get_provider(name: str) -> Provider:
                 exact_count_tokens=True,
                 auto_cache_tools=True,
             )
-        elif name == "ollama":
-            # keep_alive=15m matches the prior raw-HTTP code path. Repeat
-            # penalty is a Gemma-loop mitigation (see
-            # learnings/gemma-repetition-loops.md).
+        elif name == "llamacpp":
+            # Managed mode: no base_url. llmfacade lazily spawns a
+            # llama-swap subprocess on first call and supervises one
+            # llama-server per registered model.
+            #
+            # Per-model launch knobs (gguf path, context_size, KV-cache
+            # quant, GPU offload) come from the registry at new_model()
+            # time — see _llamacpp_new_model() below.
             prov = manager.new_provider(
-                "ollama",
-                base_url=OLLAMA_URL,
-                keep_alive="15m",
-                repeat_penalty=OLLAMA_REPEAT_PENALTY,
+                "llamacpp",
+                repeat_penalty=LLAMACPP_REPEAT_PENALTY,
             )
         else:
             raise ValueError(f"Unknown provider: {name}")
@@ -228,17 +239,36 @@ def _make_tool(tool_schema: dict) -> Tool:
     )
 
 
-def _ollama_get_context_window(model: str) -> int:
-    """Look up context window for a model from the registry, or use default."""
-    try:
-        from mtgai.settings.model_registry import get_registry
+def _llamacpp_new_model(provider: Provider, model_id: str):
+    """Build an llmfacade Model for a registered llamacpp entry.
 
-        info = get_registry().get_llm_by_model_id(model)
-        if info:
-            return info.context_window
-    except Exception:
-        pass
-    return _OLLAMA_DEFAULT_CONTEXT
+    Threads the registry's launch knobs (gguf_path, context_window,
+    cache_type_k/_v, n_gpu_layers) into ``provider.new_model(...)`` so
+    the supervisor can launch llama-server with the right flags. Models
+    not in the registry get a minimal default launch (no gguf path → the
+    call will fail at supervisor.register() time with a clear error).
+    """
+    from mtgai.settings.model_registry import get_registry
+
+    info = get_registry().get_llm_by_model_id(model_id)
+    if info is None or not info.gguf_path:
+        raise ValueError(
+            f"llamacpp model {model_id!r} is not in the registry (or missing "
+            f"gguf_path). Add it to backend/mtgai/settings/models.toml."
+        )
+
+    launch_kwargs: dict[str, Any] = {
+        "name": info.model_id,
+        "gguf": info.gguf_path,
+        "context_size": info.context_window,
+    }
+    if info.cache_type_k is not None:
+        launch_kwargs["cache_type_k"] = info.cache_type_k
+    if info.cache_type_v is not None:
+        launch_kwargs["cache_type_v"] = info.cache_type_v
+    if info.n_gpu_layers is not None:
+        launch_kwargs["n_gpu_layers"] = info.n_gpu_layers
+    return provider.new_model(**launch_kwargs)
 
 
 # ── Anthropic provider ───────────────────────────────────────────────
@@ -298,10 +328,10 @@ def _generate_anthropic(
     }
 
 
-# ── Ollama provider ──────────────────────────────────────────────────
+# ── llamacpp provider ────────────────────────────────────────────────
 
 
-def _ollama_extract_json(text: str, tool_name: str) -> dict | None:
+def _llamacpp_extract_json(text: str, tool_name: str) -> dict | None:
     """Try to extract a JSON object from model text output.
 
     Strategies (in order):
@@ -344,7 +374,7 @@ def _ollama_extract_json(text: str, tool_name: str) -> dict | None:
     return None
 
 
-def _generate_ollama(
+def _generate_llamacpp(
     system_prompt: str,
     user_prompt: str,
     tool_schema: dict,
@@ -352,30 +382,22 @@ def _generate_ollama(
     temperature: float,
     max_tokens: int,
 ) -> dict:
-    """Call Ollama via llmfacade with retry + JSON-extraction fallback.
+    """Call a local model through llmfacade's llamacpp provider.
 
-    llmfacade handles the transport (native ``/api/chat`` with ``num_ctx``
-    and ``num_predict``). We layer on our own retry + JSON-extraction
-    fallback because local models — especially Gemma 4 — frequently fail
-    native function-calling and return tool args inline as text. We also
-    keep MTGAI's tiktoken-based pre-call budget check and post-call
-    truncation guard.
+    llmfacade handles the transport (managed-mode llama-swap → llama-server,
+    OpenAI-compatible /v1/chat/completions) and forwards llama.cpp-specific
+    samplers (top_k, min_p, repeat_penalty) through ``extra_body``. We layer
+    on our own retry + JSON-extraction fallback because local models often
+    return tool args inline as text instead of as a structured tool call.
+    Tiktoken-based pre-call budget check + post-call truncation guard remain.
     """
-    from mtgai.generation.ollama_debug import check_ollama_debug_mode, scan_after_call
     from mtgai.generation.token_utils import (
         check_post_call_response,
         check_pre_call,
         count_messages_tokens,
     )
 
-    # One-time debug mode check on first Ollama call
-    global _ollama_debug_checked
-    if not _ollama_debug_checked:
-        check_ollama_debug_mode()
-        _ollama_debug_checked = True
-
     tool_name = tool_schema["name"]
-    num_ctx = _ollama_get_context_window(model)
 
     # Build a legacy dict shape just for the budget check + estimate. The
     # actual call goes through llmfacade.
@@ -395,17 +417,16 @@ def _generate_ollama(
     estimated_input = count_messages_tokens(legacy_messages, tools=[legacy_tool])
 
     logger.info(
-        "Ollama [%s] call: num_ctx=%d, num_predict=%d, estimated_input=%d",
+        "llamacpp [%s] call: max_tokens=%d, estimated_input=%d",
         model,
-        num_ctx,
         max_tokens,
         estimated_input,
     )
 
-    provider = _get_provider("ollama")
-    facade_model = provider.new_model(model, context_size=num_ctx)
+    provider = _get_provider("llamacpp")
+    facade_model = _llamacpp_new_model(provider, model)
     convo = facade_model.new_conversation(
-        system_blocks=[system_prompt],
+        system_blocks=[SystemBlock(text=system_prompt)],
         tools=[_make_tool(tool_schema)],
         max_tokens=max_tokens,
         temperature=temperature,
@@ -417,7 +438,7 @@ def _generate_ollama(
         try:
             resp = convo.send(next_user)
         except LLMError as e:
-            raise ValueError(f"Ollama [{model}] error: {e}") from e
+            raise ValueError(f"llamacpp [{model}] error: {e}") from e
 
         check_post_call_response(
             resp,
@@ -425,7 +446,6 @@ def _generate_ollama(
             num_predict=max_tokens,
             estimated_input_tokens=estimated_input,
         )
-        scan_after_call(since_lines=20)
 
         usage = resp.usage
         in_tok = usage.prompt_tokens if usage else 0
@@ -441,7 +461,7 @@ def _generate_ollama(
         if matched is not None:
             args = matched.input
             logger.info(
-                "Ollama [%s] tool call via native function calling (%d in, %d out)",
+                "llamacpp [%s] tool call via native function calling (%d in, %d out)",
                 model,
                 in_tok,
                 out_tok,
@@ -458,10 +478,10 @@ def _generate_ollama(
 
         # Try 2: extract JSON from text response
         if resp.text:
-            extracted = _ollama_extract_json(resp.text, tool_name)
+            extracted = _llamacpp_extract_json(resp.text, tool_name)
             if isinstance(extracted, dict):
                 logger.info(
-                    "Ollama [%s] tool call via text extraction (%d in, %d out)",
+                    "llamacpp [%s] tool call via text extraction (%d in, %d out)",
                     model,
                     in_tok,
                     out_tok,
@@ -480,7 +500,7 @@ def _generate_ollama(
         # the next send appends a re-prompt and continues from there.
         if attempt < MAX_RETRIES - 1:
             logger.warning(
-                "Ollama [%s] failed to produce valid tool output (attempt %d/%d), retrying",
+                "llamacpp [%s] failed to produce valid tool output (attempt %d/%d), retrying",
                 model,
                 attempt + 1,
                 MAX_RETRIES,
@@ -491,7 +511,7 @@ def _generate_ollama(
             )
 
     raise ValueError(
-        f"Ollama [{model}] failed to produce valid tool output after {MAX_RETRIES} attempts"
+        f"llamacpp [{model}] failed to produce valid tool output after {MAX_RETRIES} attempts"
     )
 
 
@@ -532,20 +552,22 @@ def generate_with_tool(
     back to the ``MTGAI_PROVIDER`` env var:
       - ``anthropic``: Anthropic API with forced tool_choice + prompt caching
         (system block + tools array) when ``cache=True``
-      - ``ollama``: local model via Ollama's native ``/api/chat``
+      - ``llamacpp``: local model via managed-mode llama-swap + llama-server,
+        through llmfacade's OpenAI-compatible transport. Honours
+        ``repeat_penalty`` (unlike the retired Ollama path).
 
     Returns a dict with:
         - result: the parsed tool input (structured JSON)
         - input_tokens / output_tokens: token counts
         - cache_creation_input_tokens / cache_read_input_tokens: cache stats
-          (0 for Ollama)
+          (0 for llamacpp)
         - stop_reason: the stop reason
         - model: effective model used
     """
     provider = _resolve_provider(model)
 
-    if provider == "ollama":
-        return _generate_ollama(
+    if provider == "llamacpp":
+        return _generate_llamacpp(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             tool_schema=tool_schema,

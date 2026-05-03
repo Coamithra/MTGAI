@@ -1,4 +1,4 @@
-"""Tests for llm_client (both providers, llmfacade-backed)."""
+"""Tests for llm_client (Anthropic + llamacpp paths, llmfacade-backed)."""
 
 import json
 from unittest.mock import MagicMock, patch
@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from mtgai.generation.llm_client import (
-    _ollama_extract_json,
+    _llamacpp_extract_json,
+    _llamacpp_new_model,
     calc_cost,
     generate_with_tool,
 )
@@ -42,43 +43,43 @@ SAMPLE_CARD = {
 class TestJsonExtraction:
     def test_fenced_json_block(self):
         text = 'Here is the card:\n```json\n{"name": "Foo", "mana_cost": "{W}"}\n```'
-        result = _ollama_extract_json(text, "generate_card")
+        result = _llamacpp_extract_json(text, "generate_card")
         assert result == {"name": "Foo", "mana_cost": "{W}"}
 
     def test_fenced_block_no_json_tag(self):
         text = 'Result:\n```\n{"name": "Foo"}\n```'
-        result = _ollama_extract_json(text, "generate_card")
+        result = _llamacpp_extract_json(text, "generate_card")
         assert result == {"name": "Foo"}
 
     def test_qwen_style_tool_call(self):
         text = '{"name": "generate_card", "arguments": {"name": "Bar", "mana_cost": "{R}"}}'
-        result = _ollama_extract_json(text, "generate_card")
+        result = _llamacpp_extract_json(text, "generate_card")
         assert result == {"name": "Bar", "mana_cost": "{R}"}
 
     def test_bare_json_object(self):
         text = 'I will generate the card.\n{"name": "Baz", "type_line": "Instant"}\nDone.'
-        result = _ollama_extract_json(text, "generate_card")
+        result = _llamacpp_extract_json(text, "generate_card")
         assert result == {"name": "Baz", "type_line": "Instant"}
 
     def test_nested_json(self):
         text = '{"outer": {"inner": "value"}, "key": "val"}'
-        result = _ollama_extract_json(text, "tool")
+        result = _llamacpp_extract_json(text, "tool")
         assert result == {"outer": {"inner": "value"}, "key": "val"}
 
     def test_no_json_found(self):
         text = "I cannot generate a card right now."
-        result = _ollama_extract_json(text, "generate_card")
+        result = _llamacpp_extract_json(text, "generate_card")
         assert result is None
 
     def test_malformed_json(self):
         text = '{"name": "broken'
-        result = _ollama_extract_json(text, "generate_card")
+        result = _llamacpp_extract_json(text, "generate_card")
         assert result is None
 
     def test_fenced_block_preferred_over_bare(self):
         """Fenced block should be tried first."""
         text = 'Bad: {"wrong": true}\n```json\n{"correct": true}\n```'
-        result = _ollama_extract_json(text, "tool")
+        result = _llamacpp_extract_json(text, "tool")
         assert result == {"correct": True}
 
 
@@ -86,13 +87,90 @@ class TestJsonExtraction:
 
 
 class TestLocalCost:
-    def test_unknown_model_is_free(self):
-        cost = calc_cost("qwen2.5:14b", input_tokens=10000, output_tokens=5000)
+    def test_local_model_is_free(self):
+        # qwen2.5-14b is registered with input_price=0.0; the registry path
+        # resolves it correctly and the cost is zero.
+        cost = calc_cost("qwen2.5-14b", input_tokens=10000, output_tokens=5000)
         assert cost == 0.0
 
-    def test_ollama_model_is_free(self):
-        cost = calc_cost("llama3:8b", input_tokens=50000, output_tokens=20000)
+    def test_unregistered_model_is_free(self):
+        cost = calc_cost("not-in-registry", input_tokens=50000, output_tokens=20000)
         assert cost == 0.0
+
+
+# ── _llamacpp_new_model registry dispatch ────────────────────────────
+
+
+class TestLlamaCppNewModel:
+    def test_unregistered_model_raises(self):
+        provider = MagicMock()
+        with pytest.raises(ValueError, match="not in the registry"):
+            _llamacpp_new_model(provider, "definitely-not-a-real-model-xyz")
+        provider.new_model.assert_not_called()
+
+    def test_missing_gguf_path_raises(self):
+        """A registry entry without gguf_path must raise rather than launch
+        llama-server with a missing path."""
+        provider = MagicMock()
+        fake_info = MagicMock()
+        fake_info.gguf_path = None
+        with (
+            patch(
+                "mtgai.settings.model_registry.ModelRegistry.get_llm_by_model_id",
+                return_value=fake_info,
+            ),
+            pytest.raises(ValueError, match="missing gguf_path"),
+        ):
+            _llamacpp_new_model(provider, "fake-model")
+        provider.new_model.assert_not_called()
+
+    def test_threads_launch_kwargs_from_registry(self):
+        """Registry knobs (gguf, context_size, cache_type_k/_v, n_gpu_layers)
+        must be forwarded to provider.new_model(...)."""
+        provider = MagicMock()
+        fake_info = MagicMock()
+        fake_info.model_id = "vlad-gemma4-26b-dynamic"
+        fake_info.gguf_path = "C:/Models/vlad-gemma4-26b-dynamic.gguf"
+        fake_info.context_window = 128000
+        fake_info.cache_type_k = "q8_0"
+        fake_info.cache_type_v = "q8_0"
+        fake_info.n_gpu_layers = -1
+        with patch(
+            "mtgai.settings.model_registry.ModelRegistry.get_llm_by_model_id",
+            return_value=fake_info,
+        ):
+            _llamacpp_new_model(provider, "vlad-gemma4-26b-dynamic")
+        provider.new_model.assert_called_once_with(
+            name="vlad-gemma4-26b-dynamic",
+            gguf="C:/Models/vlad-gemma4-26b-dynamic.gguf",
+            context_size=128000,
+            cache_type_k="q8_0",
+            cache_type_v="q8_0",
+            n_gpu_layers=-1,
+        )
+
+    def test_omits_optional_kwargs_when_unset(self):
+        """cache_type_k/_v and n_gpu_layers are llamacpp-server flags whose
+        absence should be passed as 'don't set this flag', not as None."""
+        provider = MagicMock()
+        fake_info = MagicMock()
+        fake_info.model_id = "qwen2.5-14b"
+        fake_info.gguf_path = "C:/Models/qwen2.5-14b.gguf"
+        fake_info.context_window = 32768
+        fake_info.cache_type_k = None
+        fake_info.cache_type_v = None
+        fake_info.n_gpu_layers = None
+        with patch(
+            "mtgai.settings.model_registry.ModelRegistry.get_llm_by_model_id",
+            return_value=fake_info,
+        ):
+            _llamacpp_new_model(provider, "qwen2.5-14b")
+        kwargs = provider.new_model.call_args.kwargs
+        assert kwargs == {
+            "name": "qwen2.5-14b",
+            "gguf": "C:/Models/qwen2.5-14b.gguf",
+            "context_size": 32768,
+        }
 
 
 # ── llmfacade Response/Usage/ToolCall stubs ──────────────────────────
@@ -221,11 +299,11 @@ class TestAnthropicGenerateWithTool:
                 )
 
 
-# ── Ollama path ──────────────────────────────────────────────────────
+# ── llamacpp path ────────────────────────────────────────────────────
 
 
-class TestOllamaGenerateWithTool:
-    """Cover the _generate_ollama path with a stubbed llmfacade provider."""
+class TestLlamaCppGenerateWithTool:
+    """Cover the _generate_llamacpp path with a stubbed llmfacade provider."""
 
     def test_native_tool_calling(self):
         """Model uses native function calling properly."""
@@ -236,14 +314,14 @@ class TestOllamaGenerateWithTool:
         provider, _convo = _build_facade_provider_mock(resp)
 
         with (
-            patch("mtgai.generation.llm_client._resolve_provider", return_value="ollama"),
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
             patch("mtgai.generation.llm_client._get_provider", return_value=provider),
         ):
             result = generate_with_tool(
                 system_prompt="You are a card designer.",
                 user_prompt="Make a card.",
                 tool_schema=SAMPLE_TOOL,
-                model="qwen2.5:14b",
+                model="qwen2.5-14b",
             )
 
         assert result["result"] == SAMPLE_CARD
@@ -260,14 +338,14 @@ class TestOllamaGenerateWithTool:
         provider, _ = _build_facade_provider_mock(resp)
 
         with (
-            patch("mtgai.generation.llm_client._resolve_provider", return_value="ollama"),
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
             patch("mtgai.generation.llm_client._get_provider", return_value=provider),
         ):
             result = generate_with_tool(
                 system_prompt="Sys",
                 user_prompt="User",
                 tool_schema=SAMPLE_TOOL,
-                model="qwen2.5:14b",
+                model="qwen2.5-14b",
             )
 
         assert result["result"] == SAMPLE_CARD
@@ -279,14 +357,14 @@ class TestOllamaGenerateWithTool:
         provider, convo = _build_facade_provider_mock([bad, good])
 
         with (
-            patch("mtgai.generation.llm_client._resolve_provider", return_value="ollama"),
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
             patch("mtgai.generation.llm_client._get_provider", return_value=provider),
         ):
             result = generate_with_tool(
                 system_prompt="Sys",
                 user_prompt="User",
                 tool_schema=SAMPLE_TOOL,
-                model="qwen2.5:14b",
+                model="qwen2.5-14b",
             )
 
         assert result["result"] == SAMPLE_CARD
@@ -300,7 +378,7 @@ class TestOllamaGenerateWithTool:
         provider, _ = _build_facade_provider_mock([bad, bad, bad])
 
         with (
-            patch("mtgai.generation.llm_client._resolve_provider", return_value="ollama"),
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
             patch("mtgai.generation.llm_client._get_provider", return_value=provider),
         ):
             with pytest.raises(ValueError, match="failed to produce valid tool output"):
@@ -308,7 +386,7 @@ class TestOllamaGenerateWithTool:
                     system_prompt="Sys",
                     user_prompt="User",
                     tool_schema=SAMPLE_TOOL,
-                    model="qwen2.5:14b",
+                    model="qwen2.5-14b",
                 )
 
     def test_wrong_named_tool_call_is_not_accepted(self, monkeypatch):
@@ -325,7 +403,7 @@ class TestOllamaGenerateWithTool:
         provider, _ = _build_facade_provider_mock([wrong, wrong])
 
         with (
-            patch("mtgai.generation.llm_client._resolve_provider", return_value="ollama"),
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
             patch("mtgai.generation.llm_client._get_provider", return_value=provider),
         ):
             with pytest.raises(ValueError, match="failed to produce valid tool output"):
@@ -333,5 +411,5 @@ class TestOllamaGenerateWithTool:
                     system_prompt="Sys",
                     user_prompt="User",
                     tool_schema=SAMPLE_TOOL,
-                    model="qwen2.5:14b",
+                    model="qwen2.5-14b",
                 )

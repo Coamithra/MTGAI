@@ -3,6 +3,15 @@
 # Defines all available LLM and image-generation models.
 # Edit this file to add new models or providers.
 # Keys (e.g. [llm.opus]) are short identifiers used in settings profiles.
+#
+# Local models use the llamacpp provider in managed mode: llmfacade owns a
+# llama-swap subprocess that supervises llama-server instances on demand.
+# Each local model needs:
+#   - gguf_path: absolute path to the .gguf file on disk
+#   - context_window: --ctx-size at server launch (also used for budget calcs)
+# Optional launch knobs (per-model KV-cache quant, GPU offload):
+#   - cache_type_k / cache_type_v: "f16" (default), "q8_0", "q4_0"
+#   - n_gpu_layers: number of layers to offload to GPU (-1 / 999 = all)
 
 # ── LLM Models ──────────────────────────────────────────────────────────────
 
@@ -44,8 +53,9 @@ supports_caching = true
 
 [llm.qwen-14b]
 name = "Qwen 2.5 14B (Local)"
-provider = "ollama"
-model_id = "qwen2.5:14b"
+provider = "llamacpp"
+model_id = "qwen2.5-14b"
+gguf_path = "C:/Models/qwen2.5-14b.gguf"
 tier = 0
 input_price = 0.00
 output_price = 0.00
@@ -53,11 +63,13 @@ context_window = 32768
 supports_effort = false
 supports_vision = false
 supports_caching = false
+n_gpu_layers = -1
 
-[llm.qwen-7b]
-name = "Qwen 2.5 7B (Local)"
-provider = "ollama"
-model_id = "qwen2.5:7b"
+[llm.qwen-3b]
+name = "Qwen 2.5 3B (Local)"
+provider = "llamacpp"
+model_id = "qwen2.5-3b"
+gguf_path = "C:/Models/qwen2.5-3b.gguf"
 tier = 0
 input_price = 0.00
 output_price = 0.00
@@ -65,100 +77,74 @@ context_window = 32768
 supports_effort = false
 supports_vision = false
 supports_caching = false
+n_gpu_layers = -1
 
-[llm.qwen3-vl-8b]
-name = "Qwen3-VL 8B (Local Vision)"
-provider = "ollama"
-model_id = "qwen3-vl:8b"
+[llm.qwen3-4b]
+name = "Qwen 3.5 4B (Local)"
+provider = "llamacpp"
+model_id = "qwen3.5-4b"
+gguf_path = "C:/Models/qwen3.5-4b.gguf"
 tier = 0
 input_price = 0.00
 output_price = 0.00
 context_window = 32768
 supports_effort = false
-supports_vision = true
+supports_vision = false
 supports_caching = false
+n_gpu_layers = -1
 
-[llm.gemma4-e4b]
-name = "Gemma 4 E4B (Local)"
-provider = "ollama"
-model_id = "gemma4:e4b"
+[llm.phi4-mini]
+name = "Phi-4 Mini (Local)"
+provider = "llamacpp"
+model_id = "phi4-mini"
+gguf_path = "C:/Models/phi4-mini.gguf"
 tier = 0
 input_price = 0.00
 output_price = 0.00
-context_window = 128000
+context_window = 32768
 supports_effort = false
-supports_vision = true
+supports_vision = false
 supports_caching = false
+n_gpu_layers = -1
 
-[llm.gemma4-26b]
-name = "Gemma 4 26B MoE (Local)"
-provider = "ollama"
-model_id = "gemma4:26b"
+[llm.llama3-3b]
+name = "Llama 3.2 3B (Local)"
+provider = "llamacpp"
+model_id = "llama3.2-3b"
+gguf_path = "C:/Models/llama3.2-3b.gguf"
 tier = 0
 input_price = 0.00
 output_price = 0.00
-context_window = 128000
+context_window = 32768
 supports_effort = false
-supports_vision = true
+supports_vision = false
 supports_caching = false
+n_gpu_layers = -1
 
-# NOTE: upstream Vlad with hardcoded PARAMETER num_gpu 99. Do NOT set
-# OLLAMA_KV_CACHE_TYPE=q4_0 at the server level on <16 GB VRAM while this
-# model is loaded - the smaller KV cache trips the placement estimator into
-# honoring num_gpu=99, causing CUDA OOM and a Windows display-driver reset.
-# Use gemma4-26b-vram-dynamic instead.
-[llm.gemma4-26b-vram]
-name = "Gemma 4 26B 16GB-VRAM (Local)"
-provider = "ollama"
-model_id = "VladimirGav/gemma4-26b-16GB-VRAM"
-tier = 0
-input_price = 0.00
-output_price = 0.00
-context_window = 128000
-supports_effort = false
-supports_vision = true
-supports_caching = false
-
-[llm.gemma4-26b-unsloth-q4kxl]
-name = "Gemma 4 26B Unsloth UD-Q4_K_XL (Local)"
-provider = "ollama"
-model_id = "unsloth-gemma4-26b-q4kxl"
-tier = 0
-input_price = 0.00
-output_price = 0.00
-context_window = 128000
-supports_effort = false
-supports_vision = true
-supports_caching = false
-
-# Best long-context config on 12 GB VRAM per TC-1f: Vlad IQ4_XS + dynamic
-# placement. ~346 s for a 58K-token extraction at 128K (2.5x faster than
-# pre-flash-attention baseline). Relies on Ollama 0.21+ auto-enabling flash
-# attention. q4_0 KV cache would save another ~100 s but requires a global
-# OLLAMA_KV_CACHE_TYPE env var - skipped to preserve per-model flexibility.
+# Best long-context config on 12 GB VRAM (per TC-1f). Vlad's IQ4_XS quant +
+# q8_0 KV cache + flash attention runs a 58K-token extraction in ~4 min at
+# 128K context. Per-model `cache_type_k`/`cache_type_v` here replace the
+# global OLLAMA_KV_CACHE_TYPE env var that Ollama forced — llama.cpp gives
+# us per-server KV quant via `--cache-type-k`/`-v`. Flash attention is
+# enabled by default in llama-server when the architecture supports it.
 [llm.gemma4-26b-vram-dynamic]
-name = "Gemma 4 26B Vlad IQ4_XS (num_gpu unset for dynamic placement)"
-provider = "ollama"
+name = "Gemma 4 26B Vlad IQ4_XS (Local)"
+provider = "llamacpp"
 model_id = "vlad-gemma4-26b-dynamic"
+gguf_path = "C:/Models/vlad-gemma4-26b-dynamic.gguf"
 tier = 0
 input_price = 0.00
 output_price = 0.00
 context_window = 128000
 supports_effort = false
-supports_vision = true
+# Gemma 4 has a vision projector, but managed-mode llamacpp here doesn't yet
+# pass --mmproj at server launch. Flip to true once mmproj_path is plumbed
+# through the registry + _llamacpp_new_model.
+supports_vision = false
 supports_caching = false
-
-[llm.gemma4-31b]
-name = "Gemma 4 31B Dense (Local)"
-provider = "ollama"
-model_id = "gemma4:31b"
-tier = 0
-input_price = 0.00
-output_price = 0.00
-context_window = 128000
-supports_effort = false
-supports_vision = true
-supports_caching = false
+n_gpu_layers = -1
+cache_type_k = "q8_0"
+cache_type_v = "q8_0"
 
 # ── Image Generation Models ─────────────────────────────────────────────────
 

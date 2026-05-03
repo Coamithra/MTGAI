@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Any
 
 from llmfacade import SystemBlock
-from llmfacade.exceptions import LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +39,14 @@ _LOG_MAX_MESSAGE_LINES = 50
 
 # Stop sequences keep the model from echoing the source-text divider markers
 # back into the extraction (a real failure mode on weaker local models).
-_OLLAMA_STOP_SEQUENCES = [
+_LLAMACPP_STOP_SEQUENCES = [
     "--- START OF SOURCE TEXT ---",
     "--- END OF SOURCE TEXT ---",
 ]
 
-# Hard cap on JSON subcall output (constraints / card_suggestions). With
-# num_predict=-1 a model in a repetition loop fills the entire context window
-# before the post-hoc detector even runs. Mid-stream repetition detection
+# Hard cap on JSON subcall output (constraints / card_suggestions). Without
+# this, a model in a repetition loop can fill the entire context window
+# before the post-hoc detector runs. Mid-stream repetition detection
 # (`_detect_tandem_repeat`, run every 64 chars of new content) is the primary
 # runaway guard; this cap is just a backstop.
 # Constraints output is tiny (3-8 short strings). Card suggestions (3-5 cards
@@ -56,23 +55,16 @@ _OLLAMA_STOP_SEQUENCES = [
 _JSON_SUBCALL_CONSTRAINTS_MAX_TOKENS = 4096
 _JSON_SUBCALL_SUGGESTIONS_MAX_TOKENS = 8192
 
-# Per-attempt sampler-knob escalation for the JSON subcall retry loop.
-# Index = attempt-1. None means "use provider default".
+# Per-attempt repeat_penalty escalation for the JSON subcall retry loop.
+# Index = attempt-1. None means "use provider default" (1.1).
 #
-# IMPORTANT: As of Ollama 0.20.x (May 2026) the Go-native sampler used by
-# Gemma 4 and other ollamarunner models silently ignores repeat_penalty,
-# frequency_penalty, and presence_penalty — only temperature/top_k/top_p/
-# min_p actually take effect. See https://github.com/ollama/ollama/issues/15783
-# (PR #15784 is open but unmerged). So on our default model
-# (vlad-gemma4-26b-dynamic) the repeat_penalty schedule is a no-op until
-# upstream merges; temperature is the only knob currently moving the model
-# off a repetition loop. Schedule kept for forward-compat once #15784 lands.
-#
-# >1.20 repeat_penalty noticeably degrades JSON token output, so that's the
-# ceiling. Temperature 1.0 is the practical ceiling for JSON mode -
-# higher values start producing malformed structure on smaller models.
+# Now that we're on llama.cpp via llmfacade's llamacpp provider, repeat_penalty
+# actually moves the sampler — Ollama's Go-native sampler silently ignored it
+# on Gemma-class models (ollama#15783). >1.20 noticeably degrades JSON token
+# output, so that's the ceiling. Temperature is intentionally not escalated:
+# higher temperatures produce malformed JSON structure on smaller models, and
+# repeat_penalty alone breaks loops in practice.
 _RETRY_REPEAT_PENALTIES: list[float | None] = [None, 1.15, 1.20]
-_RETRY_TEMPERATURES: list[float | None] = [None, 0.85, 1.0]
 
 # Compaction threshold. Per-section "next" chunks pass back the accumulated
 # section text so far. If accumulated grows beyond this fraction of the chunk
@@ -1027,10 +1019,10 @@ def _stream_single_call(
     ``step_label`` tags the call in the conversation log filename (e.g.
     "section-3-7-creature-types-chunk-4-10"). If None, a generic name is used.
 
-    ``output_budget_override`` forces a specific Ollama ``num_predict`` for
+    ``output_budget_override`` forces a specific llamacpp ``max_tokens`` for
     this call (ignored on Anthropic, which uses its own fixed max_tokens).
 
-    ``repeat_penalty_override`` overrides the provider-default Ollama
+    ``repeat_penalty_override`` overrides the provider-default llamacpp
     repeat_penalty for this call (ignored on Anthropic). Used by the JSON
     subcall retry loop to escalate the penalty on repetition-loop retries.
     """
@@ -1042,8 +1034,8 @@ def _stream_single_call(
             stream_to_ui,
             step_label=step_label,
         )
-    elif model_info.provider == "ollama":
-        yield from _stream_ollama_call(
+    elif model_info.provider == "llamacpp":
+        yield from _stream_llamacpp_call(
             user_msg,
             system_prompt,
             model_info,
@@ -1188,7 +1180,7 @@ def _stream_anthropic_call(
         _write_call_meta(log_path, meta)
 
 
-def _stream_ollama_call(
+def _stream_llamacpp_call(
     user_msg: str,
     system_prompt: str,
     model_info,
@@ -1199,18 +1191,18 @@ def _stream_ollama_call(
     repeat_penalty_override: float | None = None,
     temperature_override: float | None = None,
 ) -> Generator[dict, None, None]:
-    """Single Ollama streaming call via llmfacade.
+    """Single llamacpp streaming call via llmfacade.
 
     Pre-checks input fits in context, post-checks llmfacade Usage for
-    truncation. Also runs MTGAI's mid-stream repetition detector every 200
-    chars - local models (Gemma 4 in particular) sometimes loop forever
-    inside ``num_predict``, and breaking the iterator early salvages the
+    truncation. Also runs MTGAI's mid-stream repetition detector every 64
+    chars — local models (Gemma 4 in particular) sometimes loop forever
+    inside ``max_tokens``, and breaking the iterator early salvages the
     pre-loop text.
 
-    ``output_budget_override`` overrides the default ``num_predict`` for
+    ``output_budget_override`` overrides the default ``max_tokens`` for
     this call (used by JSON subcalls that need a larger output budget).
     """
-    from mtgai.generation.llm_client import _get_provider
+    from mtgai.generation.llm_client import _get_provider, _llamacpp_new_model
     from mtgai.generation.token_utils import (
         SAFETY_MARGIN,
         InputTruncatedError,
@@ -1238,7 +1230,7 @@ def _stream_ollama_call(
         msg = (
             f"Input too large for {model_info.model_id}: ~{estimated_input_tokens} "
             f"tokens estimated, only {safe_budget} available "
-            f"(num_ctx={num_ctx}, output_reserve={output_reserve}). "
+            f"(context_size={num_ctx}, output_reserve={output_reserve}). "
             f"Reduce input or increase context window."
         )
         logger.error(msg)
@@ -1246,16 +1238,16 @@ def _stream_ollama_call(
         return
 
     logger.info(
-        "Ollama call: model=%s, est_input=%d tok, num_ctx=%d, output_reserve=%d",
+        "llamacpp call: model=%s, est_input=%d tok, ctx=%d, output_reserve=%d",
         model_info.model_id,
         estimated_input_tokens,
         num_ctx,
         output_reserve,
     )
 
-    provider = _get_provider("ollama")
-    facade_model = provider.new_model(model_info.model_id, context_size=num_ctx)
-    log_path = _build_call_log_path(step_label, "ollama-call")
+    provider = _get_provider("llamacpp")
+    facade_model = _llamacpp_new_model(provider, model_info.model_id)
+    log_path = _build_call_log_path(step_label, "llamacpp-call")
     effective_temperature = temperature_override if temperature_override is not None else 0.7
     convo_kwargs: dict[str, Any] = {
         "system_blocks": [SystemBlock(text=system_prompt)],
@@ -1267,9 +1259,9 @@ def _stream_ollama_call(
     if json_mode:
         convo_kwargs["output_format"] = "json"
     if repeat_penalty_override is not None:
-        # Per-call override of provider-default repeat_penalty. Note: as of
-        # Ollama 0.20.x, the ollamarunner Go sampler (Gemma 4 et al.)
-        # silently ignores this. Kept here for forward-compat with PR #15784.
+        # Per-call override of provider-default repeat_penalty. Forwarded by
+        # llmfacade through OpenAI-compat extra_body to llama-server, where
+        # the sampler actually honours it (unlike the retired Ollama path).
         convo_kwargs["repeat_penalty"] = repeat_penalty_override
     convo = facade_model.new_conversation(**convo_kwargs)
 
@@ -1281,11 +1273,11 @@ def _stream_ollama_call(
     frames_total = 0
     frames_with_content = 0
     meta: dict[str, Any] = {
-        "provider": "ollama",
+        "provider": "llamacpp",
         "model_id": model_info.model_id,
         "step_label": step_label,
         "json_mode": json_mode,
-        "num_ctx": num_ctx,
+        "context_size": num_ctx,
         "output_reserve": output_reserve,
         "estimated_input_tokens": estimated_input_tokens,
         "outcome": "unknown",
@@ -1296,7 +1288,7 @@ def _stream_ollama_call(
         meta["temperature"] = temperature_override
 
     try:
-        stream_iter = convo.stream(user_msg, stop=_OLLAMA_STOP_SEQUENCES)
+        stream_iter = convo.stream(user_msg, stop=_LLAMACPP_STOP_SEQUENCES)
         try:
             for ev in stream_iter:
                 if _cancel_event.is_set():
@@ -1326,7 +1318,7 @@ def _stream_ollama_call(
         except _CancelledError:
             raise
         except Exception as e:
-            logger.error("Ollama streaming call failed: %s", e, exc_info=True)
+            logger.error("llamacpp streaming call failed: %s", e, exc_info=True)
             meta["outcome"] = "stream_exception"
             meta["error"] = str(e)
             yield {
@@ -1349,7 +1341,7 @@ def _stream_ollama_call(
 
         if loop_err:
             logger.info(
-                "Ollama call aborted (repetition): %d chars before abort",
+                "llamacpp call aborted (repetition): %d chars before abort",
                 len(theme_text),
             )
             # No usage frame on early-break; record with our estimate so the
@@ -1370,7 +1362,7 @@ def _stream_ollama_call(
 
         if last_usage is None:
             msg = (
-                f"Ollama stream ended with no usage frame after {len(theme_text)} "
+                f"llamacpp stream ended with no usage frame after {len(theme_text)} "
                 "chars. Possible connection drop or server error."
             )
             logger.error(msg)
@@ -1394,7 +1386,7 @@ def _stream_ollama_call(
             0.0,
         )
         logger.info(
-            "Ollama call complete: %d chars, prompt_tokens=%d, completion_tokens=%d, "
+            "llamacpp call complete: %d chars, prompt_tokens=%d, completion_tokens=%d, "
             "frames_total=%d, frames_with_content=%d",
             len(theme_text),
             last_usage.prompt_tokens,
@@ -1406,9 +1398,9 @@ def _stream_ollama_call(
         try:
             check_post_call(
                 {
-                    "prompt_eval_count": last_usage.prompt_tokens,
-                    "eval_count": last_usage.completion_tokens,
-                    "done_reason": last_finish_reason or "",
+                    "prompt_tokens": last_usage.prompt_tokens,
+                    "completion_tokens": last_usage.completion_tokens,
+                    "finish_reason": last_finish_reason or "",
                 },
                 estimated_input_tokens=estimated_input_tokens,
                 model=model_info.model_id,
@@ -1608,25 +1600,19 @@ def _run_json_subcall(
 
     for attempt in range(1, MAX_RETRIES + 1):
         _check_cancelled()
-        # Escalate sampler knobs on retries so a model that fell into a
+        # Escalate repeat_penalty on retries so a model that fell into a
         # tandem-repeat on attempt 1 has a real chance of breaking out on
-        # attempt 2/3. temperature is the workhorse here - on Gemma 4 via
-        # ollamarunner, repeat_penalty is currently a no-op (Ollama issue
-        # #15783), so temperature is the only knob actually changing the
-        # sampling distribution between attempts.
-        rp_override = _RETRY_REPEAT_PENALTIES[attempt - 1] if attempt - 1 < len(
-            _RETRY_REPEAT_PENALTIES
-        ) else _RETRY_REPEAT_PENALTIES[-1]
-        temp_override = _RETRY_TEMPERATURES[attempt - 1] if attempt - 1 < len(
-            _RETRY_TEMPERATURES
-        ) else _RETRY_TEMPERATURES[-1]
+        # attempt 2/3. repeat_penalty actually moves the sampler now that
+        # we're on llama.cpp (Ollama silently dropped it on Gemma-class
+        # models). Temperature stays at the provider default — escalating
+        # it produced malformed JSON on smaller models.
+        rp_override = (
+            _RETRY_REPEAT_PENALTIES[attempt - 1]
+            if attempt - 1 < len(_RETRY_REPEAT_PENALTIES)
+            else _RETRY_REPEAT_PENALTIES[-1]
+        )
 
-        knob_parts: list[str] = []
-        if temp_override is not None:
-            knob_parts.append(f"temperature={temp_override}")
-        if rp_override is not None:
-            knob_parts.append(f"repeat_penalty={rp_override}")
-        knob_note = (", " + ", ".join(knob_parts)) if knob_parts else ""
+        knob_note = f", repeat_penalty={rp_override}" if rp_override is not None else ""
 
         last_err = attempts[-1][1] if attempts else None
         if attempt == 1:
@@ -1643,7 +1629,7 @@ def _run_json_subcall(
 
         step_label = (
             f"{label} attempt {attempt}/{MAX_RETRIES} "
-            f"(json_mode, key='{json_key}', num_predict={output_budget}{knob_note})"
+            f"(json_mode, key='{json_key}', max_tokens={output_budget}{knob_note})"
         )
         items, err, raw = _attempt_json_subcall(
             theme_text,
@@ -1653,7 +1639,6 @@ def _run_json_subcall(
             step_label,
             output_budget,
             repeat_penalty_override=rp_override,
-            temperature_override=temp_override,
         )
 
         if err is None:

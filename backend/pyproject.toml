@@ -9,15 +9,16 @@ dependencies = [
     "typer[all]>=0.12",
     "rich>=13.0",
     "anthropic>=0.32,<1",
-    "openai>=1.0,<2",
+    "openai>=2.32",
     "fastapi>=0.115,<1",
     "starlette<1",
     "uvicorn[standard]>=0.30,<1",
     "jinja2>=3.1,<4",
     "pymupdf>=1.24,<2",
     "tiktoken>=0.7",
-    "ollama>=0.3",
-    "llmfacade @ git+https://github.com/Coamithra/LLMFacade.git@main",
+    "pyyaml>=6.0",
+    # llamacpp extra pulls openai>=2.32 + pyyaml for managed-mode llama-swap.
+    "llmfacade[llamacpp] @ git+https://github.com/Coamithra/LLMFacade.git@main",
 ]
 
 [project.optional-dependencies]
