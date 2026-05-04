@@ -100,6 +100,7 @@ When comparing, **zoom to 200%+ and compare each element in isolation**. It's ea
 ## Next Iterations
 
 ### Iteration 4: Fine-tuning
+> Trello: [Renderer iteration 4-5](https://trello.com/c/Z5JsLK2N)
 - [ ] **Mana symbol outline** — real symbols have a thin dark outline/border ring
 - [ ] **Symbol baseline alignment** — inline symbols should sit on the text baseline, not float
 - [ ] **Flavor text for reprints** — Elvish Mystic and Murder need flavor text (data fix)
@@ -107,6 +108,7 @@ When comparing, **zoom to 200%+ and compare each element in isolation**. It's ea
 - [ ] **Color matching** — compare frame tint when scaled (any color shift from LANCZOS downscale?)
 
 ### Iteration 5: Edge cases
+> Trello: [Renderer iteration 4-5](https://trello.com/c/Z5JsLK2N) (covers cards-with-no-flavor, X mana, full-art lands), [Custom card back](https://trello.com/c/lQWKjNS2) (separate card)
 - [ ] Cards with very long names + wide mana costs (e.g., 5-symbol costs)
 - [ ] Cards with no flavor text — verify text box spacing
 - [ ] Cards with many abilities (4+ paragraphs) — verify dynamic sizing

@@ -33,6 +33,9 @@ env/
 # Output directory (everything generated — cards, art, renders, logs, state)
 output/
 
+# Per-card git worktrees (see CONTRIBUTING.md)
+.trees/
+
 # Inspiration / reference PDFs (large binaries)
 inspiration/
 

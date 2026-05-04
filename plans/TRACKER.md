@@ -476,12 +476,12 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 
 - [x] **2C-1**: Frame templates for all standard colors (W/U/B/R/G/M/A/L) — M15 frames from Card Conjurer at 2010×2814 RGBA with transparent art windows. Land frames (lw/lu/lb/lr/lg/lm) also available.
   → `assets/frames/m15/m15Frame{W,U,B,R,G,M,A,L}.png`, legend crowns in `assets/frames/m15/crowns/`
-- [ ] **2C-2**: Build planeswalker frame template (different layout: 3-4 loyalty abilities, no P/T box) — deferred, no planeswalkers in 60-card dev set
+- [ ] **2C-2**: Build planeswalker frame template (different layout: 3-4 loyalty abilities, no P/T box) — deferred, no planeswalkers in 60-card dev set → [Trello](https://trello.com/c/wQFsj1lm)
 - [x] **2C-3**: Text layout engine — `text_engine.py` with bold keywords, italic reminder text, inline SVG mana symbols via pycairo, automatic word wrapping, dynamic font sizing (85→55px range), shrink-to-fit for name/type lines. Vertical centering for sparse text boxes. Flavor text separator line.
   → `backend/mtgai/rendering/text_engine.py`, `symbol_renderer.py`
 - [x] **2C-4**: Proxy render mode built into renderer — cards without art get a colored placeholder rectangle matching their color identity. Used during initial development before art existed.
 - [x] **2C-5**: Renders at native 2010×2814 (frame resolution), scales to 822×1122 at 300 DPI for final output. Single resolution output sufficient for both screen review and print.
-- [ ] **2C-6**: Design custom card back — deferred to iteration 5
+- [ ] **2C-6**: Design custom card back — deferred to iteration 5 → [Trello](https://trello.com/c/lQWKjNS2)
 - [x] **2C-7**: Rendered all 66 dev set cards (~25 seconds total, ~380ms/card). Three iterations of pixel-level comparison against Scryfall reference cards.
   → `output/sets/ASD/renders/`, comparison pages in `output/sets/ASD/reports/`
   - **Iteration 1**: Basic compositing, placeholder mana symbols, fixed font sizes
@@ -491,7 +491,7 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
   - Researched Card Conjurer + wingedsheep + mtgrender renderers for pixel-accurate reference coordinates
 - [x] **2C-8**: Text overflow handled by dynamic font sizing in TextEngine — shrinks font until text fits. P/T box reservation prevents overlap with flavor text. 27/66 cards identified as having dense text (flavor text overindexing — pipeline issue, not renderer).
 - [x] **2C-9**: Print spec compliance verified — 822×1122px at 300 DPI, sRGB PNG, 3mm bleed built into frame templates.
-- [ ] **2C-10**: HUMAN: Home-print test batch — font swap complete, deferred to later
+- [ ] **2C-10**: HUMAN: Home-print test batch — font swap complete, deferred to later → [Trello](https://trello.com/c/Go5GlI6K)
 - [x] **2C-11**: Write learnings → `learnings/phase2c.md`
 
 ---
@@ -507,7 +507,7 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 
 - [x] **3A-1**: Card loader upgrade — `load_cards()` returns `list[Card]` (Pydantic models), `CardFilter` dataclass with 10 filter fields (AND-combined), `filter_cards()`, `sort_cards()` by name/cmc/rarity/color/collector#. `load_cards_raw()` preserved for backward compat. 52 tests.
   → `backend/mtgai/review/loaders.py`, `backend/tests/test_review/test_loaders.py`
-- [ ] **3A-2**: Export command — `review export <format>` for CSV (flat spreadsheet), JSON (full card data), print (copy render files to flat dir). Cockatrice XML deferred to Phase 5.
+- [ ] **3A-2**: Export command — `review export <format>` for CSV (flat spreadsheet), JSON (full card data), print (copy render files to flat dir). Cockatrice XML deferred to Phase 5. → [Trello](https://trello.com/c/01kzihzq)
 - [x] **3A-3**: Booster pack module — `generate_booster_pack()` (10C + 3U + 1R/M + 1 land) with mythic upgrade (~1/8), graceful degradation for small pools. `generate_sealed_pool()` for sealed. 19 tests.
   → `backend/mtgai/packs.py`, `backend/tests/test_packs.py`
 
@@ -538,7 +538,7 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
   → `backend/mtgai/gallery/templates/static/progress.js`
 - [x] **3B-8**: Booster pack viewer JS — random pack display (5-per-row grid, rarity-sorted), pack stats sidebar (color/rarity/creature/CMC/mechanic breakdown), client-side fallback generation, hover tooltip with mana cost rendering, rarity glow borders. 380+ lines JS + 380 lines CSS.
   → `backend/mtgai/gallery/templates/static/booster.js`, `booster.html` updated
-- [ ] **3B-9**: Pipeline queue integration — generation pipeline reads `remake-queue.json`, art pipeline reads `art-redo-queue.json`, progress API reads status files to show completion. Deferred to Phase SC (scale-up) — queue files are written, pipeline readers not yet wired.
+- [ ] **3B-9**: Pipeline queue integration — generation pipeline reads `remake-queue.json`, art pipeline reads `art-redo-queue.json`, progress API reads status files to show completion. Deferred to Phase SC (scale-up) — queue files are written, pipeline readers not yet wired. → [Trello](https://trello.com/c/yDXF2Ifu)
 
 ---
 
@@ -573,12 +573,12 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 - [x] **TC-1e**: Gemma 4 model benchmark — two rounds completed. **Round 1** (ASD theme.txt, 3K tokens, 32K ctx): all 4 models tested. e4b 105 tok/s, 26b 22 tok/s, VladimirGav 26b 14 tok/s, 31b 3.5 tok/s. **Round 2** (Dark Sun PDF, 58K tokens, 128K ctx): e4b ~2 min, VladimirGav 26b ~15 min, standard 26b did not complete after 3h (killed), 31b not tested (projected 6-10+ hours at 128K - deemed impractical). **Key finding**: model ranking reverses between small and large context. At 32K, standard `gemma4:26b` beats VladimirGav's IQ4_XS on speed. At 128K, VladimirGav wins decisively because smaller weights leave room for KV cache on GPU, avoiding PCIe-bound prompt processing. Scripts: `backend/scripts/benchmark_gemma4.py`, `backend/scripts/benchmark_gemma4_darksun.py`. Results: `output/benchmarks/`. Full analysis + preset recommendations merged into `learnings/gemma4-benchmark.md` (combined with TC-1f).
 - [x] **TC-1f**: Gemma 4 26B with Unsloth Dynamic quants + KV cache quantization + flash attention — tested all levers on Dark Sun PDF (58K tokens, 128K single-pass). **Flash attention is the dominant lever**: 2.5x wall-clock / 8.4x TTFT speedup just from `OLLAMA_FLASH_ATTENTION=1` (Ollama 0.20.5 does NOT enable it by default). **q4_0 KV cache adds ~30% more** on models in the placement sweet spot (Vlad IQ4_XS at 14.2 GB), negligible on larger models (Unsloth UD-Q4_K_XL at 17.1 GB). **Winner**: `vlad-gemma4-26b-dynamic` (num_gpu override on VladimirGav) + flash attention + q4_0 KV cache = 238.7 s end-to-end (3.6x faster than TC-1e baseline 865 s). **Gotcha**: VladimirGav's upstream Modelfile hardcodes `num_gpu 99`, which with q4_0 KV cache causes CUDA OOM + display driver crash — must override via derived Modelfile with `PARAMETER num_gpu -1`. Quality unchanged across all successful runs. Scripts: `backend/scripts/benchmark_gemma4_tc1f.py`. Registry: `gemma4-26b-unsloth-q4kxl`, `gemma4-26b-vram-dynamic`. Code fixes: `theme_extractor.py` chunked-streaming + 1800 s timeout. Full analysis: `learnings/gemma4-benchmark.md` (combined with TC-1e).
 - [ ] **TC-1d**: HLWQ Gemma 4 GGUF — PolarQuant track abandoned by author (caiovicentino1). Original `Gemma-4-31B-it-PolarQuant-Q5` removed from HF profile; their PolarQuant space is in "Configuration error" state. They have pivoted to **HLWQ** (Hadamard-Lloyd Weight Quantization) — essentially PolarQuant minus the hypersphere normalization step (just Hadamard rotation + Lloyd-Max optimal quantization). Current active models: `caiovicentino1/Gemma-4-26B-A4B-it-HLWQ-Q5` (MoE) and `caiovicentino1/Gemopus-4-26B-A4B-it-HLWQ-Q5`. Still SafeTensors only, not GGUF. Watch for community GGUF conversions of HLWQ models, add to models.toml and benchmark against `gemma4:26b` and `VladimirGav/gemma4-26b-16GB-VRAM` (which uses IQ4_XS and wins at 128K context per TC-1e round 2). Note: no 31B HLWQ model exists yet — author focused on 26B MoE for consumer hardware viability. Alternative: VladimirGav's IQ4_XS already gives us a working "aggressive 26B quant for large context" option, so this task may be obsolete.
-- [ ] **TC-2**: Mechanic generation pipeline stage — refactor `mechanic_generator.py` to accept setting prose from theme.json, add as pipeline stage before skeleton. Build review UI for picking 3 from 6 candidates.
-- [ ] **TC-3**: Archetype generation pipeline stage — LLM generates 10 color-pair draft archetypes from setting + approved mechanics.
-- [ ] **TC-4**: Visual reference extraction stage — LLM extracts `visual-references.json` from setting prose (creature appearances, Flux term replacements for art pipeline).
-- [ ] **TC-5**: Pointed questions template — 9 standard review questions with mechanic name substitution (no LLM needed, templating only).
-- [ ] **TC-6**: Prompts module update — `build_user_prompt()` uses setting prose from theme.json instead of structured theme fields, `format_slot_specs()` loads archetypes from `archetypes.json`.
-- [ ] **TC-7**: Skeleton integration — card_requests from theme.json become reserved slots, constraints feed into skeleton revision. Configure page checks theme.json exists before allowing pipeline start.
+- [ ] **TC-2**: Mechanic generation pipeline stage — refactor `mechanic_generator.py` to accept setting prose from theme.json, add as pipeline stage before skeleton. Build review UI for picking 3 from 6 candidates. → [Trello](https://trello.com/c/yw02hjGi)
+- [ ] **TC-3**: Archetype generation pipeline stage — LLM generates 10 color-pair draft archetypes from setting + approved mechanics. → [Trello](https://trello.com/c/o0JsJ8Di)
+- [ ] **TC-4**: Visual reference extraction stage — LLM extracts `visual-references.json` from setting prose (creature appearances, Flux term replacements for art pipeline). → [Trello](https://trello.com/c/DTLkQuIM)
+- [ ] **TC-5**: Pointed questions template — 9 standard review questions with mechanic name substitution (no LLM needed, templating only). → [Trello](https://trello.com/c/RHKh2z6D)
+- [ ] **TC-6**: Prompts module update — `build_user_prompt()` uses setting prose from theme.json instead of structured theme fields, `format_slot_specs()` loads archetypes from `archetypes.json`. → [Trello](https://trello.com/c/MR5g9C8s)
+- [ ] **TC-7**: Skeleton integration — card_requests from theme.json become reserved slots, constraints feed into skeleton revision. Configure page checks theme.json exists before allowing pipeline start. → [Trello](https://trello.com/c/Ypyo2QJI)
 
 ---
 
@@ -588,6 +588,7 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > **Inputs**: `output/sets/<code>/skeleton.json` (regenerated at full ~280 size), all pipeline code from prior phases
 > **Outputs**: Full ~280-card set: cards, art, renders, balance + quality reports, `learnings/phase-sc.md`
 > **What this does**: Now that the entire pipeline is proven on the ~60-card dev set, regenerate the skeleton at full size and run every card through the same pipeline. This is a production run, not a development phase — all tooling already works.
+> **Trello**: bundled into one parent card with all sub-tasks as a checklist → [Trello](https://trello.com/c/sZ5DSxAd)
 
 - [ ] **SC-1**: Regenerate skeleton at full set size (~280 cards) using `set_size` parameter. HUMAN: Review expanded skeleton.
 - [ ] **SC-2**: Generate remaining cards to fill all skeleton slots (reuse dev set cards where they fit, generate ~220 new cards). Batch by color/rarity using proven 1C pipeline.
@@ -608,6 +609,7 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > **Inputs**: `output/sets/<code>/renders/`, `config/print-specs.json`, `output/sets/<code>/cards/*.json`
 > **Outputs**: Print-ready files in `output/sets/<code>/print/`, `manifest.json`
 > **What this does**: Export final print files per printer specs. Generate randomized booster packs for draft set. Generate full playset. Calculate total print cost.
+> **Trello**: bundled into one parent card → [Trello](https://trello.com/c/dKGx3H2M)
 
 - [ ] **5A-1**: Export all cards as print-ready images — correct DPI, dimensions with bleed, color space per `config/print-specs.json`
 - [ ] **5A-2**: Generate card sheets if required by chosen print service
@@ -625,6 +627,7 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > **Inputs**: `output/sets/<code>/print/`, print service account
 > **Outputs**: Physical cards ordered
 > **What this does**: Place the print order. Test batch first, then full order. All steps involve HUMAN action.
+> **Trello**: bundled into one parent card → [Trello](https://trello.com/c/SlSVsAqM)
 
 - [ ] **5B-1**: Generate step-by-step upload guide for chosen print service (MPC or selected alternative)
 - [ ] **5B-2**: Create file upload checklist (all files present, correct naming, correct dimensions)
@@ -640,6 +643,7 @@ Build a complete Magic: The Gathering custom set creator — from set design thr
 > **Inputs**: Physical printed cards
 > **Outputs**: Sorted cards, set guide, box labels, `learnings/phase5.md`
 > **What this does**: Sort received cards, create reference materials for the physical set.
+> **Trello**: bundled into one parent card → [Trello](https://trello.com/c/kIt2j4L5)
 
 - [ ] **5C-1**: Generate sorting guide — card list sorted by collector number with pack assignments
 - [ ] **5C-2**: Generate set guide insert — set name, theme summary, mechanics with reminder text, draft archetype guide (10 color pairs)

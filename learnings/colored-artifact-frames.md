@@ -1,4 +1,5 @@
 # Colored Artifact Frames — Research & Future Plan
+> Tracked: [Trello — Colored artifact frames](https://trello.com/c/xiFbWsDH)
 
 ## Background
 Modern MTG (Kaladesh onwards) uses a distinct frame for colored artifacts — a blend of the artifact gray texture with the card's color identity. Examples: Esper Sentinel (white artifact), The Blackstaff of Waterdeep (blue artifact). Our renderer currently uses the standard color/gold frame for colored artifacts, which is acceptable but not pixel-accurate.
