@@ -457,13 +457,13 @@ def _start_extraction_worker(upload_id: str, source_text: str, model_key: str) -
     def worker() -> None:
         theme_parts: list[str] = []
         theme_cost = 0.0
-        # Phase events flow through the same broadcast buffer the SSE
-        # endpoint subscribes to. Wiring this here (rather than from
-        # inside theme_extractor) keeps the side-channel scoped to the
-        # streaming worker — section-refresh and any future non-streaming
-        # caller stays free of phase telemetry it has no consumer for.
-        set_phase_emitter(extraction_run.append_event)
         try:
+            # Phase events flow through the same broadcast buffer the SSE
+            # endpoint subscribes to. Wiring this here (rather than from
+            # inside theme_extractor) keeps the side-channel scoped to the
+            # streaming worker — section-refresh and any future non-streaming
+            # caller stays free of phase telemetry it has no consumer for.
+            set_phase_emitter(extraction_run.append_event)
             for event in stream_theme_extraction(source_text, model_key):
                 etype = event.get("type")
                 if etype == "theme_chunk":

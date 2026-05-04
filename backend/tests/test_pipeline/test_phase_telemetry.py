@@ -160,49 +160,76 @@ def test_clear_phase_emitter_after_set():
     assert seen[0]["activity"] == "visible"
 
 
-class _FakePoller:
-    """Minimal stand-in for slot_poller integration tests."""
+class _DummyProvider:
+    """Stand-in passed to ``_PromptEvalPoller`` — never invoked because
+    the unit tests call ``_publish`` directly to skip the HTTP probe."""
 
 
 def test_poller_publishes_prompt_eval_above_min_delta():
-    """Prompt-eval ticks above the min-delta threshold are emitted."""
+    """Prompt-eval ticks above the min-delta threshold are emitted.
+
+    Suppressed: 110 (delta=10, below both _MIN_DELTA_TOKENS=200 and
+    _MIN_DELTA_FRACTION=0.01 of 10000 = 100). Emitted: 100 (first
+    sighting), 400 (delta=300 > 200), 10000 (final tick).
+    """
     seen: list[dict] = []
     te.set_phase_emitter(seen.append)
     poller = te._PromptEvalPoller(
-        provider=_FakePoller(),
+        provider=_DummyProvider(),
         model_id="dummy",
         phase_kind="extracting",
         activity_prefix="Test",
     )
-    # First sighting always emits.
     poller._publish(
         {"is_processing": True, "n_prompt_tokens_processed": 100, "n_prompt_tokens": 10000}
     )
-    # Below min-delta — suppressed.
     poller._publish(
         {"is_processing": True, "n_prompt_tokens_processed": 110, "n_prompt_tokens": 10000}
     )
-    # Above min-delta (>= 200 tokens) — emitted.
     poller._publish(
         {"is_processing": True, "n_prompt_tokens_processed": 400, "n_prompt_tokens": 10000}
     )
-    # Final tick (processed == total) — always emitted.
     poller._publish(
         {"is_processing": True, "n_prompt_tokens_processed": 10000, "n_prompt_tokens": 10000}
     )
 
     prompt_eval_events = [e for e in seen if "prompt_eval" in e]
-    assert len(prompt_eval_events) == 3  # 100, 400, 10000 — 110 was below threshold
+    assert len(prompt_eval_events) == 3
     assert prompt_eval_events[0]["prompt_eval"]["processed"] == 100
     assert prompt_eval_events[-1]["prompt_eval"]["processed"] == 10000
 
 
-def test_poller_switches_to_generation_when_decoded_positive():
-    """Once n_decoded > 0 we report generation tokens, not prompt-eval."""
+def test_poller_suppresses_unchanged_prompt_eval_after_full():
+    """Once processed == total, additional ticks at the same value
+    must not re-emit. Otherwise the 'fully evaluated, waiting for
+    decode' steady state floods the buffer with identical events."""
     seen: list[dict] = []
     te.set_phase_emitter(seen.append)
     poller = te._PromptEvalPoller(
-        provider=_FakePoller(),
+        provider=_DummyProvider(),
+        model_id="dummy",
+        phase_kind="extracting",
+        activity_prefix="Test",
+    )
+    full = {"is_processing": True, "n_prompt_tokens_processed": 5000, "n_prompt_tokens": 5000}
+    poller._publish(full)
+    poller._publish(full)
+    poller._publish(full)
+
+    prompt_eval_events = [e for e in seen if "prompt_eval" in e]
+    assert len(prompt_eval_events) == 1
+
+
+def test_poller_switches_to_generation_when_decoded_positive():
+    """Once n_decoded > 0 we report generation tokens, not prompt-eval.
+
+    The min-interval rate cap (1s) means consecutive _publish calls
+    inside a test only emit once unless we monkeypatch _last_gen_emit_at.
+    """
+    seen: list[dict] = []
+    te.set_phase_emitter(seen.append)
+    poller = te._PromptEvalPoller(
+        provider=_DummyProvider(),
         model_id="dummy",
         phase_kind="extracting",
         activity_prefix="Test",
@@ -215,6 +242,8 @@ def test_poller_switches_to_generation_when_decoded_positive():
             "n_decoded": 10,
         }
     )
+    # Force the rate cap window to the past so the next tick fires.
+    poller._last_gen_emit_at = 0.0
     poller._publish(
         {
             "is_processing": True,
@@ -229,3 +258,68 @@ def test_poller_switches_to_generation_when_decoded_positive():
     assert gen_events[0]["generation"]["tokens"] == 10
     assert gen_events[1]["generation"]["tokens"] == 50
     assert gen_events[0]["phase"] == "generation"
+
+
+def test_poller_generation_rate_cap_suppresses_close_ticks():
+    """Two _publish calls within _GEN_MIN_INTERVAL_S of each other
+    must collapse to one emission."""
+    seen: list[dict] = []
+    te.set_phase_emitter(seen.append)
+    poller = te._PromptEvalPoller(
+        provider=_DummyProvider(),
+        model_id="dummy",
+        phase_kind="extracting",
+        activity_prefix="Test",
+    )
+    poller._publish(
+        {
+            "is_processing": True,
+            "n_prompt_tokens_processed": 5000,
+            "n_prompt_tokens": 5000,
+            "n_decoded": 10,
+        }
+    )
+    # Don't advance _last_gen_emit_at — the second call should hit the cap.
+    poller._publish(
+        {
+            "is_processing": True,
+            "n_prompt_tokens_processed": 5000,
+            "n_prompt_tokens": 5000,
+            "n_decoded": 50,
+        }
+    )
+
+    gen_events = [e for e in seen if "generation" in e]
+    assert len(gen_events) == 1
+    assert gen_events[0]["generation"]["tokens"] == 10
+
+
+def test_null_poller_is_a_silent_context_manager():
+    """The non-streaming section-refresh path uses ``_NULL_POLLER`` so
+    the streaming-loop's ``with`` shape works unchanged. It must enter,
+    exit, and emit nothing."""
+    seen: list[dict] = []
+    te.set_phase_emitter(seen.append)
+    with te._NULL_POLLER as ctx:
+        assert ctx is te._NULL_POLLER
+
+    assert seen == []
+
+
+def test_poller_omits_dash_when_activity_prefix_empty():
+    """Empty activity_prefix used to render a leading ' — ' in the
+    activity string. Verify the separator is suppressed."""
+    seen: list[dict] = []
+    te.set_phase_emitter(seen.append)
+    poller = te._PromptEvalPoller(
+        provider=_DummyProvider(),
+        model_id="dummy",
+        phase_kind="extracting",
+        activity_prefix="",
+    )
+    poller._publish(
+        {"is_processing": True, "n_prompt_tokens_processed": 1000, "n_prompt_tokens": 5000}
+    )
+
+    assert seen[0]["activity"] == "processing prompt 1,000/5,000"
+    assert not seen[0]["activity"].startswith(" — ")

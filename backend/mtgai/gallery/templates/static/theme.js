@@ -561,16 +561,19 @@ function handleExtractionEvent(type, data, textarea, progressBar, progressStatus
       progressStatus.textContent = data.message;
       // Phase events drive the bar now; the per-section heuristic stays
       // only as a fallback for older event streams or providers that
-      // don't emit phase events (Anthropic w/o slots introspection).
-      if (data.message.includes('Generating theme')) {
-        progressBar.style.width = '30%';
-      } else if (data.message.includes('constraints')) {
-        progressBar.style.width = '80%';
-      }
-      const secMatch = data.message.match(/\((\d+)\/(\d+)\)/);
-      if (secMatch) {
-        const pct = 10 + (parseInt(secMatch[1]) / parseInt(secMatch[2])) * 65;
-        progressBar.style.width = pct + '%';
+      // don't emit phase events. Skip it once phase telemetry has shown
+      // up so the bar doesn't jump back to a coarse heuristic value.
+      if (!_phaseDriving) {
+        if (data.message.includes('Generating theme')) {
+          progressBar.style.width = '30%';
+        } else if (data.message.includes('constraints')) {
+          progressBar.style.width = '80%';
+        }
+        const secMatch = data.message.match(/\((\d+)\/(\d+)\)/);
+        if (secMatch) {
+          const pct = 10 + (parseInt(secMatch[1]) / parseInt(secMatch[2])) * 65;
+          progressBar.style.width = pct + '%';
+        }
       }
       break;
 
@@ -697,9 +700,10 @@ function showPhaseBanner(activity) {
 }
 
 function hidePhaseBanner() {
+  _phaseDriving = false;
   const banner = document.getElementById('phase-banner');
   if (!banner) return;
-  banner.classList.remove('active');
+  banner.classList.remove('active', 'has-stats');
 }
 
 function handlePhaseEvent(data, progressBar) {
@@ -707,8 +711,9 @@ function handlePhaseEvent(data, progressBar) {
   const phase = data.phase || '';
   const activity = data.activity || '';
   showPhaseBanner(activity);
-  if (typeof data.elapsed_s === 'number') {
-    document.getElementById('phase-elapsed').textContent = formatElapsed(data.elapsed_s);
+  const elapsedEl = document.getElementById('phase-elapsed');
+  if (elapsedEl && typeof data.elapsed_s === 'number') {
+    elapsedEl.textContent = formatElapsed(data.elapsed_s);
   }
 
   // Bar mode + width selection.
@@ -716,6 +721,7 @@ function handlePhaseEvent(data, progressBar) {
   //         > structural (section/chunk grid %) > phase-kind defaults.
   const banner = document.getElementById('phase-banner');
   const stats = document.getElementById('phase-stats');
+  if (!banner || !stats) return;
 
   if (phase === 'generation' && data.generation) {
     progressBar.classList.add('indeterminate');

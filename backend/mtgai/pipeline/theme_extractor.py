@@ -240,7 +240,8 @@ def _emit_phase(
     if fn is None:
         return
     structural = structural_override if structural_override is not None else _structural.snapshot()
-    elapsed = time.monotonic() - (_run_stats.started_at if _run_stats else time.monotonic())
+    now = time.monotonic()
+    elapsed = (now - _run_stats.started_at) if _run_stats is not None else 0.0
     event: dict[str, Any] = {
         "type": "phase",
         "phase": phase,
@@ -765,7 +766,13 @@ def stream_theme_extraction(
             logger.error("Theme extraction failed: %s", e, exc_info=True)
             if _run_stats:
                 _run_stats.aborted_reason = str(e)
-            _emit_phase(phase="done", activity=f"Error: {e}")
+            # First line, capped — exception messages can leak full
+            # paths / model IDs / occasionally key fragments and the
+            # banner renders this verbatim. The full text is in the log.
+            short = str(e).splitlines()[0] if str(e) else "unknown error"
+            if len(short) > 200:
+                short = short[:200] + "…"
+            _emit_phase(phase="done", activity=f"Error: {short}")
             yield {
                 "type": "error",
                 "message": str(e),
@@ -1366,6 +1373,7 @@ class _PromptEvalPoller:
         with _PromptEvalPoller(provider, model_id, phase_kind="extracting"):
             for ev in convo.stream(...): ...
 
+    Single-use, not re-entrant — construct a fresh instance per call.
     The poller runs on a daemon thread so a stuck HTTP probe can never
     block process shutdown. Errors during a poll are swallowed and
     logged at debug — telemetry must never crash the run.
@@ -1376,6 +1384,12 @@ class _PromptEvalPoller:
     # smaller. Keeps the SSE stream readable on long prompt-eval spans.
     _MIN_DELTA_TOKENS = 200
     _MIN_DELTA_FRACTION = 0.01
+
+    # Floor on time between consecutive generation-phase ticks. The
+    # poll loop runs at 0.5s, but we don't need to publish that fast —
+    # users can't read it, and every tick lands in extraction_run.events
+    # forever (replayed on reattach). 1 tick/s is plenty.
+    _GEN_MIN_INTERVAL_S = 1.0
 
     def __init__(
         self,
@@ -1395,6 +1409,7 @@ class _PromptEvalPoller:
         self._last_processed = -1
         self._last_total = -1
         self._last_decoded = -1
+        self._last_gen_emit_at: float = 0.0
         self._gen_started_at: float | None = None
         self._switched_to_generation = False
 
@@ -1412,6 +1427,15 @@ class _PromptEvalPoller:
         t = self._thread
         if t is not None:
             t.join(timeout=1.0)
+            if t.is_alive():
+                # Probe is wedged (dead llama-server, network stall).
+                # The thread is daemon-flagged so process shutdown is
+                # safe, but if calls keep happening we'd accumulate
+                # zombie pollers each publishing under a stale prefix.
+                logger.warning(
+                    "Prompt-eval poller thread did not exit within 1s; leaking thread (model=%s)",
+                    self._model_id,
+                )
 
     def _loop(self) -> None:
         while not self._stop.wait(self._poll_interval):
@@ -1420,6 +1444,11 @@ class _PromptEvalPoller:
             except Exception as e:
                 logger.debug("slots poll failed (transient): %s", e)
                 continue
+            # The slots() call is HTTP and can take 100s of ms; an
+            # __exit__ that landed during the probe would otherwise
+            # let us publish one stale tick after stop.
+            if self._stop.is_set():
+                return
             active = next(
                 (s for s in slots if s.get("is_processing")),
                 None,
@@ -1449,25 +1478,30 @@ class _PromptEvalPoller:
             return
         self._last_processed = processed
         self._last_total = total
+        sep = " — " if self._activity_prefix else ""
         _emit_phase(
             phase=self._phase_kind,
-            activity=f"{self._activity_prefix} — processing prompt {processed:,}/{total:,}",
+            activity=f"{self._activity_prefix}{sep}processing prompt {processed:,}/{total:,}",
             prompt_eval={"processed": processed, "total": total},
         )
 
     def _publish_generation(self, decoded: int) -> None:
-        # Every poll while decoding emits a generation tick so the UI's
-        # tok/s display refreshes. No min-delta gate here — at 0.5s
-        # interval the rate is naturally bounded.
         if decoded == self._last_decoded:
             return
+        now = time.monotonic()
+        # Rate-cap so a long generation doesn't burn the replay buffer
+        # with 100s of identical-shape events. Always emit the first
+        # tick (last_emit==0) and any update at least _GEN_MIN_INTERVAL_S
+        # after the previous one.
+        if now - self._last_gen_emit_at < self._GEN_MIN_INTERVAL_S:
+            return
         self._last_decoded = decoded
-        elapsed = (
-            time.monotonic() - self._gen_started_at if self._gen_started_at is not None else 0.0
-        )
+        self._last_gen_emit_at = now
+        elapsed = (now - self._gen_started_at) if self._gen_started_at is not None else 0.0
         tok_per_sec = decoded / elapsed if elapsed > 0 else 0.0
+        sep = " — " if self._activity_prefix else ""
         activity = (
-            f"{self._activity_prefix} — generating ({decoded:,} tok @ {tok_per_sec:.1f} tok/s)"
+            f"{self._activity_prefix}{sep}generating ({decoded:,} tok @ {tok_per_sec:.1f} tok/s)"
         )
         _emit_phase(
             phase="generation",
@@ -1480,7 +1514,10 @@ class _PromptEvalPoller:
         )
 
     def _should_emit_prompt_eval(self, processed: int, total: int) -> bool:
-        if processed <= self._last_processed and total == self._last_total:
+        # No movement → suppress (also catches the "fully evaluated,
+        # waiting for n_decoded > 0" steady state where every poll
+        # would otherwise look like a fresh "final tick").
+        if processed == self._last_processed and total == self._last_total:
             return False
         if self._last_processed < 0:
             return True
@@ -1489,7 +1526,8 @@ class _PromptEvalPoller:
             return True
         if total > 0 and delta / total >= self._MIN_DELTA_FRACTION:
             return True
-        # Always emit the first sighting and the final tick (processed == total).
+        # Always emit the final tick (processed == total) — this is
+        # the cleanest "prompt eval done" signal for the UI.
         return processed == total
 
 
