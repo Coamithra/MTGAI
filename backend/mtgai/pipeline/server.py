@@ -26,6 +26,7 @@ from mtgai.pipeline.models import (
     StageStatus,
     create_pipeline_state,
 )
+from mtgai.runtime import ai_lock
 
 logger = logging.getLogger(__name__)
 
@@ -96,28 +97,8 @@ async def pipeline_theme(request: Request):
 
 
 # ---------------------------------------------------------------------------
-# Shared AI-busy payload + endpoints
+# Shared AI-busy endpoints
 # ---------------------------------------------------------------------------
-
-
-def _busy_payload() -> dict[str, Any]:
-    """Body returned with 409s and from /api/ai/status when an action holds the lock."""
-    from mtgai.runtime import ai_lock
-
-    action = ai_lock.current_action()
-    if action is None:
-        return {
-            "running": False,
-            "running_action": None,
-            "started_at": None,
-            "log_path": None,
-        }
-    return {
-        "running": True,
-        "running_action": action.name,
-        "started_at": action.started_at.isoformat(),
-        "log_path": str(action.log_path) if action.log_path else None,
-    }
 
 
 @router.get("/api/ai/status")
@@ -129,16 +110,13 @@ async def ai_status() -> JSONResponse:
     /api/pipeline-prefixed sub-router) because the lock spans the whole
     app, not just the pipeline.
     """
-    return JSONResponse(_busy_payload())
+    return JSONResponse(ai_lock.busy_payload())
 
 
 @router.post("/api/ai/cancel")
 async def ai_cancel() -> JSONResponse:
     """Signal the active AI action to abort. No-op if nothing is running."""
-    from mtgai.runtime import ai_lock
-
-    was_running = ai_lock.request_cancel()
-    return JSONResponse({"was_running": was_running})
+    return JSONResponse({"was_running": ai_lock.request_cancel()})
 
 
 # ---------------------------------------------------------------------------
@@ -279,12 +257,12 @@ async def analyze_extraction_endpoint(request: Request):
 
 @api_router.post("/theme/cancel")
 async def cancel_theme_extraction():
-    """Signal the active extraction to abort. No-op if nothing is running."""
-    from mtgai.pipeline.theme_extractor import is_running, request_cancel
+    """Signal the active extraction to abort. No-op if nothing is running.
 
-    was_running = is_running()
-    request_cancel()
-    return JSONResponse({"was_running": was_running})
+    Kept for backwards compat with existing UI. ``/api/ai/cancel`` is
+    the new front door for the same operation.
+    """
+    return JSONResponse({"was_running": ai_lock.request_cancel()})
 
 
 @api_router.get("/theme/status")
@@ -329,7 +307,7 @@ async def extract_theme_stream(
     )
 
     if is_running():
-        return JSONResponse(_busy_payload(), status_code=409)
+        return JSONResponse(ai_lock.busy_payload(), status_code=409)
 
     def _sse(event_type: str, data: dict) -> str:
         return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
@@ -436,8 +414,6 @@ async def extract_section_endpoint(request: Request):
     section only fires its own LLM subcall instead of paying for both and
     discarding half.
     """
-    from mtgai.runtime import ai_lock
-
     body = await request.json()
     theme_text = body.get("theme_text", "")
     kind = body.get("kind", "constraints")
@@ -448,13 +424,12 @@ async def extract_section_endpoint(request: Request):
     if kind not in ("constraints", "card_suggestions"):
         return JSONResponse({"error": f"Unknown kind: {kind}"}, status_code=400)
 
-    if ai_lock.is_running():
-        return JSONResponse(_busy_payload(), status_code=409)
-
     from mtgai.pipeline.theme_extractor import extract_section
 
     try:
         result = await asyncio.to_thread(extract_section, theme_text, model_key, kind)
+        if result.busy:
+            return JSONResponse(ai_lock.busy_payload(), status_code=409)
         return JSONResponse(
             {
                 "constraints": result.constraints,

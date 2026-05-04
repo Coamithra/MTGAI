@@ -306,6 +306,9 @@ class ConstraintsResult:
     constraints_raw: str | None = None
     suggestions_error: str | None = None
     suggestions_raw: str | None = None
+    # True if the run aborted because the AI lock was held by another action.
+    # Endpoints translate this into a 409 + ai_lock.busy_payload().
+    busy: bool = False
 
 
 # =============================================================================
@@ -587,10 +590,12 @@ def stream_theme_extraction(
         if not acquired:
             yield {
                 "type": "error",
+                "busy": True,
                 "message": (
                     "Another AI action is already running. "
                     "Cancel it first or wait for it to finish."
                 ),
+                **ai_lock.busy_payload(),
             }
             return
 
@@ -1769,15 +1774,16 @@ def stream_constraints_extraction(theme_text: str, model_key: str) -> Iterator[d
         if not acquired:
             yield {
                 "type": "error",
+                "busy": True,
                 "message": "Another AI action is already running.",
+                **ai_lock.busy_payload(),
             }
             return
 
-        # Init the per-run log dir under the lock so a concurrent theme
-        # extraction can't clobber our directory / stats / call counter.
-        if _run_log_dir is None:
-            log_dir = _init_run_log_dir()
-            ai_lock.update_log_path(log_dir)
+        # Each acquisition starts a fresh per-run log directory so
+        # /api/ai/status reports a live tail target on every refresh.
+        log_dir = _init_run_log_dir()
+        ai_lock.update_log_path(log_dir)
 
         try:
             yield from _stream_section_subcall(theme_text, model_info, "constraints")
@@ -1816,13 +1822,15 @@ def stream_section_extraction(
         if not acquired:
             yield {
                 "type": "error",
+                "busy": True,
                 "message": "Another AI action is already running.",
+                **ai_lock.busy_payload(),
             }
             return
 
-        if _run_log_dir is None:
-            log_dir = _init_run_log_dir()
-            ai_lock.update_log_path(log_dir)
+        # Each acquisition gets a fresh per-run log directory.
+        log_dir = _init_run_log_dir()
+        ai_lock.update_log_path(log_dir)
 
         try:
             yield from _stream_section_subcall(theme_text, model_info, kind)
@@ -1848,6 +1856,7 @@ def extract_section(theme_text: str, model_key: str, kind: str) -> ConstraintsRe
     suggestions_error: str | None = None
     suggestions_raw: str | None = None
     cost = 0.0
+    busy = False
     for event in stream_section_extraction(theme_text, model_key, kind):
         t = event.get("type")
         if t == "constraints":
@@ -1862,6 +1871,8 @@ def extract_section(theme_text: str, model_key: str, kind: str) -> ConstraintsRe
             suggestions_raw = event.get("raw")
         elif t == "done":
             cost = event.get("cost_usd", 0.0)
+        elif t == "error" and event.get("busy"):
+            busy = True
 
     return ConstraintsResult(
         constraints=constraints,
@@ -1871,4 +1882,5 @@ def extract_section(theme_text: str, model_key: str, kind: str) -> ConstraintsRe
         constraints_raw=constraints_raw,
         suggestions_error=suggestions_error,
         suggestions_raw=suggestions_raw,
+        busy=busy,
     )

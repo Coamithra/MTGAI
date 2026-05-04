@@ -160,3 +160,94 @@ def test_started_at_is_monotonic_within_run():
         assert first == same
     finally:
         ai_lock.release()
+
+
+def test_hold_releases_on_exception():
+    """The lock must be released when the body of `hold(...)` raises.
+
+    Without the `finally` in the context manager, an unrelated worker
+    bug would brick the whole AI subsystem until the process restarts.
+    """
+    with pytest.raises(RuntimeError), ai_lock.hold("crashy") as ok:
+        assert ok is True
+        raise RuntimeError("boom")
+
+    # Lock must be free after the exception unwinds.
+    assert ai_lock.is_running() is False
+    assert ai_lock.try_acquire("next") is True
+    ai_lock.release()
+
+
+def test_release_when_idle_is_safe():
+    """Stray `release()` calls without a held lock must not corrupt state."""
+    # Idle release: warns but doesn't raise.
+    ai_lock.release()
+    assert ai_lock.is_running() is False
+
+    # And a new acquire still works.
+    assert ai_lock.try_acquire("after-bad-release") is True
+    try:
+        action = ai_lock.current_action()
+        assert action is not None
+        assert action.name == "after-bad-release"
+    finally:
+        ai_lock.release()
+
+
+def test_cross_thread_cancel_visible_via_is_cancelled():
+    """A cancel issued from one thread is visible to the worker thread.
+
+    The worker polls `is_cancelled()` in its inner loop; the user's
+    cancel arrives via an HTTP handler running on a different thread.
+    """
+    saw_cancel = threading.Event()
+    started = threading.Event()
+    stop_at = time.monotonic() + 1.0  # safety timeout
+
+    def worker():
+        ai_lock.try_acquire("worker")
+        try:
+            started.set()
+            while time.monotonic() < stop_at:
+                if ai_lock.is_cancelled():
+                    saw_cancel.set()
+                    return
+                time.sleep(0.005)
+        finally:
+            ai_lock.release()
+
+    t = threading.Thread(target=worker)
+    t.start()
+    assert started.wait(timeout=1.0)
+    # Caller thread requests cancel.
+    assert ai_lock.request_cancel() is True
+    t.join(timeout=1.5)
+    assert saw_cancel.is_set()
+
+
+def test_busy_payload_idle_shape():
+    """`busy_payload()` while idle returns the documented all-null shape."""
+    payload = ai_lock.busy_payload()
+    assert payload == {
+        "running": False,
+        "running_action": None,
+        "started_at": None,
+        "log_path": None,
+    }
+
+
+def test_busy_payload_includes_action_metadata():
+    """`busy_payload()` while busy reflects the published action."""
+    log_path = Path("/tmp/xyz")
+    ai_lock.try_acquire("Theme extraction", log_path=log_path)
+    try:
+        payload = ai_lock.busy_payload()
+        assert payload["running"] is True
+        assert payload["running_action"] == "Theme extraction"
+        # str(Path) is platform-specific; just confirm the path round-trips.
+        assert payload["log_path"] == str(log_path)
+        # ISO 8601 timestamp string.
+        assert payload["started_at"] is not None
+        assert "T" in payload["started_at"]
+    finally:
+        ai_lock.release()

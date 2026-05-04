@@ -771,10 +771,15 @@ function showToast(message, type, durationMs) {
  * Show the shared "AI is busy" toast.
  *
  * Reads `{running_action, started_at, log_path}` from a 409 response body
- * (or from /api/ai/status) and formats it into the message shape from
- * the card spec, e.g.
+ * (or from /api/ai/status) and formats it into a one-liner the user can
+ * scan, e.g.
  *
- *   "Theme extraction running since 12:14:32 — please wait or hit Cancel"
+ *   "Theme extraction running since 12:14:32 — please wait or cancel it"
+ *
+ * The wording is intentionally generic ("cancel it" rather than naming
+ * a specific button) because the active action and the action being
+ * rejected aren't always the same — e.g. the user clicks "Refresh AI"
+ * on Set Constraints while a Theme extraction is in flight.
  *
  * Falls back to a generic message if the body is malformed (e.g. a 409
  * came back from a path that hasn't been migrated to the shared payload).
@@ -788,7 +793,7 @@ function showBusyToast(payload) {
     const hh = String(t.getHours()).padStart(2, '0');
     const mm = String(t.getMinutes()).padStart(2, '0');
     const ss = String(t.getSeconds()).padStart(2, '0');
-    msg = `${action} running since ${hh}:${mm}:${ss} — please wait or hit Cancel Extraction`;
+    msg = `${action} running since ${hh}:${mm}:${ss} — please wait or cancel it`;
   } else {
     msg = 'Another AI action is already running — please wait or cancel it first';
   }

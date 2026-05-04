@@ -1,23 +1,25 @@
 """App-wide mutex for AI-touching actions.
 
-A single ``threading.Lock`` enforces that only one AI call runs at a time
-across the whole process — theme extraction, the per-section refresh
-endpoints, and (over time) every other pipeline stage. Conflicting callers
-bounce out immediately and can read :func:`current_action` to tell the user
-what's already running.
+A single ``threading.Lock`` (``_state_lock``) atomically guards both the
+"is anything running" predicate and the published :class:`AIAction`
+metadata. Conflicting callers bounce out immediately and can read
+:func:`current_action` to tell the user what's already running.
 
 Cancel signalling rides alongside: any thread can call
-:func:`request_cancel`, and long-running callers poll
-:func:`is_cancelled` (or wait on :func:`cancel_event`) to abort.
+:func:`request_cancel`, and long-running callers poll :func:`is_cancelled`
+to abort.
 
-The lock is non-reentrant — call sites acquire and release sequentially.
-The previous theme-only ``RLock`` allowed re-entry but every actual call
-site released between phases, so reentrancy was unused in practice.
+**WARNING — non-reentrant.** Call sites must acquire and release
+sequentially; nesting from inside a held ``with hold(...)`` block on the
+same thread will return ``False`` (i.e. "busy") and the inner work won't
+run. The previous theme-only ``RLock`` allowed re-entry but every actual
+caller released between phases, so reentrancy was unused. If a future
+caller needs to nest, restructure to acquire once at the outer layer
+rather than reintroducing reentrancy.
 """
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import threading
 from collections.abc import Iterator
@@ -25,6 +27,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -38,14 +41,16 @@ class AIAction:
     log_path: Path | None = None
 
 
-_lock = threading.Lock()
-_cancel_event = threading.Event()
+# ``_state_lock`` is *the* mutex — protecting ``_current`` IS the lock.
+# A non-None ``_current`` means an AI action is in flight; checking and
+# updating that field happens atomically inside the same critical section.
 _state_lock = threading.Lock()
 _current: AIAction | None = None
+_cancel_event = threading.Event()
 
 
 def is_running() -> bool:
-    """True iff an AI action holds the lock right now."""
+    """True iff an AI action is currently in flight."""
     with _state_lock:
         return _current is not None
 
@@ -56,48 +61,43 @@ def current_action() -> AIAction | None:
         return _current
 
 
-def cancel_event() -> threading.Event:
-    """The threading.Event consumed by long-running AI callers to abort.
-
-    Cleared on every successful acquire; set by :func:`request_cancel`.
-    """
-    return _cancel_event
-
-
 def is_cancelled() -> bool:
+    """True if the active action has been asked to abort."""
     return _cancel_event.is_set()
 
 
 def request_cancel() -> bool:
     """Signal the active action to abort.
 
-    Returns True if an action was running, False if idle.
+    Returns True if an action was running, False if idle. Safe to call
+    from any thread.
     """
     with _state_lock:
         if _current is None:
             return False
         action_name = _current.name
-    _cancel_event.set()
+        _cancel_event.set()
     logger.info("Cancel requested for active AI action: %s", action_name)
     return True
 
 
 def try_acquire(name: str, log_path: Path | None = None) -> bool:
-    """Non-blocking acquire. Publishes :class:`AIAction` on success.
+    """Atomically claim the lock and publish :class:`AIAction`.
 
-    Callers MUST pair this with :func:`release` (a ``try / finally`` is
+    Returns True on success, False if another action is already running.
+    Callers MUST pair True with :func:`release` (a ``try / finally`` is
     enough — see :func:`hold` for the context-manager form).
     """
-    if not _lock.acquire(blocking=False):
-        return False
-    _cancel_event.clear()
     with _state_lock:
         global _current
+        if _current is not None:
+            return False
         _current = AIAction(
             name=name,
             started_at=datetime.now(tz=UTC),
             log_path=log_path,
         )
+        _cancel_event.clear()
     logger.info("AI lock acquired: %s", name)
     return True
 
@@ -105,17 +105,17 @@ def try_acquire(name: str, log_path: Path | None = None) -> bool:
 def release() -> None:
     """Release the lock and clear the published action.
 
-    Safe to call even if the caller didn't acquire — ``threading.Lock``
-    raises in that case, so we guard. (Defensive; production callers
-    should never hit it.)
+    No-op if no action is currently held — defensive against stray
+    double-releases (the production code paths only call this from inside
+    ``hold(...)``'s ``finally`` after a successful acquire, so this branch
+    should never fire in practice).
     """
     with _state_lock:
         global _current
+        if _current is None:
+            logger.warning("ai_lock.release() called when no action was held")
+            return
         _current = None
-    try:
-        _lock.release()
-    except RuntimeError:
-        logger.warning("ai_lock.release() called without a held lock")
 
 
 def update_log_path(log_path: Path) -> None:
@@ -123,7 +123,7 @@ def update_log_path(log_path: Path) -> None:
 
     Theme extraction creates its per-run log directory *after* it acquires
     the lock — this lets it publish that path so ``/api/ai/status`` reports
-    a live tail target.
+    a live tail target. No-op if no action is currently held.
     """
     with _state_lock:
         global _current
@@ -132,12 +132,36 @@ def update_log_path(log_path: Path) -> None:
         _current = replace(_current, log_path=log_path)
 
 
+def busy_payload() -> dict[str, Any]:
+    """JSON-shape snapshot of the lock state.
+
+    Returned by ``GET /api/ai/status`` and used as the body of every 409
+    Conflict response from a guarded endpoint, so the UI can render the
+    same "AI is busy" toast wherever the rejection happened.
+    """
+    action = current_action()
+    if action is None:
+        return {
+            "running": False,
+            "running_action": None,
+            "started_at": None,
+            "log_path": None,
+        }
+    return {
+        "running": True,
+        "running_action": action.name,
+        "started_at": action.started_at.isoformat(),
+        "log_path": str(action.log_path) if action.log_path else None,
+    }
+
+
 @contextmanager
 def hold(name: str, log_path: Path | None = None) -> Iterator[bool]:
     """Acquire the AI lock for the duration of a ``with`` block.
 
-    Yields True on success and False if the lock was already held — the
-    caller is expected to bail out (e.g. yield an error event, return 409)
+    Yields True on success and False if another action is already running.
+    On True, the lock is released on context exit even if the body raises.
+    The caller is expected to bail out (yield an error event, return 409)
     when False is yielded.
     """
     acquired = try_acquire(name, log_path=log_path)
@@ -151,14 +175,11 @@ def hold(name: str, log_path: Path | None = None) -> Iterator[bool]:
 def reset_for_tests() -> None:
     """Test-only: forcibly clear lock + cancel state.
 
-    Real callers must NEVER use this. Kept here so the unit tests can
-    isolate from each other and from leftover state if a test crashes
-    mid-acquire.
+    Real callers must NEVER use this — it bypasses every invariant the
+    rest of the API exists to enforce. Tests use it to isolate from each
+    other and from leftover state if a test crashes mid-acquire.
     """
     global _current
     with _state_lock:
         _current = None
     _cancel_event.clear()
-    if _lock.locked():
-        with contextlib.suppress(RuntimeError):
-            _lock.release()
