@@ -75,12 +75,32 @@ api_router = APIRouter(prefix="/api/pipeline")
 # ---------------------------------------------------------------------------
 
 
+def _render_configure(request: Request) -> HTMLResponse:
+    from mtgai.pipeline.models import STAGE_DEFINITIONS
+
+    return templates.TemplateResponse(
+        "configure.html",
+        {
+            "request": request,
+            "stage_definitions": json.dumps(STAGE_DEFINITIONS),
+        },
+    )
+
+
 @router.get("/pipeline", response_class=HTMLResponse)
 async def pipeline_dashboard(request: Request):
-    """Main pipeline dashboard page."""
-    # Try to load state for any existing set
+    """Pipeline dashboard, or configure form when no run exists.
+
+    Clicking "Pipeline" with no on-disk state used to land on a
+    placeholder that just linked through to /pipeline/configure;
+    rendering configure inline removes the dead-end step. The
+    /pipeline/configure URL stays valid as a deep link that always
+    shows the form, even mid-run.
+    """
     state = _get_current_state()
-    state_json = json.dumps(state.model_dump(mode="json"), default=str) if state else "null"
+    if state is None:
+        return _render_configure(request)
+    state_json = json.dumps(state.model_dump(mode="json"), default=str)
     return templates.TemplateResponse(
         "pipeline.html",
         {
@@ -92,16 +112,8 @@ async def pipeline_dashboard(request: Request):
 
 @router.get("/pipeline/configure", response_class=HTMLResponse)
 async def pipeline_configure(request: Request):
-    """Pipeline configuration wizard page."""
-    from mtgai.pipeline.models import STAGE_DEFINITIONS
-
-    return templates.TemplateResponse(
-        "configure.html",
-        {
-            "request": request,
-            "stage_definitions": json.dumps(STAGE_DEFINITIONS),
-        },
-    )
+    """Pipeline configuration wizard — deep link, always shows the form."""
+    return _render_configure(request)
 
 
 @router.get("/pipeline/theme", response_class=HTMLResponse)

@@ -234,20 +234,6 @@
   .badge-failed { background: #ff475733; color: #ff4757; }
   .badge-skipped { background: #33333366; color: #666; }
 
-  /* No pipeline state */
-  .no-pipeline {
-    text-align: center;
-    padding: 4rem 2rem;
-    color: #888;
-  }
-  .no-pipeline h2 {
-    color: #e0e0e0;
-    margin-bottom: 1rem;
-  }
-  .no-pipeline p {
-    margin-bottom: 2rem;
-  }
-
   /* Review mode indicator */
   .review-indicator {
     font-size: 0.65rem;
@@ -262,12 +248,9 @@
 
 {% block content %}
 <div id="pipeline-app">
-  <!-- Populated by JavaScript -->
-  <div class="no-pipeline" id="no-pipeline">
-    <h2>No Pipeline Running</h2>
-    <p>Configure and start a new pipeline run to generate a complete MTG set.</p>
-    <a href="/pipeline/configure" class="btn btn-configure">Configure Pipeline</a>
-  </div>
+  <!-- Populated by pipeline.js. The server routes /pipeline to the
+       configure form when no state exists, so PIPELINE_STATE is
+       always non-null by the time we get here. -->
 </div>
 {% endblock %}
 

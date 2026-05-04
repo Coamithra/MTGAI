@@ -30,7 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDashboard();
     connectSSE();
   }
-  // If no state, the template already shows the "no pipeline" message
+  // If pipelineState is null we shouldn't be on this page at all —
+  // the server routes /pipeline to the configure form when no state
+  // exists. The check stays as a defensive belt-and-braces.
 });
 
 // ---------------------------------------------------------------------------
@@ -39,9 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function renderDashboard() {
   const app = document.getElementById('pipeline-app');
-  const noPipeline = document.getElementById('no-pipeline');
-  if (noPipeline) noPipeline.style.display = 'none';
-
   const state = pipelineState;
   const stages = state.stages;
 
