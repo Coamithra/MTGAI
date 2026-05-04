@@ -26,7 +26,8 @@ from mtgai.pipeline.models import (
     StageStatus,
     create_pipeline_state,
 )
-from mtgai.runtime import ai_lock
+from mtgai.runtime import ai_lock, extraction_run
+from mtgai.runtime.runtime_state import compute_runtime_state
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,19 @@ async def ai_cancel() -> JSONResponse:
     return JSONResponse({"was_running": ai_lock.request_cancel()})
 
 
+@router.get("/api/runtime/state")
+async def runtime_state(set_code: str | None = None) -> JSONResponse:
+    """Aggregate runtime snapshot used by every page on mount.
+
+    Returns active set code, AI-lock payload, in-flight runs (theme
+    extraction etc.), pipeline summary if one exists, and the saved
+    theme.json for the active set. Pages hydrate from this so tab
+    switches and reloads pick up server-side state without losing
+    track of in-flight AI work.
+    """
+    return JSONResponse(compute_runtime_state(set_code))
+
+
 # ---------------------------------------------------------------------------
 # Theme API routes
 # ---------------------------------------------------------------------------
@@ -142,6 +156,24 @@ async def save_theme(request: Request):
     )
     logger.info("Theme saved to %s", theme_path)
     return JSONResponse({"success": True, "path": str(theme_path)})
+
+
+@api_router.get("/theme/load")
+async def load_theme(set_code: str):
+    """Return the saved theme.json for ``set_code``, or 404 if absent."""
+    code = set_code.strip().upper()
+    if not code:
+        return JSONResponse({"error": "Set code required"}, status_code=400)
+
+    theme_path = Path("C:/Programming/MTGAI/output/sets") / code / "theme.json"
+    if not theme_path.exists():
+        return JSONResponse({"error": "No theme.json for set"}, status_code=404)
+
+    try:
+        data = json.loads(theme_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        return JSONResponse({"error": f"Failed to read theme: {e}"}, status_code=500)
+    return JSONResponse(data)
 
 
 # In-memory cache for uploaded file content. Entries are evicted by TTL or
@@ -283,120 +315,170 @@ async def theme_extraction_status():
     )
 
 
+def _sse_format(event_type: str, data: dict) -> str:
+    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+
+def _terminal_status(events: list[dict]) -> str:
+    """Decide which lifecycle status to attach to a finished run.
+
+    Looks at the last few events because the constraints pass appends a
+    final ``done`` even after a partial subcall failure — we want
+    "completed" in that case but "error" / "cancelled" for the cases
+    where the worker bailed before finishing.
+    """
+    for event in reversed(events):
+        etype = event.get("type")
+        if etype == "done":
+            return "completed"
+        if etype == "cancelled":
+            return "cancelled"
+        if etype == "error":
+            return "error"
+    return "completed" if events else "error"
+
+
+def _start_extraction_worker(upload_id: str, source_text: str, model_key: str) -> None:
+    """Spawn the extraction worker thread and wire it to the run buffer."""
+    import threading
+
+    from mtgai.pipeline.theme_extractor import (
+        stream_constraints_extraction,
+        stream_theme_extraction,
+    )
+
+    def worker() -> None:
+        theme_parts: list[str] = []
+        theme_cost = 0.0
+        try:
+            for event in stream_theme_extraction(source_text, model_key):
+                etype = event.get("type")
+                if etype == "theme_chunk":
+                    theme_parts.append(event["text"])
+                elif etype == "complete":
+                    theme_cost = event.get("cost_usd", 0.0)
+                extraction_run.append_event(event)
+                if etype in ("error", "cancelled"):
+                    return
+
+            full_theme = "".join(theme_parts)
+            if not full_theme.strip():
+                return
+
+            extraction_run.append_event(
+                {
+                    "type": "status",
+                    "message": "Extracting constraints and card suggestions...",
+                }
+            )
+            for event in stream_constraints_extraction(full_theme, model_key):
+                etype = event.get("type")
+                if etype == "card_suggestions":
+                    event["suggestions"] = [
+                        {
+                            "name": s.get("name", ""),
+                            "description": s.get("description", ""),
+                        }
+                        for s in event.get("suggestions", [])
+                    ]
+                if etype == "done":
+                    total_cost = theme_cost + event.get("cost_usd", 0.0)
+                    extraction_run.append_event(
+                        {
+                            "type": "done",
+                            "total_cost_usd": round(total_cost, 4),
+                        }
+                    )
+                    continue
+                extraction_run.append_event(event)
+        except Exception as e:
+            logger.error("Theme extraction stream failed: %s", e, exc_info=True)
+            extraction_run.append_event({"type": "error", "message": str(e)})
+        finally:
+            run = extraction_run.current()
+            status = _terminal_status(run.events) if run is not None else "error"
+            extraction_run.mark_done(status)
+            _upload_cache.pop(upload_id, None)
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
+async def _stream_subscriber(request: Request, q):
+    """Drain a subscriber queue, formatting each event as SSE.
+
+    Keeps a 30 s keepalive so reverse-proxies don't reap the connection
+    during long LLM stalls. Disconnect just unsubscribes — the worker
+    keeps running and any other subscribers (or a future reattach) still
+    see the run progress.
+    """
+    import queue as _queue
+
+    try:
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                event = await asyncio.to_thread(q.get, timeout=30.0)
+            except _queue.Empty:
+                yield ": keepalive\n\n"
+                continue
+            if extraction_run.is_done_sentinel(event):
+                break
+            yield _sse_format(event["type"], event)
+    finally:
+        extraction_run.unsubscribe(q)
+
+
 @api_router.get("/theme/extract-stream")
 async def extract_theme_stream(
     request: Request,
     upload_id: str,
     model_key: str | None = None,
 ):
-    """SSE endpoint: stream theme extraction from uploaded document."""
-    if not model_key:
-        model_key = _theme_extract_model_key()
+    """SSE endpoint: stream a theme extraction or reattach to one in flight.
+
+    Three paths:
+
+    1. **Reattach.** If the run buffer already holds a run for this
+       ``upload_id``, subscribe and stream replayed + tailed events.
+       Works whether the run is still running or already finished —
+       late subscribers get the full event log either way.
+    2. **Busy.** If a different AI action holds the lock, return 409
+       with the busy payload so the UI can render the shared toast.
+    3. **Fresh start.** Look up the cached upload, start the worker,
+       subscribe, and stream.
+
+    Disconnects unsubscribe but do **not** cancel the run; cancel is
+    opt-in via ``POST /api/ai/cancel`` (or its theme alias).
+    """
+    existing = extraction_run.current()
+    if existing is not None and existing.upload_id == upload_id:
+        _, q = extraction_run.subscribe()
+        return StreamingResponse(
+            _stream_subscriber(request, q),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    if ai_lock.is_running():
+        return JSONResponse(ai_lock.busy_payload(), status_code=409)
+
     cached = _upload_cache.get(upload_id)
     if not cached:
         return JSONResponse({"error": "Upload expired"}, status_code=404)
 
-    import queue
-    import threading
+    if not model_key:
+        model_key = _theme_extract_model_key()
 
-    from mtgai.pipeline.theme_extractor import (
-        is_running,
-        request_cancel,
-        stream_constraints_extraction,
-        stream_theme_extraction,
-    )
-
-    if is_running():
-        return JSONResponse(ai_lock.busy_payload(), status_code=409)
-
-    def _sse(event_type: str, data: dict) -> str:
-        return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
-
-    async def event_stream():
-        q: queue.Queue[dict | None] = queue.Queue()
-        theme_parts: list[str] = []
-
-        def run_extraction():
-            theme_cost = 0.0
-            try:
-                # Step 1: theme extraction
-                for event in stream_theme_extraction(cached["text"], model_key):
-                    etype = event.get("type")
-                    if etype == "theme_chunk":
-                        theme_parts.append(event["text"])
-                    elif etype == "complete":
-                        theme_cost = event.get("cost_usd", 0.0)
-                    q.put(event)
-                    if etype in ("error", "cancelled"):
-                        return
-
-                # Step 2: constraints + card suggestions (streamed so each
-                # appears in the UI the moment its subcall returns - the
-                # batch version blocks both events behind the slower of the
-                # two LLM calls).
-                full_theme = "".join(theme_parts)
-                if not full_theme.strip():
-                    return
-                q.put(
-                    {
-                        "type": "status",
-                        "message": "Extracting constraints and card suggestions...",
-                    }
-                )
-                for event in stream_constraints_extraction(full_theme, model_key):
-                    etype = event.get("type")
-                    if etype == "card_suggestions":
-                        event["suggestions"] = [
-                            {
-                                "name": s.get("name", ""),
-                                "description": s.get("description", ""),
-                            }
-                            for s in event.get("suggestions", [])
-                        ]
-                    if etype == "done":
-                        total_cost = theme_cost + event.get("cost_usd", 0.0)
-                        q.put(
-                            {
-                                "type": "done",
-                                "total_cost_usd": round(total_cost, 4),
-                            }
-                        )
-                        continue
-                    q.put(event)
-            except Exception as e:
-                logger.error("Theme extraction stream failed: %s", e, exc_info=True)
-                q.put({"type": "error", "message": str(e)})
-            finally:
-                q.put(None)  # sentinel
-
-        thread = threading.Thread(target=run_extraction, daemon=True)
-        thread.start()
-
-        try:
-            while True:
-                if await request.is_disconnected():
-                    # Browser closed / refreshed mid-stream. Tell the worker
-                    # to abort so it releases the run lock.
-                    request_cancel()
-                    break
-                try:
-                    event = await asyncio.to_thread(q.get, timeout=30.0)
-                except Exception:
-                    yield ": keepalive\n\n"
-                    continue
-
-                if event is None:
-                    break
-
-                yield _sse(event["type"], event)
-
-                if event["type"] in ("error", "cancelled"):
-                    break
-        finally:
-            _upload_cache.pop(upload_id, None)
-
+    extraction_run.start_run(upload_id)
+    _start_extraction_worker(upload_id, cached["text"], model_key)
+    _, q = extraction_run.subscribe()
     return StreamingResponse(
-        event_stream(),
+        _stream_subscriber(request, q),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

@@ -413,6 +413,9 @@ var sortBy = 'collector_number';
 /**
  * Initialize the gallery with card data from the server.
  * Sets all decisions to 'ok' by default and renders the grid.
+ *
+ * Restores filter selections, sort, and in-progress decisions from
+ * localStorage so tab-switch / reload don't drop them.
  */
 function initGallery(cards) {
   allCards = cards;
@@ -420,8 +423,83 @@ function initGallery(cards) {
   cards.forEach(function (card) {
     decisions[card.collector_number] = { action: 'ok', note: '' };
   });
+
+  // Layer in saved filters / sort / decisions before first render.
+  hydrateGalleryUiFromStorage();
+
   applyFiltersAndRender();
   updateCounts();
+
+  // After first render, restore scroll position. Wait a frame so the
+  // grid actually lays out first.
+  requestAnimationFrame(function () {
+    var savedScroll = window.MtgaiState && window.MtgaiState.get('review.scrollY', null);
+    if (savedScroll != null) window.scrollTo(0, savedScroll);
+  });
+
+  // Persist scroll on unload + tab-hide (covers F5 and tab-switch).
+  window.addEventListener('beforeunload', persistGalleryScroll);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') persistGalleryScroll();
+  });
+}
+
+function hydrateGalleryUiFromStorage() {
+  if (!window.MtgaiState) return;
+  var savedFilters = window.MtgaiState.get('review.filters', null);
+  if (savedFilters) {
+    activeFilters = Object.assign(activeFilters, savedFilters);
+    syncFilterButtonsToActiveFilters();
+  }
+  var savedSort = window.MtgaiState.get('review.sort', null);
+  if (savedSort) {
+    sortBy = savedSort;
+    var sortSelect = document.getElementById('sort-select');
+    if (sortSelect) sortSelect.value = savedSort;
+  }
+  if (activeFilters.type) {
+    var typeFilter = document.getElementById('type-filter');
+    if (typeFilter) typeFilter.value = activeFilters.type;
+  }
+  var savedDecisions = window.MtgaiState.get('review.decisions', null);
+  if (savedDecisions && typeof savedDecisions === 'object') {
+    Object.keys(savedDecisions).forEach(function (cn) {
+      if (decisions[cn]) {
+        decisions[cn] = savedDecisions[cn];
+      }
+    });
+  }
+}
+
+/** Reflect activeFilters arrays/values into the filter-btn .active classes. */
+function syncFilterButtonsToActiveFilters() {
+  function applyActive(filterName, values) {
+    var nodes = document.querySelectorAll('.filter-btn[data-filter="' + filterName + '"]');
+    nodes.forEach(function (btn) {
+      var v = btn.dataset.value;
+      btn.classList.toggle('active', values.indexOf(v) !== -1);
+    });
+  }
+  applyActive('color', activeFilters.colors || []);
+  applyActive('rarity', activeFilters.rarities || []);
+  applyActive('cmc', activeFilters.cmcs || []);
+
+  var showButtons = document.querySelectorAll('.filter-btn[data-filter="show"]');
+  showButtons.forEach(function (btn) {
+    btn.classList.toggle('active', btn.dataset.value === activeFilters.show);
+  });
+}
+
+function persistGalleryUi() {
+  if (!window.MtgaiState) return;
+  window.MtgaiState.set('review.filters', activeFilters);
+  window.MtgaiState.set('review.sort', sortBy);
+  window.MtgaiState.set('review.decisions', decisions);
+}
+
+function persistGalleryScroll() {
+  if (!window.MtgaiState) return;
+  window.MtgaiState.set('review.scrollY', window.scrollY);
 }
 
 // ---------------------------------------------------------------------------
@@ -432,6 +510,8 @@ function initGallery(cards) {
  * Apply all active filters + sort, then re-render the card grid.
  */
 function applyFiltersAndRender() {
+  persistGalleryUi();
+
   filteredCards = allCards.filter(function (card) {
     // Color filter (OR within active colors)
     if (activeFilters.colors.length > 0) {
@@ -654,6 +734,7 @@ function onDecisionChange(collectorNumber, action) {
   }
   decisions[collectorNumber].action = action;
   updateCounts();
+  persistGalleryUi();
 
   // If the modal is open and showing this card, sync the modal radios
   if (currentModalIndex >= 0 && filteredCards.length > 0) {
@@ -672,6 +753,7 @@ function onNotesChange(collectorNumber, note) {
     decisions[collectorNumber] = { action: 'ok', note: '' };
   }
   decisions[collectorNumber].note = note;
+  persistGalleryUi();
 }
 
 /**

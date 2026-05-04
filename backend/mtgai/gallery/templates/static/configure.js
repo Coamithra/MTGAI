@@ -15,10 +15,85 @@ const RECOMMENDED_REVIEW = ['balance', 'skeleton_rev', 'ai_review', 'art_select'
 // Init
 // ---------------------------------------------------------------------------
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   renderStageToggles();
-  applyPreset('recommended');  // Default to recommended preset
+
+  // Hydrate set identity from runtime state, then layer in any saved
+  // localStorage values for stage toggles. Falls back to the
+  // 'recommended' preset if nothing is saved.
+  const state = await MtgaiState.fetchRuntimeState();
+  if (state) {
+    if (state.active_set) {
+      MtgaiState.setSetCode(state.active_set);
+      const codeEl = document.getElementById('set-code');
+      if (codeEl && !codeEl.value) codeEl.value = state.active_set;
+    }
+    if (state.theme) {
+      const nameEl = document.getElementById('set-name');
+      if (nameEl && !nameEl.value && state.theme.name) {
+        nameEl.value = state.theme.name;
+      }
+      const sizeEl = document.getElementById('set-size');
+      if (sizeEl && state.theme.set_size) {
+        sizeEl.value = state.theme.set_size;
+      }
+    }
+  }
+
+  hydrateConfigureUiFromStorage();
+  wireConfigurePersistence();
 });
+
+function hydrateConfigureUiFromStorage() {
+  const preset = MtgaiState.get('configure.preset', 'recommended');
+  applyPreset(preset);
+
+  const stages = MtgaiState.get('configure.stages', null);
+  if (stages && typeof stages === 'object') {
+    Object.entries(stages).forEach(([stageId, mode]) => {
+      const radio = document.getElementById(`${stageId}-${mode}`);
+      if (radio) radio.checked = true;
+    });
+  }
+}
+
+function persistConfigureUi() {
+  const stages = {};
+  STAGE_DEFINITIONS.forEach((stage) => {
+    if (stage.always_review) return;
+    const selected = document.querySelector(
+      `input[name="stage-${stage.stage_id}"]:checked`
+    );
+    if (selected) stages[stage.stage_id] = selected.value;
+  });
+  MtgaiState.set('configure.stages', stages);
+
+  const setCodeEl = document.getElementById('set-code');
+  if (setCodeEl && setCodeEl.value) {
+    MtgaiState.setSetCode(setCodeEl.value);
+  }
+}
+
+function wireConfigurePersistence() {
+  document.querySelectorAll('input[type="radio"]').forEach((r) => {
+    r.addEventListener('change', persistConfigureUi);
+  });
+  document.querySelectorAll('input[type="text"], input[type="number"]').forEach((el) => {
+    el.addEventListener('input', persistConfigureUi);
+  });
+  document.querySelectorAll('.preset-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const label = (btn.textContent || '').toLowerCase();
+      let preset = 'recommended';
+      if (label.includes('auto')) preset = 'auto';
+      else if (label.includes('review')) preset = 'review';
+      MtgaiState.set('configure.preset', preset);
+      // applyPreset is called from the inline onclick handler; also
+      // re-persist the stage mapping after preset is applied.
+      setTimeout(persistConfigureUi, 0);
+    });
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Stage toggle table
