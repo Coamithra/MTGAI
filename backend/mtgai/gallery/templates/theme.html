@@ -609,7 +609,8 @@
       <span class="theme-status new" id="theme-status">New theme</span>
     </div>
     <div>
-      <button class="btn" onclick="loadExisting()" id="load-btn" style="margin-right: 0.5rem;">Load Existing</button>
+      <input type="file" id="load-file-input" accept=".json,application/json" style="display:none" onchange="loadExistingFromFile(event)">
+      <button class="btn" onclick="document.getElementById('load-file-input').click()" id="load-btn" style="margin-right: 0.5rem;">Load Existing</button>
       <button class="btn-primary" id="save-btn" onclick="saveTheme()">Save Theme</button>
     </div>
   </div>

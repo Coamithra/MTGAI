@@ -213,31 +213,47 @@ async function saveTheme() {
 }
 
 // ---------------------------------------------------------------------------
-// Load existing theme
+// Load existing theme — native picker reads the JSON content client-side, so
+// no server lookup or set-code typing is needed.
 // ---------------------------------------------------------------------------
 
-async function loadExisting() {
-  const code = document.getElementById('set-code').value.trim().toUpperCase();
-  if (!code) {
-    showToast('Enter a set code first', 'error');
-    document.getElementById('set-code').focus();
+const _LOAD_FILE_MAX_BYTES = 5 * 1024 * 1024;
+
+function loadExistingFromFile(event) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+
+  if (file.size > _LOAD_FILE_MAX_BYTES) {
+    showToast('File too large (>5 MB) to be a theme.json', 'error');
     return;
   }
 
-  try {
-    const resp = await fetch(`/api/pipeline/theme/load/${encodeURIComponent(code)}`);
-    const data = await resp.json();
-
-    if (data.theme) {
-      populateFromTheme(data.theme);
-      showToast(`Loaded theme for ${code}`, 'success');
-    } else {
-      showToast(data.error || `No theme found for ${code}`, 'error');
+  const reader = new FileReader();
+  reader.onload = () => {
+    let theme;
+    try {
+      theme = JSON.parse(reader.result.replace(/^﻿/, ''));
+    } catch (err) {
+      showToast('Could not parse JSON: ' + err.message, 'error');
+      return;
     }
-  } catch (err) {
-    console.error('[theme.js] Network error:', err);
-    showToast('Network error: ' + err.message, 'error');
-  }
+    if (!theme || typeof theme !== 'object' || Array.isArray(theme)) {
+      showToast('File does not contain a theme object', 'error');
+      return;
+    }
+    if (!theme.code && !theme.name) {
+      showToast('File has no "code" or "name" field — not a theme.json', 'error');
+      return;
+    }
+    populateFromTheme(theme);
+    showToast(`Loaded ${theme.name || theme.code}`, 'success');
+  };
+  reader.onerror = () => {
+    showToast('Could not read file', 'error');
+  };
+  reader.readAsText(file);
 }
 
 // ---------------------------------------------------------------------------
