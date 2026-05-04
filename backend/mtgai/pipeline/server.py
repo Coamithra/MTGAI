@@ -96,6 +96,52 @@ async def pipeline_theme(request: Request):
 
 
 # ---------------------------------------------------------------------------
+# Shared AI-busy payload + endpoints
+# ---------------------------------------------------------------------------
+
+
+def _busy_payload() -> dict[str, Any]:
+    """Body returned with 409s and from /api/ai/status when an action holds the lock."""
+    from mtgai.runtime import ai_lock
+
+    action = ai_lock.current_action()
+    if action is None:
+        return {
+            "running": False,
+            "running_action": None,
+            "started_at": None,
+            "log_path": None,
+        }
+    return {
+        "running": True,
+        "running_action": action.name,
+        "started_at": action.started_at.isoformat(),
+        "log_path": str(action.log_path) if action.log_path else None,
+    }
+
+
+@router.get("/api/ai/status")
+async def ai_status() -> JSONResponse:
+    """Report what AI action (if any) currently holds the app-wide lock.
+
+    Used by the UI to show an informative "busy" toast when a guarded
+    action is rejected with 409. Mounted on the root router (not the
+    /api/pipeline-prefixed sub-router) because the lock spans the whole
+    app, not just the pipeline.
+    """
+    return JSONResponse(_busy_payload())
+
+
+@router.post("/api/ai/cancel")
+async def ai_cancel() -> JSONResponse:
+    """Signal the active AI action to abort. No-op if nothing is running."""
+    from mtgai.runtime import ai_lock
+
+    was_running = ai_lock.request_cancel()
+    return JSONResponse({"was_running": was_running})
+
+
+# ---------------------------------------------------------------------------
 # Theme API routes
 # ---------------------------------------------------------------------------
 
@@ -243,7 +289,11 @@ async def cancel_theme_extraction():
 
 @api_router.get("/theme/status")
 async def theme_extraction_status():
-    """Report whether an extraction is currently running."""
+    """Report whether an extraction is currently running.
+
+    Kept for backwards compat with existing UI. New callers should use
+    ``/api/ai/status`` (broader scope — every AI action, not just theme).
+    """
     from mtgai.pipeline.theme_extractor import get_current_log_path, is_running
 
     log_path = get_current_log_path()
@@ -279,10 +329,7 @@ async def extract_theme_stream(
     )
 
     if is_running():
-        return JSONResponse(
-            {"error": "Another extraction is already running"},
-            status_code=409,
-        )
+        return JSONResponse(_busy_payload(), status_code=409)
 
     def _sse(event_type: str, data: dict) -> str:
         return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
@@ -312,10 +359,12 @@ async def extract_theme_stream(
                 full_theme = "".join(theme_parts)
                 if not full_theme.strip():
                     return
-                q.put({
-                    "type": "status",
-                    "message": "Extracting constraints and card suggestions...",
-                })
+                q.put(
+                    {
+                        "type": "status",
+                        "message": "Extracting constraints and card suggestions...",
+                    }
+                )
                 for event in stream_constraints_extraction(full_theme, model_key):
                     etype = event.get("type")
                     if etype == "card_suggestions":
@@ -328,10 +377,12 @@ async def extract_theme_stream(
                         ]
                     if etype == "done":
                         total_cost = theme_cost + event.get("cost_usd", 0.0)
-                        q.put({
-                            "type": "done",
-                            "total_cost_usd": round(total_cost, 4),
-                        })
+                        q.put(
+                            {
+                                "type": "done",
+                                "total_cost_usd": round(total_cost, 4),
+                            }
+                        )
                         continue
                     q.put(event)
             except Exception as e:
@@ -385,6 +436,8 @@ async def extract_section_endpoint(request: Request):
     section only fires its own LLM subcall instead of paying for both and
     discarding half.
     """
+    from mtgai.runtime import ai_lock
+
     body = await request.json()
     theme_text = body.get("theme_text", "")
     kind = body.get("kind", "constraints")
@@ -394,6 +447,9 @@ async def extract_section_endpoint(request: Request):
         return JSONResponse({"error": "No theme text provided"}, status_code=400)
     if kind not in ("constraints", "card_suggestions"):
         return JSONResponse({"error": f"Unknown kind: {kind}"}, status_code=400)
+
+    if ai_lock.is_running():
+        return JSONResponse(_busy_payload(), status_code=409)
 
     from mtgai.pipeline.theme_extractor import extract_section
 

@@ -15,7 +15,6 @@ import json as _json
 import logging
 import math
 import re
-import threading
 import time
 from collections.abc import Generator, Iterator
 from dataclasses import dataclass, field
@@ -23,6 +22,8 @@ from pathlib import Path
 from typing import Any
 
 from llmfacade import SystemBlock
+
+from mtgai.runtime import ai_lock
 
 logger = logging.getLogger(__name__)
 
@@ -109,11 +110,11 @@ def _looks_like_no_info(text: str) -> bool:
 # =============================================================================
 # Cancellation + run lock (single extraction at a time)
 # =============================================================================
-
-# Reentrant so the SSE handler can hold the lock across both theme extraction
-# and constraint extraction without deadlocking on the inner call.
-_run_lock = threading.RLock()
-_cancel_event = threading.Event()
+#
+# The lock + cancel signal are owned by ``mtgai.runtime.ai_lock`` so every
+# AI-touching action across the app is mutually exclusive. The wrappers below
+# preserve the historical theme_extractor surface (``request_cancel``,
+# ``is_running``) so existing callers don't have to be rewritten.
 
 
 def request_cancel() -> bool:
@@ -121,32 +122,19 @@ def request_cancel() -> bool:
 
     Returns True if a run was active, False if there was nothing to cancel.
     """
-    if _is_locked():
-        _cancel_event.set()
-        logger.info("Cancel requested for active extraction")
-        return True
-    return False
+    return ai_lock.request_cancel()
 
 
 def is_running() -> bool:
-    return _is_locked()
-
-
-def _is_locked() -> bool:
-    # RLock has no public 'locked()' - probe by trying a non-blocking acquire.
-    acquired = _run_lock.acquire(blocking=False)
-    if acquired:
-        _run_lock.release()
-        return False
-    return True
+    return ai_lock.is_running()
 
 
 class _CancelledError(Exception):
-    """Internal: raised when _cancel_event is set, to unwind the call stack."""
+    """Internal: raised when the AI cancel event is set, to unwind the call stack."""
 
 
 def _check_cancelled() -> None:
-    if _cancel_event.is_set():
+    if ai_lock.is_cancelled():
         raise _CancelledError("user cancelled")
 
 
@@ -169,7 +157,7 @@ class _RunStats:
     aborted_reason: str | None = None
 
 
-# Module-global: safe because `_run_lock` enforces a single active run. Tests
+# Module-global: safe because the shared AI lock enforces a single active run. Tests
 # or ad-hoc scripts that bypass the lock MUST NOT touch this concurrently.
 _run_stats: _RunStats | None = None
 
@@ -595,17 +583,17 @@ def stream_theme_extraction(
     """
     from mtgai.settings.model_registry import get_registry
 
-    if not _run_lock.acquire(blocking=False):
-        yield {
-            "type": "error",
-            "message": (
-                "Another extraction is already running. Cancel it first or wait for it to finish."
-            ),
-        }
-        return
+    with ai_lock.hold("Theme extraction") as acquired:
+        if not acquired:
+            yield {
+                "type": "error",
+                "message": (
+                    "Another AI action is already running. "
+                    "Cancel it first or wait for it to finish."
+                ),
+            }
+            return
 
-    _cancel_event.clear()
-    try:
         registry = get_registry()
         model_info = registry.get_llm(model_key)
         if model_info is None:
@@ -614,6 +602,7 @@ def stream_theme_extraction(
 
         system_prompt = _get_system_prompt()
         log_dir = _init_run_log_dir()
+        ai_lock.update_log_path(log_dir)
         logger.info(
             "Starting theme extraction: model=%s provider=%s text_len=%d log_dir=%s",
             model_info.model_id,
@@ -650,8 +639,6 @@ def stream_theme_extraction(
                 "message": str(e),
                 "log_path": str(_run_log_dir) if _run_log_dir else None,
             }
-    finally:
-        _run_lock.release()
 
 
 def _run_single_pass(text: str, system_prompt: str, model_info) -> Generator[dict, None, None]:
@@ -1124,7 +1111,7 @@ def _stream_anthropic_call(
     try:
         try:
             for ev in convo.stream(user_msg):
-                if _cancel_event.is_set():
+                if ai_lock.is_cancelled():
                     meta["outcome"] = "cancelled"
                     raise _CancelledError("cancelled mid-stream")
                 frames_total += 1
@@ -1291,7 +1278,7 @@ def _stream_llamacpp_call(
         stream_iter = convo.stream(user_msg, stop=_LLAMACPP_STOP_SEQUENCES)
         try:
             for ev in stream_iter:
-                if _cancel_event.is_set():
+                if ai_lock.is_cancelled():
                     meta["outcome"] = "cancelled"
                     raise _CancelledError("cancelled mid-stream")
                 frames_total += 1
@@ -1708,9 +1695,7 @@ _SECTION_SPECS: dict[str, dict[str, Any]] = {
 }
 
 
-def _stream_section_subcall(
-    theme_text: str, model_info, kind: str
-) -> Iterator[dict[str, Any]]:
+def _stream_section_subcall(theme_text: str, model_info, kind: str) -> Iterator[dict[str, Any]]:
     """Yield status + result events for one section subcall.
 
     Used by both the full constraints pass and the per-section refresh path.
@@ -1779,33 +1764,30 @@ def stream_constraints_extraction(theme_text: str, model_key: str) -> Iterator[d
         len(theme_text),
     )
 
-    # Acquire the run lock for the entire constraints pass. Reentrant: if the
-    # caller (theme extraction) already holds it, this is free.
-    if not _run_lock.acquire(blocking=False):
-        yield {
-            "type": "error",
-            "message": "Another extraction is already running.",
-        }
-        return
+    # Acquire the shared AI lock for the entire constraints pass.
+    with ai_lock.hold("Refresh constraints + card suggestions") as acquired:
+        if not acquired:
+            yield {
+                "type": "error",
+                "message": "Another AI action is already running.",
+            }
+            return
 
-    try:
         # Init the per-run log dir under the lock so a concurrent theme
-        # extraction can't clobber our directory / stats / call counter, and
-        # vice versa. Reentrant lock: when the caller is theme extraction it
-        # already initialised these and we no-op.
+        # extraction can't clobber our directory / stats / call counter.
         if _run_log_dir is None:
-            _init_run_log_dir()
+            log_dir = _init_run_log_dir()
+            ai_lock.update_log_path(log_dir)
 
-        yield from _stream_section_subcall(theme_text, model_info, "constraints")
-        yield from _stream_section_subcall(theme_text, model_info, "card_suggestions")
+        try:
+            yield from _stream_section_subcall(theme_text, model_info, "constraints")
+            yield from _stream_section_subcall(theme_text, model_info, "card_suggestions")
 
-        yield {"type": "done", "cost_usd": 0.0}
-    except _CancelledError:
-        if _run_stats:
-            _run_stats.cancelled = True
-        yield {"type": "cancelled"}
-    finally:
-        _run_lock.release()
+            yield {"type": "done", "cost_usd": 0.0}
+        except _CancelledError:
+            if _run_stats:
+                _run_stats.cancelled = True
+            yield {"type": "cancelled"}
 
 
 def stream_section_extraction(
@@ -1829,26 +1811,27 @@ def stream_section_extraction(
         len(theme_text),
     )
 
-    if not _run_lock.acquire(blocking=False):
-        yield {
-            "type": "error",
-            "message": "Another extraction is already running.",
-        }
-        return
+    action_name = "Refresh set constraints" if kind == "constraints" else "Refresh card requests"
+    with ai_lock.hold(action_name) as acquired:
+        if not acquired:
+            yield {
+                "type": "error",
+                "message": "Another AI action is already running.",
+            }
+            return
 
-    try:
         if _run_log_dir is None:
-            _init_run_log_dir()
+            log_dir = _init_run_log_dir()
+            ai_lock.update_log_path(log_dir)
 
-        yield from _stream_section_subcall(theme_text, model_info, kind)
+        try:
+            yield from _stream_section_subcall(theme_text, model_info, kind)
 
-        yield {"type": "done", "cost_usd": 0.0}
-    except _CancelledError:
-        if _run_stats:
-            _run_stats.cancelled = True
-        yield {"type": "cancelled"}
-    finally:
-        _run_lock.release()
+            yield {"type": "done", "cost_usd": 0.0}
+        except _CancelledError:
+            if _run_stats:
+                _run_stats.cancelled = True
+            yield {"type": "cancelled"}
 
 
 def extract_section(theme_text: str, model_key: str, kind: str) -> ConstraintsResult:
