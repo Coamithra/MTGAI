@@ -213,31 +213,42 @@ async function saveTheme() {
 }
 
 // ---------------------------------------------------------------------------
-// Load existing theme
+// Load existing theme — native file picker reads JSON content directly,
+// sidestepping the browser's parent-path restriction (the file's `code` field
+// is the source of truth, not the parent folder).
 // ---------------------------------------------------------------------------
 
-async function loadExisting() {
-  const code = document.getElementById('set-code').value.trim().toUpperCase();
-  if (!code) {
-    showToast('Enter a set code first', 'error');
-    document.getElementById('set-code').focus();
-    return;
-  }
+function loadExistingFromFile(event) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  // Reset so the same file can be picked twice in a row.
+  input.value = '';
+  if (!file) return;
 
-  try {
-    const resp = await fetch(`/api/pipeline/theme/load/${encodeURIComponent(code)}`);
-    const data = await resp.json();
-
-    if (data.theme) {
-      populateFromTheme(data.theme);
-      showToast(`Loaded theme for ${code}`, 'success');
-    } else {
-      showToast(data.error || `No theme found for ${code}`, 'error');
+  const reader = new FileReader();
+  reader.onload = () => {
+    let theme;
+    try {
+      theme = JSON.parse(reader.result);
+    } catch (err) {
+      showToast('Could not parse JSON: ' + err.message, 'error');
+      return;
     }
-  } catch (err) {
-    console.error('[theme.js] Network error:', err);
-    showToast('Network error: ' + err.message, 'error');
-  }
+    if (!theme || typeof theme !== 'object' || Array.isArray(theme)) {
+      showToast('File does not contain a theme object', 'error');
+      return;
+    }
+    if (!theme.code) {
+      showToast('File is missing a "code" field — not a valid theme.json', 'error');
+      return;
+    }
+    populateFromTheme(theme);
+    showToast(`Loaded theme for ${theme.code}`, 'success');
+  };
+  reader.onerror = () => {
+    showToast('Could not read file', 'error');
+  };
+  reader.readAsText(file);
 }
 
 // ---------------------------------------------------------------------------

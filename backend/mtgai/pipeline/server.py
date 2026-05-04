@@ -120,17 +120,6 @@ async def save_theme(request: Request):
     return JSONResponse({"success": True, "path": str(theme_path)})
 
 
-@api_router.get("/theme/load/{set_code}")
-async def load_theme(set_code: str):
-    """Load existing theme.json for a set."""
-    theme_path = Path("C:/Programming/MTGAI/output/sets") / set_code.upper() / "theme.json"
-    if not theme_path.exists():
-        return JSONResponse({"error": f"No theme found for {set_code}"}, status_code=404)
-
-    theme = json.loads(theme_path.read_text(encoding="utf-8"))
-    return JSONResponse({"theme": theme})
-
-
 # In-memory cache for uploaded file content. Entries are evicted by TTL or
 # when their extraction completes.
 _UPLOAD_TTL_SECONDS = 30 * 60  # 30 minutes
