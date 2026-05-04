@@ -448,6 +448,8 @@ def _terminal_status(events: list[dict]) -> str:
 def _start_extraction_worker(upload_id: str, source_text: str, model_key: str) -> None:
     """Spawn the extraction worker thread and wire it to the run buffer."""
     from mtgai.pipeline.theme_extractor import (
+        clear_phase_emitter,
+        set_phase_emitter,
         stream_constraints_extraction,
         stream_theme_extraction,
     )
@@ -456,6 +458,12 @@ def _start_extraction_worker(upload_id: str, source_text: str, model_key: str) -
         theme_parts: list[str] = []
         theme_cost = 0.0
         try:
+            # Phase events flow through the same broadcast buffer the SSE
+            # endpoint subscribes to. Wiring this here (rather than from
+            # inside theme_extractor) keeps the side-channel scoped to the
+            # streaming worker — section-refresh and any future non-streaming
+            # caller stays free of phase telemetry it has no consumer for.
+            set_phase_emitter(extraction_run.append_event)
             for event in stream_theme_extraction(source_text, model_key):
                 etype = event.get("type")
                 if etype == "theme_chunk":
@@ -509,6 +517,7 @@ def _start_extraction_worker(upload_id: str, source_text: str, model_key: str) -
             logger.error("Theme extraction stream failed: %s", e, exc_info=True)
             extraction_run.append_event({"type": "error", "message": str(e)})
         finally:
+            clear_phase_emitter()
             run = extraction_run.current()
             status = _terminal_status(run.events) if run is not None else "error"
             extraction_run.mark_done(status)

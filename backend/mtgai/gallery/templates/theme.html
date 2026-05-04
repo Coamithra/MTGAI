@@ -401,10 +401,72 @@
     width: 0%;
     transition: width 0.3s ease;
   }
+  /* Indeterminate stripe for the generation phase, where total output
+     tokens are unknown so a real percent doesn't exist. */
+  .progress-bar-inner.indeterminate {
+    width: 100% !important;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      #4a9eff 35%,
+      #00d4aa 50%,
+      #4a9eff 65%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: progress-stripe 1.6s linear infinite;
+    transition: none;
+  }
+  @keyframes progress-stripe {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
   .progress-status {
     font-size: 0.8rem;
     color: #888;
   }
+  /* Live phase banner — sits above the bar and stays visible while the
+     wizard scrolls. Two stacked rows: top row activity + elapsed time;
+     bottom row generation/prompt-eval stats once they exist. */
+  .phase-banner {
+    display: none;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(74, 158, 255, 0.05);
+    border: 1px solid rgba(74, 158, 255, 0.15);
+    border-radius: 6px;
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+  .extract-progress.visible .phase-banner.active { display: flex; }
+  .phase-banner-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .phase-activity {
+    color: #ddd;
+    font-weight: 500;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .phase-elapsed {
+    color: #888;
+    font-variant-numeric: tabular-nums;
+    flex: 0 0 auto;
+  }
+  .phase-stats {
+    color: #888;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    display: none;
+  }
+  .phase-banner.has-stats .phase-stats { display: block; }
 
   /* AI-generated badge */
   .ai-badge {
@@ -557,6 +619,13 @@
 
     <!-- Extraction progress -->
     <div class="extract-progress" id="extract-progress">
+      <div class="phase-banner" id="phase-banner">
+        <div class="phase-banner-row">
+          <div class="phase-activity" id="phase-activity">Starting extraction...</div>
+          <div class="phase-elapsed" id="phase-elapsed">0s</div>
+        </div>
+        <div class="phase-stats" id="phase-stats"></div>
+      </div>
       <div class="progress-bar-outer">
         <div class="progress-bar-inner" id="progress-bar"></div>
       </div>

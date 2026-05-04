@@ -15,8 +15,9 @@ import json as _json
 import logging
 import math
 import re
+import threading
 import time
-from collections.abc import Generator, Iterator
+from collections.abc import Callable, Generator, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -136,6 +137,128 @@ class _CancelledError(Exception):
 def _check_cancelled() -> None:
     if ai_lock.is_cancelled():
         raise _CancelledError("user cancelled")
+
+
+# =============================================================================
+# Phase telemetry (drives the live progress banner)
+# =============================================================================
+#
+# The streaming generator yields ``status``, ``theme_chunk`` and terminal
+# events back to its caller. Phase events ride a separate side-channel so
+# they can flow even when the main generator is blocked on TTFT (no token
+# arrives during prompt-eval, so a yield-based design would freeze the
+# banner exactly when the user most needs feedback).
+#
+# Mechanics:
+#   - ``_phase_emit_fn`` is set by :func:`set_phase_emitter` (the
+#     extraction worker plugs ``extraction_run.append_event`` in).
+#   - :func:`_emit_phase` builds + publishes a phase event using whatever
+#     fields are non-None. Consumers (this module + the prompt-eval
+#     poller thread) call it with whatever they have.
+#   - When no emitter is registered (e.g. the section-refresh path's
+#     non-streaming wrapper), phase events are dropped silently.
+
+_phase_emit_fn: Callable[[dict], None] | None = None
+
+
+def set_phase_emitter(fn: Callable[[dict], None] | None) -> None:
+    """Register the SSE sink phase events should be published to.
+
+    Pass ``None`` (or call :func:`clear_phase_emitter`) to disable phase
+    emission for the next call to :func:`_emit_phase`. Only the extraction
+    worker should set this — every other AI-touching code path runs
+    without phase telemetry today.
+    """
+    global _phase_emit_fn
+    _phase_emit_fn = fn
+
+
+def clear_phase_emitter() -> None:
+    """Drop the active phase emitter. Safe to call when none is set."""
+    global _phase_emit_fn
+    _phase_emit_fn = None
+
+
+@dataclass
+class _StructuralState:
+    """Where in the multi-section / multi-chunk grid we are.
+
+    ``None`` fields mean "not applicable" (e.g. a single-pass extraction
+    has no section index; a JSON subcall has neither). The poller and
+    state-transition emitters merge this into every phase event so the
+    banner can render "Section 3/7, chunk 2/4" without recomputing.
+    """
+
+    section_index: int | None = None
+    section_name: str | None = None
+    section_total: int | None = None
+    chunk_index: int | None = None
+    chunk_total: int | None = None
+
+    def snapshot(self) -> dict[str, Any] | None:
+        if self.section_index is None and self.chunk_index is None:
+            return None
+        out: dict[str, Any] = {}
+        if self.section_index is not None:
+            out["section_index"] = self.section_index
+        if self.section_name is not None:
+            out["section_name"] = self.section_name
+        if self.section_total is not None:
+            out["section_total"] = self.section_total
+        if self.chunk_index is not None:
+            out["chunk_index"] = self.chunk_index
+        if self.chunk_total is not None:
+            out["chunk_total"] = self.chunk_total
+        return out
+
+    def reset(self) -> None:
+        self.section_index = None
+        self.section_name = None
+        self.section_total = None
+        self.chunk_index = None
+        self.chunk_total = None
+
+
+_structural = _StructuralState()
+
+
+def _emit_phase(
+    *,
+    phase: str,
+    activity: str,
+    prompt_eval: dict[str, Any] | None = None,
+    generation: dict[str, Any] | None = None,
+    structural_override: dict[str, Any] | None = None,
+) -> None:
+    """Build + publish a phase event. No-op if no emitter is registered.
+
+    ``structural_override`` lets a caller override the module-level
+    :class:`_StructuralState` snapshot for a single emit (used to tag
+    JSON-subcall phases with no section grid even mid-extraction).
+    """
+    fn = _phase_emit_fn
+    if fn is None:
+        return
+    structural = structural_override if structural_override is not None else _structural.snapshot()
+    now = time.monotonic()
+    elapsed = (now - _run_stats.started_at) if _run_stats is not None else 0.0
+    event: dict[str, Any] = {
+        "type": "phase",
+        "phase": phase,
+        "activity": activity,
+        "elapsed_s": round(elapsed, 2),
+    }
+    if structural is not None:
+        event["structural"] = structural
+    if prompt_eval is not None:
+        event["prompt_eval"] = prompt_eval
+    if generation is not None:
+        event["generation"] = generation
+    try:
+        fn(event)
+    except Exception as e:
+        # Never let telemetry crash the run.
+        logger.warning("phase emit failed: %s", e)
 
 
 # =============================================================================
@@ -608,6 +731,8 @@ def stream_theme_extraction(
         system_prompt = _get_system_prompt()
         log_dir = _init_run_log_dir()
         ai_lock.update_log_path(log_dir)
+        _structural.reset()
+        _emit_phase(phase="loading", activity="Loading document")
         logger.info(
             "Starting theme extraction: model=%s provider=%s text_len=%d log_dir=%s",
             model_info.model_id,
@@ -618,6 +743,7 @@ def stream_theme_extraction(
 
         try:
             available = model_info.context_window - _OUTPUT_BUDGET
+            _emit_phase(phase="counting", activity="Counting tokens")
             token_count = count_tokens(text, model_key)
             logger.info(
                 "Token count: %d, available budget: %d, context_window: %d",
@@ -634,20 +760,31 @@ def stream_theme_extraction(
         except _CancelledError:
             if _run_stats:
                 _run_stats.cancelled = True
+            _emit_phase(phase="done", activity="Cancelled")
             yield {"type": "cancelled"}
         except Exception as e:
             logger.error("Theme extraction failed: %s", e, exc_info=True)
             if _run_stats:
                 _run_stats.aborted_reason = str(e)
+            # First line, capped — exception messages can leak full
+            # paths / model IDs / occasionally key fragments and the
+            # banner renders this verbatim. The full text is in the log.
+            short = str(e).splitlines()[0] if str(e) else "unknown error"
+            if len(short) > 200:
+                short = short[:200] + "…"
+            _emit_phase(phase="done", activity=f"Error: {short}")
             yield {
                 "type": "error",
                 "message": str(e),
                 "log_path": str(_run_log_dir) if _run_log_dir else None,
             }
+        finally:
+            _structural.reset()
 
 
 def _run_single_pass(text: str, system_prompt: str, model_info) -> Generator[dict, None, None]:
     yield {"type": "status", "message": "Generating theme..."}
+    _emit_phase(phase="extracting", activity="Single-pass extraction")
     template = (_PROMPTS_DIR / "theme_chunk_single.txt").read_text(encoding="utf-8")
     user_msg = template.format(text=text)
 
@@ -664,6 +801,8 @@ def _run_single_pass(text: str, system_prompt: str, model_info) -> Generator[dic
         model_info,
         stream_to_ui=True,
         step_label="Single-pass extraction",
+        phase_kind="extracting",
+        activity_prefix="Single-pass",
     ):
         etype = event.get("type")
         if etype == "theme_chunk":
@@ -758,11 +897,20 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
 
     for sec_idx, (sec_name, sec_guidance) in enumerate(_SECTIONS):
         _check_cancelled()
+        _structural.section_index = sec_idx + 1
+        _structural.section_total = len(_SECTIONS)
+        _structural.section_name = sec_name
+        _structural.chunk_total = len(chunks)
+        _structural.chunk_index = None
         logger.info("=== Section %d/%d: %s ===", sec_idx + 1, len(_SECTIONS), sec_name)
         yield {
             "type": "status",
             "message": (f"Extracting {sec_name} ({sec_idx + 1}/{len(_SECTIONS)})..."),
         }
+        _emit_phase(
+            phase="extracting",
+            activity=f"Extracting {sec_name} ({sec_idx + 1}/{len(_SECTIONS)})",
+        )
         logger.info("Section %d/%d: %s", sec_idx + 1, len(_SECTIONS), sec_name)
 
         section_prompt = sys_template.format(
@@ -773,6 +921,7 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
 
         for ci, chunk_part in enumerate(chunks):
             _check_cancelled()
+            _structural.chunk_index = ci + 1
 
             # --- Compaction guard --------------------------------------------
             # Before the next "next" call, if accumulated has grown past the
@@ -788,6 +937,13 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                             f"{accumulated_max_tokens}) before chunk {ci + 1}/{len(chunks)}..."
                         ),
                     }
+                    _emit_phase(
+                        phase="compacting",
+                        activity=(
+                            f"Compacting {sec_name} "
+                            f"({acc_tokens:,} tok > {accumulated_max_tokens:,} budget)"
+                        ),
+                    )
                     logger.info(
                         "  compaction trigger: %s accumulated=%d > %d",
                         sec_name,
@@ -813,6 +969,8 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                         model_info,
                         stream_to_ui=False,
                         step_label=compact_label,
+                        phase_kind="compacting",
+                        activity_prefix=f"Compacting {sec_name}",
                     ):
                         if event["type"] == "theme_chunk":
                             compact_result += event["text"]
@@ -871,6 +1029,10 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                     f"{sec_name} ({sec_idx + 1}/{len(_SECTIONS)}): chunk {ci + 1}/{len(chunks)}..."
                 ),
             }
+            chunk_activity = (
+                f"{sec_name} (sec {sec_idx + 1}/{len(_SECTIONS)}, chunk {ci + 1}/{len(chunks)})"
+            )
+            _emit_phase(phase="extracting", activity=chunk_activity)
 
             if ci == 0:
                 user_msg = first_template.format(
@@ -901,6 +1063,8 @@ def _run_multi_chunk(text: str, model_info) -> Generator[dict, None, None]:
                 model_info,
                 stream_to_ui=False,
                 step_label=chunk_label,
+                phase_kind="extracting",
+                activity_prefix=chunk_activity,
             ):
                 if event["type"] == "theme_chunk":
                     chunk_result += event["text"]
@@ -1002,6 +1166,8 @@ def _stream_single_call(
     output_budget_override: int | None = None,
     repeat_penalty_override: float | None = None,
     temperature_override: float | None = None,
+    phase_kind: str = "extracting",
+    activity_prefix: str = "",
 ) -> Generator[dict, None, None]:
     """Dispatch one streaming call to the configured provider.
 
@@ -1017,6 +1183,10 @@ def _stream_single_call(
     ``repeat_penalty_override`` overrides the provider-default llamacpp
     repeat_penalty for this call (ignored on Anthropic). Used by the JSON
     subcall retry loop to escalate the penalty on repetition-loop retries.
+
+    ``phase_kind`` and ``activity_prefix`` thread the live-progress phase
+    label through to the llamacpp prompt-eval poller. Anthropic ignores
+    them (no analogous /slots introspection).
     """
     if model_info.provider == "anthropic":
         yield from _stream_anthropic_call(
@@ -1037,6 +1207,8 @@ def _stream_single_call(
             output_budget_override=output_budget_override,
             repeat_penalty_override=repeat_penalty_override,
             temperature_override=temperature_override,
+            phase_kind=phase_kind,
+            activity_prefix=activity_prefix,
         )
     else:
         yield {
@@ -1172,6 +1344,193 @@ def _stream_anthropic_call(
         _write_call_meta(log_path, meta)
 
 
+class _NullPoller:
+    """No-op stand-in used when no phase emitter is registered.
+
+    Lets the streaming loop wear a single ``with`` shape without paying
+    for a polling thread it'd publish nothing through (the section-refresh
+    non-streaming path is the canonical case).
+    """
+
+    def __enter__(self) -> _NullPoller:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        return None
+
+
+_NULL_POLLER = _NullPoller()
+
+
+class _PromptEvalPoller:
+    """Background poller that surfaces ``/slots`` introspection as phase events.
+
+    Started for the lifetime of a llamacpp streaming call. Polls every
+    ``poll_interval`` seconds; emits a ``phase`` event whenever the
+    observed prompt-eval or generation counters move materially.
+
+    Lifecycle:
+        with _PromptEvalPoller(provider, model_id, phase_kind="extracting"):
+            for ev in convo.stream(...): ...
+
+    Single-use, not re-entrant — construct a fresh instance per call.
+    The poller runs on a daemon thread so a stuck HTTP probe can never
+    block process shutdown. Errors during a poll are swallowed and
+    logged at debug — telemetry must never crash the run.
+    """
+
+    # Don't spam events — only emit when prompt-eval token count moves by
+    # at least this fraction of total or this many tokens, whichever is
+    # smaller. Keeps the SSE stream readable on long prompt-eval spans.
+    _MIN_DELTA_TOKENS = 200
+    _MIN_DELTA_FRACTION = 0.01
+
+    # Floor on time between consecutive generation-phase ticks. The
+    # poll loop runs at 0.5s, but we don't need to publish that fast —
+    # users can't read it, and every tick lands in extraction_run.events
+    # forever (replayed on reattach). 1 tick/s is plenty.
+    _GEN_MIN_INTERVAL_S = 1.0
+
+    def __init__(
+        self,
+        provider: Any,
+        model_id: str,
+        phase_kind: str,
+        activity_prefix: str,
+        poll_interval: float = 0.5,
+    ) -> None:
+        self._provider = provider
+        self._model_id = model_id
+        self._phase_kind = phase_kind
+        self._activity_prefix = activity_prefix
+        self._poll_interval = poll_interval
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._last_processed = -1
+        self._last_total = -1
+        self._last_decoded = -1
+        self._last_gen_emit_at: float = 0.0
+        self._gen_started_at: float | None = None
+        self._switched_to_generation = False
+
+    def __enter__(self) -> _PromptEvalPoller:
+        self._thread = threading.Thread(
+            target=self._loop,
+            name="theme-prompt-eval-poller",
+            daemon=True,
+        )
+        self._thread.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self._stop.set()
+        t = self._thread
+        if t is not None:
+            t.join(timeout=1.0)
+            if t.is_alive():
+                # Probe is wedged (dead llama-server, network stall).
+                # The thread is daemon-flagged so process shutdown is
+                # safe, but if calls keep happening we'd accumulate
+                # zombie pollers each publishing under a stale prefix.
+                logger.warning(
+                    "Prompt-eval poller thread did not exit within 1s; leaking thread (model=%s)",
+                    self._model_id,
+                )
+
+    def _loop(self) -> None:
+        while not self._stop.wait(self._poll_interval):
+            try:
+                slots = self._provider.slots(model=self._model_id)
+            except Exception as e:
+                logger.debug("slots poll failed (transient): %s", e)
+                continue
+            # The slots() call is HTTP and can take 100s of ms; an
+            # __exit__ that landed during the probe would otherwise
+            # let us publish one stale tick after stop.
+            if self._stop.is_set():
+                return
+            active = next(
+                (s for s in slots if s.get("is_processing")),
+                None,
+            )
+            if active is None:
+                continue
+            self._publish(active)
+
+    def _publish(self, slot: dict[str, Any]) -> None:
+        processed = int(slot.get("n_prompt_tokens_processed") or 0)
+        total = int(slot.get("n_prompt_tokens") or 0)
+        decoded = int(slot.get("n_decoded") or 0)
+
+        # Once decoding starts we switch to generation phase. Each tick
+        # past that point reports tokens + tok/s; the prompt-eval bar
+        # gets replaced with an indeterminate animation client-side.
+        if decoded > 0:
+            if not self._switched_to_generation:
+                self._switched_to_generation = True
+                self._gen_started_at = time.monotonic()
+            self._publish_generation(decoded)
+            return
+
+        if total <= 0:
+            return
+        if not self._should_emit_prompt_eval(processed, total):
+            return
+        self._last_processed = processed
+        self._last_total = total
+        sep = " — " if self._activity_prefix else ""
+        _emit_phase(
+            phase=self._phase_kind,
+            activity=f"{self._activity_prefix}{sep}processing prompt {processed:,}/{total:,}",
+            prompt_eval={"processed": processed, "total": total},
+        )
+
+    def _publish_generation(self, decoded: int) -> None:
+        if decoded == self._last_decoded:
+            return
+        now = time.monotonic()
+        # Rate-cap so a long generation doesn't burn the replay buffer
+        # with 100s of identical-shape events. Always emit the first
+        # tick (last_emit==0) and any update at least _GEN_MIN_INTERVAL_S
+        # after the previous one.
+        if now - self._last_gen_emit_at < self._GEN_MIN_INTERVAL_S:
+            return
+        self._last_decoded = decoded
+        self._last_gen_emit_at = now
+        elapsed = (now - self._gen_started_at) if self._gen_started_at is not None else 0.0
+        tok_per_sec = decoded / elapsed if elapsed > 0 else 0.0
+        sep = " — " if self._activity_prefix else ""
+        activity = (
+            f"{self._activity_prefix}{sep}generating ({decoded:,} tok @ {tok_per_sec:.1f} tok/s)"
+        )
+        _emit_phase(
+            phase="generation",
+            activity=activity,
+            generation={
+                "tokens": decoded,
+                "tok_per_sec": round(tok_per_sec, 2),
+                "elapsed_s": round(elapsed, 2),
+            },
+        )
+
+    def _should_emit_prompt_eval(self, processed: int, total: int) -> bool:
+        # No movement → suppress (also catches the "fully evaluated,
+        # waiting for n_decoded > 0" steady state where every poll
+        # would otherwise look like a fresh "final tick").
+        if processed == self._last_processed and total == self._last_total:
+            return False
+        if self._last_processed < 0:
+            return True
+        delta = processed - self._last_processed
+        if delta >= self._MIN_DELTA_TOKENS:
+            return True
+        if total > 0 and delta / total >= self._MIN_DELTA_FRACTION:
+            return True
+        # Always emit the final tick (processed == total) — this is
+        # the cleanest "prompt eval done" signal for the UI.
+        return processed == total
+
+
 def _stream_llamacpp_call(
     user_msg: str,
     system_prompt: str,
@@ -1182,6 +1541,8 @@ def _stream_llamacpp_call(
     output_budget_override: int | None = None,
     repeat_penalty_override: float | None = None,
     temperature_override: float | None = None,
+    phase_kind: str = "extracting",
+    activity_prefix: str = "",
 ) -> Generator[dict, None, None]:
     """Single llamacpp streaming call via llmfacade.
 
@@ -1193,6 +1554,11 @@ def _stream_llamacpp_call(
 
     ``output_budget_override`` overrides the default ``max_tokens`` for
     this call (used by JSON subcalls that need a larger output budget).
+
+    ``phase_kind`` and ``activity_prefix`` are forwarded into the
+    prompt-eval poller so its tick events stay tagged with whatever the
+    higher-level call site is doing (e.g. "extracting" + "Creature Types
+    chunk 2/4").
     """
     from mtgai.generation.llm_client import _get_provider, _llamacpp_new_model
     from mtgai.generation.token_utils import (
@@ -1281,32 +1647,47 @@ def _stream_llamacpp_call(
 
     try:
         stream_iter = convo.stream(user_msg, stop=_LLAMACPP_STOP_SEQUENCES)
+        # Poller runs only while the stream is open. Skip it when no
+        # phase emitter is registered (no SSE consumer to receive ticks)
+        # so the section-refresh non-streaming path doesn't pay for HTTP
+        # probes whose output goes nowhere.
+        poller_ctx: Any = (
+            _PromptEvalPoller(
+                provider=provider,
+                model_id=model_info.model_id,
+                phase_kind=phase_kind,
+                activity_prefix=activity_prefix,
+            )
+            if _phase_emit_fn is not None
+            else _NULL_POLLER
+        )
         try:
-            for ev in stream_iter:
-                if ai_lock.is_cancelled():
-                    meta["outcome"] = "cancelled"
-                    raise _CancelledError("cancelled mid-stream")
-                frames_total += 1
-                if ev.text_delta:
-                    frames_with_content += 1
-                    theme_text += ev.text_delta
-                    if stream_to_ui:
-                        yield {"type": "theme_chunk", "text": ev.text_delta}
-                    chars_since_check += len(ev.text_delta)
-                    if chars_since_check >= 64:
-                        chars_since_check = 0
-                        loop_err = _detect_repetition_loop(theme_text)
-                        if loop_err:
-                            logger.warning(
-                                "Repetition loop detected mid-stream after %d chars: %s",
-                                len(theme_text),
-                                loop_err,
-                            )
-                            break
-                if ev.usage is not None:
-                    last_usage = ev.usage
-                if ev.finish_reason is not None:
-                    last_finish_reason = ev.finish_reason
+            with poller_ctx:
+                for ev in stream_iter:
+                    if ai_lock.is_cancelled():
+                        meta["outcome"] = "cancelled"
+                        raise _CancelledError("cancelled mid-stream")
+                    frames_total += 1
+                    if ev.text_delta:
+                        frames_with_content += 1
+                        theme_text += ev.text_delta
+                        if stream_to_ui:
+                            yield {"type": "theme_chunk", "text": ev.text_delta}
+                        chars_since_check += len(ev.text_delta)
+                        if chars_since_check >= 64:
+                            chars_since_check = 0
+                            loop_err = _detect_repetition_loop(theme_text)
+                            if loop_err:
+                                logger.warning(
+                                    "Repetition loop detected mid-stream after %d chars: %s",
+                                    len(theme_text),
+                                    loop_err,
+                                )
+                                break
+                    if ev.usage is not None:
+                        last_usage = ev.usage
+                    if ev.finish_reason is not None:
+                        last_finish_reason = ev.finish_reason
         except _CancelledError:
             raise
         except Exception as e:
@@ -1520,6 +1901,7 @@ def _attempt_json_subcall(
     output_budget: int,
     repeat_penalty_override: float | None = None,
     temperature_override: float | None = None,
+    activity_prefix: str = "",
 ) -> tuple[list, str | None, str]:
     raw = ""
     stream_err: str | None = None
@@ -1534,6 +1916,8 @@ def _attempt_json_subcall(
             output_budget_override=output_budget,
             repeat_penalty_override=repeat_penalty_override,
             temperature_override=temperature_override,
+            phase_kind="json_subcall",
+            activity_prefix=activity_prefix,
         ):
             if event["type"] == "complete":
                 raw = event.get("theme_text", "")
@@ -1609,6 +1993,15 @@ def _run_json_subcall(
         last_err = attempts[-1][1] if attempts else None
         if attempt == 1:
             yield {"type": "status", "message": f"{label}..."}
+            _emit_phase(
+                phase="json_subcall",
+                activity=label,
+                structural_override={
+                    "section_name": label,
+                    "attempt": attempt,
+                    "attempt_total": MAX_RETRIES,
+                },
+            )
         else:
             yield {
                 "type": "status",
@@ -1617,6 +2010,17 @@ def _run_json_subcall(
                     f"(previous failed: {last_err}{knob_note})..."
                 ),
             }
+            _emit_phase(
+                phase="json_subcall",
+                activity=(
+                    f"{label}: retry {attempt}/{MAX_RETRIES} (prev failed: {last_err}{knob_note})"
+                ),
+                structural_override={
+                    "section_name": label,
+                    "attempt": attempt,
+                    "attempt_total": MAX_RETRIES,
+                },
+            )
             _record_retry()
 
         step_label = (
@@ -1631,6 +2035,7 @@ def _run_json_subcall(
             step_label,
             output_budget,
             repeat_penalty_override=rp_override,
+            activity_prefix=f"{label} (attempt {attempt}/{MAX_RETRIES})",
         )
 
         if err is None:
@@ -1784,15 +2189,21 @@ def stream_constraints_extraction(theme_text: str, model_key: str) -> Iterator[d
         # /api/ai/status reports a live tail target on every refresh.
         log_dir = _init_run_log_dir()
         ai_lock.update_log_path(log_dir)
+        # The structural state slot (section/chunk indices) is stale at
+        # this point if we were just running multi-chunk extraction;
+        # constraints + card-suggestions live outside that grid.
+        _structural.reset()
 
         try:
             yield from _stream_section_subcall(theme_text, model_info, "constraints")
             yield from _stream_section_subcall(theme_text, model_info, "card_suggestions")
 
+            _emit_phase(phase="done", activity="Extraction complete")
             yield {"type": "done", "cost_usd": 0.0}
         except _CancelledError:
             if _run_stats:
                 _run_stats.cancelled = True
+            _emit_phase(phase="done", activity="Cancelled")
             yield {"type": "cancelled"}
 
 
@@ -1831,6 +2242,7 @@ def stream_section_extraction(
         # Each acquisition gets a fresh per-run log directory.
         log_dir = _init_run_log_dir()
         ai_lock.update_log_path(log_dir)
+        _structural.reset()
 
         try:
             yield from _stream_section_subcall(theme_text, model_info, kind)

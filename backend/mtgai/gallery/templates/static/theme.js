@@ -459,7 +459,10 @@ async function runExtraction() {
 
   textarea.value = '';
   progressBar.style.width = '10%';
+  progressBar.classList.remove('indeterminate');
   progressStatus.textContent = 'Starting extraction...';
+  resetPhaseBanner();
+  showPhaseBanner('Starting extraction...');
   clearExtractionError('constraints-list');
   clearExtractionError('card-requests-list');
 
@@ -544,6 +547,8 @@ async function runExtraction() {
     if (cancelBtn) cancelBtn.disabled = true;
     _uploadId = null;
     _uploadData = null;
+    progressBar.classList.remove('indeterminate');
+    hidePhaseBanner();
     if (state.gotDone) {
       document.getElementById('extract-progress').classList.remove('visible');
     }
@@ -554,23 +559,37 @@ function handleExtractionEvent(type, data, textarea, progressBar, progressStatus
   switch (type) {
     case 'status':
       progressStatus.textContent = data.message;
-      if (data.message.includes('Generating theme')) {
-        progressBar.style.width = '30%';
-      } else if (data.message.includes('constraints')) {
-        progressBar.style.width = '80%';
+      // Phase events drive the bar now; the per-section heuristic stays
+      // only as a fallback for older event streams or providers that
+      // don't emit phase events. Skip it once phase telemetry has shown
+      // up so the bar doesn't jump back to a coarse heuristic value.
+      if (!_phaseDriving) {
+        if (data.message.includes('Generating theme')) {
+          progressBar.style.width = '30%';
+        } else if (data.message.includes('constraints')) {
+          progressBar.style.width = '80%';
+        }
+        const secMatch = data.message.match(/\((\d+)\/(\d+)\)/);
+        if (secMatch) {
+          const pct = 10 + (parseInt(secMatch[1]) / parseInt(secMatch[2])) * 65;
+          progressBar.style.width = pct + '%';
+        }
       }
-      // Per-section progress: "Extracting X (3/7)..."
-      const secMatch = data.message.match(/\((\d+)\/(\d+)\)/);
-      if (secMatch) {
-        const pct = 10 + (parseInt(secMatch[1]) / parseInt(secMatch[2])) * 65;
-        progressBar.style.width = pct + '%';
-      }
+      break;
+
+    case 'phase':
+      handlePhaseEvent(data, progressBar);
       break;
 
     case 'theme_chunk':
       textarea.value += data.text;
       textarea.scrollTop = textarea.scrollHeight;
-      progressBar.style.width = '60%';
+      // Don't override phase-driven width during the generation phase —
+      // the indeterminate stripe is the right indicator. Only nudge the
+      // bar when we don't have phase telemetry to drive it.
+      if (!_phaseDriving) {
+        progressBar.style.width = '60%';
+      }
       break;
 
     case 'complete':
@@ -621,12 +640,16 @@ function handleExtractionEvent(type, data, textarea, progressBar, progressStatus
     case 'done':
       if (state) state.gotDone = true;
       progressBar.style.width = '100%';
+      progressBar.classList.remove('indeterminate');
+      hidePhaseBanner();
       progressStatus.textContent = `Extraction complete ($${data.total_cost_usd.toFixed(4)})`;
       showToast(`Extraction complete - $${data.total_cost_usd.toFixed(4)}`, 'success');
       break;
 
     case 'error':
       if (state) state.gotError = true;
+      progressBar.classList.remove('indeterminate');
+      hidePhaseBanner();
       progressStatus.textContent = 'Error: ' + (data.message || 'unknown error');
       if (data.log_path) {
         progressStatus.textContent += ' - log: ' + data.log_path;
@@ -636,10 +659,136 @@ function handleExtractionEvent(type, data, textarea, progressBar, progressStatus
 
     case 'cancelled':
       if (state) state.gotCancelled = true;
+      progressBar.classList.remove('indeterminate');
+      hidePhaseBanner();
       progressStatus.textContent = 'Extraction cancelled';
       showToast('Extraction cancelled', 'success');
       break;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Live phase banner
+// ---------------------------------------------------------------------------
+//
+// Driven by `phase` SSE events emitted from theme_extractor.py. The banner
+// shows: activity label, elapsed time, and a real percent (structural
+// section/chunk grid OR llamacpp prompt-eval n_prompt_tokens_processed /
+// n_prompt_tokens). Once generation starts the bar switches to an
+// indeterminate stripe + tok count + tok/s — total output tokens are
+// unknown so a real percent doesn't exist.
+
+let _phaseDriving = false; // suppresses the heuristic % math once phase data arrives
+
+function resetPhaseBanner() {
+  _phaseDriving = false;
+  const banner = document.getElementById('phase-banner');
+  if (!banner) return;
+  banner.classList.remove('active', 'has-stats');
+  document.getElementById('phase-activity').textContent = 'Starting extraction...';
+  document.getElementById('phase-elapsed').textContent = '0s';
+  document.getElementById('phase-stats').textContent = '';
+}
+
+function showPhaseBanner(activity) {
+  const banner = document.getElementById('phase-banner');
+  if (!banner) return;
+  banner.classList.add('active');
+  if (activity) {
+    document.getElementById('phase-activity').textContent = activity;
+  }
+}
+
+function hidePhaseBanner() {
+  _phaseDriving = false;
+  const banner = document.getElementById('phase-banner');
+  if (!banner) return;
+  banner.classList.remove('active', 'has-stats');
+}
+
+function handlePhaseEvent(data, progressBar) {
+  _phaseDriving = true;
+  const phase = data.phase || '';
+  const activity = data.activity || '';
+  showPhaseBanner(activity);
+  const elapsedEl = document.getElementById('phase-elapsed');
+  if (elapsedEl && typeof data.elapsed_s === 'number') {
+    elapsedEl.textContent = formatElapsed(data.elapsed_s);
+  }
+
+  // Bar mode + width selection.
+  // Priority: generation (indeterminate stripe) > prompt_eval (precise %)
+  //         > structural (section/chunk grid %) > phase-kind defaults.
+  const banner = document.getElementById('phase-banner');
+  const stats = document.getElementById('phase-stats');
+  if (!banner || !stats) return;
+
+  if (phase === 'generation' && data.generation) {
+    progressBar.classList.add('indeterminate');
+    const tokens = data.generation.tokens || 0;
+    const tps = data.generation.tok_per_sec || 0;
+    stats.textContent = `${tokens.toLocaleString()} tok @ ${tps.toFixed(1)} tok/s`;
+    banner.classList.add('has-stats');
+    return;
+  }
+
+  // Non-generation phase: solid bar.
+  progressBar.classList.remove('indeterminate');
+
+  if (data.prompt_eval && data.prompt_eval.total > 0) {
+    const pe = data.prompt_eval;
+    const pct = Math.max(0, Math.min(100, (pe.processed / pe.total) * 100));
+    progressBar.style.width = pct.toFixed(1) + '%';
+    stats.textContent = `Prompt: ${pe.processed.toLocaleString()} / ${pe.total.toLocaleString()} tokens (${pct.toFixed(0)}%)`;
+    banner.classList.add('has-stats');
+    return;
+  }
+
+  if (data.structural && typeof data.structural.section_index === 'number'
+      && typeof data.structural.section_total === 'number') {
+    const s = data.structural;
+    const sectionsDone = (s.section_index - 1);
+    let sectionFrac = 0;
+    if (typeof s.chunk_index === 'number' && typeof s.chunk_total === 'number' && s.chunk_total > 0) {
+      sectionFrac = (s.chunk_index - 1) / s.chunk_total;
+    }
+    const overall = (sectionsDone + sectionFrac) / s.section_total;
+    const pct = 5 + Math.max(0, Math.min(1, overall)) * 90;
+    progressBar.style.width = pct.toFixed(1) + '%';
+    let label = `Section ${s.section_index}/${s.section_total}`;
+    if (typeof s.chunk_index === 'number' && typeof s.chunk_total === 'number') {
+      label += ` · chunk ${s.chunk_index}/${s.chunk_total}`;
+    }
+    stats.textContent = label;
+    banner.classList.add('has-stats');
+    return;
+  }
+
+  // No structured data — clear stats but keep banner (activity label is enough).
+  stats.textContent = '';
+  banner.classList.remove('has-stats');
+
+  // Phase-specific defaults so the bar moves on transitions even
+  // without prompt-eval/structural data (e.g. Anthropic).
+  if (phase === 'loading' || phase === 'counting') {
+    progressBar.style.width = '5%';
+  } else if (phase === 'json_subcall') {
+    progressBar.style.width = '85%';
+  } else if (phase === 'compacting') {
+    progressBar.style.width = '50%';
+  } else if (phase === 'extracting') {
+    progressBar.style.width = '30%';
+  } else if (phase === 'done') {
+    progressBar.style.width = '100%';
+  }
+}
+
+function formatElapsed(seconds) {
+  const s = Math.max(0, Math.floor(seconds));
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}m ${r}s`;
 }
 
 // ---------------------------------------------------------------------------
