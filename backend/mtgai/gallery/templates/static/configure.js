@@ -83,13 +83,13 @@ function wireConfigurePersistence() {
   });
   document.querySelectorAll('.preset-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const label = (btn.textContent || '').toLowerCase();
-      let preset = 'recommended';
-      if (label.includes('auto')) preset = 'auto';
-      else if (label.includes('review')) preset = 'review';
+      // Read the preset key from data-preset (set in configure.html)
+      // — parsing the visible label would silently break if a copy
+      // change ever renames a button.
+      const preset = btn.dataset.preset || 'recommended';
       MtgaiState.set('configure.preset', preset);
-      // applyPreset is called from the inline onclick handler; also
-      // re-persist the stage mapping after preset is applied.
+      // applyPreset runs from the inline onclick handler; persist the
+      // stage mapping after it lands.
       setTimeout(persistConfigureUi, 0);
     });
   });
@@ -141,9 +141,10 @@ function renderStageToggles() {
 // ---------------------------------------------------------------------------
 
 function applyPreset(preset) {
-  // Update active preset button
+  // Update active preset button — match against `data-preset` instead
+  // of the visible label so a copy change doesn't break the selector.
   document.querySelectorAll('.preset-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.textContent.toLowerCase().includes(preset));
+    btn.classList.toggle('active', btn.dataset.preset === preset);
   });
 
   STAGE_DEFINITIONS.forEach(stage => {

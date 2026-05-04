@@ -39,11 +39,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (state.active_set) {
       MtgaiState.setSetCode(state.active_set);
     }
-    // Server theme is the authoritative copy. Replace whatever the draft
-    // populated, unless the user has been editing since the last save —
-    // we detect that with a draft-newer-than-save heuristic via the
-    // `updated_at` field we stamp on save.
-    if (state.theme && _serverThemeIsNewer(state.theme, draft)) {
+    // The server theme is the authoritative copy *unless* the user
+    // has unsaved edits in this browser. saveTheme() clears the draft,
+    // so any draft we still see is by definition newer than what's on
+    // disk. Only fall back to the server theme when there's no draft
+    // for the same set code.
+    if (state.theme && _shouldHydrateFromServer(state.theme, draft)) {
       populateFromTheme(state.theme);
     }
     if (state.active_runs && state.active_runs.theme_extraction) {
@@ -54,20 +55,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-function _serverThemeIsNewer(serverTheme, draft) {
+function _shouldHydrateFromServer(serverTheme, draft) {
+  // No draft -> server theme always wins.
   if (!draft) return true;
-  // Drafts carry a `_draft_saved_at` (ms epoch) we set on every input.
-  // Server themes don't have a timestamp on the JSON itself — we check
-  // mtime indirectly via the runtime state response, but for the
-  // hydration decision the safe rule is: if the server theme has a
-  // matching code+name, prefer the draft (user might be mid-edit);
-  // otherwise prefer the server theme.
-  if (serverTheme.code && draft.code &&
-      serverTheme.code === draft.code &&
-      serverTheme.name === draft.name) {
-    return false;
+  // Different sets -> server theme wins (the draft is for a different
+  // set, switching context to the server's active set).
+  if (serverTheme.code && draft.code && serverTheme.code !== draft.code) {
+    return true;
   }
-  return true;
+  // Same set code -> the draft represents unsaved local edits, since
+  // saveTheme() clears the draft on success. Keep it.
+  return false;
 }
 
 // ---------------------------------------------------------------------------

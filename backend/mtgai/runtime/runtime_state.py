@@ -30,15 +30,24 @@ from mtgai.runtime import ai_lock, extraction_run
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
+# `<repo>/output/...`. `runtime_state.py` lives at
+# `<repo>/backend/mtgai/runtime/`, so four parents up lands at the repo root.
+OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent.parent / "output"
 SETS_ROOT = OUTPUT_ROOT / "sets"
 
 
 def _resolve_active_set_code(override: str | None) -> str:
     """Pick the set code the front-end should hydrate against.
 
-    Order: explicit override -> most-recent pipeline-state.json ->
-    most-recent theme.json -> ``MTGAI_REVIEW_SET`` env -> ``"ASD"``.
+    Resolution order:
+
+    1. Explicit ``override`` arg if non-empty.
+    2. The set whose ``pipeline-state.json`` *or* ``theme.json`` was
+       most recently touched on disk — both markers are merged into
+       one mtime-sorted candidate list, so a freshly-saved theme can
+       win over a stale pipeline-state and vice versa.
+    3. ``MTGAI_REVIEW_SET`` env var.
+    4. ``"ASD"``.
     """
     if override:
         return override.strip().upper()
@@ -99,12 +108,18 @@ def _active_runs_payload() -> dict[str, dict[str, Any]]:
     """Map of in-flight AI runs the UI may want to reattach to."""
     runs: dict[str, dict[str, Any]] = {}
     er = extraction_run.current()
-    if er is not None and er.status == "running":
-        runs["theme_extraction"] = {
-            "upload_id": er.upload_id,
-            "started_at": er.started_at.isoformat(),
-            "events_count": len(er.events),
-        }
+    if er is None:
+        return runs
+    # Take the run's lock for a consistent read of status + events
+    # length — the worker thread mutates `events` via append_event and
+    # `status` via mark_done, both already under this same lock.
+    with er.lock:
+        if er.status == "running":
+            runs["theme_extraction"] = {
+                "upload_id": er.upload_id,
+                "started_at": er.started_at.isoformat(),
+                "events_count": len(er.events),
+            }
     return runs
 
 

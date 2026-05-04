@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -27,9 +29,26 @@ from mtgai.pipeline.models import (
     create_pipeline_state,
 )
 from mtgai.runtime import ai_lock, extraction_run
-from mtgai.runtime.runtime_state import compute_runtime_state
+from mtgai.runtime.runtime_state import OUTPUT_ROOT, compute_runtime_state
 
 logger = logging.getLogger(__name__)
+
+_SET_CODE_RE = re.compile(r"^[A-Z0-9]{2,5}$")
+
+
+def _theme_path(set_code: str) -> Path | None:
+    """Resolve `output/sets/<CODE>/theme.json` for a validated set code.
+
+    Returns None if the code fails the `[A-Z0-9]{2,5}` shape check —
+    callers translate that into a 400. Centralising the path means
+    tests can patch this single helper instead of the inline `Path(...)`
+    construction inside each endpoint.
+    """
+    code = (set_code or "").strip().upper()
+    if not _SET_CODE_RE.fullmatch(code):
+        return None
+    return OUTPUT_ROOT / "sets" / code / "theme.json"
+
 
 # ---------------------------------------------------------------------------
 # Singleton state
@@ -142,14 +161,11 @@ async def runtime_state(set_code: str | None = None) -> JSONResponse:
 async def save_theme(request: Request):
     """Save theme.json for a set."""
     body = await request.json()
-    code = body.get("code", "").strip().upper()
-    if not code:
-        return JSONResponse({"error": "Set code required"}, status_code=400)
+    theme_path = _theme_path(body.get("code", ""))
+    if theme_path is None:
+        return JSONResponse({"error": "Invalid set code"}, status_code=400)
 
-    set_dir = Path("C:/Programming/MTGAI/output/sets") / code
-    set_dir.mkdir(parents=True, exist_ok=True)
-    theme_path = set_dir / "theme.json"
-
+    theme_path.parent.mkdir(parents=True, exist_ok=True)
     theme_path.write_text(
         json.dumps(body, indent=2, ensure_ascii=False),
         encoding="utf-8",
@@ -161,11 +177,9 @@ async def save_theme(request: Request):
 @api_router.get("/theme/load")
 async def load_theme(set_code: str):
     """Return the saved theme.json for ``set_code``, or 404 if absent."""
-    code = set_code.strip().upper()
-    if not code:
-        return JSONResponse({"error": "Set code required"}, status_code=400)
-
-    theme_path = Path("C:/Programming/MTGAI/output/sets") / code / "theme.json"
+    theme_path = _theme_path(set_code)
+    if theme_path is None:
+        return JSONResponse({"error": "Invalid set code"}, status_code=400)
     if not theme_path.exists():
         return JSONResponse({"error": "No theme.json for set"}, status_code=404)
 
@@ -326,6 +340,12 @@ def _terminal_status(events: list[dict]) -> str:
     final ``done`` even after a partial subcall failure — we want
     "completed" in that case but "error" / "cancelled" for the cases
     where the worker bailed before finishing.
+
+    If we don't see a recognised terminal event at all, default to
+    "error". The worker's ``finally`` only runs after an exception or
+    an early-return path, neither of which should be reported as
+    success — the front-end's "did the run actually finish?" check
+    looks for a ``done`` event in the buffer, not a ``status`` field.
     """
     for event in reversed(events):
         etype = event.get("type")
@@ -335,13 +355,11 @@ def _terminal_status(events: list[dict]) -> str:
             return "cancelled"
         if etype == "error":
             return "error"
-    return "completed" if events else "error"
+    return "error"
 
 
 def _start_extraction_worker(upload_id: str, source_text: str, model_key: str) -> None:
     """Spawn the extraction worker thread and wire it to the run buffer."""
-    import threading
-
     from mtgai.pipeline.theme_extractor import (
         stream_constraints_extraction,
         stream_theme_extraction,
@@ -363,6 +381,15 @@ def _start_extraction_worker(upload_id: str, source_text: str, model_key: str) -
 
             full_theme = "".join(theme_parts)
             if not full_theme.strip():
+                # Theme stage finished but produced no usable text — emit
+                # an explicit error so the front-end's progress UI exits
+                # cleanly instead of hanging at 75%.
+                extraction_run.append_event(
+                    {
+                        "type": "error",
+                        "message": "Theme extraction produced no text",
+                    }
+                )
                 return
 
             extraction_run.append_event(
@@ -424,9 +451,23 @@ async def _stream_subscriber(request: Request, q):
                 continue
             if extraction_run.is_done_sentinel(event):
                 break
-            yield _sse_format(event["type"], event)
+            # Defensive default — every producer today emits "type" but
+            # a future contributor pushing a typeless dict shouldn't
+            # blow up the SSE generator (which the `finally` below
+            # would silently swallow as a client disconnect).
+            yield _sse_format(event.get("type", "message"), event)
     finally:
         extraction_run.unsubscribe(q)
+
+
+# Module-level lock guarding the "decide whether this is a fresh start
+# or a reattach" critical section in extract-stream. Without it, two
+# near-simultaneous fresh-start requests for different upload_ids can
+# both pass the `ai_lock.is_running()` gate before either worker
+# acquires the AI lock — the second would clobber the first run's
+# buffer in extraction_run._run, orphaning the first request's
+# subscriber.
+_extract_start_lock = threading.Lock()
 
 
 @api_router.get("/theme/extract-stream")
@@ -451,32 +492,31 @@ async def extract_theme_stream(
     Disconnects unsubscribe but do **not** cancel the run; cancel is
     opt-in via ``POST /api/ai/cancel`` (or its theme alias).
     """
-    existing = extraction_run.current()
-    if existing is not None and existing.upload_id == upload_id:
+    # The reattach / busy-check / fresh-start sequence must be atomic
+    # so two near-simultaneous fresh-start requests for different
+    # upload_ids can't both pass the gate and clobber each other's
+    # run buffer in extraction_run._run.
+    with _extract_start_lock:
+        existing = extraction_run.current()
+        if existing is not None and existing.upload_id == upload_id:
+            mode = "reattach"
+        elif ai_lock.is_running():
+            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+        else:
+            cached = _upload_cache.get(upload_id)
+            if not cached:
+                return JSONResponse({"error": "Upload expired"}, status_code=404)
+            if not model_key:
+                model_key = _theme_extract_model_key()
+            extraction_run.start_run(upload_id)
+            _start_extraction_worker(upload_id, cached["text"], model_key)
+            mode = "fresh"
+
+        # Subscribe under the same lock so a concurrent start can't
+        # land between subscribe() and the worker's first append_event.
         _, q = extraction_run.subscribe()
-        return StreamingResponse(
-            _stream_subscriber(request, q),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
-        )
 
-    if ai_lock.is_running():
-        return JSONResponse(ai_lock.busy_payload(), status_code=409)
-
-    cached = _upload_cache.get(upload_id)
-    if not cached:
-        return JSONResponse({"error": "Upload expired"}, status_code=404)
-
-    if not model_key:
-        model_key = _theme_extract_model_key()
-
-    extraction_run.start_run(upload_id)
-    _start_extraction_worker(upload_id, cached["text"], model_key)
-    _, q = extraction_run.subscribe()
+    logger.debug("extract-stream %s upload_id=%s", mode, upload_id)
     return StreamingResponse(
         _stream_subscriber(request, q),
         media_type="text/event-stream",

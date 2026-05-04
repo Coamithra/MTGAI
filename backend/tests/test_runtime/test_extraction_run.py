@@ -179,35 +179,30 @@ def test_append_with_no_run_is_noop():
 
 def test_concurrent_append_and_subscribe():
     """Worker thread appending while a new subscriber arrives — the
-    new subscriber should get a complete prefix replay plus all
-    subsequent events, with no duplicates and no losses."""
+    new subscriber should see every event from index 0 onward exactly
+    once. This is the headline guarantee of the buffer: no losses for
+    a late joiner.
+    """
     extraction_run.start_run("upload-1")
-    stop = threading.Event()
 
     def appender():
-        i = 0
-        while not stop.is_set() and i < 20:
+        for i in range(20):
             extraction_run.append_event({"type": "theme_chunk", "text": str(i)})
-            i += 1
             time.sleep(0.005)
 
     t = threading.Thread(target=appender, daemon=True)
     t.start()
-    time.sleep(0.02)  # let some events accumulate
-
+    time.sleep(0.02)  # let some events accumulate before subscribing
     _, q = extraction_run.subscribe()
-    # Wait for the appender to finish.
-    t.join(timeout=1.0)
-    stop.set()
+    t.join(timeout=2.0)
+    extraction_run.mark_done("completed")  # wakes the queue with sentinel
 
     received: list[int] = []
     while True:
-        try:
-            evt = q.get(timeout=0.1)
-        except Exception:
+        evt = q.get(timeout=1.0)
+        if extraction_run.is_done_sentinel(evt):
             break
         received.append(int(evt["text"]))
 
-    # Strictly increasing, no duplicates, contains 0 (replayed).
-    assert received[0] == 0
-    assert received == sorted(set(received))
+    # Every appended event reached the subscriber, in order, exactly once.
+    assert received == list(range(20))

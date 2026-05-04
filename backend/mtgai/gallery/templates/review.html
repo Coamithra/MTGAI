@@ -102,6 +102,10 @@
 <script>
   // Card data loaded from JSON
   const ALL_CARDS = {{ cards_json | safe }};
+  // Pin localStorage namespace to the set this page is for. Otherwise
+  // /review for set DEF would write filters into ABC's namespace
+  // because MtgaiState.setCode() reads the global active_set key.
+  if (window.MtgaiState) window.MtgaiState.setSetCode("{{ set_code }}");
 </script>
 <script src="/static/review.js"></script>
 {% endblock %}

@@ -91,16 +91,7 @@ def test_theme_load_404_when_missing(client):
 
 def test_theme_load_returns_json(client, monkeypatch):
     """A saved theme.json round-trips through /api/pipeline/theme/load."""
-    # The endpoint reads a hardcoded path in pipeline/server.py; patch it
-    # to look at our tmp dir. We inspect the actual constant via the
-    # function source to keep this resilient if the path moves later.
     from mtgai.pipeline import server as pipeline_server
-
-    # The route uses Path("C:/Programming/MTGAI/output/sets") inline,
-    # so we monkey-patch the Path constructor for that single call by
-    # writing into the real path-like target the runtime resolver
-    # already uses. Easiest: write into the runtime-state-managed
-    # SETS_ROOT and make pipeline_server.Path point at the same root.
     from mtgai.runtime import runtime_state
 
     set_dir = runtime_state.SETS_ROOT / "TST"
@@ -110,36 +101,46 @@ def test_theme_load_returns_json(client, monkeypatch):
         encoding="utf-8",
     )
 
-    # Patch the inline path expression by overriding the `Path` symbol
-    # the module uses for this route.
-    monkeypatch.setattr(
-        pipeline_server,
-        "Path",
-        lambda _: runtime_state.SETS_ROOT.parent,
-        raising=False,
-    )
+    # Redirect the helper to our tmp SETS_ROOT instead of the
+    # hard-coded production path. Keeps the validation regex live so
+    # we still exercise the 400 path on bad codes.
+    real_re = pipeline_server._SET_CODE_RE
 
-    # Re-issue the request — the endpoint will now resolve TST under
-    # our tmp SETS_ROOT.
-    # NOTE: monkeypatching `Path` whole-cloth is heavy-handed; if this
-    # gets fragile, consider extracting the path resolution into a
-    # helper that can be patched cleanly.
+    def _patched(set_code):
+        code = (set_code or "").strip().upper()
+        if not real_re.fullmatch(code):
+            return None
+        return runtime_state.SETS_ROOT / code / "theme.json"
+
+    monkeypatch.setattr(pipeline_server, "_theme_path", _patched)
+
     resp = client.get("/api/pipeline/theme/load?set_code=TST")
-    # When the path patch can't faithfully reroute the inline Path()
-    # call, we fall back to the on-disk repo location. Either way,
-    # the endpoint shouldn't 500 — accept 200 (success) or 404 (path
-    # didn't redirect). Verify shape if we got 200.
-    assert resp.status_code in (200, 404)
-    if resp.status_code == 200:
-        data = resp.json()
-        assert data["code"] == "TST"
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["code"] == "TST"
+    assert data["name"] == "Test"
 
 
 def test_theme_load_400_on_blank_code(client):
     resp = client.get("/api/pipeline/theme/load?set_code=")
-    # Blank set code -> 400. (Some FastAPI configs may bounce earlier
-    # with 422 on validation; accept either.)
+    # Blank set code fails the validation regex -> 400.
+    # FastAPI itself may also bounce empty params with 422; accept either.
     assert resp.status_code in (400, 422)
+
+
+def test_theme_load_400_on_traversal_attempt(client):
+    """Set code with path-traversal characters -> 400, never reads disk."""
+    resp = client.get("/api/pipeline/theme/load?set_code=../etc")
+    assert resp.status_code == 400
+
+
+def test_theme_save_400_on_invalid_code(client):
+    """Save endpoint rejects malformed set codes the same way load does."""
+    resp = client.post(
+        "/api/pipeline/theme/save",
+        json={"code": "../escape", "name": "x"},
+    )
+    assert resp.status_code == 400
 
 
 def test_extract_stream_404_for_missing_upload(client):

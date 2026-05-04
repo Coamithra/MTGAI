@@ -28,6 +28,7 @@
 {% block scripts %}
 <script>
   const PROGRESS_DATA = {{ progress_json | safe }};
+  if (window.MtgaiState) window.MtgaiState.setSetCode("{{ set_code }}");
 </script>
 <script src="/static/progress.js"></script>
 {% endblock %}
