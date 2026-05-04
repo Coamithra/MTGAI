@@ -22,6 +22,7 @@ from fastapi.templating import Jinja2Templates
 from mtgai.pipeline.engine import PipelineEngine, load_state, save_state
 from mtgai.pipeline.events import EventBus, format_sse
 from mtgai.pipeline.models import (
+    STAGE_DEFINITIONS,
     PipelineConfig,
     PipelineState,
     PipelineStatus,
@@ -76,8 +77,6 @@ api_router = APIRouter(prefix="/api/pipeline")
 
 
 def _render_configure(request: Request) -> HTMLResponse:
-    from mtgai.pipeline.models import STAGE_DEFINITIONS
-
     return templates.TemplateResponse(
         "configure.html",
         {
@@ -89,14 +88,7 @@ def _render_configure(request: Request) -> HTMLResponse:
 
 @router.get("/pipeline", response_class=HTMLResponse)
 async def pipeline_dashboard(request: Request):
-    """Pipeline dashboard, or configure form when no run exists.
-
-    Clicking "Pipeline" with no on-disk state used to land on a
-    placeholder that just linked through to /pipeline/configure;
-    rendering configure inline removes the dead-end step. The
-    /pipeline/configure URL stays valid as a deep link that always
-    shows the form, even mid-run.
-    """
+    """Render the dashboard, or the configure form when no state exists."""
     state = _get_current_state()
     if state is None:
         return _render_configure(request)
@@ -112,7 +104,7 @@ async def pipeline_dashboard(request: Request):
 
 @router.get("/pipeline/configure", response_class=HTMLResponse)
 async def pipeline_configure(request: Request):
-    """Pipeline configuration wizard — deep link, always shows the form."""
+    """Pipeline configuration wizard page."""
     return _render_configure(request)
 
 

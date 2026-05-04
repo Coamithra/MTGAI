@@ -52,10 +52,16 @@ def test_pipeline_renders_dashboard_when_state_exists(client):
     assert "/static/pipeline.js" in body
 
 
-def test_pipeline_configure_always_renders_form(client):
-    """The /pipeline/configure deep link shows the form even mid-run."""
-    resp = client.get("/pipeline/configure")
+def test_pipeline_configure_renders_form_even_with_active_state(client):
+    """`/pipeline/configure` ignores pipeline state — the form is the form."""
+    from mtgai.pipeline.models import PipelineConfig, create_pipeline_state
+
+    state = create_pipeline_state(PipelineConfig(set_code="TST", set_name="Test", set_size=20))
+
+    with patch("mtgai.pipeline.server._get_current_state", return_value=state):
+        resp = client.get("/pipeline/configure")
     assert resp.status_code == 200
     body = resp.text
     assert 'id="set-code"' in body
     assert "Configure Pipeline" in body
+    assert 'id="pipeline-app"' not in body

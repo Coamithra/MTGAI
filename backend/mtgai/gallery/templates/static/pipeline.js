@@ -30,9 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDashboard();
     connectSSE();
   }
-  // If pipelineState is null we shouldn't be on this page at all —
-  // the server routes /pipeline to the configure form when no state
-  // exists. The check stays as a defensive belt-and-braces.
 });
 
 // ---------------------------------------------------------------------------
