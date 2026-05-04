@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -72,8 +71,16 @@ def _set_dir(set_code: str) -> Path:
 
 
 def _get_set_code() -> str:
-    """Read the active set code from env var (default ASD)."""
-    return os.environ.get("MTGAI_REVIEW_SET", "ASD")
+    """Resolve the active set code via the runtime-state chain.
+
+    Reuses the same resolver the ``/api/runtime/state`` endpoint uses
+    so the review/booster/progress pages pick up the picker-persisted
+    set without a separate code path. Falls through to the env var and
+    "ASD" defaults inside the resolver.
+    """
+    from mtgai.runtime.runtime_state import _resolve_active_set_code
+
+    return _resolve_active_set_code(None)
 
 
 # ---------------------------------------------------------------------------

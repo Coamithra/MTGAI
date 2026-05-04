@@ -42,15 +42,29 @@ def _resolve_active_set_code(override: str | None) -> str:
     Resolution order:
 
     1. Explicit ``override`` arg if non-empty.
-    2. The set whose ``pipeline-state.json`` *or* ``theme.json`` was
+    2. The set persisted in ``output/settings/last_set.toml`` (written
+       by the top-bar set picker). Stale entries — codes whose set dir
+       no longer exists — are skipped, so deleting a set out from
+       under the app falls through to the next step rather than
+       silently keeping the stale pointer.
+    3. The set whose ``pipeline-state.json`` *or* ``theme.json`` was
        most recently touched on disk — both markers are merged into
        one mtime-sorted candidate list, so a freshly-saved theme can
-       win over a stale pipeline-state and vice versa.
-    3. ``MTGAI_REVIEW_SET`` env var.
-    4. ``"ASD"``.
+       win over a stale pipeline-state and vice versa. Kept as a
+       fallback for fresh checkouts or pre-picker installs.
+    4. ``MTGAI_REVIEW_SET`` env var.
+    5. ``"ASD"``.
     """
     if override:
         return override.strip().upper()
+
+    # Lazy import — active_set imports OUTPUT_ROOT/SETS_ROOT from this
+    # module, so importing at module top would create a cycle.
+    from mtgai.runtime.active_set import read_active_set
+
+    persisted = read_active_set()
+    if persisted:
+        return persisted
 
     if SETS_ROOT.exists():
         candidates: list[tuple[float, str]] = []
@@ -125,9 +139,12 @@ def _active_runs_payload() -> dict[str, dict[str, Any]]:
 
 def compute_runtime_state(set_code_override: str | None = None) -> dict[str, Any]:
     """Build the ``/api/runtime/state`` payload."""
+    from mtgai.runtime.active_set import list_sets
+
     active_set = _resolve_active_set_code(set_code_override)
     return {
         "active_set": active_set,
+        "available_sets": list_sets(),
         "ai_lock": ai_lock.busy_payload(),
         "active_runs": _active_runs_payload(),
         "pipeline": _load_pipeline_summary(active_set),

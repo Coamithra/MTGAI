@@ -85,6 +85,66 @@
     }
   }
 
+  /**
+   * Persist `code` as the server-side active set. Returns the refreshed
+   * runtime-state payload on success, or null on error. Callers are
+   * expected to follow up with a full-page reload — the active set is
+   * baked into server-rendered templates (page titles, mounted
+   * /renders, /art static dirs) so partial in-place updates would
+   * leave the UI inconsistent.
+   */
+  async function activateSet(code) {
+    if (!code) return null;
+    try {
+      const resp = await fetch('/api/runtime/active-set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: String(code).toUpperCase() }),
+      });
+      if (!resp.ok) {
+        console.warn('[ui_state] activateSet failed:', resp.status);
+        return null;
+      }
+      const payload = await resp.json();
+      if (payload && payload.active_set) setSetCode(payload.active_set);
+      return payload;
+    } catch (e) {
+      console.warn('[ui_state] activateSet error:', e);
+      return null;
+    }
+  }
+
+  /**
+   * Scaffold a new set on disk and activate it. Returns the refreshed
+   * runtime-state payload on success, ``{error}`` on a 4xx response so
+   * the modal can render the message inline (e.g. "set already exists"),
+   * or null on a network failure.
+   */
+  async function createSet(code, name) {
+    if (!code) return { error: 'Set code is required' };
+    try {
+      const resp = await fetch('/api/runtime/sets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: String(code).toUpperCase(),
+          name: name || null,
+        }),
+      });
+      if (!resp.ok) {
+        let body = null;
+        try { body = await resp.json(); } catch (e) { /* not JSON */ }
+        return { error: (body && body.error) || ('HTTP ' + resp.status) };
+      }
+      const payload = await resp.json();
+      if (payload && payload.active_set) setSetCode(payload.active_set);
+      return payload;
+    } catch (e) {
+      console.warn('[ui_state] createSet error:', e);
+      return null;
+    }
+  }
+
   window.MtgaiState = {
     setCode: setCode,
     setSetCode: setSetCode,
@@ -92,5 +152,7 @@
     set: set,
     remove: remove,
     fetchRuntimeState: fetchRuntimeState,
+    activateSet: activateSet,
+    createSet: createSet,
   };
 })();

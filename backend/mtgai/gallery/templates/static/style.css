@@ -150,6 +150,145 @@ a:hover {
 }
 
 /* --------------------------------------------------------------------------
+   Top-bar Set Picker
+   App-wide active-set selector. Hydrated by set_picker.js on every page.
+   -------------------------------------------------------------------------- */
+.set-picker {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.set-picker-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.set-picker-select {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  min-width: 180px;
+  cursor: pointer;
+}
+
+.set-picker-select:hover {
+  border-color: var(--accent);
+}
+
+.set-picker-select:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.set-picker-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.set-picker-modal {
+  background: var(--bg-secondary, #16213e);
+  border: 1px solid var(--border, #1a1a3e);
+  border-radius: 8px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.set-picker-modal h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.set-picker-modal-desc {
+  color: var(--text-muted, #888);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.set-picker-modal label {
+  display: block;
+  margin: 0.75rem 0 0.25rem 0;
+  font-size: 0.8rem;
+  color: var(--text-muted, #aaa);
+}
+
+.set-picker-modal input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-card, #1a1a2e);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  color: var(--text-primary, #e0e0e0);
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.set-picker-modal input:focus {
+  outline: none;
+  border-color: var(--accent, #4a9eff);
+}
+
+.set-picker-modal-error {
+  margin-top: 0.75rem;
+  color: #ff6b6b;
+  font-size: 0.85rem;
+  min-height: 1.1em;
+}
+
+.set-picker-modal-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.set-picker-modal-actions .btn,
+.set-picker-modal-actions .btn-primary {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--bg-card, #1a1a2e);
+  color: var(--text-primary, #e0e0e0);
+  transition: all 0.15s;
+}
+
+.set-picker-modal-actions .btn:hover {
+  border-color: var(--accent, #4a9eff);
+}
+
+.set-picker-modal-actions .btn-primary {
+  background: var(--accent, #4a9eff);
+  color: #0a0a1a;
+  border-color: var(--accent, #4a9eff);
+  font-weight: 600;
+}
+
+.set-picker-modal-actions .btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+.set-picker-modal-actions .btn-primary:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* --------------------------------------------------------------------------
    Main Content Area
    -------------------------------------------------------------------------- */
 .main-content {

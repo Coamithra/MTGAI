@@ -25,8 +25,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (state) {
     if (state.active_set) {
       MtgaiState.setSetCode(state.active_set);
-      const codeEl = document.getElementById('set-code');
-      if (codeEl && !codeEl.value) codeEl.value = state.active_set;
+      const display = document.getElementById('active-set-display');
+      if (display) display.textContent = state.active_set;
     }
     if (state.theme) {
       const nameEl = document.getElementById('set-name');
@@ -67,11 +67,6 @@ function persistConfigureUi() {
     if (selected) stages[stage.stage_id] = selected.value;
   });
   MtgaiState.set('configure.stages', stages);
-
-  const setCodeEl = document.getElementById('set-code');
-  if (setCodeEl && setCodeEl.value) {
-    MtgaiState.setSetCode(setCodeEl.value);
-  }
 }
 
 function wireConfigurePersistence() {
@@ -176,7 +171,7 @@ function applyPreset(preset) {
 
 async function startPipeline() {
   const setName = document.getElementById('set-name').value.trim();
-  const setCode = document.getElementById('set-code').value.trim().toUpperCase();
+  const setCode = (MtgaiState.setCode() || '').toUpperCase();
   const setSize = parseInt(document.getElementById('set-size').value, 10);
 
   // Validation
@@ -185,9 +180,8 @@ async function startPipeline() {
     document.getElementById('set-name').focus();
     return;
   }
-  if (!setCode || setCode.length < 2 || setCode.length > 3) {
-    alert('Please enter a 2-3 letter set code.');
-    document.getElementById('set-code').focus();
+  if (!setCode || !/^[A-Z0-9]{2,5}$/.test(setCode)) {
+    alert('No active set selected. Use the top-bar picker to choose or create one.');
     return;
   }
   if (!setSize || setSize < 20 || setSize > 400) {

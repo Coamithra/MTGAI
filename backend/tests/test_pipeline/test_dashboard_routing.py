@@ -25,7 +25,9 @@ def test_pipeline_renders_configure_when_no_state(client):
         resp = client.get("/pipeline")
     assert resp.status_code == 200
     body = resp.text
-    assert 'id="set-code"' in body
+    # The dropdown picker replaces the per-form set-code input now;
+    # the configure form keeps a read-only display element instead.
+    assert 'id="active-set-display"' in body
     assert "Configure Pipeline" in body
     # The dashboard's pipeline-app shell shouldn't appear when we're
     # rendering the configure form instead.
@@ -62,6 +64,8 @@ def test_pipeline_configure_renders_form_even_with_active_state(client):
         resp = client.get("/pipeline/configure")
     assert resp.status_code == 200
     body = resp.text
-    assert 'id="set-code"' in body
+    # The dropdown picker replaces the per-form set-code input now;
+    # the configure form keeps a read-only display element instead.
+    assert 'id="active-set-display"' in body
     assert "Configure Pipeline" in body
     assert 'id="pipeline-app"' not in body

@@ -19,6 +19,7 @@ def _reset(tmp_path, monkeypatch):
     repo doesn't bleed into assertions.
     """
     sets_root = tmp_path / "sets"
+    settings_dir = tmp_path / "settings"
     sets_root.mkdir(parents=True)
     monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
     monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
@@ -27,6 +28,17 @@ def _reset(tmp_path, monkeypatch):
     from mtgai.pipeline import engine
 
     monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
+
+    # active_set captures OUTPUT_ROOT/SETS_ROOT at import time; redirect
+    # those too so the persisted-set step in the resolver chain is
+    # isolated per-test rather than reading the real on-disk
+    # last_set.toml.
+    from mtgai.runtime import active_set
+
+    monkeypatch.setattr(active_set, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
+    monkeypatch.setattr(active_set, "_SETTINGS_DIR", settings_dir)
+    monkeypatch.setattr(active_set, "_LAST_SET_PATH", settings_dir / "last_set.toml")
 
     ai_lock.reset_for_tests()
     extraction_run.reset()
@@ -127,6 +139,41 @@ def test_compute_loads_theme_when_present():
 def test_compute_returns_none_theme_for_unknown_set():
     payload = runtime_state.compute_runtime_state("NONE")
     assert payload["theme"] is None
+
+
+def test_persisted_set_wins_over_mtime_fallback(monkeypatch):
+    """If last_set.toml points at an existing set, that wins over the
+    legacy "most recently touched theme.json/pipeline-state.json"
+    heuristic."""
+    monkeypatch.delenv("MTGAI_REVIEW_SET", raising=False)
+    sets_root = runtime_state.SETS_ROOT
+    _write_theme(sets_root / "OLD", {"code": "OLD"})
+    _write_theme(sets_root / "PIN", {"code": "PIN", "name": "Pinned"})
+
+    from mtgai.runtime import active_set as active_set_mod
+
+    active_set_mod.write_active_set("PIN")
+
+    payload = runtime_state.compute_runtime_state()
+    assert payload["active_set"] == "PIN"
+    assert payload["theme"]["name"] == "Pinned"
+
+
+def test_persisted_set_skipped_when_dir_missing(monkeypatch):
+    """A stale persisted code (set deleted on disk) falls through to
+    the mtime fallback rather than silently keeping the dead pointer."""
+    monkeypatch.delenv("MTGAI_REVIEW_SET", raising=False)
+    sets_root = runtime_state.SETS_ROOT
+    _write_theme(sets_root / "ALIVE", {"code": "ALIVE"})
+
+    # Hand-roll the toml since write_active_set checks the dir exists.
+    from mtgai.runtime import active_set as active_set_mod
+
+    active_set_mod._LAST_SET_PATH.parent.mkdir(parents=True, exist_ok=True)
+    active_set_mod._LAST_SET_PATH.write_text('[runtime]\nactive_set = "GHOST"\n', encoding="utf-8")
+
+    payload = runtime_state.compute_runtime_state()
+    assert payload["active_set"] == "ALIVE"
 
 
 def test_compute_swallows_corrupt_theme_json(tmp_path):

@@ -147,13 +147,88 @@ async def ai_cancel() -> JSONResponse:
 async def runtime_state(set_code: str | None = None) -> JSONResponse:
     """Aggregate runtime snapshot used by every page on mount.
 
-    Returns active set code, AI-lock payload, in-flight runs (theme
-    extraction etc.), pipeline summary if one exists, and the saved
-    theme.json for the active set. Pages hydrate from this so tab
-    switches and reloads pick up server-side state without losing
-    track of in-flight AI work.
+    Returns active set code, the list of available sets, AI-lock
+    payload, in-flight runs (theme extraction etc.), pipeline summary
+    if one exists, and the saved theme.json for the active set. Pages
+    hydrate from this so tab switches and reloads pick up server-side
+    state without losing track of in-flight AI work.
     """
     return JSONResponse(compute_runtime_state(set_code))
+
+
+@router.post("/api/runtime/active-set")
+async def set_active_set(request: Request) -> JSONResponse:
+    """Persist the top-bar set picker's selection.
+
+    Body: ``{"code": "<CODE>"}``. The code must be a known set
+    directory under ``output/sets/`` — switching to a non-existent set
+    is rejected with 404 so the UI can surface "create it first" via
+    the new-set modal. Returns the refreshed runtime-state payload so
+    the caller can re-render without a follow-up GET.
+    """
+    from mtgai.runtime.active_set import (
+        SETS_ROOT,
+        is_valid_set_code,
+        normalize_code,
+        write_active_set,
+    )
+
+    body = await request.json()
+    raw = body.get("code", "")
+    if not isinstance(raw, str) or not is_valid_set_code(raw):
+        return JSONResponse({"error": "Invalid set code"}, status_code=400)
+    code = normalize_code(raw)
+    if not (SETS_ROOT / code).is_dir():
+        return JSONResponse({"error": f"Set {code} does not exist"}, status_code=404)
+    try:
+        write_active_set(code)
+    except OSError as e:
+        logger.error("Failed to persist active set: %s", e)
+        return JSONResponse({"error": "Failed to persist active set"}, status_code=500)
+    return JSONResponse(compute_runtime_state(code))
+
+
+@router.post("/api/runtime/sets")
+async def create_set_endpoint(request: Request) -> JSONResponse:
+    """Scaffold a brand-new set and activate it.
+
+    Body: ``{"code": "<CODE>", "name": "<optional display name>"}``.
+    Creates ``output/sets/<CODE>/`` (and a stub ``theme.json`` if a
+    name is provided so the picker shows "CODE — Name" right away),
+    then persists it as the active set. 409 if the directory already
+    exists — callers should switch to it via ``POST
+    /api/runtime/active-set`` instead.
+    """
+    from mtgai.runtime.active_set import (
+        create_set,
+        is_valid_set_code,
+        normalize_code,
+        write_active_set,
+    )
+
+    body = await request.json()
+    raw = body.get("code", "")
+    if not isinstance(raw, str) or not is_valid_set_code(raw):
+        return JSONResponse({"error": "Invalid set code"}, status_code=400)
+    name = body.get("name")
+    if name is not None and not isinstance(name, str):
+        return JSONResponse({"error": "Invalid name"}, status_code=400)
+    code = normalize_code(raw)
+    try:
+        create_set(code, name=name)
+    except FileExistsError:
+        return JSONResponse({"error": f"Set {code} already exists"}, status_code=409)
+    except OSError as e:
+        logger.error("Failed to scaffold set %s: %s", code, e)
+        return JSONResponse({"error": "Failed to create set"}, status_code=500)
+    try:
+        write_active_set(code)
+    except OSError as e:
+        logger.error("Failed to persist active set after create: %s", e)
+        # The directory exists but persistence failed; the picker will
+        # retry via /active-set on next page load. Return 200 with
+        # whatever the resolver picks so the UI doesn't hang.
+    return JSONResponse(compute_runtime_state(code))
 
 
 # ---------------------------------------------------------------------------
@@ -163,9 +238,16 @@ async def runtime_state(set_code: str | None = None) -> JSONResponse:
 
 @api_router.post("/theme/save")
 async def save_theme(request: Request):
-    """Save theme.json for a set."""
+    """Save theme.json for a set, and promote it to the active set.
+
+    Saving a theme is the user's "I'm working on this set now"
+    signal, so we also persist the code into ``last_set.toml`` —
+    otherwise the next page load would resolve a stale active set
+    via ``read_active_set`` and the picker would silently snap back.
+    """
     body = await request.json()
-    theme_path = _theme_path(body.get("code", ""))
+    code = (body.get("code") or "").strip().upper()
+    theme_path = _theme_path(code)
     if theme_path is None:
         return JSONResponse({"error": "Invalid set code"}, status_code=400)
 
@@ -175,6 +257,14 @@ async def save_theme(request: Request):
         encoding="utf-8",
     )
     logger.info("Theme saved to %s", theme_path)
+
+    from mtgai.runtime.active_set import write_active_set
+
+    try:
+        write_active_set(code)
+    except (ValueError, OSError) as e:
+        logger.warning("Theme saved but failed to persist active set: %s", e)
+
     return JSONResponse({"success": True, "path": str(theme_path)})
 
 

@@ -214,14 +214,17 @@
   <!-- Section 1: Set Identity -->
   <div class="config-section">
     <h2>Set Identity</h2>
+    <p style="color: #888; font-size: 0.85rem; margin-bottom: 1rem;">
+      Active set is set in the top-bar picker. Use "+ New set..." there to start a fresh one.
+    </p>
     <div class="form-row">
       <div class="form-group">
         <label for="set-name">Set Name</label>
         <input type="text" id="set-name" placeholder="e.g. Anomalous Descent">
       </div>
       <div class="form-group" style="max-width: 120px;">
-        <label for="set-code">Set Code</label>
-        <input type="text" id="set-code" placeholder="ASD" maxlength="3" style="text-transform: uppercase;">
+        <label>Set Code</label>
+        <div id="active-set-display" style="padding: 0.5rem 0.75rem; background: #1a1a2e; border: 1px solid #333; border-radius: 6px; color: #888; font-size: 0.9rem;">—</div>
       </div>
     </div>
     <div class="form-row">

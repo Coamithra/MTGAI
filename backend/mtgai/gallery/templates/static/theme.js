@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (state) {
     if (state.active_set) {
       MtgaiState.setSetCode(state.active_set);
+      _renderActiveSetDisplay(state.active_set);
     }
     // The server theme is the authoritative copy *unless* the user
     // has unsaved edits in this browser. saveTheme() clears the draft,
@@ -54,6 +55,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 });
+
+function _renderActiveSetDisplay(code) {
+  const display = document.getElementById('active-set-display');
+  if (display) display.textContent = code || '—';
+}
 
 function _shouldHydrateFromServer(serverTheme, draft) {
   // No draft -> server theme always wins.
@@ -74,7 +80,7 @@ function _shouldHydrateFromServer(serverTheme, draft) {
 
 function populateFromTheme(theme) {
   document.getElementById('set-name').value = theme.name || '';
-  document.getElementById('set-code').value = theme.code || '';
+  if (theme.code) _renderActiveSetDisplay(theme.code);
   document.getElementById('set-size').value = theme.set_size || 60;
   document.getElementById('mechanic-count').value = theme.mechanic_count || 3;
   document.getElementById('setting').value = theme.setting || '';
@@ -193,7 +199,7 @@ function _normalizeProvenanceItem(item) {
 
 function collectThemeData() {
   const name = document.getElementById('set-name').value.trim();
-  const code = document.getElementById('set-code').value.trim().toUpperCase();
+  const code = (MtgaiState.setCode() || '').toUpperCase();
   const setSize = parseInt(document.getElementById('set-size').value, 10);
   const mechanicCount = parseInt(document.getElementById('mechanic-count').value, 10);
   const setting = document.getElementById('setting').value.trim();
@@ -241,9 +247,8 @@ async function saveTheme() {
     document.getElementById('set-name').focus();
     return;
   }
-  if (!data.code || data.code.length < 2 || data.code.length > 3) {
-    showToast('Please enter a 2-3 letter set code.', 'error');
-    document.getElementById('set-code').focus();
+  if (!data.code || !/^[A-Z0-9]{2,5}$/.test(data.code)) {
+    showToast('No active set selected. Use the top-bar picker to choose or create one.', 'error');
     return;
   }
   if (!data.setting) {

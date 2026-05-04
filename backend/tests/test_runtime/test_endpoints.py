@@ -19,14 +19,21 @@ from mtgai.runtime import ai_lock, extraction_run
 @pytest.fixture(autouse=True)
 def _reset(tmp_path, monkeypatch):
     sets_root = tmp_path / "sets"
+    settings_dir = tmp_path / "settings"
     sets_root.mkdir(parents=True)
 
     from mtgai.pipeline import engine
-    from mtgai.runtime import runtime_state
+    from mtgai.runtime import active_set, runtime_state
 
     monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
     monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
+    # active_set captures these at import time, so each module-level
+    # constant must be redirected separately.
+    monkeypatch.setattr(active_set, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
+    monkeypatch.setattr(active_set, "_SETTINGS_DIR", settings_dir)
+    monkeypatch.setattr(active_set, "_LAST_SET_PATH", settings_dir / "last_set.toml")
 
     ai_lock.reset_for_tests()
     extraction_run.reset()
@@ -69,6 +76,105 @@ def test_runtime_state_with_explicit_set(client, monkeypatch):
     data = resp.json()
     assert data["active_set"] == "ABC"
     assert data["theme"]["code"] == "ABC"
+
+
+def test_runtime_state_includes_available_sets(client):
+    """available_sets enumerates every directory under output/sets/."""
+    from mtgai.runtime import runtime_state
+
+    sets_root = runtime_state.SETS_ROOT
+    (sets_root / "ASD").mkdir()
+    (sets_root / "ASD" / "theme.json").write_text(
+        json.dumps({"code": "ASD", "name": "Anomalous Descent"}),
+        encoding="utf-8",
+    )
+    (sets_root / "DS1").mkdir()
+
+    resp = client.get("/api/runtime/state")
+    assert resp.status_code == 200
+    data = resp.json()
+    by_code = {s["code"]: s["name"] for s in data["available_sets"]}
+    assert by_code == {"ASD": "Anomalous Descent", "DS1": None}
+
+
+def test_active_set_post_switches_set(client):
+    """A POST persists the new code; a follow-up GET sees it."""
+    from mtgai.runtime import runtime_state
+
+    sets_root = runtime_state.SETS_ROOT
+    (sets_root / "AAA").mkdir()
+    (sets_root / "BBB").mkdir()
+
+    # First the resolver picks one of them deterministically (alpha
+    # via the empty resolver chain isn't guaranteed; just confirm the
+    # POST changes it).
+    resp = client.post("/api/runtime/active-set", json={"code": "BBB"})
+    assert resp.status_code == 200
+    assert resp.json()["active_set"] == "BBB"
+
+    follow = client.get("/api/runtime/state")
+    assert follow.json()["active_set"] == "BBB"
+
+
+def test_active_set_post_normalizes_lowercase(client):
+    from mtgai.runtime import runtime_state
+
+    (runtime_state.SETS_ROOT / "AAA").mkdir()
+    resp = client.post("/api/runtime/active-set", json={"code": "aaa"})
+    assert resp.status_code == 200
+    assert resp.json()["active_set"] == "AAA"
+
+
+def test_active_set_post_rejects_invalid_code(client):
+    resp = client.post("/api/runtime/active-set", json={"code": "../escape"})
+    assert resp.status_code == 400
+
+
+def test_active_set_post_404_when_dir_missing(client):
+    """Switching to a non-existent set is rejected so the UI can fall
+    back to the new-set modal instead of silently scaffolding."""
+    resp = client.post("/api/runtime/active-set", json={"code": "GHOST"})
+    assert resp.status_code == 404
+
+
+def test_create_set_post_scaffolds_and_activates(client):
+    from mtgai.runtime import runtime_state
+
+    resp = client.post(
+        "/api/runtime/sets",
+        json={"code": "NEW", "name": "Brand New"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["active_set"] == "NEW"
+    assert (runtime_state.SETS_ROOT / "NEW").is_dir()
+    theme_path = runtime_state.SETS_ROOT / "NEW" / "theme.json"
+    assert theme_path.exists()
+    data = json.loads(theme_path.read_text(encoding="utf-8"))
+    assert data == {"code": "NEW", "name": "Brand New"}
+
+
+def test_create_set_post_works_without_name(client):
+    """No name -> dir but no theme.json stub."""
+    from mtgai.runtime import runtime_state
+
+    resp = client.post("/api/runtime/sets", json={"code": "NEW"})
+    assert resp.status_code == 200
+    assert (runtime_state.SETS_ROOT / "NEW").is_dir()
+    assert not (runtime_state.SETS_ROOT / "NEW" / "theme.json").exists()
+
+
+def test_create_set_post_409_when_exists(client):
+    from mtgai.runtime import runtime_state
+
+    (runtime_state.SETS_ROOT / "ASD").mkdir()
+    resp = client.post("/api/runtime/sets", json={"code": "ASD"})
+    assert resp.status_code == 409
+
+
+def test_create_set_post_400_on_invalid_code(client):
+    resp = client.post("/api/runtime/sets", json={"code": "x"})
+    assert resp.status_code == 400
 
 
 def test_runtime_state_reflects_active_extraction(client):
