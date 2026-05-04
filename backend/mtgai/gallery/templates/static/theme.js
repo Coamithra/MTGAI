@@ -213,23 +213,28 @@ async function saveTheme() {
 }
 
 // ---------------------------------------------------------------------------
-// Load existing theme — native file picker reads JSON content directly,
-// sidestepping the browser's parent-path restriction (the file's `code` field
-// is the source of truth, not the parent folder).
+// Load existing theme — native picker reads the JSON content client-side, so
+// no server lookup or set-code typing is needed.
 // ---------------------------------------------------------------------------
+
+const _LOAD_FILE_MAX_BYTES = 5 * 1024 * 1024;
 
 function loadExistingFromFile(event) {
   const input = event.target;
   const file = input.files && input.files[0];
-  // Reset so the same file can be picked twice in a row.
   input.value = '';
   if (!file) return;
+
+  if (file.size > _LOAD_FILE_MAX_BYTES) {
+    showToast('File too large (>5 MB) to be a theme.json', 'error');
+    return;
+  }
 
   const reader = new FileReader();
   reader.onload = () => {
     let theme;
     try {
-      theme = JSON.parse(reader.result);
+      theme = JSON.parse(reader.result.replace(/^﻿/, ''));
     } catch (err) {
       showToast('Could not parse JSON: ' + err.message, 'error');
       return;
@@ -238,12 +243,12 @@ function loadExistingFromFile(event) {
       showToast('File does not contain a theme object', 'error');
       return;
     }
-    if (!theme.code) {
-      showToast('File is missing a "code" field — not a valid theme.json', 'error');
+    if (!theme.code && !theme.name) {
+      showToast('File has no "code" or "name" field — not a theme.json', 'error');
       return;
     }
     populateFromTheme(theme);
-    showToast(`Loaded theme for ${theme.code}`, 'success');
+    showToast(`Loaded ${theme.name || theme.code}`, 'success');
   };
   reader.onerror = () => {
     showToast('Could not read file', 'error');
