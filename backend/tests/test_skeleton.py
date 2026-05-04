@@ -731,3 +731,17 @@ class TestSetConfigProvenanceCoercion:
         # rather than coerce to "" which would be a silent garbage row.
         cfg = _make_config(constraints=[{"source": "ai"}, "Real constraint"])
         assert cfg.constraints == ["Real constraint"]
+
+    def test_blank_items_dropped(self):
+        # Whitespace-only text (from either shape) is garbage downstream;
+        # the wizard already filters at save, the validator hardens it.
+        cfg = _make_config(
+            constraints=[
+                "",
+                "   ",
+                {"text": "", "source": "ai"},
+                {"text": "  ", "source": "human"},
+                "Kept",
+            ]
+        )
+        assert cfg.constraints == ["Kept"]

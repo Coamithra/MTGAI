@@ -88,16 +88,17 @@ class SetConfig(BaseModel):
 
     @field_validator("constraints", "card_requests", "special_constraints", mode="before")
     @classmethod
-    def _normalize_provenance_items(cls, value: object) -> list[str]:
+    def _normalize_provenance_items(cls, value: object) -> object:
         if not isinstance(value, list):
-            return value  # type: ignore[return-value]  # let Pydantic raise its usual error
+            return value  # let Pydantic raise its usual list-required error
         out: list[str] = []
         for item in value:
             if isinstance(item, str):
-                out.append(item)
+                if item.strip():
+                    out.append(item)
             elif isinstance(item, dict) and "text" in item:
                 text = item["text"]
-                if isinstance(text, str):
+                if isinstance(text, str) and text.strip():
                     out.append(text)
         return out
 
