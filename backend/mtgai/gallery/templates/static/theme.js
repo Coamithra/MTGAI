@@ -13,17 +13,60 @@ let _currentAnalysis = null;
 let _uploadData = null;
 
 // ---------------------------------------------------------------------------
-// Init
+// Init — hydrate from server state, then layer in any localStorage draft
 // ---------------------------------------------------------------------------
 
-document.addEventListener('DOMContentLoaded', () => {
-  if (EXISTING_THEME) {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Seed UI from a draft if present (covers tab-switch + reload between
+  // edit and Save). The runtime-state hydration below overwrites whatever
+  // the server has on disk, but draft-restore is the right move first
+  // because the server hydration is async — we don't want a flash of
+  // empty form.
+  const draft = MtgaiState.get('theme_draft', null);
+  if (draft) {
+    populateFromTheme(draft);
+  } else if (EXISTING_THEME) {
     populateFromTheme(EXISTING_THEME);
   } else {
     addConstraint();
     addCardRequest();
   }
+
+  wireDraftPersistence();
+
+  const state = await MtgaiState.fetchRuntimeState();
+  if (state) {
+    if (state.active_set) {
+      MtgaiState.setSetCode(state.active_set);
+    }
+    // The server theme is the authoritative copy *unless* the user
+    // has unsaved edits in this browser. saveTheme() clears the draft,
+    // so any draft we still see is by definition newer than what's on
+    // disk. Only fall back to the server theme when there's no draft
+    // for the same set code.
+    if (state.theme && _shouldHydrateFromServer(state.theme, draft)) {
+      populateFromTheme(state.theme);
+    }
+    if (state.active_runs && state.active_runs.theme_extraction) {
+      // An extraction is running — reattach to its event stream so the
+      // UI shows live progress as if the user never left.
+      reattachExtraction(state.active_runs.theme_extraction.upload_id);
+    }
+  }
 });
+
+function _shouldHydrateFromServer(serverTheme, draft) {
+  // No draft -> server theme always wins.
+  if (!draft) return true;
+  // Different sets -> server theme wins (the draft is for a different
+  // set, switching context to the server's active set).
+  if (serverTheme.code && draft.code && serverTheme.code !== draft.code) {
+    return true;
+  }
+  // Same set code -> the draft represents unsaved local edits, since
+  // saveTheme() clears the draft on success. Keep it.
+  return false;
+}
 
 // ---------------------------------------------------------------------------
 // Populate from existing theme
@@ -200,6 +243,8 @@ async function saveTheme() {
       const status = document.getElementById('theme-status');
       status.textContent = 'Saved: ' + data.name;
       status.className = 'theme-status loaded';
+      MtgaiState.setSetCode(data.code);
+      clearDraft();
     } else {
       showToast('Error: ' + (result.error || 'Unknown'), 'error');
     }
@@ -814,4 +859,118 @@ function escapeHtml(text) {
 function escapeAttr(text) {
   if (!text) return '';
   return text.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ---------------------------------------------------------------------------
+// Draft persistence — every edit writes to localStorage so tab-switch and
+// reload don't lose work. Save-Theme clears the draft (theme.json is now
+// the canonical copy).
+// ---------------------------------------------------------------------------
+
+let _draftPersistTimer = null;
+
+function persistDraft() {
+  const data = collectThemeData();
+  data._draft_saved_at = Date.now();
+  if (data.code) {
+    MtgaiState.setSetCode(data.code);
+  }
+  MtgaiState.set('theme_draft', data);
+}
+
+function schedulePersistDraft() {
+  if (_draftPersistTimer) clearTimeout(_draftPersistTimer);
+  _draftPersistTimer = setTimeout(persistDraft, 250);
+}
+
+function clearDraft() {
+  MtgaiState.remove('theme_draft');
+}
+
+function wireDraftPersistence() {
+  // Capture every input/textarea change inside the page. Lists are
+  // re-rendered dynamically by addConstraint / addCardRequest, so we
+  // delegate from document instead of binding to the current nodes.
+  document.addEventListener('input', (e) => {
+    if (!e.target || !e.target.closest('.theme-page')) return;
+    schedulePersistDraft();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Reattach an in-flight extraction
+// ---------------------------------------------------------------------------
+
+async function reattachExtraction(uploadId) {
+  if (!uploadId) return;
+  document.getElementById('extract-progress').classList.add('visible');
+
+  const progressBar = document.getElementById('progress-bar');
+  const progressStatus = document.getElementById('progress-status');
+  const cancelBtn = document.getElementById('cancel-extract-btn');
+  const textarea = document.getElementById('setting');
+
+  progressBar.style.width = '5%';
+  progressStatus.textContent = 'Reattaching to running extraction...';
+  if (cancelBtn) {
+    cancelBtn.disabled = false;
+    cancelBtn.textContent = 'Cancel Extraction';
+  }
+
+  // Reset the textarea so replayed theme_chunk events rebuild it cleanly.
+  textarea.value = '';
+
+  const state = { gotDone: false, gotError: false, gotCancelled: false };
+
+  try {
+    const params = new URLSearchParams({ upload_id: uploadId });
+    const response = await fetch(`/api/pipeline/theme/extract-stream?${params}`);
+    if (!response.ok) {
+      progressStatus.textContent = 'Reattach failed: HTTP ' + response.status;
+      return;
+    }
+    await consumeExtractionStream(response, textarea, progressBar, progressStatus, state);
+  } catch (err) {
+    progressStatus.textContent = 'Reattach error: ' + err.message;
+    console.error('[theme.js] Reattach failed:', err);
+  } finally {
+    if (cancelBtn) cancelBtn.disabled = true;
+    if (state.gotDone) {
+      document.getElementById('extract-progress').classList.remove('visible');
+    }
+  }
+}
+
+async function consumeExtractionStream(response, textarea, progressBar, progressStatus, state) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop();
+
+    for (const part of parts) {
+      if (!part.trim()) continue;
+      const lines = part.split('\n');
+      let eventType = null;
+      let eventData = null;
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith('data: ')) {
+          try {
+            eventData = JSON.parse(line.slice(6));
+          } catch (e) { /* skip malformed */ }
+        }
+      }
+      if (eventType && eventData) {
+        handleExtractionEvent(eventType, eventData, textarea, progressBar, progressStatus, state);
+      }
+    }
+  }
 }

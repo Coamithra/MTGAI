@@ -30,6 +30,7 @@
 {% block scripts %}
 <script>
   const ALL_CARDS = {{ cards_json | safe }};
+  if (window.MtgaiState) window.MtgaiState.setSetCode("{{ set_code }}");
 </script>
 <script src="/static/booster.js"></script>
 {% endblock %}
