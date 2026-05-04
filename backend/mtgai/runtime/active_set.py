@@ -19,6 +19,7 @@ here can't produce paths the theme endpoints would reject.
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import os
 import re
@@ -37,12 +38,17 @@ _LAST_SET_PATH = _SETTINGS_DIR / "last_set.toml"
 
 
 def is_valid_set_code(code: str | None) -> bool:
+    """Return True if ``code`` matches the [A-Z0-9]{2,5} shape after
+    trimming + uppercasing. Used as the gate on every endpoint so a
+    bogus code can't slip through to disk-touching helpers."""
     if not code:
         return False
     return bool(SET_CODE_RE.fullmatch(code.strip().upper()))
 
 
 def normalize_code(code: str) -> str:
+    """Trim and uppercase a set code. Pair with :func:`is_valid_set_code`
+    before using the result on disk; this helper does no validation."""
     return code.strip().upper()
 
 
@@ -119,8 +125,6 @@ def _read_theme_name(theme_path: Path) -> str | None:
     if not theme_path.exists():
         return None
     try:
-        import json
-
         data = json.loads(theme_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
@@ -141,12 +145,11 @@ def create_set(code: str, name: str | None = None) -> None:
         raise ValueError(f"Invalid set code: {code!r}")
     code = normalize_code(code)
     set_dir = SETS_ROOT / code
-    if set_dir.exists():
-        raise FileExistsError(f"Set already exists: {code}")
+    # mkdir(parents=True) without exist_ok raises FileExistsError natively,
+    # so we don't add a redundant pre-check (which would also admit a
+    # TOCTOU window).
     set_dir.mkdir(parents=True)
     if name and name.strip():
-        import json
-
         theme_path = set_dir / "theme.json"
         theme_path.write_text(
             json.dumps({"code": code, "name": name.strip()}, indent=2, ensure_ascii=False),

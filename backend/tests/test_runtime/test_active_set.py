@@ -103,28 +103,26 @@ def test_read_returns_none_when_payload_invalid():
     assert active_set.read_active_set() is None
 
 
-def test_write_is_atomic(monkeypatch, tmp_path):
+def test_write_is_atomic(monkeypatch):
     """A write that fails partway must not corrupt the existing file."""
     _make_set("OLD")
     active_set.write_active_set("OLD")
 
     _make_set("NEW")
 
-    # Force os.replace to fail; the temp file should be cleaned up but
-    # the existing last_set.toml must still point at OLD.
-    import os as _os
-
-    real_replace = _os.replace
-
+    # Patch the bound name on the active_set module rather than the
+    # global os.replace — keeps the failure scope limited to the
+    # write_active_set code path so unrelated stdlib calls during the
+    # test (logging rotation, tempfile cleanup) aren't disrupted.
     def boom(*args, **kwargs):
         raise OSError("simulated")
 
-    monkeypatch.setattr(_os, "replace", boom)
+    monkeypatch.setattr(active_set.os, "replace", boom)
     with pytest.raises(OSError):
         active_set.write_active_set("NEW")
 
-    # Restore + verify previous content survived
-    monkeypatch.setattr(_os, "replace", real_replace)
+    # read_active_set doesn't go through os.replace, so the patch
+    # doesn't interfere with the assertion below.
     assert active_set.read_active_set() == "OLD"
 
 

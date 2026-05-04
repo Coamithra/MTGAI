@@ -78,9 +78,9 @@ def _get_set_code() -> str:
     set without a separate code path. Falls through to the env var and
     "ASD" defaults inside the resolver.
     """
-    from mtgai.runtime.runtime_state import _resolve_active_set_code
+    from mtgai.runtime.runtime_state import resolve_active_set_code
 
-    return _resolve_active_set_code(None)
+    return resolve_active_set_code()
 
 
 # ---------------------------------------------------------------------------

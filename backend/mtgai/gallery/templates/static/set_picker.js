@@ -29,11 +29,16 @@
     const active = (state && state.active_set) || '';
     const activeKnown = sets.some((s) => s.code === active);
 
+    // Only mark a real option as selected when the active code is one
+    // we actually know about — otherwise the stale placeholder below
+    // is the canonical "current" selection. Two `selected` attributes
+    // on a <select> let the browser pick the last match, which would
+    // shadow our placeholder.
     const options = sets
-      .map(
-        (s) =>
-          `<option value="${escapeHtml(s.code)}"${s.code === active ? ' selected' : ''}>${escapeHtml(optionLabel(s))}</option>`,
-      )
+      .map((s) => {
+        const sel = activeKnown && s.code === active ? ' selected' : '';
+        return `<option value="${escapeHtml(s.code)}"${sel}>${escapeHtml(optionLabel(s))}</option>`;
+      })
       .join('');
 
     // When the persisted active set is gone (deleted on disk) but
@@ -82,8 +87,12 @@
     const result = await window.MtgaiState.activateSet(value);
     if (result && result.active_set) {
       window.location.reload();
+      return;
+    }
+    select.disabled = false;
+    if (result && result.error) {
+      alert('Failed to switch set: ' + result.error);
     } else {
-      select.disabled = false;
       alert('Failed to switch set. Check the server log.');
     }
   }

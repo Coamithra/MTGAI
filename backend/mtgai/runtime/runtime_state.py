@@ -137,6 +137,15 @@ def _active_runs_payload() -> dict[str, dict[str, Any]]:
     return runs
 
 
+def resolve_active_set_code(override: str | None = None) -> str:
+    """Public entry-point for the active-set resolution chain.
+
+    Thin wrapper over :func:`_resolve_active_set_code` so callers in
+    other modules don't have to reach for the underscored name.
+    """
+    return _resolve_active_set_code(override)
+
+
 def compute_runtime_state(set_code_override: str | None = None) -> dict[str, Any]:
     """Build the ``/api/runtime/state`` payload."""
     from mtgai.runtime.active_set import list_sets

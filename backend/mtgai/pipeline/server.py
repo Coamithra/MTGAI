@@ -29,7 +29,7 @@ from mtgai.pipeline.models import (
     StageStatus,
     create_pipeline_state,
 )
-from mtgai.runtime import ai_lock, extraction_run
+from mtgai.runtime import active_set, ai_lock, extraction_run
 from mtgai.runtime.runtime_state import OUTPUT_ROOT, compute_runtime_state
 
 logger = logging.getLogger(__name__)
@@ -166,22 +166,17 @@ async def set_active_set(request: Request) -> JSONResponse:
     the new-set modal. Returns the refreshed runtime-state payload so
     the caller can re-render without a follow-up GET.
     """
-    from mtgai.runtime.active_set import (
-        SETS_ROOT,
-        is_valid_set_code,
-        normalize_code,
-        write_active_set,
-    )
-
     body = await request.json()
     raw = body.get("code", "")
-    if not isinstance(raw, str) or not is_valid_set_code(raw):
+    if not isinstance(raw, str) or not active_set.is_valid_set_code(raw):
         return JSONResponse({"error": "Invalid set code"}, status_code=400)
-    code = normalize_code(raw)
-    if not (SETS_ROOT / code).is_dir():
+    code = active_set.normalize_code(raw)
+    # Read SETS_ROOT off the module each call so tests can monkeypatch
+    # it without us having captured a stale reference at import time.
+    if not (active_set.SETS_ROOT / code).is_dir():
         return JSONResponse({"error": f"Set {code} does not exist"}, status_code=404)
     try:
-        write_active_set(code)
+        active_set.write_active_set(code)
     except OSError as e:
         logger.error("Failed to persist active set: %s", e)
         return JSONResponse({"error": "Failed to persist active set"}, status_code=500)
@@ -199,35 +194,33 @@ async def create_set_endpoint(request: Request) -> JSONResponse:
     exists — callers should switch to it via ``POST
     /api/runtime/active-set`` instead.
     """
-    from mtgai.runtime.active_set import (
-        create_set,
-        is_valid_set_code,
-        normalize_code,
-        write_active_set,
-    )
-
     body = await request.json()
     raw = body.get("code", "")
-    if not isinstance(raw, str) or not is_valid_set_code(raw):
+    if not isinstance(raw, str) or not active_set.is_valid_set_code(raw):
         return JSONResponse({"error": "Invalid set code"}, status_code=400)
     name = body.get("name")
     if name is not None and not isinstance(name, str):
         return JSONResponse({"error": "Invalid name"}, status_code=400)
-    code = normalize_code(raw)
+    code = active_set.normalize_code(raw)
     try:
-        create_set(code, name=name)
+        active_set.create_set(code, name=name)
     except FileExistsError:
         return JSONResponse({"error": f"Set {code} already exists"}, status_code=409)
     except OSError as e:
         logger.error("Failed to scaffold set %s: %s", code, e)
         return JSONResponse({"error": "Failed to create set"}, status_code=500)
     try:
-        write_active_set(code)
+        active_set.write_active_set(code)
     except OSError as e:
+        # The directory was created but the active-set pointer didn't
+        # land; surfacing 500 here lets the modal show the real error
+        # instead of pretending the switch worked and silently snapping
+        # back to the old set on next page load.
         logger.error("Failed to persist active set after create: %s", e)
-        # The directory exists but persistence failed; the picker will
-        # retry via /active-set on next page load. Return 200 with
-        # whatever the resolver picks so the UI doesn't hang.
+        return JSONResponse(
+            {"error": f"Set {code} created but active-set pointer failed to persist: {e}"},
+            status_code=500,
+        )
     return JSONResponse(compute_runtime_state(code))
 
 
@@ -258,11 +251,11 @@ async def save_theme(request: Request):
     )
     logger.info("Theme saved to %s", theme_path)
 
-    from mtgai.runtime.active_set import write_active_set
-
+    # _theme_path already validated the code, so write_active_set won't
+    # raise ValueError — only OSError is reachable here.
     try:
-        write_active_set(code)
-    except (ValueError, OSError) as e:
+        active_set.write_active_set(code)
+    except OSError as e:
         logger.warning("Theme saved but failed to persist active set: %s", e)
 
     return JSONResponse({"success": True, "path": str(theme_path)})

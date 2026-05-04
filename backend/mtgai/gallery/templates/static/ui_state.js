@@ -87,14 +87,16 @@
 
   /**
    * Persist `code` as the server-side active set. Returns the refreshed
-   * runtime-state payload on success, or null on error. Callers are
-   * expected to follow up with a full-page reload — the active set is
-   * baked into server-rendered templates (page titles, mounted
-   * /renders, /art static dirs) so partial in-place updates would
-   * leave the UI inconsistent.
+   * runtime-state payload on success, ``{error: <message>}`` on a 4xx
+   * (so the caller can surface server-side validation reasons —
+   * "set deleted" vs "invalid code"), or null on a network failure.
+   * Callers are expected to follow up with a full-page reload on
+   * success — the active set is baked into server-rendered templates
+   * (page titles, mounted /renders, /art static dirs) so partial
+   * in-place updates would leave the UI inconsistent.
    */
   async function activateSet(code) {
-    if (!code) return null;
+    if (!code) return { error: 'Set code is required' };
     try {
       const resp = await fetch('/api/runtime/active-set', {
         method: 'POST',
@@ -102,8 +104,9 @@
         body: JSON.stringify({ code: String(code).toUpperCase() }),
       });
       if (!resp.ok) {
-        console.warn('[ui_state] activateSet failed:', resp.status);
-        return null;
+        let body = null;
+        try { body = await resp.json(); } catch (e) { /* not JSON */ }
+        return { error: (body && body.error) || ('HTTP ' + resp.status) };
       }
       const payload = await resp.json();
       if (payload && payload.active_set) setSetCode(payload.active_set);
