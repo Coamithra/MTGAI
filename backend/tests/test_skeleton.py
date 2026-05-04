@@ -678,3 +678,56 @@ class TestSaveSkeleton:
         assert len(restored.slots) == len(original.slots)
         assert restored.config.set_size == original.config.set_size
         assert restored.balance_report.all_hard_passed == (original.balance_report.all_hard_passed)
+
+
+# ---------------------------------------------------------------------------
+# Provenance-tagged constraints / card_requests (theme.json round-trip)
+# ---------------------------------------------------------------------------
+
+
+class TestSetConfigProvenanceCoercion:
+    """SetConfig must accept both bare-string and {text, source} list items."""
+
+    def test_constraints_accept_strings(self):
+        cfg = _make_config(constraints=["At least 6 artifacts", "No mill"])
+        assert cfg.constraints == ["At least 6 artifacts", "No mill"]
+
+    def test_constraints_accept_provenance_objects(self):
+        cfg = _make_config(
+            constraints=[
+                {"text": "At least 6 artifacts", "source": "ai"},
+                {"text": "No mill", "source": "human"},
+            ]
+        )
+        assert cfg.constraints == ["At least 6 artifacts", "No mill"]
+
+    def test_card_requests_accept_provenance_objects(self):
+        cfg = _make_config(
+            card_requests=[
+                {"text": "Feretha's Throne: legendary artifact", "source": "ai"},
+            ]
+        )
+        assert cfg.card_requests == ["Feretha's Throne: legendary artifact"]
+
+    def test_mixed_strings_and_objects(self):
+        cfg = _make_config(
+            constraints=[
+                "Manual constraint",
+                {"text": "AI constraint", "source": "ai"},
+            ]
+        )
+        assert cfg.constraints == ["Manual constraint", "AI constraint"]
+
+    def test_special_constraints_legacy_field_also_normalizes(self):
+        cfg = _make_config(special_constraints=[{"text": "Legacy with provenance", "source": "ai"}])
+        assert cfg.special_constraints == ["Legacy with provenance"]
+
+    def test_unknown_object_keys_ignored(self):
+        cfg = _make_config(constraints=[{"text": "Has extras", "source": "ai", "extra": "ignored"}])
+        assert cfg.constraints == ["Has extras"]
+
+    def test_object_without_text_dropped(self):
+        # An item with no "text" key has nothing to feed downstream — drop it
+        # rather than coerce to "" which would be a silent garbage row.
+        cfg = _make_config(constraints=[{"source": "ai"}, "Real constraint"])
+        assert cfg.constraints == ["Real constraint"]

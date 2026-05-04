@@ -87,24 +87,31 @@ function populateFromTheme(theme) {
     document.getElementById('setting').value = parts.join('\n\n');
   }
 
-  // Constraints
+  // Constraints. Items may be plain strings (legacy / pre-provenance saves)
+  // or { text, source } objects (current shape). Bare strings default to human.
   const constraints = theme.constraints || theme.special_constraints || [];
   const constraintsList = document.getElementById('constraints-list');
   constraintsList.innerHTML = '';
   if (constraints.length === 0) {
     addConstraint();
   } else {
-    constraints.forEach(c => addConstraint(c));
+    constraints.forEach(c => {
+      const { text, source } = _normalizeProvenanceItem(c);
+      addConstraint(text, source === 'ai');
+    });
   }
 
-  // Card requests
+  // Card requests — same string|object handling.
   const requests = theme.card_requests || [];
   const requestsList = document.getElementById('card-requests-list');
   requestsList.innerHTML = '';
   if (requests.length === 0) {
     addCardRequest();
   } else {
-    requests.forEach(r => addCardRequest(r));
+    requests.forEach(r => {
+      const { text, source } = _normalizeProvenanceItem(r);
+      addCardRequest(text, source === 'ai');
+    });
   }
 
   // Show refresh buttons if there's setting text
@@ -169,6 +176,17 @@ function clearAiBadge(el) {
   }
 }
 
+// Coerce a constraint / card-request entry from disk into { text, source }.
+// Accepts the legacy string shape and the current { text, source } object.
+function _normalizeProvenanceItem(item) {
+  if (item && typeof item === 'object' && !Array.isArray(item)) {
+    const text = typeof item.text === 'string' ? item.text : '';
+    const source = item.source === 'ai' ? 'ai' : 'human';
+    return { text, source };
+  }
+  return { text: typeof item === 'string' ? item : '', source: 'human' };
+}
+
 // ---------------------------------------------------------------------------
 // Collect form data
 // ---------------------------------------------------------------------------
@@ -181,15 +199,23 @@ function collectThemeData() {
   const setting = document.getElementById('setting').value.trim();
 
   const constraints = [];
-  document.querySelectorAll('#constraints-list .list-item input').forEach(input => {
+  document.querySelectorAll('#constraints-list .list-item').forEach(item => {
+    const input = item.querySelector('input');
+    if (!input) return;
     const val = input.value.trim();
-    if (val) constraints.push(val);
+    if (!val) return;
+    const source = item.dataset.aiGenerated === 'true' ? 'ai' : 'human';
+    constraints.push({ text: val, source });
   });
 
   const cardRequests = [];
-  document.querySelectorAll('#card-requests-list .list-item textarea').forEach(ta => {
+  document.querySelectorAll('#card-requests-list .list-item').forEach(item => {
+    const ta = item.querySelector('textarea');
+    if (!ta) return;
     const val = ta.value.trim();
-    if (val) cardRequests.push(val);
+    if (!val) return;
+    const source = item.dataset.aiGenerated === 'true' ? 'ai' : 'human';
+    cardRequests.push({ text: val, source });
   });
 
   return {

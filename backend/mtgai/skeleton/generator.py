@@ -14,7 +14,7 @@ import json
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -65,6 +65,12 @@ class SetConfig(BaseModel):
 
     Accepts both the new theme.json format (setting, constraints, card_requests)
     and the legacy format (theme, flavor_description, special_constraints).
+
+    Constraints / card_requests / special_constraints accept either bare
+    strings or `{text, source}` provenance objects (the wizard persists the
+    object form to track AI vs human authorship). Both shapes normalize to
+    `list[str]` here — the source field is presentation-only and lives in
+    theme.json, not in the downstream skeleton/card-gen path.
     """
 
     name: str
@@ -79,6 +85,21 @@ class SetConfig(BaseModel):
     special_constraints: list[str] = Field(default_factory=list)
     set_size: int = 60  # dev-set default
     mechanic_count: int = 3
+
+    @field_validator("constraints", "card_requests", "special_constraints", mode="before")
+    @classmethod
+    def _normalize_provenance_items(cls, value: object) -> list[str]:
+        if not isinstance(value, list):
+            return value  # type: ignore[return-value]  # let Pydantic raise its usual error
+        out: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                out.append(item)
+            elif isinstance(item, dict) and "text" in item:
+                text = item["text"]
+                if isinstance(text, str):
+                    out.append(text)
+        return out
 
 
 class SkeletonSlot(BaseModel):
