@@ -86,10 +86,16 @@ Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain 
 - Every generation attempt is tracked (prompt, model, timestamp, success/failure)
 - Pipeline is resumable: interrupted operations resume from the last incomplete card
 
+## AI Mutex (`mtgai/runtime/ai_lock.py`)
+- App-wide mutex enforcing **one AI call at a time** across the whole process. All AI-touching endpoints (theme extraction, the per-section refresh endpoints, future mechanic / archetype / card-gen / balance / AI-review / art stages) acquire the same lock. A second guarded action that arrives mid-run gets a 409 with `{running, running_action, started_at, log_path}` so the UI can render an informative "busy" toast.
+- **API**: `try_acquire(name, log_path=None)` / `release()`, `hold(name, log_path=None)` context manager (yields True on success, False if busy), `is_running()`, `current_action()`, `request_cancel()`, `is_cancelled()`, `update_log_path(path)` for late-binding the per-run log dir, `busy_payload()` (JSON-shape used by the 409 body and `/api/ai/status`), `reset_for_tests()` (test-only).
+- **Adding a new guarded endpoint**: wrap the AI-touching body in `with ai_lock.hold("Action name") as acquired: if not acquired: return 409`. Long-running callers should `if ai_lock.is_cancelled(): raise` inside their inner loops.
+- **Status endpoints**: `GET /api/ai/status` returns the busy payload (running + action metadata). `POST /api/ai/cancel` signals cancel app-wide. The legacy `/api/pipeline/theme/status` and `/api/pipeline/theme/cancel` are kept as aliases — `theme_extractor.is_running` / `request_cancel` are now thin shims that delegate to `ai_lock`.
+
 ## Theme Extraction (`mtgai/pipeline/theme_extractor.py`)
 - Front door for the theme wizard at `/pipeline/theme`. Reads PDF/text upload, runs a multi-stage LLM extraction, then a JSON pass for constraints + card suggestions.
-- **Single extraction at a time**: reentrant `_run_lock` + `_cancel_event` enforce one run per process. `request_cancel()` aborts mid-stream from any thread; SSE handler also calls it on browser disconnect. UI exposes a "Cancel Extraction" button.
-- **Endpoints**: `POST /api/pipeline/theme/upload`, `/analyze`, `/cancel`. `GET /extract-stream` (SSE) returns 409 if a run is already active. `GET /status` reports `running` + active log path.
+- **Single extraction at a time**: enforced by the app-wide `mtgai.runtime.ai_lock` (see "AI Mutex" above). `request_cancel()` and `is_running()` are thin shims that delegate to `ai_lock`. SSE handler calls cancel on browser disconnect. UI exposes a "Cancel Extraction" button.
+- **Endpoints**: `POST /api/pipeline/theme/upload`, `/analyze`, `/cancel`. `GET /extract-stream` (SSE) returns 409 with the shared busy payload if any AI action is active. `GET /status` reports `running` + active log path. `POST /extract-section` returns 409 + busy payload on conflict.
 - **Two extraction paths** based on token count vs. context window:
   - **Single-pass** (fits in one call): one LLM call with the full document.
   - **Per-section multi-chunk** (large docs): 7 sections × N chunks. Each section is built incrementally - first chunk seeds it, each subsequent chunk passes back the accumulated section for extension.

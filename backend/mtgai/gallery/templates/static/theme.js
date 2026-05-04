@@ -401,7 +401,10 @@ async function runExtraction() {
     const response = await fetch(`/api/pipeline/theme/extract-stream?${params}`);
     if (!response.ok) {
       if (response.status === 409) {
-        throw new Error('Another extraction is already running');
+        const payload = await response.json().catch(() => null);
+        showBusyToast(payload);
+        progressStatus.textContent = 'Another AI action is running — try again when it finishes';
+        return;
       }
       throw new Error(`HTTP ${response.status} ${response.statusText}`);
     }
@@ -640,6 +643,10 @@ async function refreshConstraints() {
       body: JSON.stringify({ theme_text: settingText, kind: 'constraints' }),
     });
     const data = await resp.json().catch(() => ({}));
+    if (resp.status === 409) {
+      showBusyToast(data);
+      return;
+    }
     if (!resp.ok) {
       const msg = data.error || data.detail || `HTTP ${resp.status}`;
       showExtractionError('constraints-list', msg, '',
@@ -704,6 +711,10 @@ async function refreshCardRequests() {
       body: JSON.stringify({ theme_text: settingText, kind: 'card_suggestions' }),
     });
     const data = await resp.json().catch(() => ({}));
+    if (resp.status === 409) {
+      showBusyToast(data);
+      return;
+    }
     if (!resp.ok) {
       const msg = data.error || data.detail || `HTTP ${resp.status}`;
       showExtractionError('card-requests-list', msg, '',
@@ -748,12 +759,45 @@ async function refreshCardRequests() {
 // Toast notifications
 // ---------------------------------------------------------------------------
 
-function showToast(message, type) {
+function showToast(message, type, durationMs) {
   const toast = document.getElementById('toast');
   if (!toast) return;
   toast.textContent = message;
   toast.className = `toast toast-${type} show`;
-  setTimeout(() => toast.classList.remove('show'), 3000);
+  setTimeout(() => toast.classList.remove('show'), durationMs || 3000);
+}
+
+/**
+ * Show the shared "AI is busy" toast.
+ *
+ * Reads `{running_action, started_at, log_path}` from a 409 response body
+ * (or from /api/ai/status) and formats it into a one-liner the user can
+ * scan, e.g.
+ *
+ *   "Theme extraction running since 12:14:32 — please wait or cancel it"
+ *
+ * The wording is intentionally generic ("cancel it" rather than naming
+ * a specific button) because the active action and the action being
+ * rejected aren't always the same — e.g. the user clicks "Refresh AI"
+ * on Set Constraints while a Theme extraction is in flight.
+ *
+ * Falls back to a generic message if the body is malformed (e.g. a 409
+ * came back from a path that hasn't been migrated to the shared payload).
+ */
+function showBusyToast(payload) {
+  const action = payload && payload.running_action;
+  const startedAt = payload && payload.started_at;
+  let msg;
+  if (action && startedAt) {
+    const t = new Date(startedAt);
+    const hh = String(t.getHours()).padStart(2, '0');
+    const mm = String(t.getMinutes()).padStart(2, '0');
+    const ss = String(t.getSeconds()).padStart(2, '0');
+    msg = `${action} running since ${hh}:${mm}:${ss} — please wait or cancel it`;
+  } else {
+    msg = 'Another AI action is already running — please wait or cancel it first';
+  }
+  showToast(msg, 'warn', 6000);
 }
 
 // ---------------------------------------------------------------------------
