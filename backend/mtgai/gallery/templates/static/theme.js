@@ -12,6 +12,111 @@ let _uploadId = null;
 let _currentAnalysis = null;
 let _uploadData = null;
 
+// Setting textarea mode: "edit" shows the raw textarea, "preview" renders
+// the markdown into a sibling div. Streaming extraction forces "edit" so
+// chunks remain visible as they arrive; on completion we flip to "preview".
+let _settingMode = 'preview';
+
+// ---------------------------------------------------------------------------
+// Markdown rendering for the setting preview
+// ---------------------------------------------------------------------------
+
+/**
+ * Tiny zero-dep markdown→HTML renderer scoped to what the theme prompt
+ * produces: `# heading`, `## heading`, `- ` / `* ` bullets, `**bold**`,
+ * `*italic*`, inline `` `code` ``, and blank-line paragraphs. Anything
+ * exotic (tables, blockquotes, fenced code) falls through as raw text.
+ */
+function renderMarkdown(src) {
+  if (!src) return '';
+  // HTML-escape first so user content can't inject tags. Inline markers
+  // are reintroduced as real tags below.
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const inline = (s) => esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+
+  const lines = src.split(/\r?\n/);
+  const out = [];
+  let para = [];
+  let listItems = [];
+
+  const flushPara = () => {
+    if (para.length) {
+      out.push('<p>' + inline(para.join(' ')) + '</p>');
+      para = [];
+    }
+  };
+  const flushList = () => {
+    if (listItems.length) {
+      out.push('<ul>' + listItems.map((l) => '<li>' + inline(l) + '</li>').join('') + '</ul>');
+      listItems = [];
+    }
+  };
+
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/, '');
+    if (!line.trim()) {
+      flushPara(); flushList();
+      continue;
+    }
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      flushPara(); flushList();
+      const lvl = Math.min(6, Math.max(1, heading[1].length));
+      out.push(`<h${lvl}>${inline(heading[2])}</h${lvl}>`);
+      continue;
+    }
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    if (bullet) {
+      flushPara();
+      listItems.push(bullet[1]);
+      continue;
+    }
+    flushList();
+    para.push(line);
+  }
+  flushPara();
+  flushList();
+  return out.join('\n');
+}
+
+function renderSettingPreview() {
+  const textarea = document.getElementById('setting');
+  const preview = document.getElementById('setting-preview');
+  if (!textarea || !preview) return;
+  const text = textarea.value;
+  if (!text.trim()) {
+    preview.classList.add('empty');
+    preview.textContent = 'No setting yet — use Extract from File or paste text into Edit mode.';
+  } else {
+    preview.classList.remove('empty');
+    preview.innerHTML = renderMarkdown(text);
+  }
+}
+
+function setSettingMode(mode) {
+  _settingMode = mode === 'edit' ? 'edit' : 'preview';
+  const textarea = document.getElementById('setting');
+  const preview = document.getElementById('setting-preview');
+  const btnEdit = document.getElementById('setting-mode-edit');
+  const btnPrev = document.getElementById('setting-mode-preview');
+  if (!textarea || !preview) return;
+  if (_settingMode === 'edit') {
+    textarea.style.display = '';
+    preview.style.display = 'none';
+    btnEdit && btnEdit.classList.add('active');
+    btnPrev && btnPrev.classList.remove('active');
+  } else {
+    renderSettingPreview();
+    textarea.style.display = 'none';
+    preview.style.display = '';
+    btnEdit && btnEdit.classList.remove('active');
+    btnPrev && btnPrev.classList.add('active');
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Init — hydrate from server state, then layer in any localStorage draft
 // ---------------------------------------------------------------------------
@@ -54,7 +159,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       reattachExtraction(state.active_runs.theme_extraction.upload_id);
     }
   }
+
+  // Default the setting field to preview when content exists, edit when
+  // empty so the placeholder is visible. Click on the rendered preview
+  // jumps to edit mode (single-click to start typing).
+  initSettingMode();
 });
+
+function initSettingMode() {
+  const textarea = document.getElementById('setting');
+  const preview = document.getElementById('setting-preview');
+  if (!textarea || !preview) return;
+  preview.addEventListener('click', () => {
+    if (_settingMode === 'preview') setSettingMode('edit');
+  });
+  // Re-render preview live as the user edits in edit mode (covers the
+  // 'paste markdown into edit, switch to preview' flow without a re-render
+  // race).
+  textarea.addEventListener('input', () => {
+    if (_settingMode === 'preview') renderSettingPreview();
+  });
+  setSettingMode(textarea.value.trim() ? 'preview' : 'edit');
+}
 
 function _renderActiveSetDisplay(code) {
   const display = document.getElementById('active-set-display');
@@ -148,10 +274,15 @@ function addConstraint(value, aiGenerated) {
            value="${escapeAttr(value || '')}"
            oninput="clearAiBadge(this)">
     ${badge}
-    <button class="btn-remove" onclick="this.parentElement.remove()" title="Remove">&times;</button>
+    <button class="btn-remove" onclick="removeListItem(this)" title="Remove">&times;</button>
   `;
   list.appendChild(item);
   if (!value) item.querySelector('input').focus();
+  // DOM-level mutation: the wireDraftPersistence listener only catches
+  // 'input' events, so a programmatic add (AI extraction, populateFromTheme)
+  // wouldn't otherwise reach the draft. Without this the draft snapshot
+  // predates the AI insertion and a tab switch loses the AI provenance.
+  schedulePersistDraft();
 }
 
 function addCardRequest(value, aiGenerated) {
@@ -167,10 +298,17 @@ function addCardRequest(value, aiGenerated) {
       oninput="clearAiBadge(this)"
     >${escapeHtml(value || '')}</textarea>
     ${badge}
-    <button class="btn-remove" onclick="this.parentElement.remove()" title="Remove">&times;</button>
+    <button class="btn-remove" onclick="removeListItem(this)" title="Remove">&times;</button>
   `;
   list.appendChild(item);
   if (!value) item.querySelector('textarea').focus();
+  schedulePersistDraft();
+}
+
+function removeListItem(btn) {
+  const item = btn.closest('.list-item');
+  if (item) item.remove();
+  schedulePersistDraft();
 }
 
 function clearAiBadge(el) {
@@ -458,6 +596,9 @@ async function runExtraction() {
   const textarea = document.getElementById('setting');
 
   textarea.value = '';
+  // Streaming chunks land in the textarea — flip to edit mode so the user
+  // can watch them arrive. The done handler swaps back to preview.
+  setSettingMode('edit');
   progressBar.style.width = '10%';
   progressBar.classList.remove('indeterminate');
   progressStatus.textContent = 'Starting extraction...';
@@ -473,7 +614,17 @@ async function runExtraction() {
     cancelBtn.textContent = 'Cancel Extraction';
   }
 
-  const state = { gotDone: false, gotError: false, gotCancelled: false };
+  // Snapshot regen-on-extraction toggles before we start streaming so a
+  // user toggling them mid-run can't change behavior partway through.
+  const regenC = document.getElementById('regen-constraints');
+  const regenR = document.getElementById('regen-card-requests');
+  const state = {
+    gotDone: false,
+    gotError: false,
+    gotCancelled: false,
+    regenConstraints: regenC ? regenC.checked : true,
+    regenCardRequests: regenR ? regenR.checked : true,
+  };
 
   try {
     const params = new URLSearchParams({ upload_id: _uploadId });
@@ -605,6 +756,7 @@ function handleExtractionEvent(type, data, textarea, progressBar, progressStatus
     case 'constraints':
       clearExtractionError('constraints-list');
       if (data.constraints) {
+        if (state && state.regenConstraints) clearAiItems('constraints-list');
         data.constraints.forEach(c => addConstraint(c, true));
         document.getElementById('refresh-constraints').style.display = 'inline-block';
       }
@@ -621,6 +773,7 @@ function handleExtractionEvent(type, data, textarea, progressBar, progressStatus
     case 'card_suggestions':
       clearExtractionError('card-requests-list');
       if (data.suggestions) {
+        if (state && state.regenCardRequests) clearAiItems('card-requests-list');
         data.suggestions.forEach(s => {
           const desc = `${s.name}: ${s.description}`;
           addCardRequest(desc, true);
@@ -644,6 +797,9 @@ function handleExtractionEvent(type, data, textarea, progressBar, progressStatus
       hidePhaseBanner();
       progressStatus.textContent = `Extraction complete ($${data.total_cost_usd.toFixed(4)})`;
       showToast(`Extraction complete - $${data.total_cost_usd.toFixed(4)}`, 'success');
+      // The textarea is full of fresh markdown; default back to preview
+      // so the user sees structured prose, not raw # / **.
+      setSettingMode('preview');
       break;
 
     case 'error':
@@ -842,141 +998,210 @@ function clearExtractionError(listId) {
 // ---------------------------------------------------------------------------
 
 async function refreshConstraints() {
-  // Remove AI-generated constraints, or all if none are flagged (e.g. after load)
-  const aiItems = document.querySelectorAll('#constraints-list .list-item[data-ai-generated="true"]');
-  if (aiItems.length > 0) {
-    aiItems.forEach(el => el.remove());
-  } else {
-    document.getElementById('constraints-list').innerHTML = '';
-  }
-
   const settingText = document.getElementById('setting').value.trim();
   if (!settingText) {
     showToast('No setting text to extract constraints from', 'error');
     return;
   }
 
-  const btn = document.getElementById('refresh-constraints');
-  btn.disabled = true;
-  btn.textContent = 'Refreshing...';
-
-  clearExtractionError('constraints-list');
-  try {
-    const resp = await fetch('/api/pipeline/theme/extract-section', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme_text: settingText, kind: 'constraints' }),
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (resp.status === 409) {
-      showBusyToast(data);
-      return;
-    }
-    if (!resp.ok) {
-      const msg = data.error || data.detail || `HTTP ${resp.status}`;
-      showExtractionError('constraints-list', msg, '',
-        { label: 'Retry', fn: refreshConstraints });
-      showToast('Refresh failed: ' + msg + ' (try Ctrl+Shift+R if stale)', 'error');
-      return;
-    }
-    if (data.error) {
-      showExtractionError('constraints-list', data.error, '',
-        { label: 'Retry', fn: refreshConstraints });
-      showToast('Refresh error: ' + data.error, 'error');
-      return;
-    }
-    if (data.constraints_error) {
-      showExtractionError('constraints-list', data.constraints_error, data.constraints_raw || '',
-        { label: 'Retry', fn: refreshConstraints });
-      showToast('Constraints extraction failed', 'error');
-      return;
-    }
-    const items = Array.isArray(data.constraints) ? data.constraints : [];
-    items.forEach(c => addConstraint(c, true));
-    if (items.length === 0) {
-      showToast('LLM returned no constraints for this setting', 'warn');
-    } else {
-      showToast(`Constraints refreshed ($${(data.cost_usd || 0).toFixed(4)})`, 'success');
-    }
-  } catch (err) {
-    showExtractionError('constraints-list', err.message, '',
-      { label: 'Retry', fn: refreshConstraints });
-    console.error('[theme.js] Refresh failed:', err);
-    showToast('Refresh failed: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Refresh AI';
-  }
+  await runSectionRefresh({
+    kind: 'constraints',
+    settingText,
+    btnId: 'refresh-constraints',
+    listId: 'constraints-list',
+    retryFn: refreshConstraints,
+    applyResult: (items) => {
+      items.forEach(c => addConstraint(c, true));
+    },
+    successLabel: 'Constraints',
+    emptyMessage: 'LLM returned no constraints for this setting',
+  });
 }
 
 async function refreshCardRequests() {
-  // Remove AI-generated suggestions, or all if none are flagged (e.g. after load)
-  const aiItems = document.querySelectorAll('#card-requests-list .list-item[data-ai-generated="true"]');
-  if (aiItems.length > 0) {
-    aiItems.forEach(el => el.remove());
-  } else {
-    document.getElementById('card-requests-list').innerHTML = '';
-  }
-
   const settingText = document.getElementById('setting').value.trim();
   if (!settingText) {
     showToast('No setting text to extract card suggestions from', 'error');
     return;
   }
 
-  const btn = document.getElementById('refresh-card-requests');
+  await runSectionRefresh({
+    kind: 'card_suggestions',
+    settingText,
+    btnId: 'refresh-card-requests',
+    listId: 'card-requests-list',
+    retryFn: refreshCardRequests,
+    applyResult: (items) => {
+      items.forEach(s => addCardRequest(`${s.name}: ${s.description}`, true));
+    },
+    successLabel: 'Card suggestions',
+    emptyMessage: 'LLM returned no card suggestions for this setting',
+  });
+}
+
+/**
+ * Wipe the list in preparation for repopulation by a refresh result.
+ * Removes only AI-tagged items if any are present (preserves user-added
+ * entries); falls back to a full clear when nothing is tagged so a stale
+ * post-load state still gets reset.
+ */
+function clearAiItems(listId) {
+  const aiItems = document.querySelectorAll(`#${listId} .list-item[data-ai-generated="true"]`);
+  if (aiItems.length > 0) {
+    aiItems.forEach(el => el.remove());
+  } else {
+    document.getElementById(listId).innerHTML = '';
+  }
+}
+
+/**
+ * Shared section-refresh runner. Streams the SSE events from
+ * /api/pipeline/theme/extract-section, dispatches phase ticks to the
+ * same banner the full extraction uses, and applies the kind-specific
+ * result events through the caller's `applyResult` callback.
+ */
+async function runSectionRefresh(opts) {
+  const {
+    kind, settingText, btnId, listId, retryFn,
+    applyResult, successLabel, emptyMessage,
+  } = opts;
+
+  const btn = document.getElementById(btnId);
   btn.disabled = true;
   btn.textContent = 'Refreshing...';
+  clearExtractionError(listId);
 
-  clearExtractionError('card-requests-list');
+  // Show the same banner+bar the full extraction uses. Keep the cancel
+  // button hidden — section refreshes are short and not user-cancellable.
+  const progressEl = document.getElementById('extract-progress');
+  const cancelBtn = document.getElementById('cancel-extract-btn');
+  const progressBar = document.getElementById('progress-bar');
+  const progressStatus = document.getElementById('progress-status');
+  progressEl.classList.add('visible');
+  if (cancelBtn) cancelBtn.style.display = 'none';
+  resetPhaseBanner();
+  showPhaseBanner(`Refreshing ${successLabel.toLowerCase()}...`);
+  progressStatus.textContent = `Refreshing ${successLabel.toLowerCase()}...`;
+  progressBar.style.width = '5%';
+
+  let totalCost = 0;
+  let collectedItems = null;
+  let extractionError = null;
+  let extractionRaw = '';
+  let fatalError = null;
+
   try {
     const resp = await fetch('/api/pipeline/theme/extract-section', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme_text: settingText, kind: 'card_suggestions' }),
+      body: JSON.stringify({ theme_text: settingText, kind }),
     });
-    const data = await resp.json().catch(() => ({}));
     if (resp.status === 409) {
-      showBusyToast(data);
+      const payload = await resp.json().catch(() => null);
+      showBusyToast(payload);
       return;
     }
     if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
       const msg = data.error || data.detail || `HTTP ${resp.status}`;
-      showExtractionError('card-requests-list', msg, '',
-        { label: 'Retry', fn: refreshCardRequests });
+      showExtractionError(listId, msg, '', { label: 'Retry', fn: retryFn });
       showToast('Refresh failed: ' + msg + ' (try Ctrl+Shift+R if stale)', 'error');
       return;
     }
-    if (data.error) {
-      showExtractionError('card-requests-list', data.error, '',
-        { label: 'Retry', fn: refreshCardRequests });
-      showToast('Refresh error: ' + data.error, 'error');
-      return;
-    }
-    if (data.suggestions_error) {
-      showExtractionError('card-requests-list', data.suggestions_error, data.suggestions_raw || '',
-        { label: 'Retry', fn: refreshCardRequests });
-      showToast('Card suggestions extraction failed', 'error');
-      return;
-    }
-    const items = Array.isArray(data.card_suggestions) ? data.card_suggestions : [];
-    items.forEach(s => {
-      const desc = `${s.name}: ${s.description}`;
-      addCardRequest(desc, true);
-    });
-    if (items.length === 0) {
-      showToast('LLM returned no card suggestions for this setting', 'warn');
-    } else {
-      showToast(`Card suggestions refreshed ($${(data.cost_usd || 0).toFixed(4)})`, 'success');
+
+    // Server accepted the request — only now clear the existing items so
+    // a 409 (busy) doesn't leave the user with an empty list.
+    clearAiItems(listId);
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+      for (const part of parts) {
+        if (!part.trim()) continue;
+        let eventType = null;
+        let eventData = null;
+        for (const line of part.split('\n')) {
+          if (line.startsWith('event: ')) eventType = line.slice(7).trim();
+          else if (line.startsWith('data: ')) {
+            try { eventData = JSON.parse(line.slice(6)); } catch (e) { /* skip */ }
+          }
+        }
+        if (!eventType || !eventData) continue;
+
+        switch (eventType) {
+          case 'phase':
+            handlePhaseEvent(eventData, progressBar);
+            break;
+          case 'status':
+            progressStatus.textContent = eventData.message || progressStatus.textContent;
+            break;
+          case 'constraints':
+            collectedItems = Array.isArray(eventData.constraints) ? eventData.constraints : [];
+            break;
+          case 'card_suggestions':
+            collectedItems = Array.isArray(eventData.suggestions) ? eventData.suggestions : [];
+            break;
+          case 'constraints_error':
+          case 'suggestions_error':
+            extractionError = eventData.message || 'Extraction failed';
+            extractionRaw = eventData.raw || '';
+            break;
+          case 'done':
+            totalCost = eventData.cost_usd || 0;
+            break;
+          case 'error':
+            if (eventData.busy) {
+              showBusyToast(eventData);
+              fatalError = '__busy__';
+            } else {
+              fatalError = eventData.message || 'unknown error';
+            }
+            break;
+          case 'cancelled':
+            fatalError = 'cancelled';
+            break;
+        }
+      }
     }
   } catch (err) {
-    showExtractionError('card-requests-list', err.message, '',
-      { label: 'Retry', fn: refreshCardRequests });
+    fatalError = err.message;
     console.error('[theme.js] Refresh failed:', err);
-    showToast('Refresh failed: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Refresh AI';
+    progressBar.classList.remove('indeterminate');
+    hidePhaseBanner();
+    progressEl.classList.remove('visible');
+    if (cancelBtn) cancelBtn.style.display = '';
+  }
+
+  if (fatalError === '__busy__') {
+    return; // Toast already shown.
+  }
+  if (fatalError) {
+    showExtractionError(listId, fatalError, '', { label: 'Retry', fn: retryFn });
+    showToast('Refresh failed: ' + fatalError, 'error');
+    return;
+  }
+  if (extractionError) {
+    showExtractionError(listId, extractionError, extractionRaw,
+      { label: 'Retry', fn: retryFn });
+    showToast(`${successLabel} extraction failed`, 'error');
+    return;
+  }
+  const items = collectedItems || [];
+  applyResult(items);
+  if (items.length === 0) {
+    showToast(emptyMessage, 'warn');
+  } else {
+    showToast(`${successLabel} refreshed ($${totalCost.toFixed(4)})`, 'success');
   }
 }
 
@@ -1037,7 +1262,8 @@ function escapeHtml(text) {
 }
 
 function escapeAttr(text) {
-  if (!text) return '';
+  if (text == null || text === '') return '';
+  if (typeof text !== 'string') text = String(text);
   return text.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
@@ -1099,8 +1325,19 @@ async function reattachExtraction(uploadId) {
 
   // Reset the textarea so replayed theme_chunk events rebuild it cleanly.
   textarea.value = '';
+  setSettingMode('edit');
 
-  const state = { gotDone: false, gotError: false, gotCancelled: false };
+  // Reattach mirrors a fresh-start visual: the SSE replay will re-emit
+  // every constraints/card_suggestions event the worker produced, so we
+  // clear AI-tagged items by default to avoid duplicating them on top
+  // of whatever the live tab already had.
+  const state = {
+    gotDone: false,
+    gotError: false,
+    gotCancelled: false,
+    regenConstraints: true,
+    regenCardRequests: true,
+  };
 
   try {
     const params = new URLSearchParams({ upload_id: uploadId });

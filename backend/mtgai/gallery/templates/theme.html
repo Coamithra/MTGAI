@@ -75,6 +75,78 @@
     line-height: 1.5;
   }
 
+  /* Theme prose: edit/preview toggle for the setting textarea. */
+  .setting-field { position: relative; }
+  .setting-toolbar {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.4rem;
+  }
+  .setting-mode-btn {
+    padding: 0.25rem 0.7rem;
+    font-size: 0.75rem;
+    background: var(--bg-primary, #1a1a2e);
+    color: #888;
+    border: 1px solid #333;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .setting-mode-btn:hover { color: #e0e0e0; border-color: #4a9eff; }
+  .setting-mode-btn.active {
+    color: #e0e0e0;
+    border-color: #4a9eff;
+    background: rgba(74, 158, 255, 0.12);
+  }
+  .setting-preview {
+    width: 100%;
+    min-height: 24rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-primary, #1a1a2e);
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+  .setting-preview h1,
+  .setting-preview h2 {
+    margin: 1.1rem 0 0.4rem;
+    color: #4a9eff;
+    font-size: 1rem;
+    font-weight: 600;
+    border-bottom: 1px solid #2a3a5a;
+    padding-bottom: 0.2rem;
+  }
+  .setting-preview h1:first-child,
+  .setting-preview h2:first-child { margin-top: 0; }
+  .setting-preview h3 {
+    margin: 0.8rem 0 0.3rem;
+    color: #8cbfff;
+    font-size: 0.92rem;
+    font-weight: 600;
+  }
+  .setting-preview p { margin: 0.4rem 0; }
+  .setting-preview ul {
+    margin: 0.3rem 0 0.6rem;
+    padding-left: 1.4rem;
+  }
+  .setting-preview li { margin: 0.15rem 0; }
+  .setting-preview strong { color: #ffd877; font-weight: 600; }
+  .setting-preview em { color: #c8a8ff; }
+  .setting-preview code {
+    background: rgba(255,255,255,0.06);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 0.85em;
+  }
+  .setting-preview.empty {
+    color: #555;
+    font-style: italic;
+  }
+
   /* Size presets */
   .size-presets {
     display: flex;
@@ -375,6 +447,25 @@
     color: #aaa;
   }
   .checkbox-group input[type="checkbox"] { accent-color: #4a9eff; }
+  .extract-regen-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem 0.75rem;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 6px;
+  }
+  .extract-regen-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #ccc;
+    cursor: pointer;
+  }
+  .extract-regen-option input[type="checkbox"] { accent-color: #4a9eff; }
   .extract-actions {
     display: flex;
     gap: 0.75rem;
@@ -609,6 +700,16 @@
           Model: <a href="/settings">configured in settings</a>
         </span>
       </div>
+      <div class="extract-regen-options">
+        <label class="extract-regen-option">
+          <input type="checkbox" id="regen-constraints" checked>
+          Regenerate set constraints (replace existing AI-tagged items)
+        </label>
+        <label class="extract-regen-option">
+          <input type="checkbox" id="regen-card-requests" checked>
+          Regenerate card requests (replace existing AI-tagged items)
+        </label>
+      </div>
       <div class="extract-actions">
         <button class="btn-primary" id="run-extract-btn" onclick="runExtraction()" style="padding:0.5rem 1.5rem; font-size:0.9rem;">
           Extract Theme
@@ -637,9 +738,14 @@
       </div>
     </div>
 
-    <div class="form-group">
+    <div class="form-group setting-field">
+      <div class="setting-toolbar">
+        <button type="button" class="setting-mode-btn" id="setting-mode-edit" onclick="setSettingMode('edit')">Edit</button>
+        <button type="button" class="setting-mode-btn active" id="setting-mode-preview" onclick="setSettingMode('preview')">Preview</button>
+      </div>
       <textarea id="setting" rows="16"
         placeholder="A science-fantasy megadungeon in far-future post-apocalyptic Earth...&#10;&#10;Notable characters: The Vizier who rules Denethix, Captain Tyro the soldier...&#10;&#10;Factions: Moktars (intelligent ape-men), the Cult of Science...&#10;&#10;Creature types: Moktar, Automaton, Morlock, Screechman...&#10;&#10;Tone: Deadpan and darkly humorous. The world takes itself seriously; the absurdity speaks for itself."></textarea>
+      <div class="setting-preview" id="setting-preview" style="display:none;"></div>
     </div>
   </div>
 

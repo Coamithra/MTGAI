@@ -624,13 +624,64 @@ async def extract_theme_stream(
     )
 
 
+def _stream_section_refresh(theme_text: str, kind: str, model_key: str):
+    """Generator: run a section refresh, fan its events + phase ticks as SSE.
+
+    Two event sources merge into one queue:
+
+    1. ``stream_section_extraction`` yields the lifecycle events
+       (``constraints`` / ``card_suggestions`` / ``*_error`` / ``done`` /
+       ``cancelled``).
+    2. The poller registered via ``set_phase_emitter`` pushes ``phase``
+       events from a daemon thread while the LLM call is in flight.
+
+    Both go through one ``queue.Queue`` so the SSE consumer sees them in
+    arrival order. Worker runs on a thread because the underlying
+    extraction is sync.
+    """
+    import queue as _queue
+
+    from mtgai.pipeline.theme_extractor import (
+        clear_phase_emitter,
+        set_phase_emitter,
+        stream_section_extraction,
+    )
+
+    q: _queue.Queue = _queue.Queue()
+    DONE = object()
+
+    def push_event(event: dict) -> None:
+        q.put(event)
+
+    def worker() -> None:
+        try:
+            set_phase_emitter(push_event)
+            for event in stream_section_extraction(theme_text, model_key, kind):
+                q.put(event)
+        except Exception as e:
+            logger.error("Section refresh (%s) failed: %s", kind, e, exc_info=True)
+            q.put({"type": "error", "message": str(e)})
+        finally:
+            clear_phase_emitter()
+            q.put(DONE)
+
+    threading.Thread(target=worker, name=f"section-refresh-{kind}", daemon=True).start()
+    return q, DONE
+
+
 @api_router.post("/theme/extract-section")
 async def extract_section_endpoint(request: Request):
     """Refresh one of the AI-extracted sections (constraints OR card_suggestions).
 
-    Splits the old combined endpoint so a "Refresh AI" click on a single
-    section only fires its own LLM subcall instead of paying for both and
-    discarding half.
+    Returns ``text/event-stream`` so the page can render the same live
+    progress banner the full extraction shows. Event types over the wire:
+
+    - ``phase`` — emitter-driven progress ticks (TTFT heartbeat / tok-rate)
+    - ``status`` — coarse stage labels yielded by the extractor
+    - ``constraints`` / ``card_suggestions`` — final result payload
+    - ``constraints_error`` / ``suggestions_error`` — extraction failure
+    - ``done`` — terminal event with ``cost_usd``
+    - ``error`` — fatal worker exception or busy-lock rejection
     """
     body = await request.json()
     theme_text = body.get("theme_text", "")
@@ -642,26 +693,39 @@ async def extract_section_endpoint(request: Request):
     if kind not in ("constraints", "card_suggestions"):
         return JSONResponse({"error": f"Unknown kind: {kind}"}, status_code=400)
 
-    from mtgai.pipeline.theme_extractor import extract_section
+    if ai_lock.is_running():
+        return JSONResponse(ai_lock.busy_payload(), status_code=409)
 
-    try:
-        result = await asyncio.to_thread(extract_section, theme_text, model_key, kind)
-        if result.busy:
-            return JSONResponse(ai_lock.busy_payload(), status_code=409)
-        return JSONResponse(
-            {
-                "constraints": result.constraints,
-                "card_suggestions": result.card_suggestions,
-                "cost_usd": round(result.cost_usd, 4),
-                "constraints_error": result.constraints_error,
-                "constraints_raw": result.constraints_raw,
-                "suggestions_error": result.suggestions_error,
-                "suggestions_raw": result.suggestions_raw,
-            }
-        )
-    except Exception as e:
-        logger.error("Section extraction (%s) failed: %s", kind, e, exc_info=True)
-        return JSONResponse({"error": str(e)}, status_code=500)
+    q, DONE = _stream_section_refresh(theme_text, kind, model_key)
+
+    async def generate():
+        import queue as _queue
+
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.to_thread(q.get, timeout=30.0)
+                except _queue.Empty:
+                    yield ": keepalive\n\n"
+                    continue
+                if event is DONE:
+                    break
+                yield _sse_format(event.get("type", "message"), event)
+        except Exception as e:
+            logger.error("Section refresh stream failed: %s", e, exc_info=True)
+            yield _sse_format("error", {"type": "error", "message": str(e)})
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -1391,6 +1391,12 @@ class _PromptEvalPoller:
     # forever (replayed on reattach). 1 tick/s is plenty.
     _GEN_MIN_INTERVAL_S = 1.0
 
+    # Newer llama-server builds dropped n_prompt_tokens / _processed from
+    # /slots, so we can't compute a prompt-eval percent. Heartbeat at this
+    # interval instead so the banner gets activity + elapsed_s ticks during
+    # TTFT, and the frontend's phase-default paints the bar.
+    _PROMPT_EVAL_HEARTBEAT_S = 1.0
+
     def __init__(
         self,
         provider: Any,
@@ -1410,6 +1416,7 @@ class _PromptEvalPoller:
         self._last_total = -1
         self._last_decoded = -1
         self._last_gen_emit_at: float = 0.0
+        self._last_prompt_eval_emit_at: float = 0.0
         self._gen_started_at: float | None = None
         self._switched_to_generation = False
 
@@ -1458,9 +1465,13 @@ class _PromptEvalPoller:
             self._publish(active)
 
     def _publish(self, slot: dict[str, Any]) -> None:
+        # llama-server's /slots shape changed: per-slot decoder counters now
+        # live under next_token[0] instead of the top level. Read both so we
+        # work on old and new builds. Empty next_token list resolves to {}.
+        next_tok = (slot.get("next_token") or [{}])[0]
+        decoded = int(next_tok.get("n_decoded") or slot.get("n_decoded") or 0)
         processed = int(slot.get("n_prompt_tokens_processed") or 0)
         total = int(slot.get("n_prompt_tokens") or 0)
-        decoded = int(slot.get("n_decoded") or 0)
 
         # Once decoding starts we switch to generation phase. Each tick
         # past that point reports tokens + tok/s; the prompt-eval bar
@@ -1472,17 +1483,30 @@ class _PromptEvalPoller:
             self._publish_generation(decoded)
             return
 
-        if total <= 0:
+        # Prompt-eval phase. Old shape exposed exact processed/total — emit
+        # a precise percent. New shape doesn't, so fall back to a heartbeat
+        # so the banner at least shows activity + ticking elapsed time.
+        if total > 0:
+            if not self._should_emit_prompt_eval(processed, total):
+                return
+            self._last_processed = processed
+            self._last_total = total
+            sep = " — " if self._activity_prefix else ""
+            _emit_phase(
+                phase=self._phase_kind,
+                activity=f"{self._activity_prefix}{sep}processing prompt {processed:,}/{total:,}",
+                prompt_eval={"processed": processed, "total": total},
+            )
             return
-        if not self._should_emit_prompt_eval(processed, total):
+
+        now = time.monotonic()
+        if now - self._last_prompt_eval_emit_at < self._PROMPT_EVAL_HEARTBEAT_S:
             return
-        self._last_processed = processed
-        self._last_total = total
+        self._last_prompt_eval_emit_at = now
         sep = " — " if self._activity_prefix else ""
         _emit_phase(
             phase=self._phase_kind,
-            activity=f"{self._activity_prefix}{sep}processing prompt {processed:,}/{total:,}",
-            prompt_eval={"processed": processed, "total": total},
+            activity=f"{self._activity_prefix}{sep}evaluating prompt",
         )
 
     def _publish_generation(self, decoded: int) -> None:
@@ -1956,6 +1980,11 @@ def _attempt_json_subcall(
             f"Expected list at '{json_key}', got {type(items).__name__}",
             raw,
         )
+    # LLMs occasionally emit a wrapped-list shape like
+    # {"constraints": [["a", "b", "c"]]} instead of {"constraints": ["a", ...]}.
+    # Flatten one level when the outer list is a singleton wrapping another list.
+    if len(items) == 1 and isinstance(items[0], list):
+        items = items[0]
     return items, None, raw
 
 

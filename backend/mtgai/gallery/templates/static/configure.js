@@ -70,8 +70,16 @@ function persistConfigureUi() {
 }
 
 function wireConfigurePersistence() {
+  // A user-driven radio change means they're now diverging from whatever
+  // preset is active — flip the marker to Custom so the active state
+  // honestly reflects "manual edits". Programmatic radio changes from
+  // applyPreset assign `.checked` directly and don't fire 'change', so
+  // this only triggers on actual user clicks.
   document.querySelectorAll('input[type="radio"]').forEach((r) => {
-    r.addEventListener('change', persistConfigureUi);
+    r.addEventListener('change', () => {
+      if (r.name && r.name.startsWith('stage-')) _markPresetCustom();
+      persistConfigureUi();
+    });
   });
   document.querySelectorAll('input[type="text"], input[type="number"]').forEach((el) => {
     el.addEventListener('input', persistConfigureUi);
@@ -142,6 +150,11 @@ function applyPreset(preset) {
     btn.classList.toggle('active', btn.dataset.preset === preset);
   });
 
+  // Custom is a marker, not a preset — it preserves whatever radios the
+  // user has already set. Auto-selected when a manual stage change is
+  // detected (see wireConfigurePersistence).
+  if (preset === 'custom') return;
+
   STAGE_DEFINITIONS.forEach(stage => {
     if (stage.always_review) return;  // Can't change human review stages
 
@@ -163,6 +176,13 @@ function applyPreset(preset) {
     const radio = document.getElementById(`${stage.stage_id}-${value}`);
     if (radio) radio.checked = true;
   });
+}
+
+function _markPresetCustom() {
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.preset === 'custom');
+  });
+  MtgaiState.set('configure.preset', 'custom');
 }
 
 // ---------------------------------------------------------------------------
