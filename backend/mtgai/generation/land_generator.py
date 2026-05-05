@@ -188,16 +188,10 @@ def generate_lands(
     system, user = _build_prompt(set_config)
     tool_schema = _build_tool_schema()
 
-    # Resolve the configured model for the lands stage. Falls back to Haiku
-    # if model_settings can't be loaded (CLI/test path) — the previous
-    # hardcoded behaviour.
-    try:
-        from mtgai.settings.model_settings import get_llm_model
+    # Resolve the configured model for the lands stage from per-set settings.
+    from mtgai.settings.model_settings import get_llm_model
 
-        model_id = get_llm_model("lands")
-    except Exception as e:  # pragma: no cover — defensive
-        logger.warning("Could not resolve lands model from settings (%s); using Haiku", e)
-        model_id = "claude-haiku-4-5-20251001"
+    model_id = get_llm_model("lands", set_code)
     if on_call_start is not None:
         on_call_start(model_id)
     response = generate_with_tool(

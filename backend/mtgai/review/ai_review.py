@@ -46,25 +46,23 @@ THEME_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "theme.json"
 REVIEWS_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reviews"
 REPORTS_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reports"
 
-# LLM settings — defaults (active values come from model_settings at runtime)
-MODEL = "claude-opus-4-6"
-EFFORT = "max"
+# LLM settings — model + effort come from per-set model_settings at runtime.
 TEMPERATURE = 1.0
 MAX_ITERATIONS = 5
 
 
-def _review_model() -> str:
-    """Get the review model from settings."""
+def _review_model(set_code: str) -> str:
+    """Get the review model from this set's settings."""
     from mtgai.settings.model_settings import get_llm_model
 
-    return get_llm_model("ai_review")
+    return get_llm_model("ai_review", set_code)
 
 
-def _review_effort() -> str | None:
-    """Get the review effort from settings."""
+def _review_effort(set_code: str) -> str | None:
+    """Get the review effort from this set's settings."""
     from mtgai.settings.model_settings import get_effort
 
-    return get_effort("ai_review")
+    return get_effort("ai_review", set_code)
 
 
 # ---------------------------------------------------------------------------
@@ -447,6 +445,7 @@ def _review_single(
     card: dict,
     mechanics: list[dict],
     pointed_questions: list[dict],
+    set_code: str,
     max_iterations: int = MAX_ITERATIONS,
 ) -> CardReviewResult:
     """Single Opus reviewer + iteration loop for C/U cards."""
@@ -462,6 +461,11 @@ def _review_single(
     total_cost = 0.0
     total_latency = 0.0
 
+    # Resolve once for the whole card so mid-card settings changes don't
+    # swap the model partway through the iteration loop.
+    review_model = _review_model(set_code)
+    review_effort = _review_effort(set_code)
+
     # First iteration
     user_prompt = _build_review_prompt(card, mechanics, pointed_questions)
 
@@ -474,17 +478,17 @@ def _review_single(
                 system_prompt=REVIEW_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
                 tool_schema=REVIEW_TOOL_SCHEMA,
-                model=_review_model(),
+                model=review_model,
                 temperature=TEMPERATURE,
                 max_tokens=8192,
-                effort=_review_effort(),
+                effort=review_effort,
             )
         except Exception:
             logger.exception("    API call failed on iteration %d", iteration)
             break
 
         latency = time.time() - t0
-        effective_model = result.get("model", _review_model())
+        effective_model = result.get("model", review_model)
         cost = cost_from_result(result)
         total_in += (
             result["input_tokens"]
@@ -549,7 +553,7 @@ def _review_single(
             # Track the latest revision
             revised_card = it.response.get("revised_card")
 
-    effective_model = iterations[0].model if iterations else _review_model()
+    effective_model = iterations[0].model if iterations else review_model
 
     return CardReviewResult(
         collector_number=collector_number,
@@ -580,6 +584,7 @@ def _review_council(
     card: dict,
     mechanics: list[dict],
     pointed_questions: list[dict],
+    set_code: str,
     num_reviewers: int = 3,
     max_iterations: int = MAX_ITERATIONS,
 ) -> CardReviewResult:
@@ -596,8 +601,13 @@ def _review_council(
         rarity,
     )
 
+    # Resolve once for the whole card so mid-card settings changes don't
+    # swap the model partway through the council + synthesis loop.
+    review_model = _review_model(set_code)
+    review_effort = _review_effort(set_code)
+
     council_reviews: list[CouncilMemberReview] = []
-    effective_model = _review_model()
+    effective_model = review_model
     total_in = 0
     total_out = 0
     total_cost = 0.0
@@ -616,17 +626,17 @@ def _review_council(
                 system_prompt=REVIEW_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
                 tool_schema=REVIEW_TOOL_SCHEMA,
-                model=_review_model(),
+                model=review_model,
                 temperature=TEMPERATURE,
                 max_tokens=8192,
-                effort=_review_effort(),
+                effort=review_effort,
             )
         except Exception:
             logger.exception("    Reviewer %d API call failed", member_id)
             continue
 
         latency = time.time() - t0
-        effective_model = result.get("model", _review_model())
+        effective_model = result.get("model", review_model)
         cost = cost_from_result(result)
         total_in += (
             result["input_tokens"]
@@ -720,17 +730,17 @@ def _review_council(
                 system_prompt=REVIEW_SYSTEM_PROMPT,
                 user_prompt=prompt,
                 tool_schema=tool,
-                model=_review_model(),
+                model=review_model,
                 temperature=TEMPERATURE,
                 max_tokens=8192,
-                effort=_review_effort(),
+                effort=review_effort,
             )
         except Exception:
             logger.exception("    Synthesis API call failed on iteration %d", iteration)
             break
 
         latency = time.time() - t0
-        effective_model = result.get("model", _review_model())
+        effective_model = result.get("model", review_model)
         cost = cost_from_result(result)
         total_in += (
             result["input_tokens"]
@@ -1003,7 +1013,7 @@ def _review_to_markdown(r: CardReviewResult) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _generate_summary_report(reviews: list[CardReviewResult]) -> str:
+def _generate_summary_report(reviews: list[CardReviewResult], set_code: str) -> str:
     """Generate a markdown summary report of all reviews."""
     total_cost = sum(r.total_cost_usd for r in reviews)
     total_in = sum(r.total_input_tokens for r in reviews)
@@ -1014,13 +1024,13 @@ def _generate_summary_report(reviews: list[CardReviewResult]) -> str:
 
     # Determine actual model used from review results
     effective_models = {r.model for r in reviews if r.model}
-    model_str = ", ".join(sorted(effective_models)) if effective_models else _review_model()
+    model_str = ", ".join(sorted(effective_models)) if effective_models else _review_model(set_code)
 
     lines = [
         "# AI Design Review Summary -- Phase 4B",
         "",
         f"Date: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
-        f"Model: {model_str} (effort={_review_effort() or 'default'})",
+        f"Model: {model_str} (effort={_review_effort(set_code) or 'default'})",
         f"Cards reviewed: {len(reviews)}",
         f"Cards changed: {changed}",
         f"Final OK: {ok_count} | Final REVISE: {revise_count}",
@@ -1184,8 +1194,8 @@ def review_set(
     logger.info("=" * 70)
     logger.info(
         "Model: %s | Effort: %s | Max iterations: %d",
-        _review_model(),
-        _review_effort() or "default",
+        _review_model(set_code),
+        _review_effort(set_code) or "default",
         MAX_ITERATIONS,
     )
     logger.info("Set: %s", set_code)
@@ -1271,9 +1281,9 @@ def review_set(
         )
 
         if tier == "council":
-            result = _review_council(card, mechanics, pointed_questions)
+            result = _review_council(card, mechanics, pointed_questions, set_code)
         else:
-            result = _review_single(card, mechanics, pointed_questions)
+            result = _review_single(card, mechanics, pointed_questions, set_code)
 
         reviews.append(result)
 
@@ -1345,7 +1355,7 @@ def review_set(
                     pass
 
     # Generate summary report
-    report = _generate_summary_report(all_reviews)
+    report = _generate_summary_report(all_reviews, set_code)
     reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = reports_dir / "ai-review-summary.md"
     report_path.write_text(report, encoding="utf-8")

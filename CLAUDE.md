@@ -149,17 +149,19 @@ Making MTGAI a reusable tool for any set, not just ASD. Say "continue toolchain 
 
 ## Model Settings (`mtgai/settings/`)
 - **Model registry** (`models.toml`): TOML file listing all available LLM and image-gen models with provider, pricing, capabilities (effort, vision, caching)
-- **Model settings** (`model_settings.py`): per-stage model assignments, presets, save/load profiles
-  - `get_llm_model(stage_id)` → returns API model_id for the stage
-  - `get_effort(stage_id)` → returns effort level or None
-  - `get_image_model(stage_id)` → returns image model key
-  - `apply_settings(settings)` → saves as `output/settings/current.toml`
-  - `ModelSettings.from_preset(name)` → "recommended", "all-haiku", "all-local"
-- **Settings UI** at `/settings` — per-stage model dropdowns, presets, profile save/load, cost estimation
-- LLM stages: reprints, card_gen, balance, skeleton_rev, ai_review, art_prompts, art_select
-- Image stages: char_portraits, art_gen
-- Profiles saved as TOML in `output/settings/<name>.toml`
-- Add new models by editing `backend/mtgai/settings/models.toml`
+- **Per-set model settings** (`model_settings.py`): per-stage assignments + effort live in `output/sets/<SET>/settings.toml` — one file per set, so changing the LLM for `card_gen` on ASD does not silently affect DSN.
+  - `get_llm_model(stage_id, set_code)` → API model_id for the stage on that set
+  - `get_effort(stage_id, set_code)` → effort level or None
+  - `get_image_model(stage_id, set_code)` → image model key
+  - `apply_settings(set_code, settings)` → persists + caches the per-set file
+  - `ModelSettings.from_preset(name)` → built-in presets ("recommended", "all-haiku", "all-local") *or* a saved profile by name
+  - **Stage runners must resolve once at the top of the run** and reuse the resolved values for the whole stage — no per-call `get_llm_model` inside loops. This is how we deliver the "no mid-stage swap" guarantee without a `resolved_*` field on `StageState`.
+- **Global defaults** (`output/settings/global.toml`): a tiny file with `default_preset = "<name>"` — used to seed every new set's settings.toml. Created on first call to `get_global_settings()`. If the legacy `output/settings/current.toml` exists at first creation it is copied into `imported.toml` and the default preset points at it.
+- **Profile library** at `output/settings/<name>.toml`: reusable templates spanning sets. `save_profile(name)` writes one; `from_preset(name)` resolves built-in presets first, then the profile library. Reserved names: `global`, `current`.
+- **Settings UI** at `/settings` — per-stage model dropdowns, presets, profile save/load, cost estimation. Endpoints accept an optional `set_code` query param (falls back to the active set); the wizard rewrite (TC tracker `Wizard UI redesign`) will plumb set_code explicitly through every request.
+- **Migration**: existing sets without a settings.toml get one seeded on first `get_settings(set_code)` call — copy from `current.toml` if present, else from the global default preset, else built-in defaults. `current.toml` is no longer written to but is left on disk for manual cleanup.
+- LLM stages: theme_extract, mechanics, archetypes, reprints, lands, card_gen, balance, skeleton_rev, ai_review, art_prompts, art_select. Image stages: char_portraits, art_gen.
+- Add new models by editing `backend/mtgai/settings/models.toml`. Stage runners must never hardcode model IDs — always resolve via `get_llm_model(stage_id, set_code)`.
 
 ## Validation Library (`mtgai/validation/`)
 - Two severity levels: **AUTO** (deterministically fixable) and **MANUAL** (needs LLM retry)

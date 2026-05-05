@@ -121,6 +121,8 @@ def _save_revision_log(
     cost_usd: float,
     latency_s: float,
     revision_log_dir: Path = REVISION_LOG_DIR,
+    *,
+    effort: str | None = None,
 ) -> Path:
     """Save detailed revision log with full prompts and LLM response."""
     revision_log_dir.mkdir(parents=True, exist_ok=True)
@@ -131,7 +133,7 @@ def _save_revision_log(
         "timestamp": datetime.now(UTC).isoformat(),
         "model": model,
         "temperature": 0.5,
-        "effort": get_effort("skeleton_rev") or "default",
+        "effort": effort or "default",
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "cost_usd": round(cost_usd, 6),
@@ -536,7 +538,8 @@ def regenerate_slots(
     Reuses the existing batch generation infrastructure but only for
     the specified slot_ids.  Pass ``model`` to override the default.
     """
-    gen_model = model or get_llm_model("skeleton_rev")
+    gen_model = model or get_llm_model("skeleton_rev", set_code)
+    gen_effort = get_effort("skeleton_rev", set_code)
     # Get slot dicts for the slots we need to regenerate
     slots_to_gen = [s for s in skeleton["slots"] if s["slot_id"] in slot_ids]
 
@@ -606,7 +609,7 @@ def regenerate_slots(
                 model=model,
                 temperature=TEMPERATURE,
                 max_tokens=8192,
-                effort=get_effort("skeleton_rev"),
+                effort=gen_effort,
             )
             api_latency = time.time() - t0
         except Exception:
@@ -663,7 +666,7 @@ def regenerate_slots(
             "slot_ids": batch_slot_ids,
             "timestamp": datetime.now(UTC).isoformat(),
             "model": model,
-            "effort": get_effort("skeleton_rev") or "default",
+            "effort": gen_effort or "default",
             "input_tokens": result["input_tokens"],
             "output_tokens": result["output_tokens"],
             "cost_usd": round(batch_cost, 6),
@@ -872,7 +875,8 @@ def run_revision(
             logger.info("User prompt (first 2000 chars):\n%s", user_prompt[:2000])
             break
 
-        rev_model = model or get_llm_model("skeleton_rev")
+        rev_model = model or get_llm_model("skeleton_rev", set_code)
+        rev_effort = get_effort("skeleton_rev", set_code)
         t0 = time.time()
         result = generate_with_tool(
             system_prompt=system_prompt,
@@ -881,7 +885,7 @@ def run_revision(
             model=rev_model,
             temperature=0.5,  # Lower temp for analytical task
             max_tokens=8192,
-            effort=get_effort("skeleton_rev"),
+            effort=rev_effort,
         )
         revision_latency = time.time() - t0
         revision_cost = cost_from_result(result)
@@ -915,6 +919,7 @@ def run_revision(
             cost_usd=revision_cost,
             latency_s=revision_latency,
             revision_log_dir=revision_log_dir,
+            effort=rev_effort,
         )
 
         logger.info("Revision plan: %d changes proposed", len(plan.changes))

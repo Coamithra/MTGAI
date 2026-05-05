@@ -239,7 +239,7 @@ def generate_visual_description(card: Card, set_code: str = "ASD") -> tuple[str,
         system_prompt=SYSTEM_PROMPT,
         user_prompt=user_prompt,
         tool_schema=TOOL_SCHEMA,
-        model=get_llm_model("art_prompts"),
+        model=get_llm_model("art_prompts", set_code),
         temperature=0.6,
         max_tokens=512,
     )

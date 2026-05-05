@@ -230,7 +230,7 @@ def run_reprints(
     # Spin up a poller so the activity banner shows real prompt-eval%
     # / generation tok/s during the (potentially long) llamacpp call.
     # Anthropic doesn't expose /slots, so we no-op for that provider.
-    reprint_model = get_llm_model("reprints")
+    reprint_model = get_llm_model("reprints", set_code)
     provider_name = _resolve_provider(reprint_model)
     if provider_name == "llamacpp":
         try:
@@ -322,8 +322,8 @@ def run_lands(
     def _on_call_start(model_id: str) -> None:
         state["model_id"] = model_id
         is_local = not model_id.startswith("claude-")
-        provider_label = "local Gemma" if "gemma" in model_id else (
-            "local model" if is_local else "Anthropic"
+        provider_label = (
+            "local Gemma" if "gemma" in model_id else ("local model" if is_local else "Anthropic")
         )
         emitter.update(
             "call",
@@ -354,7 +354,7 @@ def run_lands(
     from mtgai.generation.phase_poller import NullPoller, PromptEvalPoller
     from mtgai.settings.model_settings import get_llm_model
 
-    lands_model = get_llm_model("lands")
+    lands_model = get_llm_model("lands", set_code)
     if _resolve_provider(lands_model) == "llamacpp":
         try:
             poller_ctx: PromptEvalPoller | NullPoller = PromptEvalPoller(
@@ -413,7 +413,9 @@ def run_lands(
     )
 
 
-def run_card_gen(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_card_gen(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Generate cards from skeleton slots."""
     from mtgai.generation.card_generator import generate_set
 
@@ -430,7 +432,9 @@ def run_card_gen(set_code: str, progress_cb: ProgressCallback | None, emitter: S
     )
 
 
-def run_balance(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_balance(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Run balance analysis on the generated set."""
     from mtgai.analysis.balance import analyze_set
 
@@ -443,7 +447,9 @@ def run_balance(set_code: str, progress_cb: ProgressCallback | None, emitter: St
     )
 
 
-def run_skeleton_rev(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_skeleton_rev(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Run skeleton revision based on balance findings."""
     from mtgai.generation.skeleton_reviser import run_revision
 
@@ -459,7 +465,9 @@ def run_skeleton_rev(set_code: str, progress_cb: ProgressCallback | None, emitte
     )
 
 
-def run_ai_review(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_ai_review(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Run AI design review on all cards."""
     from mtgai.review.ai_review import review_all_cards
 
@@ -477,7 +485,9 @@ def run_ai_review(set_code: str, progress_cb: ProgressCallback | None, emitter: 
     )
 
 
-def run_finalize(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_finalize(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Run post-review finalization (reminder text injection + validation)."""
     from mtgai.review.finalize import finalize_set
 
@@ -492,7 +502,9 @@ def run_finalize(set_code: str, progress_cb: ProgressCallback | None, emitter: S
     )
 
 
-def run_human_card_review(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_human_card_review(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Human card review — this is a pause point, not an automated stage.
 
     The engine pauses here and the user uses the review gallery UI.
@@ -501,7 +513,9 @@ def run_human_card_review(set_code: str, progress_cb: ProgressCallback | None, e
     return StageResult(detail="Awaiting human card review via gallery UI")
 
 
-def run_art_prompts(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_art_prompts(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Generate art prompts for all cards."""
     from mtgai.art.prompt_builder import generate_prompts_for_set
 
@@ -519,7 +533,9 @@ def run_art_prompts(set_code: str, progress_cb: ProgressCallback | None, emitter
     )
 
 
-def run_char_portraits(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_char_portraits(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Generate character reference portraits."""
     from mtgai.art.character_portraits import generate_character_portraits
 
@@ -533,7 +549,9 @@ def run_char_portraits(set_code: str, progress_cb: ProgressCallback | None, emit
     )
 
 
-def run_art_gen(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_art_gen(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Generate art for all cards via ComfyUI + Flux."""
     from mtgai.art.image_generator import generate_art_for_set
 
@@ -551,7 +569,9 @@ def run_art_gen(set_code: str, progress_cb: ProgressCallback | None, emitter: St
     )
 
 
-def run_art_select(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_art_select(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Select best art version per card via Haiku vision."""
     from mtgai.art.art_selector import select_best_art_for_set
 
@@ -569,12 +589,16 @@ def run_art_select(set_code: str, progress_cb: ProgressCallback | None, emitter:
     )
 
 
-def run_human_art_review(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_human_art_review(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Human art review — pause point for art gallery review."""
     return StageResult(detail="Awaiting human art review via gallery UI")
 
 
-def run_rendering(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_rendering(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Render all cards to print-ready images."""
     from mtgai.rendering.card_renderer import CardRenderer
 
@@ -593,7 +617,9 @@ def run_rendering(set_code: str, progress_cb: ProgressCallback | None, emitter: 
     )
 
 
-def run_render_qa(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_render_qa(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Re-run validators on rendered cards for final QA."""
     from mtgai.validation import validate_card_from_raw
 
@@ -625,7 +651,9 @@ def run_render_qa(set_code: str, progress_cb: ProgressCallback | None, emitter: 
     )
 
 
-def run_human_final_review(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+def run_human_final_review(
+    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+) -> StageResult:
     """Human final review — pause point for rendered card review."""
     return StageResult(detail="Awaiting human final review via gallery UI")
 

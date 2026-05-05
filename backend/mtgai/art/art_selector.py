@@ -125,6 +125,7 @@ def select_best_version(
     colors: list[str],
     prompt: str,
     image_paths: list[Path],
+    set_code: str,
     model: str | None = None,
 ) -> dict:
     """Send images to Claude vision and get the best version pick.
@@ -136,7 +137,7 @@ def select_best_version(
     from mtgai.settings.model_settings import get_llm_model
 
     if model is None:
-        model = get_llm_model("art_select")
+        model = get_llm_model("art_select", set_code)
 
     provider = _get_provider("anthropic")
     facade_model = provider.new_model(model)
@@ -220,6 +221,7 @@ def select_art_for_set(
                 colors=card.colors or [],
                 prompt=card.art_prompt,
                 image_paths=versions,
+                set_code=set_code,
             )
 
             total_input_tokens += selection["input_tokens"]

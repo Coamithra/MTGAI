@@ -1,11 +1,18 @@
-"""Per-stage model assignments with presets and profile save/load.
+"""Per-stage model assignments — per-set TOML files plus a small global file.
 
-The settings module is the bridge between the model registry (what's available)
-and the pipeline modules (what they actually use).  Each LLM-using stage gets
-a model key, and convenience functions translate that into the API model_id
-that ``generate_with_tool`` expects.
+Each set owns its own ``output/sets/<SET>/settings.toml`` (LLM/image/effort
+assignments). A separate ``output/settings/global.toml`` carries cross-set
+defaults — currently just the *default preset* used to seed new sets.
 
-Settings are saved as TOML profiles in ``output/settings/``.
+Profiles (reusable assignment templates) live in ``output/settings/<name>.toml``;
+the legacy ``output/settings/current.toml`` is treated as a one-time seed
+source for sets that pre-date this refactor and is no longer written to.
+
+Lookup is keyed by ``set_code`` everywhere — ``get_settings(set_code)`` and
+the convenience helpers (``get_llm_model(stage_id, set_code)`` etc.). Stage
+runners are expected to call these helpers once at the top of the run; that
+gives a "no mid-stage swap" guarantee without needing to plumb the resolved
+values onto ``StageState``.
 """
 
 from __future__ import annotations
@@ -21,6 +28,10 @@ logger = logging.getLogger(__name__)
 
 OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
 SETTINGS_DIR = OUTPUT_ROOT / "settings"
+SETS_DIR = OUTPUT_ROOT / "sets"
+
+GLOBAL_TOML = SETTINGS_DIR / "global.toml"
+LEGACY_CURRENT_TOML = SETTINGS_DIR / "current.toml"
 
 # ---------------------------------------------------------------------------
 # Stage definitions — which stages use LLMs / image-gen
@@ -75,7 +86,7 @@ DEFAULT_EFFORT: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
-# Presets
+# Built-in presets
 # ---------------------------------------------------------------------------
 
 PRESETS: dict[str, dict] = {
@@ -129,13 +140,16 @@ PRESETS: dict[str, dict] = {
     },
 }
 
+BUILTIN_PRESET_NAMES = frozenset(PRESETS)
+RESERVED_PROFILE_NAMES = frozenset({"global", "current"})
+
 # ---------------------------------------------------------------------------
 # Settings model
 # ---------------------------------------------------------------------------
 
 
 class ModelSettings(BaseModel):
-    """Per-stage model assignments — the active configuration."""
+    """Per-stage model assignments — the active configuration for one set."""
 
     llm_assignments: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_LLM_ASSIGNMENTS))
     image_assignments: dict[str, str] = Field(
@@ -181,15 +195,12 @@ class ModelSettings(BaseModel):
                 return None
         return effort
 
-    def save(self, path: Path | None = None, name: str = "current") -> Path:
-        """Save settings to a TOML file."""
+    def to_toml_doc(self):
+        """Build a tomlkit document for this settings instance."""
         import tomlkit
 
-        SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
-        path = path or SETTINGS_DIR / f"{name}.toml"
-
         doc = tomlkit.document()
-        doc.add(tomlkit.comment("MTGAI model settings profile"))
+        doc.add(tomlkit.comment("MTGAI model settings"))
         doc.add(tomlkit.nl())
         doc.add("llm_assignments", dict(self.llm_assignments))
         doc.add(tomlkit.nl())
@@ -197,9 +208,25 @@ class ModelSettings(BaseModel):
         if any(self.effort_overrides.values()):
             doc.add(tomlkit.nl())
             doc.add("effort_overrides", {k: v for k, v in self.effort_overrides.items() if v})
+        return doc
 
-        path.write_text(tomlkit.dumps(doc), encoding="utf-8")
-        logger.info("Saved model settings to %s", path)
+    def write_toml(self, path: Path) -> Path:
+        """Write the settings to a TOML file (parent dirs are created)."""
+        import tomlkit
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(tomlkit.dumps(self.to_toml_doc()), encoding="utf-8")
+        return path
+
+    def save_profile(self, name: str) -> Path:
+        """Save these settings as a named profile in the global library."""
+        if not name:
+            raise ValueError("Profile name required")
+        if name in RESERVED_PROFILE_NAMES:
+            raise ValueError(f"Profile name {name!r} is reserved")
+        path = SETTINGS_DIR / f"{name}.toml"
+        self.write_toml(path)
+        logger.info("Saved profile %r to %s", name, path)
         return path
 
     @classmethod
@@ -218,14 +245,21 @@ class ModelSettings(BaseModel):
 
     @classmethod
     def from_preset(cls, preset_name: str) -> ModelSettings:
-        """Create settings from a named preset."""
-        preset = PRESETS.get(preset_name)
-        if preset is None:
-            raise ValueError(f"Unknown preset: {preset_name!r}. Available: {list(PRESETS)}")
-        return cls(
-            llm_assignments=dict(preset["llm"]),
-            image_assignments=dict(preset["image"]),
-            effort_overrides=dict(preset.get("effort", {})),
+        """Create settings from a named built-in preset or saved profile."""
+        if preset_name in PRESETS:
+            preset = PRESETS[preset_name]
+            return cls(
+                llm_assignments=dict(preset["llm"]),
+                image_assignments=dict(preset["image"]),
+                effort_overrides=dict(preset.get("effort", {})),
+            )
+        # Fall back to saved profile
+        profile_path = SETTINGS_DIR / f"{preset_name}.toml"
+        if profile_path.exists():
+            return cls.load_from_file(profile_path)
+        raise ValueError(
+            f"Unknown preset {preset_name!r}. Built-ins: {sorted(PRESETS)}; "
+            f"saved profiles: {list_profiles()}"
         )
 
     def to_ui_dict(self) -> dict:
@@ -266,45 +300,224 @@ class ModelSettings(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Global singleton
+# Global settings (cross-set defaults)
 # ---------------------------------------------------------------------------
 
-_current: ModelSettings | None = None
 
+class GlobalSettings(BaseModel):
+    """Cross-set defaults persisted to ``output/settings/global.toml``.
 
-def get_settings() -> ModelSettings:
-    """Return the active model settings.
-
-    Loads from ``output/settings/current.toml`` on first call.
-    Falls back to defaults if no saved settings exist.
+    Currently only carries the *default preset* used to seed new sets.
     """
-    global _current
-    if _current is None:
-        current_path = SETTINGS_DIR / "current.toml"
-        if current_path.exists():
-            try:
-                _current = ModelSettings.load_from_file(current_path)
-                logger.info("Loaded model settings from %s", current_path)
-            except Exception:
-                logger.warning("Failed to load settings, using defaults", exc_info=True)
-                _current = ModelSettings()
-        else:
-            _current = ModelSettings()
-    return _current
+
+    default_preset: str = "recommended"
+
+    def write(self, path: Path | None = None) -> Path:
+        """Persist this global-settings instance to disk."""
+        import tomlkit
+
+        # Resolve default at call time so test monkeypatches of GLOBAL_TOML
+        # are honoured.
+        if path is None:
+            path = GLOBAL_TOML
+        path.parent.mkdir(parents=True, exist_ok=True)
+        doc = tomlkit.document()
+        doc.add(tomlkit.comment("MTGAI cross-set defaults"))
+        doc.add(tomlkit.nl())
+        doc.add("default_preset", self.default_preset)
+        path.write_text(tomlkit.dumps(doc), encoding="utf-8")
+        return path
+
+    @classmethod
+    def load_from_file(cls, path: Path | None = None) -> GlobalSettings:
+        import tomllib
+
+        if path is None:
+            path = GLOBAL_TOML
+        with open(path, "rb") as f:
+            data = tomllib.load(f)
+        return cls(default_preset=data.get("default_preset", "recommended"))
 
 
-def apply_settings(settings: ModelSettings) -> None:
-    """Set new active settings and persist to disk."""
-    global _current
-    _current = settings
-    settings.save(name="current")
+# ---------------------------------------------------------------------------
+# Caches
+# ---------------------------------------------------------------------------
+
+# Per-set settings, keyed by set_code. Invalidated by apply_settings().
+_per_set_cache: dict[str, ModelSettings] = {}
+
+# Global settings, lazy-loaded.
+_global_cache: GlobalSettings | None = None
+
+
+def _set_settings_path(set_code: str) -> Path:
+    return SETS_DIR / set_code / "settings.toml"
+
+
+def _ensure_global_settings() -> GlobalSettings:
+    """Load (or create) the global settings file.
+
+    On first creation: if the legacy ``current.toml`` exists, copy it into
+    ``imported.toml`` and point ``default_preset`` at it. Otherwise default
+    to ``"recommended"``.
+    """
+    global _global_cache
+    if _global_cache is not None:
+        return _global_cache
+
+    if GLOBAL_TOML.exists():
+        try:
+            _global_cache = GlobalSettings.load_from_file(GLOBAL_TOML)
+            return _global_cache
+        except Exception:
+            logger.warning("Failed to load %s, recreating", GLOBAL_TOML, exc_info=True)
+
+    if LEGACY_CURRENT_TOML.exists():
+        try:
+            imported = ModelSettings.load_from_file(LEGACY_CURRENT_TOML)
+            imported_path = SETTINGS_DIR / "imported.toml"
+            if not imported_path.exists():
+                imported.write_toml(imported_path)
+                logger.info(
+                    "Bootstrapped global default from %s -> %s",
+                    LEGACY_CURRENT_TOML,
+                    imported_path,
+                )
+            _global_cache = GlobalSettings(default_preset="imported")
+        except Exception:
+            logger.warning(
+                "Could not import legacy current.toml; falling back to 'recommended'",
+                exc_info=True,
+            )
+            _global_cache = GlobalSettings()
+    else:
+        _global_cache = GlobalSettings()
+
+    _global_cache.write()
+    return _global_cache
+
+
+def get_global_settings() -> GlobalSettings:
+    """Return the cross-set default settings (lazy-loaded, cached)."""
+    return _ensure_global_settings()
+
+
+def apply_global_settings(settings: GlobalSettings) -> None:
+    """Replace the cached global settings and persist to disk."""
+    global _global_cache
+    _global_cache = settings
+    settings.write()
+
+
+# ---------------------------------------------------------------------------
+# Per-set settings
+# ---------------------------------------------------------------------------
+
+
+def _seed_per_set_settings(set_code: str) -> ModelSettings:
+    """Build initial ModelSettings for a set with no settings.toml.
+
+    Migration order:
+      1. legacy ``current.toml`` exists → copy it (preserves mid-run state
+         for sets that pre-date this refactor).
+      2. global ``default_preset`` resolves to a built-in preset or a saved
+         profile → seed from it.
+      3. fall back to ``ModelSettings()`` defaults.
+    """
+    if LEGACY_CURRENT_TOML.exists():
+        try:
+            settings = ModelSettings.load_from_file(LEGACY_CURRENT_TOML)
+            logger.info(
+                "Seeded settings for set %s from legacy %s", set_code, LEGACY_CURRENT_TOML.name
+            )
+            return settings
+        except Exception:
+            logger.warning(
+                "Failed to read legacy current.toml when seeding %s; trying global default",
+                set_code,
+                exc_info=True,
+            )
+
+    glob = get_global_settings()
+    try:
+        settings = ModelSettings.from_preset(glob.default_preset)
+        logger.info(
+            "Seeded settings for set %s from default preset %r", set_code, glob.default_preset
+        )
+        return settings
+    except Exception:
+        logger.warning(
+            "Default preset %r unavailable for set %s; using built-in defaults",
+            glob.default_preset,
+            set_code,
+            exc_info=True,
+        )
+        return ModelSettings()
+
+
+def get_settings(set_code: str) -> ModelSettings:
+    """Return the active model settings for a set.
+
+    Loads ``output/sets/<set_code>/settings.toml`` on first call, seeding
+    the file from migration sources (see ``_seed_per_set_settings``) if it
+    doesn't yet exist. Subsequent calls hit the in-memory cache; the cache
+    is invalidated by :func:`apply_settings`.
+    """
+    if not set_code:
+        raise ValueError("set_code is required")
+
+    cached = _per_set_cache.get(set_code)
+    if cached is not None:
+        return cached
+
+    path = _set_settings_path(set_code)
+    if path.exists():
+        try:
+            settings = ModelSettings.load_from_file(path)
+        except Exception:
+            logger.warning("Failed to load %s; reseeding from defaults", path, exc_info=True)
+            settings = _seed_per_set_settings(set_code)
+            settings.write_toml(path)
+    else:
+        settings = _seed_per_set_settings(set_code)
+        settings.write_toml(path)
+
+    _per_set_cache[set_code] = settings
+    return settings
+
+
+def apply_settings(set_code: str, settings: ModelSettings) -> Path:
+    """Persist the given settings as the active config for a set."""
+    if not set_code:
+        raise ValueError("set_code is required")
+    path = _set_settings_path(set_code)
+    settings.write_toml(path)
+    _per_set_cache[set_code] = settings
+    logger.info("Applied settings for set %s -> %s", set_code, path)
+    return path
+
+
+def invalidate_cache(set_code: str | None = None) -> None:
+    """Drop cached settings (for one set or all). Test/debug hook."""
+    global _global_cache
+    if set_code is None:
+        _per_set_cache.clear()
+        _global_cache = None
+    else:
+        _per_set_cache.pop(set_code, None)
 
 
 def list_profiles() -> list[str]:
-    """List saved profile names (without extension)."""
+    """List saved profile names (without extension).
+
+    Excludes ``global.toml`` and the legacy ``current.toml`` — those are
+    not user-facing profiles.
+    """
     if not SETTINGS_DIR.exists():
         return []
-    return sorted(p.stem for p in SETTINGS_DIR.glob("*.toml") if p.stem != "current")
+    return sorted(
+        p.stem for p in SETTINGS_DIR.glob("*.toml") if p.stem not in RESERVED_PROFILE_NAMES
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -312,16 +525,16 @@ def list_profiles() -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def get_llm_model(stage_id: str) -> str:
-    """Get the API model_id for a pipeline stage. Shorthand for modules."""
-    return get_settings().get_llm_model_id(stage_id)
+def get_llm_model(stage_id: str, set_code: str) -> str:
+    """Get the API model_id for a pipeline stage."""
+    return get_settings(set_code).get_llm_model_id(stage_id)
 
 
-def get_image_model(stage_id: str) -> str:
+def get_image_model(stage_id: str, set_code: str) -> str:
     """Get the image model key for a pipeline stage."""
-    return get_settings().get_image_model_key(stage_id)
+    return get_settings(set_code).get_image_model_key(stage_id)
 
 
-def get_effort(stage_id: str) -> str | None:
+def get_effort(stage_id: str, set_code: str) -> str | None:
     """Get the effort level for a pipeline stage."""
-    return get_settings().get_effort(stage_id)
+    return get_settings(set_code).get_effort(stage_id)

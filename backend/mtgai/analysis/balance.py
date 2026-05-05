@@ -106,7 +106,7 @@ def analyze_set(set_code: str) -> BalanceAnalysisResult:
     all_issues.extend(balance_issues)
 
     # --- Interactions ---
-    interaction_flags, interaction_issues = analyze_interactions(cards, mechanics)
+    interaction_flags, interaction_issues = analyze_interactions(cards, mechanics, set_code)
     all_issues.extend(interaction_issues)
 
     # --- Summary ---

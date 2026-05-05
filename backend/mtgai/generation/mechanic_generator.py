@@ -380,19 +380,25 @@ def assign_evergreen_keywords() -> dict[str, list[str]]:
 
 def generate_mechanic_candidates(
     theme_path: str | Path | None = None,
+    set_code: str = "ASD",
 ) -> list[dict]:
-    """Generate mechanic candidates for the ASD set via LLM.
+    """Generate mechanic candidates for a set via LLM.
 
     Args:
         theme_path: Optional path to theme.json for context.
             Not directly injected into prompt (already in system prompt),
             but used for logging/verification.
+        set_code: Set code whose model assignment to use for this stage.
 
     Returns:
         List of mechanic candidate dicts.
     """
-    print("Calling Anthropic API to generate mechanic candidates...")
-    print("  Model: claude-sonnet-4-20250514")
+    from mtgai.settings.model_settings import get_llm_model
+
+    model_id = get_llm_model("mechanics", set_code)
+
+    print("Calling LLM to generate mechanic candidates...")
+    print(f"  Model: {model_id}")
     print("  Temperature: 1.0")
     print("  This may take 30-60 seconds...\n")
 
@@ -400,7 +406,7 @@ def generate_mechanic_candidates(
         system_prompt=SYSTEM_PROMPT,
         user_prompt=USER_PROMPT,
         tool_schema=MECHANIC_TOOL_SCHEMA,
-        model="claude-sonnet-4-20250514",
+        model=model_id,
         temperature=1.0,
         max_tokens=8192,
     )

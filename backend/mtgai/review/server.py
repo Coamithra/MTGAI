@@ -97,17 +97,17 @@ async def _lifespan(application: FastAPI) -> AsyncGenerator[None]:
     """
     from mtgai.settings.model_settings import get_settings
 
-    # Eagerly load the last-applied model settings (output/settings/current.toml)
-    # so they are in effect before any request arrives. get_settings() is a
-    # lazy singleton; calling it here just forces the load + log up front.
-    settings = get_settings()
-    logger.info(
-        "Active model settings: %s",
-        {k: v for k, v in settings.llm_assignments.items()},
-    )
-
     set_code = _get_set_code()
     set_dir = _set_dir(set_code)
+
+    # Eagerly load the per-set model settings so they are seeded on disk
+    # and ready before any request arrives. Subsequent calls hit the cache.
+    settings = get_settings(set_code)
+    logger.info(
+        "Active model settings for %s: %s",
+        set_code,
+        {k: v for k, v in settings.llm_assignments.items()},
+    )
 
     renders_dir = set_dir / "renders"
     if renders_dir.exists():
@@ -321,7 +321,7 @@ async def progress_page(request: Request, set_code: str | None = None) -> HTMLRe
 
 
 @app.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request) -> HTMLResponse:
+async def settings_page(request: Request, set_code: str | None = None) -> HTMLResponse:
     """Serve the model settings configuration page."""
     from mtgai.settings.model_registry import get_registry
     from mtgai.settings.model_settings import (
@@ -332,8 +332,11 @@ async def settings_page(request: Request) -> HTMLResponse:
         list_profiles,
     )
 
+    if set_code is None:
+        set_code = _get_set_code()
+
     registry = get_registry()
-    settings = get_settings()
+    settings = get_settings(set_code)
 
     return templates.TemplateResponse(
         request,
@@ -559,23 +562,30 @@ async def reload_manual_edits(set_code: str | None = None) -> JSONResponse:
 
 
 @app.post("/api/settings/apply", response_class=JSONResponse)
-async def apply_settings(request: Request) -> JSONResponse:
-    """Apply model settings as the active configuration."""
+async def apply_settings(request: Request, set_code: str | None = None) -> JSONResponse:
+    """Apply model settings as the active configuration for a set.
+
+    ``set_code`` falls back to the active set when omitted, which preserves
+    the legacy single-set UI while the wizard takes over.
+    """
     from mtgai.settings.model_settings import ModelSettings
     from mtgai.settings.model_settings import apply_settings as _apply
+
+    if set_code is None:
+        set_code = _get_set_code()
 
     body = await request.json()
     try:
         settings = ModelSettings(**body)
-        _apply(settings)
-        return JSONResponse({"success": True})
+        _apply(set_code, settings)
+        return JSONResponse({"success": True, "set_code": set_code})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
 
 
 @app.post("/api/settings/save", response_class=JSONResponse)
 async def save_settings_profile(request: Request) -> JSONResponse:
-    """Save model settings as a named profile."""
+    """Save model settings as a named profile in the global library."""
     from mtgai.settings.model_settings import ModelSettings
 
     body = await request.json()
@@ -585,7 +595,7 @@ async def save_settings_profile(request: Request) -> JSONResponse:
 
     try:
         settings = ModelSettings(**body.get("settings", {}))
-        path = settings.save(name=name)
+        path = settings.save_profile(name=name)
         return JSONResponse({"success": True, "path": str(path)})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)

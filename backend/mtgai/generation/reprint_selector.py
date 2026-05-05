@@ -498,7 +498,7 @@ def _llm_select_reprints(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             tool_schema=tool_schema,
-            model=get_llm_model("reprints"),
+            model=get_llm_model("reprints", set_config.get("code", "ASD")),
             temperature=0.0,
             max_tokens=2048,
         )

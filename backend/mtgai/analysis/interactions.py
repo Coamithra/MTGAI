@@ -11,7 +11,7 @@ enablers with fresh designs that avoid the problematic pattern.
 Usage:
     from mtgai.analysis.interactions import analyze_interactions
 
-    flags, issues = analyze_interactions(cards, mechanics)
+    flags, issues = analyze_interactions(cards, mechanics, set_code)
 """
 
 from __future__ import annotations
@@ -29,8 +29,7 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-MODEL = "claude-sonnet-4-6"
-EFFORT = None  # Sonnet doesn't support effort
+# Model + effort come from per-set model_settings at runtime.
 TEMPERATURE = 0.3  # Low temp for analytical task
 MAX_TOKENS = 8192
 
@@ -232,6 +231,7 @@ def _build_interaction_prompt(
 def analyze_interactions(
     cards: list[Card],
     mechanics: list[dict],
+    set_code: str,
 ) -> tuple[list[InteractionFlag], list[AnalysisIssue]]:
     """Run LLM-based interaction analysis on the full card pool.
 
@@ -254,10 +254,10 @@ def analyze_interactions(
         system_prompt=INTERACTION_SYSTEM_PROMPT,
         user_prompt=user_prompt,
         tool_schema=INTERACTION_TOOL_SCHEMA,
-        model=get_llm_model("balance"),
+        model=get_llm_model("balance", set_code),
         temperature=TEMPERATURE,
         max_tokens=MAX_TOKENS,
-        effort=get_effort("balance"),
+        effort=get_effort("balance", set_code),
     )
 
     cost = cost_from_result(result)

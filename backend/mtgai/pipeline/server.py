@@ -345,11 +345,24 @@ async def upload_for_extraction(request: Request):
     )
 
 
-def _theme_extract_model_key() -> str:
-    """Look up the configured model key for the theme_extract stage."""
-    from mtgai.settings.model_settings import get_settings
+def _theme_extract_model_key(set_code: str | None = None) -> str:
+    """Look up the configured model key for the theme_extract stage.
 
-    return get_settings().llm_assignments.get("theme_extract", "haiku")
+    Falls back to the active set when ``set_code`` is omitted, which keeps
+    the legacy theme-wizard endpoints (no per-request set context yet)
+    working until the wizard rewrite plumbs set_code through.
+    """
+    from mtgai.settings.model_settings import DEFAULT_LLM_ASSIGNMENTS, get_settings
+
+    if set_code is None:
+        set_code = active_set.read_active_set()
+
+    if not set_code:
+        return DEFAULT_LLM_ASSIGNMENTS.get("theme_extract", "haiku")
+
+    return get_settings(set_code).llm_assignments.get(
+        "theme_extract", DEFAULT_LLM_ASSIGNMENTS.get("theme_extract", "haiku")
+    )
 
 
 @api_router.post("/theme/analyze")

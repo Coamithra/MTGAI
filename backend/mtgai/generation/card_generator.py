@@ -44,12 +44,10 @@ THEME_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "theme.json"
 PROGRESS_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "generation_progress.json"
 LOG_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "generation_logs"
 
-# LLM settings — defaults kept as constants for backward compat, but the
-# active values come from model_settings at runtime (configured via /settings).
-MODEL_DEFAULT = "claude-opus-4-6"
-MODEL_SONNET = "claude-sonnet-4-6"
-MODEL_OPUS = "claude-opus-4-6"
-EFFORT = "max"  # Opus-only; thinking is incompatible with forced tool_choice
+# LLM settings — model + effort come from per-set model_settings at runtime.
+# EFFORT here is only the per-batch log fallback when the resolved effort is
+# None (Sonnet/Haiku); kept so logs always carry a string.
+EFFORT = "max"
 TEMPERATURE = 1.0
 BATCH_SIZE = 5
 MAX_RETRIES = 3  # Only for schema parse failures
@@ -226,6 +224,8 @@ def _retry_single_card(
     theme: dict | None,
     model: str,
     attempt: int,
+    *,
+    effort: str | None = None,
 ) -> dict | None:
     """Retry generating a single card that failed to parse.
 
@@ -256,7 +256,7 @@ def _retry_single_card(
             model=model,
             temperature=TEMPERATURE,
             max_tokens=4096,
-            effort=_select_effort(),
+            effort=effort,
         )
         latency = time.time() - t0
         cost = cost_from_result(result)
@@ -350,6 +350,8 @@ def _save_batch_log(
     stop_reason: str,
     user_prompt: str,
     system_prompt: str,
+    *,
+    effort: str | None = None,
 ) -> None:
     """Save a batch-level log with the full prompt and all raw card data."""
     LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -362,7 +364,7 @@ def _save_batch_log(
         "card_count_returned": len(raw_cards),
         "model": model,
         "temperature": TEMPERATURE,
-        "effort": _select_effort() or EFFORT,
+        "effort": effort or EFFORT,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "cost_usd": round(cost_usd, 6),
@@ -406,18 +408,18 @@ def _card_one_liner(raw: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _select_model() -> str:
-    """Return the generation model from settings (falls back to Opus default)."""
+def _select_model(set_code: str) -> str:
+    """Return the generation model from this set's settings."""
     from mtgai.settings.model_settings import get_llm_model
 
-    return get_llm_model("card_gen")
+    return get_llm_model("card_gen", set_code)
 
 
-def _select_effort() -> str | None:
-    """Return the effort level from settings (falls back to 'max')."""
+def _select_effort(set_code: str) -> str | None:
+    """Return the effort level from this set's settings."""
     from mtgai.settings.model_settings import get_effort
 
-    return get_effort("card_gen")
+    return get_effort("card_gen", set_code)
 
 
 def _process_batch_result(
@@ -435,6 +437,7 @@ def _process_batch_result(
     system_prompt: str = "",
     latency_s: float = 0.0,
     stop_reason: str = "",
+    effort: str | None = None,
 ) -> list[Card]:
     """Validate, auto-fix, and save each card from a batch result.
 
@@ -526,6 +529,7 @@ def _process_batch_result(
                 theme,
                 model,
                 progress,
+                effort=effort,
             )
             if card is None:
                 logger.error(
@@ -592,6 +596,8 @@ def _retry_parse_failure(
     theme: dict | None,
     model: str,
     progress: GenerationProgress,
+    *,
+    effort: str | None = None,
 ) -> Card | None:
     """Retry a card that completely failed schema validation (couldn't parse)."""
     for attempt in range(2, MAX_RETRIES + 1):
@@ -603,6 +609,7 @@ def _retry_parse_failure(
             theme,
             model,
             attempt,
+            effort=effort,
         )
         if result is None:
             continue
@@ -713,8 +720,8 @@ def generate_set(
     logger.info("=" * 70)
     logger.info("MTGAI Card Generation Pipeline — Phase 1C")
     logger.info("=" * 70)
-    active_model = _select_model()
-    active_effort = _select_effort()
+    active_model = _select_model(set_code)
+    active_effort = _select_effort(set_code)
     logger.info(
         "Model: %s | Effort: %s | Temp: %s | Batch size: %d",
         active_model,
@@ -810,7 +817,7 @@ def generate_set(
     start_time = time.time()
 
     for batch_idx, batch in enumerate(batches, 1):
-        model = _select_model()
+        model = active_model
         slot_ids = [s["slot_id"] for s in batch]
         batch_start = time.time()
 
@@ -864,7 +871,7 @@ def generate_set(
                 model=model,
                 temperature=TEMPERATURE,
                 max_tokens=8192,
-                effort=_select_effort(),
+                effort=active_effort,
             )
             api_latency = time.time() - t0
         except Exception:
@@ -932,6 +939,7 @@ def generate_set(
             stop_reason=result.get("stop_reason", ""),
             user_prompt=user_prompt,
             system_prompt=system_prompt,
+            effort=active_effort,
         )
 
         # Log each raw card preview
@@ -961,6 +969,7 @@ def generate_set(
             system_prompt=system_prompt,
             latency_s=api_latency,
             stop_reason=result.get("stop_reason", ""),
+            effort=active_effort,
         )
         total_saved += len(saved)
         progress.save()
