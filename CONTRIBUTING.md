@@ -136,6 +136,7 @@ Dig into the problem before proposing solutions. Use `/research` for topics that
 30. **Move card to Done** — `trello --board 69f86a83 card move <card_id> Done`
 31. **Comment on the card** — `trello --board 69f86a83 comment add <card_id> "<summary>"`. Include: what changed, which files, what it fixes/adds, the commit hash(es), and what needs manual testing. Leaves a paper trail for future debugging
 32. **Create follow-up cards** — If review, implementation, or testing surfaced issues that are out of scope for this card (pre-existing bugs, minor improvements, edge cases deferred as too risky to bundle), create new Trello cards (`trello --board 69f86a83 card add "To Do" "<title>" "<desc>"`). Reference the original card so there's a trail. Don't let follow-up work disappear into commit messages — if it's worth noting, it's worth tracking
+33. **Write an overview of the changes made** — As the final step, post a concise overview to the user summarizing the work: what changed (the user-facing behavior delta, not a file list), which files were touched, anything that still needs manual testing or follow-up, and the commit hash(es) and merged branch. This is the closing handoff — it's how the user picks the session up cold and knows the card is actually shipped
 
 ---
 

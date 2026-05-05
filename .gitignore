@@ -33,6 +33,12 @@ env/
 # Output directory (everything generated — cards, art, renders, logs, state)
 output/
 
+# llmfacade managed-mode session dir (llama-swap subprocess + generated YAML)
+backend/.llmfacade/
+
+# Per-process log dirs from local runs
+backend/logs/
+
 # Per-card git worktrees (see CONTRIBUTING.md)
 .trees/
 
