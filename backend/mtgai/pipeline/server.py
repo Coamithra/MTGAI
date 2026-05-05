@@ -570,14 +570,17 @@ def _start_extraction_worker(
                         )
                         # Auto-advance: with theme.json now on disk, kick
                         # off the pipeline engine so Skeleton (the first
-                        # real stage) starts running. Idempotent — if
-                        # the user re-runs extraction on a set that
-                        # already has pipeline state, the helper's
-                        # existing-state branch is a no-op.
+                        # real stage) starts running. The helper refuses
+                        # to act on RUNNING / PAUSED states, so re-running
+                        # extraction on an in-flight set is a safe no-op.
                         _, kickoff_err = _kickoff_pipeline_engine(save_to_set)
                         if kickoff_err is not None:
-                            logger.info(
-                                "Theme→engine auto-advance skipped for %s: %s",
+                            # Warning, not info: the user expected the
+                            # wizard to flow into Skeleton and it didn't
+                            # — surfacing this at default log levels
+                            # gives the operator a chance to spot it.
+                            logger.warning(
+                                "Theme to engine auto-advance skipped for %s: %s",
                                 save_to_set,
                                 kickoff_err,
                             )
@@ -1349,23 +1352,29 @@ def _first_pending_stage_id(state: PipelineState) -> str | None:
 def _kickoff_pipeline_engine(set_code: str) -> tuple[PipelineState | None, str | None]:
     """Spawn the engine for ``set_code`` if it isn't already running.
 
-    Idempotent in the senses the wizard needs:
+    Used by the wizard's Theme→Skeleton handoff (both the explicit
+    Next-step button on Theme and the post-extraction auto-advance hook
+    in the worker thread). Refuses to act on a state that's already
+    live or that needs a different transition:
 
-    * If a pipeline-state.json already exists with overall_status RUNNING,
-      we leave it alone — the engine is already chewing through stages.
-    * If state exists but is NOT_STARTED / PAUSED / FAILED / COMPLETED /
-      CANCELLED, we treat it as a fresh kickoff (PAUSED would route to
-      ``/api/pipeline/resume`` instead, but the helper is robust to
-      being called there too — the engine's run loop will skip already
-      completed stages and start at the first pending one).
-    * If no state exists, we build it from settings.toml and persist.
+    * Engine already running in this process → returns ``"A pipeline is
+      already running"``.
+    * Disk state has overall_status RUNNING with no attached engine →
+      returns the orphan error. ``cleanup_orphan_running_stages`` should
+      demote those at boot; reaching this branch means something raced.
+    * Disk state has overall_status PAUSED → returns ``"Pipeline is
+      paused, use resume instead"``. Re-entering ``engine.run`` on a
+      PAUSED state would re-call the runner of the paused stage and
+      discard the human review (engine.py only skips
+      ``COMPLETED``/``SKIPPED``).
+    * Otherwise (no state, NOT_STARTED, FAILED, COMPLETED, CANCELLED) →
+      reuse or create the state, persist, and spawn the engine.
 
-    The engine is spawned in a daemon thread so this is safe to call
-    from any context (FastAPI handler, theme extraction worker, tests).
+    Spawned in a daemon thread so the helper is callable from a worker
+    thread (no asyncio loop) and from async handlers (no await needed).
 
     Returns ``(state, error)``. On success, ``state`` is non-None and
-    ``error`` is None. On failure (e.g., engine already running),
-    returns ``(None, "<reason>")``.
+    ``error`` is None. On failure, returns ``(None, "<reason>")``.
     """
     global _engine, _engine_task
 
@@ -1373,13 +1382,11 @@ def _kickoff_pipeline_engine(set_code: str) -> tuple[PipelineState | None, str |
         return None, "A pipeline is already running"
 
     existing = load_state(set_code)
-    if existing is not None and existing.overall_status == PipelineStatus.RUNNING:
-        # Persisted RUNNING with no live engine = orphan from a prior
-        # process. ``cleanup_orphan_running_stages`` is supposed to
-        # demote those at boot, so seeing one here means something
-        # raced startup or the helper was bypassed. Bail rather than
-        # double-start.
-        return None, "Pipeline state is RUNNING but no engine is attached"
+    if existing is not None:
+        if existing.overall_status == PipelineStatus.RUNNING:
+            return None, "Pipeline state is RUNNING but no engine is attached"
+        if existing.overall_status == PipelineStatus.PAUSED:
+            return None, "Pipeline is paused, use resume instead"
 
     if existing is None:
         state = create_pipeline_state(_build_pipeline_config_from_settings(set_code))
@@ -1389,9 +1396,6 @@ def _kickoff_pipeline_engine(set_code: str) -> tuple[PipelineState | None, str |
     save_state(state)
     event_bus.reset_buffer()
     _engine = PipelineEngine(state, event_bus)
-    # Daemon thread so the kickoff is callable from a worker thread (no
-    # asyncio loop available there) and from async handlers (where we
-    # don't need to await it).
     threading.Thread(target=_engine.run, name=f"pipeline-{set_code}", daemon=True).start()
     _engine_task = None
     return state, None
@@ -1442,22 +1446,23 @@ async def wizard_advance(request: Request) -> JSONResponse:
     if existing.overall_status == PipelineStatus.PAUSED:
         global _engine, _engine_task
 
-        next_id = _first_pending_stage_id(existing)
+        # Same guard the kickoff helper uses + every other engine-touching
+        # endpoint (start/resume/retry/skip): refuse to clobber a live
+        # engine reference. Without this a double-click or a concurrent
+        # request would overwrite ``_engine`` mid-run, leaving the prior
+        # daemon thread orphaned and untraceable.
+        if _engine is not None and _engine.is_running:
+            return JSONResponse({"error": "A pipeline is already running"}, status_code=409)
+
         _engine = PipelineEngine(existing, event_bus)
         _engine_task = asyncio.create_task(asyncio.to_thread(_engine.resume))
-        return JSONResponse(
-            {
-                "success": True,
-                "next_stage_id": next_id,
-                # Don't return navigate_to on resume: the user clicked
-                # Next-step from the paused tab, so we want them to stay
-                # there (SSE will spawn the next tab in the strip
-                # without stealing focus).
-            }
-        )
+        # Don't return navigate_to on resume: the user clicked Next-step
+        # from the paused tab, so we want them to stay there (SSE will
+        # spawn the next tab in the strip without stealing focus).
+        return JSONResponse({"success": True})
 
     return JSONResponse(
-        {"error": f"Pipeline is {existing.overall_status}, cannot advance"},
+        {"error": f"Pipeline is {existing.overall_status.value}, cannot advance"},
         status_code=400,
     )
 

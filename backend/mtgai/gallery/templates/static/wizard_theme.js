@@ -28,7 +28,7 @@
     initialized: false,
   };
 
-  function renderThemeTab({ root, state, rerender }) {
+  function renderThemeTab({ root, state }) {
     const footer = root.querySelector('[data-role="footer"]');
 
     if (local.initialized) {
@@ -47,7 +47,6 @@
       return;
     }
     local.initialized = true;
-    void rerender;  // first-mount path doesn't read this
 
     const content = root.querySelector('[data-role="content"]');
     if (!content) return;
@@ -425,7 +424,11 @@
   function bindThemeFooter(footer, state) {
     const btn = footer.querySelector('button[data-role="theme-next"]');
     if (!btn) return;
-    btn.addEventListener('click', async () => {
+    // Single-slot via .onclick to avoid stacked listeners if the same
+    // DOM node ever survives a re-bind (the dataset.lastFooter guard
+    // makes this rare today, but innerHTML rewrites + onclick is the
+    // belt-and-braces version).
+    btn.onclick = async () => {
       const original = btn.textContent;
       btn.disabled = true;
       btn.textContent = 'Starting…';
@@ -454,6 +457,6 @@
         btn.disabled = false;
         btn.textContent = original;
       }
-    });
+    };
   }
 })();

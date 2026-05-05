@@ -161,47 +161,30 @@
     `;
   }
 
-  // Pipeline stage order — kept in sync with backend STAGE_DEFINITIONS so
-  // we can render "Next step: <name>" without an extra fetch. Anything
-  // not in this list (e.g. legacy or future stages) falls back to the
-  // generic "Next step" label so a stale client still works.
-  const STAGE_ORDER = [
-    { id: 'skeleton', name: 'Skeleton Generation' },
-    { id: 'reprints', name: 'Reprint Selection' },
-    { id: 'lands', name: 'Land Generation' },
-    { id: 'card_gen', name: 'Card Generation' },
-    { id: 'balance', name: 'Balance Analysis' },
-    { id: 'skeleton_rev', name: 'Skeleton Revision' },
-    { id: 'ai_review', name: 'AI Design Review' },
-    { id: 'finalize', name: 'Finalization' },
-    { id: 'human_card_review', name: 'Card Review' },
-    { id: 'art_prompts', name: 'Art Prompt Generation' },
-    { id: 'char_portraits', name: 'Character Portraits' },
-    { id: 'art_gen', name: 'Art Generation' },
-    { id: 'art_select', name: 'Art Selection' },
-    { id: 'human_art_review', name: 'Art Review' },
-    { id: 'rendering', name: 'Card Rendering' },
-    { id: 'render_qa', name: 'Render QA' },
-    { id: 'human_final_review', name: 'Final Review' },
-  ];
+  // Next-stage display name comes from state.pipeline.stages, which is
+  // sourced from the backend's STAGE_DEFINITIONS. Avoids duplicating
+  // the stage list client-side (so adding a stage server-side doesn't
+  // silently regress the footer label here).
+  function nextStageEntryAfter(state, stageId) {
+    if (!state.pipeline || !state.pipeline.stages) return null;
+    const stages = state.pipeline.stages;
+    const idx = stages.findIndex(s => s.stage_id === stageId);
+    if (idx < 0 || idx === stages.length - 1) return null;
+    const next = stages[idx + 1];
+    return { id: next.stage_id, name: next.display_name };
+  }
 
-  const FINAL_STAGE_ID = STAGE_ORDER[STAGE_ORDER.length - 1].id;
-
-  function nextStageEntry(stageId) {
-    const idx = STAGE_ORDER.findIndex(s => s.id === stageId);
-    if (idx < 0 || idx === STAGE_ORDER.length - 1) return null;
-    return STAGE_ORDER[idx + 1];
+  function isFinalStage(state, stageId) {
+    if (!state.pipeline || !state.pipeline.stages) return false;
+    const stages = state.pipeline.stages;
+    return stages.length > 0 && stages[stages.length - 1].stage_id === stageId;
   }
 
   function stageFooterHtml(stage, state) {
     const isLatest = state.latestTabId === stage.stage_id;
 
     // Final tab + completed = "Set complete" terminal state (§8.4).
-    if (
-      isLatest
-      && stage.stage_id === FINAL_STAGE_ID
-      && stage.status === 'completed'
-    ) {
+    if (isLatest && isFinalStage(state, stage.stage_id) && stage.status === 'completed') {
       return `<span class="wiz-footer-complete" role="status">✓ Set complete</span>`;
     }
 
@@ -211,7 +194,7 @@
     // (the engine just walks to the next stage), so we only render
     // Next-step on PAUSED_FOR_REVIEW.
     if (isLatest && stage.status === 'paused_for_review') {
-      const next = nextStageEntry(stage.stage_id);
+      const next = nextStageEntryAfter(state, stage.stage_id);
       const label = next ? `Next step: ${next.name}` : 'Next step';
       return `<button type="button" class="wiz-btn-primary" data-role="next-step">${escHtml(label)}</button>`;
     }
@@ -225,7 +208,9 @@
   function bindNextStepButton(footer, state) {
     const btn = footer.querySelector('button[data-role="next-step"]');
     if (!btn) return;
-    btn.addEventListener('click', async () => {
+    // Single-slot via .onclick (not addEventListener) so a hypothetical
+    // re-bind on the same DOM node would replace rather than stack.
+    btn.onclick = async () => {
       const original = btn.textContent;
       btn.disabled = true;
       btn.textContent = 'Advancing…';
@@ -244,13 +229,12 @@
         // running, and the SSE stream will repaint the footer in place
         // when the next stage enters PAUSED_FOR_REVIEW or this tab's
         // status transitions away from paused_for_review.
-        btn.textContent = 'Advancing…';
       } catch (err) {
         window.MTGAIWizard.toast('Network error: ' + err.message, 'error');
         btn.disabled = false;
         btn.textContent = original;
       }
-    });
+    };
   }
 
   // ------------------------------------------------------------------

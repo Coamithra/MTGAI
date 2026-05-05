@@ -178,10 +178,31 @@ def test_kickoff_creates_state_and_spawns_engine(no_thread_start):
     assert len(no_thread_start) == 1
 
 
-def test_kickoff_reuses_existing_paused_state(no_thread_start):
+def test_kickoff_refuses_paused_state(no_thread_start):
+    """PAUSED needs ``engine.resume`` (which marks the paused stage
+    completed first), not a fresh ``engine.run`` — re-entering run on a
+    paused state would re-call the runner and discard the human review.
+    The advance endpoint routes PAUSED to the resume branch; the helper
+    itself rejects it as a defence-in-depth.
+    """
     _make_set("ASD")
     seeded = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
     seeded.stages[0].status = StageStatus.COMPLETED
+    seeded.stages[1].status = StageStatus.PAUSED_FOR_REVIEW
+    save_state(seeded)
+
+    state, err = pipeline_server._kickoff_pipeline_engine("ASD")
+    assert state is None
+    assert err is not None
+    assert "paused" in err.lower()
+    assert len(no_thread_start) == 0
+
+
+def test_kickoff_reuses_existing_failed_state(no_thread_start):
+    _make_set("ASD")
+    seeded = _seed_state("ASD", overall_status=PipelineStatus.FAILED)
+    seeded.stages[0].status = StageStatus.COMPLETED
+    seeded.stages[1].status = StageStatus.FAILED
     save_state(seeded)
 
     state, err = pipeline_server._kickoff_pipeline_engine("ASD")
@@ -189,14 +210,28 @@ def test_kickoff_reuses_existing_paused_state(no_thread_start):
     assert state is not None
     # First stage stays COMPLETED — we didn't create a fresh state on top.
     assert state.stages[0].status == StageStatus.COMPLETED
+    assert len(no_thread_start) == 1
+
+
+class _BusyEngine:
+    """Stub engine for "already running" guard tests.
+
+    The banner middleware reads ``_engine.state`` on every request to
+    decide whether to render the pipeline banner, so the stub needs a
+    ``state`` attribute even though the test only cares about
+    ``is_running``.
+    """
+
+    is_running = True
+
+    def __init__(self) -> None:
+        self.state = create_pipeline_state(
+            PipelineConfig(set_code="ASD", set_name="ASD", set_size=20),
+        )
 
 
 def test_kickoff_blocked_when_engine_already_running(monkeypatch):
     _make_set("ASD")
-
-    class _BusyEngine:
-        is_running = True
-
     monkeypatch.setattr(pipeline_server, "_engine", _BusyEngine())
 
     state, err = pipeline_server._kickoff_pipeline_engine("ASD")
@@ -234,7 +269,7 @@ def test_advance_kicks_off_when_no_state(client, no_thread_start):
 
 
 def test_advance_resumes_when_paused(client, no_thread_start, monkeypatch):
-    """PAUSED → /api/pipeline/resume-equivalent path; no navigate_to."""
+    """PAUSED → ``engine.resume`` is scheduled; no navigate_to."""
     _make_set("ASD")
     state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
     state.stages[0].status = StageStatus.COMPLETED
@@ -242,25 +277,49 @@ def test_advance_resumes_when_paused(client, no_thread_start, monkeypatch):
     state.current_stage_id = state.stages[1].stage_id
     save_state(state)
 
-    # The PAUSED branch uses asyncio.to_thread to run engine.resume();
-    # stub the to_thread coroutine so no executor thread is actually
-    # scheduled — otherwise asyncio's default executor sticks around
-    # past the TestClient teardown and emits a 300 s "didn't join"
-    # warning. We're testing the routing contract, not engine.resume
-    # semantics — that's covered in engine tests.
-    async def _noop_to_thread(*_a, **_kw):
+    # Capture which engine method gets scheduled (resume vs run vs
+    # retry/skip) — the routing contract is what this test pins. Stub
+    # to_thread so the captured callable is invoked synchronously and
+    # asyncio's default executor doesn't hang TestClient teardown.
+    scheduled: list[str] = []
+
+    async def _capture_to_thread(fn, *_a, **_kw):
+        scheduled.append(getattr(fn, "__name__", repr(fn)))
         return None
 
-    monkeypatch.setattr(pipeline_server.asyncio, "to_thread", _noop_to_thread)
+    monkeypatch.setattr(pipeline_server.asyncio, "to_thread", _capture_to_thread)
+
     resp = client.post("/api/wizard/advance", json={"set_code": "ASD"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True
-    assert data["next_stage_id"] == state.stages[1].stage_id
-    # Resume path doesn't navigate — user stays on the paused tab and
-    # SSE handles the next-tab spawn without stealing focus.
+    # Resume path doesn't include next_stage_id (would be misleading;
+    # _first_pending_stage_id returns the paused stage, not the next
+    # one) and doesn't navigate — user stays on the paused tab and SSE
+    # handles the next-tab spawn without stealing focus.
     assert "navigate_to" not in data
+    assert "next_stage_id" not in data
     assert pipeline_server._engine is not None
+    assert scheduled == ["resume"]
+
+
+def test_advance_paused_refuses_when_engine_already_running(client, monkeypatch):
+    """Concurrent advance must not clobber a live ``_engine`` reference.
+
+    Without the guard, a double-click during a brief PAUSED→RUNNING
+    transition would replace ``_engine`` mid-flight, orphaning the
+    previous daemon thread.
+    """
+    _make_set("ASD")
+    state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    state.stages[0].status = StageStatus.PAUSED_FOR_REVIEW
+    save_state(state)
+
+    monkeypatch.setattr(pipeline_server, "_engine", _BusyEngine())
+
+    resp = client.post("/api/wizard/advance", json={"set_code": "ASD"})
+    assert resp.status_code == 409
+    assert "already running" in resp.json()["error"].lower()
 
 
 def test_advance_400s_when_failed(client):
@@ -283,11 +342,39 @@ def test_advance_400s_when_completed(client):
     assert resp.status_code == 400
 
 
-def test_advance_validates_set_code(client):
-    # Hyphen is rejected by the [A-Z0-9]{2,5} shape check (which
-    # uppercases first, so a lowercase code alone wouldn't fail).
-    resp = client.post("/api/wizard/advance", json={"set_code": "BAD-X"})
+@pytest.mark.parametrize(
+    "bad_code",
+    [
+        "BAD-X",       # hyphen — fails the [A-Z0-9]{2,5} shape
+        "X",           # too short
+        "TOOLONG",     # too long (>5)
+        "",            # empty
+    ],
+)
+def test_advance_rejects_malformed_set_code(client, bad_code):
+    resp = client.post("/api/wizard/advance", json={"set_code": bad_code})
     assert resp.status_code == 400
+
+
+def test_advance_rejects_non_string_set_code(client):
+    resp = client.post("/api/wizard/advance", json={"set_code": 123})
+    assert resp.status_code == 400
+
+
+def test_advance_rejects_missing_set_code(client):
+    resp = client.post("/api/wizard/advance", json={})
+    assert resp.status_code == 400
+
+
+def test_advance_accepts_lowercase_set_code(client, no_thread_start):
+    """Validator uppercases before checking — lowercase is normalized,
+    not rejected. Lock that in so a future stricter validator doesn't
+    silently break links the user might have bookmarked.
+    """
+    _make_set("ASD")
+    resp = client.post("/api/wizard/advance", json={"set_code": "asd"})
+    assert resp.status_code == 200
+    assert resp.json()["next_stage_id"] == "skeleton"
 
 
 # ---------------------------------------------------------------------------

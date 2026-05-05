@@ -251,7 +251,22 @@
   }
 
   function updateStageStatus(stageId, status, progress) {
-    if (!state.pipeline) return;
+    if (!state.pipeline) {
+      // The bootstrap snapshot was rendered before any pipeline-state
+      // existed (e.g. user is on Theme and the post-extraction
+      // auto-advance just kicked off the engine in the background).
+      // Pull the freshly-persisted state so subsequent SSE events have
+      // somewhere to write — and so dependent UI like the Theme tab's
+      // Next-step button hides itself once `state.pipeline` is truthy.
+      // Fire-and-forget: if the fetch fails (network blip), we'll try
+      // again on the next stage_update.
+      hydratePipelineFromServer().then(() => {
+        // Re-apply this very event so the eventually-hydrated state
+        // reflects the status we just heard about.
+        if (state.pipeline) updateStageStatus(stageId, status, progress);
+      });
+      return;
+    }
     const stage = state.pipeline.stages.find(s => s.stage_id === stageId);
     if (!stage) return;
     stage.status = status;
@@ -275,6 +290,26 @@
     }
     renderTabStrip();
     rerenderActiveStageBody();
+  }
+
+  // Lazy hydrator for the case where the bootstrap had no pipeline_state
+  // (user landed on Theme before kickoff). Hits the existing /api/pipeline/
+  // state endpoint, which returns the engine's in-memory state when one
+  // is attached.
+  let _hydrateInFlight = null;
+  function hydratePipelineFromServer() {
+    if (_hydrateInFlight) return _hydrateInFlight;
+    _hydrateInFlight = fetch('/api/pipeline/state')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.config) {
+          state.pipeline = data;
+          rerenderActiveStageBody();
+        }
+      })
+      .catch(() => null)
+      .finally(() => { _hydrateInFlight = null; });
+    return _hydrateInFlight;
   }
 
   function updateStageProgress(stageId, item, completed, total, detail) {
