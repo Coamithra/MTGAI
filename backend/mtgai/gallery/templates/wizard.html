@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}MTGAI Wizard{% endblock %}
+{% block nav_pipeline %}active{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/wizard.css">
+{% endblock %}
+
+{% block content %}
+<div id="wizard-app"></div>
+
+{# Setup script lives in the body so the JSON blob is parsed before wizard.js boots. #}
+<script>
+  const WIZARD_STATE = {{ wizard_state | safe }};
+</script>
+{% endblock %}
+
+{% block scripts %}
+{# wizard.js's IIFE installs window.MTGAIWizard.registerTabRenderer; the
+   per-tab modules call it at parse time, so they must load after the shell. #}
+<script src="/static/wizard.js"></script>
+<script src="/static/wizard_theme.js"></script>
+<script src="/static/wizard_stage.js"></script>
+{% endblock %}
