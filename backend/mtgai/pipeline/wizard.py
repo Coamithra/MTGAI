@@ -25,10 +25,12 @@ from typing import Any
 
 from mtgai.pipeline.engine import load_state
 from mtgai.pipeline.models import (
+    STAGE_DEFINITIONS,
     PipelineState,
     StageStatus,
 )
 from mtgai.runtime.runtime_state import SETS_ROOT
+from mtgai.settings.model_settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +58,12 @@ class WizardState:
     active_tab_id: str
     pipeline_state: PipelineState | None
     theme: dict[str, Any] | None
+    # stage_id -> True if a break point is set after this stage. Mirrors
+    # the Project Settings tab's break-point list so the per-tab "Stop
+    # after this step" checkbox can show its initial value without a
+    # second fetch. always_review stages (human_card_review etc.) render
+    # as locked-on regardless of what settings.break_points stores.
+    break_points: dict[str, bool]
 
 
 def _load_theme_for(set_code: str) -> dict[str, Any] | None:
@@ -134,6 +142,24 @@ def resolve_tab(requested: str | None, tabs: list[WizardTab]) -> str:
     return compute_latest_tab(tabs)
 
 
+def _resolve_break_points(set_code: str) -> dict[str, bool]:
+    """Map every pipeline stage to its current break-point bit.
+
+    Sources from ``settings.break_points`` (the Project Settings UI's
+    write target) so the per-tab "Stop after this step" checkbox boots
+    with the same value the Project Settings list shows. always_review
+    stages are forced True — the engine pauses for them regardless and
+    the per-tab checkbox renders them as locked.
+    """
+    settings = get_settings(set_code)
+    return {
+        defn["stage_id"]: bool(
+            defn["always_review"] or settings.break_points.get(defn["stage_id"]) == "review"
+        )
+        for defn in STAGE_DEFINITIONS
+    }
+
+
 def build_wizard_state(set_code: str, requested_tab: str | None) -> WizardState:
     """Resolve the full wizard state for a set + URL fragment."""
     state = load_state(set_code)
@@ -148,6 +174,7 @@ def build_wizard_state(set_code: str, requested_tab: str | None) -> WizardState:
         active_tab_id=active,
         pipeline_state=state,
         theme=theme,
+        break_points=_resolve_break_points(set_code),
     )
 
 
@@ -165,4 +192,5 @@ def serialize(ws: WizardState) -> dict[str, Any]:
             ws.pipeline_state.model_dump(mode="json") if ws.pipeline_state else None
         ),
         "theme": ws.theme,
+        "break_points": dict(ws.break_points),
     }

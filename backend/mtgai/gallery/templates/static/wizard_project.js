@@ -378,6 +378,13 @@
             const data = await resp.json().catch(() => ({}));
             W.toast(data.error || 'Save failed', 'error');
             cb.checked = !cb.checked; // revert
+            return;
+          }
+          // Mirror into the shell's breakPoints map so the per-tab
+          // "Stop after this step" checkbox in stage headers reflects
+          // the change without a page reload.
+          if (state.breakPoints) {
+            state.breakPoints[cb.dataset.stageId] = cb.checked;
           }
         } catch (err) {
           W.toast('Network error: ' + err.message, 'error');

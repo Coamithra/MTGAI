@@ -25,6 +25,11 @@
     tabs: WIZARD_STATE.visible_tabs,
     pipeline: WIZARD_STATE.pipeline_state,
     theme: WIZARD_STATE.theme,
+    // stage_id -> bool, mirrors settings.break_points so the per-tab
+    // "Stop after this step" checkbox shares state with the Project
+    // Settings break-point list. Project Settings still POSTs through
+    // its own handler; both paths target /api/wizard/project/breaks.
+    breakPoints: WIZARD_STATE.break_points || {},
     builtBodies: new Set(),
     eventSource: null,
   };

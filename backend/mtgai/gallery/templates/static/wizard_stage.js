@@ -23,6 +23,7 @@
   function renderStageTab({ tab, root, state }) {
     const content = root.querySelector('[data-role="content"]');
     const footer = root.querySelector('[data-role="footer"]');
+    const headerActions = root.querySelector('[data-role="header-actions"]');
     if (!content) return;
 
     const stage = findStage(state, tab.id);
@@ -37,11 +38,70 @@
       footer.innerHTML = stageFooterHtml(stage, state);
     }
 
+    if (headerActions) {
+      headerActions.innerHTML = breakPointToggleHtml(stage, state);
+      bindBreakPointToggle(headerActions, stage, state);
+    }
+
     const pill = root.querySelector('.wiz-status-pill');
     if (pill) {
       pill.className = 'wiz-status-pill ' + stage.status;
       pill.textContent = stage.status.replace(/_/g, ' ');
     }
+  }
+
+  // ------------------------------------------------------------------
+  // Break-point toggle (per design §6.7 / §8.2)
+  // ------------------------------------------------------------------
+
+  function breakPointToggleHtml(stage, state) {
+    const checked = !!state.breakPoints[stage.stage_id];
+    const lockedOn = !!stage.always_review;
+    const disabledAttr = lockedOn ? 'disabled' : '';
+    const titleAttr = lockedOn
+      ? ' title="Always pauses for review"'
+      : ' title="When checked, the wizard pauses after this stage finishes."';
+    const lockGlyph = lockedOn ? ' <span class="wiz-bp-lock" aria-hidden="true">🔒</span>' : '';
+    return `
+      <label class="wiz-stage-break-toggle"${titleAttr}>
+        <input
+          type="checkbox"
+          data-role="stage-break"
+          ${checked || lockedOn ? 'checked' : ''}
+          ${disabledAttr}
+        >
+        Stop after this step${lockGlyph}
+      </label>
+    `;
+  }
+
+  function bindBreakPointToggle(container, stage, state) {
+    const cb = container.querySelector('input[data-role="stage-break"]');
+    if (!cb || cb.disabled) return;
+    cb.addEventListener('change', async () => {
+      const desired = cb.checked;
+      try {
+        const resp = await fetch('/api/wizard/project/breaks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            set_code: state.activeSet,
+            stage_id: stage.stage_id,
+            review: desired,
+          }),
+        });
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          window.MTGAIWizard.toast(data.error || 'Save failed', 'error');
+          cb.checked = !desired;
+          return;
+        }
+        state.breakPoints[stage.stage_id] = desired;
+      } catch (err) {
+        window.MTGAIWizard.toast('Network error: ' + err.message, 'error');
+        cb.checked = !desired;
+      }
+    });
   }
 
   function stageBodyHtml(stage) {

@@ -277,6 +277,26 @@
   font-size: 0.85rem;
 }
 
+/* Per-tab "Stop after this step" toggle in the tab header */
+.wiz-stage-break-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: #ccc;
+  cursor: pointer;
+  user-select: none;
+}
+
+.wiz-stage-break-toggle input:disabled {
+  cursor: not-allowed;
+}
+
+.wiz-stage-break-toggle:has(input:disabled) {
+  cursor: not-allowed;
+  color: #888;
+}
+
 /* --------------------------------------------------------------------------
    Project Settings tab — kickoff form
    -------------------------------------------------------------------------- */
