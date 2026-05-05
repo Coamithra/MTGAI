@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from mtgai.pipeline.events import StageEmitter
     from mtgai.pipeline.models import ProgressCallback
 
 logger = logging.getLogger(__name__)
@@ -54,13 +55,17 @@ class StageResult:
 # ---------------------------------------------------------------------------
 
 
-def run_skeleton(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_skeleton(
+    set_code: str,
+    progress_cb: ProgressCallback | None,
+    emitter: StageEmitter,
+) -> StageResult:
     """Generate the set skeleton."""
     from mtgai.skeleton.generator import SetConfig, generate_skeleton
 
     set_dir = _set_dir(set_code)
     theme_path = set_dir / "theme.json"
-    template_path = Path("C:/Programming/MTGAI/config/set-template.json")
+    template_path = Path("C:/Programming/MTGAI/research/set-template.json")
 
     if not theme_path.exists():
         return StageResult(
@@ -68,8 +73,33 @@ def run_skeleton(set_code: str, progress_cb: ProgressCallback | None) -> StageRe
             error_message=f"Theme not found: {theme_path}. Create one at /pipeline/theme first.",
         )
 
+    emitter.init_sections(
+        [
+            {"section_id": "overview", "title": "Set Overview", "content_type": "kv"},
+            {"section_id": "rarity", "title": "Rarity Counts", "content_type": "table"},
+            {
+                "section_id": "colors",
+                "title": "Color Distribution",
+                "content_type": "table",
+            },
+            {"section_id": "types", "title": "Type Distribution", "content_type": "table"},
+            {"section_id": "slots", "title": "Slot List", "content_type": "table"},
+        ]
+    )
+    emitter.phase("running", "Generating skeleton")
+
     theme_data = json.loads(theme_path.read_text(encoding="utf-8"))
     config = SetConfig(**theme_data)
+    emitter.update(
+        "overview",
+        status="done",
+        content={
+            "Set code": config.code,
+            "Set name": config.name,
+            "Size": str(config.set_size),
+            "Theme": (config.theme or "")[:120],
+        },
+    )
 
     result = generate_skeleton(config, template_path)
 
@@ -81,7 +111,56 @@ def run_skeleton(set_code: str, progress_cb: ProgressCallback | None) -> StageRe
         encoding="utf-8",
     )
 
+    rarity_rows = [["Rarity", "Count"]]
+    for r, n in result.balance_report.rarity_counts.items():
+        rarity_rows.append([r.title(), str(n)])
+    emitter.update("rarity", status="done", content={"rows": rarity_rows})
+
+    color_label: dict[str, str] = {
+        "W": "White",
+        "U": "Blue",
+        "B": "Black",
+        "R": "Red",
+        "G": "Green",
+        "multicolor": "Multicolor",
+        "colorless": "Colorless",
+    }
+    color_rows: list[list[str]] = [["Color", "Count"]]
+    for c, n in result.balance_report.color_counts.items():
+        color_rows.append([color_label.get(c, c), str(n)])
+    emitter.update("colors", status="done", content={"rows": color_rows})
+
+    type_rows: list[list[str]] = [["Type", "Count"]]
+    for t, n in sorted(
+        result.balance_report.type_counts.items(),
+        key=lambda kv: -kv[1],
+    ):
+        type_rows.append([t.title(), str(n)])
+    emitter.update("types", status="done", content={"rows": type_rows})
+
+    slot_rows: list[list[str]] = [["Slot", "Color", "Rarity", "Type", "CMC", "Mechanic"]]
+    for slot in result.slots:
+        slot_rows.append(
+            [
+                slot.slot_id,
+                color_label.get(slot.color, slot.color),
+                slot.rarity[:1].upper(),
+                slot.card_type,
+                str(slot.cmc_target),
+                slot.mechanic_tag,
+            ]
+        )
+    emitter.update(
+        "slots",
+        status="done",
+        content={"rows": slot_rows, "scrollable": True},
+    )
+
     slot_count = len(result.slots)
+    emitter.phase(
+        "done",
+        f"Skeleton ready — {slot_count} slots",
+    )
     logger.info("Skeleton generated: %d slots", slot_count)
     return StageResult(
         total_items=slot_count,
@@ -90,9 +169,17 @@ def run_skeleton(set_code: str, progress_cb: ProgressCallback | None) -> StageRe
     )
 
 
-def run_reprints(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_reprints(
+    set_code: str,
+    progress_cb: ProgressCallback | None,
+    emitter: StageEmitter,
+) -> StageResult:
     """Select reprints from curated pool."""
-    from mtgai.generation.reprint_selector import select_reprints
+    from mtgai.generation.reprint_selector import (
+        identify_reprint_slots,
+        load_reprint_pool,
+        select_reprints,
+    )
 
     set_dir = _set_dir(set_code)
     skeleton_path = set_dir / "skeleton.json"
@@ -100,7 +187,68 @@ def run_reprints(set_code: str, progress_cb: ProgressCallback | None) -> StageRe
     if not skeleton_path.exists():
         return StageResult(success=False, error_message="skeleton.json not found")
 
-    result = select_reprints(skeleton_path=skeleton_path)
+    emitter.init_sections(
+        [
+            {
+                "section_id": "pool",
+                "title": "Pool & Slots",
+                "content_type": "kv",
+                "status": "running",
+            },
+            {
+                "section_id": "selections",
+                "title": "Picked Reprints",
+                "content_type": "card_grid",
+                "status": "pending",
+            },
+        ]
+    )
+    emitter.phase("running", "Loading reprint pool")
+
+    pool = load_reprint_pool()
+    eligible_pool = [c for c in pool if c.setting_agnostic is not False]
+    slots = identify_reprint_slots(skeleton_path)
+    emitter.update(
+        "pool",
+        status="done",
+        content={
+            "Pool size": str(len(pool)),
+            "Setting-agnostic": str(len(eligible_pool)),
+            "Eligible slots": str(len(slots)),
+        },
+    )
+
+    emitter.update("selections", status="running", detail="Asking the model to pick…")
+    emitter.phase("running", f"Selecting reprints from pool of {len(eligible_pool)}")
+
+    import time as _time
+
+    from mtgai.generation.llm_client import _get_provider, _resolve_provider
+    from mtgai.generation.phase_poller import NullPoller, PromptEvalPoller
+    from mtgai.settings.model_settings import get_llm_model
+
+    # Spin up a poller so the activity banner shows real prompt-eval%
+    # / generation tok/s during the (potentially long) llamacpp call.
+    # Anthropic doesn't expose /slots, so we no-op for that provider.
+    reprint_model = get_llm_model("reprints")
+    provider_name = _resolve_provider(reprint_model)
+    if provider_name == "llamacpp":
+        try:
+            poller_ctx: PromptEvalPoller | NullPoller = PromptEvalPoller(
+                provider=_get_provider("llamacpp"),
+                model_id=reprint_model,
+                emit=emitter.phase,
+                phase_kind="running",
+                activity_prefix=f"Selecting reprints (pool={len(eligible_pool)})",
+            )
+        except Exception as e:  # provider construction failure — skip telemetry
+            logger.warning("Reprints poller setup failed (%s); continuing without telemetry", e)
+            poller_ctx = NullPoller()
+    else:
+        poller_ctx = NullPoller()
+
+    with poller_ctx:
+        result = select_reprints(skeleton_path=skeleton_path)
 
     count = len(result.selections)
     # Save selection result
@@ -110,6 +258,26 @@ def run_reprints(set_code: str, progress_cb: ProgressCallback | None) -> StageRe
         encoding="utf-8",
     )
 
+    # Cascade tile reveal so the user sees picks land one-by-one rather
+    # than all at once after the LLM call. The picks are already chosen;
+    # this is purely visual pacing on top of the existing fade-in CSS.
+    emitter.update("selections", content={"items": []}, detail=f"Revealing {count}…")
+    for pair in result.selections:
+        c = pair.candidate
+        tile = {
+            "name": c.name,
+            "mana_cost": c.mana_cost or "",
+            "type_line": c.type_line,
+            "rarity": c.rarity,
+            "oracle_text": c.oracle_text,
+            "slot_id": pair.slot.slot_id,
+            "reason": pair.reason,
+        }
+        emitter.update("selections", append_item=tile)
+        _time.sleep(0.18)
+
+    emitter.update("selections", status="done", detail="")
+    emitter.phase("done", f"Picked {count} reprints")
     logger.info("Selected %d reprints", count)
     return StageResult(
         total_items=count,
@@ -119,21 +287,133 @@ def run_reprints(set_code: str, progress_cb: ProgressCallback | None) -> StageRe
     )
 
 
-def run_lands(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_lands(
+    set_code: str,
+    progress_cb: ProgressCallback | None,
+    emitter: StageEmitter,
+) -> StageResult:
     """Generate land cards."""
+    import time as _time
+
     from mtgai.generation.land_generator import generate_lands
 
-    result = generate_lands(set_code=set_code)
+    emitter.init_sections(
+        [
+            {
+                "section_id": "call",
+                "title": "Land Design Call",
+                "content_type": "kv",
+                "status": "pending",
+            },
+            {
+                "section_id": "lands",
+                "title": "Lands",
+                "content_type": "card_grid",
+                "status": "pending",
+                "content": {"items": []},
+            },
+        ]
+    )
+
+    # Capture the resolved model_id so the final "done" kv reflects what
+    # actually ran, not a hardcoded label.
+    state = {"model_id": "(unresolved)"}
+
+    def _on_call_start(model_id: str) -> None:
+        state["model_id"] = model_id
+        is_local = not model_id.startswith("claude-")
+        provider_label = "local Gemma" if "gemma" in model_id else (
+            "local model" if is_local else "Anthropic"
+        )
+        emitter.update(
+            "call",
+            status="running",
+            content={
+                "Model": model_id,
+                "Asking for": "5 basic flavor texts + 1 nonbasic design",
+            },
+            detail="Generating…",
+        )
+        emitter.update("lands", status="running")
+        emitter.phase(
+            "running",
+            f"Calling {provider_label} for land flavor + nonbasic design",
+        )
+
+    # Buffer the saved cards so we can stagger their reveal AFTER the LLM
+    # call returns. The single Haiku/Gemma call returns all 6 lands at
+    # once, but emitting them one-by-one with a short sleep gives the UI
+    # a cascading fade-in (matches the fade-in CSS) and is much nicer to
+    # watch than a "boom, all 6 appear" moment.
+    saved_cards: list = []
+
+    def _on_card_saved(card) -> None:  # noqa: ANN001
+        saved_cards.append(card)
+
+    from mtgai.generation.llm_client import _get_provider, _resolve_provider
+    from mtgai.generation.phase_poller import NullPoller, PromptEvalPoller
+    from mtgai.settings.model_settings import get_llm_model
+
+    lands_model = get_llm_model("lands")
+    if _resolve_provider(lands_model) == "llamacpp":
+        try:
+            poller_ctx: PromptEvalPoller | NullPoller = PromptEvalPoller(
+                provider=_get_provider("llamacpp"),
+                model_id=lands_model,
+                emit=emitter.phase,
+                phase_kind="running",
+                activity_prefix="Designing lands",
+            )
+        except Exception as e:
+            logger.warning("Lands poller setup failed (%s); continuing without telemetry", e)
+            poller_ctx = NullPoller()
+    else:
+        poller_ctx = NullPoller()
+
+    with poller_ctx:
+        result = generate_lands(
+            set_code=set_code,
+            on_call_start=_on_call_start,
+            on_card_saved=_on_card_saved,
+        )
     count = result.get("total_cards", 6)
+    cost = result.get("cost_usd", 0.0)
+
+    # Cascade: emit each tile with a short delay so the UI can animate.
+    for card in saved_cards:
+        tile = {
+            "name": card.name,
+            "mana_cost": card.mana_cost or "",
+            "type_line": card.type_line,
+            "rarity": card.rarity.value if hasattr(card.rarity, "value") else str(card.rarity),
+            "oracle_text": card.oracle_text or "",
+            "flavor_text": card.flavor_text or "",
+        }
+        emitter.update("lands", append_item=tile)
+        _time.sleep(0.2)
+
+    cost_label = f"${cost:.4f}" if cost > 0 else "$0.00 (local)"
+    emitter.update(
+        "call",
+        status="done",
+        content={
+            "Model": state["model_id"],
+            "Cost": cost_label,
+            "Cards": str(count),
+        },
+        detail="",
+    )
+    emitter.update("lands", status="done", detail="")
+    emitter.phase("done", f"Generated {count} land cards")
     return StageResult(
         total_items=count,
         completed_items=count,
-        cost_usd=result.get("cost_usd", 0.0),
+        cost_usd=cost,
         detail=f"Generated {count} land cards",
     )
 
 
-def run_card_gen(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_card_gen(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Generate cards from skeleton slots."""
     from mtgai.generation.card_generator import generate_set
 
@@ -150,7 +430,7 @@ def run_card_gen(set_code: str, progress_cb: ProgressCallback | None) -> StageRe
     )
 
 
-def run_balance(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_balance(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Run balance analysis on the generated set."""
     from mtgai.analysis.balance import analyze_set
 
@@ -163,7 +443,7 @@ def run_balance(set_code: str, progress_cb: ProgressCallback | None) -> StageRes
     )
 
 
-def run_skeleton_rev(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_skeleton_rev(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Run skeleton revision based on balance findings."""
     from mtgai.generation.skeleton_reviser import run_revision
 
@@ -179,7 +459,7 @@ def run_skeleton_rev(set_code: str, progress_cb: ProgressCallback | None) -> Sta
     )
 
 
-def run_ai_review(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_ai_review(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Run AI design review on all cards."""
     from mtgai.review.ai_review import review_all_cards
 
@@ -197,7 +477,7 @@ def run_ai_review(set_code: str, progress_cb: ProgressCallback | None) -> StageR
     )
 
 
-def run_finalize(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_finalize(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Run post-review finalization (reminder text injection + validation)."""
     from mtgai.review.finalize import finalize_set
 
@@ -212,7 +492,7 @@ def run_finalize(set_code: str, progress_cb: ProgressCallback | None) -> StageRe
     )
 
 
-def run_human_card_review(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_human_card_review(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Human card review — this is a pause point, not an automated stage.
 
     The engine pauses here and the user uses the review gallery UI.
@@ -221,7 +501,7 @@ def run_human_card_review(set_code: str, progress_cb: ProgressCallback | None) -
     return StageResult(detail="Awaiting human card review via gallery UI")
 
 
-def run_art_prompts(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_art_prompts(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Generate art prompts for all cards."""
     from mtgai.art.prompt_builder import generate_prompts_for_set
 
@@ -239,7 +519,7 @@ def run_art_prompts(set_code: str, progress_cb: ProgressCallback | None) -> Stag
     )
 
 
-def run_char_portraits(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_char_portraits(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Generate character reference portraits."""
     from mtgai.art.character_portraits import generate_character_portraits
 
@@ -253,7 +533,7 @@ def run_char_portraits(set_code: str, progress_cb: ProgressCallback | None) -> S
     )
 
 
-def run_art_gen(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_art_gen(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Generate art for all cards via ComfyUI + Flux."""
     from mtgai.art.image_generator import generate_art_for_set
 
@@ -271,7 +551,7 @@ def run_art_gen(set_code: str, progress_cb: ProgressCallback | None) -> StageRes
     )
 
 
-def run_art_select(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_art_select(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Select best art version per card via Haiku vision."""
     from mtgai.art.art_selector import select_best_art_for_set
 
@@ -289,12 +569,12 @@ def run_art_select(set_code: str, progress_cb: ProgressCallback | None) -> Stage
     )
 
 
-def run_human_art_review(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_human_art_review(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Human art review — pause point for art gallery review."""
     return StageResult(detail="Awaiting human art review via gallery UI")
 
 
-def run_rendering(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_rendering(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Render all cards to print-ready images."""
     from mtgai.rendering.card_renderer import CardRenderer
 
@@ -313,7 +593,7 @@ def run_rendering(set_code: str, progress_cb: ProgressCallback | None) -> StageR
     )
 
 
-def run_render_qa(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_render_qa(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Re-run validators on rendered cards for final QA."""
     from mtgai.validation import validate_card_from_raw
 
@@ -345,7 +625,7 @@ def run_render_qa(set_code: str, progress_cb: ProgressCallback | None) -> StageR
     )
 
 
-def run_human_final_review(set_code: str, progress_cb: ProgressCallback | None) -> StageResult:
+def run_human_final_review(set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Human final review — pause point for rendered card review."""
     return StageResult(detail="Awaiting human final review via gallery UI")
 

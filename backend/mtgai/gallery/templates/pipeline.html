@@ -243,11 +243,240 @@
     color: #ffa502;
     margin-left: 0.5rem;
   }
+
+  /* ------- Live phase banner (mirrors theme extractor's banner) ------- */
+  .pipeline-phase-banner {
+    display: none;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 1.5rem 0 1rem 0;
+    padding: 0.6rem 0.85rem;
+    background: rgba(74, 158, 255, 0.05);
+    border: 1px solid rgba(74, 158, 255, 0.18);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+  .pipeline-phase-banner.active { display: flex; }
+  .phase-banner-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  .phase-activity {
+    color: #ddd;
+    font-weight: 500;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .phase-elapsed {
+    color: #888;
+    font-variant-numeric: tabular-nums;
+    flex: 0 0 auto;
+  }
+  .phase-bar {
+    height: 4px;
+    background: #1a1a2e;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .phase-bar-fill {
+    height: 100%;
+    width: 0;
+    background: #4a9eff;
+    transition: width 0.4s ease;
+    border-radius: 2px;
+  }
+  .phase-bar-fill.indeterminate {
+    width: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      #4a9eff 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: phase-stripe 1.4s linear infinite;
+  }
+  @keyframes phase-stripe {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+  .phase-stats {
+    color: #888;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    display: none;
+  }
+  .pipeline-phase-banner.has-stats .phase-stats { display: block; }
+
+  /* ------- Stage section panel (live filling) ------- */
+  .stage-sections {
+    margin-top: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .stage-section-group {
+    background: #0f1729;
+    border: 1px solid #1a1a3e;
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+  }
+  .stage-section-group h3 {
+    margin: 0 0 0.75rem 0;
+    color: #e0e0e0;
+    font-size: 1rem;
+    border-bottom: 1px solid #1f2540;
+    padding-bottom: 0.5rem;
+  }
+  .section {
+    margin: 0.6rem 0;
+    border-left: 2px solid #1f2540;
+    padding: 0.4rem 0.75rem;
+    transition: border-color 0.3s;
+  }
+  .section.running { border-left-color: #4a9eff; }
+  .section.done { border-left-color: #00d4aa; }
+  .section.failed { border-left-color: #ff4757; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+  }
+  .section-title {
+    color: #e0e0e0;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+  .section-status {
+    font-size: 0.65rem;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .section-status.pending { background: #333; color: #888; }
+  .section-status.running { background: #4a9eff33; color: #4a9eff; }
+  .section-status.done { background: #00d4aa22; color: #00d4aa; }
+  .section-status.failed { background: #ff475733; color: #ff4757; }
+  .section-detail {
+    font-size: 0.75rem;
+    color: #888;
+    margin-left: auto;
+  }
+  .section-body { font-size: 0.82rem; color: #d0d0d0; }
+
+  /* Section: kv (definition list) */
+  .kv-list {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.2rem 1rem;
+    margin: 0;
+  }
+  .kv-list dt { color: #888; font-size: 0.78rem; }
+  .kv-list dd { margin: 0; color: #ddd; font-size: 0.82rem; }
+
+  /* Section: table */
+  .section-body table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.78rem;
+  }
+  .section-body th, .section-body td {
+    text-align: left;
+    padding: 3px 8px;
+    border-bottom: 1px solid #1a1a3e;
+  }
+  .section-body th { color: #aaa; font-weight: 600; }
+  .section-body td { color: #ddd; }
+  .section-body table.scrollable {
+    display: block;
+    max-height: 280px;
+    overflow: auto;
+  }
+
+  /* Section: card grid */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.6rem;
+  }
+  .card-tile {
+    background: #16213e;
+    border: 1px solid #1f2540;
+    border-radius: 6px;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.75rem;
+    transition: border-color 0.3s;
+  }
+  .card-tile.fade-in { animation: tile-pop 0.5s ease; }
+  @keyframes tile-pop {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .card-tile-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.4rem;
+    align-items: baseline;
+    margin-bottom: 0.2rem;
+  }
+  .card-tile-name { color: #e0e0e0; font-weight: 600; font-size: 0.83rem; }
+  .card-tile-cost {
+    color: #aaa;
+    font-family: ui-monospace, monospace;
+    font-size: 0.72rem;
+  }
+  .card-tile-type { color: #888; font-size: 0.7rem; margin-bottom: 0.3rem; }
+  .card-tile-text { color: #ccc; white-space: pre-wrap; line-height: 1.35; }
+  .card-tile-flavor {
+    color: #888;
+    font-style: italic;
+    margin-top: 0.3rem;
+    font-size: 0.7rem;
+  }
+  .card-tile-meta { color: #4a9eff; font-size: 0.65rem; margin-top: 0.3rem; }
+
+  /* Section: markdown */
+  .md-rendered { color: #d0d0d0; line-height: 1.5; }
+  .md-rendered h1, .md-rendered h2, .md-rendered h3 {
+    color: #e0e0e0;
+    margin: 0.6rem 0 0.3rem;
+  }
+  .md-rendered ul { padding-left: 1.2rem; margin: 0.3rem 0; }
+  .md-rendered code {
+    background: #1a1a2e;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 0.78rem;
+  }
+
+  .section-empty {
+    color: #666;
+    font-style: italic;
+    font-size: 0.78rem;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 <div id="pipeline-app"></div>
+
+<div class="pipeline-phase-banner" id="pipeline-phase-banner">
+  <div class="phase-banner-row">
+    <div class="phase-activity" id="pipeline-phase-activity">Working…</div>
+    <div class="phase-elapsed" id="pipeline-phase-elapsed">0s</div>
+  </div>
+  <div class="phase-bar"><div class="phase-bar-fill" id="pipeline-phase-bar"></div></div>
+  <div class="phase-stats" id="pipeline-phase-stats"></div>
+</div>
+
+<div class="stage-sections" id="stage-sections"></div>
 {% endblock %}
 
 {% block scripts %}

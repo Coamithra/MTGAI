@@ -294,7 +294,7 @@ def _generate_anthropic(
         # Provider-level auto_cache_tools is True; explicitly disable here
         # when the caller passes cache=False so we honour the contract.
         auto_cache_tools=cache,
-        log_dir=False,
+        log_dir=True,
     )
 
     send_kwargs: dict[str, Any] = {
@@ -430,7 +430,7 @@ def _generate_llamacpp(
         tools=[_make_tool(tool_schema)],
         max_tokens=max_tokens,
         temperature=temperature,
-        log_dir=False,
+        log_dir=True,
     )
 
     next_user: str | None = user_prompt

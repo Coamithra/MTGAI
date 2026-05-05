@@ -2816,27 +2816,6 @@
       "setting_agnostic": true
     },
     {
-      "name": "Arcane Signet",
-      "mana_cost": "{2}",
-      "cmc": 2,
-      "type_line": "Artifact",
-      "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
-      "colors": [],
-      "rarity": "uncommon",
-      "role": "ramp",
-      "keywords": [],
-      "subtypes": [],
-      "edhrec_rank_approx": 10,
-      "tags": [
-        "staple",
-        "artifact",
-        "ramp",
-        "mana_rock",
-        "commander"
-      ],
-      "setting_agnostic": true
-    },
-    {
       "name": "Traveler's Amulet",
       "mana_cost": "{1}",
       "cmc": 1,

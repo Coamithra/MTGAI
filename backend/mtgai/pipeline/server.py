@@ -770,6 +770,9 @@ async def start_pipeline(request: Request):
 
     save_state(state)
 
+    # Drop the previous run's replay buffer so a fresh subscriber doesn't
+    # get historical events from a different run mixed into its stream.
+    event_bus.reset_buffer()
     _engine = PipelineEngine(state, event_bus)
     _engine_task = asyncio.create_task(asyncio.to_thread(_engine.run))
 

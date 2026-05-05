@@ -16,7 +16,9 @@ import traceback
 from datetime import UTC, datetime
 from pathlib import Path
 
-from mtgai.pipeline.events import EventBus
+import time as _time
+
+from mtgai.pipeline.events import EventBus, StageEmitter
 from mtgai.pipeline.models import (
     PipelineState,
     PipelineStatus,
@@ -132,8 +134,13 @@ class PipelineEngine:
             )
             logger.info("Starting stage: %s", stage.display_name)
 
-            # Build progress callback for this stage
+            # Build progress callback + section emitter for this stage
             progress_cb = self._make_progress_callback(stage)
+            emitter = StageEmitter(self.bus, stage.stage_id, _time.monotonic())
+            emitter.phase(
+                "starting",
+                f"Starting {stage.display_name}",
+            )
 
             # Execute the stage runner
             try:
@@ -141,7 +148,11 @@ class PipelineEngine:
                 if runner is None:
                     raise ValueError(f"No runner registered for stage: {stage.stage_id}")
 
-                result: StageResult = runner(self.state.config.set_code, progress_cb)
+                result: StageResult = runner(
+                    self.state.config.set_code,
+                    progress_cb,
+                    emitter,
+                )
 
                 if not result.success:
                     raise RuntimeError(result.error_message or "Stage failed")

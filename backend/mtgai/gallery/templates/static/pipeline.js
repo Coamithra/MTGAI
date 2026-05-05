@@ -193,16 +193,390 @@ function connectSSE() {
   eventSource.addEventListener('pipeline_status', (e) => {
     const data = JSON.parse(e.data);
     if (pipelineState) {
+      const wasIdle = (
+        pipelineState.overall_status === 'not_started'
+        || pipelineState.overall_status === 'completed'
+        || pipelineState.overall_status === 'cancelled'
+      );
       pipelineState.overall_status = data.overall_status;
       pipelineState.current_stage_id = data.current_stage;
       renderDashboard();
+      // Fresh-run guard: when the pipeline transitions from idle → running,
+      // wipe lingering sections from a prior run so the panel doesn't
+      // accumulate stale stage groups.
+      if (wasIdle && data.overall_status === 'running') {
+        const root = document.getElementById('stage-sections');
+        if (root) root.innerHTML = '';
+        Object.keys(_sections).forEach((k) => delete _sections[k]);
+      }
+      if (data.overall_status === 'completed' || data.overall_status === 'cancelled'
+          || data.overall_status === 'failed') {
+        hidePipelinePhaseBanner();
+      }
     }
+  });
+
+  eventSource.addEventListener('phase', (e) => {
+    handlePipelinePhaseEvent(JSON.parse(e.data));
+  });
+
+  eventSource.addEventListener('stage_section_init', (e) => {
+    const data = JSON.parse(e.data);
+    initStageSections(data.stage_id, data.sections || []);
+  });
+
+  eventSource.addEventListener('stage_section_update', (e) => {
+    const data = JSON.parse(e.data);
+    updateSection(data);
   });
 
   eventSource.onerror = () => {
     // EventSource auto-reconnects, just log
     console.log('SSE connection lost, reconnecting...');
   };
+}
+
+// ---------------------------------------------------------------------------
+// Stage sections (live filling)
+// ---------------------------------------------------------------------------
+
+// In-memory mirror of section state, keyed by `${stage_id}:${section_id}`.
+// We keep this so append_text / append_item can mutate without refetching the
+// DOM. Items always re-render the body from this canonical state.
+const _sections = {};
+
+function _sectionKey(stageId, sectionId) {
+  return stageId + ':' + sectionId;
+}
+
+function initStageSections(stageId, sections) {
+  const root = document.getElementById('stage-sections');
+  if (!root) return;
+
+  // If this stage already has a group (re-init on retry), wipe it.
+  let group = document.getElementById('stage-section-group-' + stageId);
+  if (group) {
+    group.remove();
+    Object.keys(_sections).forEach((k) => {
+      if (k.startsWith(stageId + ':')) delete _sections[k];
+    });
+  }
+
+  const stage = pipelineState
+    ? pipelineState.stages.find((s) => s.stage_id === stageId)
+    : null;
+  const heading = stage ? stage.display_name : stageId;
+
+  group = document.createElement('div');
+  group.className = 'stage-section-group';
+  group.id = 'stage-section-group-' + stageId;
+  group.innerHTML = '<h3>' + escapeHtml(heading) + '</h3>';
+
+  for (const s of sections) {
+    const state = {
+      stage_id: stageId,
+      section_id: s.section_id,
+      title: s.title || s.section_id,
+      content_type: s.content_type || 'text',
+      status: s.status || 'pending',
+      content: s.content !== undefined ? s.content : null,
+      detail: '',
+    };
+    _sections[_sectionKey(stageId, s.section_id)] = state;
+    group.appendChild(buildSectionDOM(state));
+  }
+  root.appendChild(group);
+  group.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function buildSectionDOM(state) {
+  const wrap = document.createElement('div');
+  wrap.className = 'section ' + state.status;
+  wrap.dataset.stageId = state.stage_id;
+  wrap.dataset.sectionId = state.section_id;
+  wrap.id = 'section-' + state.stage_id + '-' + state.section_id;
+
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  header.innerHTML = `
+    <span class="section-title">${escapeHtml(state.title)}</span>
+    <span class="section-status ${state.status}">${state.status}</span>
+    <span class="section-detail"></span>
+  `;
+  wrap.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'section-body';
+  body.innerHTML = renderSectionContent(state);
+  wrap.appendChild(body);
+
+  return wrap;
+}
+
+function updateSection(data) {
+  const key = _sectionKey(data.stage_id, data.section_id);
+  const state = _sections[key];
+  if (!state) {
+    // Section update arrived before init — defer init wasn't sent.
+    // Tolerate this by silently dropping; could happen on a stale tab.
+    return;
+  }
+
+  if (data.status) state.status = data.status;
+  if (data.detail !== undefined) state.detail = data.detail;
+  if (data.content !== undefined) state.content = data.content;
+  if (data.append_text !== undefined) {
+    if (typeof state.content === 'string') {
+      state.content = state.content + data.append_text;
+    } else {
+      state.content = data.append_text;
+    }
+  }
+  if (data.append_item !== undefined) {
+    if (!state.content || typeof state.content !== 'object') {
+      state.content = { items: [] };
+    }
+    if (!Array.isArray(state.content.items)) state.content.items = [];
+    state.content.items.push({ ...data.append_item, _justAdded: true });
+  }
+
+  const root = document.getElementById('section-' + data.stage_id + '-' + data.section_id);
+  if (!root) return;
+
+  // Status pill + class
+  root.classList.remove('pending', 'running', 'done', 'failed');
+  root.classList.add(state.status);
+  const pill = root.querySelector('.section-status');
+  if (pill) {
+    pill.className = 'section-status ' + state.status;
+    pill.textContent = state.status;
+  }
+  const detailEl = root.querySelector('.section-detail');
+  if (detailEl) detailEl.textContent = state.detail || '';
+
+  const body = root.querySelector('.section-body');
+  if (body) body.innerHTML = renderSectionContent(state);
+
+  // Strip the _justAdded marker after one frame (used for animation only)
+  if (state.content && Array.isArray(state.content.items)) {
+    requestAnimationFrame(() => {
+      for (const item of state.content.items) delete item._justAdded;
+    });
+  }
+}
+
+function renderSectionContent(state) {
+  const c = state.content;
+  if (c === null || c === undefined || (Array.isArray(c) && c.length === 0)) {
+    if (state.status === 'pending') {
+      return '<div class="section-empty">Awaiting…</div>';
+    }
+    if (state.status === 'running') {
+      return '<div class="section-empty">Working…</div>';
+    }
+    return '<div class="section-empty">(empty)</div>';
+  }
+
+  switch (state.content_type) {
+    case 'text':
+      return '<pre>' + escapeHtml(typeof c === 'string' ? c : JSON.stringify(c, null, 2)) + '</pre>';
+    case 'markdown':
+      return '<div class="md-rendered">' + renderMarkdown(typeof c === 'string' ? c : '') + '</div>';
+    case 'kv':
+      return renderKV(c);
+    case 'table':
+      return renderTable(c);
+    case 'card_grid':
+      return renderCardGrid(c);
+    case 'card_tile':
+      return renderCardTile(c);
+    default:
+      return '<pre>' + escapeHtml(JSON.stringify(c, null, 2)) + '</pre>';
+  }
+}
+
+function renderKV(obj) {
+  if (!obj || typeof obj !== 'object') return '';
+  const rows = Object.entries(obj)
+    .map(([k, v]) => `<dt>${escapeHtml(String(k))}</dt><dd>${escapeHtml(String(v))}</dd>`)
+    .join('');
+  return '<dl class="kv-list">' + rows + '</dl>';
+}
+
+function renderTable(content) {
+  if (!content) return '';
+  const rows = content.rows || content;
+  if (!Array.isArray(rows) || rows.length === 0) return '';
+  const [head, ...body] = rows;
+  const ths = (head || []).map((c) => `<th>${escapeHtml(String(c))}</th>`).join('');
+  const trs = body
+    .map((row) => '<tr>' + (row || []).map((c) => `<td>${escapeHtml(String(c))}</td>`).join('') + '</tr>')
+    .join('');
+  const cls = content.scrollable ? ' class="scrollable"' : '';
+  return `<table${cls}><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+}
+
+function renderCardGrid(content) {
+  const items = (content && content.items) || [];
+  if (items.length === 0) {
+    return '<div class="section-empty">No cards yet…</div>';
+  }
+  return '<div class="card-grid">' + items.map(renderCardTile).join('') + '</div>';
+}
+
+function renderCardTile(card) {
+  if (!card) return '';
+  const cost = card.mana_cost ? renderManaCost(card.mana_cost) : '';
+  const flavor = card.flavor_text
+    ? `<div class="card-tile-flavor">${escapeHtml(card.flavor_text)}</div>`
+    : '';
+  const oracle = card.oracle_text
+    ? `<div class="card-tile-text">${escapeHtml(card.oracle_text)}</div>`
+    : '';
+  const meta = card.slot_id
+    ? `<div class="card-tile-meta">slot ${escapeHtml(card.slot_id)}</div>`
+    : '';
+  const cls = card._justAdded ? 'card-tile fade-in' : 'card-tile';
+  return `
+    <div class="${cls}">
+      <div class="card-tile-head">
+        <span class="card-tile-name">${escapeHtml(card.name || '')}</span>
+        <span class="card-tile-cost">${cost}</span>
+      </div>
+      <div class="card-tile-type">${escapeHtml(card.type_line || '')}${
+        card.rarity ? ' &middot; ' + escapeHtml(String(card.rarity)) : ''
+      }</div>
+      ${oracle}
+      ${flavor}
+      ${meta}
+    </div>
+  `;
+}
+
+function renderManaCost(mc) {
+  if (!mc) return '';
+  // {W}{U} → W U with brackets stripped, monospace
+  return escapeHtml(mc).replace(/\{([^}]+)\}/g, '<span>$1</span>').replace(/<\/?span>/g, '');
+}
+
+// ---------------------------------------------------------------------------
+// Markdown (zero-dep, copied from theme.js)
+// ---------------------------------------------------------------------------
+
+function renderMarkdown(src) {
+  if (!src) return '';
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const inline = (s) => esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+  const lines = src.split(/\r?\n/);
+  const out = [];
+  let para = [];
+  let listItems = [];
+  const flushPara = () => {
+    if (para.length) {
+      out.push('<p>' + inline(para.join(' ')) + '</p>');
+      para = [];
+    }
+  };
+  const flushList = () => {
+    if (listItems.length) {
+      out.push('<ul>' + listItems.map((l) => '<li>' + inline(l) + '</li>').join('') + '</ul>');
+      listItems = [];
+    }
+  };
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/, '');
+    if (!line.trim()) { flushPara(); flushList(); continue; }
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      flushPara(); flushList();
+      const lvl = Math.min(6, Math.max(1, heading[1].length));
+      out.push(`<h${lvl}>${inline(heading[2])}</h${lvl}>`);
+      continue;
+    }
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    if (bullet) { flushPara(); listItems.push(bullet[1]); continue; }
+    flushList();
+    para.push(line);
+  }
+  flushPara(); flushList();
+  return out.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Phase banner (mirrors theme.js handlePhaseEvent shape)
+// ---------------------------------------------------------------------------
+
+function showPipelinePhaseBanner() {
+  const b = document.getElementById('pipeline-phase-banner');
+  if (b) b.classList.add('active');
+}
+
+function hidePipelinePhaseBanner() {
+  const b = document.getElementById('pipeline-phase-banner');
+  if (b) b.classList.remove('active', 'has-stats');
+}
+
+function handlePipelinePhaseEvent(data) {
+  const banner = document.getElementById('pipeline-phase-banner');
+  const bar = document.getElementById('pipeline-phase-bar');
+  const activityEl = document.getElementById('pipeline-phase-activity');
+  const elapsedEl = document.getElementById('pipeline-phase-elapsed');
+  const stats = document.getElementById('pipeline-phase-stats');
+  if (!banner || !bar || !activityEl || !stats) return;
+
+  showPipelinePhaseBanner();
+
+  const phase = data.phase || '';
+  const stageId = data.stage_id || '';
+  const stage = pipelineState
+    ? pipelineState.stages.find((s) => s.stage_id === stageId)
+    : null;
+  const stageLabel = stage ? stage.display_name : stageId;
+  const activity = data.activity || '';
+  activityEl.textContent = stageLabel ? stageLabel + ' — ' + activity : activity;
+
+  if (elapsedEl && typeof data.elapsed_s === 'number') {
+    elapsedEl.textContent = formatPhaseElapsed(data.elapsed_s);
+  }
+
+  if (data.generation && phase === 'generation') {
+    bar.classList.add('indeterminate');
+    const tokens = data.generation.tokens || 0;
+    const tps = data.generation.tok_per_sec || 0;
+    stats.textContent = tokens.toLocaleString() + ' tok @ ' + tps.toFixed(1) + ' tok/s';
+    banner.classList.add('has-stats');
+    return;
+  }
+  bar.classList.remove('indeterminate');
+
+  if (data.prompt_eval && data.prompt_eval.total > 0) {
+    const pe = data.prompt_eval;
+    const pct = Math.max(0, Math.min(100, (pe.processed / pe.total) * 100));
+    bar.style.width = pct.toFixed(1) + '%';
+    stats.textContent = 'Prompt: ' + pe.processed.toLocaleString() + ' / '
+      + pe.total.toLocaleString() + ' (' + pct.toFixed(0) + '%)';
+    banner.classList.add('has-stats');
+    return;
+  }
+
+  stats.textContent = '';
+  banner.classList.remove('has-stats');
+
+  // Phase-kind defaults so the bar moves on transitions even without telemetry
+  if (phase === 'starting') bar.style.width = '5%';
+  else if (phase === 'running') bar.style.width = '30%';
+  else if (phase === 'done') bar.style.width = '100%';
+}
+
+function formatPhaseElapsed(seconds) {
+  const s = Math.max(0, Math.floor(seconds));
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m + 'm ' + r + 's';
 }
 
 function updateStage(stageId, status, progress) {

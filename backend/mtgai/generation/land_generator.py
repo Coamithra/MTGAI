@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -162,10 +163,18 @@ def _slugify(name: str) -> str:
     return name.lower().replace(" ", "_").replace("'", "").replace(",", "")
 
 
-def generate_lands(set_code: str = "ASD") -> dict:
+def generate_lands(
+    set_code: str = "ASD",
+    on_call_start: Callable[[str], None] | None = None,
+    on_card_saved: Callable[[Card], None] | None = None,
+) -> dict:
     """Generate land cards for a set.
 
     Returns a summary dict with total_cards and cost_usd.
+
+    Optional callbacks let a UI surface progress:
+      ``on_call_start(model)`` fires right before the Haiku request,
+      ``on_card_saved(card)`` fires after each Card is written to disk.
     """
     set_dir = OUTPUT_ROOT / "sets" / set_code
     skeleton_path = set_dir / "skeleton.json"
@@ -179,11 +188,23 @@ def generate_lands(set_code: str = "ASD") -> dict:
     system, user = _build_prompt(set_config)
     tool_schema = _build_tool_schema()
 
+    # Resolve the configured model for the lands stage. Falls back to Haiku
+    # if model_settings can't be loaded (CLI/test path) — the previous
+    # hardcoded behaviour.
+    try:
+        from mtgai.settings.model_settings import get_llm_model
+
+        model_id = get_llm_model("lands")
+    except Exception as e:  # pragma: no cover — defensive
+        logger.warning("Could not resolve lands model from settings (%s); using Haiku", e)
+        model_id = "claude-haiku-4-5-20251001"
+    if on_call_start is not None:
+        on_call_start(model_id)
     response = generate_with_tool(
         system_prompt=system,
         user_prompt=user,
         tool_schema=tool_schema,
-        model="claude-haiku-4-5-20251001",
+        model=model_id,
         temperature=0.7,
         max_tokens=2048,
     )
@@ -218,6 +239,8 @@ def generate_lands(set_code: str = "ASD") -> dict:
         )
         cards_saved += 1
         logger.info("  Saved %s: %s", basic["name"], filename)
+        if on_card_saved is not None:
+            on_card_saved(card)
 
     if nonbasic_data:
         card = _make_nonbasic_card(nonbasic_data, set_code)
@@ -228,6 +251,8 @@ def generate_lands(set_code: str = "ASD") -> dict:
             encoding="utf-8",
         )
         cards_saved += 1
+        if on_card_saved is not None:
+            on_card_saved(card)
         logger.info("  Saved nonbasic: %s", nonbasic_data["name"])
 
     logger.info("Generated %d land cards ($%.4f)", cards_saved, cost)
