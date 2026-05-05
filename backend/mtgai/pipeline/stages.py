@@ -4,12 +4,21 @@ Each stage runner receives a set_code and a progress callback, calls the
 appropriate library function, and returns a StageResult with summary info.
 Stages that aren't yet wired to real functions use stub implementations
 that log and return immediately.
+
+Each stage also has a clearer (``STAGE_CLEARERS``) used by the wizard
+edit-flow cascade: when the user accepts edits to a past stage, every
+downstream stage's clearer runs to wipe its on-disk artifacts. Stages
+that don't own dedicated artifacts (analysis-only stages, in-place
+mutators, human review pauses) register a no-op so the dispatch stays
+uniform.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import shutil
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -681,3 +690,112 @@ STAGE_RUNNERS = {
     "render_qa": run_render_qa,
     "human_final_review": run_human_final_review,
 }
+
+
+# ---------------------------------------------------------------------------
+# Stage artifact clearers — per-stage on-disk cleanup
+# ---------------------------------------------------------------------------
+#
+# Used by the wizard edit-flow (§9.3 of plans/wizard-ui-redesign.md):
+# when the user accepts edits to a past stage, every downstream stage's
+# clearer runs to delete that stage's owned artifacts. Stages that
+# don't own dedicated artifacts (analysis-only, in-place card mutators,
+# human review pauses) register the ``_no_artifacts`` no-op so the
+# dispatch stays uniform — callers never need to special-case them.
+#
+# Conventions:
+# - Clearers receive a validated ``set_code`` and run synchronously.
+# - File-not-found is fine (clear is idempotent); permission / I/O
+#   errors propagate so the caller can surface them.
+# - Stages that mutate cards in place (``ai_review``, ``finalize``,
+#   ``art_prompts``, ``art_select``, ``skeleton_rev``) intentionally
+#   no-op — their effects are erased by re-running ``card_gen``'s
+#   clearer further upstream in the cascade.
+
+StageClearer = Callable[[str], None]
+
+
+def _no_artifacts(_set_code: str) -> None:
+    """No-op clearer for stages that do not own dedicated artifacts."""
+    return None
+
+
+def _remove_path(path: Path) -> None:
+    """Delete ``path`` whether it's a file or a directory; ignore missing."""
+    if not path.exists():
+        return
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+
+
+def clear_skeleton(set_code: str) -> None:
+    _remove_path(_set_dir(set_code) / "skeleton.json")
+
+
+def clear_reprints(set_code: str) -> None:
+    _remove_path(_set_dir(set_code) / "reprint_selection.json")
+
+
+def clear_card_gen(set_code: str) -> None:
+    """Wipe the entire ``cards/`` directory for the set.
+
+    ``card_gen`` owns the per-card JSON files. Lands, reprints, and
+    every later in-place mutator (ai_review, finalize, art_prompts,
+    art_select) all touch files in this directory; clearing it on a
+    cascade upstream of ``card_gen`` resets all of them at once.
+    """
+    _remove_path(_set_dir(set_code) / "cards")
+
+
+def clear_char_portraits(set_code: str) -> None:
+    """Delete the character reference portraits.
+
+    Path matches ``mtgai.art.character_portraits`` (out_dir):
+    ``<set>/art-direction/character-refs``. The surrounding
+    ``art-direction/`` folder also holds visual-references.json,
+    which is an upstream input — only the ``character-refs``
+    subdirectory belongs to this stage.
+    """
+    _remove_path(_set_dir(set_code) / "art-direction" / "character-refs")
+
+
+def clear_art_gen(set_code: str) -> None:
+    _remove_path(_set_dir(set_code) / "art")
+
+
+def clear_rendering(set_code: str) -> None:
+    _remove_path(_set_dir(set_code) / "renders")
+
+
+STAGE_CLEARERS: dict[str, StageClearer] = {
+    "skeleton": clear_skeleton,
+    "reprints": clear_reprints,
+    "lands": _no_artifacts,
+    "card_gen": clear_card_gen,
+    "balance": _no_artifacts,
+    "skeleton_rev": _no_artifacts,
+    "ai_review": _no_artifacts,
+    "finalize": _no_artifacts,
+    "human_card_review": _no_artifacts,
+    "art_prompts": _no_artifacts,
+    "char_portraits": clear_char_portraits,
+    "art_gen": clear_art_gen,
+    "art_select": _no_artifacts,
+    "human_art_review": _no_artifacts,
+    "rendering": clear_rendering,
+    "render_qa": _no_artifacts,
+    "human_final_review": _no_artifacts,
+}
+
+
+def clear_stage_artifacts(stage_id: str, set_code: str) -> None:
+    """Run the registered clearer for ``stage_id`` against ``set_code``.
+
+    Raises ``KeyError`` if no clearer is registered — callers should
+    treat that as a programming error (every stage in
+    ``STAGE_DEFINITIONS`` must have a clearer entry, even if no-op).
+    """
+    clearer = STAGE_CLEARERS[stage_id]
+    clearer(set_code)

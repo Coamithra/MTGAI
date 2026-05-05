@@ -95,7 +95,13 @@ async def _lifespan(application: FastAPI) -> AsyncGenerator[None]:
     This allows the gallery to load card images via /renders/... and /art/...
     instead of relative file paths.
     """
+    from mtgai.pipeline.engine import cleanup_orphan_running_stages
     from mtgai.settings.model_settings import get_settings
+
+    # Any pipeline-state.json with a RUNNING stage on disk was left
+    # there by a process that exited mid-stage. Demote those to
+    # FAILED so the wizard surfaces a Retry instead of a stuck spinner.
+    cleanup_orphan_running_stages()
 
     set_code = _get_set_code()
     set_dir = _set_dir(set_code)

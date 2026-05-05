@@ -58,6 +58,57 @@ def load_state(set_code: str) -> PipelineState | None:
     return PipelineState.model_validate(data)
 
 
+def cleanup_orphan_running_stages() -> list[str]:
+    """Demote any persisted ``RUNNING`` stage to ``FAILED``.
+
+    Called on server boot, before any engine is constructed: at that
+    point the in-memory pipeline registry is empty, so any
+    ``StageStatus.RUNNING`` (or ``PipelineStatus.RUNNING``) on disk
+    came from a previous process that exited mid-stage. Mark the
+    stage failed with a clear message and reset the overall status so
+    the user can retry from the wizard.
+
+    Returns a list of ``"<set_code>:<stage_id>"`` strings that were
+    demoted, mainly for logging.
+    """
+    sets_root = OUTPUT_ROOT / "sets"
+    if not sets_root.exists():
+        return []
+
+    demoted: list[str] = []
+    now = datetime.now(UTC)
+    for state_path in sets_root.glob("*/pipeline-state.json"):
+        try:
+            state = PipelineState.model_validate_json(state_path.read_text(encoding="utf-8"))
+        except Exception:
+            logger.exception("cleanup_orphan_running_stages: failed to load %s", state_path)
+            continue
+
+        changed = False
+        for stage in state.stages:
+            if stage.status == StageStatus.RUNNING:
+                stage.status = StageStatus.FAILED
+                stage.progress.error_message = "Interrupted — server restart"
+                stage.progress.finished_at = now
+                demoted.append(f"{state.config.set_code}:{stage.stage_id}")
+                changed = True
+
+        if state.overall_status == PipelineStatus.RUNNING:
+            state.overall_status = PipelineStatus.FAILED
+            changed = True
+
+        if changed:
+            save_state(state)
+
+    if demoted:
+        logger.warning(
+            "Demoted %d orphan RUNNING stage(s) on boot: %s",
+            len(demoted),
+            ", ".join(demoted),
+        )
+    return demoted
+
+
 class PipelineEngine:
     """Executes pipeline stages sequentially with pause/resume/cancel."""
 
@@ -112,14 +163,6 @@ class PipelineEngine:
 
             # Skip completed/skipped stages
             if stage.status in (StageStatus.COMPLETED, StageStatus.SKIPPED):
-                continue
-
-            # Skip stages the user marked to skip
-            if stage.stage_id in self.state.config.skip_stages:
-                stage.status = StageStatus.SKIPPED
-                save_state(self.state)
-                self.bus.stage_update(stage.stage_id, stage.status)
-                logger.info("Skipped stage: %s", stage.display_name)
                 continue
 
             # Run the stage
