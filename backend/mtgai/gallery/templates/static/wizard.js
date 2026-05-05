@@ -118,6 +118,16 @@
     if (!state.builtBodies.has(tabId)) {
       mountTabBody(tab);
       state.builtBodies.add(tabId);
+    } else {
+      // Re-invoke the renderer so SSE updates that arrived while the
+      // user was on a different tab paint into the body before we
+      // unhide it. Without this, the placeholder shows stage state
+      // from whenever this tab was last active.
+      const body = document.querySelector(
+        `.wiz-tab-body[data-tab-id="${cssEsc(tabId)}"]`,
+      );
+      const renderer = renderers[tab.kind];
+      if (body && renderer) renderer({ tab, root: body, state, rerender: true });
     }
 
     document.querySelectorAll('.wiz-tab-body').forEach(el => {
@@ -239,8 +249,20 @@
     const tabIdx = state.tabs.findIndex(t => t.id === stageId);
     if (tabIdx >= 0) {
       state.tabs[tabIdx].status = status;
-      renderTabStrip();
+    } else if (status !== 'pending') {
+      // Stage just left PENDING during this session — the bootstrap
+      // snapshot didn't include it but the visibility rule (compute_visible_tabs
+      // in wizard.py) now would. Append the tab so the strip surfaces
+      // it without forcing the user to refresh.
+      state.tabs.push({
+        id: stageId,
+        title: stage.display_name,
+        kind: 'stage',
+        status,
+      });
+      state.latestTabId = stageId;
     }
+    renderTabStrip();
     rerenderActiveStageBody();
   }
 
@@ -265,6 +287,17 @@
   }
 
   function handlePhaseEvent(data) {
+    const phase = data.phase || '';
+
+    // Phase events come from non-pipeline AI runs too (theme section
+    // refreshes etc.) — without this, the strip would stick at 100%
+    // forever after a section refresh because no `pipeline_status`
+    // terminal event ever fires for that path.
+    if (phase === 'done') {
+      hideProgressStrip();
+      return;
+    }
+
     showProgressStrip();
     const stageEl = document.getElementById('wiz-progress-stage');
     const activityEl = document.getElementById('wiz-progress-activity');
@@ -278,11 +311,9 @@
     stageEl.textContent = stageObj ? stageObj.display_name : stageId;
     activityEl.textContent = data.activity || '';
 
-    const phase = data.phase || '';
     if (phase === 'starting') fillEl.style.width = '5%';
     else if (phase === 'running') fillEl.style.width = '30%';
     else if (phase === 'generation') fillEl.style.width = '60%';
-    else if (phase === 'done') fillEl.style.width = '100%';
   }
 
   function showProgressStrip() {

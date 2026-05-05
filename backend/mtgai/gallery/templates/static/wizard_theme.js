@@ -20,15 +20,16 @@
   const W = (window.MTGAIWizard = window.MTGAIWizard || {});
   W.registerTabRenderer('content', renderThemeTab);
 
-  // Per-instance state — survives across rerenders since the body is
-  // mounted once. The shell calls renderThemeTab again with rerender=true
-  // when state changes; we treat that as a no-op for the theme tab today.
+  // Module-scope flag: the theme tab body is mounted once per page
+  // load. The wizard shell never re-mounts a tab body in this card
+  // (set-picker switches reload the page), so a one-shot guard is
+  // sufficient. If a future card adds in-place re-bootstrapping it
+  // should track this on the tab body element instead.
   const local = {
     initialized: false,
   };
 
-  function renderThemeTab({ root, state, rerender }) {
-    if (rerender && local.initialized) return;
+  function renderThemeTab({ root, state }) {
     if (local.initialized) return;
     local.initialized = true;
 
@@ -270,13 +271,18 @@
       });
     });
 
+    // Round-trip every key from the loaded theme so save here only
+    // mutates the content surface (setting prose + constraints + card
+    // requests). Legacy keys (`special_constraints`, `theme`,
+    // `flavor_description`) survive the save unchanged — Project
+    // Settings + a future migration can drop them once that surface
+    // covers the editor for those fields.
     const payload = {
-      // Numeric / identity fields move to Project Settings — round-trip
-      // whatever was on disk so save here only mutates content fields.
-      name: theme.name || '',
+      ...theme,
+      name: theme.name ?? '',
       code: state.activeSet,
-      set_size: theme.set_size || 60,
-      mechanic_count: theme.mechanic_count || 3,
+      set_size: theme.set_size ?? 60,
+      mechanic_count: theme.mechanic_count ?? 3,
       setting,
       constraints,
       card_requests: cardRequests,

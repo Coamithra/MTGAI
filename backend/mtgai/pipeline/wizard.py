@@ -25,7 +25,6 @@ from typing import Any
 
 from mtgai.pipeline.engine import load_state
 from mtgai.pipeline.models import (
-    STAGE_DEFINITIONS,
     PipelineState,
     StageStatus,
 )
@@ -35,9 +34,6 @@ logger = logging.getLogger(__name__)
 
 PROJECT_TAB_ID = "project"
 THEME_TAB_ID = "theme"
-
-STAGE_IDS: list[str] = [d["stage_id"] for d in STAGE_DEFINITIONS]
-STAGE_TITLES: dict[str, str] = {d["stage_id"]: d["display_name"] for d in STAGE_DEFINITIONS}
 
 
 @dataclass
@@ -59,10 +55,10 @@ class WizardState:
     latest_tab_id: str
     active_tab_id: str
     pipeline_state: PipelineState | None
-    theme: dict | None
+    theme: dict[str, Any] | None
 
 
-def _load_theme_for(set_code: str) -> dict | None:
+def _load_theme_for(set_code: str) -> dict[str, Any] | None:
     """Read ``output/sets/<CODE>/theme.json`` if present, else None.
 
     Tolerates a malformed file by logging + returning None — a corrupt
@@ -81,7 +77,7 @@ def _load_theme_for(set_code: str) -> dict | None:
 
 def compute_visible_tabs(
     state: PipelineState | None,
-    theme: dict | None,
+    theme: dict[str, Any] | None,
 ) -> list[WizardTab]:
     """Build the visible-tab list per design §4.2 + §11.
 

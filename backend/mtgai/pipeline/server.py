@@ -101,11 +101,15 @@ def _render_wizard(request: Request, requested_tab: str | None) -> HTMLResponse 
             url=f"/pipeline/{ws.active_tab_id}",
             status_code=302,
         )
+    # Pass the serialized snapshot as a dict so Jinja's `tojson` filter
+    # in the template can produce a `</script>`-safe blob. `default=str`
+    # is unnecessary because `serialize_wizard_state` already coerces
+    # `pipeline_state` to JSON-safe types via `model_dump(mode="json")`.
     return templates.TemplateResponse(
         "wizard.html",
         {
             "request": request,
-            "wizard_state": json.dumps(serialize_wizard_state(ws), default=str),
+            "wizard_state": serialize_wizard_state(ws),
         },
     )
 

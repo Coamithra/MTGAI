@@ -92,7 +92,6 @@ def test_pipeline_root_redirects_to_running_stage(client, isolate_sets):
 
     resp = client.get("/pipeline", follow_redirects=False)
     assert resp.status_code == 302
-    # Second stage in STAGE_DEFINITIONS is reprints.
     assert resp.headers["location"] == f"/pipeline/{state.stages[1].stage_id}"
 
 
