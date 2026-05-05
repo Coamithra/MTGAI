@@ -250,6 +250,23 @@ STAGE_DEFINITIONS: list[dict] = [
 ]
 
 
+def break_point_states(break_points: dict[str, str]) -> dict[str, bool]:
+    """Map every pipeline stage to whether the wizard should pause after it.
+
+    Single source for the ``settings.break_points`` -> bool resolution
+    used by the Project Settings break-points list (server-side payload)
+    and the per-tab "Stop after this step" checkbox (wizard bootstrap).
+    ``always_review`` stages render as locked-on regardless of what the
+    settings dict stores — the engine forces a pause for them anyway.
+    """
+    return {
+        defn["stage_id"]: bool(
+            defn["always_review"] or break_points.get(defn["stage_id"]) == "review"
+        )
+        for defn in STAGE_DEFINITIONS
+    }
+
+
 def build_stages(config: PipelineConfig) -> list[StageState]:
     """Build the ordered stage list from definitions + user config."""
     stages = []

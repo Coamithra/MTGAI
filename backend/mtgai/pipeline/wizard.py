@@ -25,9 +25,9 @@ from typing import Any
 
 from mtgai.pipeline.engine import load_state
 from mtgai.pipeline.models import (
-    STAGE_DEFINITIONS,
     PipelineState,
     StageStatus,
+    break_point_states,
 )
 from mtgai.runtime.runtime_state import SETS_ROOT
 from mtgai.settings.model_settings import get_settings
@@ -142,24 +142,6 @@ def resolve_tab(requested: str | None, tabs: list[WizardTab]) -> str:
     return compute_latest_tab(tabs)
 
 
-def _resolve_break_points(set_code: str) -> dict[str, bool]:
-    """Map every pipeline stage to its current break-point bit.
-
-    Sources from ``settings.break_points`` (the Project Settings UI's
-    write target) so the per-tab "Stop after this step" checkbox boots
-    with the same value the Project Settings list shows. always_review
-    stages are forced True — the engine pauses for them regardless and
-    the per-tab checkbox renders them as locked.
-    """
-    settings = get_settings(set_code)
-    return {
-        defn["stage_id"]: bool(
-            defn["always_review"] or settings.break_points.get(defn["stage_id"]) == "review"
-        )
-        for defn in STAGE_DEFINITIONS
-    }
-
-
 def build_wizard_state(set_code: str, requested_tab: str | None) -> WizardState:
     """Resolve the full wizard state for a set + URL fragment."""
     state = load_state(set_code)
@@ -174,7 +156,7 @@ def build_wizard_state(set_code: str, requested_tab: str | None) -> WizardState:
         active_tab_id=active,
         pipeline_state=state,
         theme=theme,
-        break_points=_resolve_break_points(set_code),
+        break_points=break_point_states(get_settings(set_code).break_points),
     )
 
 

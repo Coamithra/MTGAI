@@ -39,8 +39,18 @@
     }
 
     if (headerActions) {
-      headerActions.innerHTML = breakPointToggleHtml(stage, state);
-      bindBreakPointToggle(headerActions, stage, state);
+      // Idempotent re-render: SSE-driven rerenders fire on every
+      // stage_update / item_progress event. Replacing innerHTML on
+      // each tick would detach an in-flight click's checkbox before
+      // its POST resolves and re-bind a fresh listener, so guard on
+      // the value the toggle currently displays.
+      const desiredChecked = !!stage.always_review || !!state.breakPoints[stage.stage_id];
+      const existing = headerActions.querySelector('input[data-role="stage-break"]');
+      const existingChecked = existing && existing.checked;
+      if (!existing || existingChecked !== desiredChecked) {
+        headerActions.innerHTML = breakPointToggleHtml(stage, state);
+        bindBreakPointToggle(headerActions, stage, state);
+      }
     }
 
     const pill = root.querySelector('.wiz-status-pill');
@@ -55,22 +65,23 @@
   // ------------------------------------------------------------------
 
   function breakPointToggleHtml(stage, state) {
-    const checked = !!state.breakPoints[stage.stage_id];
     const lockedOn = !!stage.always_review;
-    const disabledAttr = lockedOn ? 'disabled' : '';
+    const checked = lockedOn || !!state.breakPoints[stage.stage_id];
+    const disabledAttr = lockedOn ? 'disabled aria-disabled="true"' : '';
     const titleAttr = lockedOn
       ? ' title="Always pauses for review"'
       : ' title="When checked, the wizard pauses after this stage finishes."';
+    const labelText = lockedOn ? 'Stop after this step (always on)' : 'Stop after this step';
     const lockGlyph = lockedOn ? ' <span class="wiz-bp-lock" aria-hidden="true">🔒</span>' : '';
     return `
       <label class="wiz-stage-break-toggle"${titleAttr}>
         <input
           type="checkbox"
           data-role="stage-break"
-          ${checked || lockedOn ? 'checked' : ''}
+          ${checked ? 'checked' : ''}
           ${disabledAttr}
         >
-        Stop after this step${lockGlyph}
+        ${labelText}${lockGlyph}
       </label>
     `;
   }
@@ -81,14 +92,10 @@
     cb.addEventListener('change', async () => {
       const desired = cb.checked;
       try {
-        const resp = await fetch('/api/wizard/project/breaks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            set_code: state.activeSet,
-            stage_id: stage.stage_id,
-            review: desired,
-          }),
+        const resp = await window.MTGAIWizard.postJSON('/api/wizard/project/breaks', {
+          set_code: state.activeSet,
+          stage_id: stage.stage_id,
+          review: desired,
         });
         if (!resp.ok) {
           const data = await resp.json().catch(() => ({}));
@@ -97,6 +104,12 @@
           return;
         }
         state.breakPoints[stage.stage_id] = desired;
+        // Notify peer renderers (Project Settings) that a break-point
+        // bit changed. wizard_project listens via this hook so its
+        // checkbox row stays in sync without a refetch.
+        if (typeof window.MTGAIWizard.onBreakPointChanged === 'function') {
+          window.MTGAIWizard.onBreakPointChanged(stage.stage_id, desired);
+        }
       } catch (err) {
         window.MTGAIWizard.toast('Network error: ' + err.message, 'error');
         cb.checked = !desired;

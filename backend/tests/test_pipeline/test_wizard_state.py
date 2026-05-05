@@ -33,9 +33,9 @@ def sets_root(tmp_path, monkeypatch):
     """Isolated SETS_ROOT + per-set settings store.
 
     The break-points payload reads through `get_settings(set_code)`
-    which mmaps the per-set TOML and a global default file. Pointing
+    which loads the per-set TOML and a global default file. Pointing
     every settings path at tmp_path keeps the resolver from leaking
-    into the developer's real ~/output/ store.
+    into the developer's real `<repo>/output/` store.
     """
     from mtgai.settings import model_settings as ms
 

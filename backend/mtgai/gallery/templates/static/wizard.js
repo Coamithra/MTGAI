@@ -25,10 +25,11 @@
     tabs: WIZARD_STATE.visible_tabs,
     pipeline: WIZARD_STATE.pipeline_state,
     theme: WIZARD_STATE.theme,
-    // stage_id -> bool, mirrors settings.break_points so the per-tab
-    // "Stop after this step" checkbox shares state with the Project
-    // Settings break-point list. Project Settings still POSTs through
-    // its own handler; both paths target /api/wizard/project/breaks.
+    // stage_id -> bool, mirrors settings.break_points. Both the
+    // Project Settings break-point list and the per-tab "Stop after
+    // this step" checkbox in stage headers read/write through this
+    // map (each via its own handler) so toggles in one surface show
+    // up in the other without a refetch.
     breakPoints: WIZARD_STATE.break_points || {},
     builtBodies: new Set(),
     eventSource: null,
@@ -47,6 +48,11 @@
   };
   window.MTGAIWizard.getState = () => state;
   window.MTGAIWizard.toast = showToast;
+  window.MTGAIWizard.postJSON = (url, body) => fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 
   // ------------------------------------------------------------------
   // Init

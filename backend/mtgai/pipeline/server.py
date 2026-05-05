@@ -857,29 +857,24 @@ async def extract_section_endpoint(request: Request):
 # ---------------------------------------------------------------------------
 
 
-# Subset of stage_id => display_name in pipeline order, including the
-# locked-on human_* rows. Used by the Project Settings break-points
-# section so the wizard renders one row per stage in the same order
-# the engine runs them.
+# One row per pipeline stage in pipeline order, including the locked-on
+# human_* rows. Render shape for the Project Settings break-points
+# section. The bool ("review") comes from the shared
+# break_point_states helper so this stays in lockstep with the wizard
+# bootstrap payload (mtgai.pipeline.wizard).
 def _break_points_payload(settings_obj) -> list[dict[str, Any]]:
-    from mtgai.pipeline.models import STAGE_DEFINITIONS
+    from mtgai.pipeline.models import STAGE_DEFINITIONS, break_point_states
 
-    rows: list[dict[str, Any]] = []
-    for defn in STAGE_DEFINITIONS:
-        sid = defn["stage_id"]
-        # always_review stages render as locked-on regardless of what
-        # break_points stores — the engine forces REVIEW for them via
-        # build_stages(). Surfacing them as "locked" here matches the
-        # design's "🔒 always pauses" tooltip.
-        rows.append(
-            {
-                "stage_id": sid,
-                "display_name": defn["display_name"],
-                "always_review": defn["always_review"],
-                "review": defn["always_review"] or settings_obj.break_points.get(sid) == "review",
-            }
-        )
-    return rows
+    review_by_stage = break_point_states(settings_obj.break_points)
+    return [
+        {
+            "stage_id": defn["stage_id"],
+            "display_name": defn["display_name"],
+            "always_review": defn["always_review"],
+            "review": review_by_stage[defn["stage_id"]],
+        }
+        for defn in STAGE_DEFINITIONS
+    ]
 
 
 def _project_payload(set_code: str) -> dict[str, Any]:
