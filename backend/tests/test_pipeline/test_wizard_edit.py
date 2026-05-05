@@ -144,7 +144,6 @@ def test_preview_lists_completed_downstream_stages(client):
     assert data["cleared"][0]["item_count"] == 60
     # No theme.json wipe by default.
     assert data["clear_theme_json"] is False
-    assert data["pipeline_running"] is False
 
 
 def test_preview_skips_pending_stages(client):
@@ -349,8 +348,13 @@ def test_accept_persists_theme_input_patch(client, no_thread_start):
 
 
 def test_accept_409_when_engine_running(client, monkeypatch):
-    _make_set("ASD", theme={"code": "ASD"})
-    _seed_state("ASD", overall_status=PipelineStatus.RUNNING)
+    set_dir = _make_set("ASD", theme={"code": "ASD"})
+    (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
+    seeded = _seed_state("ASD", overall_status=PipelineStatus.RUNNING)
+    seeded.stages[0].status = StageStatus.COMPLETED
+    seeded.stages[0].progress.completed_items = 60
+    save_state(seeded)
+    seeded_dump = load_state("ASD").model_dump(mode="json")
 
     class _BusyEngine:
         is_running = True
@@ -368,6 +372,70 @@ def test_accept_409_when_engine_running(client, monkeypatch):
     )
     assert resp.status_code == 409
     assert "running" in resp.json()["error"].lower()
+    # 409 must not have mutated state on disk: the cascade-clear writes
+    # are gated behind the engine-running check, so pipeline-state.json
+    # and skeleton.json should be untouched.
+    assert (set_dir / "skeleton.json").exists()
+    assert load_state("ASD").model_dump(mode="json") == seeded_dump
+
+
+def test_accept_409_when_extraction_running(client):
+    """A mid-flight theme extraction also blocks Accept — a new theme.json
+    write would race the cascade clear."""
+    _make_set("ASD", theme={"code": "ASD"})
+    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    extraction_run.start_run("upload-xyz")
+
+    resp = client.post(
+        "/api/wizard/edit/accept",
+        json={"set_code": "ASD", "from_stage": "skeleton"},
+    )
+    assert resp.status_code == 409
+    assert "extraction" in resp.json()["error"].lower()
+
+
+def test_accept_400_for_invalid_set_size(client):
+    _make_set("ASD", theme={"code": "ASD"})
+    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+
+    for bad in (-3, 0, "abc", None):
+        resp = client.post(
+            "/api/wizard/edit/accept",
+            json={
+                "set_code": "ASD",
+                "from_stage": "project",
+                "set_params_patch": {"set_size": bad},
+            },
+        )
+        assert resp.status_code == 400, f"Expected 400 for set_size={bad!r}, got {resp.status_code}"
+
+
+def test_accept_400_for_negative_mechanic_count(client):
+    _make_set("ASD", theme={"code": "ASD"})
+    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    resp = client.post(
+        "/api/wizard/edit/accept",
+        json={
+            "set_code": "ASD",
+            "from_stage": "project",
+            "set_params_patch": {"mechanic_count": -1},
+        },
+    )
+    assert resp.status_code == 400
+
+
+def test_accept_400_for_non_dict_patch(client):
+    _make_set("ASD", theme={"code": "ASD"})
+    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    resp = client.post(
+        "/api/wizard/edit/accept",
+        json={
+            "set_code": "ASD",
+            "from_stage": "project",
+            "set_params_patch": [1, 2, 3],
+        },
+    )
+    assert resp.status_code == 400
 
 
 def test_accept_400_for_unknown_stage(client):

@@ -30,7 +30,6 @@
 
   function renderThemeTab({ root, state }) {
     const footer = root.querySelector('[data-role="footer"]');
-    const headerActions = root.querySelector('[data-role="header-actions"]');
 
     if (local.initialized) {
       // SSE-driven re-render. Refresh the footer in place so the
@@ -47,6 +46,11 @@
       }
       refreshThemeHeader(root, state);
       refreshThemeBanner(root, state);
+      // Bottom action row depends on isThemePast(state) which flips
+      // when the engine kicks off — so it has to re-evaluate here too,
+      // not just on first mount. Without this, Save Theme stays
+      // visible after auto-advance until a tab navigation re-mounts.
+      refreshThemeActions(root, state);
       return;
     }
     local.initialized = true;

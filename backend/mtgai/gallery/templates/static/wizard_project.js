@@ -9,9 +9,11 @@
  * off the theme extractor and navigates to the Theme tab.
  *
  * Cascade-clear gate (§6.4 / §9): set_size + theme_input changes are
- * destructive once the pipeline has started. The full edit-flow modal
- * lands in the §9 card; for now those fields render disabled
- * post-Start and the wizard surfaces a hint pointing at the deferral.
+ * destructive once the pipeline has started. Post-Start those fields
+ * render disabled until the user clicks the section's Edit button,
+ * which opens the §9 modal; on Continue the fields go editable + a
+ * pencil indicator + banner show. Cancel reverts to the snapshot;
+ * Accept commits via /api/wizard/edit/accept (cascade clear + kickoff).
  */
 
 (function () {
@@ -168,6 +170,10 @@
     });
     if (!ok) return;
     local.editingProject = true;
+    // ThemeInputSource is currently flat (kind/filename/upload_id/
+    // char_count/uploaded_at — all scalars) so a shallow clone matches
+    // the deep-equal comparison in onProjectEditAccept. If a nested
+    // field is added later, deep-clone here.
     local.editSnapshot = {
       set_size: local.data.set_params.set_size,
       theme_input: { ...ti },

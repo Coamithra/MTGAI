@@ -64,6 +64,12 @@
   // destructive edits behind the warning modal. Draft state is held in
   // ``state.editDrafts`` (keyed by tab id) so navigating between tabs
   // doesn't lose in-progress edits.
+  //
+  // Load-order assumption: this assignment runs at IIFE evaluation time
+  // (before any DOMContentLoaded handler fires) so per-tab renderers,
+  // which run from inside ``init`` -> ``mountTabBody``, always observe
+  // a populated ``editFlow``. wizard_*.js are loaded after wizard.js by
+  // wizard.html (see {% block scripts %}), reinforcing the order.
   window.MTGAIWizard.editFlow = {
     isPipelineRunning() {
       return !!(state.pipeline && state.pipeline.overall_status === 'running');

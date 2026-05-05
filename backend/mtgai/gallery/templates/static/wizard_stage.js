@@ -59,12 +59,12 @@
       // toggle and the Edit button visibility.
       const fingerprint = JSON.stringify({
         bp: !!stage.always_review || !!state.breakPoints[stage.stage_id],
-        editVisible: shouldShowEditButton(stage, state),
+        editVisible: shouldShowEditButton(stage),
         editing,
       });
       if (headerActions.dataset.actionsFp !== fingerprint) {
         headerActions.innerHTML = breakPointToggleHtml(stage, state)
-          + editButtonHtml(stage, state);
+          + editButtonHtml(stage);
         headerActions.dataset.actionsFp = fingerprint;
         bindBreakPointToggle(headerActions, stage, state);
         bindEditButton(headerActions, tab, state);
@@ -87,14 +87,14 @@
   // whatever the wizard considers furthest-along, so it never gets the
   // gate. Pipeline-running suppresses Edit entirely; the modal would
   // 409 anyway.
-  function shouldShowEditButton(stage, state) {
+  function shouldShowEditButton(stage) {
     if (!W.editFlow) return false;
     if (W.editFlow.isPipelineRunning()) return false;
     return W.editFlow.isPastTab(stage.stage_id);
   }
 
-  function editButtonHtml(stage, state) {
-    if (!shouldShowEditButton(stage, state)) return '';
+  function editButtonHtml(stage) {
+    if (!shouldShowEditButton(stage)) return '';
     const editing = !!W.editFlow.getDraft(stage.stage_id);
     if (editing) return '';
     return `<button type="button" class="wiz-btn-secondary" data-role="stage-edit">Edit</button>`;
@@ -117,7 +117,6 @@
         // No editable form on stage tabs in v1 — store an empty draft so
         // the pencil + banner show, then the Accept button cascades.
         W.editFlow.setDraft(tab.id, { dirty: false, payload: {} });
-        W.MTGAIWizard.getState();  // touch
         // Re-render this tab's body to swap in the edit banner + actions.
         const body = document.querySelector(
           `.wiz-tab-body[data-tab-id="${cssEsc(tab.id)}"]`,

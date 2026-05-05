@@ -1013,9 +1013,8 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
         return JSONResponse(
             {
                 "error": (
-                    "Changing target size after the pipeline has started requires "
-                    "the Edit flow — POST /api/wizard/edit/accept with from_stage='project' "
-                    "and set_params_patch={set_size: ...}."
+                    "Target size is a cascade-clear field after the pipeline has started. "
+                    "Click Edit on the Set parameters section and Accept to apply."
                 ),
             },
             status_code=409,
@@ -1059,9 +1058,8 @@ async def wizard_project_save_theme_input(request: Request) -> JSONResponse:
         return JSONResponse(
             {
                 "error": (
-                    "Changing the theme input after the pipeline has started requires "
-                    "the Edit flow — POST /api/wizard/edit/accept with from_stage='project', "
-                    "theme_input={...}, and clear_theme_json=true."
+                    "Theme input is a cascade-clear field after the pipeline has started. "
+                    "Click Edit on the Set parameters section and Accept to apply."
                 ),
             },
             status_code=409,
@@ -1533,7 +1531,6 @@ def _compute_cascade_preview(
     return {
         "cleared": cleared,
         "clear_theme_json": bool(clear_theme_json and theme_json_present),
-        "pipeline_running": _engine is not None and _engine.is_running,
     }
 
 
@@ -1571,47 +1568,60 @@ def _apply_cascade_clear(
 ) -> None:
     """Run STAGE_CLEARERS for stages[start_idx:] and reset them to PENDING.
 
-    Persists the updated pipeline-state.json. Per-stage clearers handle
-    their own idempotency (missing files / dirs are fine), so this is
-    safe to call whether or not the cascade overlaps already-cleared
-    state. ``current_stage_id`` is dropped if it pointed at a stage in
-    the cleared range.
+    Persists the updated pipeline-state.json in a ``finally`` block so a
+    partially-applied cascade is durable even if a clearer throws
+    unexpectedly. Per-stage clearers handle their own idempotency
+    (missing files / dirs are fine). ``current_stage_id`` is dropped if
+    it pointed at a stage in the cleared range.
     """
     from mtgai.pipeline.stages import clear_stage_artifacts
 
-    for stage in state.stages[start_idx:]:
-        try:
-            clear_stage_artifacts(stage.stage_id, set_code)
-        except OSError as e:
-            logger.warning(
-                "Cascade clear for %s/%s raised %s; continuing",
-                set_code,
-                stage.stage_id,
-                e,
+    try:
+        for stage in state.stages[start_idx:]:
+            try:
+                clear_stage_artifacts(stage.stage_id, set_code)
+            except (OSError, KeyError) as e:
+                # OSError = filesystem I/O hiccup; KeyError = the
+                # registry contract slipped (a new stage was added to
+                # STAGE_DEFINITIONS without a clearer entry). Log and
+                # keep going — the loop still resets the in-memory
+                # status, and the persisted state reflects what we
+                # could clear.
+                logger.warning(
+                    "Cascade clear for %s/%s raised %s; continuing",
+                    set_code,
+                    stage.stage_id,
+                    e,
+                )
+            stage.status = StageStatus.PENDING
+            stage.progress = stage.progress.model_copy(
+                update={
+                    "total_items": 0,
+                    "completed_items": 0,
+                    "failed_items": 0,
+                    "current_item": None,
+                    "detail": "",
+                    "cost_usd": 0.0,
+                    "started_at": None,
+                    "finished_at": None,
+                    "error_message": None,
+                }
             )
-        stage.status = StageStatus.PENDING
-        stage.progress = stage.progress.model_copy(
-            update={
-                "total_items": 0,
-                "completed_items": 0,
-                "failed_items": 0,
-                "current_item": None,
-                "detail": "",
-                "cost_usd": 0.0,
-                "started_at": None,
-                "finished_at": None,
-                "error_message": None,
-            }
-        )
 
-    if state.current_stage_id is not None:
-        cleared_ids = {s.stage_id for s in state.stages[start_idx:]}
-        if state.current_stage_id in cleared_ids:
-            state.current_stage_id = None
+        if state.current_stage_id is not None:
+            cleared_ids = {s.stage_id for s in state.stages[start_idx:]}
+            if state.current_stage_id in cleared_ids:
+                state.current_stage_id = None
 
-    if any(s.status != StageStatus.COMPLETED for s in state.stages):
-        state.overall_status = PipelineStatus.NOT_STARTED
-    save_state(state)
+        # After cascade, overall_status is one of:
+        #   - NOT_STARTED — at least one stage left non-completed
+        #     (the common case; engine kickoff picks up here)
+        #   - COMPLETED   — cascade was a no-op on a fully-done pipeline
+        #     (start_idx points past the end)
+        if any(s.status != StageStatus.COMPLETED for s in state.stages):
+            state.overall_status = PipelineStatus.NOT_STARTED
+    finally:
+        save_state(state)
 
 
 @router.post("/api/wizard/edit/accept")
@@ -1667,6 +1677,23 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
             status_code=409,
         )
 
+    # Theme extraction runs through extraction_run on its own worker
+    # thread (separate from _engine), so the engine.is_running check
+    # above misses it. A mid-extraction Accept could race the worker's
+    # final theme.json write against our cascade clear. Require the
+    # user to cancel from the global progress strip first.
+    er = extraction_run.current()
+    if er is not None and er.status == "running":
+        return JSONResponse(
+            {
+                "error": (
+                    "Theme extraction is currently running. Cancel it from the "
+                    "global progress strip, then retry the edit."
+                )
+            },
+            status_code=409,
+        )
+
     state = load_state(code)
     try:
         start_idx = _resolve_edit_point(from_stage, state)
@@ -1679,8 +1706,8 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
     theme_payload = body.get("theme_payload")
 
     if set_params_patch is not None or theme_input_patch is not None:
-        if not isinstance(set_params_patch or {}, dict) or not isinstance(
-            theme_input_patch or {}, dict
+        if (set_params_patch is not None and not isinstance(set_params_patch, dict)) or (
+            theme_input_patch is not None and not isinstance(theme_input_patch, dict)
         ):
             return JSONResponse(
                 {"error": "set_params_patch and theme_input must be objects"},
@@ -1690,10 +1717,31 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
         update: dict[str, Any] = {}
         if isinstance(set_params_patch, dict):
             sp = settings.set_params
+            new_name = set_params_patch.get("set_name", sp.set_name)
+            new_size = set_params_patch.get("set_size", sp.set_size)
+            new_mech = set_params_patch.get("mechanic_count", sp.mechanic_count)
+            # Validate the same way the live-apply /params endpoint
+            # does so a hand-poked client (or a buggy form) gets a
+            # clear 400 instead of a 500 from Pydantic.
+            if not isinstance(new_name, str):
+                return JSONResponse(
+                    {"error": "set_params_patch.set_name must be a string"},
+                    status_code=400,
+                )
+            if not isinstance(new_size, int) or new_size <= 0:
+                return JSONResponse(
+                    {"error": "set_params_patch.set_size must be a positive int"},
+                    status_code=400,
+                )
+            if not isinstance(new_mech, int) or new_mech < 0:
+                return JSONResponse(
+                    {"error": "set_params_patch.mechanic_count must be a non-negative int"},
+                    status_code=400,
+                )
             new_sp = SetParams(
-                set_name=set_params_patch.get("set_name", sp.set_name),
-                set_size=set_params_patch.get("set_size", sp.set_size),
-                mechanic_count=set_params_patch.get("mechanic_count", sp.mechanic_count),
+                set_name=new_name,
+                set_size=new_size,
+                mechanic_count=new_mech,
             )
             update["set_params"] = new_sp
         if isinstance(theme_input_patch, dict):
