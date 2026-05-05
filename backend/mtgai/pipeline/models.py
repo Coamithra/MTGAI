@@ -21,7 +21,13 @@ from pydantic import BaseModel, Field
 
 
 class StageReviewMode(StrEnum):
-    """How the pipeline handles stage completion."""
+    """How the pipeline handles stage completion.
+
+    Two-value flag in the wizard model: ``AUTO`` = no break (the engine
+    advances to the next stage automatically), ``REVIEW`` = break (the
+    engine pauses after the stage finishes and waits for the user to
+    advance via the Next-step button).
+    """
 
     AUTO = "auto"  # Run and continue automatically
     REVIEW = "review"  # Pause after completion for human review
@@ -89,15 +95,20 @@ class StageState(BaseModel):
 
 
 class PipelineConfig(BaseModel):
-    """User-provided configuration for a pipeline run."""
+    """User-provided configuration for a pipeline run.
+
+    The wizard surfaces only break-point overrides via
+    ``stage_review_modes``. ``StageStatus.SKIPPED`` is still used
+    internally for stages that the engine auto-skips (e.g. character
+    portraits when a set has no character cards), but there is no
+    user-facing knob to mark a stage as skipped.
+    """
 
     set_code: str
     set_name: str
     set_size: int = 60
     # Per-stage review mode overrides (stage_id -> mode)
     stage_review_modes: dict[str, StageReviewMode] = Field(default_factory=dict)
-    # Stages to skip entirely
-    skip_stages: list[str] = Field(default_factory=list)
 
 
 class PipelineState(BaseModel):

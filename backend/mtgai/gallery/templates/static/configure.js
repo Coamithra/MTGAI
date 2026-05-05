@@ -51,7 +51,11 @@ function hydrateConfigureUiFromStorage() {
   const stages = MtgaiState.get('configure.stages', null);
   if (stages && typeof stages === 'object') {
     Object.entries(stages).forEach(([stageId, mode]) => {
-      const radio = document.getElementById(`${stageId}-${mode}`);
+      // Legacy carryover: pre-wizard state files used 'skip' as a third
+      // mode. Skip is gone — coerce to 'auto' so a returning user sees
+      // a sensible default instead of an empty radio group.
+      const safeMode = mode === 'skip' ? 'auto' : mode;
+      const radio = document.getElementById(`${stageId}-${safeMode}`);
       if (radio) radio.checked = true;
     });
   }
@@ -60,7 +64,7 @@ function hydrateConfigureUiFromStorage() {
 function persistConfigureUi() {
   const stages = {};
   STAGE_DEFINITIONS.forEach((stage) => {
-    if (stage.always_review) return;
+    if (stage.always_review || !stage.review_eligible) return;
     const selected = document.querySelector(
       `input[name="stage-${stage.stage_id}"]:checked`
     );
@@ -120,17 +124,12 @@ function renderStageToggles() {
             ${locked ? `
               <span style="color: #ffa502; font-size: 0.8rem">Review</span>
             ` : notEligible ? `
-              <input type="radio" name="stage-${stage.stage_id}" value="auto" id="${stage.stage_id}-auto" checked>
-              <label for="${stage.stage_id}-auto">Auto</label>
-              <input type="radio" name="stage-${stage.stage_id}" value="skip" id="${stage.stage_id}-skip">
-              <label for="${stage.stage_id}-skip">Skip</label>
+              <span style="color: #888; font-size: 0.8rem">Auto</span>
             ` : `
               <input type="radio" name="stage-${stage.stage_id}" value="auto" id="${stage.stage_id}-auto">
               <label for="${stage.stage_id}-auto">Auto</label>
               <input type="radio" name="stage-${stage.stage_id}" value="review" id="${stage.stage_id}-review">
               <label for="${stage.stage_id}-review">Review</label>
-              <input type="radio" name="stage-${stage.stage_id}" value="skip" id="${stage.stage_id}-skip">
-              <label for="${stage.stage_id}-skip">Skip</label>
             `}
           </div>
         </td>
@@ -156,7 +155,10 @@ function applyPreset(preset) {
   if (preset === 'custom') return;
 
   STAGE_DEFINITIONS.forEach(stage => {
-    if (stage.always_review) return;  // Can't change human review stages
+    // Skip stages without a Review/Auto toggle — locked human-review
+    // stages and review-ineligible stages render as static labels, so
+    // there's no radio for `getElementById` to find.
+    if (stage.always_review || !stage.review_eligible) return;
 
     let value;
     switch (preset) {
@@ -164,7 +166,7 @@ function applyPreset(preset) {
         value = 'auto';
         break;
       case 'review':
-        value = stage.review_eligible ? 'review' : 'auto';
+        value = 'review';
         break;
       case 'recommended':
         value = RECOMMENDED_REVIEW.includes(stage.stage_id) ? 'review' : 'auto';
@@ -210,22 +212,20 @@ async function startPipeline() {
     return;
   }
 
-  // Collect stage review modes
+  // Collect stage review modes (auto / review). Stages without a
+  // Review/Auto toggle (always_review human stages, review-ineligible
+  // automated stages) don't contribute an entry — the engine treats
+  // missing keys as auto.
   const stageReviewModes = {};
-  const skipStages = [];
 
   STAGE_DEFINITIONS.forEach(stage => {
-    if (stage.always_review) return;
+    if (stage.always_review || !stage.review_eligible) return;
 
     const selected = document.querySelector(
       `input[name="stage-${stage.stage_id}"]:checked`
     );
     if (selected) {
-      if (selected.value === 'skip') {
-        skipStages.push(stage.stage_id);
-      } else {
-        stageReviewModes[stage.stage_id] = selected.value;
-      }
+      stageReviewModes[stage.stage_id] = selected.value;
     }
   });
 
@@ -234,7 +234,6 @@ async function startPipeline() {
     set_name: setName,
     set_size: setSize,
     stage_review_modes: stageReviewModes,
-    skip_stages: skipStages,
   };
 
   // Disable button
