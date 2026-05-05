@@ -33,6 +33,11 @@
     breakPoints: WIZARD_STATE.break_points || {},
     builtBodies: new Set(),
     eventSource: null,
+    // tabId -> { dirty: bool, payload?: object } — held in browser memory
+    // until Accept/Cancel per design §9.2. Per-tab modules read/write this
+    // via MTGAIWizard.editDrafts (no autosave; nothing is persisted until
+    // Accept).
+    editDrafts: new Map(),
   };
 
   // Per-stage UI hooks registered by wizard_stage.js / wizard_theme.js.
@@ -53,6 +58,97 @@
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+
+  // Edit flow (§9) — modal preview + draft state + cascade Accept.
+  // Per-tab renderers call window.MTGAIWizard.editFlow.* to gate their
+  // destructive edits behind the warning modal. Draft state is held in
+  // ``state.editDrafts`` (keyed by tab id) so navigating between tabs
+  // doesn't lose in-progress edits.
+  window.MTGAIWizard.editFlow = {
+    isPipelineRunning() {
+      return !!(state.pipeline && state.pipeline.overall_status === 'running');
+    },
+    isPastTab(tabId) {
+      // A tab is "past" if it's not the latest one — Project Settings
+      // is past once Theme exists, Theme is past once any pipeline
+      // stage has begun, etc. Same notion the latestTabId tracks.
+      return tabId !== state.latestTabId && state.tabs.some(t => t.id === tabId);
+    },
+    getDraft(tabId) {
+      return state.editDrafts.get(tabId) || null;
+    },
+    setDraft(tabId, draft) {
+      state.editDrafts.set(tabId, draft);
+      renderTabStrip();
+    },
+    clearDraft(tabId) {
+      state.editDrafts.delete(tabId);
+      renderTabStrip();
+    },
+    async preview({ from_stage, clear_theme_json }) {
+      const resp = await fetch('/api/wizard/edit/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          set_code: state.activeSet,
+          from_stage,
+          clear_theme_json: !!clear_theme_json,
+        }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${resp.status}`);
+      }
+      return await resp.json();
+    },
+    async accept({ from_stage, clear_theme_json, theme_payload, set_params_patch, theme_input }) {
+      const body = {
+        set_code: state.activeSet,
+        from_stage,
+        clear_theme_json: !!clear_theme_json,
+      };
+      if (theme_payload !== undefined) body.theme_payload = theme_payload;
+      if (set_params_patch !== undefined) body.set_params_patch = set_params_patch;
+      if (theme_input !== undefined) body.theme_input = theme_input;
+      const resp = await fetch('/api/wizard/edit/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        const err = new Error(data.error || `HTTP ${resp.status}`);
+        err.status = resp.status;
+        throw err;
+      }
+      return data;
+    },
+    /**
+     * Open the cascade-clear warning modal. Returns a Promise that
+     * resolves to true if the user clicks "Continue", false if Cancel
+     * (or backdrop-close). Pipeline-running case auto-rejects with a
+     * toast so the modal isn't shown — Accept would 409 anyway.
+     */
+    async confirmCascade({ from_stage, clear_theme_json, title, body }) {
+      if (this.isPipelineRunning()) {
+        showToast('Cancel the running stage first, then retry the edit.', 'warn');
+        return false;
+      }
+      let preview;
+      try {
+        preview = await this.preview({ from_stage, clear_theme_json });
+      } catch (err) {
+        showToast('Preview failed: ' + err.message, 'error');
+        return false;
+      }
+      return await openCascadeModal({
+        title: title || 'Confirm cascade',
+        intro: body || 'Editing this stage will discard all generated content from later stages.',
+        cleared: preview.cleared,
+        clearThemeJson: preview.clear_theme_json,
+      });
+    },
+  };
 
   // ------------------------------------------------------------------
   // Init
@@ -96,9 +192,15 @@
       const statusBadge = t.status
         ? `<span class="wiz-tab-status ${t.status}">${t.status.replace(/_/g, ' ')}</span>`
         : '';
+      // Pencil = tab is in edit mode (per-tab module wrote a draft).
+      // Per design §9.2 the icon stays put while the user navigates so
+      // they can find their way back to the in-progress edit.
+      const pencil = state.editDrafts.has(t.id)
+        ? ' <span class="wiz-tab-pencil" title="Editing — changes not yet applied" aria-label="Editing">✏️</span>'
+        : '';
       return `
         <button type="button" class="wiz-tab" data-tab-id="${escAttr(t.id)}">
-          ${escHtml(t.title)}${statusBadge}
+          ${escHtml(t.title)}${pencil}${statusBadge}
         </button>
       `;
     }).join('');
@@ -413,5 +515,67 @@
   function cssEsc(s) {
     if (window.CSS && CSS.escape) return CSS.escape(s);
     return String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+  }
+
+  // ------------------------------------------------------------------
+  // Cascade-clear modal (design §9.1)
+  // ------------------------------------------------------------------
+
+  /**
+   * Show the §9 warning modal listing exactly what will be cleared.
+   * Returns a promise that resolves true if the user clicks Continue,
+   * false if Cancel / Esc / backdrop click. Continue does NOT mutate
+   * anything — it just lets the caller proceed into edit mode (or
+   * straight to Accept on tabs with no editable form).
+   */
+  function openCascadeModal({ title, intro, cleared, clearThemeJson }) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'wiz-modal-overlay';
+      const items = (cleared || []).map(c => {
+        const label = c.item_count > 0
+          ? `${escHtml(c.display_name)} (${c.item_count})`
+          : escHtml(c.display_name);
+        return `<li>${label} <span class="wiz-modal-status">${escHtml(c.status.replace(/_/g, ' '))}</span></li>`;
+      }).join('');
+      const themeRow = clearThemeJson
+        ? `<li>theme.json <span class="wiz-modal-status">setting + constraints + card requests</span></li>`
+        : '';
+      const empty = !items && !themeRow
+        ? '<li class="wiz-modal-empty">Nothing on disk to clear — Continue applies your edits and re-runs from this point.</li>'
+        : '';
+      overlay.innerHTML = `
+        <div class="wiz-modal" role="dialog" aria-modal="true" aria-labelledby="wiz-modal-title">
+          <h2 id="wiz-modal-title">${escHtml(title)}</h2>
+          <p>${escHtml(intro)}</p>
+          <p class="wiz-modal-cleared-label">The following will be cleared and regenerated when you Accept:</p>
+          <ul class="wiz-modal-cleared">${themeRow}${items}${empty}</ul>
+          <p class="wiz-modal-foot">Cancel to keep things as they are. Continue to start editing — your changes won't take effect until you Accept.</p>
+          <div class="wiz-modal-actions">
+            <button type="button" class="wiz-btn-secondary" data-modal-action="cancel">Cancel</button>
+            <button type="button" class="wiz-btn-primary" data-modal-action="continue">Continue</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      function close(result) {
+        overlay.removeEventListener('keydown', onKey, true);
+        overlay.remove();
+        resolve(result);
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') { e.stopPropagation(); close(false); }
+      }
+      overlay.addEventListener('keydown', onKey, true);
+      overlay.addEventListener('click', e => {
+        if (e.target === overlay) close(false);
+      });
+      overlay.querySelector('[data-modal-action="cancel"]').addEventListener('click', () => close(false));
+      overlay.querySelector('[data-modal-action="continue"]').addEventListener('click', () => close(true));
+      // Focus Continue so keyboard users can confirm with Enter; Esc cancels.
+      const cont = overlay.querySelector('[data-modal-action="continue"]');
+      if (cont) cont.focus();
+    });
   }
 })();

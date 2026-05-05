@@ -28,6 +28,16 @@
     initialized: false,
     data: null,            // payload from GET /api/wizard/project
     pendingUploadId: null, // upload_id awaiting confirmation
+    // True once the user has clicked Edit + confirmed the cascade modal.
+    // While true, the cascade-clear fields (set_size, theme_input) are
+    // editable and the section header shows Cancel + Accept. Bound to
+    // the wizard shell's editDrafts via the 'project' key — Cancel
+    // clears it, Accept clears + reloads.
+    editingProject: false,
+    // Snapshot of the original cascade-clear field values, captured at
+    // Edit-click time. Cancel restores from this so partial edits don't
+    // leak into the live-apply path.
+    editSnapshot: null,
   };
 
   W.registerTabRenderer('project', renderProjectTab);
@@ -122,9 +132,119 @@
     bindBreakPointHandlers(state);
     bindPresetHandlers(state);
     bindModelHandlers(state);
+    bindProjectEditHandlers(state);
     if (footer) {
       footer.querySelector('#wiz-start-project').addEventListener('click', () => onStart(state));
     }
+  }
+
+  function bindProjectEditHandlers(state) {
+    const editBtn = document.getElementById('wiz-proj-edit');
+    if (editBtn) {
+      editBtn.addEventListener('click', () => onProjectEditClick(state));
+    }
+    const cancel = document.getElementById('wiz-proj-edit-cancel');
+    if (cancel) {
+      cancel.addEventListener('click', () => onProjectEditCancel(state));
+    }
+    const accept = document.getElementById('wiz-proj-edit-accept');
+    if (accept) {
+      accept.addEventListener('click', () => onProjectEditAccept(state));
+    }
+  }
+
+  async function onProjectEditClick(state) {
+    if (!W.editFlow) return;
+    const ti = local.data.theme_input;
+    const ok = await W.editFlow.confirmCascade({
+      from_stage: 'project',
+      // Theme input change wipes theme.json too — pre-flag so the
+      // preview enumerates it in the modal.
+      clear_theme_json: true,
+      title: 'Edit set parameters & theme input',
+      body:
+        'Editing the target size or theme input will discard all generated content. '
+        + 'Changing the theme input also clears theme.json so the next Start re-extracts.',
+    });
+    if (!ok) return;
+    local.editingProject = true;
+    local.editSnapshot = {
+      set_size: local.data.set_params.set_size,
+      theme_input: { ...ti },
+    };
+    if (W.editFlow) W.editFlow.setDraft('project', { dirty: false });
+    rerenderProjectTab(state);
+  }
+
+  function onProjectEditCancel(state) {
+    // Restore the cascade-clear fields to whatever was on screen before
+    // Edit was clicked; live-apply changes (model/breaks) made during
+    // the same session stay since they're not part of the cascade.
+    if (local.editSnapshot) {
+      local.data.set_params.set_size = local.editSnapshot.set_size;
+      local.data.theme_input = local.editSnapshot.theme_input;
+    }
+    local.editingProject = false;
+    local.editSnapshot = null;
+    if (W.editFlow) W.editFlow.clearDraft('project');
+    rerenderProjectTab(state);
+  }
+
+  async function onProjectEditAccept(state) {
+    const sizeInput = document.getElementById('wiz-pp-size');
+    const newSize = sizeInput ? parseInt(sizeInput.value, 10) : null;
+    if (!newSize || newSize <= 0) {
+      W.toast('Set size must be a positive integer', 'error');
+      return;
+    }
+    const set_params_patch = newSize !== local.editSnapshot.set_size
+      ? { set_size: newSize }
+      : undefined;
+
+    const tiNow = local.data.theme_input;
+    const themeChanged = JSON.stringify(tiNow) !== JSON.stringify(local.editSnapshot.theme_input);
+    const theme_input = themeChanged ? tiNow : undefined;
+    // Wipe theme.json only if the theme-input source actually changed.
+    const clear_theme_json = themeChanged;
+
+    if (!set_params_patch && !theme_input) {
+      // Edit mode entered but nothing changed — treat Accept as Cancel.
+      onProjectEditCancel(state);
+      W.toast('No changes to apply', 'warn');
+      return;
+    }
+
+    const accept = document.getElementById('wiz-proj-edit-accept');
+    if (accept) {
+      accept.disabled = true;
+      accept.textContent = 'Applying…';
+    }
+    try {
+      const data = await W.editFlow.accept({
+        from_stage: 'project',
+        clear_theme_json,
+        set_params_patch,
+        theme_input,
+      });
+      if (W.editFlow) W.editFlow.clearDraft('project');
+      if (data.warning) W.toast(data.warning, 'warn');
+      window.location.assign(data.navigate_to || '/pipeline/project');
+    } catch (err) {
+      if (accept) {
+        accept.disabled = false;
+        accept.textContent = 'Accept';
+      }
+      if (err.status === 409) W.toast(err.message, 'warn');
+      else W.toast('Accept failed: ' + err.message, 'error');
+    }
+  }
+
+  function rerenderProjectTab(state) {
+    const root = document.querySelector('.wiz-tab-body[data-tab-id="project"]');
+    if (!root) return;
+    const content = root.querySelector('[data-role="content"]');
+    const footer = root.querySelector('[data-role="footer"]');
+    renderForm(content, footer, local.data, state);
   }
 
   function refreshExtractionStrip(root) {
@@ -144,10 +264,22 @@
 
   function renderSetParamsSection(data) {
     const sp = data.set_params;
-    const sizeDisabled = data.pipeline_started ? 'disabled title="Read-only after pipeline start (cascade-clear edit flow lands in a follow-up card)"' : '';
+    // After pipeline start, set_size + theme_input are cascade-clear
+    // fields (§6.4). They render disabled until the user clicks the
+    // Edit button at the section level, which gates re-enabling them
+    // behind the §9 modal.
+    const cascadeLocked = data.pipeline_started && !local.editingProject;
+    const sizeAttrs = cascadeLocked
+      ? 'disabled title="Click Edit to change. Will discard everything from Skeleton onward."'
+      : '';
+    const editBtn = renderProjectEditControls(data);
     return `
       <section class="wiz-proj-section">
-        <h3>Set parameters</h3>
+        <div class="wiz-proj-section-header">
+          <h3>Set parameters</h3>
+          ${editBtn}
+        </div>
+        ${local.editingProject ? '<div class="wiz-edit-banner">Editing — Accept will save and discard everything from Skeleton onward.</div>' : ''}
         <div class="wiz-proj-grid">
           <label>Set code
             <input type="text" value="${escAttr(data.set_code)}" disabled>
@@ -156,7 +288,7 @@
             <input type="text" id="wiz-pp-name" value="${escAttr(sp.set_name)}">
           </label>
           <label>Target size
-            <input type="number" id="wiz-pp-size" value="${sp.set_size}" min="1" max="500" ${sizeDisabled}>
+            <input type="number" id="wiz-pp-size" value="${sp.set_size}" min="1" max="500" ${sizeAttrs}>
           </label>
           <label>Mechanic count
             <input type="number" id="wiz-pp-mech" value="${sp.mechanic_count}" min="0" max="20">
@@ -166,12 +298,30 @@
     `;
   }
 
+  function renderProjectEditControls(data) {
+    if (!data.pipeline_started) return '';
+    if (local.editingProject) {
+      return `
+        <div class="wiz-edit-actions">
+          <button type="button" class="wiz-btn-secondary" id="wiz-proj-edit-cancel">Cancel</button>
+          <button type="button" class="wiz-btn-primary" id="wiz-proj-edit-accept">Accept</button>
+        </div>
+      `;
+    }
+    if (W.editFlow && W.editFlow.isPipelineRunning()) return '';
+    return `<button type="button" class="wiz-btn-secondary" id="wiz-proj-edit">Edit set parameters &amp; theme input</button>`;
+  }
+
   function bindSetParamsHandlers(state) {
     const name = document.getElementById('wiz-pp-name');
     const size = document.getElementById('wiz-pp-size');
     const mech = document.getElementById('wiz-pp-mech');
     name.addEventListener('change', () => saveParams(state, { set_name: name.value }));
-    if (!size.disabled) {
+    // size is a cascade-clear field — only live-apply when there's no
+    // pipeline state on disk yet. Post-Start the field is enabled only
+    // inside the edit flow, where Accept commits via the cascade
+    // endpoint, not the live-apply one.
+    if (!size.disabled && !local.editingProject) {
       size.addEventListener('change', () => saveParams(state, { set_size: parseInt(size.value, 10) || 0 }));
     }
     mech.addEventListener('change', () => saveParams(state, { mechanic_count: parseInt(mech.value, 10) || 0 }));
@@ -200,8 +350,11 @@
   function renderThemeInputSection(data) {
     const ti = data.theme_input;
     const status = themeInputStatusText(ti);
-    const inputDisabled = data.pipeline_started
-      ? ' disabled title="Read-only after pipeline start (cascade-clear edit flow lands in a follow-up card)"'
+    // Same cascade-clear gate as set_size — only re-enabled while in
+    // edit mode (toggled from the Set parameters section's Edit button).
+    const cascadeLocked = data.pipeline_started && !local.editingProject;
+    const inputDisabled = cascadeLocked
+      ? ' disabled title="Click Edit (in Set parameters above) to change."'
       : '';
     return `
       <section class="wiz-proj-section">
@@ -325,6 +478,31 @@
   }
 
   async function commitThemeInput(state, payload) {
+    if (local.editingProject) {
+      // Edit-mode change — don't live-apply (server 409s post-Start).
+      // Stash on local.data so the cascade Accept handler reads the
+      // new value at click time. char_count / filename round-trip via
+      // the same fields the server sets on a real save.
+      const ti = {
+        kind: payload.kind,
+        filename: payload.filename || null,
+        upload_id: payload.upload_id || null,
+        char_count: payload.char_count || null,
+        uploaded_at: null,
+      };
+      local.data.theme_input = ti;
+      const root = document.querySelector('.wiz-tab-body[data-tab-id="project"]');
+      if (root) {
+        const status = root.querySelector('#wiz-ti-status');
+        if (status) status.textContent = themeInputStatusText(ti);
+        const pasteArea = root.querySelector('#wiz-ti-paste');
+        const pasteCommit = root.querySelector('#wiz-ti-paste-commit');
+        if (pasteArea) pasteArea.hidden = true;
+        if (pasteCommit) pasteCommit.hidden = true;
+      }
+      W.toast('Captured — Accept above to apply', 'success');
+      return;
+    }
     try {
       const resp = await postJSON('/api/wizard/project/theme-input', {
         set_code: state.activeSet,

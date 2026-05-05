@@ -331,6 +331,17 @@
   color: #e0e0e0;
 }
 
+.wiz-proj-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.wiz-proj-section-header h3 { margin: 0; }
+
 .wiz-proj-desc {
   color: #888;
   font-size: 0.8rem;
@@ -724,6 +735,122 @@
   font-family: inherit;
 }
 .wiz-btn-secondary:hover { border-color: #4a9eff; color: #e0e0e0; }
+
+/* --------------------------------------------------------------------------
+   Edit flow — modal + draft banner + pencil tab indicator (design §9)
+   -------------------------------------------------------------------------- */
+.wiz-tab-pencil {
+  font-size: 0.85rem;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+}
+
+.wiz-edit-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(155, 89, 182, 0.1);
+  border: 1px solid rgba(155, 89, 182, 0.35);
+  border-radius: 6px;
+  padding: 0.55rem 0.85rem;
+  margin: 0 0 1rem 0;
+  font-size: 0.82rem;
+  color: #d8c0ff;
+}
+.wiz-edit-banner::before {
+  content: '✏️';
+  font-size: 1rem;
+}
+
+.wiz-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.wiz-modal {
+  max-width: 540px;
+  width: 100%;
+  background: #16213e;
+  border: 1px solid #1f2540;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem 1.1rem;
+  color: #e0e0e0;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.wiz-modal h2 {
+  margin: 0 0 0.6rem 0;
+  font-size: 1.05rem;
+  color: #ffd877;
+}
+
+.wiz-modal p {
+  margin: 0.4rem 0;
+  font-size: 0.85rem;
+  color: #ccc;
+  line-height: 1.45;
+}
+
+.wiz-modal .wiz-modal-cleared-label {
+  margin-top: 0.85rem;
+  color: #aaa;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wiz-modal-cleared {
+  list-style: disc;
+  margin: 0.3rem 0 0.85rem 1.25rem;
+  padding: 0;
+  color: #ddd;
+  font-size: 0.85rem;
+}
+
+.wiz-modal-cleared li {
+  margin: 0.2rem 0;
+}
+
+.wiz-modal-cleared .wiz-modal-status {
+  color: #888;
+  font-size: 0.74rem;
+  margin-left: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.wiz-modal-cleared .wiz-modal-empty {
+  list-style: none;
+  margin-left: -1.25rem;
+  color: #888;
+  font-style: italic;
+}
+
+.wiz-modal .wiz-modal-foot {
+  color: #888;
+  font-size: 0.78rem;
+  margin-top: 0.9rem;
+}
+
+.wiz-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #1f2540;
+}
+
+.wiz-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+}
 
 .wiz-toast {
   position: fixed;

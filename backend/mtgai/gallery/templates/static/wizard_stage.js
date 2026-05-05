@@ -32,14 +32,21 @@
       return;
     }
 
-    content.innerHTML = stageBodyHtml(stage);
+    const editing = !!(W.editFlow && W.editFlow.getDraft(tab.id));
+    const banner = editing
+      ? '<div class="wiz-edit-banner">Editing — Accept will discard everything from this stage onward and re-run.</div>'
+      : '';
+    content.innerHTML = banner + stageBodyHtml(stage);
 
     if (footer) {
-      const desiredFooter = stageFooterHtml(stage, state);
+      const desiredFooter = editing
+        ? editFooterHtml()
+        : stageFooterHtml(stage, state);
       if (footer.dataset.lastFooter !== desiredFooter) {
         footer.innerHTML = desiredFooter;
         footer.dataset.lastFooter = desiredFooter;
-        bindNextStepButton(footer, state);
+        if (editing) bindStageEditActions(footer, tab, state);
+        else bindNextStepButton(footer, state);
       }
     }
 
@@ -48,13 +55,19 @@
       // stage_update / item_progress event. Replacing innerHTML on
       // each tick would detach an in-flight click's checkbox before
       // its POST resolves and re-bind a fresh listener, so guard on
-      // the value the toggle currently displays.
-      const desiredChecked = !!stage.always_review || !!state.breakPoints[stage.stage_id];
-      const existing = headerActions.querySelector('input[data-role="stage-break"]');
-      const existingChecked = existing && existing.checked;
-      if (!existing || existingChecked !== desiredChecked) {
-        headerActions.innerHTML = breakPointToggleHtml(stage, state);
+      // a desired-state fingerprint covering both the break-point
+      // toggle and the Edit button visibility.
+      const fingerprint = JSON.stringify({
+        bp: !!stage.always_review || !!state.breakPoints[stage.stage_id],
+        editVisible: shouldShowEditButton(stage, state),
+        editing,
+      });
+      if (headerActions.dataset.actionsFp !== fingerprint) {
+        headerActions.innerHTML = breakPointToggleHtml(stage, state)
+          + editButtonHtml(stage, state);
+        headerActions.dataset.actionsFp = fingerprint;
         bindBreakPointToggle(headerActions, stage, state);
+        bindEditButton(headerActions, tab, state);
       }
     }
 
@@ -63,6 +76,110 @@
       pill.className = 'wiz-status-pill ' + stage.status;
       pill.textContent = stage.status.replace(/_/g, ' ');
     }
+  }
+
+  // ------------------------------------------------------------------
+  // Edit button + cascade flow (design §9)
+  // ------------------------------------------------------------------
+
+  // Show Edit on a past stage tab when nothing is currently generating.
+  // Latest-tab edits happen in place per §9.4 — the latest tab is
+  // whatever the wizard considers furthest-along, so it never gets the
+  // gate. Pipeline-running suppresses Edit entirely; the modal would
+  // 409 anyway.
+  function shouldShowEditButton(stage, state) {
+    if (!W.editFlow) return false;
+    if (W.editFlow.isPipelineRunning()) return false;
+    return W.editFlow.isPastTab(stage.stage_id);
+  }
+
+  function editButtonHtml(stage, state) {
+    if (!shouldShowEditButton(stage, state)) return '';
+    const editing = !!W.editFlow.getDraft(stage.stage_id);
+    if (editing) return '';
+    return `<button type="button" class="wiz-btn-secondary" data-role="stage-edit">Edit</button>`;
+  }
+
+  function bindEditButton(container, tab, state) {
+    const btn = container.querySelector('button[data-role="stage-edit"]');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        const ok = await W.editFlow.confirmCascade({
+          from_stage: tab.id,
+          title: `Edit ${tab.title}`,
+          body:
+            `Editing ${tab.title} will discard all generated content from this stage onward `
+            + `(${tab.title} itself will re-run on Accept).`,
+        });
+        if (!ok) return;
+        // No editable form on stage tabs in v1 — store an empty draft so
+        // the pencil + banner show, then the Accept button cascades.
+        W.editFlow.setDraft(tab.id, { dirty: false, payload: {} });
+        W.MTGAIWizard.getState();  // touch
+        // Re-render this tab's body to swap in the edit banner + actions.
+        const body = document.querySelector(
+          `.wiz-tab-body[data-tab-id="${cssEsc(tab.id)}"]`,
+        );
+        if (body) renderStageTab({ tab, root: body, state });
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
+  function editFooterHtml() {
+    return `
+      <div class="wiz-edit-actions">
+        <button type="button" class="wiz-btn-secondary" data-role="stage-edit-cancel">Cancel</button>
+        <button type="button" class="wiz-btn-primary" data-role="stage-edit-accept">Accept</button>
+      </div>
+    `;
+  }
+
+  function bindStageEditActions(footer, tab, state) {
+    const cancel = footer.querySelector('button[data-role="stage-edit-cancel"]');
+    const accept = footer.querySelector('button[data-role="stage-edit-accept"]');
+    if (cancel) {
+      cancel.onclick = () => {
+        W.editFlow.clearDraft(tab.id);
+        const body = document.querySelector(
+          `.wiz-tab-body[data-tab-id="${cssEsc(tab.id)}"]`,
+        );
+        if (body) renderStageTab({ tab, root: body, state });
+      };
+    }
+    if (accept) {
+      accept.onclick = async () => {
+        accept.disabled = true;
+        const original = accept.textContent;
+        accept.textContent = 'Applying…';
+        try {
+          const data = await W.editFlow.accept({ from_stage: tab.id });
+          W.editFlow.clearDraft(tab.id);
+          if (data.warning) W.MTGAIWizard.toast(data.warning, 'warn');
+          // Hard-reload so the wizard rebuilds the tab strip + state
+          // from the freshly-cleared pipeline-state.json. Soft repaint
+          // would work but reload keeps the bootstrap payload as the
+          // source of truth (matches the Theme→Skeleton handoff).
+          window.location.assign(data.navigate_to || '/pipeline');
+        } catch (err) {
+          accept.disabled = false;
+          accept.textContent = original;
+          if (err.status === 409) {
+            W.MTGAIWizard.toast(err.message, 'warn');
+          } else {
+            W.MTGAIWizard.toast('Accept failed: ' + err.message, 'error');
+          }
+        }
+      };
+    }
+  }
+
+  function cssEsc(s) {
+    if (window.CSS && CSS.escape) return CSS.escape(s);
+    return String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
   }
 
   // ------------------------------------------------------------------

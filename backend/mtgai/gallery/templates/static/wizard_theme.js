@@ -30,6 +30,7 @@
 
   function renderThemeTab({ root, state }) {
     const footer = root.querySelector('[data-role="footer"]');
+    const headerActions = root.querySelector('[data-role="header-actions"]');
 
     if (local.initialized) {
       // SSE-driven re-render. Refresh the footer in place so the
@@ -44,6 +45,8 @@
           bindThemeFooter(footer, state);
         }
       }
+      refreshThemeHeader(root, state);
+      refreshThemeBanner(root, state);
       return;
     }
     local.initialized = true;
@@ -60,6 +63,226 @@
     }
 
     bindThemeBody(state);
+    refreshThemeHeader(root, state);
+    refreshThemeBanner(root, state);
+    refreshThemeActions(root, state);
+  }
+
+  // Theme tab is "past" once a pipeline-state.json exists — destructive
+  // edits then need the §9 cascade gate.
+  function isThemePast(state) {
+    return !!state.pipeline;
+  }
+
+  function isEditingTheme() {
+    return !!(W.editFlow && W.editFlow.getDraft('theme'));
+  }
+
+  function refreshThemeHeader(root, state) {
+    const headerActions = root.querySelector('[data-role="header-actions"]');
+    if (!headerActions) return;
+    if (!W.editFlow || !isThemePast(state) || isEditingTheme()) {
+      // Pre-pipeline-start, or already in edit mode — no Edit button.
+      if (headerActions.querySelector('[data-role="theme-edit"]')) {
+        headerActions.innerHTML = '';
+      }
+      return;
+    }
+    if (W.editFlow.isPipelineRunning()) {
+      // Pipeline running: hide the button (Accept would 409 anyway).
+      if (headerActions.querySelector('[data-role="theme-edit"]')) {
+        headerActions.innerHTML = '';
+      }
+      return;
+    }
+    if (headerActions.querySelector('[data-role="theme-edit"]')) return;
+    headerActions.innerHTML = `
+      <button type="button" class="wiz-btn-secondary" data-role="theme-edit">Edit</button>
+    `;
+    headerActions.querySelector('[data-role="theme-edit"]').addEventListener(
+      'click', () => onEditClick(state),
+    );
+  }
+
+  function refreshThemeBanner(root, state) {
+    const content = root.querySelector('[data-role="content"]');
+    if (!content) return;
+    const existing = content.querySelector('.wiz-edit-banner');
+    if (isEditingTheme()) {
+      if (!existing) {
+        const banner = document.createElement('div');
+        banner.className = 'wiz-edit-banner';
+        banner.textContent =
+          'Editing — Accept will save your changes and discard everything from Skeleton onward.';
+        content.prepend(banner);
+      }
+    } else if (existing) {
+      existing.remove();
+    }
+  }
+
+  async function onEditClick(state) {
+    const ok = await W.editFlow.confirmCascade({
+      from_stage: 'theme',
+      title: 'Edit Theme',
+      body:
+        'Editing the Theme tab will discard all generated content from Skeleton onward. '
+        + 'Your theme.json edits commit on Accept.',
+    });
+    if (!ok) return;
+    // Stash a draft so the pencil + banner appear. Accept reads the
+    // current form state at click time, so no payload preview needed.
+    W.editFlow.setDraft('theme', { dirty: false });
+    const root = document.querySelector('.wiz-tab-body[data-tab-id="theme"]');
+    if (root) {
+      refreshThemeHeader(root, state);
+      refreshThemeBanner(root, state);
+      // Swap Save Theme for Cancel + Accept Edits in the body's bottom
+      // action row. The footer (Next step) is hidden when editing.
+      swapThemeActions(true, state);
+      // Footer also goes empty during edit mode (§9.2) — re-render.
+      const footer = root.querySelector('[data-role="footer"]');
+      if (footer) {
+        footer.innerHTML = '<span class="wiz-footer-note">Saving via Accept above.</span>';
+        footer.dataset.lastFooter = '__editing__';
+      }
+    }
+  }
+
+  function swapThemeActions(editing, state) {
+    const root = document.querySelector('.wiz-tab-body[data-tab-id="theme"]');
+    if (root) refreshThemeActions(root, state, editing);
+  }
+
+  /**
+   * Render the bottom action row by tab state:
+   *   - editing      → Cancel + Accept Edits
+   *   - past + idle  → hint "Click Edit above to change"
+   *   - latest       → Save Theme (live-apply, pre-pipeline)
+   *
+   * Same DOM container holds all three modes; callers don't need to
+   * track which mode is currently rendered. ``forceEditing`` lets the
+   * onEditClick handler force the editing UI synchronously without
+   * waiting for the next renderThemeTab tick.
+   */
+  function refreshThemeActions(root, state, forceEditing) {
+    const actions = root.querySelector('.wiz-theme-actions');
+    if (!actions) return;
+    const editing = forceEditing !== undefined ? forceEditing : isEditingTheme();
+    if (editing) {
+      actions.innerHTML = `
+        <button type="button" class="wiz-btn-secondary" id="wiz-theme-edit-cancel">Cancel</button>
+        <button type="button" class="wiz-btn-primary" id="wiz-theme-edit-accept">Accept Edits</button>
+      `;
+      actions.querySelector('#wiz-theme-edit-cancel').addEventListener(
+        'click', () => onEditCancel(state),
+      );
+      actions.querySelector('#wiz-theme-edit-accept').addEventListener(
+        'click', () => onEditAccept(state),
+      );
+      return;
+    }
+    if (isThemePast(state)) {
+      // Past Theme + not editing: hide Save Theme so the only commit
+      // path is Edit → cascade (matches design §6.4 / §9 contract for
+      // destructive theme.json changes).
+      actions.innerHTML =
+        '<span class="wiz-footer-note">Click Edit above to change theme.json.</span>';
+      return;
+    }
+    actions.innerHTML = `
+      <button type="button" class="wiz-btn-primary" id="wiz-save-theme">Save Theme</button>
+    `;
+    actions.querySelector('#wiz-save-theme').addEventListener(
+      'click', () => saveTheme(state),
+    );
+  }
+
+  function onEditCancel(state) {
+    // Revert the form to the last-saved theme payload so the user's
+    // local edits don't linger after Cancel. The wizard shell holds
+    // the canonical state.theme; bindThemeBody re-populates from it.
+    populateConstraints(state.theme && (state.theme.constraints || state.theme.special_constraints) || []);
+    populateCardRequests(state.theme && state.theme.card_requests || []);
+    document.getElementById('wiz-setting').value = readSettingProse(state.theme || {});
+    setSettingMode('preview');
+    W.editFlow.clearDraft('theme');
+    const root = document.querySelector('.wiz-tab-body[data-tab-id="theme"]');
+    if (root) {
+      refreshThemeHeader(root, state);
+      refreshThemeBanner(root, state);
+      swapThemeActions(false, state);
+      const footer = root.querySelector('[data-role="footer"]');
+      if (footer) {
+        footer.innerHTML = themeFooterHtml(state);
+        footer.dataset.lastFooter = footer.innerHTML;
+        bindThemeFooter(footer, state);
+      }
+    }
+  }
+
+  async function onEditAccept(state) {
+    const setting = document.getElementById('wiz-setting').value.trim();
+    if (!setting) {
+      W.toast('Setting prose is empty. Add some text before accepting.', 'error');
+      setSettingMode('edit');
+      document.getElementById('wiz-setting').focus();
+      return;
+    }
+    const constraints = [];
+    document.querySelectorAll('#wiz-constraints-list .wiz-list-item').forEach(item => {
+      const input = item.querySelector('input');
+      if (!input) return;
+      const val = input.value.trim();
+      if (!val) return;
+      constraints.push({
+        text: val,
+        source: item.dataset.aiGenerated === 'true' ? 'ai' : 'human',
+      });
+    });
+    const cardRequests = [];
+    document.querySelectorAll('#wiz-card-requests-list .wiz-list-item').forEach(item => {
+      const ta = item.querySelector('textarea');
+      if (!ta) return;
+      const val = ta.value.trim();
+      if (!val) return;
+      cardRequests.push({
+        text: val,
+        source: item.dataset.aiGenerated === 'true' ? 'ai' : 'human',
+      });
+    });
+    const theme = state.theme || {};
+    const { set_size: _ignored_size, mechanic_count: _ignored_mech, ...rest } = theme;
+    const payload = {
+      ...rest,
+      name: theme.name ?? '',
+      code: state.activeSet,
+      setting,
+      constraints,
+      card_requests: cardRequests,
+    };
+
+    const accept = document.getElementById('wiz-theme-edit-accept');
+    if (accept) {
+      accept.disabled = true;
+      accept.textContent = 'Applying…';
+    }
+    try {
+      const data = await W.editFlow.accept({
+        from_stage: 'theme',
+        theme_payload: payload,
+      });
+      W.editFlow.clearDraft('theme');
+      if (data.warning) W.toast(data.warning, 'warn');
+      window.location.assign(data.navigate_to || '/pipeline');
+    } catch (err) {
+      if (accept) {
+        accept.disabled = false;
+        accept.textContent = 'Accept Edits';
+      }
+      if (err.status === 409) W.toast(err.message, 'warn');
+      else W.toast('Accept failed: ' + err.message, 'error');
+    }
   }
 
   function themeBodyHtml() {

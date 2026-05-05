@@ -1013,9 +1013,9 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
         return JSONResponse(
             {
                 "error": (
-                    "Changing target size after the pipeline has started will be "
-                    "supported by the cascade-clear edit flow in a follow-up card. "
-                    "For now, set_size is read-only here."
+                    "Changing target size after the pipeline has started requires "
+                    "the Edit flow — POST /api/wizard/edit/accept with from_stage='project' "
+                    "and set_params_patch={set_size: ...}."
                 ),
             },
             status_code=409,
@@ -1059,8 +1059,9 @@ async def wizard_project_save_theme_input(request: Request) -> JSONResponse:
         return JSONResponse(
             {
                 "error": (
-                    "Changing the theme input after the pipeline has started will be "
-                    "supported by the cascade-clear edit flow in a follow-up card."
+                    "Changing the theme input after the pipeline has started requires "
+                    "the Edit flow — POST /api/wizard/edit/accept with from_stage='project', "
+                    "theme_input={...}, and clear_theme_json=true."
                 ),
             },
             status_code=409,
@@ -1464,6 +1465,324 @@ async def wizard_advance(request: Request) -> JSONResponse:
     return JSONResponse(
         {"error": f"Pipeline is {existing.overall_status.value}, cannot advance"},
         status_code=400,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Wizard edit flow — cascade-clear past tabs (design §9)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_edit_point(from_stage: str, state: PipelineState | None) -> int:
+    """Translate an edit-point label to the first pipeline-stage index to reset.
+
+    Project Settings and Theme are pre-pipeline surfaces (the user is editing
+    inputs that feed stage 0), so an edit on either resets the whole pipeline.
+    A pipeline ``stage_id`` resets that stage + everything after.
+
+    Returns the integer index into ``state.stages`` where the cascade starts.
+    Raises ``ValueError`` for an unknown ``from_stage`` so the caller can
+    surface a 400.
+    """
+    if from_stage in ("project", "theme"):
+        return 0
+    if state is None:
+        raise ValueError(f"Cannot resolve {from_stage!r}: no pipeline state on disk")
+    for idx, stage in enumerate(state.stages):
+        if stage.stage_id == from_stage:
+            return idx
+    raise ValueError(f"Unknown stage id {from_stage!r}")
+
+
+def _compute_cascade_preview(
+    set_code: str,
+    from_stage: str,
+    *,
+    clear_theme_json: bool,
+) -> dict[str, Any]:
+    """Enumerate what the §9 cascade-clear would remove.
+
+    Read-only — does not mutate state. Counts come from the on-disk
+    pipeline-state.json's per-stage progress so they reflect what was
+    actually generated, not what the design tops out at.
+
+    The returned ``cleared`` list is in pipeline order (matches
+    STAGE_DEFINITIONS) for stages from the cascade boundary onward whose
+    status is anything other than ``PENDING`` — completed, running,
+    paused, failed, or skipped artifacts all get reported. PENDING stages
+    have nothing to clear so they're omitted from the list (the modal
+    looks empty for those, which is the right "nothing to lose" signal).
+    """
+    state = load_state(set_code)
+    start_idx = _resolve_edit_point(from_stage, state)
+    cleared: list[dict[str, Any]] = []
+    if state is not None:
+        for stage in state.stages[start_idx:]:
+            if stage.status == StageStatus.PENDING:
+                continue
+            count = stage.progress.completed_items or stage.progress.total_items
+            cleared.append(
+                {
+                    "stage_id": stage.stage_id,
+                    "display_name": stage.display_name,
+                    "status": stage.status.value,
+                    "item_count": int(count or 0),
+                }
+            )
+    theme_json_present = (OUTPUT_ROOT / "sets" / set_code / "theme.json").exists()
+    return {
+        "cleared": cleared,
+        "clear_theme_json": bool(clear_theme_json and theme_json_present),
+        "pipeline_running": _engine is not None and _engine.is_running,
+    }
+
+
+@router.post("/api/wizard/edit/preview")
+async def wizard_edit_preview(request: Request) -> JSONResponse:
+    """Return the cascade enumeration the §9 modal renders.
+
+    Body: ``{set_code, from_stage, clear_theme_json?}``. ``from_stage``
+    is ``"project"``, ``"theme"``, or one of the pipeline stage_ids; the
+    helper resolves it to the first stage index to reset. ``clear_theme_json``
+    is set when the user is editing the theme-input field on Project Settings
+    (the cascade also wipes theme.json so the next Start re-extracts).
+    """
+    body = await request.json()
+    code, err = _validate_set_code_in_body(body)
+    if err:
+        return err
+    from_stage = body.get("from_stage")
+    if not isinstance(from_stage, str) or not from_stage:
+        return JSONResponse({"error": "from_stage required"}, status_code=400)
+    clear_theme_json = bool(body.get("clear_theme_json"))
+
+    try:
+        return JSONResponse(
+            _compute_cascade_preview(code, from_stage, clear_theme_json=clear_theme_json)
+        )
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+def _apply_cascade_clear(
+    set_code: str,
+    state: PipelineState,
+    start_idx: int,
+) -> None:
+    """Run STAGE_CLEARERS for stages[start_idx:] and reset them to PENDING.
+
+    Persists the updated pipeline-state.json. Per-stage clearers handle
+    their own idempotency (missing files / dirs are fine), so this is
+    safe to call whether or not the cascade overlaps already-cleared
+    state. ``current_stage_id`` is dropped if it pointed at a stage in
+    the cleared range.
+    """
+    from mtgai.pipeline.stages import clear_stage_artifacts
+
+    for stage in state.stages[start_idx:]:
+        try:
+            clear_stage_artifacts(stage.stage_id, set_code)
+        except OSError as e:
+            logger.warning(
+                "Cascade clear for %s/%s raised %s; continuing",
+                set_code,
+                stage.stage_id,
+                e,
+            )
+        stage.status = StageStatus.PENDING
+        stage.progress = stage.progress.model_copy(
+            update={
+                "total_items": 0,
+                "completed_items": 0,
+                "failed_items": 0,
+                "current_item": None,
+                "detail": "",
+                "cost_usd": 0.0,
+                "started_at": None,
+                "finished_at": None,
+                "error_message": None,
+            }
+        )
+
+    if state.current_stage_id is not None:
+        cleared_ids = {s.stage_id for s in state.stages[start_idx:]}
+        if state.current_stage_id in cleared_ids:
+            state.current_stage_id = None
+
+    if any(s.status != StageStatus.COMPLETED for s in state.stages):
+        state.overall_status = PipelineStatus.NOT_STARTED
+    save_state(state)
+
+
+@router.post("/api/wizard/edit/accept")
+async def wizard_edit_accept(request: Request) -> JSONResponse:
+    """Persist edits, run cascade clear, kick the engine off again.
+
+    Body shape::
+
+        {
+          set_code: str,
+          from_stage: "project" | "theme" | <stage_id>,
+          clear_theme_json: bool,
+          # Optional payloads (combined as needed for the edit point):
+          theme_payload: <theme.json content>,
+          set_params_patch: { set_size?, set_name?, mechanic_count? },
+          theme_input: { kind, upload_id?, filename?, char_count? },
+        }
+
+    Refuses with 409 if the pipeline engine is currently running — the
+    user must cancel the in-flight stage first. This keeps the cascade
+    code synchronous + simple at the cost of one extra click for the
+    rare case of mid-run edits (acceptable for v1).
+
+    Returns ``{success, navigate_to, next_stage_id?}``. ``navigate_to``
+    points at the project tab when theme.json was cleared (the user
+    clicks Start to re-extract), otherwise at the first stage that will
+    re-run.
+    """
+    from mtgai.settings.model_settings import (
+        SetParams,
+        ThemeInputSource,
+        apply_settings,
+        get_settings,
+    )
+
+    body = await request.json()
+    code, err = _validate_set_code_in_body(body)
+    if err:
+        return err
+    from_stage = body.get("from_stage")
+    if not isinstance(from_stage, str) or not from_stage:
+        return JSONResponse({"error": "from_stage required"}, status_code=400)
+    clear_theme_json = bool(body.get("clear_theme_json"))
+
+    if _engine is not None and _engine.is_running:
+        return JSONResponse(
+            {
+                "error": (
+                    "A pipeline stage is currently running. Cancel it from the "
+                    "global progress strip, then retry the edit."
+                )
+            },
+            status_code=409,
+        )
+
+    state = load_state(code)
+    try:
+        start_idx = _resolve_edit_point(from_stage, state)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+    # 1. Persist any caller-supplied input edits before touching artifacts.
+    set_params_patch = body.get("set_params_patch")
+    theme_input_patch = body.get("theme_input")
+    theme_payload = body.get("theme_payload")
+
+    if set_params_patch is not None or theme_input_patch is not None:
+        if not isinstance(set_params_patch or {}, dict) or not isinstance(
+            theme_input_patch or {}, dict
+        ):
+            return JSONResponse(
+                {"error": "set_params_patch and theme_input must be objects"},
+                status_code=400,
+            )
+        settings = get_settings(code)
+        update: dict[str, Any] = {}
+        if isinstance(set_params_patch, dict):
+            sp = settings.set_params
+            new_sp = SetParams(
+                set_name=set_params_patch.get("set_name", sp.set_name),
+                set_size=set_params_patch.get("set_size", sp.set_size),
+                mechanic_count=set_params_patch.get("mechanic_count", sp.mechanic_count),
+            )
+            update["set_params"] = new_sp
+        if isinstance(theme_input_patch, dict):
+            kind = theme_input_patch.get("kind")
+            if kind not in ("none", "pdf", "text", "existing"):
+                return JSONResponse(
+                    {"error": f"Invalid theme_input.kind {kind!r}"},
+                    status_code=400,
+                )
+            new_ti = ThemeInputSource(
+                kind=kind,
+                filename=theme_input_patch.get("filename")
+                if isinstance(theme_input_patch.get("filename"), str)
+                else None,
+                upload_id=theme_input_patch.get("upload_id")
+                if isinstance(theme_input_patch.get("upload_id"), str)
+                else None,
+                char_count=theme_input_patch.get("char_count")
+                if isinstance(theme_input_patch.get("char_count"), int)
+                else None,
+            )
+            if new_ti.kind in ("pdf", "text"):
+                from datetime import UTC, datetime
+
+                new_ti = new_ti.model_copy(update={"uploaded_at": datetime.now(UTC)})
+            update["theme_input"] = new_ti
+        apply_settings(code, settings.model_copy(update=update))
+
+    if theme_payload is not None:
+        if not isinstance(theme_payload, dict):
+            return JSONResponse({"error": "theme_payload must be an object"}, status_code=400)
+        theme_path = OUTPUT_ROOT / "sets" / code / "theme.json"
+        theme_path.parent.mkdir(parents=True, exist_ok=True)
+        theme_path.write_text(
+            json.dumps(theme_payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+    # 2. Cascade-clear pipeline artifacts + reset stages to PENDING.
+    if state is not None:
+        _apply_cascade_clear(code, state, start_idx)
+
+    # 3. theme.json wipe (Project Settings → theme_input change).
+    if clear_theme_json:
+        theme_path = OUTPUT_ROOT / "sets" / code / "theme.json"
+        if theme_path.exists():
+            try:
+                theme_path.unlink()
+            except OSError as e:
+                logger.warning("Failed to delete %s: %s", theme_path, e)
+
+    # 4. Decide where to navigate / whether to re-kick the engine.
+    theme_path = OUTPUT_ROOT / "sets" / code / "theme.json"
+    if not theme_path.exists():
+        # No theme means there's nothing for the engine to start from —
+        # send the user back to Project Settings to choose an input + Start.
+        return JSONResponse(
+            {
+                "success": True,
+                "navigate_to": "/pipeline/project",
+                "next_stage_id": None,
+                "engine_started": False,
+            }
+        )
+
+    # Theme.json exists; re-kick the engine for the cleared cascade.
+    new_state, kickoff_err = _kickoff_pipeline_engine(code)
+    if kickoff_err is not None or new_state is None:
+        # Engine refused (state-level race, or kickoff path unavailable).
+        # Surface to the client so the wizard reloads and the user can
+        # retry — the cascade clear has already happened, so retrying
+        # advance from the wizard footer is safe.
+        return JSONResponse(
+            {
+                "success": True,
+                "engine_started": False,
+                "next_stage_id": None,
+                "navigate_to": "/pipeline",
+                "warning": kickoff_err or "Engine kickoff skipped",
+            }
+        )
+    next_id = _first_pending_stage_id(new_state)
+    return JSONResponse(
+        {
+            "success": True,
+            "engine_started": True,
+            "next_stage_id": next_id,
+            "navigate_to": f"/pipeline/{next_id}" if next_id else "/pipeline",
+        }
     )
 
 
