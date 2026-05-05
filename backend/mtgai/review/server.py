@@ -329,33 +329,30 @@ async def progress_page(request: Request, set_code: str | None = None) -> HTMLRe
 
 
 @app.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request, set_code: str | None = None) -> HTMLResponse:
-    """Serve the model settings configuration page."""
+async def settings_page(request: Request) -> HTMLResponse:
+    """Serve the cross-set defaults page (default preset + profiles + registry).
+
+    Per-stage assignments live on the per-set Project Settings tab now;
+    this page only owns user-level defaults and the saved-profile library.
+    """
     from mtgai.settings.model_registry import get_registry
     from mtgai.settings.model_settings import (
-        IMAGE_STAGE_NAMES,
-        LLM_STAGE_NAMES,
         PRESETS,
-        get_settings,
+        get_global_settings,
         list_profiles,
     )
 
-    if set_code is None:
-        set_code = _get_set_code()
-
     registry = get_registry()
-    settings = get_settings(set_code)
+    glob = get_global_settings()
 
     return templates.TemplateResponse(
         request,
         "settings.html",
         {
-            "model_registry": json.dumps(registry.to_dict()),
-            "current_settings": json.dumps(settings.model_dump()),
-            "saved_profiles": json.dumps(list_profiles()),
-            "llm_stages": json.dumps(LLM_STAGE_NAMES),
-            "image_stages": json.dumps(IMAGE_STAGE_NAMES),
-            "presets": json.dumps(PRESETS),
+            "model_registry": registry.to_dict(),
+            "default_preset": glob.default_preset,
+            "builtin_presets": sorted(PRESETS),
+            "saved_profiles": list_profiles(),
         },
     )
 
@@ -612,7 +609,16 @@ async def save_settings_profile(request: Request) -> JSONResponse:
 @app.get("/api/settings/load", response_class=JSONResponse)
 async def load_settings_profile(name: str) -> JSONResponse:
     """Load a named settings profile."""
-    from mtgai.settings.model_settings import SETTINGS_DIR, ModelSettings
+    from mtgai.settings.model_settings import (
+        SETTINGS_DIR,
+        ModelSettings,
+        validate_profile_name,
+    )
+
+    try:
+        validate_profile_name(name)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
 
     path = SETTINGS_DIR / f"{name}.toml"
     if not path.exists():
@@ -622,6 +628,87 @@ async def load_settings_profile(name: str) -> JSONResponse:
         settings = ModelSettings.load_from_file(path)
         return JSONResponse({"settings": settings.model_dump()})
     except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.delete("/api/settings/profile/{name}", response_class=JSONResponse)
+async def delete_settings_profile(name: str) -> JSONResponse:
+    """Delete a named settings profile from the global library.
+
+    Refuses to delete the profile currently used as the cross-set
+    default — orphaning ``global.toml`` would silently fall back to
+    built-in defaults on the next new-set seed.
+    """
+    from mtgai.settings.model_settings import (
+        SETTINGS_DIR,
+        get_global_settings,
+        validate_profile_name,
+    )
+
+    try:
+        validate_profile_name(name)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+    if name == get_global_settings().default_preset:
+        return JSONResponse(
+            {
+                "error": (
+                    f"Profile '{name}' is the current default for new sets. "
+                    "Pick a different default first."
+                )
+            },
+            status_code=409,
+        )
+
+    path = SETTINGS_DIR / f"{name}.toml"
+    if not path.exists():
+        return JSONResponse({"error": f"Profile '{name}' not found"}, status_code=404)
+
+    try:
+        path.unlink()
+        return JSONResponse({"success": True})
+    except OSError as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/api/settings/global", response_class=JSONResponse)
+async def get_global_settings_endpoint() -> JSONResponse:
+    """Return cross-set defaults (currently just default_preset)."""
+    from mtgai.settings.model_settings import (
+        PRESETS,
+        get_global_settings,
+        list_profiles,
+    )
+
+    glob = get_global_settings()
+    return JSONResponse(
+        {
+            "default_preset": glob.default_preset,
+            "builtin_presets": sorted(PRESETS),
+            "saved_profiles": list_profiles(),
+        }
+    )
+
+
+@app.post("/api/settings/global", response_class=JSONResponse)
+async def update_global_settings(request: Request) -> JSONResponse:
+    """Update the cross-set default preset."""
+    from mtgai.settings.model_settings import (
+        GlobalSettings,
+        apply_global_settings,
+    )
+
+    body = await request.json()
+    raw = body.get("default_preset", "")
+    if not isinstance(raw, str) or not raw.strip():
+        return JSONResponse({"error": "default_preset required"}, status_code=400)
+
+    name = raw.strip()
+    try:
+        apply_global_settings(GlobalSettings(default_preset=name))
+        return JSONResponse({"success": True, "default_preset": name})
+    except (ValueError, OSError) as e:
         return JSONResponse({"error": str(e)}, status_code=400)
 
 

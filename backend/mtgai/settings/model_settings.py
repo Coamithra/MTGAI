@@ -165,6 +165,29 @@ PRESETS: dict[str, dict] = {
 BUILTIN_PRESET_NAMES = frozenset(PRESETS)
 RESERVED_PROFILE_NAMES = frozenset({"global", "current"})
 
+_PROFILE_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+def validate_profile_name(name: str) -> str:
+    """Sanity-check a user-supplied profile name.
+
+    Names round-trip through ``<SETTINGS_DIR>/<name>.toml`` so anything
+    outside ``[a-zA-Z0-9_-]+`` is rejected up front — that closes path
+    traversal on every endpoint that takes a name.
+
+    Reserved names are checked case-insensitively because Windows is
+    case-insensitive on disk: a profile named ``Global`` would otherwise
+    overwrite ``global.toml`` (the default-preset file).
+    """
+    if not isinstance(name, str):
+        raise ValueError("Profile name must be a string")
+    if not _PROFILE_NAME_RE.fullmatch(name):
+        raise ValueError(f"Invalid profile name {name!r}: must match [a-zA-Z0-9_-]+")
+    if name.lower() in RESERVED_PROFILE_NAMES:
+        raise ValueError(f"Profile name {name!r} is reserved")
+    return name
+
+
 # ---------------------------------------------------------------------------
 # Settings model
 # ---------------------------------------------------------------------------
@@ -242,10 +265,7 @@ class ModelSettings(BaseModel):
 
     def save_profile(self, name: str) -> Path:
         """Save these settings as a named profile in the global library."""
-        if not name:
-            raise ValueError("Profile name required")
-        if name in RESERVED_PROFILE_NAMES:
-            raise ValueError(f"Profile name {name!r} is reserved")
+        name = validate_profile_name(name)
         path = SETTINGS_DIR / f"{name}.toml"
         self.write_toml(path)
         logger.info("Saved profile %r to %s", name, path)

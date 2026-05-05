@@ -16,7 +16,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    StreamingResponse,
+)
 from fastapi.templating import Jinja2Templates
 
 from mtgai.pipeline.engine import PipelineEngine, load_state, save_state
@@ -102,10 +107,15 @@ async def pipeline_dashboard(request: Request):
     )
 
 
-@router.get("/pipeline/configure", response_class=HTMLResponse)
-async def pipeline_configure(request: Request):
-    """Pipeline configuration wizard page."""
-    return _render_configure(request)
+@router.get("/pipeline/configure")
+async def pipeline_configure() -> RedirectResponse:
+    """Legacy route — redirects to the wizard's Project Settings tab.
+
+    The wizard's `/pipeline/project` is what owns per-set kickoff now;
+    the standalone configure page is gone. The redirect target lands on
+    the wizard shell (placeholder until the shell ships in a later phase).
+    """
+    return RedirectResponse(url="/pipeline/project", status_code=302)
 
 
 @router.get("/pipeline/theme", response_class=HTMLResponse)
