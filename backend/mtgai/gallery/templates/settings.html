@@ -192,14 +192,14 @@
 {% block content %}
 <div class="settings-page">
   <h1>Settings</h1>
-  <p class="subtitle">Cross-set defaults. Per-set model assignments live on the project's Project Settings tab.</p>
+  <p class="subtitle">Cross-set defaults. Per-set model assignments are managed from each project's wizard (rolling out across the wizard-redesign phases).</p>
 
   <!-- Default preset -->
   <div class="settings-section">
     <h2>Default preset for new sets</h2>
     <p class="section-desc">When you create a new set, its initial model assignments are seeded from this preset.</p>
     <div class="preset-row">
-      <select id="default-preset" onchange="onDefaultPresetChange()">
+      <select id="default-preset">
         <!-- Populated by JS -->
       </select>
     </div>
@@ -260,7 +260,7 @@
   <h2 id="profile-view-title" style="margin: 0 0 1rem 0; font-size: 1rem;">Profile</h2>
   <pre class="profile-view" id="profile-view-body">Loading…</pre>
   <div style="margin-top: 1rem; text-align: right;">
-    <button class="btn" onclick="document.getElementById('profile-view-dialog').close()">Close</button>
+    <button class="btn" id="profile-view-close">Close</button>
   </div>
 </dialog>
 
@@ -269,10 +269,10 @@
 
 {% block scripts %}
 <script>
-  const MODEL_REGISTRY = {{ model_registry | safe }};
-  const BUILTIN_PRESETS = {{ builtin_presets | safe }};
-  const SAVED_PROFILES = {{ saved_profiles | safe }};
-  const DEFAULT_PRESET = {{ default_preset | tojson }};
+  const MODEL_REGISTRY = {{ model_registry | tojson }};
+  const BUILTIN_PRESETS = {{ builtin_presets | tojson }};
+  const SAVED_PROFILES = {{ saved_profiles | tojson }};
+  let DEFAULT_PRESET = {{ default_preset | tojson }};
 </script>
 <script src="/static/settings.js"></script>
 {% endblock %}

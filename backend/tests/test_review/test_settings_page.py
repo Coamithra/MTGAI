@@ -133,13 +133,61 @@ class TestDeleteProfileApi:
         assert not path.exists()
 
     def test_delete_rejects_reserved_names(self, client):
-        for name in ("global", "current"):
+        for name in ("global", "current", "Global", "CURRENT"):
             resp = client.delete(f"/api/settings/profile/{name}")
             assert resp.status_code == 400, name
+
+    def test_delete_rejects_path_traversal(self, client):
+        # Backslash on Windows is the real concern — FastAPI's `{name}`
+        # doesn't match `/`, but `\` passes straight through. (`..` on its
+        # own gets collapsed at the HTTP layer before our handler runs;
+        # the route 404s, which is safe by accident.)
+        for name in ("..%5Cfoo", "foo%5Cbar"):
+            resp = client.delete(f"/api/settings/profile/{name}")
+            assert resp.status_code == 400, name
+
+    def test_delete_refuses_active_default_preset(self, client):
+        ms.ModelSettings().save_profile("active-default")
+        ms.apply_global_settings(ms.GlobalSettings(default_preset="active-default"))
+
+        resp = client.delete("/api/settings/profile/active-default")
+        assert resp.status_code == 409
+        # File is still on disk.
+        assert (ms.SETTINGS_DIR / "active-default.toml").exists()
 
     def test_delete_unknown_returns_404(self, client):
         resp = client.delete("/api/settings/profile/not-a-real-profile")
         assert resp.status_code == 404
+
+
+class TestSaveProfileValidation:
+    """`/api/settings/save` writes to disk; reject names that aren't safe."""
+
+    def test_save_rejects_path_traversal(self, client):
+        body = {
+            "name": "..\\evil",
+            "settings": {"llm_assignments": {}, "image_assignments": {}, "effort_overrides": {}},
+        }
+        resp = client.post("/api/settings/save", json=body)
+        assert resp.status_code == 400
+        # Nothing escaped to a parent dir.
+        assert not (ms.SETTINGS_DIR.parent / "evil.toml").exists()
+
+    def test_save_rejects_reserved_case_insensitive(self, client):
+        body = {
+            "name": "Global",
+            "settings": {"llm_assignments": {}, "image_assignments": {}, "effort_overrides": {}},
+        }
+        resp = client.post("/api/settings/save", json=body)
+        assert resp.status_code == 400
+
+    def test_save_rejects_empty(self, client):
+        body = {
+            "name": "",
+            "settings": {"llm_assignments": {}, "image_assignments": {}, "effort_overrides": {}},
+        }
+        resp = client.post("/api/settings/save", json=body)
+        assert resp.status_code == 400
 
 
 # ---------------------------------------------------------------------------

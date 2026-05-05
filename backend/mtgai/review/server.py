@@ -349,10 +349,10 @@ async def settings_page(request: Request) -> HTMLResponse:
         request,
         "settings.html",
         {
-            "model_registry": json.dumps(registry.to_dict()),
+            "model_registry": registry.to_dict(),
             "default_preset": glob.default_preset,
-            "builtin_presets": json.dumps(sorted(PRESETS)),
-            "saved_profiles": json.dumps(list_profiles()),
+            "builtin_presets": sorted(PRESETS),
+            "saved_profiles": list_profiles(),
         },
     )
 
@@ -610,13 +610,15 @@ async def save_settings_profile(request: Request) -> JSONResponse:
 async def load_settings_profile(name: str) -> JSONResponse:
     """Load a named settings profile."""
     from mtgai.settings.model_settings import (
-        RESERVED_PROFILE_NAMES,
         SETTINGS_DIR,
         ModelSettings,
+        validate_profile_name,
     )
 
-    if name in RESERVED_PROFILE_NAMES:
-        return JSONResponse({"error": f"Profile '{name}' is reserved"}, status_code=400)
+    try:
+        validate_profile_name(name)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
 
     path = SETTINGS_DIR / f"{name}.toml"
     if not path.exists():
@@ -631,11 +633,33 @@ async def load_settings_profile(name: str) -> JSONResponse:
 
 @app.delete("/api/settings/profile/{name}", response_class=JSONResponse)
 async def delete_settings_profile(name: str) -> JSONResponse:
-    """Delete a named settings profile from the global library."""
-    from mtgai.settings.model_settings import RESERVED_PROFILE_NAMES, SETTINGS_DIR
+    """Delete a named settings profile from the global library.
 
-    if name in RESERVED_PROFILE_NAMES:
-        return JSONResponse({"error": f"Profile '{name}' is reserved"}, status_code=400)
+    Refuses to delete the profile currently used as the cross-set
+    default — orphaning ``global.toml`` would silently fall back to
+    built-in defaults on the next new-set seed.
+    """
+    from mtgai.settings.model_settings import (
+        SETTINGS_DIR,
+        get_global_settings,
+        validate_profile_name,
+    )
+
+    try:
+        validate_profile_name(name)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+    if name == get_global_settings().default_preset:
+        return JSONResponse(
+            {
+                "error": (
+                    f"Profile '{name}' is the current default for new sets. "
+                    "Pick a different default first."
+                )
+            },
+            status_code=409,
+        )
 
     path = SETTINGS_DIR / f"{name}.toml"
     if not path.exists():
@@ -676,14 +700,15 @@ async def update_global_settings(request: Request) -> JSONResponse:
     )
 
     body = await request.json()
-    name = body.get("default_preset", "")
-    if not isinstance(name, str) or not name.strip():
+    raw = body.get("default_preset", "")
+    if not isinstance(raw, str) or not raw.strip():
         return JSONResponse({"error": "default_preset required"}, status_code=400)
 
+    name = raw.strip()
     try:
         apply_global_settings(GlobalSettings(default_preset=name))
         return JSONResponse({"success": True, "default_preset": name})
-    except ValueError as e:
+    except (ValueError, OSError) as e:
         return JSONResponse({"error": str(e)}, status_code=400)
 
 
