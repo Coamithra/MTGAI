@@ -127,6 +127,12 @@ n_gpu_layers = -1
 # global OLLAMA_KV_CACHE_TYPE env var that Ollama forced — llama.cpp gives
 # us per-server KV quant via `--cache-type-k`/`-v`. Flash attention is
 # enabled by default in llama-server when the architecture supports it.
+#
+# WARNING: n_gpu_layers = -1 means "ALL layers on GPU" in llama.cpp, NOT
+# "auto-place" like Ollama's num_gpu=-1. This config only works because
+# q8_0's small KV cache (1.7 GB at 128K) leaves ~1 GB headroom (post-load
+# placement = 89%). Switching to f16 KV cache OOMs the GPU mid-extraction.
+# llmfacade auto-placement is a known TODO.
 [llm.gemma4-26b-vram-dynamic]
 name = "Gemma 4 26B Vlad IQ4_XS (Local)"
 provider = "llamacpp"
@@ -143,6 +149,119 @@ supports_effort = false
 supports_vision = false
 supports_caching = false
 n_gpu_layers = -1
+cache_type_k = "q8_0"
+cache_type_v = "q8_0"
+
+# ── TC-2 Phase D: competitor / discounted-from-Ollama candidates ─────────
+# Originally we hard-linked stock Google Gemma 4 GGUFs from Ollama's blob
+# cache, but llama-server rejects them with "wrong number of tensors;
+# expected N, got M" — Ollama's GGUFs are the multimodal architecture
+# (vision + audio tensors expected) but ship with text-only weights, and
+# llama.cpp's loader is strict about the count. Only Unsloth's text-only
+# repacks (and VladimirGav's, see above) are llama.cpp-compatible.
+#
+# Removed entries (incompatible): gemma4-26b-stock, gemma4-e4b,
+# gemma4-31b-dense. See learnings/llamacpp-tc2-benchmark.md.
+
+[llm.gemma4-26b-unsloth-q4kxl]
+name = "Gemma 4 26B Unsloth UD-Q4_K_XL (Local)"
+provider = "llamacpp"
+model_id = "gemma4-26b-unsloth-q4kxl"
+gguf_path = "C:/Models/gemma4-26b-unsloth-q4kxl.gguf"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_effort = false
+supports_vision = false
+supports_caching = false
+n_gpu_layers = 35
+cache_type_k = "q8_0"
+cache_type_v = "q8_0"
+
+# ── TC-2 Phase D-bis: Unsloth Gemma 4 family (HuggingFace fresh DLs) ─────
+# After confirming Ollama-cached blobs are unloadable due to multimodal
+# tensor mismatch, downloaded Unsloth's text-only repacks directly.
+
+[llm.gemma4-26b-unsloth-q4km]
+name = "Gemma 4 26B Unsloth UD-Q4_K_M (Local)"
+provider = "llamacpp"
+model_id = "gemma4-26b-unsloth-q4km"
+gguf_path = "C:/Models/gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_effort = false
+supports_vision = false
+supports_caching = false
+n_gpu_layers = 40
+cache_type_k = "q8_0"
+cache_type_v = "q8_0"
+
+[llm.gemma4-e4b-unsloth]
+name = "Gemma 4 E4B Unsloth Q4_K_M (Local)"
+provider = "llamacpp"
+model_id = "gemma4-e4b-unsloth"
+gguf_path = "C:/Models/gemma-4-E4B-it-Q4_K_M.gguf"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_effort = false
+supports_vision = false
+supports_caching = false
+n_gpu_layers = -1
+cache_type_k = "q8_0"
+cache_type_v = "q8_0"
+
+[llm.gemma4-31b-unsloth]
+name = "Gemma 4 31B Dense Unsloth Q4_K_M (Local)"
+provider = "llamacpp"
+model_id = "gemma4-31b-unsloth"
+gguf_path = "C:/Models/gemma-4-31B-it-Q4_K_M.gguf"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 32768
+supports_effort = false
+supports_vision = false
+supports_caching = false
+n_gpu_layers = 20
+cache_type_k = "q8_0"
+cache_type_v = "q8_0"
+
+# ── Qwen 3.6 — fresh HuggingFace downloads, llama.cpp-native ─────────────
+
+[llm.qwen36-35b-a3b]
+name = "Qwen 3.6 35B-A3B Unsloth UD-Q4_K_XL (Local)"
+provider = "llamacpp"
+model_id = "qwen36-35b-a3b"
+gguf_path = "C:/Models/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_effort = false
+supports_vision = false
+supports_caching = false
+n_gpu_layers = 25
+cache_type_k = "q8_0"
+cache_type_v = "q8_0"
+
+[llm.qwen36-27b]
+name = "Qwen 3.6 27B Dense Q4_K_M (Local)"
+provider = "llamacpp"
+model_id = "qwen36-27b"
+gguf_path = "C:/Models/Qwen3.6-27B-Q4_K_M.gguf"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_effort = false
+supports_vision = false
+supports_caching = false
+n_gpu_layers = 35
 cache_type_k = "q8_0"
 cache_type_v = "q8_0"
 
