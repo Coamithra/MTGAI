@@ -27,15 +27,20 @@ from fastapi.templating import Jinja2Templates
 from mtgai.pipeline.engine import PipelineEngine, load_state, save_state
 from mtgai.pipeline.events import EventBus, format_sse
 from mtgai.pipeline.models import (
-    STAGE_DEFINITIONS,
     PipelineConfig,
     PipelineState,
     PipelineStatus,
     StageStatus,
     create_pipeline_state,
 )
+from mtgai.pipeline.wizard import build_wizard_state
+from mtgai.pipeline.wizard import serialize as serialize_wizard_state
 from mtgai.runtime import active_set, ai_lock, extraction_run
-from mtgai.runtime.runtime_state import OUTPUT_ROOT, compute_runtime_state
+from mtgai.runtime.runtime_state import (
+    OUTPUT_ROOT,
+    compute_runtime_state,
+    resolve_active_set_code,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,53 +86,63 @@ api_router = APIRouter(prefix="/api/pipeline")
 # ---------------------------------------------------------------------------
 
 
-def _render_configure(request: Request) -> HTMLResponse:
+def _render_wizard(request: Request, requested_tab: str | None) -> HTMLResponse | RedirectResponse:
+    """Render the wizard shell, or redirect when the requested tab isn't visible.
+
+    Centralises the routing rule: a URL fragment must resolve to a
+    visible tab via :func:`build_wizard_state`. If the user typed
+    ``/pipeline/skeleton`` before that stage exists, we redirect to the
+    latest visible tab so refresh always lands on a real surface.
+    """
+    set_code = resolve_active_set_code(None)
+    ws = build_wizard_state(set_code, requested_tab=requested_tab)
+    if requested_tab is not None and ws.active_tab_id != requested_tab:
+        return RedirectResponse(
+            url=f"/pipeline/{ws.active_tab_id}",
+            status_code=302,
+        )
+    # Pass the serialized snapshot as a dict so Jinja's `tojson` filter
+    # in the template can produce a `</script>`-safe blob. `default=str`
+    # is unnecessary because `serialize_wizard_state` already coerces
+    # `pipeline_state` to JSON-safe types via `model_dump(mode="json")`.
     return templates.TemplateResponse(
-        "configure.html",
+        "wizard.html",
         {
             "request": request,
-            "stage_definitions": json.dumps(STAGE_DEFINITIONS),
+            "wizard_state": serialize_wizard_state(ws),
         },
     )
 
 
 @router.get("/pipeline", response_class=HTMLResponse)
-async def pipeline_dashboard(request: Request):
-    """Render the dashboard, or the configure form when no state exists."""
-    state = _get_current_state()
-    if state is None:
-        return _render_configure(request)
-    state_json = json.dumps(state.model_dump(mode="json"), default=str)
-    return templates.TemplateResponse(
-        "pipeline.html",
-        {
-            "request": request,
-            "pipeline_state": state_json,
-        },
-    )
+async def pipeline_root(request: Request):
+    """Wizard root — redirect to the latest visible tab.
+
+    Refresh of the bare ``/pipeline`` URL lands on whatever tab is
+    currently the right surface for the active set's state (per design
+    §11). Bookmarking ``/pipeline`` therefore always re-resolves.
+    """
+    set_code = resolve_active_set_code(None)
+    ws = build_wizard_state(set_code, requested_tab=None)
+    return RedirectResponse(url=f"/pipeline/{ws.latest_tab_id}", status_code=302)
 
 
 @router.get("/pipeline/configure")
 async def pipeline_configure() -> RedirectResponse:
-    """Legacy route — redirects to the wizard's Project Settings tab.
-
-    The wizard's `/pipeline/project` is what owns per-set kickoff now;
-    the standalone configure page is gone. The redirect target lands on
-    the wizard shell (placeholder until the shell ships in a later phase).
-    """
+    """Legacy route — redirects to the wizard's Project Settings tab."""
     return RedirectResponse(url="/pipeline/project", status_code=302)
 
 
-@router.get("/pipeline/theme", response_class=HTMLResponse)
-async def pipeline_theme(request: Request):
-    """Theme creation wizard page."""
-    return templates.TemplateResponse(
-        "theme.html",
-        {
-            "request": request,
-            "existing_theme": "null",
-        },
-    )
+@router.get("/pipeline/{tab_id}", response_class=HTMLResponse)
+async def pipeline_tab(request: Request, tab_id: str):
+    """Wizard tab route — server pre-renders the active tab.
+
+    Tab kinds: ``project`` (always present), ``theme`` (visible once a
+    theme.json exists), or one of the pipeline ``stage_id``s. Unknown
+    or not-yet-visible fragments redirect to the latest tab so the URL
+    always reflects a real surface.
+    """
+    return _render_wizard(request, requested_tab=tab_id)
 
 
 # ---------------------------------------------------------------------------

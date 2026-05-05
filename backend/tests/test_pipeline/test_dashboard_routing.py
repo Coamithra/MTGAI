@@ -1,18 +1,25 @@
-"""Smoke tests for /pipeline + /pipeline/configure routing.
+"""Routing tests for the wizard shell at /pipeline/*.
 
-When no on-disk pipeline state exists, GET /pipeline renders the
-configure form inline (saves a click) — until the wizard shell phase
-takes over. ``/pipeline/configure`` (legacy deep link) now redirects
-to the wizard's Project Settings tab.
+The wizard replaces the flat dashboard. A bare ``/pipeline`` resolves
+to the latest visible tab via :func:`mtgai.pipeline.wizard.build_wizard_state`
+and 302s; ``/pipeline/<tab_id>`` either renders the wizard with that
+tab active or redirects to the latest tab when the fragment isn't a
+visible surface for the active set.
 """
 
 from __future__ import annotations
 
-from unittest.mock import patch
+import json
 
 import pytest
 from fastapi.testclient import TestClient
 
+from mtgai.pipeline.models import (
+    PipelineConfig,
+    PipelineState,
+    StageStatus,
+    create_pipeline_state,
+)
 from mtgai.review.server import app
 
 
@@ -21,42 +28,124 @@ def client():
     return TestClient(app)
 
 
-def test_pipeline_renders_configure_when_no_state(client):
-    with patch("mtgai.pipeline.server._get_current_state", return_value=None):
-        resp = client.get("/pipeline")
-    assert resp.status_code == 200
-    body = resp.text
-    # The dropdown picker replaces the per-form set-code input now;
-    # the configure form keeps a read-only display element instead.
-    assert 'id="active-set-display"' in body
-    assert "Configure Pipeline" in body
-    # The dashboard's pipeline-app shell shouldn't appear when we're
-    # rendering the configure form instead.
-    assert 'id="pipeline-app"' not in body
+@pytest.fixture
+def isolate_sets(tmp_path, monkeypatch):
+    """Point the wizard's state-resolution helpers at an empty tmp tree.
 
-
-def test_pipeline_renders_dashboard_when_state_exists(client):
-    """A non-None pipeline state takes the dashboard branch.
-
-    The banner middleware also looks up the same state, so we use a
-    real ``create_pipeline_state`` minimal value rather than a fake —
-    the banner reads ``overall_status`` + ``current_stage()`` which a
-    blank fake doesn't satisfy.
+    Without this, the live ``output/sets`` directory leaks into route
+    tests and the brand-new flow asserts fail when a real set exists.
     """
-    from mtgai.pipeline.models import PipelineConfig, create_pipeline_state
+    sets_root = tmp_path / "sets"
+    sets_root.mkdir()
+    monkeypatch.setattr("mtgai.pipeline.wizard.SETS_ROOT", sets_root)
+    monkeypatch.setattr("mtgai.pipeline.engine.OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr("mtgai.runtime.runtime_state.SETS_ROOT", sets_root)
+    monkeypatch.setattr("mtgai.runtime.runtime_state.OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr("mtgai.runtime.active_set.SETS_ROOT", sets_root)
+    monkeypatch.setattr(
+        "mtgai.runtime.active_set._LAST_SET_PATH",
+        tmp_path / "settings" / "last_set.toml",
+    )
+    monkeypatch.setenv("MTGAI_REVIEW_SET", "TST")
+    return sets_root
 
-    state = create_pipeline_state(PipelineConfig(set_code="TST", set_name="Test", set_size=20))
 
-    with patch("mtgai.pipeline.server._get_current_state", return_value=state):
-        resp = client.get("/pipeline")
+def _seed_set(
+    sets_root, code: str, *, theme: dict | None = None, state: PipelineState | None = None
+):
+    """Materialise a set on disk so the resolver finds it."""
+    set_dir = sets_root / code
+    set_dir.mkdir(parents=True, exist_ok=True)
+    if theme is not None:
+        (set_dir / "theme.json").write_text(json.dumps(theme), encoding="utf-8")
+    if state is not None:
+        (set_dir / "pipeline-state.json").write_text(
+            json.dumps(state.model_dump(mode="json"), default=str),
+            encoding="utf-8",
+        )
+
+
+def test_pipeline_root_redirects_to_project_when_brand_new(client, isolate_sets):
+    """No theme.json + no pipeline-state.json → only Project tab visible."""
+    _seed_set(isolate_sets, "TST")
+    resp = client.get("/pipeline", follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/pipeline/project"
+
+
+def test_pipeline_root_redirects_to_theme_when_theme_exists(client, isolate_sets):
+    """Theme exists, pipeline not started → latest tab is theme."""
+    _seed_set(isolate_sets, "TST", theme={"code": "TST", "name": "Test"})
+    resp = client.get("/pipeline", follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/pipeline/theme"
+
+
+def test_pipeline_root_redirects_to_running_stage(client, isolate_sets):
+    """A mid-run pipeline lands on the currently running stage."""
+    state = create_pipeline_state(
+        PipelineConfig(set_code="TST", set_name="Test", set_size=20),
+    )
+    state.stages[0].status = StageStatus.COMPLETED
+    state.stages[1].status = StageStatus.RUNNING
+    _seed_set(isolate_sets, "TST", theme={"code": "TST"}, state=state)
+
+    resp = client.get("/pipeline", follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] == f"/pipeline/{state.stages[1].stage_id}"
+
+
+def test_pipeline_project_renders_wizard(client, isolate_sets):
+    """/pipeline/project always renders the wizard shell directly."""
+    _seed_set(isolate_sets, "TST")
+    resp = client.get("/pipeline/project")
     assert resp.status_code == 200
     body = resp.text
-    assert 'id="pipeline-app"' in body
-    assert "/static/pipeline.js" in body
+    assert 'id="wizard-app"' in body
+    assert "/static/wizard.js" in body
+    assert "WIZARD_STATE" in body
 
 
-def test_pipeline_configure_redirects_to_project(client):
-    """`/pipeline/configure` is a legacy alias — it 302s to the wizard's project tab."""
+def test_pipeline_project_includes_serialised_state(client, isolate_sets):
+    """The wizard bootstrap blob carries active_set + visible_tabs."""
+    _seed_set(isolate_sets, "TST", theme={"code": "TST", "name": "Test"})
+    resp = client.get("/pipeline/project")
+    assert resp.status_code == 200
+    body = resp.text
+    # The blob is embedded as JSON via Jinja's `| safe` — pull the line.
+    line = next(ln for ln in body.splitlines() if "const WIZARD_STATE" in ln)
+    payload = json.loads(line.split("=", 1)[1].rstrip(";").strip())
+    assert payload["active_set"] == "TST"
+    tab_ids = [t["id"] for t in payload["visible_tabs"]]
+    assert tab_ids == ["project", "theme"]
+
+
+def test_pipeline_unknown_tab_redirects_to_latest(client, isolate_sets):
+    """A tab id that isn't visible yet 302s to whatever the latest tab is."""
+    _seed_set(isolate_sets, "TST")
+    resp = client.get("/pipeline/skeleton", follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/pipeline/project"
+
+
+def test_pipeline_theme_redirects_when_no_theme(client, isolate_sets):
+    """`/pipeline/theme` falls back to project when no theme.json exists."""
+    _seed_set(isolate_sets, "TST")
+    resp = client.get("/pipeline/theme", follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/pipeline/project"
+
+
+def test_pipeline_theme_renders_when_theme_exists(client, isolate_sets):
+    _seed_set(isolate_sets, "TST", theme={"code": "TST", "name": "Test"})
+    resp = client.get("/pipeline/theme")
+    assert resp.status_code == 200
+    assert 'id="wizard-app"' in resp.text
+
+
+def test_pipeline_configure_redirects_to_project(client, isolate_sets):
+    """Legacy `/pipeline/configure` 302s to the wizard's Project tab."""
+    _seed_set(isolate_sets, "TST")
     resp = client.get("/pipeline/configure", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["location"] == "/pipeline/project"

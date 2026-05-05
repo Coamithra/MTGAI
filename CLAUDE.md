@@ -31,8 +31,9 @@ Card statuses: `draft → validated → approved → art_generated → rendered 
 
 **Key modules** (look in the file for detail; CLI flags via `--help`):
 
-- `mtgai/pipeline/` — end-to-end orchestrator: stage registry, FastAPI server, SSE event bus, dashboard, configure page. State persisted to `output/sets/<SET>/pipeline-state.json`.
-- `mtgai/pipeline/theme_extractor.py` — front door (theme wizard at `/pipeline/theme`). Uploads PDF/text, runs multi-stage LLM extraction, then JSON pass for constraints + card suggestions.
+- `mtgai/pipeline/` — end-to-end orchestrator: stage registry, FastAPI server, SSE event bus, wizard shell, configure page. State persisted to `output/sets/<SET>/pipeline-state.json`.
+- `mtgai/pipeline/wizard.py` — wizard state resolver. Maps the on-disk `pipeline-state.json` + `theme.json` into the visible-tabs / latest-tab shape `wizard.html` consumes. URL routing lives in `pipeline/server.py` (`/pipeline/<tab_id>`).
+- `mtgai/pipeline/theme_extractor.py` — theme content extraction. Surfaced as the Theme tab inside the wizard. Uploads PDF/text, runs multi-stage LLM extraction, then JSON pass for constraints + card suggestions.
 - `mtgai/generation/llm_client.py` — all LLM transport routes through [llmfacade](https://github.com/Coamithra/LLMFacade) (Anthropic + llama.cpp). Single entry point `generate_with_tool()`; provider resolved per-call from the model registry.
 - `mtgai/settings/` — model registry (`models.toml`) + per-set assignments (`output/sets/<SET>/settings.toml`, one file per set) + global default-preset (`output/settings/global.toml`). All resolution goes through `get_settings(set_code)` / `get_llm_model(stage_id, set_code)`. Stage runners must resolve once at the top of the run. UI at `/settings` (legacy single-set form; wizard rewrite plumbs set_code per request).
 - `mtgai/validation/` — two-tier validators (AUTO auto-fixed; MANUAL becomes LLM retry prompts). Cards immutable; fixers return new instances.
