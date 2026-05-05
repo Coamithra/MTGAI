@@ -27,9 +27,11 @@ from fastapi.templating import Jinja2Templates
 from mtgai.pipeline.engine import PipelineEngine, load_state, save_state
 from mtgai.pipeline.events import EventBus, format_sse
 from mtgai.pipeline.models import (
+    STAGE_DEFINITIONS,
     PipelineConfig,
     PipelineState,
     PipelineStatus,
+    StageReviewMode,
     StageStatus,
     create_pipeline_state,
 )
@@ -566,6 +568,19 @@ def _start_extraction_worker(
                         _persist_extraction_to_theme_json(
                             save_to_set, full_theme, constraints_list, card_suggestions
                         )
+                        # Auto-advance: with theme.json now on disk, kick
+                        # off the pipeline engine so Skeleton (the first
+                        # real stage) starts running. Idempotent — if
+                        # the user re-runs extraction on a set that
+                        # already has pipeline state, the helper's
+                        # existing-state branch is a no-op.
+                        _, kickoff_err = _kickoff_pipeline_engine(save_to_set)
+                        if kickoff_err is not None:
+                            logger.info(
+                                "Theme→engine auto-advance skipped for %s: %s",
+                                save_to_set,
+                                kickoff_err,
+                            )
                     extraction_run.append_event(
                         {
                             "type": "done",
@@ -1287,6 +1302,163 @@ async def wizard_project_start(request: Request) -> JSONResponse:
             "navigate_to": "/pipeline/theme",
             "upload_id": upload_id,
         }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Wizard advance — auto-advance + Next-step button
+# ---------------------------------------------------------------------------
+
+
+def _build_pipeline_config_from_settings(set_code: str) -> PipelineConfig:
+    """Build a :class:`PipelineConfig` from the per-set settings.toml.
+
+    Wizard kickoff path uses this to translate the persisted
+    ``set_params`` + ``break_points`` into the engine's input shape:
+    set parameters become top-level fields; break_points (str
+    ``"review"`` / ``"auto"``) translate to ``StageReviewMode`` entries
+    keyed by stage_id. ``always_review`` stages are also forced to
+    REVIEW so the engine pauses for them even if settings.toml omits
+    the entry.
+    """
+    from mtgai.settings.model_settings import get_settings
+
+    settings = get_settings(set_code)
+    sp = settings.set_params
+    review_modes: dict[str, StageReviewMode] = {}
+    for defn in STAGE_DEFINITIONS:
+        sid = defn["stage_id"]
+        if defn["always_review"] or settings.break_points.get(sid) == "review":
+            review_modes[sid] = StageReviewMode.REVIEW
+    return PipelineConfig(
+        set_code=set_code,
+        set_name=sp.set_name or set_code,
+        set_size=sp.set_size,
+        stage_review_modes=review_modes,
+    )
+
+
+def _first_pending_stage_id(state: PipelineState) -> str | None:
+    """Return the stage_id of the first non-completed, non-skipped stage."""
+    for stage in state.stages:
+        if stage.status not in (StageStatus.COMPLETED, StageStatus.SKIPPED):
+            return stage.stage_id
+    return None
+
+
+def _kickoff_pipeline_engine(set_code: str) -> tuple[PipelineState | None, str | None]:
+    """Spawn the engine for ``set_code`` if it isn't already running.
+
+    Idempotent in the senses the wizard needs:
+
+    * If a pipeline-state.json already exists with overall_status RUNNING,
+      we leave it alone — the engine is already chewing through stages.
+    * If state exists but is NOT_STARTED / PAUSED / FAILED / COMPLETED /
+      CANCELLED, we treat it as a fresh kickoff (PAUSED would route to
+      ``/api/pipeline/resume`` instead, but the helper is robust to
+      being called there too — the engine's run loop will skip already
+      completed stages and start at the first pending one).
+    * If no state exists, we build it from settings.toml and persist.
+
+    The engine is spawned in a daemon thread so this is safe to call
+    from any context (FastAPI handler, theme extraction worker, tests).
+
+    Returns ``(state, error)``. On success, ``state`` is non-None and
+    ``error`` is None. On failure (e.g., engine already running),
+    returns ``(None, "<reason>")``.
+    """
+    global _engine, _engine_task
+
+    if _engine is not None and _engine.is_running:
+        return None, "A pipeline is already running"
+
+    existing = load_state(set_code)
+    if existing is not None and existing.overall_status == PipelineStatus.RUNNING:
+        # Persisted RUNNING with no live engine = orphan from a prior
+        # process. ``cleanup_orphan_running_stages`` is supposed to
+        # demote those at boot, so seeing one here means something
+        # raced startup or the helper was bypassed. Bail rather than
+        # double-start.
+        return None, "Pipeline state is RUNNING but no engine is attached"
+
+    if existing is None:
+        state = create_pipeline_state(_build_pipeline_config_from_settings(set_code))
+    else:
+        state = existing
+
+    save_state(state)
+    event_bus.reset_buffer()
+    _engine = PipelineEngine(state, event_bus)
+    # Daemon thread so the kickoff is callable from a worker thread (no
+    # asyncio loop available there) and from async handlers (where we
+    # don't need to await it).
+    threading.Thread(target=_engine.run, name=f"pipeline-{set_code}", daemon=True).start()
+    _engine_task = None
+    return state, None
+
+
+@router.post("/api/wizard/advance")
+async def wizard_advance(request: Request) -> JSONResponse:
+    """Single Next-step entry point used by the wizard footer button.
+
+    Routes by the current pipeline state for the given set:
+
+    * No pipeline-state.json yet → kick off the engine (Theme tab footer
+      hits this once the user is ready to start the pipeline; the theme
+      extraction worker also calls the underlying helper directly so
+      auto-advance works even if no client is watching).
+    * ``overall_status == PAUSED`` → resume the engine (the typical
+      path after a break point or always_review pause).
+    * Otherwise → 400; the wizard hides the button in those states, so
+      reaching this branch implies a client/server state drift.
+
+    Always returns the next stage id under ``next_stage_id`` so the
+    client can update the URL on the explicit click path. Auto-advance
+    paths don't need this — SSE handles tab spawning in place.
+    """
+    body = await request.json()
+    code, err = _validate_set_code_in_body(body)
+    if err:
+        return err
+
+    existing = load_state(code)
+    if existing is None:
+        # Brand-new — kick off the engine. The wizard reaches this from
+        # the Theme tab's Next-step button when the user manually
+        # advances after extraction (auto-advance handles the common
+        # case from the worker thread).
+        state, kickoff_err = _kickoff_pipeline_engine(code)
+        if kickoff_err is not None or state is None:
+            return JSONResponse({"error": kickoff_err or "Kickoff failed"}, status_code=409)
+        next_id = _first_pending_stage_id(state)
+        return JSONResponse(
+            {
+                "success": True,
+                "next_stage_id": next_id,
+                "navigate_to": f"/pipeline/{next_id}" if next_id else "/pipeline",
+            }
+        )
+
+    if existing.overall_status == PipelineStatus.PAUSED:
+        global _engine, _engine_task
+
+        next_id = _first_pending_stage_id(existing)
+        _engine = PipelineEngine(existing, event_bus)
+        _engine_task = asyncio.create_task(asyncio.to_thread(_engine.resume))
+        return JSONResponse(
+            {
+                "success": True,
+                "next_stage_id": next_id,
+                # Don't return navigate_to on resume: the user clicked
+                # Next-step from the paused tab, so we want them to stay
+                # there (SSE will spawn the next tab in the strip
+                # without stealing focus).
+            }
+        )
+
+    return JSONResponse(
+        {"error": f"Pipeline is {existing.overall_status}, cannot advance"},
+        status_code=400,
     )
 
 

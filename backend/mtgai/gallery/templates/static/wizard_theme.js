@@ -28,17 +28,36 @@
     initialized: false,
   };
 
-  function renderThemeTab({ root, state }) {
-    if (local.initialized) return;
+  function renderThemeTab({ root, state, rerender }) {
+    const footer = root.querySelector('[data-role="footer"]');
+
+    if (local.initialized) {
+      // SSE-driven re-render. Refresh the footer in place so the
+      // Next-step button hides once the engine kicks off in the
+      // background (auto-advance). The body has user-edited textareas
+      // we don't want to clobber, so leave the body content alone.
+      if (footer) {
+        const desired = themeFooterHtml(state);
+        if (footer.dataset.lastFooter !== desired) {
+          footer.innerHTML = desired;
+          footer.dataset.lastFooter = desired;
+          bindThemeFooter(footer, state);
+        }
+      }
+      return;
+    }
     local.initialized = true;
+    void rerender;  // first-mount path doesn't read this
 
     const content = root.querySelector('[data-role="content"]');
-    const footer = root.querySelector('[data-role="footer"]');
     if (!content) return;
 
     content.innerHTML = themeBodyHtml();
     if (footer) {
-      footer.innerHTML = `<span class="wiz-footer-note">Auto-advance + Next-step button land in a follow-up card.</span>`;
+      const desired = themeFooterHtml(state);
+      footer.innerHTML = desired;
+      footer.dataset.lastFooter = desired;
+      bindThemeFooter(footer, state);
     }
 
     bindThemeBody(state);
@@ -371,5 +390,70 @@
 
   function escAttr(text) {
     return escHtml(text).replace(/"/g, '&quot;');
+  }
+
+  // ------------------------------------------------------------------
+  // Footer — Next-step (Theme → Skeleton)
+  // ------------------------------------------------------------------
+
+  function themeFooterHtml(state) {
+    // Three cases:
+    // 1. Pipeline already started (state.pipeline non-null) → engine
+    //    has been kicked off; auto-advance handles the rest. Hide the
+    //    button. Theme is "past" in the wizard timeline.
+    // 2. No theme.json yet (state.theme null) → user is here ahead of
+    //    extraction completing. Don't surface the button — the worker
+    //    will auto-advance when it finishes (the kickoff is server-side).
+    // 3. theme.json exists, no pipeline state → manual Next-step.
+    //    Common path: an existing set whose theme.json was written in
+    //    a prior session before the auto-advance hook landed, or one
+    //    where the user navigated back to Theme to edit constraints
+    //    before kicking off the pipeline.
+    if (state.pipeline) {
+      return '<span class="wiz-footer-note"></span>';
+    }
+    if (!state.theme) {
+      return '<span class="wiz-footer-note"></span>';
+    }
+    return `
+      <button type="button" class="wiz-btn-primary" data-role="theme-next">
+        Next step: Skeleton Generation
+      </button>
+    `;
+  }
+
+  function bindThemeFooter(footer, state) {
+    const btn = footer.querySelector('button[data-role="theme-next"]');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Starting…';
+      try {
+        const resp = await fetch('/api/wizard/advance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ set_code: state.activeSet }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          W.toast(data.error || 'Start failed', 'error');
+          btn.disabled = false;
+          btn.textContent = original;
+          return;
+        }
+        // Hard navigate to the first pending stage so the wizard
+        // re-mounts with the engine already running and the new tab
+        // visible. Soft-navigation would work too but the bootstrap
+        // payload (visible_tabs / pipeline_state) is server-rendered,
+        // so a reload is the simplest way to get them in sync.
+        const target = data.navigate_to || '/pipeline/skeleton';
+        window.location.assign(target);
+      } catch (err) {
+        W.toast('Network error: ' + err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    });
   }
 })();

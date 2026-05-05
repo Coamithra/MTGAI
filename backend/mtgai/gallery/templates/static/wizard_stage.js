@@ -35,7 +35,12 @@
     content.innerHTML = stageBodyHtml(stage);
 
     if (footer) {
-      footer.innerHTML = stageFooterHtml(stage, state);
+      const desiredFooter = stageFooterHtml(stage, state);
+      if (footer.dataset.lastFooter !== desiredFooter) {
+        footer.innerHTML = desiredFooter;
+        footer.dataset.lastFooter = desiredFooter;
+        bindNextStepButton(footer, state);
+      }
     }
 
     if (headerActions) {
@@ -156,16 +161,96 @@
     `;
   }
 
+  // Pipeline stage order — kept in sync with backend STAGE_DEFINITIONS so
+  // we can render "Next step: <name>" without an extra fetch. Anything
+  // not in this list (e.g. legacy or future stages) falls back to the
+  // generic "Next step" label so a stale client still works.
+  const STAGE_ORDER = [
+    { id: 'skeleton', name: 'Skeleton Generation' },
+    { id: 'reprints', name: 'Reprint Selection' },
+    { id: 'lands', name: 'Land Generation' },
+    { id: 'card_gen', name: 'Card Generation' },
+    { id: 'balance', name: 'Balance Analysis' },
+    { id: 'skeleton_rev', name: 'Skeleton Revision' },
+    { id: 'ai_review', name: 'AI Design Review' },
+    { id: 'finalize', name: 'Finalization' },
+    { id: 'human_card_review', name: 'Card Review' },
+    { id: 'art_prompts', name: 'Art Prompt Generation' },
+    { id: 'char_portraits', name: 'Character Portraits' },
+    { id: 'art_gen', name: 'Art Generation' },
+    { id: 'art_select', name: 'Art Selection' },
+    { id: 'human_art_review', name: 'Art Review' },
+    { id: 'rendering', name: 'Card Rendering' },
+    { id: 'render_qa', name: 'Render QA' },
+    { id: 'human_final_review', name: 'Final Review' },
+  ];
+
+  const FINAL_STAGE_ID = STAGE_ORDER[STAGE_ORDER.length - 1].id;
+
+  function nextStageEntry(stageId) {
+    const idx = STAGE_ORDER.findIndex(s => s.id === stageId);
+    if (idx < 0 || idx === STAGE_ORDER.length - 1) return null;
+    return STAGE_ORDER[idx + 1];
+  }
+
   function stageFooterHtml(stage, state) {
     const isLatest = state.latestTabId === stage.stage_id;
-    const isTerminal = stage.status === 'completed' || stage.status === 'paused_for_review';
-    if (isLatest && isTerminal) {
-      return `<span class="wiz-footer-note">Next-step button lands in a follow-up card.</span>`;
+
+    // Final tab + completed = "Set complete" terminal state (§8.4).
+    if (
+      isLatest
+      && stage.stage_id === FINAL_STAGE_ID
+      && stage.status === 'completed'
+    ) {
+      return `<span class="wiz-footer-complete" role="status">✓ Set complete</span>`;
     }
+
+    // Latest tab + paused_for_review = manual Next-step gesture. The
+    // engine has yielded the AI mutex and is waiting for the user.
+    // Auto-advance handles the COMPLETED-on-non-final case server-side
+    // (the engine just walks to the next stage), so we only render
+    // Next-step on PAUSED_FOR_REVIEW.
+    if (isLatest && stage.status === 'paused_for_review') {
+      const next = nextStageEntry(stage.stage_id);
+      const label = next ? `Next step: ${next.name}` : 'Next step';
+      return `<button type="button" class="wiz-btn-primary" data-role="next-step">${escHtml(label)}</button>`;
+    }
+
     if (stage.status === 'failed') {
       return `<span class="wiz-footer-note">Retry support lands in a follow-up card.</span>`;
     }
     return '<span class="wiz-footer-note"></span>';
+  }
+
+  function bindNextStepButton(footer, state) {
+    const btn = footer.querySelector('button[data-role="next-step"]');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Advancing…';
+      try {
+        const resp = await window.MTGAIWizard.postJSON('/api/wizard/advance', {
+          set_code: state.activeSet,
+        });
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          window.MTGAIWizard.toast(data.error || 'Advance failed', 'error');
+          btn.disabled = false;
+          btn.textContent = original;
+          return;
+        }
+        // Success: leave the button disabled — the engine is now
+        // running, and the SSE stream will repaint the footer in place
+        // when the next stage enters PAUSED_FOR_REVIEW or this tab's
+        // status transitions away from paused_for_review.
+        btn.textContent = 'Advancing…';
+      } catch (err) {
+        window.MTGAIWizard.toast('Network error: ' + err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    });
   }
 
   // ------------------------------------------------------------------

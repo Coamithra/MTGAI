@@ -225,6 +225,13 @@
   color: #666;
 }
 
+.wiz-tab-footer .wiz-footer-complete {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #00d4aa;
+  letter-spacing: 0.02em;
+}
+
 /* --------------------------------------------------------------------------
    Stage placeholder body (progress + summary)
    -------------------------------------------------------------------------- */

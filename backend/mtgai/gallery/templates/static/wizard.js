@@ -290,7 +290,11 @@
 
   function rerenderActiveStageBody() {
     const tab = state.tabs.find(t => t.id === state.activeTabId);
-    if (!tab || tab.kind !== 'stage') return;
+    // Stage + content (Theme) kinds both react to pipeline SSE events;
+    // Theme uses them to refresh its footer Next-step button when the
+    // engine kicks off in the background. Project tab is a one-shot
+    // form fed by its own fetch, so no SSE-driven repaint there.
+    if (!tab || (tab.kind !== 'stage' && tab.kind !== 'content')) return;
     const body = document.querySelector(`.wiz-tab-body[data-tab-id="${cssEsc(tab.id)}"]`);
     if (!body) return;
     const renderer = renderers[tab.kind];
