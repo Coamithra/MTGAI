@@ -2,11 +2,10 @@
  * Wizard theme tab — content-only editor.
  *
  * Per design §8.3, the Theme tab keeps the constraint + card-request
- * + setting-prose surfaces but **drops the upload widget and any
- * numeric set-shape fields**. Upload moves to Project Settings in
- * the next card; set_name / set_size / mechanic_count are preserved
- * round-trip from the loaded theme.json without surfacing an editor
- * here (they'll land on Project Settings too).
+ * + setting-prose surfaces. Upload, set_name, set_size, and
+ * mechanic_count moved to the Project Settings tab — saving here no
+ * longer round-trips those keys, so the next save naturally drops
+ * them out of theme.json.
  *
  * Refresh-AI on individual sections is intentionally **not wired**
  * in this card — the AI lock + section refresh round-trip should
@@ -271,18 +270,18 @@
       });
     });
 
-    // Round-trip every key from the loaded theme so save here only
-    // mutates the content surface (setting prose + constraints + card
-    // requests). Legacy keys (`special_constraints`, `theme`,
-    // `flavor_description`) survive the save unchanged — Project
-    // Settings + a future migration can drop them once that surface
-    // covers the editor for those fields.
+    // Carry forward unrelated keys the AI extractor may have written
+    // (e.g. `special_constraints`, `theme`, `flavor_description` —
+    // legacy companion fields) but drop the set-shape numerics. Those
+    // moved to Project Settings (settings.toml.set_params) so writing
+    // them here would compete with the new source of truth. `code` and
+    // `name` are still written so the set picker can render the title
+    // off theme.json without a settings.toml round-trip.
+    const { set_size: _ignored_size, mechanic_count: _ignored_mech, ...rest } = theme;
     const payload = {
-      ...theme,
+      ...rest,
       name: theme.name ?? '',
       code: state.activeSet,
-      set_size: theme.set_size ?? 60,
-      mechanic_count: theme.mechanic_count ?? 3,
       setting,
       constraints,
       card_requests: cardRequests,

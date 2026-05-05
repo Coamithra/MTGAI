@@ -483,8 +483,22 @@ def _terminal_status(events: list[dict]) -> str:
     return "error"
 
 
-def _start_extraction_worker(upload_id: str, source_text: str, model_key: str) -> None:
-    """Spawn the extraction worker thread and wire it to the run buffer."""
+def _start_extraction_worker(
+    upload_id: str,
+    source_text: str,
+    model_key: str,
+    *,
+    save_to_set: str | None = None,
+) -> None:
+    """Spawn the extraction worker thread and wire it to the run buffer.
+
+    When ``save_to_set`` is provided, the worker also writes the
+    assembled extraction result to ``output/sets/<SET>/theme.json`` on
+    successful completion. This is the path used by the wizard's "Start
+    project" button — the user is navigated to the Theme tab while the
+    worker runs, and the Theme tab finds a populated theme.json once the
+    run terminates.
+    """
     from mtgai.pipeline.theme_extractor import (
         clear_phase_emitter,
         set_phase_emitter,
@@ -495,6 +509,8 @@ def _start_extraction_worker(upload_id: str, source_text: str, model_key: str) -
     def worker() -> None:
         theme_parts: list[str] = []
         theme_cost = 0.0
+        constraints_list: list[str] = []
+        card_suggestions: list[dict[str, str]] = []
         try:
             # Phase events flow through the same broadcast buffer the SSE
             # endpoint subscribes to. Wiring this here (rather than from
@@ -533,7 +549,9 @@ def _start_extraction_worker(upload_id: str, source_text: str, model_key: str) -
             )
             for event in stream_constraints_extraction(full_theme, model_key):
                 etype = event.get("type")
-                if etype == "card_suggestions":
+                if etype == "constraints":
+                    constraints_list = list(event.get("constraints", []))
+                elif etype == "card_suggestions":
                     event["suggestions"] = [
                         {
                             "name": s.get("name", ""),
@@ -541,8 +559,13 @@ def _start_extraction_worker(upload_id: str, source_text: str, model_key: str) -
                         }
                         for s in event.get("suggestions", [])
                     ]
+                    card_suggestions = list(event["suggestions"])
                 if etype == "done":
                     total_cost = theme_cost + event.get("cost_usd", 0.0)
+                    if save_to_set:
+                        _persist_extraction_to_theme_json(
+                            save_to_set, full_theme, constraints_list, card_suggestions
+                        )
                     extraction_run.append_event(
                         {
                             "type": "done",
@@ -562,6 +585,69 @@ def _start_extraction_worker(upload_id: str, source_text: str, model_key: str) -
             _upload_cache.pop(upload_id, None)
 
     threading.Thread(target=worker, daemon=True).start()
+
+
+def _persist_extraction_to_theme_json(
+    set_code: str,
+    setting_text: str,
+    constraints: list[str],
+    card_suggestions: list[dict[str, str]],
+) -> None:
+    """Write the assembled extraction result to ``theme.json``.
+
+    Called from the wizard "Start project" worker once both extraction
+    passes finish. Existing keys (``code``, ``name``) are preserved so
+    the set picker keeps showing the right title; everything else is
+    rewritten from this run.
+
+    Card suggestions arrive as ``{name, description}`` from the LLM
+    JSON pass; the Theme tab UI expects ``{text, source}`` items so we
+    flatten ``"<name> — <description>"`` here. ``source: "ai"`` is the
+    AI-generated badge the wizard renders next to each item.
+    """
+    from mtgai.settings import model_settings as _ms
+
+    theme_path = OUTPUT_ROOT / "sets" / set_code / "theme.json"
+    existing: dict[str, Any] = {}
+    if theme_path.exists():
+        try:
+            existing = json.loads(theme_path.read_text(encoding="utf-8"))
+            if not isinstance(existing, dict):
+                existing = {}
+        except (OSError, json.JSONDecodeError):
+            existing = {}
+
+    settings = _ms.get_settings(set_code)
+    name = existing.get("name") or settings.set_params.set_name or set_code
+    payload = {
+        **existing,
+        "code": set_code,
+        "name": name,
+        "setting": setting_text,
+        "constraints": [{"text": c, "source": "ai"} for c in constraints if c],
+        "card_requests": [
+            {
+                "text": _format_card_suggestion(s),
+                "source": "ai",
+            }
+            for s in card_suggestions
+            if (s.get("name") or s.get("description"))
+        ],
+    }
+    theme_path.parent.mkdir(parents=True, exist_ok=True)
+    theme_path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    logger.info("Persisted extraction result to %s", theme_path)
+
+
+def _format_card_suggestion(s: dict[str, str]) -> str:
+    name = (s.get("name") or "").strip()
+    desc = (s.get("description") or "").strip()
+    if name and desc:
+        return f"{name} — {desc}"
+    return name or desc
 
 
 async def _stream_subscriber(request: Request, q):
@@ -763,6 +849,449 @@ async def extract_section_endpoint(request: Request):
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Wizard Project Settings tab — set params, theme input, breaks, models, kickoff
+# ---------------------------------------------------------------------------
+
+
+# Subset of stage_id => display_name in pipeline order, including the
+# locked-on human_* rows. Used by the Project Settings break-points
+# section so the wizard renders one row per stage in the same order
+# the engine runs them.
+def _break_points_payload(settings_obj) -> list[dict[str, Any]]:
+    from mtgai.pipeline.models import STAGE_DEFINITIONS
+
+    rows: list[dict[str, Any]] = []
+    for defn in STAGE_DEFINITIONS:
+        sid = defn["stage_id"]
+        # always_review stages render as locked-on regardless of what
+        # break_points stores — the engine forces REVIEW for them via
+        # build_stages(). Surfacing them as "locked" here matches the
+        # design's "🔒 always pauses" tooltip.
+        rows.append(
+            {
+                "stage_id": sid,
+                "display_name": defn["display_name"],
+                "always_review": defn["always_review"],
+                "review": defn["always_review"] or settings_obj.break_points.get(sid) == "review",
+            }
+        )
+    return rows
+
+
+def _project_payload(set_code: str) -> dict[str, Any]:
+    """Bundle everything the Project Settings tab needs on first paint."""
+    from mtgai.settings.model_registry import get_registry
+    from mtgai.settings.model_settings import (
+        PRESETS,
+        get_settings,
+        list_profiles,
+    )
+
+    settings = get_settings(set_code)
+    registry = get_registry()
+    pipeline_started = (OUTPUT_ROOT / "sets" / set_code / "pipeline-state.json").exists()
+    er = extraction_run.current()
+    extraction_active = er is not None and er.status == "running"
+
+    # Lightweight registry slice — enough for the dropdowns to render
+    # name + tier without a second fetch. Image models too because the
+    # Project Settings tab dropdowns include both.
+    llm_models = [
+        {
+            "key": m.key,
+            "name": m.name,
+            "tier": m.tier,
+            "supports_effort": m.supports_effort,
+        }
+        for m in registry.list_llm()
+    ]
+    image_models = [
+        {"key": m.key, "name": m.name, "implemented": m.implemented} for m in registry.list_image()
+    ]
+
+    return {
+        "set_code": set_code,
+        "set_params": settings.set_params.model_dump(),
+        "theme_input": settings.theme_input.model_dump(mode="json"),
+        "break_points": _break_points_payload(settings),
+        "llm_assignments": dict(settings.llm_assignments),
+        "image_assignments": dict(settings.image_assignments),
+        "effort_overrides": dict(settings.effort_overrides),
+        "llm_models": llm_models,
+        "image_models": image_models,
+        "builtin_presets": sorted(PRESETS),
+        "saved_profiles": list_profiles(),
+        "pipeline_started": pipeline_started,
+        "extraction_active": extraction_active,
+    }
+
+
+def _validate_set_code_in_body(body: dict) -> tuple[str, JSONResponse | None]:
+    """Pull set_code out of a request body, validating it.
+
+    Returns ``(code, None)`` on success or ``("", JSONResponse(400))``
+    so callers can ``if err: return err``. Centralised so every wizard
+    endpoint reports the same shape.
+    """
+    raw = body.get("set_code")
+    if not isinstance(raw, str) or not active_set.is_valid_set_code(raw):
+        return "", JSONResponse({"error": "Invalid set_code"}, status_code=400)
+    return active_set.normalize_code(raw), None
+
+
+@router.get("/api/wizard/project")
+async def wizard_project_payload(set_code: str | None = None) -> JSONResponse:
+    """Bundle the Project Settings tab's first-paint state.
+
+    Falls back to the active set when ``set_code`` is omitted so the
+    wizard's URL routing (which never carries the set in the URL path)
+    can call this without an explicit query string.
+    """
+    if not set_code:
+        set_code = active_set.read_active_set()
+    if not set_code or not active_set.is_valid_set_code(set_code):
+        return JSONResponse({"error": "No active set"}, status_code=400)
+    code = active_set.normalize_code(set_code)
+    if not (OUTPUT_ROOT / "sets" / code).is_dir():
+        return JSONResponse({"error": f"Set {code} does not exist"}, status_code=404)
+    return JSONResponse(_project_payload(code))
+
+
+@router.post("/api/wizard/project/params")
+async def wizard_project_save_params(request: Request) -> JSONResponse:
+    """Live-apply set_name / mechanic_count; gate set_size post-Start.
+
+    set_name + mechanic_count flow through immediately — they don't
+    invalidate any downstream artifact. set_size flips the skeleton's
+    target so editing it once a pipeline-state.json exists requires the
+    cascade-clear edit flow (§9 card). Until that ships the field is
+    read-only post-Start; this endpoint rejects the change with 409.
+    """
+    from mtgai.settings.model_settings import (
+        SetParams,
+        apply_settings,
+        get_settings,
+    )
+
+    body = await request.json()
+    code, err = _validate_set_code_in_body(body)
+    if err:
+        return err
+
+    settings = get_settings(code)
+    current = settings.set_params
+    name = body.get("set_name", current.set_name)
+    mech = body.get("mechanic_count", current.mechanic_count)
+    size = body.get("set_size", current.set_size)
+
+    if not isinstance(name, str):
+        return JSONResponse({"error": "set_name must be a string"}, status_code=400)
+    if not isinstance(mech, int) or mech < 0:
+        return JSONResponse({"error": "mechanic_count must be a non-negative int"}, status_code=400)
+    if not isinstance(size, int) or size <= 0:
+        return JSONResponse({"error": "set_size must be a positive int"}, status_code=400)
+
+    pipeline_started = (OUTPUT_ROOT / "sets" / code / "pipeline-state.json").exists()
+    if pipeline_started and size != current.set_size:
+        return JSONResponse(
+            {
+                "error": (
+                    "Changing target size after the pipeline has started will be "
+                    "supported by the cascade-clear edit flow in a follow-up card. "
+                    "For now, set_size is read-only here."
+                ),
+            },
+            status_code=409,
+        )
+
+    new = settings.model_copy(
+        update={"set_params": SetParams(set_name=name, set_size=size, mechanic_count=mech)}
+    )
+    apply_settings(code, new)
+    return JSONResponse({"success": True, "set_params": new.set_params.model_dump()})
+
+
+@router.post("/api/wizard/project/theme-input")
+async def wizard_project_save_theme_input(request: Request) -> JSONResponse:
+    """Persist the Project Settings theme-input pointer.
+
+    Receives the result of an upload (``upload_id`` + filename +
+    char_count) or a switch back to ``existing`` (the user picked
+    "Load existing theme.json"). Same cascade-clear gate as
+    :func:`wizard_project_save_params` — once a pipeline state exists,
+    swapping the input source is deferred to the §9 edit flow.
+    """
+    from mtgai.settings.model_settings import (
+        ThemeInputSource,
+        apply_settings,
+        get_settings,
+    )
+
+    body = await request.json()
+    code, err = _validate_set_code_in_body(body)
+    if err:
+        return err
+
+    kind = body.get("kind")
+    if kind not in ("none", "pdf", "text", "existing"):
+        return JSONResponse({"error": "Invalid theme-input kind"}, status_code=400)
+
+    settings = get_settings(code)
+    pipeline_started = (OUTPUT_ROOT / "sets" / code / "pipeline-state.json").exists()
+    if pipeline_started and settings.theme_input.kind != kind:
+        return JSONResponse(
+            {
+                "error": (
+                    "Changing the theme input after the pipeline has started will be "
+                    "supported by the cascade-clear edit flow in a follow-up card."
+                ),
+            },
+            status_code=409,
+        )
+
+    new_input = ThemeInputSource(
+        kind=kind,
+        filename=body.get("filename") if isinstance(body.get("filename"), str) else None,
+        upload_id=body.get("upload_id") if isinstance(body.get("upload_id"), str) else None,
+        char_count=body.get("char_count") if isinstance(body.get("char_count"), int) else None,
+    )
+    if new_input.kind in ("pdf", "text"):
+        # Stamp uploaded_at server-side so the client can't lie about
+        # freshness — the upload-cache TTL check in `start` is what
+        # actually prevents a stale extraction from running, but the
+        # timestamp gives the audit trail the right value too.
+        from datetime import UTC, datetime
+
+        new_input = new_input.model_copy(update={"uploaded_at": datetime.now(UTC)})
+
+    new = settings.model_copy(update={"theme_input": new_input})
+    apply_settings(code, new)
+    return JSONResponse({"success": True, "theme_input": new.theme_input.model_dump(mode="json")})
+
+
+@router.post("/api/wizard/project/breaks")
+async def wizard_project_save_break(request: Request) -> JSONResponse:
+    """Toggle one break point on or off (live-apply).
+
+    Body: ``{set_code, stage_id, review: bool}``. Always_review stages
+    are rejected with 400 — those are locked-on at the engine level and
+    the UI renders them as such, so accepting writes for them would
+    silently no-op and confuse anyone hand-poking the endpoint.
+    """
+    from mtgai.pipeline.models import STAGE_DEFINITIONS
+    from mtgai.settings.model_settings import apply_settings, get_settings
+
+    body = await request.json()
+    code, err = _validate_set_code_in_body(body)
+    if err:
+        return err
+
+    stage_id = body.get("stage_id")
+    review = body.get("review")
+    if not isinstance(stage_id, str) or not isinstance(review, bool):
+        return JSONResponse({"error": "stage_id (str) and review (bool) required"}, status_code=400)
+
+    defn = next((d for d in STAGE_DEFINITIONS if d["stage_id"] == stage_id), None)
+    if defn is None:
+        return JSONResponse({"error": f"Unknown stage_id {stage_id!r}"}, status_code=400)
+    if defn["always_review"]:
+        return JSONResponse(
+            {"error": f"{stage_id} is always_review — break point is locked on"},
+            status_code=400,
+        )
+
+    settings = get_settings(code)
+    breaks = dict(settings.break_points)
+    if review:
+        breaks[stage_id] = "review"
+    else:
+        breaks.pop(stage_id, None)
+
+    new = settings.model_copy(update={"break_points": breaks})
+    apply_settings(code, new)
+    return JSONResponse({"success": True, "break_points": breaks})
+
+
+@router.post("/api/wizard/project/models")
+async def wizard_project_save_model(request: Request) -> JSONResponse:
+    """Live-apply a single model assignment (or effort override).
+
+    Body: ``{set_code, kind: "llm" | "image" | "effort", stage_id, value}``.
+    The wizard's dropdowns POST one of these per change so we don't have
+    to round-trip the entire ``ModelSettings`` shape on every keystroke.
+    """
+    from mtgai.settings.model_settings import apply_settings, get_settings
+
+    body = await request.json()
+    code, err = _validate_set_code_in_body(body)
+    if err:
+        return err
+
+    kind = body.get("kind")
+    stage_id = body.get("stage_id")
+    value = body.get("value")
+    if kind not in ("llm", "image", "effort"):
+        return JSONResponse({"error": "kind must be llm | image | effort"}, status_code=400)
+    if not isinstance(stage_id, str) or not stage_id:
+        return JSONResponse({"error": "stage_id required"}, status_code=400)
+    if not isinstance(value, str):
+        return JSONResponse({"error": "value must be a string"}, status_code=400)
+
+    settings = get_settings(code)
+    if kind == "llm":
+        new_map = dict(settings.llm_assignments)
+        new_map[stage_id] = value
+        new = settings.model_copy(update={"llm_assignments": new_map})
+    elif kind == "image":
+        new_map = dict(settings.image_assignments)
+        new_map[stage_id] = value
+        new = settings.model_copy(update={"image_assignments": new_map})
+    else:  # effort
+        new_map = dict(settings.effort_overrides)
+        if value:
+            new_map[stage_id] = value
+        else:
+            new_map.pop(stage_id, None)
+        new = settings.model_copy(update={"effort_overrides": new_map})
+
+    apply_settings(code, new)
+    return JSONResponse({"success": True})
+
+
+@router.post("/api/wizard/project/preset/apply")
+async def wizard_project_apply_preset(request: Request) -> JSONResponse:
+    """Apply a built-in preset or saved profile to this set's settings.
+
+    Per §6.8 / §6.4, model assignments and break points come from the
+    preset; per-set values (set_params, theme_input) are NOT touched.
+    Live-apply — no cascade clear — because model swaps don't
+    invalidate already-generated artifacts.
+    """
+    from mtgai.settings.model_settings import (
+        ModelSettings,
+        apply_settings,
+        get_settings,
+    )
+
+    body = await request.json()
+    code, err = _validate_set_code_in_body(body)
+    if err:
+        return err
+    name = body.get("name")
+    if not isinstance(name, str) or not name.strip():
+        return JSONResponse({"error": "Preset name required"}, status_code=400)
+
+    try:
+        preset = ModelSettings.from_preset(name.strip())
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+    current = get_settings(code)
+    merged = current.model_copy(
+        update={
+            "llm_assignments": dict(preset.llm_assignments),
+            "image_assignments": dict(preset.image_assignments),
+            "effort_overrides": dict(preset.effort_overrides),
+            "break_points": dict(preset.break_points),
+        }
+    )
+    apply_settings(code, merged)
+    return JSONResponse({"success": True})
+
+
+@router.post("/api/wizard/project/preset/save")
+async def wizard_project_save_preset(request: Request) -> JSONResponse:
+    """Save this set's model assignments + break points as a profile."""
+    from mtgai.settings.model_settings import get_settings
+
+    body = await request.json()
+    code, err = _validate_set_code_in_body(body)
+    if err:
+        return err
+    name = body.get("name")
+    if not isinstance(name, str) or not name.strip():
+        return JSONResponse({"error": "Profile name required"}, status_code=400)
+
+    settings = get_settings(code)
+    try:
+        path = settings.save_profile(name.strip())
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"success": True, "path": str(path)})
+
+
+@router.post("/api/wizard/project/start")
+async def wizard_project_start(request: Request) -> JSONResponse:
+    """Kick off theme extraction for the chosen input.
+
+    Three branches by ``settings.theme_input.kind``:
+
+    * ``"existing"`` — theme.json already exists; just tell the wizard
+      to navigate to the Theme tab. No extraction runs.
+    * ``"pdf"`` / ``"text"`` — look up the cached upload, start the
+      extraction worker (which writes theme.json on completion), and
+      return the navigation hint. Returns 409 if the AI mutex is held.
+    * ``"none"`` — refuse with 400; the Start button should not have
+      been enabled.
+    """
+    from mtgai.settings.model_settings import get_settings
+
+    body = await request.json()
+    code, err = _validate_set_code_in_body(body)
+    if err:
+        return err
+
+    settings = get_settings(code)
+    kind = settings.theme_input.kind
+    if kind == "none":
+        return JSONResponse(
+            {"error": "Choose a theme input before starting"},
+            status_code=400,
+        )
+
+    if kind == "existing":
+        # Theme.json already on disk — Project Settings is done; the
+        # wizard transitions to Theme without spawning an extraction.
+        return JSONResponse(
+            {"success": True, "extraction_started": False, "navigate_to": "/pipeline/theme"}
+        )
+
+    upload_id = settings.theme_input.upload_id
+    if not upload_id:
+        return JSONResponse(
+            {"error": "Theme input is missing upload_id — re-upload the file"},
+            status_code=400,
+        )
+
+    cached = _upload_cache.get(upload_id)
+    if not cached:
+        return JSONResponse(
+            {"error": "Upload expired — please re-upload the file"},
+            status_code=410,
+        )
+
+    # The fresh-start race in /theme/extract-stream is guarded by an
+    # extra module-level lock; the kickoff path can't collide with that
+    # because it acquires the AI lock atomically below before starting
+    # the worker, and the new worker is the only writer to
+    # extraction_run._run after we call start_run().
+    if ai_lock.is_running():
+        return JSONResponse(ai_lock.busy_payload(), status_code=409)
+
+    model_key = settings.llm_assignments.get("theme_extract", "haiku")
+    extraction_run.start_run(upload_id)
+    _start_extraction_worker(upload_id, cached["text"], model_key, save_to_set=code)
+    return JSONResponse(
+        {
+            "success": True,
+            "extraction_started": True,
+            "navigate_to": "/pipeline/theme",
+            "upload_id": upload_id,
+        }
     )
 
 

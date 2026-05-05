@@ -1,14 +1,12 @@
 /**
- * Wizard tab renderers — generic stage placeholder + project placeholder.
+ * Wizard tab renderer — generic stage placeholder.
  *
  * Per design doc §8.3, every non-Theme stage in v1 renders as
  * "progress-bar + summary block + per-stage event log" — no rich
  * per-stage UI yet. Skeleton/Lands/Reprints already have richer dashboards
  * today; carrying those over is in scope for a later card. The Theme tab
- * has its own renderer in wizard_theme.js.
- *
- * The Project Settings tab is a placeholder until the next card builds
- * the kickoff form.
+ * has its own renderer in wizard_theme.js; the Project Settings tab has
+ * its own renderer in wizard_project.js.
  */
 
 (function () {
@@ -17,7 +15,6 @@
   const W = (window.MTGAIWizard = window.MTGAIWizard || {});
 
   W.registerTabRenderer('stage', renderStageTab);
-  W.registerTabRenderer('project', renderProjectTab);
 
   // ------------------------------------------------------------------
   // Stage tab
@@ -96,47 +93,6 @@
       return `<span class="wiz-footer-note">Retry support lands in a follow-up card.</span>`;
     }
     return '<span class="wiz-footer-note"></span>';
-  }
-
-  // ------------------------------------------------------------------
-  // Project tab placeholder
-  // ------------------------------------------------------------------
-
-  function renderProjectTab({ root, state }) {
-    const content = root.querySelector('[data-role="content"]');
-    const footer = root.querySelector('[data-role="footer"]');
-    if (!content) return;
-
-    const cfg = state.pipeline ? state.pipeline.config : null;
-    const setName = (state.theme && state.theme.name) || (cfg && cfg.set_name) || '—';
-    const setSize = (state.theme && state.theme.set_size) || (cfg && cfg.set_size) || '—';
-    const breakPoints = cfg && cfg.stage_review_modes
-      ? Object.entries(cfg.stage_review_modes)
-          .filter(([, v]) => v === 'review')
-          .map(([k]) => k)
-          .join(', ')
-      : '';
-
-    content.innerHTML = `
-      <div class="wiz-project-placeholder">
-        <h3>Project Settings — ${escHtml(state.activeSet)}</h3>
-        <p>This tab is the kickoff for a new set. The full Project Settings form lands in the next phase of the wizard rebuild — for now it shows a read-only summary of the active set.</p>
-        <dl>
-          <dt>Set code</dt><dd>${escHtml(state.activeSet)}</dd>
-          <dt>Set name</dt><dd>${escHtml(setName)}</dd>
-          <dt>Set size</dt><dd>${escHtml(setSize)}</dd>
-          <dt>Break points</dt><dd>${escHtml(breakPoints || '— none configured —')}</dd>
-        </dl>
-        <div class="wiz-project-cta">
-          Global model defaults live at <a href="/settings">/settings</a>. Per-set
-          settings move into this tab when phase 5 of the wizard ships.
-        </div>
-      </div>
-    `;
-
-    if (footer) {
-      footer.innerHTML = '<span class="wiz-footer-note">Start-project kickoff lands in the next phase.</span>';
-    }
   }
 
   // ------------------------------------------------------------------

@@ -23,8 +23,9 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
@@ -193,6 +194,44 @@ def validate_profile_name(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+# Theme input source kinds. ``"none"`` is the brand-new state (no input
+# chosen yet — the Project Settings Start button stays disabled).
+# ``"existing"`` means the set already has a theme.json that was written
+# previously (no upload needed). ``"pdf"`` and ``"text"`` reference the
+# in-memory upload cache via ``upload_id``.
+ThemeInputKind = Literal["none", "pdf", "text", "existing"]
+
+
+class SetParams(BaseModel):
+    """Numeric / structural parameters for a set.
+
+    Lifted out of theme.json — theme.json now owns content-extracted fields
+    only (constraints, card requests, setting prose). These numbers guide
+    extraction prompts but are not extracted from prose.
+    """
+
+    set_name: str = ""
+    set_size: int = 60
+    mechanic_count: int = 3
+
+
+class ThemeInputSource(BaseModel):
+    """Bookmark for the upload that seeded this set's theme extraction.
+
+    The actual file content lives in the server's in-memory upload cache
+    (``_upload_cache`` in ``pipeline.server``). This block records *what*
+    was chosen for resumability + audit. Its fields are populated in
+    response to the Project Settings tab's upload widget; ``"existing"``
+    is the bootstrap state for sets whose theme.json predates this card.
+    """
+
+    kind: ThemeInputKind = "none"
+    filename: str | None = None
+    upload_id: str | None = None
+    char_count: int | None = None
+    uploaded_at: datetime | None = None
+
+
 class ModelSettings(BaseModel):
     """Per-stage model assignments — the active configuration for one set."""
 
@@ -201,6 +240,15 @@ class ModelSettings(BaseModel):
         default_factory=lambda: dict(DEFAULT_IMAGE_ASSIGNMENTS)
     )
     effort_overrides: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_EFFORT))
+    # Per-stage break-point overrides (stage_id -> "auto" | "review").
+    # Stays empty until the Project Settings tab toggles a checkbox.
+    # Locked-on `human_*` stages are NOT written here — the engine
+    # enforces those at pipeline-create time via STAGE_DEFINITIONS.
+    break_points: dict[str, str] = Field(default_factory=dict)
+    # Set parameters + theme input both live here so settings.toml is the
+    # single source of truth for everything Project Settings owns.
+    set_params: SetParams = Field(default_factory=SetParams)
+    theme_input: ThemeInputSource = Field(default_factory=ThemeInputSource)
 
     def get_llm_model_id(self, stage_id: str) -> str:
         """Resolve the API model_id for a pipeline stage.
@@ -240,8 +288,14 @@ class ModelSettings(BaseModel):
                 return None
         return effort
 
-    def to_toml_doc(self) -> TOMLDocument:
-        """Build a tomlkit document for this settings instance."""
+    def to_toml_doc(self, *, profile_only: bool = False) -> TOMLDocument:
+        """Build a tomlkit document for this settings instance.
+
+        ``profile_only`` strips per-set fields (``set_params``,
+        ``theme_input``) so the document is a portable template — used
+        when saving a profile to the global library. Break points stay
+        because they're a meaningful part of a workflow profile (§6.8).
+        """
         import tomlkit
 
         doc = tomlkit.document()
@@ -253,6 +307,24 @@ class ModelSettings(BaseModel):
         if any(self.effort_overrides.values()):
             doc.add(tomlkit.nl())
             doc.add("effort_overrides", {k: v for k, v in self.effort_overrides.items() if v})
+        if self.break_points:
+            doc.add(tomlkit.nl())
+            doc.add("break_points", dict(self.break_points))
+        if not profile_only:
+            doc.add(tomlkit.nl())
+            doc.add("set_params", self.set_params.model_dump())
+            if self.theme_input.kind != "none":
+                # ThemeInputSource carries a datetime which tomlkit serialises
+                # natively; ``mode="json"`` would coerce to ISO string and
+                # tomlkit would re-parse it back to datetime on read, but
+                # going through the native path keeps the file readable.
+                ti = self.theme_input.model_dump()
+                # Drop None values so they don't show as `key = nil` (tomlkit
+                # rejects None) — load_from_file's getattr defaults handle
+                # the absence cleanly.
+                ti = {k: v for k, v in ti.items() if v is not None}
+                doc.add(tomlkit.nl())
+                doc.add("theme_input", ti)
         return doc
 
     def write_toml(self, path: Path) -> Path:
@@ -264,10 +336,17 @@ class ModelSettings(BaseModel):
         return path
 
     def save_profile(self, name: str) -> Path:
-        """Save these settings as a named profile in the global library."""
+        """Save these settings as a named profile in the global library.
+
+        Per design §6.8, profiles capture model assignments + break
+        points but exclude per-set values (set parameters, theme input).
+        """
+        import tomlkit
+
         name = validate_profile_name(name)
         path = SETTINGS_DIR / f"{name}.toml"
-        self.write_toml(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(tomlkit.dumps(self.to_toml_doc(profile_only=True)), encoding="utf-8")
         logger.info("Saved profile %r to %s", name, path)
         return path
 
@@ -283,6 +362,9 @@ class ModelSettings(BaseModel):
             llm_assignments=data.get("llm_assignments", {}),
             image_assignments=data.get("image_assignments", {}),
             effort_overrides=data.get("effort_overrides", {}),
+            break_points=data.get("break_points", {}),
+            set_params=SetParams(**data.get("set_params", {})),
+            theme_input=ThemeInputSource(**data.get("theme_input", {})),
         )
 
     @classmethod
@@ -349,6 +431,9 @@ class ModelSettings(BaseModel):
             "llm_stages": llm_stages,
             "image_stages": image_stages,
             "effort_overrides": dict(self.effort_overrides),
+            "break_points": dict(self.break_points),
+            "set_params": self.set_params.model_dump(),
+            "theme_input": self.theme_input.model_dump(mode="json"),
         }
 
 
@@ -481,6 +566,58 @@ def apply_global_settings(settings: GlobalSettings) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _migrate_set_params_from_theme(set_code: str, settings: ModelSettings) -> ModelSettings:
+    """One-shot lift of name / set_size / mechanic_count out of theme.json.
+
+    Pre-Project-Settings these three fields lived on ``theme.json`` and
+    were round-tripped by the Theme tab's save handler. They're set-shape
+    numerics (not extracted content) so they belong in ``settings.toml``.
+    Run only when seeding a brand-new ``settings.toml`` — once the
+    per-set file exists, the theme.json copy is treated as stale.
+
+    The theme.json file itself isn't modified; the next Theme save will
+    drop those keys naturally because the wizard stops writing them.
+    """
+    import json as _json
+
+    theme_path = SETS_DIR / set_code / "theme.json"
+    if not theme_path.exists():
+        return settings
+    try:
+        theme = _json.loads(theme_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return settings
+    if not isinstance(theme, dict):
+        return settings
+
+    params = settings.set_params
+    name = theme.get("name") if isinstance(theme.get("name"), str) else None
+    set_size = theme.get("set_size") if isinstance(theme.get("set_size"), int) else None
+    mech = theme.get("mechanic_count") if isinstance(theme.get("mechanic_count"), int) else None
+    if name is None and set_size is None and mech is None:
+        return settings
+
+    settings.set_params = SetParams(
+        set_name=name or params.set_name,
+        set_size=set_size if set_size is not None else params.set_size,
+        mechanic_count=mech if mech is not None else params.mechanic_count,
+    )
+    # Theme.json's existence is the "this set has been worked on" signal.
+    # Treat it as the implicit theme input source so the Project Settings
+    # tab doesn't show "no input chosen" + a disabled Start for an
+    # already-extracted set.
+    if settings.theme_input.kind == "none":
+        settings.theme_input = ThemeInputSource(kind="existing")
+    logger.info(
+        "Migrated set_params from theme.json for %s (name=%r set_size=%s mechanic_count=%s)",
+        set_code,
+        name,
+        set_size,
+        mech,
+    )
+    return settings
+
+
 def _seed_per_set_settings(set_code: str) -> ModelSettings:
     """Build initial ModelSettings for a set with no settings.toml.
 
@@ -490,6 +627,9 @@ def _seed_per_set_settings(set_code: str) -> ModelSettings:
       2. global ``default_preset`` resolves to a built-in preset or a saved
          profile → seed from it.
       3. fall back to ``ModelSettings()`` defaults.
+
+    After picking a base, lift name / set_size / mechanic_count out of
+    theme.json if present (pre-Project-Settings sets stored those there).
     """
     if LEGACY_CURRENT_TOML.exists():
         try:
@@ -497,7 +637,7 @@ def _seed_per_set_settings(set_code: str) -> ModelSettings:
             logger.info(
                 "Seeded settings for set %s from legacy %s", set_code, LEGACY_CURRENT_TOML.name
             )
-            return settings
+            return _migrate_set_params_from_theme(set_code, settings)
         except Exception:
             logger.warning(
                 "Failed to read legacy current.toml when seeding %s; trying global default",
@@ -511,7 +651,7 @@ def _seed_per_set_settings(set_code: str) -> ModelSettings:
         logger.info(
             "Seeded settings for set %s from default preset %r", set_code, glob.default_preset
         )
-        return settings
+        return _migrate_set_params_from_theme(set_code, settings)
     except Exception:
         logger.warning(
             "Default preset %r unavailable for set %s; using built-in defaults",
@@ -519,7 +659,27 @@ def _seed_per_set_settings(set_code: str) -> ModelSettings:
             set_code,
             exc_info=True,
         )
-        return ModelSettings()
+        return _migrate_set_params_from_theme(set_code, ModelSettings())
+
+
+def _looks_pre_project_settings(settings: ModelSettings) -> bool:
+    """True if a loaded settings.toml looks pre-Project-Settings.
+
+    Existing per-set settings.toml files written before this card don't
+    have ``[set_params]`` or ``[theme_input]`` blocks; load_from_file
+    fills them with defaults. We treat "all defaults + no theme input
+    chosen" as the signal to one-shot migrate from theme.json on first
+    load. The set_name == "" gate prevents re-migrating after a user
+    explicitly cleared the name on the Project Settings tab (which
+    would write empty string, but the other fields would have moved).
+    """
+    sp = settings.set_params
+    return (
+        sp.set_name == ""
+        and sp.set_size == 60
+        and sp.mechanic_count == 3
+        and settings.theme_input.kind == "none"
+    )
 
 
 def get_settings(set_code: str) -> ModelSettings:
@@ -529,6 +689,11 @@ def get_settings(set_code: str) -> ModelSettings:
     the file from migration sources (see ``_seed_per_set_settings``) if it
     doesn't yet exist. Subsequent calls hit the in-memory cache; the cache
     is invalidated by :func:`apply_settings`.
+
+    For settings.toml files that pre-date the Project Settings card,
+    name / set_size / mechanic_count are lifted out of theme.json on
+    first load and persisted back; later loads see the already-populated
+    fields and skip the migration.
     """
     set_code = _validate_set_code(set_code)
 
@@ -544,6 +709,15 @@ def get_settings(set_code: str) -> ModelSettings:
             logger.warning("Failed to load %s; reseeding from defaults", path, exc_info=True)
             settings = _seed_per_set_settings(set_code)
             settings.write_toml(path)
+        else:
+            if _looks_pre_project_settings(settings):
+                migrated = _migrate_set_params_from_theme(set_code, settings)
+                # Only re-write if the migration actually touched something —
+                # set-without-theme.json round-trip would otherwise re-stamp
+                # the file with no real change every server boot.
+                if not _looks_pre_project_settings(migrated):
+                    migrated.write_toml(path)
+                settings = migrated
     else:
         settings = _seed_per_set_settings(set_code)
         settings.write_toml(path)

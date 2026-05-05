@@ -278,44 +278,208 @@
 }
 
 /* --------------------------------------------------------------------------
-   Project tab placeholder (proper UI lands in the next phase)
+   Project Settings tab — kickoff form
    -------------------------------------------------------------------------- */
-.wiz-project-placeholder {
-  padding: 1.25rem;
-  background: #0f1729;
-  border: 1px dashed #1f2540;
-  border-radius: 8px;
-  color: #aaa;
-  font-size: 0.9rem;
-  line-height: 1.55;
-}
-
-.wiz-project-placeholder h3 {
-  color: #e0e0e0;
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-}
-
-.wiz-project-placeholder dl {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.3rem 1.5rem;
-  margin: 0.75rem 0;
-}
-
-.wiz-project-placeholder dt { color: #888; font-size: 0.8rem; }
-.wiz-project-placeholder dd { margin: 0; color: #ddd; font-size: 0.85rem; }
-
-.wiz-project-placeholder .wiz-project-cta {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #1f2540;
-  font-size: 0.82rem;
+.wiz-project-loading,
+.wiz-project-error {
+  padding: 1.5rem;
+  text-align: center;
   color: #888;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+.wiz-project-error { color: #ffbac4; }
+
+.wiz-proj-section {
+  background: #0f1729;
+  border: 1px solid #1f2540;
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
 }
 
-.wiz-project-placeholder .wiz-project-cta a {
-  color: #4a9eff;
+.wiz-proj-section h3 {
+  margin: 0 0 0.4rem 0;
+  font-size: 0.98rem;
+  color: #e0e0e0;
+}
+
+.wiz-proj-desc {
+  color: #888;
+  font-size: 0.8rem;
+  margin: 0 0 0.6rem 0;
+}
+
+.wiz-proj-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.wiz-proj-grid label,
+.wiz-proj-theme-input label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: #aaa;
+}
+
+.wiz-proj-grid input,
+.wiz-proj-grid select {
+  padding: 0.45rem 0.65rem;
+  background: var(--bg-primary, #1a1a2e);
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-size: 0.85rem;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.wiz-proj-grid input:focus { outline: none; border-color: #4a9eff; }
+.wiz-proj-grid input:disabled {
+  background: rgba(0,0,0,0.2);
+  color: #666;
+  cursor: not-allowed;
+}
+
+/* Theme input controls */
+.wiz-proj-theme-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.wiz-ti-status {
+  font-size: 0.85rem;
+  color: #ddd;
+}
+
+.wiz-ti-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.wiz-ti-upload-btn {
+  display: inline-block;
+  cursor: pointer;
+}
+
+.wiz-ti-paste-area {
+  width: 100%;
+  min-height: 8rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-primary, #1a1a2e);
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.wiz-ti-paste-area:focus { outline: none; border-color: #4a9eff; }
+
+/* Break points list */
+.wiz-bp-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.3rem 1.25rem;
+}
+
+.wiz-bp-row {
+  display: flex;
+  align-items: center;
+}
+
+.wiz-bp-row label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: #ccc;
+  cursor: pointer;
+}
+
+.wiz-bp-row input:disabled + * { color: #888; }
+
+.wiz-bp-lock {
+  font-size: 0.75rem;
+  margin-left: 0.2rem;
+}
+
+/* Preset row */
+.wiz-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.wiz-preset-group-label {
+  font-size: 0.78rem;
+  color: #888;
+  margin-right: 0.25rem;
+}
+
+.wiz-preset-actions {
+  margin-top: 0.4rem;
+}
+
+/* Models table */
+.wiz-models-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.wiz-models-table th {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #1f2540;
+  color: #888;
+  font-weight: 600;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+}
+
+.wiz-models-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: #ddd;
+  vertical-align: middle;
+}
+
+.wiz-models-table select {
+  padding: 0.3rem 0.5rem;
+  background: var(--bg-primary, #1a1a2e);
+  border: 1px solid #333;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 0.82rem;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.wiz-models-table select:focus { outline: none; border-color: #4a9eff; }
+
+.wiz-effort-na {
+  color: #555;
+  font-size: 0.85rem;
+}
+
+.wiz-extraction-strip {
+  background: rgba(74, 158, 255, 0.08);
+  border: 1px solid rgba(74, 158, 255, 0.25);
+  border-radius: 6px;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.82rem;
+  color: #ccc;
 }
 
 /* --------------------------------------------------------------------------
