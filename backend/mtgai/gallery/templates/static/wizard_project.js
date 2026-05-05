@@ -32,6 +32,26 @@
 
   W.registerTabRenderer('project', renderProjectTab);
 
+  // Cross-tab sync: when wizard_stage.js toggles a per-tab "Stop
+  // after this step" checkbox, mirror the change into our local
+  // payload + DOM so the Project Settings break-point row reflects
+  // it on next paint (or immediately if the user is already here).
+  W.onBreakPointChanged = function (stageId, review) {
+    if (local.data && local.data.break_points) {
+      const row = local.data.break_points.find(bp => bp.stage_id === stageId);
+      if (row && !row.always_review) row.review = review;
+    }
+    const cb = document.querySelector(
+      `.wiz-bp-row input[type="checkbox"][data-stage-id="${cssEsc(stageId)}"]`,
+    );
+    if (cb && !cb.disabled) cb.checked = review;
+  };
+
+  function cssEsc(s) {
+    if (window.CSS && CSS.escape) return CSS.escape(s);
+    return String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+  }
+
   function renderProjectTab({ root, state }) {
     if (local.initialized) {
       // SSE-driven re-render — refresh the extraction-state strip if
@@ -378,6 +398,13 @@
             const data = await resp.json().catch(() => ({}));
             W.toast(data.error || 'Save failed', 'error');
             cb.checked = !cb.checked; // revert
+            return;
+          }
+          // Mirror into the shell's breakPoints map so the per-tab
+          // "Stop after this step" checkbox in stage headers reflects
+          // the change without a page reload.
+          if (state.breakPoints) {
+            state.breakPoints[cb.dataset.stageId] = cb.checked;
           }
         } catch (err) {
           W.toast('Network error: ' + err.message, 'error');

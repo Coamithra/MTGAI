@@ -23,6 +23,7 @@
   function renderStageTab({ tab, root, state }) {
     const content = root.querySelector('[data-role="content"]');
     const footer = root.querySelector('[data-role="footer"]');
+    const headerActions = root.querySelector('[data-role="header-actions"]');
     if (!content) return;
 
     const stage = findStage(state, tab.id);
@@ -37,11 +38,83 @@
       footer.innerHTML = stageFooterHtml(stage, state);
     }
 
+    if (headerActions) {
+      // Idempotent re-render: SSE-driven rerenders fire on every
+      // stage_update / item_progress event. Replacing innerHTML on
+      // each tick would detach an in-flight click's checkbox before
+      // its POST resolves and re-bind a fresh listener, so guard on
+      // the value the toggle currently displays.
+      const desiredChecked = !!stage.always_review || !!state.breakPoints[stage.stage_id];
+      const existing = headerActions.querySelector('input[data-role="stage-break"]');
+      const existingChecked = existing && existing.checked;
+      if (!existing || existingChecked !== desiredChecked) {
+        headerActions.innerHTML = breakPointToggleHtml(stage, state);
+        bindBreakPointToggle(headerActions, stage, state);
+      }
+    }
+
     const pill = root.querySelector('.wiz-status-pill');
     if (pill) {
       pill.className = 'wiz-status-pill ' + stage.status;
       pill.textContent = stage.status.replace(/_/g, ' ');
     }
+  }
+
+  // ------------------------------------------------------------------
+  // Break-point toggle (per design §6.7 / §8.2)
+  // ------------------------------------------------------------------
+
+  function breakPointToggleHtml(stage, state) {
+    const lockedOn = !!stage.always_review;
+    const checked = lockedOn || !!state.breakPoints[stage.stage_id];
+    const disabledAttr = lockedOn ? 'disabled aria-disabled="true"' : '';
+    const titleAttr = lockedOn
+      ? ' title="Always pauses for review"'
+      : ' title="When checked, the wizard pauses after this stage finishes."';
+    const labelText = lockedOn ? 'Stop after this step (always on)' : 'Stop after this step';
+    const lockGlyph = lockedOn ? ' <span class="wiz-bp-lock" aria-hidden="true">🔒</span>' : '';
+    return `
+      <label class="wiz-stage-break-toggle"${titleAttr}>
+        <input
+          type="checkbox"
+          data-role="stage-break"
+          ${checked ? 'checked' : ''}
+          ${disabledAttr}
+        >
+        ${labelText}${lockGlyph}
+      </label>
+    `;
+  }
+
+  function bindBreakPointToggle(container, stage, state) {
+    const cb = container.querySelector('input[data-role="stage-break"]');
+    if (!cb || cb.disabled) return;
+    cb.addEventListener('change', async () => {
+      const desired = cb.checked;
+      try {
+        const resp = await window.MTGAIWizard.postJSON('/api/wizard/project/breaks', {
+          set_code: state.activeSet,
+          stage_id: stage.stage_id,
+          review: desired,
+        });
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          window.MTGAIWizard.toast(data.error || 'Save failed', 'error');
+          cb.checked = !desired;
+          return;
+        }
+        state.breakPoints[stage.stage_id] = desired;
+        // Notify peer renderers (Project Settings) that a break-point
+        // bit changed. wizard_project listens via this hook so its
+        // checkbox row stays in sync without a refetch.
+        if (typeof window.MTGAIWizard.onBreakPointChanged === 'function') {
+          window.MTGAIWizard.onBreakPointChanged(stage.stage_id, desired);
+        }
+      } catch (err) {
+        window.MTGAIWizard.toast('Network error: ' + err.message, 'error');
+        cb.checked = !desired;
+      }
+    });
   }
 
   function stageBodyHtml(stage) {

@@ -30,11 +30,29 @@ from mtgai.pipeline.wizard import (
 
 @pytest.fixture
 def sets_root(tmp_path, monkeypatch):
+    """Isolated SETS_ROOT + per-set settings store.
+
+    The break-points payload reads through `get_settings(set_code)`
+    which loads the per-set TOML and a global default file. Pointing
+    every settings path at tmp_path keeps the resolver from leaking
+    into the developer's real `<repo>/output/` store.
+    """
+    from mtgai.settings import model_settings as ms
+
     root = tmp_path / "sets"
+    settings_dir = tmp_path / "settings"
     root.mkdir()
+    settings_dir.mkdir()
     monkeypatch.setattr("mtgai.pipeline.wizard.SETS_ROOT", root)
     monkeypatch.setattr("mtgai.pipeline.engine.OUTPUT_ROOT", tmp_path)
-    return root
+    monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
+    monkeypatch.setattr(ms, "SETS_DIR", root)
+    monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
+    monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
+    ms.invalidate_cache()
+    yield root
+    ms.invalidate_cache()
 
 
 def _state_for(set_code: str = "TST") -> PipelineState:
@@ -189,3 +207,25 @@ def test_serialize_round_trips_visible_tabs(sets_root):
     assert [t["id"] for t in blob["visible_tabs"]] == ["project", "theme"]
     assert blob["pipeline_state"] is None
     assert blob["theme"] == {"code": "TST"}
+    # break_points is keyed by stage_id; always_review stages are forced True
+    # so the per-tab checkbox can render them as locked-on without a second fetch.
+    assert isinstance(blob["break_points"], dict)
+    assert blob["break_points"]["human_card_review"] is True
+    assert blob["break_points"]["human_art_review"] is True
+    assert blob["break_points"]["human_final_review"] is True
+    assert blob["break_points"]["card_gen"] is False  # default off
+
+
+def test_break_points_reflect_settings_toggle(sets_root):
+    """A settings.break_points entry surfaces as True for that stage."""
+    from mtgai.settings import model_settings as ms
+
+    (sets_root / "TST").mkdir()
+    settings = ms.get_settings("TST")
+    new = settings.model_copy(update={"break_points": {"card_gen": "review"}})
+    ms.apply_settings("TST", new)
+
+    ws = build_wizard_state("TST", requested_tab=None)
+    assert ws.break_points["card_gen"] is True
+    assert ws.break_points["skeleton"] is False  # untouched stays off
+    assert ws.break_points["human_card_review"] is True  # always_review still locked-on

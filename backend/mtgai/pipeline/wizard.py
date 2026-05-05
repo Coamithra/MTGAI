@@ -27,8 +27,10 @@ from mtgai.pipeline.engine import load_state
 from mtgai.pipeline.models import (
     PipelineState,
     StageStatus,
+    break_point_states,
 )
 from mtgai.runtime.runtime_state import SETS_ROOT
+from mtgai.settings.model_settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +58,12 @@ class WizardState:
     active_tab_id: str
     pipeline_state: PipelineState | None
     theme: dict[str, Any] | None
+    # stage_id -> True if a break point is set after this stage. Mirrors
+    # the Project Settings tab's break-point list so the per-tab "Stop
+    # after this step" checkbox can show its initial value without a
+    # second fetch. always_review stages (human_card_review etc.) render
+    # as locked-on regardless of what settings.break_points stores.
+    break_points: dict[str, bool]
 
 
 def _load_theme_for(set_code: str) -> dict[str, Any] | None:
@@ -148,6 +156,7 @@ def build_wizard_state(set_code: str, requested_tab: str | None) -> WizardState:
         active_tab_id=active,
         pipeline_state=state,
         theme=theme,
+        break_points=break_point_states(get_settings(set_code).break_points),
     )
 
 
@@ -165,4 +174,5 @@ def serialize(ws: WizardState) -> dict[str, Any]:
             ws.pipeline_state.model_dump(mode="json") if ws.pipeline_state else None
         ),
         "theme": ws.theme,
+        "break_points": dict(ws.break_points),
     }
