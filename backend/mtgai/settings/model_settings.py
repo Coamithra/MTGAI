@@ -1,5 +1,9 @@
 """Per-stage model assignments — per-set TOML files plus a small global file.
 
+Set codes are validated against the same shape used by the rest of the app
+(``[A-Z0-9]{2,5}``) so a typo can't silently poison the directory tree under
+``output/sets/``.
+
 Each set owns its own ``output/sets/<SET>/settings.toml`` (LLM/image/effort
 assignments). A separate ``output/settings/global.toml`` carries cross-set
 defaults — currently just the *default preset* used to seed new sets.
@@ -18,11 +22,29 @@ values onto ``StageState``.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
 from mtgai.settings.model_registry import get_registry
+
+if TYPE_CHECKING:
+    from tomlkit import TOMLDocument
+
+# Same shape the active-set picker enforces (mtgai.runtime.active_set). Kept
+# as a local copy to avoid a circular dependency on the runtime package.
+_SET_CODE_RE = re.compile(r"^[A-Z0-9]{2,5}$")
+
+
+def _validate_set_code(set_code: str) -> str:
+    if not set_code:
+        raise ValueError("set_code is required")
+    if not _SET_CODE_RE.match(set_code):
+        raise ValueError(f"Invalid set_code {set_code!r}: must match [A-Z0-9]{{2,5}}")
+    return set_code
+
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +217,7 @@ class ModelSettings(BaseModel):
                 return None
         return effort
 
-    def to_toml_doc(self):
+    def to_toml_doc(self) -> TOMLDocument:
         """Build a tomlkit document for this settings instance."""
         import tomlkit
 
@@ -245,7 +267,18 @@ class ModelSettings(BaseModel):
 
     @classmethod
     def from_preset(cls, preset_name: str) -> ModelSettings:
-        """Create settings from a named built-in preset or saved profile."""
+        """Create settings from a named built-in preset or saved profile.
+
+        Reserved names (``global``, ``current``) are rejected — those files
+        are not user profiles, and resolving them would silently produce
+        an empty ``ModelSettings`` (every field falling through to its
+        default factory) which hides configuration mistakes.
+        """
+        if preset_name in RESERVED_PROFILE_NAMES:
+            raise ValueError(
+                f"Preset name {preset_name!r} is reserved (global.toml / current.toml "
+                "are not user-facing profiles)"
+            )
         if preset_name in PRESETS:
             preset = PRESETS[preset_name]
             return cls(
@@ -403,7 +436,21 @@ def get_global_settings() -> GlobalSettings:
 
 
 def apply_global_settings(settings: GlobalSettings) -> None:
-    """Replace the cached global settings and persist to disk."""
+    """Replace the cached global settings and persist to disk.
+
+    The ``default_preset`` is checked against built-in presets and the
+    saved-profile library; an unknown name would silently fall back to
+    defaults on every new set, so we surface it loudly here.
+    """
+    name = settings.default_preset
+    if name in RESERVED_PROFILE_NAMES:
+        raise ValueError(f"default_preset {name!r} is reserved; pick a built-in or saved profile")
+    if name not in PRESETS and name not in list_profiles():
+        raise ValueError(
+            f"Unknown default_preset {name!r}. Built-ins: {sorted(PRESETS)}; "
+            f"saved profiles: {list_profiles()}"
+        )
+
     global _global_cache
     _global_cache = settings
     settings.write()
@@ -463,8 +510,7 @@ def get_settings(set_code: str) -> ModelSettings:
     doesn't yet exist. Subsequent calls hit the in-memory cache; the cache
     is invalidated by :func:`apply_settings`.
     """
-    if not set_code:
-        raise ValueError("set_code is required")
+    set_code = _validate_set_code(set_code)
 
     cached = _per_set_cache.get(set_code)
     if cached is not None:
@@ -488,8 +534,7 @@ def get_settings(set_code: str) -> ModelSettings:
 
 def apply_settings(set_code: str, settings: ModelSettings) -> Path:
     """Persist the given settings as the active config for a set."""
-    if not set_code:
-        raise ValueError("set_code is required")
+    set_code = _validate_set_code(set_code)
     path = _set_settings_path(set_code)
     settings.write_toml(path)
     _per_set_cache[set_code] = settings

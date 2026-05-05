@@ -379,16 +379,17 @@ def assign_evergreen_keywords() -> dict[str, list[str]]:
 
 
 def generate_mechanic_candidates(
+    set_code: str,
     theme_path: str | Path | None = None,
-    set_code: str = "ASD",
 ) -> list[dict]:
     """Generate mechanic candidates for a set via LLM.
 
     Args:
+        set_code: Set code whose model assignment to use for this stage.
+            Required — there is no sensible default.
         theme_path: Optional path to theme.json for context.
             Not directly injected into prompt (already in system prompt),
             but used for logging/verification.
-        set_code: Set code whose model assignment to use for this stage.
 
     Returns:
         List of mechanic candidate dicts.

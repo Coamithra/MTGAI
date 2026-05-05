@@ -656,6 +656,7 @@ def regenerate_slots(
             stop_reason=result.get("stop_reason", ""),
             user_prompt=user_prompt,
             system_prompt=system_prompt,
+            effort=gen_effort,
         )
 
         # Also save a copy to revision_logs with full detail
@@ -699,6 +700,7 @@ def regenerate_slots(
             system_prompt=system_prompt,
             latency_s=api_latency,
             stop_reason=result.get("stop_reason", ""),
+            effort=gen_effort,
         )
         all_saved.extend(saved)
 

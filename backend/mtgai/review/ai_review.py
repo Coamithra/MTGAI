@@ -445,10 +445,16 @@ def _review_single(
     card: dict,
     mechanics: list[dict],
     pointed_questions: list[dict],
-    set_code: str,
+    review_model: str,
+    review_effort: str | None,
     max_iterations: int = MAX_ITERATIONS,
 ) -> CardReviewResult:
-    """Single Opus reviewer + iteration loop for C/U cards."""
+    """Single Opus reviewer + iteration loop for C/U cards.
+
+    ``review_model`` / ``review_effort`` are resolved once by the caller
+    (``review_set``) before the per-card loop starts so a mid-run settings
+    change can't swap the model between cards.
+    """
     collector_number = card.get("collector_number", card.get("slot_id", "???"))
     card_name = card.get("name", "???")
     rarity = card.get("rarity", "???")
@@ -460,11 +466,6 @@ def _review_single(
     total_out = 0
     total_cost = 0.0
     total_latency = 0.0
-
-    # Resolve once for the whole card so mid-card settings changes don't
-    # swap the model partway through the iteration loop.
-    review_model = _review_model(set_code)
-    review_effort = _review_effort(set_code)
 
     # First iteration
     user_prompt = _build_review_prompt(card, mechanics, pointed_questions)
@@ -584,11 +585,17 @@ def _review_council(
     card: dict,
     mechanics: list[dict],
     pointed_questions: list[dict],
-    set_code: str,
+    review_model: str,
+    review_effort: str | None,
     num_reviewers: int = 3,
     max_iterations: int = MAX_ITERATIONS,
 ) -> CardReviewResult:
-    """Full council (3 independent reviewers + synthesizer) + iteration for R/M cards."""
+    """Full council (3 independent reviewers + synthesizer) + iteration for R/M cards.
+
+    ``review_model`` / ``review_effort`` are resolved once by the caller
+    (``review_set``) before the per-card loop starts so a mid-run settings
+    change can't swap the model between cards.
+    """
     collector_number = card.get("collector_number", card.get("slot_id", "???"))
     card_name = card.get("name", "???")
     rarity = card.get("rarity", "???")
@@ -600,11 +607,6 @@ def _review_council(
         card_name,
         rarity,
     )
-
-    # Resolve once for the whole card so mid-card settings changes don't
-    # swap the model partway through the council + synthesis loop.
-    review_model = _review_model(set_code)
-    review_effort = _review_effort(set_code)
 
     council_reviews: list[CouncilMemberReview] = []
     effective_model = review_model
@@ -1265,6 +1267,12 @@ def review_set(
         logger.info("DRY RUN -- no API calls made.")
         return []
 
+    # Resolve once for the whole stage so a mid-run settings change can't
+    # swap the model between cards. Matches the "no mid-stage swap"
+    # guarantee in CLAUDE.md (`Model Settings`).
+    review_model = _review_model(set_code)
+    review_effort = _review_effort(set_code)
+
     # Review!
     reviews: list[CardReviewResult] = []
     start_time = time.time()
@@ -1281,9 +1289,11 @@ def review_set(
         )
 
         if tier == "council":
-            result = _review_council(card, mechanics, pointed_questions, set_code)
+            result = _review_council(
+                card, mechanics, pointed_questions, review_model, review_effort
+            )
         else:
-            result = _review_single(card, mechanics, pointed_questions, set_code)
+            result = _review_single(card, mechanics, pointed_questions, review_model, review_effort)
 
         reviews.append(result)
 

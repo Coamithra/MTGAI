@@ -100,13 +100,15 @@ async def _lifespan(application: FastAPI) -> AsyncGenerator[None]:
     set_code = _get_set_code()
     set_dir = _set_dir(set_code)
 
-    # Eagerly load the per-set model settings so they are seeded on disk
-    # and ready before any request arrives. Subsequent calls hit the cache.
+    # Seed the active set's model settings (creates settings.toml on disk
+    # via the migration path if it doesn't exist yet) so the first request
+    # against the dashboard doesn't pay that cost. Other sets seed lazily
+    # on first stage call — there's nothing global to "load" anymore.
     settings = get_settings(set_code)
     logger.info(
-        "Active model settings for %s: %s",
+        "Active set %s model assignments: %s",
         set_code,
-        {k: v for k, v in settings.llm_assignments.items()},
+        dict(settings.llm_assignments),
     )
 
     renders_dir = set_dir / "renders"

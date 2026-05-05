@@ -45,9 +45,6 @@ PROGRESS_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "generation_progress.j
 LOG_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "generation_logs"
 
 # LLM settings — model + effort come from per-set model_settings at runtime.
-# EFFORT here is only the per-batch log fallback when the resolved effort is
-# None (Sonnet/Haiku); kept so logs always carry a string.
-EFFORT = "max"
 TEMPERATURE = 1.0
 BATCH_SIZE = 5
 MAX_RETRIES = 3  # Only for schema parse failures
@@ -364,7 +361,7 @@ def _save_batch_log(
         "card_count_returned": len(raw_cards),
         "model": model,
         "temperature": TEMPERATURE,
-        "effort": effort or EFFORT,
+        "effort": effort or "default",
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "cost_usd": round(cost_usd, 6),
@@ -817,7 +814,6 @@ def generate_set(
     start_time = time.time()
 
     for batch_idx, batch in enumerate(batches, 1):
-        model = active_model
         slot_ids = [s["slot_id"] for s in batch]
         batch_start = time.time()
 
@@ -826,7 +822,7 @@ def generate_set(
             "BATCH %d/%d [%s] — %d cards: %s",
             batch_idx,
             len(batches),
-            model,
+            active_model,
             len(batch),
             ", ".join(slot_ids),
         )
@@ -868,7 +864,7 @@ def generate_set(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 tool_schema=tool_schema,
-                model=model,
+                model=active_model,
                 temperature=TEMPERATURE,
                 max_tokens=8192,
                 effort=active_effort,
@@ -886,7 +882,7 @@ def generate_set(
 
         batch_cost = cost_from_result(result)
         progress.record_call(
-            model,
+            active_model,
             result["input_tokens"],
             result["output_tokens"],
             result.get("cache_creation_input_tokens", 0),
@@ -931,7 +927,7 @@ def generate_set(
             batch_idx=batch_idx,
             slots=batch,
             raw_cards=raw_cards,
-            model=model,
+            model=active_model,
             input_tokens=result["input_tokens"],
             output_tokens=result["output_tokens"],
             cost_usd=batch_cost,
@@ -961,7 +957,7 @@ def generate_set(
             existing_cards,
             mechanics,
             theme,
-            model,
+            active_model,
             result["input_tokens"],
             result["output_tokens"],
             progress,

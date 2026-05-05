@@ -49,6 +49,38 @@ def test_get_settings_requires_set_code():
         ms.get_settings("")
 
 
+@pytest.mark.parametrize("bad", ["A", "TOOLONG", "../etc", "AB-CD", "AB CD", "asd"])
+def test_get_settings_rejects_invalid_set_codes(bad):
+    """Lowercase and out-of-shape codes are rejected upfront so a typo
+    can't poison output/sets/<garbage>/."""
+    with pytest.raises(ValueError):
+        ms.get_settings(bad)
+
+
+def test_apply_settings_rejects_invalid_set_code():
+    with pytest.raises(ValueError):
+        ms.apply_settings("../escape", ms.ModelSettings())
+
+
+def test_apply_global_settings_rejects_unknown_preset():
+    """Unknown default_preset would silently fall back to defaults on every
+    new set — surface it loudly instead."""
+    with pytest.raises(ValueError):
+        ms.apply_global_settings(ms.GlobalSettings(default_preset="typo-recommnded"))
+
+
+def test_apply_global_settings_rejects_reserved_preset():
+    with pytest.raises(ValueError):
+        ms.apply_global_settings(ms.GlobalSettings(default_preset="global"))
+
+
+def test_from_preset_rejects_reserved_names():
+    """global / current are not user-facing profiles."""
+    for name in ("global", "current"):
+        with pytest.raises(ValueError):
+            ms.ModelSettings.from_preset(name)
+
+
 def test_get_settings_seeds_default_preset_for_brand_new_set():
     """No legacy current.toml + no per-set file → seed from global default."""
     _make_set_dir("ASD")
@@ -194,7 +226,6 @@ def test_apply_settings_writes_only_target_set():
 
     asd_path = ms.SETS_DIR / "ASD" / "settings.toml"
     dsn_path = ms.SETS_DIR / "DSN" / "settings.toml"
-    asd_mtime = asd_path.stat().st_mtime_ns
     dsn_mtime = dsn_path.stat().st_mtime_ns
 
     new = ms.ModelSettings(
@@ -204,7 +235,10 @@ def test_apply_settings_writes_only_target_set():
     )
     ms.apply_settings("ASD", new)
 
-    assert asd_path.stat().st_mtime_ns >= asd_mtime
+    # ASD content actually changed (mtime alone is a tautology — it can't
+    # go backwards even if apply did nothing).
+    assert ms.ModelSettings.load_from_file(asd_path).llm_assignments["card_gen"] == "sonnet"
+    # DSN was not touched.
     assert dsn_path.stat().st_mtime_ns == dsn_mtime
 
 
