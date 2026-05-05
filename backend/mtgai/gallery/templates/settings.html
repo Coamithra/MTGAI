@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Model Settings{% endblock %}
+{% block title %}Settings{% endblock %}
 {% block nav_settings %}active{% endblock %}
 
 {% block head %}
@@ -18,7 +18,6 @@
     margin-bottom: 2rem;
   }
 
-  /* Sections */
   .settings-section {
     background: var(--bg-secondary, #16213e);
     border: 1px solid var(--border, #1a1a3e);
@@ -37,12 +36,35 @@
     margin-bottom: 1rem;
   }
 
-  /* Model assignment table */
-  .model-table {
+  .preset-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  .preset-row select {
+    flex: 1;
+    max-width: 320px;
+    padding: 0.4rem 0.6rem;
+    background: var(--bg-primary, #1a1a2e);
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .preset-row select:focus {
+    outline: none;
+    border-color: #4a9eff;
+  }
+
+  .profiles-table,
+  .registry-table {
     width: 100%;
     border-collapse: collapse;
+    font-size: 0.85rem;
   }
-  .model-table th {
+  .profiles-table th,
+  .registry-table th {
     text-align: left;
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid #333;
@@ -51,63 +73,49 @@
     font-weight: 600;
     text-transform: uppercase;
   }
-  .model-table td {
+  .profiles-table td,
+  .registry-table td {
     padding: 0.6rem 0.75rem;
     border-bottom: 1px solid rgba(255,255,255,0.05);
-    font-size: 0.85rem;
     color: #e0e0e0;
     vertical-align: middle;
   }
-  .model-table tr:last-child td {
+  .profiles-table tr:last-child td,
+  .registry-table tr:last-child td {
     border-bottom: none;
   }
-  .model-table tr:hover {
-    background: rgba(74, 158, 255, 0.03);
+
+  .empty-row {
+    color: #666;
+    font-style: italic;
+    padding: 0.75rem;
   }
 
-  /* Dropdowns */
-  .model-select {
-    width: 100%;
-    max-width: 280px;
-    padding: 0.4rem 0.6rem;
-    background: var(--bg-primary, #1a1a2e);
+  .btn {
+    padding: 0.3rem 0.7rem;
     border: 1px solid #333;
-    border-radius: 6px;
-    color: #e0e0e0;
-    font-size: 0.85rem;
-    cursor: pointer;
-    appearance: auto;
-  }
-  .model-select:focus {
-    outline: none;
-    border-color: #4a9eff;
-  }
-  .model-select:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  /* Effort toggle */
-  .effort-select {
-    width: 90px;
-    padding: 0.3rem 0.4rem;
+    border-radius: 5px;
     background: var(--bg-primary, #1a1a2e);
-    border: 1px solid #333;
-    border-radius: 4px;
-    color: #e0e0e0;
-    font-size: 0.8rem;
+    color: #aaa;
+    font-size: 0.78rem;
     cursor: pointer;
+    transition: all 0.15s;
   }
-  .effort-select:focus {
-    outline: none;
+  .btn:hover {
     border-color: #4a9eff;
+    color: #e0e0e0;
   }
-  .effort-select:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
+  .btn-danger:hover {
+    border-color: #e94560;
+    color: #e94560;
   }
 
-  /* Tags */
+  .actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
   .tag {
     display: inline-block;
     padding: 1px 6px;
@@ -122,6 +130,11 @@
     color: #4a9eff;
     border: 1px solid #4a9eff40;
   }
+  .tag-effort {
+    background: #ffa50220;
+    color: #ffa502;
+    border: 1px solid #ffa50240;
+  }
   .tag-local {
     background: #2ecc7120;
     color: #2ecc71;
@@ -133,114 +146,6 @@
     border: 1px solid #f39c1240;
   }
 
-  /* Cost estimate */
-  .cost-bar {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.75rem 1rem;
-    background: rgba(74, 158, 255, 0.05);
-    border: 1px solid rgba(74, 158, 255, 0.15);
-    border-radius: 6px;
-    margin-top: 1rem;
-  }
-  .cost-bar .cost-label {
-    color: #aaa;
-    font-size: 0.85rem;
-  }
-  .cost-bar .cost-value {
-    color: #4a9eff;
-    font-weight: 700;
-    font-size: 1.1rem;
-  }
-  .cost-bar .cost-detail {
-    color: #666;
-    font-size: 0.8rem;
-    margin-left: auto;
-  }
-
-  /* Presets */
-  .presets {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-  .preset-btn {
-    padding: 0.4rem 1rem;
-    border: 1px solid #333;
-    border-radius: 6px;
-    background: var(--bg-primary, #1a1a2e);
-    color: #aaa;
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .preset-btn:hover {
-    border-color: #4a9eff;
-    color: #e0e0e0;
-  }
-  .preset-btn.active {
-    border-color: #4a9eff;
-    background: #4a9eff15;
-    color: #4a9eff;
-  }
-
-  /* Save/load bar */
-  .profile-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-  }
-  .profile-bar input {
-    padding: 0.4rem 0.6rem;
-    background: var(--bg-primary, #1a1a2e);
-    border: 1px solid #333;
-    border-radius: 6px;
-    color: #e0e0e0;
-    font-size: 0.85rem;
-    width: 200px;
-  }
-  .profile-bar input:focus {
-    outline: none;
-    border-color: #4a9eff;
-  }
-  .profile-bar select {
-    padding: 0.4rem 0.6rem;
-    background: var(--bg-primary, #1a1a2e);
-    border: 1px solid #333;
-    border-radius: 6px;
-    color: #e0e0e0;
-    font-size: 0.85rem;
-    width: 200px;
-  }
-
-  .btn {
-    padding: 0.4rem 1rem;
-    border: 1px solid #333;
-    border-radius: 6px;
-    background: var(--bg-primary, #1a1a2e);
-    color: #aaa;
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .btn:hover {
-    border-color: #4a9eff;
-    color: #e0e0e0;
-  }
-  .btn-primary {
-    background: linear-gradient(135deg, #4a9eff, #00d4aa);
-    color: #0a0a1a;
-    border: none;
-    font-weight: 700;
-  }
-  .btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 15px rgba(74, 158, 255, 0.3);
-  }
-
-  /* Status toast */
   .toast {
     position: fixed;
     bottom: 1.5rem;
@@ -267,98 +172,107 @@
     background: #e94560;
     color: #fff;
   }
+
+  .profile-view {
+    margin: 0;
+    padding: 0.6rem 0.75rem;
+    background: #0a0a1a;
+    border: 1px solid #222;
+    border-radius: 6px;
+    color: #ccc;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem;
+    white-space: pre-wrap;
+    max-height: 320px;
+    overflow: auto;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="settings-page">
-  <h1>Model Settings</h1>
-  <p class="subtitle">Configure which models power each pipeline stage</p>
+  <h1>Settings</h1>
+  <p class="subtitle">Cross-set defaults. Per-set model assignments live on the project's Project Settings tab.</p>
 
-  <!-- Presets -->
+  <!-- Default preset -->
   <div class="settings-section">
-    <h2>Presets</h2>
-    <p class="section-desc">Quick-apply a model configuration across all stages.</p>
-    <div class="presets">
-      <button class="preset-btn active" onclick="applyPreset('recommended')">Recommended Anthropic</button>
-      <button class="preset-btn" onclick="applyPreset('all-haiku')">All Haiku (Cheap)</button>
-      <button class="preset-btn" onclick="applyPreset('all-local')">All Local (Free)</button>
-    </div>
-  </div>
-
-  <!-- LLM Assignments -->
-  <div class="settings-section">
-    <h2>LLM Model Assignments</h2>
-    <p class="section-desc">Choose which LLM handles each pipeline stage. Higher-tier models produce better results but cost more.</p>
-    <table class="model-table">
-      <thead>
-        <tr>
-          <th style="width: 200px">Stage</th>
-          <th>Model</th>
-          <th style="width: 100px">Effort</th>
-          <th style="width: 90px">Cost/1M</th>
-        </tr>
-      </thead>
-      <tbody id="llm-assignments-body">
+    <h2>Default preset for new sets</h2>
+    <p class="section-desc">When you create a new set, its initial model assignments are seeded from this preset.</p>
+    <div class="preset-row">
+      <select id="default-preset" onchange="onDefaultPresetChange()">
         <!-- Populated by JS -->
-      </tbody>
-    </table>
-
-    <div class="cost-bar">
-      <span class="cost-label">Estimated cost per 60-card set:</span>
-      <span class="cost-value" id="cost-estimate">--</span>
-      <span class="cost-detail" id="cost-detail"></span>
-    </div>
-  </div>
-
-  <!-- Image Model Assignments -->
-  <div class="settings-section">
-    <h2>Image Generation</h2>
-    <p class="section-desc">Choose the image generation backend for art stages.</p>
-    <table class="model-table">
-      <thead>
-        <tr>
-          <th style="width: 200px">Stage</th>
-          <th>Model</th>
-          <th style="width: 120px">Cost/Image</th>
-        </tr>
-      </thead>
-      <tbody id="image-assignments-body">
-        <!-- Populated by JS -->
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Save/Load -->
-  <div class="settings-section">
-    <h2>Profiles</h2>
-    <p class="section-desc">Save and load model configurations as named profiles.</p>
-    <div class="profile-bar">
-      <input type="text" id="profile-name" placeholder="Profile name...">
-      <button class="btn" onclick="saveProfile()">Save As</button>
-      <span style="color: #444; margin: 0 0.25rem">|</span>
-      <select id="profile-select">
-        <option value="">Load a profile...</option>
       </select>
-      <button class="btn" onclick="loadProfile()">Load</button>
     </div>
+  </div>
+
+  <!-- Saved profiles library -->
+  <div class="settings-section">
+    <h2>Saved profiles</h2>
+    <p class="section-desc">Reusable assignment templates. Apply-to-set lives on the project's Project Settings tab.</p>
+    <table class="profiles-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th style="width: 240px">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="profiles-body">
+        <!-- Populated by JS -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Read-only model registry -->
+  <div class="settings-section">
+    <h2>Model registry</h2>
+    <p class="section-desc">Read-only view of <code>backend/mtgai/settings/models.toml</code>. Edit that file to add or remove models.</p>
+
+    <h3 style="font-size: 0.95rem; margin: 1rem 0 0.5rem 0; color: #ccc;">LLMs</h3>
+    <table class="registry-table">
+      <thead>
+        <tr>
+          <th>Key</th>
+          <th>Name</th>
+          <th>Provider</th>
+          <th style="width: 140px">Pricing /1M</th>
+          <th style="width: 60px">Tier</th>
+        </tr>
+      </thead>
+      <tbody id="llm-registry-body"></tbody>
+    </table>
+
+    <h3 style="font-size: 0.95rem; margin: 1.5rem 0 0.5rem 0; color: #ccc;">Image models</h3>
+    <table class="registry-table">
+      <thead>
+        <tr>
+          <th>Key</th>
+          <th>Name</th>
+          <th>Provider</th>
+          <th style="width: 120px">Cost / image</th>
+        </tr>
+      </thead>
+      <tbody id="image-registry-body"></tbody>
+    </table>
   </div>
 </div>
 
-<!-- Toast notification -->
+<dialog id="profile-view-dialog" style="background: #16213e; color: #e0e0e0; border: 1px solid #333; border-radius: 8px; padding: 1.5rem; max-width: 600px; width: 90vw;">
+  <h2 id="profile-view-title" style="margin: 0 0 1rem 0; font-size: 1rem;">Profile</h2>
+  <pre class="profile-view" id="profile-view-body">Loading…</pre>
+  <div style="margin-top: 1rem; text-align: right;">
+    <button class="btn" onclick="document.getElementById('profile-view-dialog').close()">Close</button>
+  </div>
+</dialog>
+
 <div class="toast" id="toast"></div>
 {% endblock %}
 
 {% block scripts %}
 <script>
   const MODEL_REGISTRY = {{ model_registry | safe }};
-  const CURRENT_SETTINGS = {{ current_settings | safe }};
+  const BUILTIN_PRESETS = {{ builtin_presets | safe }};
   const SAVED_PROFILES = {{ saved_profiles | safe }};
-
-  const LLM_STAGES = {{ llm_stages | safe }};
-  const IMAGE_STAGES = {{ image_stages | safe }};
-
-  const PRESETS = {{ presets | safe }};
+  const DEFAULT_PRESET = {{ default_preset | tojson }};
 </script>
 <script src="/static/settings.js"></script>
 {% endblock %}

@@ -1,339 +1,59 @@
 /**
- * Settings page — model assignment dropdowns, presets, profile save/load.
+ * Settings page — cross-set defaults: default preset, saved profiles
+ * (view / rename / delete), and a read-only model registry view.
  *
- * Expects globals set by the template:
- *   MODEL_REGISTRY  — { llm: {key: {...}}, image: {key: {...}} }
- *   CURRENT_SETTINGS — { llm_assignments: {...}, image_assignments: {...}, effort_overrides: {...} }
- *   SAVED_PROFILES   — ["profile-name", ...]
- *   LLM_STAGES       — { stage_id: "Stage Name", ... }
- *   IMAGE_STAGES     — { stage_id: "Stage Name", ... }
- *   PRESETS          — { name: { llm: {...}, image: {...}, effort: {...} }, ... }
+ * Per-stage assignments moved to the per-set Project Settings tab.
+ *
+ * Globals from the template:
+ *   MODEL_REGISTRY    — { llm: {key: {...}}, image: {key: {...}} }
+ *   BUILTIN_PRESETS   — ["recommended", "all-haiku", "all-local", ...]
+ *   SAVED_PROFILES    — ["profile-name", ...]
+ *   DEFAULT_PRESET    — currently active default preset
  */
 
-// ---------------------------------------------------------------------------
-// Cost estimates per stage (rough token usage for a 60-card set)
-// ---------------------------------------------------------------------------
-
-// Approximate input+output tokens per stage for a 60-card dev set.
-// Calibrated from actual ASD pipeline runs (~$13 total with caching).
-// These are PRE-caching estimates; actual cost is ~30-50% lower with caching.
-const STAGE_TOKEN_ESTIMATES = {
-  reprints:     { input: 10_000,   output: 2_000 },
-  card_gen:     { input: 200_000,  output: 30_000 },
-  balance:      { input: 50_000,   output: 10_000 },
-  skeleton_rev: { input: 50_000,   output: 15_000 },
-  ai_review:    { input: 400_000,  output: 80_000 },
-  art_prompts:  { input: 30_000,   output: 10_000 },
-  art_select:   { input: 50_000,   output: 5_000 },
-};
-
-// ---------------------------------------------------------------------------
-// Init
-// ---------------------------------------------------------------------------
-
 document.addEventListener('DOMContentLoaded', () => {
-  renderLLMAssignments();
-  renderImageAssignments();
-  renderProfileList();
-  updateCostEstimate();
+  renderDefaultPresetDropdown();
+  renderProfilesTable();
+  renderRegistry();
 });
 
 // ---------------------------------------------------------------------------
-// LLM assignment table
+// Default preset
 // ---------------------------------------------------------------------------
 
-function renderLLMAssignments() {
-  const tbody = document.getElementById('llm-assignments-body');
-  if (!tbody) return;
+function renderDefaultPresetDropdown() {
+  const sel = document.getElementById('default-preset');
+  if (!sel) return;
 
-  const stageIds = Object.keys(LLM_STAGES);
-  const llmModels = MODEL_REGISTRY.llm;
+  const groups = [
+    { label: 'Built-in presets', items: BUILTIN_PRESETS },
+    { label: 'Saved profiles', items: SAVED_PROFILES },
+  ];
 
-  tbody.innerHTML = stageIds.map(stageId => {
-    const stageName = LLM_STAGES[stageId];
-    const currentKey = CURRENT_SETTINGS.llm_assignments[stageId] || '';
-    const effort = CURRENT_SETTINGS.effort_overrides[stageId] || '';
-    const currentModel = llmModels[currentKey];
-
-    // Build dropdown options sorted by tier (highest first)
-    const sorted = Object.entries(llmModels)
-      .sort((a, b) => b[1].tier - a[1].tier);
-
-    const options = sorted.map(([key, model]) => {
-      const price = model.input_price > 0
-        ? `$${model.input_price.toFixed(2)}/$${model.output_price.toFixed(2)}`
-        : 'Free';
-      const selected = key === currentKey ? 'selected' : '';
-      const visionTag = model.supports_vision ? ' [vision]' : '';
-      return `<option value="${key}" ${selected}>${escapeHtml(model.name)}${visionTag} — ${price}</option>`;
-    }).join('');
-
-    // Effort dropdown (only enabled if model supports it)
-    const supportsEffort = currentModel && currentModel.supports_effort;
-
-    return `
-      <tr>
-        <td>
-          ${escapeHtml(stageName)}
-          ${stageId === 'art_select' ? '<span class="tag tag-vision">vision</span>' : ''}
-        </td>
-        <td>
-          <select class="model-select" data-stage="${stageId}" data-type="llm"
-                  onchange="onModelChange(this)">
-            ${options}
-          </select>
-        </td>
-        <td>
-          <select class="effort-select" data-stage="${stageId}" data-type="effort"
-                  ${supportsEffort ? '' : 'disabled'}
-                  onchange="onEffortChange(this)">
-            <option value="" ${!effort ? 'selected' : ''}>—</option>
-            <option value="low" ${effort === 'low' ? 'selected' : ''}>Low</option>
-            <option value="high" ${effort === 'high' ? 'selected' : ''}>High</option>
-            <option value="max" ${effort === 'max' ? 'selected' : ''}>Max</option>
-          </select>
-        </td>
-        <td style="color: #888; font-size: 0.8rem">
-          <span class="stage-cost" data-stage="${stageId}">
-            ${currentModel ? formatPrice(currentModel) : '—'}
-          </span>
-        </td>
-      </tr>
-    `;
-  }).join('');
+  sel.innerHTML = groups
+    .filter(g => g.items.length > 0)
+    .map(g => {
+      const opts = g.items.map(name => {
+        const selected = name === DEFAULT_PRESET ? 'selected' : '';
+        return `<option value="${escapeAttr(name)}" ${selected}>${escapeHtml(name)}</option>`;
+      }).join('');
+      return `<optgroup label="${escapeAttr(g.label)}">${opts}</optgroup>`;
+    })
+    .join('');
 }
 
-function formatPrice(model) {
-  if (model.input_price === 0 && model.output_price === 0) {
-    return '<span style="color: #2ecc71">Free</span>';
-  }
-  return `$${model.input_price.toFixed(2)}`;
-}
-
-// ---------------------------------------------------------------------------
-// Image assignment table
-// ---------------------------------------------------------------------------
-
-function renderImageAssignments() {
-  const tbody = document.getElementById('image-assignments-body');
-  if (!tbody) return;
-
-  const stageIds = Object.keys(IMAGE_STAGES);
-  const imageModels = MODEL_REGISTRY.image;
-
-  tbody.innerHTML = stageIds.map(stageId => {
-    const stageName = IMAGE_STAGES[stageId];
-    const currentKey = CURRENT_SETTINGS.image_assignments[stageId] || '';
-
-    const options = Object.entries(imageModels).map(([key, model]) => {
-      const selected = key === currentKey ? 'selected' : '';
-      const cost = model.cost_per_image > 0
-        ? `$${model.cost_per_image.toFixed(3)}`
-        : 'Free';
-      const impl = model.implemented ? '' : ' (not yet implemented)';
-      return `<option value="${key}" ${selected} ${model.implemented ? '' : 'disabled'}>${escapeHtml(model.name)}${impl} — ${cost}</option>`;
-    }).join('');
-
-    const currentModel = imageModels[currentKey];
-
-    return `
-      <tr>
-        <td>${escapeHtml(stageName)}</td>
-        <td>
-          <select class="model-select" data-stage="${stageId}" data-type="image"
-                  onchange="onImageModelChange(this)">
-            ${options}
-          </select>
-        </td>
-        <td style="color: #888; font-size: 0.8rem">
-          ${currentModel
-            ? (currentModel.cost_per_image > 0
-              ? `$${currentModel.cost_per_image.toFixed(3)}`
-              : '<span style="color: #2ecc71">Free</span>')
-            : '—'}
-        </td>
-      </tr>
-    `;
-  }).join('');
-}
-
-// ---------------------------------------------------------------------------
-// Change handlers
-// ---------------------------------------------------------------------------
-
-function onModelChange(select) {
-  const stageId = select.dataset.stage;
-  const modelKey = select.value;
-  const model = MODEL_REGISTRY.llm[modelKey];
-
-  // Update current settings
-  CURRENT_SETTINGS.llm_assignments[stageId] = modelKey;
-
-  // Update effort dropdown enabled state
-  const effortSelect = document.querySelector(
-    `select.effort-select[data-stage="${stageId}"]`
-  );
-  if (effortSelect) {
-    effortSelect.disabled = !model || !model.supports_effort;
-    if (!model || !model.supports_effort) {
-      effortSelect.value = '';
-      delete CURRENT_SETTINGS.effort_overrides[stageId];
-    }
-  }
-
-  // Update cost display
-  const costSpan = document.querySelector(`.stage-cost[data-stage="${stageId}"]`);
-  if (costSpan && model) {
-    costSpan.innerHTML = formatPrice(model);
-  }
-
-  clearActivePreset();
-  updateCostEstimate();
-  autoApply();
-}
-
-function onEffortChange(select) {
-  const stageId = select.dataset.stage;
-  const value = select.value;
-
-  if (value) {
-    CURRENT_SETTINGS.effort_overrides[stageId] = value;
-  } else {
-    delete CURRENT_SETTINGS.effort_overrides[stageId];
-  }
-
-  clearActivePreset();
-  autoApply();
-}
-
-function onImageModelChange(select) {
-  const stageId = select.dataset.stage;
-  CURRENT_SETTINGS.image_assignments[stageId] = select.value;
-  clearActivePreset();
-  autoApply();
-}
-
-// ---------------------------------------------------------------------------
-// Presets
-// ---------------------------------------------------------------------------
-
-function applyPreset(presetName) {
-  const preset = PRESETS[presetName];
-  if (!preset) return;
-
-  // Update settings
-  CURRENT_SETTINGS.llm_assignments = { ...preset.llm };
-  CURRENT_SETTINGS.image_assignments = { ...preset.image };
-  CURRENT_SETTINGS.effort_overrides = { ...(preset.effort || {}) };
-
-  // Re-render
-  renderLLMAssignments();
-  renderImageAssignments();
-  updateCostEstimate();
-
-  // Update preset button styling
-  document.querySelectorAll('.preset-btn').forEach(btn => {
-    const btnPreset = btn.getAttribute('onclick').match(/applyPreset\('(.+?)'\)/);
-    btn.classList.toggle('active', btnPreset && btnPreset[1] === presetName);
-  });
-
-  autoApply();
-}
-
-function clearActivePreset() {
-  document.querySelectorAll('.preset-btn').forEach(btn => {
-    btn.classList.remove('active');
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Cost estimation
-// ---------------------------------------------------------------------------
-
-function updateCostEstimate() {
-  const llmModels = MODEL_REGISTRY.llm;
-  let totalCost = 0;
-  let details = [];
-
-  for (const [stageId, tokens] of Object.entries(STAGE_TOKEN_ESTIMATES)) {
-    const modelKey = CURRENT_SETTINGS.llm_assignments[stageId];
-    const model = llmModels[modelKey];
-    if (!model) continue;
-
-    const inputCost = (tokens.input * model.input_price) / 1_000_000;
-    const outputCost = (tokens.output * model.output_price) / 1_000_000;
-    const stageCost = inputCost + outputCost;
-    totalCost += stageCost;
-  }
-
-  const costEl = document.getElementById('cost-estimate');
-  const detailEl = document.getElementById('cost-detail');
-
-  if (costEl) {
-    if (totalCost === 0) {
-      costEl.textContent = '$0.00 (local models)';
-      costEl.style.color = '#2ecc71';
-    } else {
-      costEl.textContent = `~$${totalCost.toFixed(2)}`;
-      costEl.style.color = '#4a9eff';
-    }
-  }
-
-  if (detailEl) {
-    detailEl.textContent = totalCost > 0
-      ? 'Pre-caching estimate \u2014 actual cost typically 30-50% lower'
-      : '';
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Profile save/load
-// ---------------------------------------------------------------------------
-
-function renderProfileList() {
-  const select = document.getElementById('profile-select');
-  if (!select) return;
-
-  select.innerHTML = '<option value="">Load a profile...</option>';
-  SAVED_PROFILES.forEach(name => {
-    const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = name;
-    select.appendChild(opt);
-  });
-}
-
-async function saveProfile() {
-  const nameInput = document.getElementById('profile-name');
-  const name = nameInput.value.trim();
-  if (!name) {
-    showToast('Enter a profile name first', 'error');
-    nameInput.focus();
-    return;
-  }
-
-  // Sanitize name
-  const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
-
+async function onDefaultPresetChange() {
+  const sel = document.getElementById('default-preset');
+  const value = sel.value;
   try {
-    const resp = await fetch('/api/settings/save', {
+    const resp = await fetch('/api/settings/global', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: safeName,
-        settings: CURRENT_SETTINGS,
-      }),
+      body: JSON.stringify({ default_preset: value }),
     });
     const data = await resp.json();
-
-    if (data.success) {
-      showToast(`Saved profile "${safeName}"`, 'success');
-      // Add to profile list if new
-      if (!SAVED_PROFILES.includes(safeName)) {
-        SAVED_PROFILES.push(safeName);
-        renderProfileList();
-      }
-      nameInput.value = '';
+    if (resp.ok && data.success) {
+      showToast(`Default preset → "${value}"`, 'success');
     } else {
       showToast('Error: ' + (data.error || 'Unknown'), 'error');
     }
@@ -343,55 +63,127 @@ async function saveProfile() {
   }
 }
 
-async function loadProfile() {
-  const select = document.getElementById('profile-select');
-  const name = select.value;
-  if (!name) {
-    showToast('Select a profile first', 'error');
+// ---------------------------------------------------------------------------
+// Saved profiles
+// ---------------------------------------------------------------------------
+
+function renderProfilesTable() {
+  const tbody = document.getElementById('profiles-body');
+  if (!tbody) return;
+
+  if (SAVED_PROFILES.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="2" class="empty-row">No saved profiles yet. Create one from the Project Settings tab.</td></tr>`;
     return;
   }
+
+  tbody.innerHTML = SAVED_PROFILES.map(name => `
+    <tr>
+      <td>${escapeHtml(name)}</td>
+      <td>
+        <div class="actions">
+          <button class="btn" onclick="viewProfile('${escapeAttr(name)}')">View</button>
+          <button class="btn" onclick="renameProfile('${escapeAttr(name)}')">Rename</button>
+          <button class="btn btn-danger" onclick="deleteProfile('${escapeAttr(name)}')">Delete</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function viewProfile(name) {
+  const dialog = document.getElementById('profile-view-dialog');
+  const title = document.getElementById('profile-view-title');
+  const body = document.getElementById('profile-view-body');
+  title.textContent = `Profile: ${name}`;
+  body.textContent = 'Loading…';
+  dialog.showModal();
 
   try {
     const resp = await fetch(`/api/settings/load?name=${encodeURIComponent(name)}`);
     const data = await resp.json();
-
     if (data.settings) {
-      Object.assign(CURRENT_SETTINGS, data.settings);
-      renderLLMAssignments();
-      renderImageAssignments();
-      updateCostEstimate();
-      clearActivePreset();
-      autoApply();
-      showToast(`Loaded profile "${name}"`, 'success');
+      body.textContent = JSON.stringify(data.settings, null, 2);
     } else {
-      showToast('Error: ' + (data.error || 'Profile not found'), 'error');
+      body.textContent = 'Error: ' + (data.error || 'Unknown');
     }
+  } catch (err) {
+    body.textContent = 'Network error: ' + err.message;
+  }
+}
+
+async function renameProfile(name) {
+  const newName = prompt(`Rename profile "${name}" to:`, name);
+  if (newName === null) return;
+  const sanitized = newName.trim().replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+  if (!sanitized) {
+    showToast('Invalid profile name', 'error');
+    return;
+  }
+  if (sanitized === name) return;
+  if (SAVED_PROFILES.includes(sanitized)) {
+    showToast(`Profile "${sanitized}" already exists`, 'error');
+    return;
+  }
+
+  try {
+    const loadResp = await fetch(`/api/settings/load?name=${encodeURIComponent(name)}`);
+    const loadData = await loadResp.json();
+    if (!loadResp.ok || !loadData.settings) {
+      showToast('Error loading profile: ' + (loadData.error || 'Unknown'), 'error');
+      return;
+    }
+
+    const saveResp = await fetch('/api/settings/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: sanitized, settings: loadData.settings }),
+    });
+    const saveData = await saveResp.json();
+    if (!saveResp.ok || !saveData.success) {
+      showToast('Error saving renamed profile: ' + (saveData.error || 'Unknown'), 'error');
+      return;
+    }
+
+    const delResp = await fetch(`/api/settings/profile/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+    });
+    const delData = await delResp.json();
+    if (!delResp.ok || !delData.success) {
+      // The new file already exists; surface the partial-failure so the user
+      // can clean up the old one manually rather than silently leaving both.
+      showToast('Renamed but failed to remove old: ' + (delData.error || 'Unknown'), 'error');
+    } else {
+      showToast(`Renamed "${name}" → "${sanitized}"`, 'success');
+    }
+
+    SAVED_PROFILES.splice(SAVED_PROFILES.indexOf(name), 1, sanitized);
+    SAVED_PROFILES.sort();
+    renderProfilesTable();
+    renderDefaultPresetDropdown();
   } catch (err) {
     console.error('[settings.js] Network error:', err);
     showToast('Network error: ' + err.message, 'error');
   }
 }
 
-// ---------------------------------------------------------------------------
-// Auto-apply (every change persists immediately)
-// ---------------------------------------------------------------------------
+async function deleteProfile(name) {
+  if (name === DEFAULT_PRESET) {
+    showToast(`"${name}" is the current default preset. Pick a different default first.`, 'error');
+    return;
+  }
+  if (!confirm(`Delete profile "${name}"? This cannot be undone.`)) return;
 
-let _autoSaveTimer = null;
-function autoApply() {
-  if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
-  _autoSaveTimer = setTimeout(_doApply, 250);
-}
-
-async function _doApply() {
   try {
-    const resp = await fetch('/api/settings/apply', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(CURRENT_SETTINGS),
+    const resp = await fetch(`/api/settings/profile/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
     });
     const data = await resp.json();
-    if (data.success) {
-      showToast('Saved', 'success');
+    if (resp.ok && data.success) {
+      const idx = SAVED_PROFILES.indexOf(name);
+      if (idx >= 0) SAVED_PROFILES.splice(idx, 1);
+      renderProfilesTable();
+      renderDefaultPresetDropdown();
+      showToast(`Deleted "${name}"`, 'success');
     } else {
       showToast('Error: ' + (data.error || 'Unknown'), 'error');
     }
@@ -402,28 +194,91 @@ async function _doApply() {
 }
 
 // ---------------------------------------------------------------------------
-// Toast notifications
+// Read-only registry
+// ---------------------------------------------------------------------------
+
+function renderRegistry() {
+  renderLLMRegistry();
+  renderImageRegistry();
+}
+
+function renderLLMRegistry() {
+  const tbody = document.getElementById('llm-registry-body');
+  if (!tbody) return;
+
+  const sorted = Object.entries(MODEL_REGISTRY.llm).sort((a, b) => b[1].tier - a[1].tier);
+  tbody.innerHTML = sorted.map(([key, model]) => {
+    const tags = [];
+    if (model.supports_vision) tags.push('<span class="tag tag-vision">vision</span>');
+    if (model.supports_effort) tags.push('<span class="tag tag-effort">effort</span>');
+    if (model.provider === 'llamacpp') tags.push('<span class="tag tag-local">local</span>');
+
+    const pricing = model.input_price > 0 || model.output_price > 0
+      ? `$${model.input_price.toFixed(2)} / $${model.output_price.toFixed(2)}`
+      : '<span style="color: #2ecc71">Free</span>';
+
+    return `
+      <tr>
+        <td><code>${escapeHtml(key)}</code></td>
+        <td>${escapeHtml(model.name)}${tags.join('')}</td>
+        <td style="color: #aaa">${escapeHtml(model.provider)}</td>
+        <td style="color: #aaa">${pricing}</td>
+        <td style="color: #aaa">${model.tier}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderImageRegistry() {
+  const tbody = document.getElementById('image-registry-body');
+  if (!tbody) return;
+
+  const entries = Object.entries(MODEL_REGISTRY.image).sort((a, b) => {
+    const ai = a[1].implemented ? 0 : 1;
+    const bi = b[1].implemented ? 0 : 1;
+    return ai - bi || a[1].name.localeCompare(b[1].name);
+  });
+
+  tbody.innerHTML = entries.map(([key, model]) => {
+    const tags = [];
+    if (!model.implemented) tags.push('<span class="tag tag-placeholder">not implemented</span>');
+    if (model.provider === 'comfyui') tags.push('<span class="tag tag-local">local</span>');
+
+    const cost = model.cost_per_image > 0
+      ? `$${model.cost_per_image.toFixed(3)}`
+      : '<span style="color: #2ecc71">Free</span>';
+
+    return `
+      <tr>
+        <td><code>${escapeHtml(key)}</code></td>
+        <td>${escapeHtml(model.name)}${tags.join('')}</td>
+        <td style="color: #aaa">${escapeHtml(model.provider)}</td>
+        <td style="color: #aaa">${cost}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ---------------------------------------------------------------------------
+// Toast + escaping
 // ---------------------------------------------------------------------------
 
 function showToast(message, type) {
   const toast = document.getElementById('toast');
   if (!toast) return;
-
   toast.textContent = message;
   toast.className = `toast toast-${type} show`;
-
-  setTimeout(() => {
-    toast.classList.remove('show');
-  }, 3000);
+  setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
-// ---------------------------------------------------------------------------
-// Utilities
-// ---------------------------------------------------------------------------
-
 function escapeHtml(text) {
-  if (!text) return '';
+  if (text === undefined || text === null) return '';
   const div = document.createElement('div');
-  div.textContent = text;
+  div.textContent = String(text);
   return div.innerHTML;
+}
+
+function escapeAttr(text) {
+  if (text === undefined || text === null) return '';
+  return String(text).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
 }

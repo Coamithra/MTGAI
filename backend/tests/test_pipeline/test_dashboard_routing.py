@@ -1,8 +1,9 @@
 """Smoke tests for /pipeline + /pipeline/configure routing.
 
 When no on-disk pipeline state exists, GET /pipeline renders the
-configure form inline (saves a click). When state exists, it renders
-the dashboard. /pipeline/configure stays as a deep link to the form.
+configure form inline (saves a click) — until the wizard shell phase
+takes over. ``/pipeline/configure`` (legacy deep link) now redirects
+to the wizard's Project Settings tab.
 """
 
 from __future__ import annotations
@@ -54,18 +55,8 @@ def test_pipeline_renders_dashboard_when_state_exists(client):
     assert "/static/pipeline.js" in body
 
 
-def test_pipeline_configure_renders_form_even_with_active_state(client):
-    """`/pipeline/configure` ignores pipeline state — the form is the form."""
-    from mtgai.pipeline.models import PipelineConfig, create_pipeline_state
-
-    state = create_pipeline_state(PipelineConfig(set_code="TST", set_name="Test", set_size=20))
-
-    with patch("mtgai.pipeline.server._get_current_state", return_value=state):
-        resp = client.get("/pipeline/configure")
-    assert resp.status_code == 200
-    body = resp.text
-    # The dropdown picker replaces the per-form set-code input now;
-    # the configure form keeps a read-only display element instead.
-    assert 'id="active-set-display"' in body
-    assert "Configure Pipeline" in body
-    assert 'id="pipeline-app"' not in body
+def test_pipeline_configure_redirects_to_project(client):
+    """`/pipeline/configure` is a legacy alias — it 302s to the wizard's project tab."""
+    resp = client.get("/pipeline/configure", follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/pipeline/project"
