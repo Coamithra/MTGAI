@@ -36,13 +36,8 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_SET_CODE = "ASD"
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
-SKELETON_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "skeleton.json"
-MECHANICS_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "mechanics" / "approved.json"
-THEME_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "theme.json"
-PROGRESS_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "generation_progress.json"
-LOG_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "generation_logs"
+# Stage paths are derived from the active project's asset_folder via
+# ``set_artifact_dir`` at run time — no module-level OUTPUT_ROOT here.
 
 # LLM settings — model + effort come from per-set model_settings at runtime.
 TEMPERATURE = 1.0
@@ -122,7 +117,7 @@ CARDS_BATCH_TOOL_SCHEMA = {
 class GenerationProgress:
     """Tracks which slots have been generated, for resumability."""
 
-    def __init__(self, path: Path = PROGRESS_PATH):
+    def __init__(self, path: Path):
         self.path = path
         self.filled_slots: dict[str, str] = {}  # slot_id -> card file path
         self.failed_slots: dict[str, str] = {}  # slot_id -> last error
@@ -300,8 +295,11 @@ def _save_generation_log(
     stop_reason: str = "",
 ) -> None:
     """Save a per-card generation log for debugging and prompt iteration."""
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    log_path = LOG_DIR / f"{slot_id}_attempt{attempt}.json"
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    log_dir = set_artifact_dir() / "generation_logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"{slot_id}_attempt{attempt}.json"
     log_data = {
         "slot_id": slot_id,
         "card_name": card_name,
@@ -351,9 +349,12 @@ def _save_batch_log(
     effort: str | None = None,
 ) -> None:
     """Save a batch-level log with the full prompt and all raw card data."""
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    log_dir = set_artifact_dir() / "generation_logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
     slot_ids = [s["slot_id"] for s in slots]
-    log_path = LOG_DIR / f"batch_{batch_idx:03d}.json"
+    log_path = log_dir / f"batch_{batch_idx:03d}.json"
     log_data = {
         "batch_index": batch_idx,
         "slot_ids": slot_ids,
@@ -430,6 +431,7 @@ def _process_batch_result(
     output_tokens: int,
     progress: GenerationProgress,
     *,
+    set_code: str,
     user_prompt: str = "",
     system_prompt: str = "",
     latency_s: float = 0.0,
@@ -439,11 +441,13 @@ def _process_batch_result(
 ) -> list[Card]:
     """Validate, auto-fix, and save each card from a batch result.
 
+    ``set_code`` is the active project's set_code, resolved once at
+    the top of ``generate_set`` and threaded through so per-batch
+    helpers don't re-query the active project (matches the
+    "resolve once at the top of the run" guarantee in CLAUDE.md).
+
     Returns the list of successfully saved Card objects.
     """
-    from mtgai.runtime.active_project import require_active_project
-
-    set_code = require_active_project().set_code
     saved: list[Card] = []
     cost_per_card = calc_cost(model, input_tokens, output_tokens) / max(len(raw_cards), 1)
 
@@ -530,6 +534,7 @@ def _process_batch_result(
                 theme,
                 model,
                 progress,
+                set_code=set_code,
                 effort=effort,
             )
             if card is None:
@@ -599,6 +604,7 @@ def _retry_parse_failure(
     model: str,
     progress: GenerationProgress,
     *,
+    set_code: str,
     effort: str | None = None,
 ) -> Card | None:
     """Retry a card that completely failed schema validation (couldn't parse)."""
@@ -624,10 +630,8 @@ def _retry_parse_failure(
             result.get("cache_read_input_tokens", 0),
         )
 
-        from mtgai.runtime.active_project import require_active_project
-
         retry_raw = result["result"]
-        retry_raw.setdefault("set_code", require_active_project().set_code)
+        retry_raw.setdefault("set_code", set_code)
         retry_raw.setdefault("collector_number", slot["slot_id"])
         retry_raw.setdefault("layout", "normal")
 
@@ -970,6 +974,7 @@ def generate_set(
             result["input_tokens"],
             result["output_tokens"],
             progress,
+            set_code=set_code,
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             latency_s=api_latency,

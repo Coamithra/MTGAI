@@ -27,13 +27,6 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent.parent
 
 
-def _set_dir() -> Path:
-    """Where the active project's artifacts live (asset_folder)."""
-    from mtgai.io.asset_paths import set_artifact_dir
-
-    return set_artifact_dir()
-
-
 def load_analysis_inputs() -> tuple[
     list[Card], list[SkeletonSlot], list[dict], dict[str, list[str]]
 ]:
@@ -41,7 +34,9 @@ def load_analysis_inputs() -> tuple[
 
     Returns (cards, skeleton_slots, mechanics, functional_tags).
     """
-    sdir = _set_dir()
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    sdir = set_artifact_dir()
 
     # Load cards
     cards_dir = sdir / "cards"

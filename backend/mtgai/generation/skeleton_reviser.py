@@ -27,7 +27,6 @@ from mtgai.analysis.balance import analyze_set
 from mtgai.generation.card_generator import (
     CARD_TOOL_SCHEMA,
     CARDS_BATCH_TOOL_SCHEMA,
-    OUTPUT_ROOT,
     TEMPERATURE,
     GenerationProgress,
     _process_batch_result,
@@ -46,15 +45,22 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 DEFAULT_SET_CODE = "ASD"
-SKELETON_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "skeleton.json"
-MECHANICS_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "mechanics" / "approved.json"
-DISTRIBUTION_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "mechanics" / "distribution.json"
-THEME_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "theme.json"
-BALANCE_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reports" / "balance-analysis.json"
-CARDS_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "cards"
+
+# Legacy ASD-hardcoded paths used as default values for ``regenerate_slots``'s
+# optional kwargs. The live caller (``run_revision``) overrides every one of
+# these with paths derived from ``set_artifact_dir()``; these defaults exist
+# only so an external script importing ``regenerate_slots`` directly with no
+# overrides keeps working against the legacy layout.
+_OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
+SKELETON_PATH = _OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "skeleton.json"
+MECHANICS_PATH = _OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "mechanics" / "approved.json"
+DISTRIBUTION_PATH = _OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "mechanics" / "distribution.json"
+THEME_PATH = _OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "theme.json"
+BALANCE_PATH = _OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reports" / "balance-analysis.json"
+CARDS_DIR = _OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "cards"
 ARCHIVE_DIR = CARDS_DIR / "archive"
-REPORTS_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reports"
-REVISION_LOG_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "revision_logs"
+REPORTS_DIR = _OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reports"
+REVISION_LOG_DIR = _OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "revision_logs"
 
 
 # ---------------------------------------------------------------------------
@@ -539,7 +545,9 @@ def regenerate_slots(
     """
     from mtgai.runtime.active_project import require_active_project
 
-    settings = require_active_project().settings
+    project = require_active_project()
+    set_code = project.set_code
+    settings = project.settings
     gen_model = model or settings.get_llm_model_id("skeleton_rev")
     gen_effort = settings.get_effort("skeleton_rev")
     # Get slot dicts for the slots we need to regenerate
@@ -700,6 +708,7 @@ def regenerate_slots(
             result["input_tokens"],
             result["output_tokens"],
             progress,
+            set_code=set_code,
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             latency_s=api_latency,
@@ -1079,9 +1088,12 @@ if __name__ == "__main__":
         datefmt="%H:%M:%S",
     )
 
-    # CLI uses the active project. With the on-disk registry walk gone,
-    # the operator has to open the project (via the wizard or future
-    # CLI ``open`` command) before running this script directly.
+    # CLI shim: stamp the requested set as the active project so
+    # set_artifact_dir() resolves under output/sets/<CODE>/. Operators
+    # running this script directly need to ensure that asset_folder is
+    # configured (via the wizard, or by editing output/sets/<CODE>/
+    # settings.toml) — empty asset_folder will surface a NoAssetFolderError
+    # at the first stage helper that asks for an artifact path.
     from mtgai.runtime.active_project import write_active_set
 
     write_active_set(args.set)

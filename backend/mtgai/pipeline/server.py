@@ -38,11 +38,7 @@ from mtgai.pipeline.models import (
 from mtgai.pipeline.wizard import build_wizard_state
 from mtgai.pipeline.wizard import serialize as serialize_wizard_state
 from mtgai.runtime import active_project, ai_lock, extraction_run
-from mtgai.runtime.runtime_state import (
-    OUTPUT_ROOT,
-    compute_runtime_state,
-    resolve_active_set_code,
-)
+from mtgai.runtime.runtime_state import OUTPUT_ROOT, compute_runtime_state
 
 logger = logging.getLogger(__name__)
 
@@ -83,16 +79,22 @@ def _no_active_project_response() -> JSONResponse:
     )
 
 
-def _require_active_project() -> tuple[active_project.ProjectState | None, JSONResponse | None]:
-    """Return the active project, or a 409 response if none is open.
+class _NoActiveProject(Exception):
+    """Sentinel raised by :func:`_require_active_project` when no project is open.
 
-    Returns ``(project, None)`` on success or ``(None, JSONResponse(...))``
-    so callers can do ``project, err = _require_active_project(); if err: return err``.
+    Endpoints catch this and return :func:`_no_active_project_response`. Using
+    an exception (instead of a tuple-unpack pattern) keeps the happy path
+    linear so the type checker can narrow ``project`` for the rest of the
+    handler without a redundant ``project is None`` guard.
     """
+
+
+def _require_active_project() -> active_project.ProjectState:
+    """Return the active project; raise :class:`_NoActiveProject` if none is open."""
     project = active_project.read_active_project()
     if project is None:
-        return None, _no_active_project_response()
-    return project, None
+        raise _NoActiveProject
+    return project
 
 
 # ---------------------------------------------------------------------------
@@ -127,8 +129,7 @@ def _render_wizard(request: Request, requested_tab: str | None) -> HTMLResponse 
     requests for any other fragment redirect there. Once a project is
     open, normal tab routing resumes (see :func:`build_wizard_state`).
     """
-    set_code = resolve_active_set_code()
-    ws = build_wizard_state(set_code, requested_tab=requested_tab)
+    ws = build_wizard_state(requested_tab=requested_tab)
     if requested_tab is not None and ws.active_tab_id != requested_tab:
         return RedirectResponse(
             url=f"/pipeline/{ws.active_tab_id}",
@@ -150,8 +151,7 @@ async def pipeline_root(request: Request):
     With no project loaded the redirect always lands on Project Settings;
     once one is open it follows the same latest-tab logic as before.
     """
-    set_code = resolve_active_set_code()
-    ws = build_wizard_state(set_code, requested_tab=None)
+    ws = build_wizard_state(requested_tab=None)
     return RedirectResponse(url=f"/pipeline/{ws.latest_tab_id}", status_code=302)
 
 
@@ -225,9 +225,10 @@ async def save_theme(request: Request):
     The body is the assembled theme payload. Returns 409 if no project
     is open (the wizard sends the user to Project Settings to fix it).
     """
-    project, err = _require_active_project()
-    if err:
-        return err
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     body = await request.json()
     try:
         theme_path = _theme_path()
@@ -245,7 +246,7 @@ async def save_theme(request: Request):
         {
             "success": True,
             "path": str(theme_path),
-            "set_code": project.set_code if project else None,
+            "set_code": project.set_code,
         }
     )
 
@@ -253,9 +254,10 @@ async def save_theme(request: Request):
 @api_router.get("/theme/load")
 async def load_theme():
     """Return the saved theme.json for the active project, or 404 if absent."""
-    _project, err = _require_active_project()
-    if err:
-        return err
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     try:
         theme_path = _theme_path()
     except NoAssetFolderError as exc:
@@ -921,9 +923,10 @@ async def wizard_project_payload() -> JSONResponse:
     Returns 409 ``no_active_project`` when nothing is open so the
     client can prompt the user to New / Open.
     """
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     return JSONResponse(_project_payload(project))
 
 
@@ -939,9 +942,10 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
     """
     from mtgai.settings.model_settings import SetParams, apply_settings
 
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     code = project.set_code
     settings = project.settings
     body = await request.json()
@@ -995,9 +999,10 @@ async def wizard_project_save_theme_input(request: Request) -> JSONResponse:
     """
     from mtgai.settings.model_settings import ThemeInputSource, apply_settings
 
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     code = project.set_code
     settings = project.settings
     body = await request.json()
@@ -1053,9 +1058,10 @@ async def wizard_project_save_break(request: Request) -> JSONResponse:
     from mtgai.pipeline.models import STAGE_DEFINITIONS
     from mtgai.settings.model_settings import apply_settings
 
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     code = project.set_code
     settings = project.settings
     body = await request.json()
@@ -1101,9 +1107,10 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
     """
     from mtgai.settings.model_settings import apply_settings
 
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     code = project.set_code
     settings = project.settings
     body = await request.json()
@@ -1149,9 +1156,10 @@ async def wizard_project_apply_preset(request: Request) -> JSONResponse:
     """
     from mtgai.settings.model_settings import ModelSettings, apply_settings
 
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     code = project.set_code
     current = project.settings
     body = await request.json()
@@ -1179,9 +1187,10 @@ async def wizard_project_apply_preset(request: Request) -> JSONResponse:
 @router.post("/api/wizard/project/preset/save")
 async def wizard_project_save_preset(request: Request) -> JSONResponse:
     """Save the active project's model assignments + break points as a profile."""
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     settings = project.settings
     body = await request.json()
     name = body.get("name")
@@ -1196,7 +1205,7 @@ async def wizard_project_save_preset(request: Request) -> JSONResponse:
 
 
 @router.post("/api/wizard/project/start")
-async def wizard_project_start(request: Request) -> JSONResponse:
+async def wizard_project_start() -> JSONResponse:
     """Kick off theme extraction for the chosen input.
 
     Three branches by ``settings.theme_input.kind``:
@@ -1209,9 +1218,10 @@ async def wizard_project_start(request: Request) -> JSONResponse:
     * ``"none"`` — refuse with 400; the Start button should not have
       been enabled.
     """
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     code = project.set_code
     settings = project.settings
 
@@ -1516,9 +1526,10 @@ async def project_serialize() -> JSONResponse:
     """
     from mtgai.settings.model_settings import dump_project_toml
 
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     return JSONResponse(
         {
             "success": True,
@@ -1545,9 +1556,10 @@ async def wizard_project_save_asset_folder(request: Request) -> JSONResponse:
     """
     from mtgai.settings.model_settings import apply_settings
 
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     code = project.set_code
     settings = project.settings
     body = await request.json()
@@ -1668,7 +1680,7 @@ def _kickoff_pipeline_engine(set_code: str) -> tuple[PipelineState | None, str |
 
 
 @router.post("/api/wizard/advance")
-async def wizard_advance(request: Request) -> JSONResponse:
+async def wizard_advance() -> JSONResponse:
     """Single Next-step entry point used by the wizard footer button.
 
     Routes by the current pipeline state for the given set:
@@ -1686,11 +1698,11 @@ async def wizard_advance(request: Request) -> JSONResponse:
     client can update the URL on the explicit click path. Auto-advance
     paths don't need this — SSE handles tab spawning in place.
     """
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     code = project.set_code
-    _ = await request.json()
 
     existing = load_state()
     if existing is None:
@@ -1817,9 +1829,10 @@ async def wizard_edit_preview(request: Request) -> JSONResponse:
     is set when the user is editing the theme-input field on Project Settings
     (the cascade also wipes theme.json so the next Start re-extracts).
     """
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     body = await request.json()
     from_stage = body.get("from_stage")
     if not isinstance(from_stage, str) or not from_stage:
@@ -1922,9 +1935,10 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
         apply_settings,
     )
 
-    project, err = _require_active_project()
-    if err or project is None:
-        return err if err is not None else _no_active_project_response()
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
     code = project.set_code
     body = await request.json()
     from_stage = body.get("from_stage")
@@ -2328,15 +2342,14 @@ def _get_current_state() -> PipelineState | None:
     if _engine is not None:
         return _engine.state
 
-    set_code = active_project.read_active_set()
-    if set_code is None:
+    if active_project.read_active_project() is None:
         return None
     try:
         return load_state()
     except NoAssetFolderError:
         return None
     except Exception:
-        logger.warning("Skipping unparseable pipeline-state.json for %s", set_code)
+        logger.warning("Skipping unparseable pipeline-state.json for active project")
         return None
 
 

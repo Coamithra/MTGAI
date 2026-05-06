@@ -1193,13 +1193,19 @@ def review_set(
     reviews_dir = set_dir / "reviews"
     reports_dir = set_dir / "reports"
 
+    # Resolve once for the whole stage so a mid-run settings change can't
+    # swap the model between cards. Matches the "no mid-stage swap"
+    # guarantee in CLAUDE.md (`Model Settings`).
+    review_model = _review_model()
+    review_effort = _review_effort()
+
     logger.info("=" * 70)
     logger.info("MTGAI AI Design Review Pipeline -- Phase 4B")
     logger.info("=" * 70)
     logger.info(
         "Model: %s | Effort: %s | Max iterations: %d",
-        _review_model(),
-        _review_effort() or "default",
+        review_model,
+        review_effort or "default",
         MAX_ITERATIONS,
     )
     logger.info("Set: %s", set_code)
@@ -1268,12 +1274,6 @@ def review_set(
     if dry_run:
         logger.info("DRY RUN -- no API calls made.")
         return []
-
-    # Resolve once for the whole stage so a mid-run settings change can't
-    # swap the model between cards. Matches the "no mid-stage swap"
-    # guarantee in CLAUDE.md (`Model Settings`).
-    review_model = _review_model()
-    review_effort = _review_effort()
 
     # Review!
     reviews: list[CardReviewResult] = []

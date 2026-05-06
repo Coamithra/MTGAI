@@ -172,7 +172,7 @@ def test_pipeline_state_lives_under_asset_folder(configured_project):
 
 def test_theme_path_resolves_under_asset_folder(configured_project):
     """The wizard-side theme loader reads ``theme.json`` from the asset folder."""
-    from mtgai.pipeline.wizard import _load_theme_for
+    from mtgai.pipeline.wizard import _load_active_theme
 
     code, legacy_dir, asset_dir = configured_project
 
@@ -183,5 +183,5 @@ def test_theme_path_resolves_under_asset_folder(configured_project):
         json.dumps({"code": code, "name": "Legacy decoy"}), encoding="utf-8"
     )
 
-    loaded = _load_theme_for(code)
+    loaded = _load_active_theme()
     assert loaded == theme_payload

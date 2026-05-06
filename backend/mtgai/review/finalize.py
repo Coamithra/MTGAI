@@ -40,20 +40,17 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _set_dir() -> Path:
-    """Where the active project's artifacts live (asset_folder)."""
+def _load_mechanics() -> list[dict]:
     from mtgai.io.asset_paths import set_artifact_dir
 
-    return set_artifact_dir()
-
-
-def _load_mechanics() -> list[dict]:
-    path = _set_dir() / "mechanics" / "approved.json"
+    path = set_artifact_dir() / "mechanics" / "approved.json"
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _card_files() -> list[Path]:
-    cards_dir = _set_dir() / "cards"
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    cards_dir = set_artifact_dir() / "cards"
     return sorted(cards_dir.glob("*.json"))
 
 
@@ -115,7 +112,9 @@ def finalize_set(
 
     # Hoist the artifact-dir resolution outside the loop — it's constant
     # for the whole call and the helper triggers a settings.toml read.
-    set_dir = _set_dir()
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    set_dir = set_artifact_dir()
 
     for path in card_paths:
         card = load_card(path)
@@ -209,7 +208,9 @@ def finalize_set(
 
 def _write_report(summary: dict) -> Path:
     """Write a markdown finalization report for human review."""
-    reports_dir = _set_dir() / "reports"
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    reports_dir = set_artifact_dir() / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = reports_dir / "finalize-report.md"
 

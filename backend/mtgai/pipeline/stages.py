@@ -430,9 +430,7 @@ def run_lands(
     )
 
 
-def run_card_gen(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
+def run_card_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Generate cards from skeleton slots."""
     from mtgai.generation.card_generator import generate_set
 
@@ -446,9 +444,7 @@ def run_card_gen(
     )
 
 
-def run_balance(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
+def run_balance(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Run balance analysis on the generated set."""
     from mtgai.analysis.balance import analyze_set
 
@@ -461,9 +457,7 @@ def run_balance(
     )
 
 
-def run_skeleton_rev(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
+def run_skeleton_rev(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Run skeleton revision based on balance findings."""
     from mtgai.generation.skeleton_reviser import run_revision
 
@@ -479,9 +473,7 @@ def run_skeleton_rev(
     )
 
 
-def run_ai_review(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
+def run_ai_review(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Run AI design review on all cards."""
     from mtgai.review.ai_review import review_all_cards
 
@@ -496,9 +488,7 @@ def run_ai_review(
     )
 
 
-def run_finalize(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
+def run_finalize(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Run post-review finalization (reminder text injection + validation)."""
     from mtgai.review.finalize import finalize_set
 
@@ -524,9 +514,7 @@ def run_human_card_review(
     return StageResult(detail="Awaiting human card review via gallery UI")
 
 
-def run_art_prompts(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
+def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Generate art prompts for all cards."""
     from mtgai.art.prompt_builder import generate_prompts_for_set
 
@@ -541,9 +529,7 @@ def run_art_prompts(
     )
 
 
-def run_char_portraits(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
+def run_char_portraits(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Generate character reference portraits."""
     from mtgai.art.character_portraits import generate_character_portraits
 
@@ -557,9 +543,7 @@ def run_char_portraits(
     )
 
 
-def run_art_gen(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
+def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Generate art for all cards via ComfyUI + Flux."""
     from mtgai.art.image_generator import generate_art_for_set
 
@@ -574,9 +558,7 @@ def run_art_gen(
     )
 
 
-def run_art_select(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
+def run_art_select(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Select best art version per card via Haiku vision."""
     from mtgai.art.art_selector import select_art_for_set
 
@@ -598,9 +580,7 @@ def run_human_art_review(
     return StageResult(detail="Awaiting human art review via gallery UI")
 
 
-def run_rendering(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
+def run_rendering(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Render all cards to print-ready images."""
     from mtgai.rendering.card_renderer import CardRenderer
 
@@ -616,9 +596,7 @@ def run_rendering(
     )
 
 
-def run_render_qa(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
+def run_render_qa(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Re-run validators on rendered cards for final QA."""
     from mtgai.validation import validate_card_from_raw
 

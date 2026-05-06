@@ -181,8 +181,17 @@ _image_cache: dict[str, tuple[dict[str, str], dict[str, str]]] = {}
 
 
 def _get_image_maps(refresh: bool = False) -> tuple[dict[str, str], dict[str, str]]:
-    """Get image maps for the active project, discovering from disk on first call or refresh."""
-    set_code = _get_set_code() or ""
+    """Get image maps for the active project, discovering from disk on first call or refresh.
+
+    Callers must gate on an open project upstream — :func:`_discover_images`
+    routes through :func:`set_artifact_dir`, which raises
+    :class:`NoAssetFolderError` when no project is loaded. The cache key
+    is the active set's code, so a project switch transparently fans out
+    to a fresh discovery on next call.
+    """
+    set_code = _get_set_code()
+    if set_code is None:
+        raise RuntimeError("_get_image_maps called with no active project")
     if refresh or set_code not in _image_cache:
         _image_cache[set_code] = _discover_images()
     return _image_cache[set_code]

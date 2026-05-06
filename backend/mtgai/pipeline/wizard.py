@@ -30,7 +30,6 @@ from mtgai.pipeline.models import (
     StageStatus,
     break_point_states,
 )
-from mtgai.settings.model_settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +70,8 @@ class WizardState:
     break_points: dict[str, bool]
 
 
-def _load_theme_for(set_code: str) -> dict[str, Any] | None:
-    """Read the project's ``theme.json`` if present, else None.
+def _load_active_theme() -> dict[str, Any] | None:
+    """Read the active project's ``theme.json`` if present, else None.
 
     Tolerates a malformed file by logging + returning None — a corrupt
     theme.json shouldn't 500 the wizard route; the user sees the brand-new
@@ -91,7 +90,7 @@ def _load_theme_for(set_code: str) -> dict[str, Any] | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning("Failed to read theme.json for %s: %s", set_code, e)
+        logger.warning("Failed to read theme.json: %s", e)
         return None
 
 
@@ -154,14 +153,17 @@ def resolve_tab(requested: str | None, tabs: list[WizardTab]) -> str:
     return compute_latest_tab(tabs)
 
 
-def build_wizard_state(set_code: str | None, requested_tab: str | None) -> WizardState:
-    """Resolve the full wizard state for a set + URL fragment.
+def build_wizard_state(requested_tab: str | None) -> WizardState:
+    """Resolve the full wizard state for the active project + URL fragment.
 
-    With ``set_code`` None, the wizard renders only the Project Settings
-    tab; pipeline state, theme, and break-point overrides are all empty
-    because there is nothing on disk to load yet.
+    Reads the active project from in-memory state. With no project
+    loaded, returns the brand-new shell (Project Settings tab only,
+    everything else empty).
     """
-    if set_code is None:
+    from mtgai.runtime.active_project import read_active_project
+
+    project = read_active_project()
+    if project is None:
         tabs = [WizardTab(id=PROJECT_TAB_ID, title="Project Settings", kind="project")]
         return WizardState(
             active_set=None,
@@ -176,18 +178,18 @@ def build_wizard_state(set_code: str | None, requested_tab: str | None) -> Wizar
         state = load_state()
     except NoAssetFolderError:
         state = None
-    theme = _load_theme_for(set_code)
+    theme = _load_active_theme()
     tabs = compute_visible_tabs(state, theme)
     latest = compute_latest_tab(tabs)
     active = resolve_tab(requested_tab, tabs)
     return WizardState(
-        active_set=set_code,
+        active_set=project.set_code,
         visible_tabs=tabs,
         latest_tab_id=latest,
         active_tab_id=active,
         pipeline_state=state,
         theme=theme,
-        break_points=break_point_states(get_settings(set_code).break_points),
+        break_points=break_point_states(project.settings.break_points),
     )
 
 

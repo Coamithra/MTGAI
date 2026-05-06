@@ -136,14 +136,14 @@ def compute_runtime_state() -> dict[str, Any]:
     """Build the ``/api/runtime/state`` payload.
 
     ``active_set`` is ``None`` when no project file is open. The
-    pipeline and theme slices are also ``None`` in that case — there
-    is no set on disk to load them from.
+    pipeline and theme slices read through ``set_artifact_dir``, which
+    fails closed (returns ``None``) when no project is open or no
+    asset_folder is configured — no need to gate them again here.
     """
-    active_set = _resolve_active_set_code()
     return {
-        "active_set": active_set,
+        "active_set": _resolve_active_set_code(),
         "ai_lock": ai_lock.busy_payload(),
         "active_runs": _active_runs_payload(),
-        "pipeline": _load_pipeline_summary() if active_set else None,
-        "theme": _load_theme() if active_set else None,
+        "pipeline": _load_pipeline_summary(),
+        "theme": _load_theme(),
     }

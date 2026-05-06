@@ -705,9 +705,12 @@ def main():
         datefmt="%H:%M:%S",
     )
 
-    # CLI uses the active project. With the on-disk registry walk gone,
-    # the operator has to open the project (via the wizard or future CLI
-    # ``open`` command) before running this script directly.
+    # CLI shim: stamp the requested set as the active project so
+    # set_artifact_dir() resolves under output/sets/<CODE>/. Operators
+    # running this script directly need to ensure that asset_folder is
+    # configured (via the wizard, or by editing output/sets/<CODE>/
+    # settings.toml) — empty asset_folder will surface a NoAssetFolderError
+    # at the first stage helper that asks for an artifact path.
     from mtgai.runtime.active_project import write_active_set
 
     write_active_set(args.set)
