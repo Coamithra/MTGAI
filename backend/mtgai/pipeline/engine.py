@@ -33,21 +33,23 @@ logger = logging.getLogger(__name__)
 OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
 
 
-def _state_path(set_code: str) -> Path:
-    """Where ``pipeline-state.json`` lives for a set.
+def _state_path() -> Path:
+    """Where ``pipeline-state.json`` lives for the active project.
 
     Routes through :func:`set_artifact_dir` so the file lands in the
-    project's configured ``asset_folder`` when present, else the legacy
-    ``output/sets/<CODE>/`` location.
+    user's configured ``asset_folder``. Raises
+    :class:`NoAssetFolderError` if no project is open or the asset
+    folder isn't set; the engine never reaches this path without an
+    active project, so a raise is the right signal at the boundary.
     """
     from mtgai.io.asset_paths import set_artifact_dir
 
-    return set_artifact_dir(set_code) / "pipeline-state.json"
+    return set_artifact_dir() / "pipeline-state.json"
 
 
 def save_state(state: PipelineState) -> None:
     """Persist pipeline state to disk."""
-    path = _state_path(state.config.set_code)
+    path = _state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     state.updated_at = datetime.now(UTC)
     path.write_text(
@@ -57,8 +59,15 @@ def save_state(state: PipelineState) -> None:
 
 
 def load_state(set_code: str) -> PipelineState | None:
-    """Load pipeline state from disk, or None if not found."""
-    path = _state_path(set_code)
+    """Load pipeline state from disk, or None if not found.
+
+    The ``set_code`` argument is unused (the path is resolved from the
+    active project) but retained for caller compatibility — runners and
+    endpoints still pass it. The argument will be dropped in a follow-up
+    that removes ``set_code`` from the stage-runner public surface.
+    """
+    del set_code
+    path = _state_path()
     if not path.exists():
         return None
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -68,33 +77,36 @@ def load_state(set_code: str) -> PipelineState | None:
 def cleanup_orphan_running_stages() -> list[str]:
     """Demote any persisted ``RUNNING`` stage to ``FAILED``.
 
-    Called on server boot, before any engine is constructed: at that
-    point the in-memory pipeline registry is empty, so any
-    ``StageStatus.RUNNING`` (or ``PipelineStatus.RUNNING``) on disk
-    came from a previous process that exited mid-stage. Mark the
-    stage failed with a clear message and reset the overall status so
-    the user can retry from the wizard.
+    Called on server boot, before any engine is constructed and before
+    any project has been loaded — so this scan can't go through
+    :func:`set_artifact_dir` (which requires an active project). Walks
+    the legacy on-disk registry under ``output/sets/<CODE>/`` instead;
+    that's where ``pipeline-state.json`` for a project landed when the
+    user hadn't configured an ``asset_folder`` yet. Pipeline states
+    written under a custom asset folder won't be reached on boot —
+    they'll be picked up the next time the user opens that project and
+    a runner re-touches the file.
 
     Returns a list of ``"<set_code>:<stage_id>"`` strings that were
     demoted, mainly for logging.
     """
-    from mtgai.io.asset_paths import set_artifact_dir
-    from mtgai.runtime.active_set import iter_known_set_codes
+    from mtgai.runtime.active_project import SET_CODE_RE
 
-    # Each registered project owns a settings.toml at the canonical
-    # location; its pipeline-state.json may then sit there OR in the
-    # user-chosen ``asset_folder``. iter_known_set_codes already filters
-    # to dirs that have a settings.toml, so set_artifact_dir below is
-    # safe to call without seeding stray scratch dirs.
-    state_paths: list[Path] = []
-    for code in iter_known_set_codes():
-        candidate = set_artifact_dir(code) / "pipeline-state.json"
-        if candidate.exists():
-            state_paths.append(candidate)
+    sets_root = OUTPUT_ROOT / "sets"
+    if not sets_root.exists():
+        return []
 
     demoted: list[str] = []
     now = datetime.now(UTC)
-    for state_path in state_paths:
+    for child in sorted(sets_root.iterdir()):
+        # Mirror iter_known_set_codes' shape filter so a stray scratch
+        # dir under output/sets/ can't materialise a state rewrite.
+        if not child.is_dir() or not SET_CODE_RE.fullmatch(child.name):
+            continue
+        state_path = child / "pipeline-state.json"
+        if not state_path.exists():
+            continue
+
         try:
             state = PipelineState.model_validate_json(state_path.read_text(encoding="utf-8"))
         except Exception:
@@ -115,7 +127,11 @@ def cleanup_orphan_running_stages() -> list[str]:
             changed = True
 
         if changed:
-            save_state(state)
+            state.updated_at = now
+            state_path.write_text(
+                json.dumps(state.model_dump(mode="json"), indent=2, default=str),
+                encoding="utf-8",
+            )
 
     if demoted:
         logger.warning(

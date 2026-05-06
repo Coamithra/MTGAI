@@ -39,6 +39,15 @@ def sets_root(isolated_output):
     return isolated_output
 
 
+def _open_project(code: str, asset_dir):
+    """Pin ``code`` as the active project with ``asset_dir`` as its asset folder."""
+    from mtgai.runtime import active_project
+    from mtgai.settings.model_settings import ModelSettings, apply_settings
+
+    apply_settings(code, ModelSettings(asset_folder=str(asset_dir)))
+    active_project.write_active_set(code)
+
+
 def _state_for(set_code: str = "TST") -> PipelineState:
     return create_pipeline_state(
         PipelineConfig(set_code=set_code, set_name="Test", set_size=20),
@@ -166,6 +175,7 @@ def test_build_wizard_state_with_theme(sets_root):
         json.dumps({"code": "TST", "name": "Test"}),
         encoding="utf-8",
     )
+    _open_project("TST", set_dir)
     ws = build_wizard_state("TST", requested_tab=None)
     assert ws.theme == {"code": "TST", "name": "Test"}
     assert ws.active_tab_id == THEME_TAB_ID
@@ -185,6 +195,7 @@ def test_serialize_round_trips_visible_tabs(sets_root):
     set_dir = sets_root / "TST"
     set_dir.mkdir()
     (set_dir / "theme.json").write_text(json.dumps({"code": "TST"}), encoding="utf-8")
+    _open_project("TST", set_dir)
     ws = build_wizard_state("TST", requested_tab="theme")
     blob = serialize(ws)
     assert blob["active_tab_id"] == "theme"

@@ -176,7 +176,7 @@ def select_art_for_set(
     from mtgai.io.card_io import load_card
     from mtgai.io.paths import card_slug
 
-    set_dir = set_artifact_dir(set_code)
+    set_dir = set_artifact_dir()
     cards_dir = set_dir / "cards"
     art_dir = set_dir / "art"
     log_dir = set_dir / "art-selection-logs"
@@ -293,7 +293,7 @@ def generate_selection_report(set_code: str) -> Path:
 
     from mtgai.io.asset_paths import set_artifact_dir
 
-    set_dir = set_artifact_dir(set_code)
+    set_dir = set_artifact_dir()
     log_dir = set_dir / "art-selection-logs"
     report_path = set_dir / "reports" / "art-selection-report.html"
 

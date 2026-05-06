@@ -188,7 +188,7 @@ def generate_character_portraits(
     """
     from mtgai.io.asset_paths import set_artifact_dir
 
-    set_dir = set_artifact_dir(set_code)
+    set_dir = set_artifact_dir()
     refs_path = set_dir / "art-direction" / "visual-references.json"
     if not refs_path.exists():
         raise FileNotFoundError(f"Visual references not found: {refs_path}")
@@ -399,7 +399,7 @@ def main():
     from mtgai.io.asset_paths import set_artifact_dir
 
     log_file = (
-        set_artifact_dir(args.set)
+        set_artifact_dir()
         / "art-direction"
         / "character-refs"
         / "logs"

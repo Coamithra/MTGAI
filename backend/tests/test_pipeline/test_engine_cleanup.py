@@ -135,7 +135,18 @@ def test_loads_legacy_state_with_skip_stages_field(fake_output_root: Path) -> No
 
     # Should not raise — the cleanup helper round-trips the state.
     engine_mod.cleanup_orphan_running_stages()
-    reloaded = engine_mod.load_state("LEG")
+    # ``load_state`` requires an active project (set_artifact_dir reads
+    # from it); pin LEG so the read can find pipeline-state.json under
+    # the legacy registry path the test seeded above.
+    from mtgai.runtime import active_project
+    from mtgai.settings.model_settings import ModelSettings, apply_settings
+
+    apply_settings("LEG", ModelSettings(asset_folder=str(set_dir)))
+    active_project.write_active_set("LEG")
+    try:
+        reloaded = engine_mod.load_state("LEG")
+    finally:
+        active_project.clear_active_set()
     assert reloaded is not None
     # The legacy field is silently dropped on load + re-save.
     assert not hasattr(reloaded.config, "skip_stages")

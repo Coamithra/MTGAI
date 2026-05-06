@@ -189,7 +189,7 @@ def save_report(
     """
     from mtgai.io.asset_paths import set_artifact_dir
 
-    sdir = set_artifact_dir(set_code) / "reports"
+    sdir = set_artifact_dir() / "reports"
     sdir.mkdir(parents=True, exist_ok=True)
 
     json_path = sdir / "balance-analysis.json"

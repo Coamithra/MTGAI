@@ -39,7 +39,7 @@ def _set_dir(set_code: str) -> Path:
     """
     from mtgai.io.asset_paths import set_artifact_dir
 
-    return set_artifact_dir(set_code)
+    return set_artifact_dir()
 
 
 # ---------------------------------------------------------------------------

@@ -178,7 +178,7 @@ def generate_lands(
     """
     from mtgai.io.asset_paths import set_artifact_dir
 
-    set_dir = set_artifact_dir(set_code)
+    set_dir = set_artifact_dir()
     skeleton_path = set_dir / "skeleton.json"
     cards_dir = set_dir / "cards"
     cards_dir.mkdir(parents=True, exist_ok=True)

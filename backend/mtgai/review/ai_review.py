@@ -1188,7 +1188,7 @@ def review_set(
     # project's asset_folder when configured.
     from mtgai.io.asset_paths import set_artifact_dir
 
-    set_dir = set_artifact_dir(set_code)
+    set_dir = set_artifact_dir()
     mechanics_path = set_dir / "mechanics" / "approved.json"
     pointed_q_path = set_dir / "mechanics" / "pointed-questions.json"
     reviews_dir = set_dir / "reviews"

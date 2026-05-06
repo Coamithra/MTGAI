@@ -1,11 +1,10 @@
 """End-to-end smoke test for asset_folder routing.
 
-Verifies that when a project's settings.toml carries ``asset_folder``,
-stage clearers + the stages._set_dir helper land in that folder instead
-of the legacy ``output/sets/<CODE>/`` path. Targets the cheapest stage
-(skeleton) since the full runners pull in heavy LLM dependencies; the
-clearer dispatch is what proves the routing is in place for everything
-that downstream stages also use.
+Verifies that when the active project's settings carry ``asset_folder``,
+stage clearers + the stages._set_dir helper land in that folder. The
+legacy fallback to ``output/sets/<CODE>/`` is gone — endpoints surface a
+409 when no asset folder is configured (covered by the unit tests on
+``set_artifact_dir`` itself).
 """
 
 from __future__ import annotations
@@ -18,12 +17,13 @@ import pytest
 
 from mtgai.io import asset_paths
 from mtgai.pipeline import stages as stages_mod
+from mtgai.runtime import active_project
 from mtgai.settings import model_settings as ms
 
 
 @pytest.fixture
 def configured_project(tmp_path, monkeypatch) -> Iterator[tuple[str, Path, Path]]:
-    """Configure a project whose ``asset_folder`` points outside ``output/``.
+    """Configure an active project whose ``asset_folder`` points outside ``output/``.
 
     Returns ``(set_code, legacy_dir, asset_dir)`` so tests can assert
     that artifacts land in ``asset_dir`` and *not* the legacy path.
@@ -44,17 +44,20 @@ def configured_project(tmp_path, monkeypatch) -> Iterator[tuple[str, Path, Path]
     monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
     monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
     ms.invalidate_cache()
+    active_project.clear_active_set()
 
     code = "TST"
     ms.apply_settings(code, ms.ModelSettings(asset_folder=str(asset_dir)))
+    active_project.write_active_set(code)
     legacy_dir = sets_root / code
 
     yield code, legacy_dir, asset_dir
+    active_project.clear_active_set()
     ms.invalidate_cache()
 
 
 def test_set_dir_resolves_to_asset_folder(configured_project):
-    """``stages._set_dir`` honours the project's configured ``asset_folder``."""
+    """``stages._set_dir`` honours the active project's configured ``asset_folder``."""
     code, _legacy_dir, asset_dir = configured_project
     assert stages_mod._set_dir(code) == asset_dir
 
@@ -111,14 +114,13 @@ def test_render_clearer_targets_asset_folder(configured_project):
 def test_settings_toml_stays_in_canonical_location(configured_project):
     """``settings.toml`` is the project registry — always at ``output/sets/<CODE>/``.
 
-    Phase 2 routes stage *artifacts* via ``asset_folder`` but leaves the
-    settings.toml at the canonical location so the project remains
-    discoverable through the legacy registry path. This is the
-    chicken-and-egg foundation: ``set_artifact_dir`` consults
-    settings.toml to find the asset_folder, so it can't itself live in
-    the asset folder.
+    Stage *artifacts* route via ``asset_folder`` but settings.toml stays
+    at the canonical location so projects remain discoverable through
+    the legacy registry path. The chicken-and-egg foundation: the seed
+    path consults settings.toml to find the asset_folder, so settings
+    itself can't live in the asset folder.
     """
-    code, legacy_dir, asset_dir = configured_project
+    _code, legacy_dir, asset_dir = configured_project
 
     legacy_settings = legacy_dir / "settings.toml"
     asset_settings = asset_dir / "settings.toml"
@@ -126,8 +128,12 @@ def test_settings_toml_stays_in_canonical_location(configured_project):
     assert not asset_settings.exists(), "settings.toml should NOT be in asset_folder"
 
 
-def test_legacy_default_when_asset_folder_unset(tmp_path, monkeypatch):
-    """A project with no ``asset_folder`` keeps the legacy layout."""
+def test_set_artifact_dir_raises_when_no_asset_folder(tmp_path, monkeypatch):
+    """An active project with empty ``asset_folder`` → :class:`NoAssetFolderError`.
+
+    The legacy fallback to ``output/sets/<CODE>/`` was removed; callers
+    surface a 409 instead of silently writing to the registry path.
+    """
     sets_root = tmp_path / "output" / "sets"
     settings_dir = tmp_path / "output" / "settings"
     sets_root.mkdir(parents=True)
@@ -135,37 +141,34 @@ def test_legacy_default_when_asset_folder_unset(tmp_path, monkeypatch):
 
     monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path / "output")
     monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(stages_mod, "OUTPUT_ROOT", tmp_path / "output")
     monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path / "output")
     monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
     monkeypatch.setattr(ms, "SETS_DIR", sets_root)
     monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
     monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
     ms.invalidate_cache()
+    active_project.clear_active_set()
 
     code = "OLD"
     ms.apply_settings(code, ms.ModelSettings(asset_folder=""))
-    legacy_dir = sets_root / code
+    active_project.write_active_set(code)
 
-    skel_path = legacy_dir / "skeleton.json"
-    skel_path.parent.mkdir(parents=True, exist_ok=True)
-    skel_path.write_text("{}", encoding="utf-8")
+    with pytest.raises(asset_paths.NoAssetFolderError):
+        asset_paths.set_artifact_dir()
 
-    stages_mod.clear_stage_artifacts("skeleton", code)
-
-    assert not skel_path.exists()
+    active_project.clear_active_set()
     ms.invalidate_cache()
 
 
 def test_pipeline_state_lives_under_asset_folder(configured_project):
-    """``pipeline-state.json`` resolves under the project's ``asset_folder``."""
+    """``pipeline-state.json`` resolves under the active project's ``asset_folder``."""
     from mtgai.pipeline.engine import _state_path
 
-    code, legacy_dir, asset_dir = configured_project
+    _code, legacy_dir, asset_dir = configured_project
     expected = asset_dir / "pipeline-state.json"
-    assert _state_path(code) == expected
-    assert _state_path(code).parent == asset_dir
-    assert (legacy_dir / "pipeline-state.json") != _state_path(code)
+    assert _state_path() == expected
+    assert _state_path().parent == asset_dir
+    assert (legacy_dir / "pipeline-state.json") != _state_path()
 
 
 def test_theme_path_resolves_under_asset_folder(configured_project):

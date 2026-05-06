@@ -287,13 +287,13 @@ class TestLoadCardsRaw:
     def test_returns_dicts(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """load_cards_raw returns list[dict].
 
-        Phase 2: ``loaders._set_dir`` routes through
-        :func:`set_artifact_dir`, which falls back to
-        ``asset_paths.SETS_ROOT / set_code`` when the set has no
-        configured ``asset_folder``. We patch both the asset helper and
-        ``model_settings`` so the fallback lands inside ``tmp_path``.
+        ``loaders._set_dir`` routes through :func:`set_artifact_dir`
+        which now reads exclusively from the active project. The test
+        opens a project with the tmp set dir as its asset folder so
+        the cards/ directory is reachable.
         """
         from mtgai.io import asset_paths
+        from mtgai.runtime import active_project
         from mtgai.settings import model_settings as ms
 
         sets_root = tmp_path / "sets"
@@ -301,7 +301,8 @@ class TestLoadCardsRaw:
         sets_root.mkdir(parents=True)
         settings_dir.mkdir(parents=True)
 
-        cards_dir = sets_root / "TST" / "cards"
+        asset_dir = sets_root / "TST"
+        cards_dir = asset_dir / "cards"
         cards_dir.mkdir(parents=True)
         card = _make_card(name="Test", collector_number="T-01")
         _write_card_json(cards_dir, card)
@@ -314,9 +315,13 @@ class TestLoadCardsRaw:
         monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
         monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
         ms.invalidate_cache()
+        active_project.clear_active_set()
         try:
+            ms.apply_settings("TST", ms.ModelSettings(asset_folder=str(asset_dir)))
+            active_project.write_active_set("TST")
             result = load_cards_raw("TST")
         finally:
+            active_project.clear_active_set()
             ms.invalidate_cache()
         assert len(result) == 1
         assert isinstance(result[0], dict)

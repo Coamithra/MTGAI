@@ -33,7 +33,7 @@ def isolated_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator
     from mtgai.io import asset_paths
     from mtgai.pipeline import engine, stages
     from mtgai.pipeline import server as pipeline_server
-    from mtgai.runtime import active_set, runtime_state
+    from mtgai.runtime import active_project, runtime_state
     from mtgai.settings import model_settings as ms
 
     sets_root = tmp_path / "sets"
@@ -58,15 +58,15 @@ def isolated_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator
     monkeypatch.setattr(stages, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(active_set, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
+    monkeypatch.setattr(active_project, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(active_project, "SETS_ROOT", sets_root)
 
     # Each test starts with no project loaded; the in-memory pointer
     # would otherwise leak across tests in the same process.
-    active_set.clear_active_set()
+    active_project.clear_active_set()
     ms.invalidate_cache()
     yield sets_root
-    active_set.clear_active_set()
+    active_project.clear_active_set()
     ms.invalidate_cache()
 
 

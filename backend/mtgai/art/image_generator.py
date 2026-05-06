@@ -531,7 +531,7 @@ def generate_art_for_set(
     """
     from mtgai.io.asset_paths import set_artifact_dir
 
-    set_dir = set_artifact_dir(set_code)
+    set_dir = set_artifact_dir()
     cards_dir = set_dir / "cards"
     art_dir = set_dir / "art"
     log_dir = set_dir / "art-generation-logs"

@@ -41,16 +41,20 @@ def isolate_sets(isolated_output: Path) -> Path:
     return isolated_output
 
 
-def _activate(code: str) -> None:
-    """Write the active-project pointer so resolve_active_set_code finds it.
+def _activate(code: str, sets_root: Path | None = None) -> None:
+    """Pin ``code`` as the active project with assets at the legacy path.
 
     Tests for the wizard render path used to rely on the now-removed
     mtime / env-var fallbacks; they have to opt in to a project the
-    same way the runtime does (via the active-set TOML written by the
-    Open / Materialise endpoints).
+    same way the runtime does (via the Open / Materialise endpoints).
+    The ``asset_folder`` defaults to ``<sets_root>/<code>`` so seeded
+    files from ``_seed_set`` are still resolved by ``set_artifact_dir``.
     """
-    from mtgai.runtime.active_set import write_active_set
+    from mtgai.runtime.active_project import write_active_set
+    from mtgai.settings.model_settings import ModelSettings, apply_settings
 
+    if sets_root is not None:
+        apply_settings(code, ModelSettings(asset_folder=str(sets_root / code)))
     write_active_set(code)
 
 
@@ -80,7 +84,7 @@ def test_pipeline_root_redirects_to_project_when_brand_new(client, isolate_sets)
 def test_pipeline_root_redirects_to_theme_when_theme_exists(client, isolate_sets):
     """Theme exists, pipeline not started → latest tab is theme."""
     _seed_set(isolate_sets, "TST", theme={"code": "TST", "name": "Test"})
-    _activate("TST")
+    _activate("TST", isolate_sets)
     resp = client.get("/pipeline", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["location"] == "/pipeline/theme"
@@ -94,7 +98,7 @@ def test_pipeline_root_redirects_to_running_stage(client, isolate_sets):
     state.stages[0].status = StageStatus.COMPLETED
     state.stages[1].status = StageStatus.RUNNING
     _seed_set(isolate_sets, "TST", theme={"code": "TST"}, state=state)
-    _activate("TST")
+    _activate("TST", isolate_sets)
 
     resp = client.get("/pipeline", follow_redirects=False)
     assert resp.status_code == 302
@@ -115,7 +119,7 @@ def test_pipeline_project_renders_wizard(client, isolate_sets):
 def test_pipeline_project_includes_serialised_state(client, isolate_sets):
     """The wizard bootstrap blob carries active_set + visible_tabs."""
     _seed_set(isolate_sets, "TST", theme={"code": "TST", "name": "Test"})
-    _activate("TST")
+    _activate("TST", isolate_sets)
     resp = client.get("/pipeline/project")
     assert resp.status_code == 200
     body = resp.text

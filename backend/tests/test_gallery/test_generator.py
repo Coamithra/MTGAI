@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from mtgai.gallery.generator import (
     _card_to_gallery_dict,
     build_gallery,
@@ -194,6 +196,39 @@ class TestCardToGalleryDict:
 class TestExportCardsJson:
     """Tests for export_cards_json."""
 
+    @pytest.fixture(autouse=True)
+    def _open_active_project(self, tmp_path: Path, monkeypatch):
+        """Pin TST as the active project so ``_set_dir`` resolves.
+
+        ``export_cards_json`` calls ``_set_dir(set_code)`` to compute
+        relative paths for the gallery's render/art links; that helper
+        now reads from the active project, so we have to materialise one
+        before the function is called.
+        """
+        from mtgai.io import asset_paths
+        from mtgai.runtime import active_project
+        from mtgai.settings import model_settings as ms
+
+        sets_root = tmp_path / "output" / "sets"
+        settings_dir = tmp_path / "output" / "settings"
+        sets_root.mkdir(parents=True, exist_ok=True)
+        settings_dir.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path / "output")
+        monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
+        monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path / "output")
+        monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
+        monkeypatch.setattr(ms, "SETS_DIR", sets_root)
+        monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
+        monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
+        ms.invalidate_cache()
+        active_project.clear_active_set()
+        ms.apply_settings("TST", ms.ModelSettings(asset_folder=str(sets_root / "TST")))
+        active_project.write_active_set("TST")
+        yield
+        active_project.clear_active_set()
+        ms.invalidate_cache()
+
     def test_produces_valid_json(self, tmp_path: Path) -> None:
         """The output file should contain valid JSON."""
         cards = [
@@ -350,15 +385,17 @@ class TestCopyStaticAssets:
 class TestBuildGallery:
     """Tests for the build_gallery orchestrator."""
 
-    def _patch_paths(self, monkeypatch, tmp_path: Path) -> None:
+    def _patch_paths(self, monkeypatch, tmp_path: Path, set_code: str = "TST") -> None:
         """Monkeypatch artifact paths so build_gallery sees tmp_path/output.
 
-        Phase 2 routes ``_set_dir`` through :func:`set_artifact_dir` which
-        consults ``model_settings``, so we patch the whole chain (asset
-        helper + settings module) and seed the in-memory cache miss path
-        rather than just overriding ``_project_root``.
+        Routes go through :func:`set_artifact_dir` which now reads
+        exclusively from the active project. Patch the whole chain
+        (asset helper + settings module) and pin ``set_code`` as the
+        active project with the legacy registry path as its asset
+        folder so seeded files are resolved.
         """
         from mtgai.io import asset_paths
+        from mtgai.runtime import active_project
         from mtgai.settings import model_settings as ms
 
         sets_root = tmp_path / "output" / "sets"
@@ -374,6 +411,9 @@ class TestBuildGallery:
         monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
         monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
         ms.invalidate_cache()
+        active_project.clear_active_set()
+        ms.apply_settings(set_code, ms.ModelSettings(asset_folder=str(sets_root / set_code)))
+        active_project.write_active_set(set_code)
         monkeypatch.setattr(
             "mtgai.gallery.generator._templates_dir",
             lambda: (

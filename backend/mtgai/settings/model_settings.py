@@ -35,7 +35,7 @@ from mtgai.settings.model_registry import get_registry
 if TYPE_CHECKING:
     from tomlkit import TOMLDocument
 
-# Same shape the active-set picker enforces (mtgai.runtime.active_set). Kept
+# Same shape the active-set picker enforces (mtgai.runtime.active_project). Kept
 # as a local copy to avoid a circular dependency on the runtime package.
 _SET_CODE_RE = re.compile(r"^[A-Z0-9]{2,5}$")
 
@@ -765,23 +765,55 @@ def get_settings(set_code: str) -> ModelSettings:
 
 
 def apply_settings(set_code: str, settings: ModelSettings) -> Path:
-    """Persist the given settings as the active config for a set."""
+    """Persist the given settings as the active config for a set.
+
+    Also rebuilds the in-memory :class:`ProjectState` if the write
+    targets the active project, so subsequent ``set_artifact_dir()``
+    calls see the new ``asset_folder`` (and other fields) without a
+    cache round-trip.
+    """
     set_code = _validate_set_code(set_code)
     path = _set_settings_path(set_code)
     settings.write_toml(path)
     _per_set_cache[set_code] = settings
+
+    # Lazy import — active_project imports model_settings at module top
+    # for its ProjectState type annotation; importing it here at module
+    # top would cycle.
+    from mtgai.runtime import active_project
+
+    proj = active_project.read_active_project()
+    if proj is not None and proj.set_code == set_code:
+        active_project.write_active_project(proj.model_copy(update={"settings": settings}))
+
     logger.info("Applied settings for set %s -> %s", set_code, path)
     return path
 
 
 def invalidate_cache(set_code: str | None = None) -> None:
-    """Drop cached settings (for one set or all). Test/debug hook."""
+    """Drop cached settings (for one set or all). Test/debug hook.
+
+    Also clears the in-memory ProjectState pointer when the dropped
+    code matches it: ``set_artifact_dir`` reads
+    ``_active_project.settings.asset_folder`` directly, so the pointer
+    holds an independent reference to the now-invalidated settings and
+    would silently surface stale values until something re-applies.
+    Lazy-imports active_project to avoid the startup cycle (this module
+    is imported at active_project's module top).
+    """
     global _global_cache
+
+    from mtgai.runtime import active_project
+
     if set_code is None:
         _per_set_cache.clear()
         _global_cache = None
+        active_project.clear_active_project()
     else:
         _per_set_cache.pop(set_code, None)
+        proj = active_project.read_active_project()
+        if proj is not None and proj.set_code == set_code:
+            active_project.clear_active_project()
 
 
 def list_profiles() -> list[str]:

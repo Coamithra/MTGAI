@@ -25,6 +25,22 @@ def fake_output_root(
     return tmp_path
 
 
+def _open_test_project(code: str, asset_dir: Path) -> None:
+    """Pin ``code`` as the active project with the legacy registry path as its asset folder.
+
+    Stage clearers route through ``set_artifact_dir`` → reads from the
+    active project. Tests that pre-date this refactor seeded files at
+    ``output/sets/<CODE>/`` and called the clearers directly; opening
+    the project with that path as the asset folder preserves the same
+    layout under the new resolution model.
+    """
+    from mtgai.runtime import active_project
+    from mtgai.settings.model_settings import ModelSettings, apply_settings
+
+    apply_settings(code, ModelSettings(asset_folder=str(asset_dir)))
+    active_project.write_active_set(code)
+
+
 def test_every_stage_has_a_clearer() -> None:
     """The dispatch contract: every defined stage has a registered clearer."""
     for defn in STAGE_DEFINITIONS:
@@ -37,6 +53,7 @@ def test_clear_skeleton_removes_skeleton_json(fake_output_root: Path) -> None:
     set_dir = fake_output_root / "sets" / "TST"
     set_dir.mkdir(parents=True)
     (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
+    _open_test_project("TST", set_dir)
 
     stages_mod.clear_stage_artifacts("skeleton", "TST")
     assert not (set_dir / "skeleton.json").exists()
@@ -47,6 +64,7 @@ def test_clear_card_gen_removes_cards_dir(fake_output_root: Path) -> None:
     cards_dir = set_dir / "cards"
     cards_dir.mkdir(parents=True)
     (cards_dir / "001_foo.json").write_text("{}", encoding="utf-8")
+    _open_test_project("TST", set_dir)
 
     stages_mod.clear_stage_artifacts("card_gen", "TST")
     assert not cards_dir.exists()
@@ -68,6 +86,7 @@ def test_clear_char_portraits_targets_real_output_dir(fake_output_root: Path) ->
     refs_dir = art_dir / "character-refs"
     refs_dir.mkdir()
     (refs_dir / "feretha_v1.png").write_bytes(b"\x89PNG")
+    _open_test_project("TST", set_dir)
 
     stages_mod.clear_stage_artifacts("char_portraits", "TST")
 
@@ -80,6 +99,7 @@ def test_clear_art_gen_removes_art_dir(fake_output_root: Path) -> None:
     art_dir = set_dir / "art"
     art_dir.mkdir(parents=True)
     (art_dir / "001_foo_v1.png").write_bytes(b"\x89PNG")
+    _open_test_project("TST", set_dir)
 
     stages_mod.clear_stage_artifacts("art_gen", "TST")
     assert not art_dir.exists()
@@ -89,6 +109,7 @@ def test_clear_reprints_removes_selection_json(fake_output_root: Path) -> None:
     set_dir = fake_output_root / "sets" / "TST"
     set_dir.mkdir(parents=True)
     (set_dir / "reprint_selection.json").write_text("{}", encoding="utf-8")
+    _open_test_project("TST", set_dir)
 
     stages_mod.clear_stage_artifacts("reprints", "TST")
     assert not (set_dir / "reprint_selection.json").exists()
@@ -99,6 +120,7 @@ def test_clear_rendering_removes_renders_dir(fake_output_root: Path) -> None:
     renders_dir = set_dir / "renders"
     renders_dir.mkdir(parents=True)
     (renders_dir / "001.png").write_bytes(b"\x89PNG")
+    _open_test_project("TST", set_dir)
 
     stages_mod.clear_stage_artifacts("rendering", "TST")
     assert not renders_dir.exists()
@@ -106,6 +128,7 @@ def test_clear_rendering_removes_renders_dir(fake_output_root: Path) -> None:
 
 def test_clear_is_idempotent_on_missing_artifacts(fake_output_root: Path) -> None:
     """Clearing a stage whose artifacts don't exist should not raise."""
+    _open_test_project("NEVER", fake_output_root / "sets" / "NEVER")
     stages_mod.clear_stage_artifacts("skeleton", "NEVER")
     stages_mod.clear_stage_artifacts("card_gen", "NEVER")
     stages_mod.clear_stage_artifacts("rendering", "NEVER")
@@ -123,6 +146,7 @@ def test_in_place_mutator_clearers_are_no_ops(fake_output_root: Path) -> None:
     cards_dir.mkdir(parents=True)
     sentinel = cards_dir / "001_foo.json"
     sentinel.write_text("{}", encoding="utf-8")
+    _open_test_project("TST", set_dir)
 
     for stage_id in ("ai_review", "finalize", "art_prompts", "art_select", "skeleton_rev"):
         stages_mod.clear_stage_artifacts(stage_id, "TST")

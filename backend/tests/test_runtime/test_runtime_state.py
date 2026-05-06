@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from mtgai.runtime import ai_lock, extraction_run, runtime_state
+from mtgai.runtime import active_project, ai_lock, extraction_run, runtime_state
 
 
 @pytest.fixture(autouse=True)
@@ -16,7 +16,7 @@ def _reset(isolated_output):
 
     ``isolated_output`` (in :mod:`tests.conftest`) handles the full
     artifact-path patching chain — resolver helpers, runtime modules,
-    pipeline-server module, and active-set state. This wrapper just
+    pipeline-server module, and active-project state. This wrapper just
     resets the singletons this test module exercises.
     """
     ai_lock.reset_for_tests()
@@ -31,6 +31,20 @@ def _write_theme(set_dir: Path, theme: dict) -> None:
     (set_dir / "theme.json").write_text(json.dumps(theme), encoding="utf-8")
 
 
+def _open_project(code: str, asset_folder: Path) -> None:
+    """Helper: pin ``code`` as the active project with its assets at ``asset_folder``.
+
+    Mirrors the production sequence: ``apply_settings`` writes the
+    settings.toml + ``asset_folder`` pointer, then
+    ``write_active_set`` flips the in-memory pointer (re-reading
+    settings to populate the ProjectState).
+    """
+    from mtgai.settings.model_settings import ModelSettings, apply_settings
+
+    apply_settings(code, ModelSettings(asset_folder=str(asset_folder)))
+    active_project.write_active_set(code)
+
+
 def _empty_state_shape(payload: dict) -> None:
     assert payload["ai_lock"]["running"] is False
     assert payload["active_runs"] == {}
@@ -38,7 +52,7 @@ def _empty_state_shape(payload: dict) -> None:
 
 
 def test_compute_returns_none_when_no_project_loaded(monkeypatch):
-    """No active-set toml + nothing else → ``active_set`` is ``None``.
+    """No active-project pointer + nothing else → ``active_set`` is ``None``.
 
     The legacy mtime / env / "ASD" fallbacks were dropped when projects
     moved to .mtg files: a server start with no project chosen leaves
@@ -52,7 +66,7 @@ def test_compute_returns_none_when_no_project_loaded(monkeypatch):
     assert payload["theme"] is None
 
 
-def test_compute_ignores_disk_sets_without_explicit_pointer(tmp_path, monkeypatch):
+def test_compute_ignores_disk_sets_without_explicit_pointer(monkeypatch):
     """A theme.json on disk no longer auto-picks the active set.
 
     The mtime fallback was the legacy resolver's last-resort heuristic;
@@ -65,17 +79,6 @@ def test_compute_ignores_disk_sets_without_explicit_pointer(tmp_path, monkeypatc
     payload = runtime_state.compute_runtime_state()
     assert payload["active_set"] is None
     assert payload["theme"] is None
-
-
-def test_explicit_set_code_override_wins():
-    """Caller-provided set_code wins over disk and env."""
-    sets_root = runtime_state.SETS_ROOT
-    _write_theme(sets_root / "AAA", {"code": "AAA"})
-    _write_theme(sets_root / "BBB", {"code": "BBB", "name": "B"})
-
-    payload = runtime_state.compute_runtime_state("BBB")
-    assert payload["active_set"] == "BBB"
-    assert payload["theme"]["code"] == "BBB"
 
 
 def test_compute_includes_ai_lock_running_payload():
@@ -110,9 +113,11 @@ def test_compute_omits_completed_extraction_run():
 
 
 def test_compute_loads_theme_when_present():
+    """Theme.json under the active project's asset_folder is surfaced."""
     sets_root = runtime_state.SETS_ROOT
+    asset_dir = sets_root / "TST"
     _write_theme(
-        sets_root / "TST",
+        asset_dir,
         {
             "code": "TST",
             "name": "Test Set",
@@ -121,13 +126,25 @@ def test_compute_loads_theme_when_present():
             "set_size": 60,
         },
     )
-    payload = runtime_state.compute_runtime_state("TST")
+    _open_project("TST", asset_dir)
+    payload = runtime_state.compute_runtime_state()
     assert payload["theme"]["name"] == "Test Set"
     assert payload["theme"]["constraints"] == ["c1", "c2"]
 
 
-def test_compute_returns_none_theme_for_unknown_set():
-    payload = runtime_state.compute_runtime_state("NONE")
+def test_compute_returns_none_theme_when_asset_folder_empty():
+    """Active project without an asset_folder set → theme is ``None``.
+
+    ``set_artifact_dir`` raises NoAssetFolderError; ``_load_theme``
+    swallows it and returns ``None`` so the wizard renders the no-theme
+    state instead of 500ing the runtime endpoint.
+    """
+    from mtgai.settings.model_settings import ModelSettings, apply_settings
+
+    apply_settings("TST", ModelSettings(asset_folder=""))
+    active_project.write_active_set("TST")
+    payload = runtime_state.compute_runtime_state()
+    assert payload["active_set"] == "TST"
     assert payload["theme"] is None
 
 
@@ -138,9 +155,7 @@ def test_in_memory_pointer_drives_resolution(monkeypatch):
     _write_theme(sets_root / "OLD", {"code": "OLD"})
     _write_theme(sets_root / "PIN", {"code": "PIN", "name": "Pinned"})
 
-    from mtgai.runtime import active_set as active_set_mod
-
-    active_set_mod.write_active_set("PIN")
+    _open_project("PIN", sets_root / "PIN")
 
     payload = runtime_state.compute_runtime_state()
     assert payload["active_set"] == "PIN"
@@ -153,20 +168,19 @@ def test_clear_pointer_yields_no_project(monkeypatch):
     sets_root = runtime_state.SETS_ROOT
     _write_theme(sets_root / "ALIVE", {"code": "ALIVE"})
 
-    from mtgai.runtime import active_set as active_set_mod
-
-    active_set_mod.write_active_set("ALIVE")
-    active_set_mod.clear_active_set()
+    _open_project("ALIVE", sets_root / "ALIVE")
+    active_project.clear_active_set()
 
     payload = runtime_state.compute_runtime_state()
     assert payload["active_set"] is None
 
 
-def test_compute_swallows_corrupt_theme_json(tmp_path):
+def test_compute_swallows_corrupt_theme_json():
     """A malformed theme.json doesn't blow up the endpoint."""
     sets_root = runtime_state.SETS_ROOT
     bad = sets_root / "BAD"
     bad.mkdir(parents=True)
     (bad / "theme.json").write_text("{ not valid json", encoding="utf-8")
-    payload = runtime_state.compute_runtime_state("BAD")
+    _open_project("BAD", bad)
+    payload = runtime_state.compute_runtime_state()
     assert payload["theme"] is None

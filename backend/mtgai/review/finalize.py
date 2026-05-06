@@ -44,7 +44,7 @@ def _set_dir(set_code: str) -> Path:
     """Where this set's artifacts live (asset_folder if configured)."""
     from mtgai.io.asset_paths import set_artifact_dir
 
-    return set_artifact_dir(set_code)
+    return set_artifact_dir()
 
 
 def _load_mechanics(set_code: str) -> list[dict]:

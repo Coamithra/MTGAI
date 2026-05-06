@@ -213,7 +213,7 @@ class CardRenderer:
         """
         from mtgai.io.asset_paths import set_artifact_dir
 
-        set_dir = set_artifact_dir(set_code)
+        set_dir = set_artifact_dir()
         cn = card.collector_number
 
         # 1. Check art selection log
@@ -945,7 +945,7 @@ class CardRenderer:
 
         # Build the path from the project's set_dir so renders land in
         # the user's asset_folder when configured.
-        set_dir = set_artifact_dir(set_code)
+        set_dir = set_artifact_dir()
         dest = set_dir / "renders" / f"{card_slug(card.collector_number, card.name)}.png"
         dest.parent.mkdir(parents=True, exist_ok=True)
 
@@ -983,7 +983,7 @@ class CardRenderer:
         from mtgai.io.asset_paths import set_artifact_dir
 
         t0 = time.perf_counter()
-        set_dir = set_artifact_dir(set_code)
+        set_dir = set_artifact_dir()
         cards_dir = set_dir / "cards"
 
         # Discover card files
