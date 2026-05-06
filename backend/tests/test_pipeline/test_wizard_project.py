@@ -29,14 +29,14 @@ def _reset(tmp_path, monkeypatch):
     from mtgai.io import asset_paths
     from mtgai.pipeline import engine
     from mtgai.pipeline import server as pipeline_server
-    from mtgai.runtime import active_set, runtime_state
+    from mtgai.runtime import active_project, runtime_state
 
     monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
     monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(pipeline_server, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_set, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
+    monkeypatch.setattr(active_project, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(active_project, "SETS_ROOT", sets_root)
     monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
 
@@ -46,12 +46,12 @@ def _reset(tmp_path, monkeypatch):
     monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
     monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
 
-    active_set.clear_active_set()
+    active_project.clear_active_set()
     ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()
     yield
-    active_set.clear_active_set()
+    active_project.clear_active_set()
     ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()
@@ -63,12 +63,24 @@ def client():
 
 
 def _make_set(code: str, *, theme: dict | None = None) -> None:
-    from mtgai.runtime import runtime_state
+    """Materialise ``code`` as the active project at the legacy registry path.
+
+    Writing theme.json before any settings access lets the seed-time
+    migration in ``get_settings`` lift name / set_size / mechanic_count
+    out of theme.json (the pre-Project-Settings layout). The asset
+    folder is layered on top so endpoints can resolve via
+    ``set_artifact_dir``.
+    """
+    from mtgai.runtime import active_project, runtime_state
 
     set_dir = runtime_state.SETS_ROOT / code
     set_dir.mkdir(parents=True, exist_ok=True)
     if theme is not None:
         (set_dir / "theme.json").write_text(json.dumps(theme), encoding="utf-8")
+    settings = ms.get_settings(code)  # triggers seed + migration if applicable
+    settings = settings.model_copy(update={"asset_folder": str(set_dir)})
+    ms.apply_settings(code, settings)
+    active_project.write_active_set(code)
 
 
 # ---------------------------------------------------------------------------

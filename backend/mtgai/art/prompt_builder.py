@@ -295,7 +295,7 @@ def get_character_ref_paths(card: Card, set_code: str) -> list[dict]:
     """
     from mtgai.io.asset_paths import set_artifact_dir
 
-    refs_dir = set_artifact_dir(set_code) / "art-direction" / "character-refs"
+    refs_dir = set_artifact_dir() / "art-direction" / "character-refs"
     if not refs_dir.exists():
         return []
 
@@ -349,7 +349,7 @@ def generate_prompts_for_set(
     """
     from mtgai.io.asset_paths import set_artifact_dir
 
-    set_dir = set_artifact_dir(set_code)
+    set_dir = set_artifact_dir()
     cards_dir = set_dir / "cards"
     if not cards_dir.exists():
         raise FileNotFoundError(f"Cards directory not found: {cards_dir}")

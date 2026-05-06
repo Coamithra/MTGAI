@@ -27,14 +27,14 @@ def _reset(tmp_path, monkeypatch):
     from mtgai.io import asset_paths
     from mtgai.pipeline import engine
     from mtgai.pipeline import server as pipeline_server
-    from mtgai.runtime import active_set, runtime_state
+    from mtgai.runtime import active_project, runtime_state
 
     monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
     monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(pipeline_server, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_set, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
+    monkeypatch.setattr(active_project, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(active_project, "SETS_ROOT", sets_root)
     monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
 
@@ -44,12 +44,12 @@ def _reset(tmp_path, monkeypatch):
     monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
     monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
 
-    active_set.clear_active_set()
+    active_project.clear_active_set()
     ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()
     yield
-    active_set.clear_active_set()
+    active_project.clear_active_set()
     ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()
@@ -120,7 +120,7 @@ def test_new_returns_blank_draft_payload(client):
 
 
 def test_new_clears_active_set_pointer(client):
-    from mtgai.runtime.active_set import read_active_set, write_active_set
+    from mtgai.runtime.active_project import read_active_set, write_active_set
 
     (ms.SETS_DIR / "OLD").mkdir()
     write_active_set("OLD")
@@ -147,7 +147,7 @@ def test_open_creates_set_dir_and_activates(client):
     assert data["success"] is True
     assert data["set_code"] == "OPN"
 
-    from mtgai.runtime.active_set import read_active_set
+    from mtgai.runtime.active_project import read_active_set
 
     assert read_active_set() == "OPN"
     assert (ms.SETS_DIR / "OPN" / "settings.toml").exists()
@@ -203,7 +203,7 @@ def test_materialize_creates_dir_and_returns_mtg_toml(client):
     loaded = ms.get_settings("MAT")
     assert loaded.set_params.set_size == 60
     # Active set follows.
-    from mtgai.runtime.active_set import read_active_set
+    from mtgai.runtime.active_project import read_active_set
 
     assert read_active_set() == "MAT"
 
@@ -339,7 +339,7 @@ def test_new_returns_409_when_ai_busy(client):
 
 def test_new_with_force_cancels_and_proceeds(client, monkeypatch):
     """force=true -> request_cancel + drain + clear pointer."""
-    from mtgai.runtime import active_set as active_set_mod
+    from mtgai.runtime import active_project as active_set_mod
 
     (ms.SETS_DIR / "OLD").mkdir()
     active_set_mod.write_active_set("OLD")
@@ -364,7 +364,7 @@ def test_new_with_force_cancels_and_proceeds(client, monkeypatch):
 
 def test_new_proceeds_on_drain_timeout(client, monkeypatch):
     """When the lock won't release in time, we still proceed (and log)."""
-    from mtgai.runtime import active_set as active_set_mod
+    from mtgai.runtime import active_project as active_set_mod
 
     assert ai_lock.try_acquire("Stuck action") is True
     try:

@@ -69,7 +69,7 @@ def _set_dir(set_code: str) -> Path:
     """
     from mtgai.io.asset_paths import set_artifact_dir
 
-    return set_artifact_dir(set_code)
+    return set_artifact_dir()
 
 
 def _get_set_code() -> str | None:
@@ -292,12 +292,20 @@ async def settings_page(request: Request) -> HTMLResponse:
 @app.get("/api/cards", response_class=JSONResponse)
 async def get_cards(set_code: str | None = None) -> JSONResponse:
     """Return all cards as JSON (for client-side use)."""
+    from mtgai.io.asset_paths import NoAssetFolderError
+
     if set_code is None:
         set_code = _get_set_code()
     if set_code is None:
         return JSONResponse({"error": "No project is open"}, status_code=400)
 
-    card_dicts, _ = _load_cards_as_json(set_code)
+    try:
+        card_dicts, _ = _load_cards_as_json(set_code)
+    except NoAssetFolderError as exc:
+        return JSONResponse(
+            {"error": str(exc), "code": "no_asset_folder"},
+            status_code=409,
+        )
     return JSONResponse(card_dicts)
 
 

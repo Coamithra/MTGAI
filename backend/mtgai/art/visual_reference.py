@@ -21,7 +21,7 @@ def _load_visual_refs(set_code: str) -> dict:
     """Load the visual references JSON for a set. Returns empty dict on failure."""
     from mtgai.io.asset_paths import set_artifact_dir
 
-    path = set_artifact_dir(set_code) / "art-direction" / "visual-references.json"
+    path = set_artifact_dir() / "art-direction" / "visual-references.json"
     if not path.exists():
         logger.warning("No visual-references.json found for set %s at %s", set_code, path)
         return {}

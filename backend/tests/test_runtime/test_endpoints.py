@@ -49,19 +49,22 @@ def test_runtime_state_idle(client, monkeypatch):
     assert data["theme"] is None
 
 
-def test_runtime_state_with_explicit_set(client, monkeypatch):
-    """The set_code query param overrides disk + env resolution."""
-    from mtgai.runtime import runtime_state
+def test_runtime_state_reflects_active_project(client):
+    """The active project drives the runtime payload (no query-param override)."""
+    from mtgai.runtime import active_project, runtime_state
+    from mtgai.settings.model_settings import ModelSettings, apply_settings
 
     sets_root = runtime_state.SETS_ROOT
-    set_dir = sets_root / "ABC"
-    set_dir.mkdir()
-    (set_dir / "theme.json").write_text(
+    asset_dir = sets_root / "ABC"
+    asset_dir.mkdir()
+    (asset_dir / "theme.json").write_text(
         json.dumps({"code": "ABC", "name": "Test"}),
         encoding="utf-8",
     )
+    apply_settings("ABC", ModelSettings(asset_folder=str(asset_dir)))
+    active_project.write_active_set("ABC")
 
-    resp = client.get("/api/runtime/state?set_code=ABC")
+    resp = client.get("/api/runtime/state")
     assert resp.status_code == 200
     data = resp.json()
     assert data["active_set"] == "ABC"
@@ -82,32 +85,45 @@ def test_runtime_state_reflects_active_extraction(client):
 
 
 def test_theme_load_404_when_missing(client):
+    """No project open → 409 (asset folder required), not 404.
+
+    The endpoint can't reach an artifact dir without an open project, so
+    the same posture as every other AI/asset-bound endpoint applies:
+    return 409 ``no_asset_folder`` so the wizard pushes the user back
+    to Project Settings.
+    """
     resp = client.get("/api/pipeline/theme/load?set_code=NOPE")
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "no_asset_folder"
+
+
+def test_theme_load_404_when_project_open_but_file_missing(client):
+    """Project open but theme.json missing → 404."""
+    from mtgai.runtime import active_project, runtime_state
+    from mtgai.settings.model_settings import ModelSettings, apply_settings
+
+    asset_dir = runtime_state.SETS_ROOT / "TST"
+    asset_dir.mkdir(parents=True, exist_ok=True)
+    apply_settings("TST", ModelSettings(asset_folder=str(asset_dir)))
+    active_project.write_active_set("TST")
+
+    resp = client.get("/api/pipeline/theme/load?set_code=TST")
     assert resp.status_code == 404
 
 
-def test_theme_load_returns_json(client, monkeypatch):
+def test_theme_load_returns_json(client):
     """A saved theme.json round-trips through /api/pipeline/theme/load."""
-    from mtgai.pipeline import server as pipeline_server
-    from mtgai.runtime import active_set, runtime_state
+    from mtgai.runtime import active_project, runtime_state
+    from mtgai.settings.model_settings import ModelSettings, apply_settings
 
-    set_dir = runtime_state.SETS_ROOT / "TST"
-    set_dir.mkdir(parents=True, exist_ok=True)
-    (set_dir / "theme.json").write_text(
+    asset_dir = runtime_state.SETS_ROOT / "TST"
+    asset_dir.mkdir(parents=True, exist_ok=True)
+    (asset_dir / "theme.json").write_text(
         json.dumps({"code": "TST", "name": "Test", "constraints": []}),
         encoding="utf-8",
     )
-
-    # Redirect the helper to our tmp SETS_ROOT instead of the
-    # hard-coded production path. Keeps the validation regex live so
-    # we still exercise the 400 path on bad codes.
-    def _patched(set_code):
-        code = (set_code or "").strip().upper()
-        if not active_set.SET_CODE_RE.fullmatch(code):
-            return None
-        return runtime_state.SETS_ROOT / code / "theme.json"
-
-    monkeypatch.setattr(pipeline_server, "_theme_path", _patched)
+    apply_settings("TST", ModelSettings(asset_folder=str(asset_dir)))
+    active_project.write_active_set("TST")
 
     resp = client.get("/api/pipeline/theme/load?set_code=TST")
     assert resp.status_code == 200

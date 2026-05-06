@@ -35,44 +35,41 @@ OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent.parent / "output"
 SETS_ROOT = OUTPUT_ROOT / "sets"
 
 
-def _resolve_active_set_code(override: str | None) -> str | None:
-    """Pick the set code the front-end should hydrate against.
+def _resolve_active_set_code() -> str | None:
+    """Return the active project's set_code, or None if no project is loaded.
 
-    Resolution order:
-
-    1. Explicit ``override`` arg if non-empty.
-    2. The in-memory active-project pointer (set on Open/Materialize,
-       cleared on New, lost on server restart).
-    3. ``None`` — no project is open. Callers must handle this by
-       rendering the empty toolbar-only state (Project Settings shows
-       only New / Open until the user materialises a project).
+    With a project open the wizard hydrates against its data; with no
+    project loaded the callers render the empty New / Open shell (the
+    Project Settings tab stays gated until the user materialises a
+    project).
     """
-    if override:
-        return override.strip().upper()
-
-    # Lazy import — active_set imports OUTPUT_ROOT/SETS_ROOT from this
+    # Lazy import — active_project imports OUTPUT_ROOT/SETS_ROOT from this
     # module, so importing at module top would create a cycle.
-    from mtgai.runtime.active_set import read_active_set
+    from mtgai.runtime.active_project import read_active_set
 
     return read_active_set()
 
 
-def _load_theme(set_code: str) -> dict | None:
-    """Read the project's ``theme.json`` if present.
+def _load_theme() -> dict | None:
+    """Read the active project's ``theme.json`` if present.
 
-    Routes through :func:`set_artifact_dir` so theme.json is read from
-    the project's configured ``asset_folder`` when present, else the
-    legacy ``output/sets/<CODE>/`` location.
+    Returns ``None`` when no project is open, no ``asset_folder`` is
+    configured, or the file is missing / unparseable. Routes through
+    :func:`set_artifact_dir` so reads honour the user's chosen
+    ``asset_folder``.
     """
-    from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
 
-    path = set_artifact_dir(set_code) / "theme.json"
+    try:
+        path = set_artifact_dir() / "theme.json"
+    except NoAssetFolderError:
+        return None
     if not path.exists():
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning("Failed to read theme.json for %s: %s", set_code, e)
+        logger.warning("Failed to read theme.json: %s", e)
         return None
 
 
@@ -82,10 +79,16 @@ def _load_pipeline_summary(set_code: str) -> dict | None:
     Imports lazily — the runtime module is loaded by the FastAPI server
     process anyway, but the lazy import keeps it cheap when the
     endpoint is hit in a context where pipeline state isn't relevant.
+    Returns ``None`` when ``load_state`` can't reach the artifact dir
+    (no project open, or asset_folder unset).
     """
+    from mtgai.io.asset_paths import NoAssetFolderError
     from mtgai.pipeline.engine import load_state
 
-    state = load_state(set_code)
+    try:
+        state = load_state(set_code)
+    except NoAssetFolderError:
+        return None
     if state is None:
         return None
     current = state.current_stage()
@@ -120,27 +123,27 @@ def _active_runs_payload() -> dict[str, dict[str, Any]]:
     return runs
 
 
-def resolve_active_set_code(override: str | None = None) -> str | None:
+def resolve_active_set_code() -> str | None:
     """Public entry-point for the active-set resolution chain.
 
     Returns ``None`` when no project is loaded — callers must handle
     that case (typically by rendering the no-project shell).
     """
-    return _resolve_active_set_code(override)
+    return _resolve_active_set_code()
 
 
-def compute_runtime_state(set_code_override: str | None = None) -> dict[str, Any]:
+def compute_runtime_state() -> dict[str, Any]:
     """Build the ``/api/runtime/state`` payload.
 
     ``active_set`` is ``None`` when no project file is open. The
     pipeline and theme slices are also ``None`` in that case — there
     is no set on disk to load them from.
     """
-    active_set = _resolve_active_set_code(set_code_override)
+    active_set = _resolve_active_set_code()
     return {
         "active_set": active_set,
         "ai_lock": ai_lock.busy_payload(),
         "active_runs": _active_runs_payload(),
         "pipeline": _load_pipeline_summary(active_set) if active_set else None,
-        "theme": _load_theme(active_set) if active_set else None,
+        "theme": _load_theme() if active_set else None,
     }

@@ -713,7 +713,7 @@ def generate_set(
     # output/sets/<CODE>/.
     from mtgai.io.asset_paths import set_artifact_dir
 
-    set_dir = set_artifact_dir(set_code)
+    set_dir = set_artifact_dir()
     skeleton_path = set_dir / "skeleton.json"
     mechanics_path = set_dir / "mechanics" / "approved.json"
     theme_path = set_dir / "theme.json"

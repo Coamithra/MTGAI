@@ -75,12 +75,16 @@ def _load_theme_for(set_code: str) -> dict[str, Any] | None:
 
     Tolerates a malformed file by logging + returning None — a corrupt
     theme.json shouldn't 500 the wizard route; the user sees the brand-new
-    state and can reseed. Routes through :func:`set_artifact_dir` so the
-    file is read from the project's ``asset_folder`` when configured.
+    state and can reseed. Likewise, ``NoAssetFolderError`` (no project
+    open / asset_folder unset) collapses to None: the wizard renders the
+    no-project shell instead of bouncing off a 409.
     """
-    from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
 
-    path = set_artifact_dir(set_code) / "theme.json"
+    try:
+        path = set_artifact_dir() / "theme.json"
+    except NoAssetFolderError:
+        return None
     if not path.exists():
         return None
     try:
@@ -167,7 +171,12 @@ def build_wizard_state(set_code: str | None, requested_tab: str | None) -> Wizar
             theme=None,
             break_points={},
         )
-    state = load_state(set_code)
+    from mtgai.io.asset_paths import NoAssetFolderError
+
+    try:
+        state = load_state(set_code)
+    except NoAssetFolderError:
+        state = None
     theme = _load_theme_for(set_code)
     tabs = compute_visible_tabs(state, theme)
     latest = compute_latest_tab(tabs)

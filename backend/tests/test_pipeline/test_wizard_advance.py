@@ -41,14 +41,14 @@ def _reset(tmp_path, monkeypatch):
 
     from mtgai.io import asset_paths
     from mtgai.pipeline import engine
-    from mtgai.runtime import active_set, runtime_state
+    from mtgai.runtime import active_project, runtime_state
 
     monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
     monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(pipeline_server, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_set, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
+    monkeypatch.setattr(active_project, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(active_project, "SETS_ROOT", sets_root)
     monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
 
@@ -58,14 +58,14 @@ def _reset(tmp_path, monkeypatch):
     monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
     monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
 
-    active_set.clear_active_set()
+    active_project.clear_active_set()
     ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()
     pipeline_server._engine = None
     pipeline_server._engine_task = None
     yield
-    active_set.clear_active_set()
+    active_project.clear_active_set()
     ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()
@@ -105,10 +105,19 @@ def no_thread_start(monkeypatch):
 
 
 def _make_set(code: str) -> None:
-    from mtgai.runtime import runtime_state
+    """Materialise ``code`` as the active project at the legacy registry path.
+
+    Tests routinely seed a set + immediately exercise endpoints; opening
+    the project here mirrors the production flow that materialise / open
+    runs so subsequent calls to :func:`set_artifact_dir` can resolve the
+    asset folder without bouncing on a 409.
+    """
+    from mtgai.runtime import active_project, runtime_state
 
     set_dir = runtime_state.SETS_ROOT / code
     set_dir.mkdir(parents=True, exist_ok=True)
+    ms.apply_settings(code, ms.ModelSettings(asset_folder=str(set_dir)))
+    active_project.write_active_set(code)
 
 
 def _seed_state(code: str, *, overall_status: PipelineStatus) -> PipelineState:

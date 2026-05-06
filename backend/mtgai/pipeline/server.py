@@ -23,7 +23,7 @@ from fastapi.responses import (
 )
 from fastapi.templating import Jinja2Templates
 
-from mtgai.io.asset_paths import set_artifact_dir
+from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
 from mtgai.pipeline.engine import PipelineEngine, load_state, save_state
 from mtgai.pipeline.events import EventBus, format_sse
 from mtgai.pipeline.models import (
@@ -37,7 +37,7 @@ from mtgai.pipeline.models import (
 )
 from mtgai.pipeline.wizard import build_wizard_state
 from mtgai.pipeline.wizard import serialize as serialize_wizard_state
-from mtgai.runtime import active_set, ai_lock, extraction_run
+from mtgai.runtime import active_project, ai_lock, extraction_run
 from mtgai.runtime.runtime_state import (
     OUTPUT_ROOT,
     compute_runtime_state,
@@ -48,17 +48,30 @@ logger = logging.getLogger(__name__)
 
 
 def _theme_path(set_code: str) -> Path | None:
-    """Resolve the project's ``theme.json`` for a validated set code.
+    """Resolve the active project's ``theme.json`` for a validated code.
 
     Returns None if the code fails the ``[A-Z0-9]{2,5}`` shape check —
-    callers translate that into a 400. Routes through
-    :func:`set_artifact_dir` so theme.json reads/writes follow the
-    user's configured ``asset_folder``.
+    callers translate that into a 400. Propagates
+    :class:`NoAssetFolderError` from :func:`set_artifact_dir`; callers
+    catch and translate to 409.
     """
     code = (set_code or "").strip().upper()
-    if not active_set.SET_CODE_RE.fullmatch(code):
+    if not active_project.SET_CODE_RE.fullmatch(code):
         return None
-    return set_artifact_dir(code) / "theme.json"
+    return set_artifact_dir() / "theme.json"
+
+
+def _no_asset_folder_response(exc: NoAssetFolderError) -> JSONResponse:
+    """Standard 409 payload for a missing ``asset_folder``.
+
+    Mirrors the shape of the AI-busy 409 (``error`` plus a stable
+    machine-readable ``code``) so the wizard client can spot it and
+    bounce the user to Project Settings without parsing strings.
+    """
+    return JSONResponse(
+        {"error": str(exc), "code": "no_asset_folder"},
+        status_code=409,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +106,7 @@ def _render_wizard(request: Request, requested_tab: str | None) -> HTMLResponse 
     requests for any other fragment redirect there. Once a project is
     open, normal tab routing resumes (see :func:`build_wizard_state`).
     """
-    set_code = resolve_active_set_code(None)
+    set_code = resolve_active_set_code()
     ws = build_wizard_state(set_code, requested_tab=requested_tab)
     if requested_tab is not None and ws.active_tab_id != requested_tab:
         return RedirectResponse(
@@ -116,7 +129,7 @@ async def pipeline_root(request: Request):
     With no project loaded the redirect always lands on Project Settings;
     once one is open it follows the same latest-tab logic as before.
     """
-    set_code = resolve_active_set_code(None)
+    set_code = resolve_active_set_code()
     ws = build_wizard_state(set_code, requested_tab=None)
     return RedirectResponse(url=f"/pipeline/{ws.latest_tab_id}", status_code=302)
 
@@ -163,7 +176,7 @@ async def ai_cancel() -> JSONResponse:
 
 
 @router.get("/api/runtime/state")
-async def runtime_state(set_code: str | None = None) -> JSONResponse:
+async def runtime_state() -> JSONResponse:
     """Aggregate runtime snapshot used by every page on mount.
 
     Returns active set code, AI-lock payload, in-flight runs (theme
@@ -171,8 +184,12 @@ async def runtime_state(set_code: str | None = None) -> JSONResponse:
     theme.json for the active set. Pages hydrate from this so tab
     switches and reloads pick up server-side state without losing
     track of in-flight AI work.
+
+    Reads the active project from in-memory state — no query params.
+    With no project open the active_set / pipeline / theme slices are
+    all ``None``.
     """
-    return JSONResponse(compute_runtime_state(set_code))
+    return JSONResponse(compute_runtime_state())
 
 
 # ---------------------------------------------------------------------------
@@ -191,7 +208,10 @@ async def save_theme(request: Request):
     """
     body = await request.json()
     code = (body.get("code") or "").strip().upper()
-    theme_path = _theme_path(code)
+    try:
+        theme_path = _theme_path(code)
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
     if theme_path is None:
         return JSONResponse({"error": "Invalid set code"}, status_code=400)
 
@@ -202,14 +222,17 @@ async def save_theme(request: Request):
     )
     logger.info("Theme saved to %s", theme_path)
 
-    active_set.write_active_set(code)
+    active_project.write_active_set(code)
     return JSONResponse({"success": True, "path": str(theme_path)})
 
 
 @api_router.get("/theme/load")
 async def load_theme(set_code: str):
     """Return the saved theme.json for ``set_code``, or 404 if absent."""
-    theme_path = _theme_path(set_code)
+    try:
+        theme_path = _theme_path(set_code)
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
     if theme_path is None:
         return JSONResponse({"error": "Invalid set code"}, status_code=400)
     if not theme_path.exists():
@@ -300,7 +323,7 @@ def _theme_extract_model_key(set_code: str | None = None) -> str:
     from mtgai.settings.model_settings import DEFAULT_LLM_ASSIGNMENTS, get_settings
 
     if set_code is None:
-        set_code = active_set.read_active_set()
+        set_code = active_project.read_active_set()
 
     if not set_code:
         return DEFAULT_LLM_ASSIGNMENTS.get("theme_extract", "haiku")
@@ -543,7 +566,7 @@ def _persist_extraction_to_theme_json(
     """
     from mtgai.settings import model_settings as _ms
 
-    theme_path = set_artifact_dir(set_code) / "theme.json"
+    theme_path = set_artifact_dir() / "theme.json"
     existing: dict[str, Any] = {}
     if theme_path.exists():
         try:
@@ -823,7 +846,14 @@ def _project_payload(set_code: str) -> dict[str, Any]:
 
     settings = get_settings(set_code)
     registry = get_registry()
-    pipeline_started = (set_artifact_dir(set_code) / "pipeline-state.json").exists()
+    try:
+        pipeline_started = (set_artifact_dir() / "pipeline-state.json").exists()
+    except NoAssetFolderError:
+        # No asset folder yet — the user hasn't picked one. The Project
+        # Settings tab is exactly where they fix that, so render the
+        # form with ``pipeline_started=False`` instead of bouncing off
+        # a 409.
+        pipeline_started = False
     er = extraction_run.current()
     extraction_active = er is not None and er.status == "running"
 
@@ -869,9 +899,9 @@ def _validate_set_code_in_body(body: dict) -> tuple[str, JSONResponse | None]:
     endpoint reports the same shape.
     """
     raw = body.get("set_code")
-    if not isinstance(raw, str) or not active_set.is_valid_set_code(raw):
+    if not isinstance(raw, str) or not active_project.is_valid_set_code(raw):
         return "", JSONResponse({"error": "Invalid set_code"}, status_code=400)
-    return active_set.normalize_code(raw), None
+    return active_project.normalize_code(raw), None
 
 
 @router.get("/api/wizard/project")
@@ -883,10 +913,10 @@ async def wizard_project_payload(set_code: str | None = None) -> JSONResponse:
     can call this without an explicit query string.
     """
     if not set_code:
-        set_code = active_set.read_active_set()
-    if not set_code or not active_set.is_valid_set_code(set_code):
+        set_code = active_project.read_active_set()
+    if not set_code or not active_project.is_valid_set_code(set_code):
         return JSONResponse({"error": "No active set"}, status_code=400)
-    code = active_set.normalize_code(set_code)
+    code = active_project.normalize_code(set_code)
     if not (OUTPUT_ROOT / "sets" / code).is_dir():
         return JSONResponse({"error": f"Set {code} does not exist"}, status_code=404)
     return JSONResponse(_project_payload(code))
@@ -926,7 +956,13 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
     if not isinstance(size, int) or size <= 0:
         return JSONResponse({"error": "set_size must be a positive int"}, status_code=400)
 
-    pipeline_started = (set_artifact_dir(code) / "pipeline-state.json").exists()
+    try:
+        pipeline_started = (set_artifact_dir() / "pipeline-state.json").exists()
+    except NoAssetFolderError:
+        # Editing params before the user has picked an asset folder is
+        # always allowed — the cascade-clear gate is moot because no
+        # downstream artifacts can exist yet.
+        pipeline_started = False
     if pipeline_started and size != current.set_size:
         return JSONResponse(
             {
@@ -971,7 +1007,11 @@ async def wizard_project_save_theme_input(request: Request) -> JSONResponse:
         return JSONResponse({"error": "Invalid theme-input kind"}, status_code=400)
 
     settings = get_settings(code)
-    pipeline_started = (set_artifact_dir(code) / "pipeline-state.json").exists()
+    try:
+        pipeline_started = (set_artifact_dir() / "pipeline-state.json").exists()
+    except NoAssetFolderError:
+        # No asset folder yet → no downstream artifacts to invalidate.
+        pipeline_started = False
     if pipeline_started and settings.theme_input.kind != kind:
         return JSONResponse(
             {
@@ -1182,6 +1222,12 @@ async def wizard_project_start(request: Request) -> JSONResponse:
         return err
 
     settings = get_settings(code)
+    if not settings.asset_folder:
+        return _no_asset_folder_response(
+            NoAssetFolderError(
+                "Asset folder required — pick one on the Project Settings tab"
+            ),
+        )
     kind = settings.theme_input.kind
     if kind == "none":
         return JSONResponse(
@@ -1269,7 +1315,7 @@ async def _project_switch_guard(body: object) -> JSONResponse | None:
         payload = ai_lock.busy_payload()
         return JSONResponse(payload, status_code=409)
     ai_lock.request_cancel()
-    if not await active_set.await_lock_release_async():
+    if not await active_project.await_lock_release_async():
         logger.warning(
             "AI lock did not release within deadline after cancel; "
             "proceeding with project switch anyway"
@@ -1311,7 +1357,7 @@ async def project_new(request: Request) -> JSONResponse:
         return resp
     if not isinstance(body, dict):
         body = {}
-    active_set.clear_active_set()
+    active_project.clear_active_set()
 
     # Seed the form from the user's default preset so they don't have
     # to re-pick model assignments every New. set_params + theme_input
@@ -1403,7 +1449,7 @@ async def project_open(request: Request) -> JSONResponse:
     set_dir.mkdir(parents=True, exist_ok=True)
     invalidate_cache(set_code)
     apply_settings(set_code, settings)
-    active_set.write_active_set(set_code)
+    active_project.write_active_set(set_code)
     return JSONResponse({"success": True, "set_code": set_code})
 
 
@@ -1437,9 +1483,9 @@ async def project_materialize(request: Request) -> JSONResponse:
     if not isinstance(body, dict):
         return JSONResponse({"error": "Invalid project body"}, status_code=400)
     raw_code = body.get("set_code", "")
-    if not isinstance(raw_code, str) or not active_set.is_valid_set_code(raw_code):
+    if not isinstance(raw_code, str) or not active_project.is_valid_set_code(raw_code):
         return JSONResponse({"error": "Invalid set_code"}, status_code=400)
-    set_code = active_set.normalize_code(raw_code)
+    set_code = active_project.normalize_code(raw_code)
 
     try:
         settings = ModelSettings(
@@ -1458,7 +1504,7 @@ async def project_materialize(request: Request) -> JSONResponse:
     set_dir.mkdir(parents=True, exist_ok=True)
     invalidate_cache(set_code)
     apply_settings(set_code, settings)
-    active_set.write_active_set(set_code)
+    active_project.write_active_set(set_code)
 
     return JSONResponse(
         {
@@ -1480,10 +1526,10 @@ async def project_serialize(set_code: str | None = None) -> JSONResponse:
     from mtgai.settings.model_settings import dump_project_toml, get_settings
 
     if not set_code:
-        set_code = active_set.read_active_set()
-    if not set_code or not active_set.is_valid_set_code(set_code):
+        set_code = active_project.read_active_set()
+    if not set_code or not active_project.is_valid_set_code(set_code):
         return JSONResponse({"error": "No project is open"}, status_code=400)
-    code = active_set.normalize_code(set_code)
+    code = active_project.normalize_code(set_code)
     if not (OUTPUT_ROOT / "sets" / code).is_dir():
         return JSONResponse({"error": f"Project {code} does not exist"}, status_code=404)
     settings = get_settings(code)
@@ -1724,7 +1770,10 @@ def _compute_cascade_preview(
     have nothing to clear so they're omitted from the list (the modal
     looks empty for those, which is the right "nothing to lose" signal).
     """
-    state = load_state(set_code)
+    try:
+        state = load_state(set_code)
+    except NoAssetFolderError:
+        state = None
     start_idx = _resolve_edit_point(from_stage, state)
     cleared: list[dict[str, Any]] = []
     if state is not None:
@@ -1740,7 +1789,10 @@ def _compute_cascade_preview(
                     "item_count": int(count or 0),
                 }
             )
-    theme_json_present = (set_artifact_dir(set_code) / "theme.json").exists()
+    try:
+        theme_json_present = (set_artifact_dir() / "theme.json").exists()
+    except NoAssetFolderError:
+        theme_json_present = False
     return {
         "cleared": cleared,
         "clear_theme_json": bool(clear_theme_json and theme_json_present),
@@ -1907,7 +1959,10 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
             status_code=409,
         )
 
-    state = load_state(code)
+    try:
+        state = load_state(code)
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
     try:
         start_idx = _resolve_edit_point(from_stage, state)
     except ValueError as e:
@@ -1983,7 +2038,10 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
             update["theme_input"] = new_ti
         apply_settings(code, settings.model_copy(update=update))
 
-    artifact_dir = set_artifact_dir(code)
+    try:
+        artifact_dir = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
 
     if theme_payload is not None:
         if not isinstance(theme_payload, dict):
@@ -2212,8 +2270,10 @@ async def get_stage_logs(stage_id: str):
     if state is None:
         return JSONResponse({"error": "No pipeline state"}, status_code=404)
 
-    set_code = state.config.set_code
-    set_dir = set_artifact_dir(set_code)
+    try:
+        set_dir = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
 
     # Map stage_id to likely log locations
     log_paths: dict[str, list[Path]] = {
@@ -2257,35 +2317,26 @@ async def get_stage_logs(stage_id: str):
 
 
 def _get_current_state() -> PipelineState | None:
-    """Get the current pipeline state, preferring in-memory engine state."""
+    """Get the current pipeline state, preferring in-memory engine state.
+
+    Falls back to the active project's persisted ``pipeline-state.json``
+    when no engine is running in this process. With no project loaded
+    (or the persisted file unreachable) returns ``None``.
+    """
     global _engine
     if _engine is not None:
         return _engine.state
 
-    # Fall back to loading from disk — iterate the project registry
-    # and resolve each project's pipeline-state.json via the asset
-    # helper, then pick the most recently modified one.
-    from mtgai.runtime.active_set import iter_known_set_codes
-
-    candidates: list[tuple[Path, str]] = []
-    for code in iter_known_set_codes():
-        state_path = set_artifact_dir(code) / "pipeline-state.json"
-        if state_path.exists():
-            candidates.append((state_path, code))
-
-    if not candidates:
+    set_code = active_project.read_active_set()
+    if set_code is None:
         return None
-
-    # Most-recent first; tolerate malformed state files by walking down
-    # the list — the banner shouldn't 500 the whole app over a stale or
-    # half-written pipeline-state.json on disk.
-    candidates.sort(key=lambda pair: pair[0].stat().st_mtime, reverse=True)
-    for _state_path, set_code in candidates:
-        try:
-            return load_state(set_code)
-        except Exception:
-            logger.warning("Skipping unparseable pipeline-state.json for %s", set_code)
-    return None
+    try:
+        return load_state(set_code)
+    except NoAssetFolderError:
+        return None
+    except Exception:
+        logger.warning("Skipping unparseable pipeline-state.json for %s", set_code)
+        return None
 
 
 def get_pipeline_banner_context() -> dict[str, Any] | None:

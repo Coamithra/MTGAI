@@ -16,7 +16,7 @@ def save_card(card: Card, output_root: Path | None = None, *, set_dir: Path | No
        ``set_dir/cards/<slug>.json``. Stage runners that already resolved
        the project's artifact dir pass it here so the routing is
        guaranteed correct without a second helper call.
-    2. The project's ``set_artifact_dir(card.set_code)`` — consulted when
+    2. The project's ``set_artifact_dir()`` — consulted when
        neither argument is provided, so even the legacy two-arg call
        sites honour the user's configured ``asset_folder``.
     3. ``output_root/sets/<CODE>/cards/`` — the original two-arg
@@ -28,7 +28,7 @@ def save_card(card: Card, output_root: Path | None = None, *, set_dir: Path | No
     elif output_root is None:
         from mtgai.io.asset_paths import set_artifact_dir
 
-        target_dir = set_artifact_dir(card.set_code) / "cards"
+        target_dir = set_artifact_dir() / "cards"
     else:
         target_dir = output_root / "sets" / card.set_code.upper() / "cards"
     path = target_dir / f"{card_slug(card.collector_number, card.name)}.json"

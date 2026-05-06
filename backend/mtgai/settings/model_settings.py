@@ -35,7 +35,7 @@ from mtgai.settings.model_registry import get_registry
 if TYPE_CHECKING:
     from tomlkit import TOMLDocument
 
-# Same shape the active-set picker enforces (mtgai.runtime.active_set). Kept
+# Same shape the active-set picker enforces (mtgai.runtime.active_project). Kept
 # as a local copy to avoid a circular dependency on the runtime package.
 _SET_CODE_RE = re.compile(r"^[A-Z0-9]{2,5}$")
 
@@ -765,11 +765,27 @@ def get_settings(set_code: str) -> ModelSettings:
 
 
 def apply_settings(set_code: str, settings: ModelSettings) -> Path:
-    """Persist the given settings as the active config for a set."""
+    """Persist the given settings as the active config for a set.
+
+    Also rebuilds the in-memory :class:`ProjectState` if the write
+    targets the active project, so subsequent ``set_artifact_dir()``
+    calls see the new ``asset_folder`` (and other fields) without a
+    cache round-trip.
+    """
     set_code = _validate_set_code(set_code)
     path = _set_settings_path(set_code)
     settings.write_toml(path)
     _per_set_cache[set_code] = settings
+
+    # Lazy import — active_project imports model_settings at module top
+    # for its ProjectState type annotation; importing it here at module
+    # top would cycle.
+    from mtgai.runtime import active_project
+
+    proj = active_project.read_active_project()
+    if proj is not None and proj.set_code == set_code:
+        active_project.write_active_project(proj.model_copy(update={"settings": settings}))
+
     logger.info("Applied settings for set %s -> %s", set_code, path)
     return path
 
