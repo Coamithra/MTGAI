@@ -76,10 +76,12 @@ class ProjectState(BaseModel):
     write for the active set rebuilds the ``_active_project`` pointer
     so reads always see the latest values.
 
-    ``mtg_path`` is the on-disk location of the source .mtg file when
-    the project was loaded via ``/api/project/open`` and the browser
-    forwarded the path. It's ``None`` for projects materialised in-form
-    (Save & Start before the user has chosen a file location).
+    ``mtg_path`` is the intended on-disk location of the source .mtg
+    file. The current ``/api/project/open`` flow doesn't carry the
+    path through (the browser ships only the TOML body via the File
+    System Access API), so this field is always ``None`` in production
+    today; a follow-up commit plumbs the path through the endpoint and
+    populates it on open.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

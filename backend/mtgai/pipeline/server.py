@@ -54,6 +54,12 @@ def _theme_path(set_code: str) -> Path | None:
     callers translate that into a 400. Propagates
     :class:`NoAssetFolderError` from :func:`set_artifact_dir`; callers
     catch and translate to 409.
+
+    Doesn't validate that ``set_code`` matches the active project: that
+    check belongs at the endpoint layer (where it picks the right HTTP
+    status — 409 ``no_active_project`` vs the helper's 400 ``invalid
+    shape``). With no project open, ``set_artifact_dir`` raises
+    ``NoAssetFolderError`` and the endpoint surfaces 409 instead.
     """
     code = (set_code or "").strip().upper()
     if not active_project.SET_CODE_RE.fullmatch(code):
@@ -208,6 +214,19 @@ async def save_theme(request: Request):
     """
     body = await request.json()
     code = (body.get("code") or "").strip().upper()
+    if not active_project.is_valid_set_code(code):
+        return JSONResponse({"error": "Invalid set code"}, status_code=400)
+    if active_project.read_active_set() != code:
+        return JSONResponse(
+            {
+                "error": (
+                    f"set_code {code!r} does not match the active project "
+                    f"({active_project.read_active_set()!r})"
+                ),
+                "code": "no_active_project",
+            },
+            status_code=409,
+        )
     try:
         theme_path = _theme_path(code)
     except NoAssetFolderError as exc:
@@ -222,15 +241,28 @@ async def save_theme(request: Request):
     )
     logger.info("Theme saved to %s", theme_path)
 
-    active_project.write_active_set(code)
     return JSONResponse({"success": True, "path": str(theme_path)})
 
 
 @api_router.get("/theme/load")
 async def load_theme(set_code: str):
     """Return the saved theme.json for ``set_code``, or 404 if absent."""
+    if not active_project.is_valid_set_code(set_code):
+        return JSONResponse({"error": "Invalid set code"}, status_code=400)
+    code = active_project.normalize_code(set_code)
+    if active_project.read_active_set() != code:
+        return JSONResponse(
+            {
+                "error": (
+                    f"set_code {code!r} does not match the active project "
+                    f"({active_project.read_active_set()!r})"
+                ),
+                "code": "no_active_project",
+            },
+            status_code=409,
+        )
     try:
-        theme_path = _theme_path(set_code)
+        theme_path = _theme_path(code)
     except NoAssetFolderError as exc:
         return _no_asset_folder_response(exc)
     if theme_path is None:
@@ -894,14 +926,41 @@ def _project_payload(set_code: str) -> dict[str, Any]:
 def _validate_set_code_in_body(body: dict) -> tuple[str, JSONResponse | None]:
     """Pull set_code out of a request body, validating it.
 
-    Returns ``(code, None)`` on success or ``("", JSONResponse(400))``
+    Returns ``(code, None)`` on success or ``("", JSONResponse(...))``
     so callers can ``if err: return err``. Centralised so every wizard
     endpoint reports the same shape.
+
+    Two layers of validation:
+
+    * Shape: ``[A-Z0-9]{2,5}`` after trim+upper. Bad shape → 400.
+    * Active-project match: the body's code must equal the active
+      project's code. With no project open or a non-matching code we
+      return 409 ``no_active_project`` so a stray client can't make a
+      wizard endpoint silently target the wrong project (the actual
+      writes route through ``set_artifact_dir`` which reads the active
+      project's asset folder regardless of what the body asked for).
     """
     raw = body.get("set_code")
     if not isinstance(raw, str) or not active_project.is_valid_set_code(raw):
         return "", JSONResponse({"error": "Invalid set_code"}, status_code=400)
-    return active_project.normalize_code(raw), None
+    code = active_project.normalize_code(raw)
+    active = active_project.read_active_set()
+    if active is None:
+        return "", JSONResponse(
+            {"error": "No project is open", "code": "no_active_project"},
+            status_code=409,
+        )
+    if active != code:
+        return "", JSONResponse(
+            {
+                "error": (
+                    f"set_code {code!r} does not match the active project ({active!r})"
+                ),
+                "code": "no_active_project",
+            },
+            status_code=409,
+        )
+    return code, None
 
 
 @router.get("/api/wizard/project")
@@ -917,6 +976,18 @@ async def wizard_project_payload(set_code: str | None = None) -> JSONResponse:
     if not set_code or not active_project.is_valid_set_code(set_code):
         return JSONResponse({"error": "No active set"}, status_code=400)
     code = active_project.normalize_code(set_code)
+    active = active_project.read_active_set()
+    if active != code:
+        return JSONResponse(
+            {
+                "error": (
+                    f"set_code {code!r} does not match the active project "
+                    f"({active!r})"
+                ),
+                "code": "no_active_project",
+            },
+            status_code=409,
+        )
     if not (OUTPUT_ROOT / "sets" / code).is_dir():
         return JSONResponse({"error": f"Set {code} does not exist"}, status_code=404)
     return JSONResponse(_project_payload(code))
@@ -1550,6 +1621,12 @@ async def wizard_project_save_asset_folder(request: Request) -> JSONResponse:
     (or the "use project file folder" button) and posts it here. Stage
     runners route their outputs through ``set_artifact_dir`` so the
     setting takes effect on the next stage that runs.
+
+    Cascade-clear gate: once a ``pipeline-state.json`` exists for the
+    current ``asset_folder``, swapping the folder would orphan every
+    artifact already on disk. Refuse with 409 so the user goes through
+    the §9 edit flow instead. Setting the folder for the first time
+    (current empty) and identical writes are still allowed.
     """
     from mtgai.settings.model_settings import apply_settings, get_settings
 
@@ -1561,6 +1638,21 @@ async def wizard_project_save_asset_folder(request: Request) -> JSONResponse:
     if not isinstance(folder, str):
         return JSONResponse({"error": "asset_folder must be a string"}, status_code=400)
     settings = get_settings(code)
+    if folder != settings.asset_folder and settings.asset_folder:
+        try:
+            pipeline_started = (set_artifact_dir() / "pipeline-state.json").exists()
+        except NoAssetFolderError:
+            pipeline_started = False
+        if pipeline_started:
+            return JSONResponse(
+                {
+                    "error": (
+                        "Asset folder is a cascade-clear field after the pipeline has started. "
+                        "Click Edit on the Project Settings section and Accept to apply."
+                    ),
+                },
+                status_code=409,
+            )
     new = settings.model_copy(update={"asset_folder": folder})
     apply_settings(code, new)
     return JSONResponse({"success": True, "asset_folder": folder})

@@ -90,6 +90,8 @@ def cleanup_orphan_running_stages() -> list[str]:
     Returns a list of ``"<set_code>:<stage_id>"`` strings that were
     demoted, mainly for logging.
     """
+    from mtgai.runtime.active_project import SET_CODE_RE
+
     sets_root = OUTPUT_ROOT / "sets"
     if not sets_root.exists():
         return []
@@ -97,7 +99,9 @@ def cleanup_orphan_running_stages() -> list[str]:
     demoted: list[str] = []
     now = datetime.now(UTC)
     for child in sorted(sets_root.iterdir()):
-        if not child.is_dir():
+        # Mirror iter_known_set_codes' shape filter so a stray scratch
+        # dir under output/sets/ can't materialise a state rewrite.
+        if not child.is_dir() or not SET_CODE_RE.fullmatch(child.name):
             continue
         state_path = child / "pipeline-state.json"
         if not state_path.exists():

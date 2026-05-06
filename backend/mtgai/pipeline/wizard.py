@@ -23,6 +23,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from mtgai.io.asset_paths import NoAssetFolderError
 from mtgai.pipeline.engine import load_state
 from mtgai.pipeline.models import (
     PipelineState,
@@ -79,7 +80,7 @@ def _load_theme_for(set_code: str) -> dict[str, Any] | None:
     open / asset_folder unset) collapses to None: the wizard renders the
     no-project shell instead of bouncing off a 409.
     """
-    from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
+    from mtgai.io.asset_paths import set_artifact_dir
 
     try:
         path = set_artifact_dir() / "theme.json"
@@ -171,8 +172,6 @@ def build_wizard_state(set_code: str | None, requested_tab: str | None) -> Wizar
             theme=None,
             break_points={},
         )
-    from mtgai.io.asset_paths import NoAssetFolderError
-
     try:
         state = load_state(set_code)
     except NoAssetFolderError:

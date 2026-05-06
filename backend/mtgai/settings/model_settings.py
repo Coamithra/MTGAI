@@ -791,13 +791,29 @@ def apply_settings(set_code: str, settings: ModelSettings) -> Path:
 
 
 def invalidate_cache(set_code: str | None = None) -> None:
-    """Drop cached settings (for one set or all). Test/debug hook."""
+    """Drop cached settings (for one set or all). Test/debug hook.
+
+    Also clears the in-memory ProjectState pointer when the dropped
+    code matches it: ``set_artifact_dir`` reads
+    ``_active_project.settings.asset_folder`` directly, so the pointer
+    holds an independent reference to the now-invalidated settings and
+    would silently surface stale values until something re-applies.
+    Lazy-imports active_project to avoid the startup cycle (this module
+    is imported at active_project's module top).
+    """
     global _global_cache
+
+    from mtgai.runtime import active_project
+
     if set_code is None:
         _per_set_cache.clear()
         _global_cache = None
+        active_project.clear_active_project()
     else:
         _per_set_cache.pop(set_code, None)
+        proj = active_project.read_active_project()
+        if proj is not None and proj.set_code == set_code:
+            active_project.clear_active_project()
 
 
 def list_profiles() -> list[str]:

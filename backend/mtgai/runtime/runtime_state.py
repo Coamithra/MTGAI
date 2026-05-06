@@ -69,7 +69,7 @@ def _load_theme() -> dict | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning("Failed to read theme.json: %s", e)
+        logger.warning("Failed to read theme.json for %s: %s", _resolve_active_set_code(), e)
         return None
 
 

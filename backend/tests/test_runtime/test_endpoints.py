@@ -85,16 +85,16 @@ def test_runtime_state_reflects_active_extraction(client):
 
 
 def test_theme_load_404_when_missing(client):
-    """No project open → 409 (asset folder required), not 404.
+    """No project open → 409 ``no_active_project``.
 
     The endpoint can't reach an artifact dir without an open project, so
-    the same posture as every other AI/asset-bound endpoint applies:
-    return 409 ``no_asset_folder`` so the wizard pushes the user back
-    to Project Settings.
+    the same posture as every other wizard endpoint applies: return 409
+    so the client knows to push the user back to New / Open instead of
+    treating the path as a 404 to retry.
     """
     resp = client.get("/api/pipeline/theme/load?set_code=NOPE")
     assert resp.status_code == 409
-    assert resp.json()["code"] == "no_asset_folder"
+    assert resp.json()["code"] == "no_active_project"
 
 
 def test_theme_load_404_when_project_open_but_file_missing(client):
