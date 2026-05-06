@@ -625,9 +625,11 @@ def dump_project_toml(set_code: str, settings: ModelSettings) -> str:
     """
     import tomlkit
 
+    from mtgai.runtime.active_project import is_valid_set_code
+
+    if not is_valid_set_code(set_code):
+        raise ValueError(f"Invalid set_code {set_code!r}: must be a non-empty string")
     set_code = set_code.strip()
-    if not set_code:
-        raise ValueError("set_code is required")
     doc = tomlkit.document()
     doc.add(tomlkit.comment("MTGAI project file"))
     doc.add(tomlkit.nl())
@@ -651,6 +653,8 @@ def parse_project_toml(text: str) -> tuple[str, ModelSettings]:
     """
     import tomllib
 
+    from mtgai.runtime.active_project import is_valid_set_code
+
     data = tomllib.loads(text)
     version = data.get("mtg_file_version", 1)
     if not isinstance(version, int) or version > MTG_FILE_VERSION:
@@ -659,11 +663,9 @@ def parse_project_toml(text: str) -> tuple[str, ModelSettings]:
             f"(this build understands up to {MTG_FILE_VERSION})"
         )
     raw_code = data.get("set_code")
-    if not isinstance(raw_code, str):
-        raise ValueError(".mtg file missing 'set_code'")
-    set_code = raw_code.strip()
-    if not set_code:
-        raise ValueError(".mtg file 'set_code' is empty")
+    if not is_valid_set_code(raw_code):
+        raise ValueError(".mtg file missing or empty 'set_code'")
+    set_code = raw_code.strip()  # type: ignore[union-attr]
     settings = ModelSettings(
         llm_assignments=data.get("llm_assignments", {}),
         image_assignments=data.get("image_assignments", {}),

@@ -531,7 +531,7 @@ def _start_extraction_worker(
                     total_cost = theme_cost + event.get("cost_usd", 0.0)
                     if save_to_set:
                         _persist_extraction_to_theme_json(
-                            save_to_set, full_theme, constraints_list, card_suggestions
+                            full_theme, constraints_list, card_suggestions
                         )
                         # Auto-advance: with theme.json now on disk, kick
                         # off the pipeline engine so Skeleton (the first
@@ -571,7 +571,6 @@ def _start_extraction_worker(
 
 
 def _persist_extraction_to_theme_json(
-    set_code: str,
     setting_text: str,
     constraints: list[str],
     card_suggestions: list[dict[str, str]],
@@ -579,15 +578,19 @@ def _persist_extraction_to_theme_json(
     """Write the assembled extraction result to ``theme.json``.
 
     Called from the wizard "Start project" worker once both extraction
-    passes finish. Existing keys (``code``, ``name``) are preserved so
-    the set picker keeps showing the right title; everything else is
-    rewritten from this run.
+    passes finish. Reads the active project for ``set_code`` + settings;
+    existing keys (``code``, ``name``) are preserved so the set picker
+    keeps showing the right title.
 
     Card suggestions arrive as ``{name, description}`` from the LLM
     JSON pass; the Theme tab UI expects ``{text, source}`` items so we
     flatten ``"<name> — <description>"`` here. ``source: "ai"`` is the
     AI-generated badge the wizard renders next to each item.
     """
+    project = active_project.require_active_project()
+    set_code = project.set_code
+    settings = project.settings
+
     theme_path = set_artifact_dir() / "theme.json"
     existing: dict[str, Any] = {}
     if theme_path.exists():
@@ -598,7 +601,6 @@ def _persist_extraction_to_theme_json(
         except (OSError, json.JSONDecodeError):
             existing = {}
 
-    settings = active_project.require_active_project().settings
     name = existing.get("name") or settings.set_params.set_name or set_code
     payload = {
         **existing,
@@ -1274,12 +1276,13 @@ async def wizard_project_start() -> JSONResponse:
 # .mtg project file — New / Open / Save / Save-as
 # ---------------------------------------------------------------------------
 #
-# A .mtg file is the user's persistent project artifact. Internally the
-# wizard still keys per-set state off ``output/sets/<CODE>/``; a .mtg
-# is just the per-set settings.toml plus a ``set_code`` top-level so it
-# can live anywhere on disk. ``open`` and ``materialize`` write the
-# parsed body back into ``output/sets/<CODE>/settings.toml`` and pin it
-# as the active set; ``serialize`` reads it back out for download.
+# A .mtg file is the user's only persistent project artifact: a TOML
+# document with ``set_code`` + ``mtg_file_version`` headers wrapping the
+# settings body. The browser reads + writes it through the File System
+# Access API. ``open`` and ``materialize`` parse the body and pin the
+# resulting :class:`ProjectState` as the active project (no on-disk
+# settings store); ``serialize`` re-emits the active project's TOML so
+# the browser can write it back.
 
 
 async def _project_switch_guard(body: object) -> JSONResponse | None:
@@ -1320,12 +1323,12 @@ async def _project_switch_guard(body: object) -> JSONResponse | None:
 async def project_new(request: Request) -> JSONResponse:
     """Forget the current active project; return a blank-form payload.
 
-    Doesn't touch ``output/sets/<CODE>/`` — the user's old project
-    directories stay on disk; only the active-project pointer is cleared
-    so subsequent calls behave as if no project is loaded. The blank
+    Clears the in-memory active-project pointer and returns a
+    blank-form draft seeded from the user's default preset. The blank
     payload mirrors the shape of ``/api/wizard/project`` so the
     Project Settings tab can render an editable form against the same
-    fields without a second fetch.
+    fields without a second fetch. ``set_params`` and ``theme_input``
+    always start blank (per-project, not template-able).
 
     Body (optional): ``{"force": true}`` — required when an AI action
     is in flight. Without it, a 409 returns the busy payload so the UI
@@ -1625,7 +1628,8 @@ def _kickoff_pipeline_engine(set_code: str) -> tuple[PipelineState | None, str |
       already running"``.
     * Disk state has overall_status RUNNING with no attached engine →
       returns the orphan error. ``cleanup_orphan_running_stages`` should
-      demote those at boot; reaching this branch means something raced.
+      demote those on project open; reaching this branch means something
+      raced after the open-time cleanup.
     * Disk state has overall_status PAUSED → returns ``"Pipeline is
       paused, use resume instead"``. Re-entering ``engine.run`` on a
       PAUSED state would re-call the runner of the paused stage and

@@ -9,6 +9,8 @@ the cascade-clear gate.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -34,28 +36,27 @@ def client():
 def _open_project(
     code: str,
     *,
-    asset_dir=None,
+    asset_dir: str | Path | None = None,
+    no_asset_folder: bool = False,
     set_params: ms.SetParams | None = None,
     theme_input: ms.ThemeInputSource | None = None,
 ) -> None:
     """Pin ``code`` as the active project with the given settings overrides.
 
-    By default seeds an asset_folder so the wizard cascade-clear gate
-    can resolve ``set_artifact_dir`` for ``pipeline-state.json``-checks.
-    Tests that need a missing asset_folder pass ``asset_dir=""``.
+    Defaults to seeding an asset_folder under the patched ``OUTPUT_ROOT``
+    so endpoints resolving ``set_artifact_dir`` for the cascade-clear
+    gate find a real directory. Pass ``no_asset_folder=True`` to leave
+    ``asset_folder`` empty for tests that exercise the missing-folder
+    path.
     """
     settings = ms.ModelSettings.from_preset("recommended")
     if set_params is not None:
         settings = settings.model_copy(update={"set_params": set_params})
     if theme_input is not None:
         settings = settings.model_copy(update={"theme_input": theme_input})
-    if asset_dir is None:
-        # Default asset folder under the patched OUTPUT_ROOT so endpoints can
-        # resolve set_artifact_dir without bouncing on a 409.
-        asset_dir = ms.OUTPUT_ROOT / "sets" / code
-    if asset_dir != "":
-        from pathlib import Path
-
+    if not no_asset_folder:
+        if asset_dir is None:
+            asset_dir = ms.OUTPUT_ROOT / "sets" / code
         Path(asset_dir).mkdir(parents=True, exist_ok=True)
         settings = settings.model_copy(update={"asset_folder": str(asset_dir)})
     active_project.write_active_project(
@@ -133,8 +134,6 @@ def test_save_params_blocks_set_size_change_post_pipeline(client):
     """set_size lives behind the cascade-clear gate once a pipeline-state.json exists."""
     _open_project("ASD")
     asset_dir = active_project.require_active_project().settings.asset_folder
-    from pathlib import Path
-
     (Path(asset_dir) / "pipeline-state.json").write_text("{}", encoding="utf-8")
 
     resp = client.post(
@@ -177,8 +176,6 @@ def test_save_theme_input_pdf(client):
 def test_save_theme_input_blocks_kind_change_post_pipeline(client):
     _open_project("ASD")
     asset_dir = active_project.require_active_project().settings.asset_folder
-    from pathlib import Path
-
     (Path(asset_dir) / "pipeline-state.json").write_text("{}", encoding="utf-8")
     # First commit: existing — works (matches seeded default).
     client.post(

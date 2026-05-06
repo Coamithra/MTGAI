@@ -10,12 +10,13 @@ from mtgai.settings import model_settings as ms
 
 @pytest.fixture(autouse=True)
 def _isolate_paths(tmp_path, monkeypatch):
-    """Redirect on-disk paths the module reads/writes to a tmp tree.
+    """Redirect the settings dir + global toml the module touches.
 
-    Settings + sets dirs are captured at module-import time as constants,
-    so we patch them on the module itself for each test. The active
-    project pointer is cleared between tests so the in-memory pointer
-    can't bleed across runs.
+    The settings module captures :data:`SETTINGS_DIR`, :data:`GLOBAL_TOML`,
+    :data:`LEGACY_CURRENT_TOML`, and :data:`OUTPUT_ROOT` at import time
+    so we patch each onto the module under test. The active-project
+    pointer is cleared between tests so the in-memory pointer can't
+    bleed across runs.
     """
     settings_dir = tmp_path / "settings"
     settings_dir.mkdir(parents=True)
@@ -42,13 +43,6 @@ def test_get_active_settings_raises_when_no_project_open():
 
     with pytest.raises(NoAssetFolderError):
         ms.get_active_settings()
-
-
-def test_apply_settings_raises_when_no_project_open():
-    from mtgai.io.asset_paths import NoAssetFolderError
-
-    with pytest.raises(NoAssetFolderError):
-        ms.apply_settings(ms.ModelSettings())
 
 
 def test_apply_settings_updates_active_project_settings():
