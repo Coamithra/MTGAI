@@ -35,8 +35,6 @@ def _reset(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline_server, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(active_set, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(active_set, "_SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(active_set, "_LAST_SET_PATH", settings_dir / "last_set.toml")
     monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
 
@@ -46,10 +44,12 @@ def _reset(tmp_path, monkeypatch):
     monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
     monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
 
+    active_set.clear_active_set()
     ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()
     yield
+    active_set.clear_active_set()
     ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()
@@ -304,3 +304,135 @@ def test_asset_folder_rejects_non_string(client):
         json={"set_code": "AF2", "asset_folder": 123},
     )
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Project-switch lifecycle (AI-busy guard on /api/project/{new,open,materialize})
+# ---------------------------------------------------------------------------
+
+
+def _materialise_body(set_code: str) -> dict:
+    return {
+        "set_code": set_code,
+        "set_params": {"set_name": "X", "set_size": 60, "mechanic_count": 3},
+        "theme_input": {"kind": "none"},
+        "asset_folder": "",
+        "llm_assignments": {},
+        "image_assignments": {},
+        "effort_overrides": {},
+        "break_points": {},
+    }
+
+
+def test_new_returns_409_when_ai_busy(client):
+    """No force=true while an AI action holds the lock -> 409 + busy payload."""
+    assert ai_lock.try_acquire("Theme extraction") is True
+    try:
+        resp = client.post("/api/project/new", json={})
+        assert resp.status_code == 409
+        body = resp.json()
+        assert body["running"] is True
+        assert body["running_action"] == "Theme extraction"
+    finally:
+        ai_lock.release()
+
+
+def test_new_with_force_cancels_and_proceeds(client, monkeypatch):
+    """force=true -> request_cancel + drain + clear pointer."""
+    from mtgai.runtime import active_set as active_set_mod
+
+    (ms.SETS_DIR / "OLD").mkdir()
+    active_set_mod.write_active_set("OLD")
+
+    assert ai_lock.try_acquire("Theme extraction") is True
+    cancel_calls = {"n": 0}
+    real_cancel = ai_lock.request_cancel
+
+    def _spy() -> bool:
+        cancel_calls["n"] += 1
+        result = real_cancel()
+        ai_lock.release()  # simulate the long-running stage winding down
+        return result
+
+    monkeypatch.setattr(ai_lock, "request_cancel", _spy)
+
+    resp = client.post("/api/project/new", json={"force": True})
+    assert resp.status_code == 200
+    assert cancel_calls["n"] == 1
+    assert active_set_mod.read_active_set() is None
+
+
+def test_new_proceeds_on_drain_timeout(client, monkeypatch):
+    """When the lock won't release in time, we still proceed (and log)."""
+    from mtgai.runtime import active_set as active_set_mod
+
+    assert ai_lock.try_acquire("Stuck action") is True
+    try:
+        monkeypatch.setattr(active_set_mod, "await_lock_release", lambda *a, **kw: False)
+        resp = client.post("/api/project/new", json={"force": True})
+        assert resp.status_code == 200
+    finally:
+        ai_lock.release()
+
+
+def test_open_returns_409_when_ai_busy(client):
+    settings = ms.ModelSettings(
+        set_params=ms.SetParams(set_name="X", set_size=60, mechanic_count=3),
+    )
+    text = ms.dump_project_toml("OPN", settings)
+    assert ai_lock.try_acquire("Card generation") is True
+    try:
+        resp = client.post("/api/project/open", json={"toml": text})
+        assert resp.status_code == 409
+        assert resp.json()["running_action"] == "Card generation"
+    finally:
+        ai_lock.release()
+
+
+def test_open_with_force_proceeds(client, monkeypatch):
+    settings = ms.ModelSettings(
+        set_params=ms.SetParams(set_name="X", set_size=60, mechanic_count=3),
+    )
+    text = ms.dump_project_toml("OPN", settings)
+    assert ai_lock.try_acquire("Card generation") is True
+
+    real_cancel = ai_lock.request_cancel
+
+    def _spy() -> bool:
+        result = real_cancel()
+        ai_lock.release()
+        return result
+
+    monkeypatch.setattr(ai_lock, "request_cancel", _spy)
+
+    resp = client.post("/api/project/open", json={"toml": text, "force": True})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["set_code"] == "OPN"
+
+
+def test_materialize_returns_409_when_ai_busy(client):
+    assert ai_lock.try_acquire("Background work") is True
+    try:
+        resp = client.post("/api/project/materialize", json=_materialise_body("MAT"))
+        assert resp.status_code == 409
+    finally:
+        ai_lock.release()
+
+
+def test_materialize_with_force_proceeds(client, monkeypatch):
+    assert ai_lock.try_acquire("Background work") is True
+
+    real_cancel = ai_lock.request_cancel
+
+    def _spy() -> bool:
+        result = real_cancel()
+        ai_lock.release()
+        return result
+
+    monkeypatch.setattr(ai_lock, "request_cancel", _spy)
+
+    resp = client.post(
+        "/api/project/materialize",
+        json={**_materialise_body("MAT"), "force": True},
+    )
+    assert resp.status_code == 200, resp.text

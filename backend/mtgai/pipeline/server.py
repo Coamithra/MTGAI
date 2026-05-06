@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -47,8 +46,6 @@ from mtgai.runtime.runtime_state import (
 
 logger = logging.getLogger(__name__)
 
-_SET_CODE_RE = re.compile(r"^[A-Z0-9]{2,5}$")
-
 
 def _theme_path(set_code: str) -> Path | None:
     """Resolve the project's ``theme.json`` for a validated set code.
@@ -59,7 +56,7 @@ def _theme_path(set_code: str) -> Path | None:
     user's configured ``asset_folder``.
     """
     code = (set_code or "").strip().upper()
-    if not _SET_CODE_RE.fullmatch(code):
+    if not active_set.SET_CODE_RE.fullmatch(code):
         return None
     return set_artifact_dir(code) / "theme.json"
 
@@ -169,106 +166,13 @@ async def ai_cancel() -> JSONResponse:
 async def runtime_state(set_code: str | None = None) -> JSONResponse:
     """Aggregate runtime snapshot used by every page on mount.
 
-    Returns active set code, the list of available sets, AI-lock
-    payload, in-flight runs (theme extraction etc.), pipeline summary
-    if one exists, and the saved theme.json for the active set. Pages
-    hydrate from this so tab switches and reloads pick up server-side
-    state without losing track of in-flight AI work.
+    Returns active set code, AI-lock payload, in-flight runs (theme
+    extraction etc.), pipeline summary if one exists, and the saved
+    theme.json for the active set. Pages hydrate from this so tab
+    switches and reloads pick up server-side state without losing
+    track of in-flight AI work.
     """
     return JSONResponse(compute_runtime_state(set_code))
-
-
-@router.post("/api/runtime/active-set")
-async def set_active_set(request: Request) -> JSONResponse:
-    """Persist the top-bar set picker's selection.
-
-    Body: ``{"code": "<CODE>"}``. The code must be a known set
-    directory under ``output/sets/`` — switching to a non-existent set
-    is rejected with 404 so the UI can surface "create it first" via
-    the new-set modal. Returns the refreshed runtime-state payload so
-    the caller can re-render without a follow-up GET.
-    """
-    body = await request.json()
-    raw = body.get("code", "")
-    if not isinstance(raw, str) or not active_set.is_valid_set_code(raw):
-        return JSONResponse({"error": "Invalid set code"}, status_code=400)
-    code = active_set.normalize_code(raw)
-    # Read SETS_ROOT off the module each call so tests can monkeypatch
-    # it without us having captured a stale reference at import time.
-    if not (active_set.SETS_ROOT / code).is_dir():
-        return JSONResponse({"error": f"Set {code} does not exist"}, status_code=404)
-    try:
-        active_set.write_active_set(code)
-    except OSError as e:
-        logger.error("Failed to persist active set: %s", e)
-        return JSONResponse({"error": "Failed to persist active set"}, status_code=500)
-    return JSONResponse(compute_runtime_state(code))
-
-
-@router.post("/api/runtime/sets/delete")
-async def delete_set_endpoint(request: Request) -> JSONResponse:
-    """Permanently delete a set's directory tree.
-
-    Body: ``{"code": "<CODE>"}``. Removes ``output/sets/<CODE>/``
-    entirely (cards, art, theme.json, settings.toml, pipeline state,
-    everything). 404 if the directory doesn't exist; if the deleted
-    set was active, the active-set pointer is cleared so the next
-    runtime-state read falls back. Returns the refreshed runtime state.
-    """
-    body = await request.json()
-    raw = body.get("code", "")
-    if not isinstance(raw, str) or not active_set.is_valid_set_code(raw):
-        return JSONResponse({"error": "Invalid set code"}, status_code=400)
-    code = active_set.normalize_code(raw)
-    try:
-        active_set.delete_set(code)
-    except FileNotFoundError:
-        return JSONResponse({"error": f"Set {code} does not exist"}, status_code=404)
-    except OSError as e:
-        logger.error("Failed to delete set %s: %s", code, e)
-        return JSONResponse({"error": "Failed to delete set"}, status_code=500)
-    return JSONResponse(compute_runtime_state())
-
-
-@router.post("/api/runtime/sets")
-async def create_set_endpoint(request: Request) -> JSONResponse:
-    """Scaffold a brand-new set and activate it.
-
-    Body: ``{"code": "<CODE>", "name": "<optional display name>"}``.
-    Creates ``output/sets/<CODE>/`` (and a stub ``theme.json`` if a
-    name is provided so the picker shows "CODE — Name" right away),
-    then persists it as the active set. 409 if the directory already
-    exists — callers should switch to it via ``POST
-    /api/runtime/active-set`` instead.
-    """
-    body = await request.json()
-    raw = body.get("code", "")
-    if not isinstance(raw, str) or not active_set.is_valid_set_code(raw):
-        return JSONResponse({"error": "Invalid set code"}, status_code=400)
-    name = body.get("name")
-    if name is not None and not isinstance(name, str):
-        return JSONResponse({"error": "Invalid name"}, status_code=400)
-    code = active_set.normalize_code(raw)
-    try:
-        active_set.create_set(code, name=name)
-    except FileExistsError:
-        return JSONResponse({"error": f"Set {code} already exists"}, status_code=409)
-    except OSError as e:
-        logger.error("Failed to scaffold set %s: %s", code, e)
-        return JSONResponse({"error": "Failed to create set"}, status_code=500)
-    try:
-        active_set.write_active_set(code)
-    except OSError as e:
-        # The directory was created but the active-set pointer didn't
-        # land; surfacing 500 here lets the modal show the real error
-        # instead of pretending the switch worked and silently snapping
-        # back to the old set on next page load.
-        logger.error("Failed to persist active set after create: %s", e)
-        return JSONResponse(
-            {"error": f"Set {code} created but active-set pointer failed to persist: {e}"},
-            status_code=500,
-        )
-    return JSONResponse(compute_runtime_state(code))
 
 
 # ---------------------------------------------------------------------------
@@ -278,12 +182,12 @@ async def create_set_endpoint(request: Request) -> JSONResponse:
 
 @api_router.post("/theme/save")
 async def save_theme(request: Request):
-    """Save theme.json for a set, and promote it to the active set.
+    """Save theme.json for a set, and promote it to the active project.
 
-    Saving a theme is the user's "I'm working on this set now"
-    signal, so we also persist the code into ``last_set.toml`` —
-    otherwise the next page load would resolve a stale active set
-    via ``read_active_set`` and the picker would silently snap back.
+    Saving a theme is the user's "I'm working on this set now" signal,
+    so we also pin the active-project pointer at the same code —
+    otherwise the next page load would render whatever the wizard had
+    open before the save.
     """
     body = await request.json()
     code = (body.get("code") or "").strip().upper()
@@ -298,13 +202,7 @@ async def save_theme(request: Request):
     )
     logger.info("Theme saved to %s", theme_path)
 
-    # _theme_path already validated the code, so write_active_set won't
-    # raise ValueError — only OSError is reachable here.
-    try:
-        active_set.write_active_set(code)
-    except OSError as e:
-        logger.warning("Theme saved but failed to persist active set: %s", e)
-
+    active_set.write_active_set(code)
     return JSONResponse({"success": True, "path": str(theme_path)})
 
 
@@ -1345,19 +1243,56 @@ async def wizard_project_start(request: Request) -> JSONResponse:
 # as the active set; ``serialize`` reads it back out for download.
 
 
+async def _project_switch_guard(body: object) -> JSONResponse | None:
+    """Drain in-flight AI work before swapping the active-project pointer.
+
+    Switching projects mid-run would orphan a background AI task against
+    a project no longer "open". The guard surfaces a 409 with the busy
+    payload so the client can render a confirmation modal naming what
+    it would interrupt; on retry with ``force=true`` we signal cancel
+    and wait for the lock to drain. On drain timeout we still proceed
+    (the cancel signal has been sent and the run will wind down) — the
+    user shouldn't be blocked indefinitely on a stuck loop.
+
+    ``body`` is whatever the request JSON deserialised to — if it isn't
+    a dict (a list, scalar, or null), we treat ``force`` as absent so
+    the busy path still 409s cleanly instead of crashing on
+    ``.get("force")``.
+
+    Returns None when it's safe to proceed; returns the JSONResponse to
+    return otherwise.
+    """
+    if not ai_lock.is_running():
+        return None
+    force = isinstance(body, dict) and body.get("force") is True
+    if not force:
+        payload = ai_lock.busy_payload()
+        return JSONResponse(payload, status_code=409)
+    ai_lock.request_cancel()
+    if not await active_set.await_lock_release_async():
+        logger.warning(
+            "AI lock did not release within deadline after cancel; "
+            "proceeding with project switch anyway"
+        )
+    return None
+
+
 @router.post("/api/project/new")
-async def project_new() -> JSONResponse:
+async def project_new(request: Request) -> JSONResponse:
     """Forget the current active project; return a blank-form payload.
 
     Doesn't touch ``output/sets/<CODE>/`` — the user's old project
-    directories stay on disk; only the active-set pointer is cleared
+    directories stay on disk; only the active-project pointer is cleared
     so subsequent calls behave as if no project is loaded. The blank
     payload mirrors the shape of ``/api/wizard/project`` so the
     Project Settings tab can render an editable form against the same
     fields without a second fetch.
-    """
-    import contextlib
 
+    Body (optional): ``{"force": true}`` — required when an AI action
+    is in flight. Without it, a 409 returns the busy payload so the UI
+    can prompt for confirmation; with it, the in-flight action is
+    cancelled before the pointer is cleared.
+    """
     from mtgai.pipeline.models import STAGE_DEFINITIONS, break_point_states
     from mtgai.settings.model_registry import get_registry
     from mtgai.settings.model_settings import (
@@ -1368,8 +1303,15 @@ async def project_new() -> JSONResponse:
         list_profiles,
     )
 
-    with contextlib.suppress(OSError):
-        active_set._LAST_SET_PATH.unlink(missing_ok=True)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        body = {}
+    if (resp := await _project_switch_guard(body)) is not None:
+        return resp
+    if not isinstance(body, dict):
+        body = {}
+    active_set.clear_active_set()
 
     # Seed the form from the user's default preset so they don't have
     # to re-pick model assignments every New. set_params + theme_input
@@ -1429,11 +1371,14 @@ async def project_new() -> JSONResponse:
 async def project_open(request: Request) -> JSONResponse:
     """Load a .mtg TOML body, materialise it on disk, set as active.
 
-    Body: ``{"toml": "<text>"}`` — the browser reads the file via the
-    File System Access API and posts the contents here. Server parses,
-    creates ``output/sets/<CODE>/`` if it doesn't exist, writes
-    settings.toml, and persists the active-set pointer. Returns the
-    parsed set_code so the client can navigate to ``/pipeline/<tab>``.
+    Body: ``{"toml": "<text>", "force": <bool>}`` — the browser reads
+    the file via the File System Access API and posts the contents
+    here. Server parses, creates ``output/sets/<CODE>/`` if it doesn't
+    exist, writes settings.toml, and updates the active-project
+    pointer. Returns the parsed set_code so the client can navigate to
+    ``/pipeline/<tab>``. ``force=true`` is required when an AI action
+    is in flight; without it, a 409 returns the busy payload so the
+    UI can prompt for confirmation.
     """
     from mtgai.settings.model_settings import (
         apply_settings,
@@ -1442,6 +1387,10 @@ async def project_open(request: Request) -> JSONResponse:
     )
 
     body = await request.json()
+    if (resp := await _project_switch_guard(body)) is not None:
+        return resp
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "toml body required"}, status_code=400)
     text = body.get("toml")
     if not isinstance(text, str) or not text.strip():
         return JSONResponse({"error": "toml body required"}, status_code=400)
@@ -1454,11 +1403,7 @@ async def project_open(request: Request) -> JSONResponse:
     set_dir.mkdir(parents=True, exist_ok=True)
     invalidate_cache(set_code)
     apply_settings(set_code, settings)
-    try:
-        active_set.write_active_set(set_code)
-    except (OSError, ValueError) as e:
-        logger.error("Failed to set active project to %s: %s", set_code, e)
-        return JSONResponse({"error": "Failed to activate project"}, status_code=500)
+    active_set.write_active_set(set_code)
     return JSONResponse({"success": True, "set_code": set_code})
 
 
@@ -1473,7 +1418,9 @@ async def project_materialize(request: Request) -> JSONResponse:
     System Access API. Body shape mirrors what ``/api/wizard/project``
     returns for a populated project (set_code, set_params, theme_input,
     asset_folder, llm_assignments, image_assignments, effort_overrides,
-    break_points).
+    break_points). ``force=true`` is required when an AI action is in
+    flight — defensive only, since materialize fires from the kickoff
+    flow on a fresh draft, before any AI work has started.
     """
     from mtgai.settings.model_settings import (
         ModelSettings,
@@ -1485,6 +1432,10 @@ async def project_materialize(request: Request) -> JSONResponse:
     )
 
     body = await request.json()
+    if (resp := await _project_switch_guard(body)) is not None:
+        return resp
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "Invalid project body"}, status_code=400)
     raw_code = body.get("set_code", "")
     if not isinstance(raw_code, str) or not active_set.is_valid_set_code(raw_code):
         return JSONResponse({"error": "Invalid set_code"}, status_code=400)
@@ -1507,11 +1458,7 @@ async def project_materialize(request: Request) -> JSONResponse:
     set_dir.mkdir(parents=True, exist_ok=True)
     invalidate_cache(set_code)
     apply_settings(set_code, settings)
-    try:
-        active_set.write_active_set(set_code)
-    except (OSError, ValueError) as e:
-        logger.error("Failed to set active project to %s: %s", set_code, e)
-        return JSONResponse({"error": "Failed to activate project"}, status_code=500)
+    active_set.write_active_set(set_code)
 
     return JSONResponse(
         {

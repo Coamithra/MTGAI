@@ -20,10 +20,10 @@
   W.registerTabRenderer('content', renderThemeTab);
 
   // Module-scope flag: the theme tab body is mounted once per page
-  // load. The wizard shell never re-mounts a tab body in this card
-  // (set-picker switches reload the page), so a one-shot guard is
-  // sufficient. If a future card adds in-place re-bootstrapping it
-  // should track this on the tab body element instead.
+  // load. The wizard shell never re-mounts a tab body in this card,
+  // so a one-shot guard is sufficient. If a future card adds in-place
+  // re-bootstrapping it should track this on the tab body element
+  // instead.
   const local = {
     initialized: false,
   };

@@ -267,7 +267,8 @@
       if (!ok) return;
     }
     try {
-      const resp = await postJSON('/api/project/new', {});
+      const resp = await postProjectAction('/api/project/new', {});
+      if (resp === null) return; // user declined to cancel running action
       const data = await resp.json();
       if (!resp.ok) {
         W.toast(data.error || 'New failed', 'error');
@@ -333,7 +334,8 @@
     }
 
     try {
-      const resp = await postJSON('/api/project/open', { toml: text });
+      const resp = await postProjectAction('/api/project/open', { toml: text });
+      if (resp === null) return; // user declined to cancel running action
       const data = await resp.json();
       if (!resp.ok) {
         W.toast(data.error || 'Open failed', 'error');
@@ -406,7 +408,8 @@
       // the dict shape settings.toml stores.
       break_points: breakPointsListToDict(draft.break_points, draft.default_breaks || {}),
     };
-    const resp = await postJSON('/api/project/materialize', body);
+    const resp = await postProjectAction('/api/project/materialize', body);
+    if (resp === null) return null; // user declined to cancel running action
     const data = await resp.json();
     if (!resp.ok) {
       W.toast(data.error || 'Materialise failed', 'error');
@@ -1353,6 +1356,23 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
+  }
+
+  // Wraps the project-switch endpoints with the 409 -> confirm -> retry
+  // lifecycle. Returns the final fetch response, or null when the user
+  // declines to interrupt an in-flight AI action.
+  async function postProjectAction(url, body) {
+    const payload = body || {};
+    let resp = await postJSON(url, payload);
+    if (resp.status === 409) {
+      let busy = null;
+      try { busy = await resp.json(); } catch (_) { /* not JSON */ }
+      const action = (busy && busy.running_action) ? busy.running_action : 'An AI action';
+      const ok = window.confirm(`${action} is in progress. Cancel it and continue?`);
+      if (!ok) return null;
+      resp = await postJSON(url, { ...payload, force: true });
+    }
+    return resp;
   }
 
   function escHtml(text) {

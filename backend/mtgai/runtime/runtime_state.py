@@ -41,17 +41,11 @@ def _resolve_active_set_code(override: str | None) -> str | None:
     Resolution order:
 
     1. Explicit ``override`` arg if non-empty.
-    2. The set persisted in ``output/settings/last_set.toml``. Stale
-       entries — codes whose set dir no longer exists — are skipped.
+    2. The in-memory active-project pointer (set on Open/Materialize,
+       cleared on New, lost on server restart).
     3. ``None`` — no project is open. Callers must handle this by
        rendering the empty toolbar-only state (Project Settings shows
        only New / Open until the user materialises a project).
-
-    The legacy mtime + ``MTGAI_REVIEW_SET`` + ``"ASD"`` fallbacks were
-    dropped when projects became `.mtg` files: a server restart or a
-    fresh clone has *no* implicit project, so the wizard greets the
-    user with New / Open instead of silently dropping them into a
-    half-stale set.
     """
     if override:
         return override.strip().upper()
@@ -142,12 +136,9 @@ def compute_runtime_state(set_code_override: str | None = None) -> dict[str, Any
     pipeline and theme slices are also ``None`` in that case — there
     is no set on disk to load them from.
     """
-    from mtgai.runtime.active_set import list_sets
-
     active_set = _resolve_active_set_code(set_code_override)
     return {
         "active_set": active_set,
-        "available_sets": list_sets(),
         "ai_lock": ai_lock.busy_payload(),
         "active_runs": _active_runs_payload(),
         "pipeline": _load_pipeline_summary(active_set) if active_set else None,

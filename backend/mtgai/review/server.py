@@ -86,24 +86,17 @@ def _get_set_code() -> str | None:
 
 @asynccontextmanager
 async def _lifespan(application: FastAPI) -> AsyncGenerator[None]:
-    """Boot tasks: clear the active-project pointer + clean up stale state.
+    """Boot tasks: clean up stale pipeline state.
 
-    A server restart starts the wizard with no project loaded — the user
-    has to click New / Open to pick up where they left off (the .mtg file
-    is the only persistent project artifact). Render / art directories
-    are no longer mounted at startup because we don't know which project
-    to mount until one is opened; lazy mounting on first open is
-    deferred to Phase 2 when assets actually live in the asset folder.
+    The active-project pointer is in-memory and a fresh process boots
+    with no project loaded — the user has to click New / Open to pick
+    up where they left off (the .mtg file is the only persistent
+    project artifact). Render / art directories are no longer mounted
+    at startup because we don't know which project to mount until one
+    is opened; lazy mounting on first open is deferred to a follow-up
+    once assets actually live in the asset folder.
     """
-    import contextlib
-
     from mtgai.pipeline.engine import cleanup_orphan_running_stages
-    from mtgai.runtime.active_set import _LAST_SET_PATH
-
-    # Forget which project was active in the previous session — startup
-    # is always "no project loaded".
-    with contextlib.suppress(OSError):
-        _LAST_SET_PATH.unlink(missing_ok=True)
 
     # Any pipeline-state.json with a RUNNING stage on disk was left
     # there by a process that exited mid-stage. Demote those to
@@ -459,5 +452,3 @@ async def update_global_settings(request: Request) -> JSONResponse:
         return JSONResponse({"success": True, "default_preset": name})
     except (ValueError, OSError) as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-
-

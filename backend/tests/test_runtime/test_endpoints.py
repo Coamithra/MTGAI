@@ -68,109 +68,6 @@ def test_runtime_state_with_explicit_set(client, monkeypatch):
     assert data["theme"]["code"] == "ABC"
 
 
-def test_runtime_state_includes_available_sets(client):
-    """available_sets enumerates every registered project under output/sets/."""
-    from mtgai.runtime import runtime_state
-
-    sets_root = runtime_state.SETS_ROOT
-    asd = sets_root / "ASD"
-    asd.mkdir()
-    (asd / "settings.toml").write_text("", encoding="utf-8")
-    (asd / "theme.json").write_text(
-        json.dumps({"code": "ASD", "name": "Anomalous Descent"}),
-        encoding="utf-8",
-    )
-    ds1 = sets_root / "DS1"
-    ds1.mkdir()
-    (ds1 / "settings.toml").write_text("", encoding="utf-8")
-
-    resp = client.get("/api/runtime/state")
-    assert resp.status_code == 200
-    data = resp.json()
-    by_code = {s["code"]: s["name"] for s in data["available_sets"]}
-    assert by_code == {"ASD": "Anomalous Descent", "DS1": None}
-
-
-def test_active_set_post_switches_set(client):
-    """A POST persists the new code; a follow-up GET sees it."""
-    from mtgai.runtime import runtime_state
-
-    sets_root = runtime_state.SETS_ROOT
-    (sets_root / "AAA").mkdir()
-    (sets_root / "BBB").mkdir()
-
-    # First the resolver picks one of them deterministically (alpha
-    # via the empty resolver chain isn't guaranteed; just confirm the
-    # POST changes it).
-    resp = client.post("/api/runtime/active-set", json={"code": "BBB"})
-    assert resp.status_code == 200
-    assert resp.json()["active_set"] == "BBB"
-
-    follow = client.get("/api/runtime/state")
-    assert follow.json()["active_set"] == "BBB"
-
-
-def test_active_set_post_normalizes_lowercase(client):
-    from mtgai.runtime import runtime_state
-
-    (runtime_state.SETS_ROOT / "AAA").mkdir()
-    resp = client.post("/api/runtime/active-set", json={"code": "aaa"})
-    assert resp.status_code == 200
-    assert resp.json()["active_set"] == "AAA"
-
-
-def test_active_set_post_rejects_invalid_code(client):
-    resp = client.post("/api/runtime/active-set", json={"code": "../escape"})
-    assert resp.status_code == 400
-
-
-def test_active_set_post_404_when_dir_missing(client):
-    """Switching to a non-existent set is rejected so the UI can fall
-    back to the new-set modal instead of silently scaffolding."""
-    resp = client.post("/api/runtime/active-set", json={"code": "GHOST"})
-    assert resp.status_code == 404
-
-
-def test_create_set_post_scaffolds_and_activates(client):
-    from mtgai.runtime import runtime_state
-
-    resp = client.post(
-        "/api/runtime/sets",
-        json={"code": "NEW", "name": "Brand New"},
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["active_set"] == "NEW"
-    assert (runtime_state.SETS_ROOT / "NEW").is_dir()
-    theme_path = runtime_state.SETS_ROOT / "NEW" / "theme.json"
-    assert theme_path.exists()
-    data = json.loads(theme_path.read_text(encoding="utf-8"))
-    assert data == {"code": "NEW", "name": "Brand New"}
-
-
-def test_create_set_post_works_without_name(client):
-    """No name -> dir but no theme.json stub."""
-    from mtgai.runtime import runtime_state
-
-    resp = client.post("/api/runtime/sets", json={"code": "NEW"})
-    assert resp.status_code == 200
-    assert (runtime_state.SETS_ROOT / "NEW").is_dir()
-    assert not (runtime_state.SETS_ROOT / "NEW" / "theme.json").exists()
-
-
-def test_create_set_post_409_when_exists(client):
-    from mtgai.runtime import runtime_state
-
-    (runtime_state.SETS_ROOT / "ASD").mkdir()
-    resp = client.post("/api/runtime/sets", json={"code": "ASD"})
-    assert resp.status_code == 409
-
-
-def test_create_set_post_400_on_invalid_code(client):
-    resp = client.post("/api/runtime/sets", json={"code": "x"})
-    assert resp.status_code == 400
-
-
 def test_runtime_state_reflects_active_extraction(client):
     """A running extraction run shows up under active_runs."""
     extraction_run.start_run("upload-1")
@@ -192,7 +89,7 @@ def test_theme_load_404_when_missing(client):
 def test_theme_load_returns_json(client, monkeypatch):
     """A saved theme.json round-trips through /api/pipeline/theme/load."""
     from mtgai.pipeline import server as pipeline_server
-    from mtgai.runtime import runtime_state
+    from mtgai.runtime import active_set, runtime_state
 
     set_dir = runtime_state.SETS_ROOT / "TST"
     set_dir.mkdir(parents=True, exist_ok=True)
@@ -204,11 +101,9 @@ def test_theme_load_returns_json(client, monkeypatch):
     # Redirect the helper to our tmp SETS_ROOT instead of the
     # hard-coded production path. Keeps the validation regex live so
     # we still exercise the 400 path on bad codes.
-    real_re = pipeline_server._SET_CODE_RE
-
     def _patched(set_code):
         code = (set_code or "").strip().upper()
-        if not real_re.fullmatch(code):
+        if not active_set.SET_CODE_RE.fullmatch(code):
             return None
         return runtime_state.SETS_ROOT / code / "theme.json"
 

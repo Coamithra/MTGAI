@@ -1,48 +1,41 @@
 /**
  * Tiny localStorage + runtime-state helper shared across all pages.
  *
- * Layout:
- *   `mtgai:active_set`               -> last-used set code (string)
- *   `mtgai:<setCode>:<key>`          -> per-set UI ephemera
- *
- * Per-set keys live under the set so switching to a different set
- * doesn't bleed filters / drafts / scroll positions across.
+ * The active-project code lives only in process / page memory — the
+ * server holds the authoritative pointer (in-memory, set on .mtg
+ * Open / Materialize, cleared on New) and pages mirror it locally so
+ * per-set localStorage keys (`mtgai:<setCode>:configure.preset`) can
+ * prefix correctly. There is no `mtgai:active_set` localStorage key.
  *
  * `fetchRuntimeState(setCode?)` hits `GET /api/runtime/state` and
  * returns the parsed payload. Used by every page on mount to hydrate
- * server-side truth (active runs, pipeline state, theme.json).
+ * server-side truth (active set, active runs, pipeline state, theme).
  */
 
 (function () {
   'use strict';
 
-  const ACTIVE_SET_KEY = 'mtgai:active_set';
-  const DEFAULT_SET = 'ASD';
+  let _setCode = '';
 
   function setCode() {
-    try {
-      return (localStorage.getItem(ACTIVE_SET_KEY) || DEFAULT_SET).toUpperCase();
-    } catch (e) {
-      return DEFAULT_SET;
-    }
+    return _setCode;
   }
 
   function setSetCode(code) {
-    if (!code) return;
-    try {
-      localStorage.setItem(ACTIVE_SET_KEY, String(code).toUpperCase());
-    } catch (e) {
-      // Quota / privacy mode — silently no-op.
-    }
+    _setCode = String(code || '').toUpperCase();
   }
 
   function _key(key, code) {
     return 'mtgai:' + (code || setCode()) + ':' + key;
   }
 
+  // Per-set get/set/remove are a no-op when no project is open — the
+  // alternative `mtgai::key` prefix would silently bleed across sets.
   function get(key, fallback, code) {
+    const c = code || setCode();
+    if (!c) return fallback;
     try {
-      const raw = localStorage.getItem(_key(key, code));
+      const raw = localStorage.getItem(_key(key, c));
       if (raw === null) return fallback;
       return JSON.parse(raw);
     } catch (e) {
@@ -51,16 +44,20 @@
   }
 
   function set(key, value, code) {
+    const c = code || setCode();
+    if (!c) return;
     try {
-      localStorage.setItem(_key(key, code), JSON.stringify(value));
+      localStorage.setItem(_key(key, c), JSON.stringify(value));
     } catch (e) {
       // Quota — silently no-op.
     }
   }
 
   function remove(key, code) {
+    const c = code || setCode();
+    if (!c) return;
     try {
-      localStorage.removeItem(_key(key, code));
+      localStorage.removeItem(_key(key, c));
     } catch (e) {
       // ignore
     }
@@ -85,69 +82,6 @@
     }
   }
 
-  /**
-   * Persist `code` as the server-side active set. Returns the refreshed
-   * runtime-state payload on success, ``{error: <message>}`` on a 4xx
-   * (so the caller can surface server-side validation reasons —
-   * "set deleted" vs "invalid code"), or null on a network failure.
-   * Callers are expected to follow up with a full-page reload on
-   * success — the active set is baked into server-rendered templates
-   * (page titles, mounted /renders, /art static dirs) so partial
-   * in-place updates would leave the UI inconsistent.
-   */
-  async function activateSet(code) {
-    if (!code) return { error: 'Set code is required' };
-    try {
-      const resp = await fetch('/api/runtime/active-set', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: String(code).toUpperCase() }),
-      });
-      if (!resp.ok) {
-        let body = null;
-        try { body = await resp.json(); } catch (e) { /* not JSON */ }
-        return { error: (body && body.error) || ('HTTP ' + resp.status) };
-      }
-      const payload = await resp.json();
-      if (payload && payload.active_set) setSetCode(payload.active_set);
-      return payload;
-    } catch (e) {
-      console.warn('[ui_state] activateSet error:', e);
-      return null;
-    }
-  }
-
-  /**
-   * Scaffold a new set on disk and activate it. Returns the refreshed
-   * runtime-state payload on success, ``{error}`` on a 4xx response so
-   * the modal can render the message inline (e.g. "set already exists"),
-   * or null on a network failure.
-   */
-  async function createSet(code, name) {
-    if (!code) return { error: 'Set code is required' };
-    try {
-      const resp = await fetch('/api/runtime/sets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: String(code).toUpperCase(),
-          name: name || null,
-        }),
-      });
-      if (!resp.ok) {
-        let body = null;
-        try { body = await resp.json(); } catch (e) { /* not JSON */ }
-        return { error: (body && body.error) || ('HTTP ' + resp.status) };
-      }
-      const payload = await resp.json();
-      if (payload && payload.active_set) setSetCode(payload.active_set);
-      return payload;
-    } catch (e) {
-      console.warn('[ui_state] createSet error:', e);
-      return null;
-    }
-  }
-
   window.MtgaiState = {
     setCode: setCode,
     setSetCode: setSetCode,
@@ -155,7 +89,5 @@
     set: set,
     remove: remove,
     fetchRuntimeState: fetchRuntimeState,
-    activateSet: activateSet,
-    createSet: createSet,
   };
 })();

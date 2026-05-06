@@ -56,8 +56,8 @@ def test_compute_ignores_disk_sets_without_explicit_pointer(tmp_path, monkeypatc
     """A theme.json on disk no longer auto-picks the active set.
 
     The mtime fallback was the legacy resolver's last-resort heuristic;
-    today the only way to make a set "active" is via the active-set
-    pointer (POST /api/runtime/active-set or /api/project/open).
+    today the only way to make a set "active" is via the active-project
+    pointer set by ``/api/project/open`` or ``/api/project/materialize``.
     """
     monkeypatch.delenv("MTGAI_REVIEW_SET", raising=False)
     sets_root = runtime_state.SETS_ROOT
@@ -131,10 +131,8 @@ def test_compute_returns_none_theme_for_unknown_set():
     assert payload["theme"] is None
 
 
-def test_persisted_set_wins_over_mtime_fallback(monkeypatch):
-    """If last_set.toml points at an existing set, that wins over the
-    legacy "most recently touched theme.json/pipeline-state.json"
-    heuristic."""
+def test_in_memory_pointer_drives_resolution(monkeypatch):
+    """Setting the in-memory active-project pointer surfaces in the payload."""
     monkeypatch.delenv("MTGAI_REVIEW_SET", raising=False)
     sets_root = runtime_state.SETS_ROOT
     _write_theme(sets_root / "OLD", {"code": "OLD"})
@@ -149,19 +147,16 @@ def test_persisted_set_wins_over_mtime_fallback(monkeypatch):
     assert payload["theme"]["name"] == "Pinned"
 
 
-def test_persisted_set_skipped_when_dir_missing(monkeypatch):
-    """A stale persisted code (set deleted on disk) is treated as no
-    project loaded — the resolver no longer falls back to other sets
-    on disk, so the wizard surfaces the New / Open empty state."""
+def test_clear_pointer_yields_no_project(monkeypatch):
+    """Clearing the in-memory pointer surfaces the empty New/Open state."""
     monkeypatch.delenv("MTGAI_REVIEW_SET", raising=False)
     sets_root = runtime_state.SETS_ROOT
     _write_theme(sets_root / "ALIVE", {"code": "ALIVE"})
 
-    # Hand-roll the toml since write_active_set checks the dir exists.
     from mtgai.runtime import active_set as active_set_mod
 
-    active_set_mod._LAST_SET_PATH.parent.mkdir(parents=True, exist_ok=True)
-    active_set_mod._LAST_SET_PATH.write_text('[runtime]\nactive_set = "GHOST"\n', encoding="utf-8")
+    active_set_mod.write_active_set("ALIVE")
+    active_set_mod.clear_active_set()
 
     payload = runtime_state.compute_runtime_state()
     assert payload["active_set"] is None
