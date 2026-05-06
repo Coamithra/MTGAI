@@ -40,20 +40,20 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _set_dir(set_code: str) -> Path:
-    """Where this set's artifacts live (asset_folder if configured)."""
+def _set_dir() -> Path:
+    """Where the active project's artifacts live (asset_folder)."""
     from mtgai.io.asset_paths import set_artifact_dir
 
     return set_artifact_dir()
 
 
-def _load_mechanics(set_code: str) -> list[dict]:
-    path = _set_dir(set_code) / "mechanics" / "approved.json"
+def _load_mechanics() -> list[dict]:
+    path = _set_dir() / "mechanics" / "approved.json"
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _card_files(set_code: str) -> list[Path]:
-    cards_dir = _set_dir(set_code) / "cards"
+def _card_files() -> list[Path]:
+    cards_dir = _set_dir() / "cards"
     return sorted(cards_dir.glob("*.json"))
 
 
@@ -84,17 +84,19 @@ def finalize_card(
 
 
 def finalize_set(
-    set_code: str = "ASD",
     *,
     dry_run: bool = False,
     card_filter: str | None = None,
 ) -> dict:
-    """Finalize all cards in a set after AI review.
+    """Finalize all cards in the active project after AI review.
 
     Returns a summary dict with counts and per-card details.
     """
-    mechanics = _load_mechanics(set_code)
-    card_paths = _card_files(set_code)
+    from mtgai.runtime.active_project import require_active_project
+
+    set_code = require_active_project().set_code
+    mechanics = _load_mechanics()
+    card_paths = _card_files()
 
     if card_filter:
         card_paths = [p for p in card_paths if card_filter.upper() in p.stem.upper()]
@@ -113,7 +115,7 @@ def finalize_set(
 
     # Hoist the artifact-dir resolution outside the loop — it's constant
     # for the whole call and the helper triggers a settings.toml read.
-    set_dir = _set_dir(set_code)
+    set_dir = _set_dir()
 
     for path in card_paths:
         card = load_card(path)
@@ -187,7 +189,7 @@ def finalize_set(
 
     # Write report
     if not dry_run:
-        _write_report(summary, set_code)
+        _write_report(summary)
 
     logger.info(
         "Finalization complete: %d cards, %d modified, %d auto-fixes, %d MANUAL errors",
@@ -205,9 +207,9 @@ def finalize_set(
 # ---------------------------------------------------------------------------
 
 
-def _write_report(summary: dict, set_code: str) -> Path:
+def _write_report(summary: dict) -> Path:
     """Write a markdown finalization report for human review."""
-    reports_dir = _set_dir(set_code) / "reports"
+    reports_dir = _set_dir() / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = reports_dir / "finalize-report.md"
 

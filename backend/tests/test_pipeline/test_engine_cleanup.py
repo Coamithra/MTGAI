@@ -144,7 +144,7 @@ def test_loads_legacy_state_with_skip_stages_field(fake_output_root: Path) -> No
     apply_settings("LEG", ModelSettings(asset_folder=str(set_dir)))
     active_project.write_active_set("LEG")
     try:
-        reloaded = engine_mod.load_state("LEG")
+        reloaded = engine_mod.load_state()
     finally:
         active_project.clear_active_set()
     assert reloaded is not None

@@ -27,21 +27,21 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent.parent
 
 
-def _set_dir(set_code: str) -> Path:
-    """Where this set's artifacts live (asset_folder if configured)."""
+def _set_dir() -> Path:
+    """Where the active project's artifacts live (asset_folder)."""
     from mtgai.io.asset_paths import set_artifact_dir
 
     return set_artifact_dir()
 
 
-def load_analysis_inputs(
-    set_code: str,
-) -> tuple[list[Card], list[SkeletonSlot], list[dict], dict[str, list[str]]]:
-    """Load all inputs for the balance analysis.
+def load_analysis_inputs() -> tuple[
+    list[Card], list[SkeletonSlot], list[dict], dict[str, list[str]]
+]:
+    """Load all inputs for the balance analysis from the active project.
 
     Returns (cards, skeleton_slots, mechanics, functional_tags).
     """
-    sdir = _set_dir(set_code)
+    sdir = _set_dir()
 
     # Load cards
     cards_dir = sdir / "cards"
@@ -79,15 +79,18 @@ def load_analysis_inputs(
     return cards, slots, mechanics, functional_tags
 
 
-def analyze_set(set_code: str) -> BalanceAnalysisResult:
-    """Run the full Phase 4A balance analysis.
+def analyze_set() -> BalanceAnalysisResult:
+    """Run the full Phase 4A balance analysis on the active project.
 
     1. Load all inputs
     2. Run skeleton conformance checks
     3. Run set-wide coverage checks
     4. Aggregate issues and summary counts
     """
-    cards, slots, mechanics, functional_tags = load_analysis_inputs(set_code)
+    from mtgai.runtime.active_project import require_active_project
+
+    set_code = require_active_project().set_code
+    cards, slots, mechanics, functional_tags = load_analysis_inputs()
 
     mechanic_names = {m["name"] for m in mechanics}
     all_issues = []
@@ -109,7 +112,7 @@ def analyze_set(set_code: str) -> BalanceAnalysisResult:
     all_issues.extend(balance_issues)
 
     # --- Interactions ---
-    interaction_flags, interaction_issues = analyze_interactions(cards, mechanics, set_code)
+    interaction_flags, interaction_issues = analyze_interactions(cards, mechanics)
     all_issues.extend(interaction_issues)
 
     # --- Summary ---

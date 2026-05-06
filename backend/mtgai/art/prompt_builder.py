@@ -218,7 +218,7 @@ Describe appearance, not names. Plain English, concrete details."""
     return prompt
 
 
-def generate_visual_description(card: Card, set_code: str = "ASD") -> tuple[str, int, int]:
+def generate_visual_description(card: Card) -> tuple[str, int, int]:
     """Call Haiku to generate a visual description for a card.
 
     Returns (description, input_tokens, output_tokens).
@@ -228,18 +228,17 @@ def generate_visual_description(card: Card, set_code: str = "ASD") -> tuple[str,
         card.type_line,
         card.oracle_text,
         card.flavor_text,
-        set_code=set_code,
     )
 
     user_prompt = _build_llm_user_prompt(card, visual_refs)
 
-    from mtgai.settings.model_settings import get_llm_model
+    from mtgai.runtime.active_project import require_active_project
 
     result = generate_with_tool(
         system_prompt=SYSTEM_PROMPT,
         user_prompt=user_prompt,
         tool_schema=TOOL_SCHEMA,
-        model=get_llm_model("art_prompts", set_code),
+        model=require_active_project().settings.get_llm_model_id("art_prompts"),
         temperature=0.6,
         max_tokens=512,
     )
@@ -253,24 +252,25 @@ def generate_visual_description(card: Card, set_code: str = "ASD") -> tuple[str,
 # ---------------------------------------------------------------------------
 
 
-def _sanitize_for_flux(text: str, set_code: str = "ASD") -> str:
+def _sanitize_for_flux(text: str) -> str:
     """Replace setting-specific terms that Flux won't understand.
 
-    Replacements are loaded from visual-references.json (flux_term_replacements),
-    so they're data-driven per set, not hardcoded.
+    Replacements are loaded from the active project's
+    visual-references.json (flux_term_replacements), so they're
+    data-driven per set, not hardcoded.
     """
     import re
 
-    replacements = get_flux_replacements(set_code)
+    replacements = get_flux_replacements()
     for term, replacement in replacements.items():
         text = re.sub(rf"\b{re.escape(term)}\b", replacement, text, flags=re.IGNORECASE)
     return text
 
 
-def assemble_full_prompt(card: Card, visual_description: str, set_code: str = "ASD") -> str:
+def assemble_full_prompt(card: Card, visual_description: str) -> str:
     """Assemble the Flux-optimized prompt: subject first, then style."""
     # Sanitize setting-specific terms Flux won't understand
-    clean_desc = _sanitize_for_flux(visual_description, set_code)
+    clean_desc = _sanitize_for_flux(visual_description)
 
     # Subject description (front-loaded — Flux prioritizes this)
     # Style line (concise, appended after subject)
@@ -286,7 +286,7 @@ def assemble_full_prompt(card: Card, visual_description: str, set_code: str = "A
 # ---------------------------------------------------------------------------
 
 
-def get_character_ref_paths(card: Card, set_code: str) -> list[dict]:
+def get_character_ref_paths(card: Card) -> list[dict]:
     """Check if any named characters on this card have reference images.
 
     Returns list of {character_name, ref_image_path} for characters that
@@ -305,7 +305,6 @@ def get_character_ref_paths(card: Card, set_code: str) -> list[dict]:
         card.type_line,
         card.oracle_text,
         card.flavor_text,
-        set_code=set_code,
     )
 
     results = []
@@ -331,16 +330,14 @@ def get_character_ref_paths(card: Card, set_code: str) -> list[dict]:
 
 
 def generate_prompts_for_set(
-    set_code: str,
     card_filter: str | None = None,
     dry_run: bool = False,
     force: bool = False,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
 ) -> dict:
-    """Generate art prompts for all cards in a set.
+    """Generate art prompts for all cards in the active project.
 
     Args:
-        set_code: The set code (e.g., "ASD").
         card_filter: Optional collector number to process a single card.
         dry_run: If True, generate prompts but don't save to card JSON.
         force: If True, regenerate even if art_prompt already exists.
@@ -348,7 +345,9 @@ def generate_prompts_for_set(
     Returns summary dict with stats.
     """
     from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.runtime.active_project import require_active_project
 
+    set_code = require_active_project().set_code
     set_dir = set_artifact_dir()
     cards_dir = set_dir / "cards"
     if not cards_dir.exists():
@@ -386,15 +385,15 @@ def generate_prompts_for_set(
             logger.info("Generating prompt for %s: %s", card.collector_number, card.name)
 
             # Generate visual description via LLM
-            visual_desc, in_tok, out_tok = generate_visual_description(card, set_code=set_code)
+            visual_desc, in_tok, out_tok = generate_visual_description(card)
             total_input_tokens += in_tok
             total_output_tokens += out_tok
 
             # Assemble full prompt
-            full_prompt = assemble_full_prompt(card, visual_desc, set_code=set_code)
+            full_prompt = assemble_full_prompt(card, visual_desc)
 
             # Check for character reference images
-            char_refs = get_character_ref_paths(card, set_code)
+            char_refs = get_character_ref_paths(card)
 
             # Log the prompt
             log_entry = {
@@ -490,8 +489,13 @@ def main():
         datefmt="%H:%M:%S",
     )
 
+    # CLI uses the active project. With the on-disk registry walk gone,
+    # the operator has to open the project (via the wizard or future CLI
+    # ``open`` command) before running this script directly.
+    from mtgai.runtime.active_project import write_active_set
+
+    write_active_set(args.set)
     summary = generate_prompts_for_set(
-        set_code=args.set,
         card_filter=args.card,
         dry_run=args.dry_run,
         force=args.force,

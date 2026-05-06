@@ -379,14 +379,11 @@ def assign_evergreen_keywords() -> dict[str, list[str]]:
 
 
 def generate_mechanic_candidates(
-    set_code: str,
     theme_path: str | Path | None = None,
 ) -> list[dict]:
-    """Generate mechanic candidates for a set via LLM.
+    """Generate mechanic candidates for the active project via LLM.
 
     Args:
-        set_code: Set code whose model assignment to use for this stage.
-            Required — there is no sensible default.
         theme_path: Optional path to theme.json for context.
             Not directly injected into prompt (already in system prompt),
             but used for logging/verification.
@@ -394,9 +391,9 @@ def generate_mechanic_candidates(
     Returns:
         List of mechanic candidate dicts.
     """
-    from mtgai.settings.model_settings import get_llm_model
+    from mtgai.runtime.active_project import require_active_project
 
-    model_id = get_llm_model("mechanics", set_code)
+    model_id = require_active_project().settings.get_llm_model_id("mechanics")
 
     print("Calling LLM to generate mechanic candidates...")
     print(f"  Model: {model_id}")

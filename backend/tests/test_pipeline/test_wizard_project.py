@@ -127,24 +127,16 @@ def test_get_project_payload_picks_up_theme_json_migration(client):
     assert data["theme_input"]["kind"] == "existing"
 
 
-def test_get_project_payload_409_for_non_active_set(client):
-    """A set_code that isn't the active project → 409 ``no_active_project``.
+def test_get_project_payload_409_when_no_project_open(client):
+    """Endpoint reads from the active project — 409 ``no_active_project`` when none is open.
 
-    With no project open the endpoint can't reach a meaningful payload
-    (no asset_folder to read settings.toml from), so the 404 ``set
-    doesn't exist`` of the legacy registry world is replaced by a 409
-    that points the client back at New / Open.
+    Set_code is no longer a query/body param: the server uses the
+    in-memory pointer (set by /api/project/{open,materialize}) and
+    bounces the client to New / Open via the 409.
     """
-    resp = client.get("/api/wizard/project?set_code=NOPE")
+    resp = client.get("/api/wizard/project")
     assert resp.status_code == 409
     assert resp.json()["code"] == "no_active_project"
-
-
-def test_get_project_payload_400_for_bad_set_code(client):
-    # ``a`` is too short for the regex — fails up-front validation
-    # before the directory check (which would otherwise be 404).
-    resp = client.get("/api/wizard/project?set_code=a")
-    assert resp.status_code == 400
 
 
 # ---------------------------------------------------------------------------

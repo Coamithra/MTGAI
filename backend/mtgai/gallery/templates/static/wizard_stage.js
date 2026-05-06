@@ -202,7 +202,6 @@
       const desired = cb.checked;
       try {
         const resp = await window.MTGAIWizard.postJSON('/api/wizard/project/breaks', {
-          set_code: state.activeSet,
           stage_id: stage.stage_id,
           review: desired,
         });
@@ -319,9 +318,7 @@
       btn.disabled = true;
       btn.textContent = 'Advancing…';
       try {
-        const resp = await window.MTGAIWizard.postJSON('/api/wizard/advance', {
-          set_code: state.activeSet,
-        });
+        const resp = await window.MTGAIWizard.postJSON('/api/wizard/advance', {});
         if (!resp.ok) {
           const data = await resp.json().catch(() => ({}));
           window.MTGAIWizard.toast(data.error || 'Advance failed', 'error');

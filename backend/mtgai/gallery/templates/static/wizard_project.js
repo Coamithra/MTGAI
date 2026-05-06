@@ -134,7 +134,7 @@
     `;
     if (footer) footer.innerHTML = '';
 
-    fetchProject(state.activeSet)
+    fetchProject()
       .then(data => {
         local.data = data;
         renderForm(content, footer, data, state);
@@ -148,8 +148,9 @@
   // Fetch
   // ------------------------------------------------------------------
 
-  async function fetchProject(setCode) {
-    const resp = await fetch(`/api/wizard/project?set_code=${encodeURIComponent(setCode)}`);
+  async function fetchProject() {
+    // Server reads the active project from in-memory state; no query param.
+    const resp = await fetch('/api/wizard/project');
     if (!resp.ok) {
       const data = await resp.json().catch(() => ({}));
       throw new Error(data.error || `HTTP ${resp.status}`);
@@ -374,9 +375,8 @@
       if (!materialised) return null;
       return materialised.mtg_toml;
     }
-    const resp = await fetch(
-      `/api/project/serialize?set_code=${encodeURIComponent(state.activeSet || local.data.set_code)}`,
-    );
+    // Server reads the active project from in-memory state; no query param.
+    const resp = await fetch('/api/project/serialize');
     const data = await resp.json();
     if (!resp.ok) {
       W.toast(data.error || 'Serialise failed', 'error');
@@ -699,7 +699,7 @@
       return;
     }
     try {
-      const resp = await postJSON('/api/wizard/project/params', { set_code: state.activeSet, ...patch });
+      const resp = await postJSON('/api/wizard/project/params', patch);
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
         W.toast(data.error || 'Save failed', 'error');
@@ -787,7 +787,6 @@
     }
     try {
       const resp = await postJSON('/api/wizard/project/asset-folder', {
-        set_code: state.activeSet,
         asset_folder: trimmed,
       });
       const data = await resp.json();
@@ -966,10 +965,7 @@
       return;
     }
     try {
-      const resp = await postJSON('/api/wizard/project/theme-input', {
-        set_code: state.activeSet,
-        ...payload,
-      });
+      const resp = await postJSON('/api/wizard/project/theme-input', payload);
       const data = await resp.json();
       if (!resp.ok) {
         W.toast(data.error || 'Save failed', 'error');
@@ -1030,7 +1026,6 @@
     }
     try {
       const resp = await postJSON('/api/wizard/project/breaks', {
-        set_code: state.activeSet,
         stage_id: stageId,
         review,
       });
@@ -1121,10 +1116,7 @@
       return;
     }
     try {
-      const resp = await postJSON('/api/wizard/project/preset/apply', {
-        set_code: state.activeSet,
-        name,
-      });
+      const resp = await postJSON('/api/wizard/project/preset/apply', { name });
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
         W.toast(data.error || 'Apply failed', 'error');
@@ -1141,7 +1133,7 @@
   async function reloadProject(state) {
     const root = document.querySelector('.wiz-tab-body[data-tab-id="project"]');
     if (!root) return;
-    const data = await fetchProject(state.activeSet);
+    const data = await fetchProject();
     local.data = data;
     const content = root.querySelector('[data-role="content"]');
     const footer = root.querySelector('[data-role="footer"]');
@@ -1256,7 +1248,6 @@
     }
     try {
       const resp = await postJSON('/api/wizard/project/models', {
-        set_code: state.activeSet,
         kind,
         stage_id: stageId,
         value,
@@ -1329,7 +1320,7 @@
     }
 
     try {
-      const resp = await postJSON('/api/wizard/project/start', { set_code: state.activeSet });
+      const resp = await postJSON('/api/wizard/project/start', {});
       const data = await resp.json();
       if (!resp.ok) {
         W.toast(data.error || 'Start failed', 'error');

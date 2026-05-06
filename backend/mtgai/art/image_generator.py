@@ -511,17 +511,15 @@ def _save_progress(progress: dict, progress_path: Path) -> None:
 
 
 def generate_art_for_set(
-    set_code: str,
     card_filter: str | None = None,
     dry_run: bool = False,
     force: bool = False,
     max_attempts: int = 2,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
 ) -> dict:
-    """Generate art images for all cards in a set.
+    """Generate art images for all cards in the active project.
 
     Args:
-        set_code: The set code (e.g., "ASD").
         card_filter: Optional collector number prefix to filter cards.
         dry_run: If True, log what would be done but don't generate.
         force: If True, regenerate even if art already exists.
@@ -530,7 +528,9 @@ def generate_art_for_set(
     Returns summary dict with stats.
     """
     from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.runtime.active_project import require_active_project
 
+    set_code = require_active_project().set_code
     set_dir = set_artifact_dir()
     cards_dir = set_dir / "cards"
     art_dir = set_dir / "art"
@@ -705,8 +705,13 @@ def main():
         datefmt="%H:%M:%S",
     )
 
+    # CLI uses the active project. With the on-disk registry walk gone,
+    # the operator has to open the project (via the wizard or future CLI
+    # ``open`` command) before running this script directly.
+    from mtgai.runtime.active_project import write_active_set
+
+    write_active_set(args.set)
     summary = generate_art_for_set(
-        set_code=args.set,
         card_filter=args.card,
         dry_run=args.dry_run,
         force=args.force,

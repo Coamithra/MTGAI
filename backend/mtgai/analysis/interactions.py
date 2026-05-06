@@ -231,9 +231,8 @@ def _build_interaction_prompt(
 def analyze_interactions(
     cards: list[Card],
     mechanics: list[dict],
-    set_code: str,
 ) -> tuple[list[InteractionFlag], list[AnalysisIssue]]:
-    """Run LLM-based interaction analysis on the full card pool.
+    """Run LLM-based interaction analysis on the active project's card pool.
 
     Returns (interaction_flags, analysis_issues).
     """
@@ -248,16 +247,17 @@ def analyze_interactions(
         len(user_prompt),
     )
 
-    from mtgai.settings.model_settings import get_effort, get_llm_model
+    from mtgai.runtime.active_project import require_active_project
 
+    settings = require_active_project().settings
     result = generate_with_tool(
         system_prompt=INTERACTION_SYSTEM_PROMPT,
         user_prompt=user_prompt,
         tool_schema=INTERACTION_TOOL_SCHEMA,
-        model=get_llm_model("balance", set_code),
+        model=settings.get_llm_model_id("balance"),
         temperature=TEMPERATURE,
         max_tokens=MAX_TOKENS,
-        effort=get_effort("balance", set_code),
+        effort=settings.get_effort("balance"),
     )
 
     cost = cost_from_result(result)

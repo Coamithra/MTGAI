@@ -37,7 +37,6 @@ def configured_project(tmp_path, monkeypatch) -> Iterator[tuple[str, Path, Path]
 
     monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path / "output")
     monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(stages_mod, "OUTPUT_ROOT", tmp_path / "output")
     monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path / "output")
     monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
     monkeypatch.setattr(ms, "SETS_DIR", sets_root)
@@ -58,13 +57,13 @@ def configured_project(tmp_path, monkeypatch) -> Iterator[tuple[str, Path, Path]
 
 def test_set_dir_resolves_to_asset_folder(configured_project):
     """``stages._set_dir`` honours the active project's configured ``asset_folder``."""
-    code, _legacy_dir, asset_dir = configured_project
-    assert stages_mod._set_dir(code) == asset_dir
+    _code, _legacy_dir, asset_dir = configured_project
+    assert stages_mod._set_dir() == asset_dir
 
 
 def test_skeleton_clearer_targets_asset_folder(configured_project):
     """``clear_skeleton`` removes the skeleton.json under ``asset_folder``."""
-    code, legacy_dir, asset_dir = configured_project
+    _code, legacy_dir, asset_dir = configured_project
 
     # Seed a skeleton file in the asset folder. The legacy location stays
     # empty so we can prove the clearer doesn't accidentally fall back.
@@ -73,7 +72,7 @@ def test_skeleton_clearer_targets_asset_folder(configured_project):
     legacy_skel = legacy_dir / "skeleton.json"
     assert not legacy_skel.exists()
 
-    stages_mod.clear_stage_artifacts("skeleton", code)
+    stages_mod.clear_stage_artifacts("skeleton")
 
     assert not skel_path.exists(), "asset-folder skeleton should be gone"
     assert not legacy_skel.exists(), "legacy path must stay untouched"
@@ -81,7 +80,7 @@ def test_skeleton_clearer_targets_asset_folder(configured_project):
 
 def test_card_gen_clearer_targets_asset_folder(configured_project):
     """``clear_card_gen`` wipes the cards/ dir under ``asset_folder``."""
-    code, legacy_dir, asset_dir = configured_project
+    _code, legacy_dir, asset_dir = configured_project
 
     cards_dir = asset_dir / "cards"
     cards_dir.mkdir(parents=True)
@@ -89,7 +88,7 @@ def test_card_gen_clearer_targets_asset_folder(configured_project):
     legacy_cards = legacy_dir / "cards"
     assert not legacy_cards.exists()
 
-    stages_mod.clear_stage_artifacts("card_gen", code)
+    stages_mod.clear_stage_artifacts("card_gen")
 
     assert not cards_dir.exists(), "asset-folder cards/ should be gone"
     assert not legacy_cards.exists(), "legacy cards/ must stay untouched"
@@ -97,7 +96,7 @@ def test_card_gen_clearer_targets_asset_folder(configured_project):
 
 def test_render_clearer_targets_asset_folder(configured_project):
     """``clear_rendering`` wipes the renders/ dir under ``asset_folder``."""
-    code, legacy_dir, asset_dir = configured_project
+    _code, legacy_dir, asset_dir = configured_project
 
     renders_dir = asset_dir / "renders"
     renders_dir.mkdir(parents=True)
@@ -105,7 +104,7 @@ def test_render_clearer_targets_asset_folder(configured_project):
     legacy_renders = legacy_dir / "renders"
     assert not legacy_renders.exists()
 
-    stages_mod.clear_stage_artifacts("rendering", code)
+    stages_mod.clear_stage_artifacts("rendering")
 
     assert not renders_dir.exists(), "asset-folder renders/ should be gone"
     assert not legacy_renders.exists(), "legacy renders/ must stay untouched"

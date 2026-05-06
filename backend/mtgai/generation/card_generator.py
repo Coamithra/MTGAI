@@ -405,18 +405,18 @@ def _card_one_liner(raw: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _select_model(set_code: str) -> str:
-    """Return the generation model from this set's settings."""
-    from mtgai.settings.model_settings import get_llm_model
+def _select_model() -> str:
+    """Return the generation model from the active project's settings."""
+    from mtgai.runtime.active_project import require_active_project
 
-    return get_llm_model("card_gen", set_code)
+    return require_active_project().settings.get_llm_model_id("card_gen")
 
 
-def _select_effort(set_code: str) -> str | None:
-    """Return the effort level from this set's settings."""
-    from mtgai.settings.model_settings import get_effort
+def _select_effort() -> str | None:
+    """Return the effort level from the active project's settings."""
+    from mtgai.runtime.active_project import require_active_project
 
-    return get_effort("card_gen", set_code)
+    return require_active_project().settings.get_effort("card_gen")
 
 
 def _process_batch_result(
@@ -441,6 +441,9 @@ def _process_batch_result(
 
     Returns the list of successfully saved Card objects.
     """
+    from mtgai.runtime.active_project import require_active_project
+
+    set_code = require_active_project().set_code
     saved: list[Card] = []
     cost_per_card = calc_cost(model, input_tokens, output_tokens) / max(len(raw_cards), 1)
 
@@ -452,7 +455,7 @@ def _process_batch_result(
         logger.info("  [%s] Raw LLM output: %s", slot_id, _card_one_liner(raw))
 
         # Inject pipeline metadata before validation
-        raw.setdefault("set_code", DEFAULT_SET_CODE)
+        raw.setdefault("set_code", set_code)
         raw.setdefault("collector_number", slot_id)
         raw.setdefault("layout", "normal")
 
@@ -541,7 +544,7 @@ def _process_batch_result(
 
         # Card parsed — set pipeline fields
         update_fields: dict = {
-            "set_code": DEFAULT_SET_CODE,
+            "set_code": set_code,
             "collector_number": slot_id,
             "slot_id": slot_id,
             "status": CardStatus.DRAFT,
@@ -621,8 +624,10 @@ def _retry_parse_failure(
             result.get("cache_read_input_tokens", 0),
         )
 
+        from mtgai.runtime.active_project import require_active_project
+
         retry_raw = result["result"]
-        retry_raw.setdefault("set_code", DEFAULT_SET_CODE)
+        retry_raw.setdefault("set_code", require_active_project().set_code)
         retry_raw.setdefault("collector_number", slot["slot_id"])
         retry_raw.setdefault("layout", "normal")
 
@@ -686,15 +691,13 @@ def _retry_parse_failure(
 
 def generate_set(
     *,
-    set_code: str = DEFAULT_SET_CODE,
     dry_run: bool = False,
     resume: bool = True,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
 ) -> dict:
-    """Generate all unfilled slots in the skeleton.
+    """Generate all unfilled slots in the active project's skeleton.
 
     Args:
-        set_code: Set code to generate for (default: ASD).
         dry_run: If True, print batches and exit without calling the LLM.
         resume: If True, skip slots already in generation_progress.json.
         progress_callback: Optional (item, completed, total, detail, cost) callback.
@@ -708,11 +711,11 @@ def generate_set(
         datefmt="%H:%M:%S",
     )
 
-    # Derive paths from set_code. set_artifact_dir routes to the
-    # project's asset_folder when configured, else the legacy
-    # output/sets/<CODE>/.
     from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.runtime.active_project import require_active_project
 
+    project = require_active_project()
+    set_code = project.set_code
     set_dir = set_artifact_dir()
     skeleton_path = set_dir / "skeleton.json"
     mechanics_path = set_dir / "mechanics" / "approved.json"
@@ -723,8 +726,8 @@ def generate_set(
     logger.info("=" * 70)
     logger.info("MTGAI Card Generation Pipeline — Phase 1C")
     logger.info("=" * 70)
-    active_model = _select_model(set_code)
-    active_effort = _select_effort(set_code)
+    active_model = _select_model()
+    active_effort = _select_effort()
     logger.info(
         "Model: %s | Effort: %s | Temp: %s | Batch size: %d",
         active_model,
@@ -732,7 +735,7 @@ def generate_set(
         TEMPERATURE,
         BATCH_SIZE,
     )
-    logger.info("Set: %s | Output: %s", set_code, OUTPUT_ROOT)
+    logger.info("Set: %s | Output: %s", set_code, set_dir)
     logger.info("Logs: %s", log_dir)
     logger.info("")
 

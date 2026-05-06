@@ -58,15 +58,8 @@ def save_state(state: PipelineState) -> None:
     )
 
 
-def load_state(set_code: str) -> PipelineState | None:
-    """Load pipeline state from disk, or None if not found.
-
-    The ``set_code`` argument is unused (the path is resolved from the
-    active project) but retained for caller compatibility — runners and
-    endpoints still pass it. The argument will be dropped in a follow-up
-    that removes ``set_code`` from the stage-runner public surface.
-    """
-    del set_code
+def load_state() -> PipelineState | None:
+    """Load pipeline state from disk for the active project, or None if not found."""
     path = _state_path()
     if not path.exists():
         return None
@@ -224,11 +217,7 @@ class PipelineEngine:
                 if runner is None:
                     raise ValueError(f"No runner registered for stage: {stage.stage_id}")
 
-                result: StageResult = runner(
-                    self.state.config.set_code,
-                    progress_cb,
-                    emitter,
-                )
+                result: StageResult = runner(progress_cb, emitter)
 
                 if not result.success:
                     raise RuntimeError(result.error_message or "Stage failed")

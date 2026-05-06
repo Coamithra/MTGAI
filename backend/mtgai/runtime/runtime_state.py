@@ -73,8 +73,8 @@ def _load_theme() -> dict | None:
         return None
 
 
-def _load_pipeline_summary(set_code: str) -> dict | None:
-    """Slice of the pipeline state the dashboard banner needs.
+def _load_pipeline_summary() -> dict | None:
+    """Slice of the active project's pipeline state the dashboard banner needs.
 
     Imports lazily — the runtime module is loaded by the FastAPI server
     process anyway, but the lazy import keeps it cheap when the
@@ -86,7 +86,7 @@ def _load_pipeline_summary(set_code: str) -> dict | None:
     from mtgai.pipeline.engine import load_state
 
     try:
-        state = load_state(set_code)
+        state = load_state()
     except NoAssetFolderError:
         return None
     if state is None:
@@ -144,6 +144,6 @@ def compute_runtime_state() -> dict[str, Any]:
         "active_set": active_set,
         "ai_lock": ai_lock.busy_payload(),
         "active_runs": _active_runs_payload(),
-        "pipeline": _load_pipeline_summary(active_set) if active_set else None,
+        "pipeline": _load_pipeline_summary() if active_set else None,
         "theme": _load_theme() if active_set else None,
     }

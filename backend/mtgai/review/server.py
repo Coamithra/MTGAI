@@ -61,8 +61,8 @@ class NoCacheStaticFiles(StaticFiles):
         return response
 
 
-def _set_dir(set_code: str) -> Path:
-    """Return the artifact directory for ``set_code``.
+def _set_dir() -> Path:
+    """Return the active project's artifact directory.
 
     Routes through :func:`set_artifact_dir` so reads honour the
     project's configured ``asset_folder``.
@@ -135,13 +135,13 @@ async def inject_pipeline_banner(request: Request, call_next):
 # ---------------------------------------------------------------------------
 
 
-def _discover_images(set_code: str) -> tuple[dict[str, str], dict[str, str]]:
-    """Discover render and art files on disk, keyed by collector number.
+def _discover_images() -> tuple[dict[str, str], dict[str, str]]:
+    """Discover render and art files in the active project, keyed by collector number.
 
     Falls back to filesystem glob when card JSONs don't have paths populated.
     Returns (render_map, art_map) where values are server route paths.
     """
-    set_dir = _set_dir(set_code)
+    set_dir = _set_dir()
     render_map: dict[str, str] = {}
     art_map: dict[str, str] = {}
 
@@ -175,14 +175,16 @@ def _discover_images(set_code: str) -> tuple[dict[str, str], dict[str, str]]:
     return render_map, art_map
 
 
-# Module-level cache for image discovery (refreshed per request cycle)
+# Module-level cache for image discovery, keyed by the active project's
+# set_code so opening a different project doesn't pick up stale maps.
 _image_cache: dict[str, tuple[dict[str, str], dict[str, str]]] = {}
 
 
-def _get_image_maps(set_code: str, refresh: bool = False) -> tuple[dict[str, str], dict[str, str]]:
-    """Get image maps, discovering from disk on first call or refresh."""
+def _get_image_maps(refresh: bool = False) -> tuple[dict[str, str], dict[str, str]]:
+    """Get image maps for the active project, discovering from disk on first call or refresh."""
+    set_code = _get_set_code() or ""
     if refresh or set_code not in _image_cache:
-        _image_cache[set_code] = _discover_images(set_code)
+        _image_cache[set_code] = _discover_images()
     return _image_cache[set_code]
 
 
@@ -238,7 +240,7 @@ def _load_cards_as_json(set_code: str) -> tuple[list[dict], str]:
     from mtgai.review.loaders import load_cards
 
     cards = load_cards(set_code)
-    render_map, art_map = _get_image_maps(set_code)
+    render_map, art_map = _get_image_maps()
     card_dicts = [_card_to_server_dict(c, render_map, art_map) for c in cards]
     cards_json = json.dumps(card_dicts, ensure_ascii=False)
     return card_dicts, cards_json
@@ -290,14 +292,16 @@ async def settings_page(request: Request) -> HTMLResponse:
 
 
 @app.get("/api/cards", response_class=JSONResponse)
-async def get_cards(set_code: str | None = None) -> JSONResponse:
-    """Return all cards as JSON (for client-side use)."""
+async def get_cards() -> JSONResponse:
+    """Return all cards in the active project as JSON (for client-side use)."""
     from mtgai.io.asset_paths import NoAssetFolderError
 
+    set_code = _get_set_code()
     if set_code is None:
-        set_code = _get_set_code()
-    if set_code is None:
-        return JSONResponse({"error": "No project is open"}, status_code=400)
+        return JSONResponse(
+            {"error": "No project is open", "code": "no_active_project"},
+            status_code=409,
+        )
 
     try:
         card_dicts, _ = _load_cards_as_json(set_code)
@@ -315,19 +319,17 @@ async def get_cards(set_code: str | None = None) -> JSONResponse:
 
 
 @app.post("/api/settings/apply", response_class=JSONResponse)
-async def apply_settings(request: Request, set_code: str | None = None) -> JSONResponse:
-    """Apply model settings as the active configuration for a set.
-
-    ``set_code`` falls back to the active set when omitted, which preserves
-    the legacy single-set UI while the wizard takes over.
-    """
+async def apply_settings(request: Request) -> JSONResponse:
+    """Apply model settings as the active configuration for the open project."""
     from mtgai.settings.model_settings import ModelSettings
     from mtgai.settings.model_settings import apply_settings as _apply
 
+    set_code = _get_set_code()
     if set_code is None:
-        set_code = _get_set_code()
-    if set_code is None:
-        return JSONResponse({"error": "No project is open"}, status_code=400)
+        return JSONResponse(
+            {"error": "No project is open", "code": "no_active_project"},
+            status_code=409,
+        )
 
     body = await request.json()
     try:

@@ -171,15 +171,13 @@ def _extract_portrait_details(key: str, description: str) -> str:
 
 
 def generate_character_portraits(
-    set_code: str,
     char_filter: str | None = None,
     dry_run: bool = False,
     force: bool = False,
 ) -> dict:
-    """Generate character reference portraits for all legendary characters.
+    """Generate character reference portraits for all legendary characters in the active project.
 
     Args:
-        set_code: Set code (e.g., "ASD").
         char_filter: Optional character key to generate only one.
         dry_run: Log without generating.
         force: Regenerate even if portraits exist.
@@ -187,7 +185,9 @@ def generate_character_portraits(
     Returns summary dict.
     """
     from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.runtime.active_project import require_active_project
 
+    set_code = require_active_project().set_code
     set_dir = set_artifact_dir()
     refs_path = set_dir / "art-direction" / "visual-references.json"
     if not refs_path.exists():
@@ -398,13 +398,7 @@ def main():
     # asset_folder when configured (matches generate_character_portraits).
     from mtgai.io.asset_paths import set_artifact_dir
 
-    log_file = (
-        set_artifact_dir()
-        / "art-direction"
-        / "character-refs"
-        / "logs"
-        / "run.log"
-    )
+    log_file = set_artifact_dir() / "art-direction" / "character-refs" / "logs" / "run.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(
@@ -424,8 +418,13 @@ def main():
     logger.info("Log file: %s", log_file)
     logger.info("=" * 40)
 
+    # CLI uses the active project. With the on-disk registry walk gone,
+    # the operator has to open the project (via the wizard or future CLI
+    # ``open`` command) before running this script directly.
+    from mtgai.runtime.active_project import write_active_set
+
+    write_active_set(args.set)
     summary = generate_character_portraits(
-        set_code=args.set,
         char_filter=args.char,
         dry_run=args.dry_run,
         force=args.force,

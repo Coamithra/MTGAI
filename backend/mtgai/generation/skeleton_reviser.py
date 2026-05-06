@@ -38,7 +38,6 @@ from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.generation.prompts import load_system_prompt
 from mtgai.io.card_io import load_card
 from mtgai.models.card import Card
-from mtgai.settings.model_settings import get_effort, get_llm_model
 
 logger = logging.getLogger(__name__)
 
@@ -527,7 +526,6 @@ def apply_revision_plan(
 def regenerate_slots(
     slot_ids: list[str],
     skeleton: dict,
-    set_code: str,
     model: str | None = None,
     mechanics_path: Path = MECHANICS_PATH,
     cards_dir: Path = CARDS_DIR,
@@ -536,10 +534,14 @@ def regenerate_slots(
     """Regenerate specific slots using the 1C card generation pipeline.
 
     Reuses the existing batch generation infrastructure but only for
-    the specified slot_ids.  Pass ``model`` to override the default.
+    the specified slot_ids. Reads the model assignment from the active
+    project's settings; pass ``model`` to override.
     """
-    gen_model = model or get_llm_model("skeleton_rev", set_code)
-    gen_effort = get_effort("skeleton_rev", set_code)
+    from mtgai.runtime.active_project import require_active_project
+
+    settings = require_active_project().settings
+    gen_model = model or settings.get_llm_model_id("skeleton_rev")
+    gen_effort = settings.get_effort("skeleton_rev")
     # Get slot dicts for the slots we need to regenerate
     slots_to_gen = [s for s in skeleton["slots"] if s["slot_id"] in slot_ids]
 
@@ -798,12 +800,11 @@ def write_revision_report(report: RevisionReport, path: Path) -> None:
 
 
 def run_revision(
-    set_code: str = DEFAULT_SET_CODE,
     max_rounds: int = 2,
     dry_run: bool = False,
     model: str | None = None,
 ) -> dict:
-    """Full revision pipeline.
+    """Full revision pipeline against the active project.
 
     1. Serialize cards compactly
     2. Send to LLM with balance findings
@@ -815,11 +816,12 @@ def run_revision(
     Returns:
         Summary dict (model_dump of RevisionReport).
     """
-    # Derive all paths from set_code. set_artifact_dir routes to the
-    # project's asset_folder when configured, else the legacy
-    # output/sets/<CODE>/.
     from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.runtime.active_project import require_active_project
 
+    project = require_active_project()
+    set_code = project.set_code
+    settings = project.settings
     set_dir = set_artifact_dir()
     skeleton_path = set_dir / "skeleton.json"
     mechanics_path = set_dir / "mechanics" / "approved.json"
@@ -883,8 +885,8 @@ def run_revision(
             logger.info("User prompt (first 2000 chars):\n%s", user_prompt[:2000])
             break
 
-        rev_model = model or get_llm_model("skeleton_rev", set_code)
-        rev_effort = get_effort("skeleton_rev", set_code)
+        rev_model = model or settings.get_llm_model_id("skeleton_rev")
+        rev_effort = settings.get_effort("skeleton_rev")
         t0 = time.time()
         result = generate_with_tool(
             system_prompt=system_prompt,
@@ -961,7 +963,6 @@ def run_revision(
         regen_cards = regenerate_slots(
             slots_to_regen,
             skeleton,
-            set_code,
             model=model,
             mechanics_path=mechanics_path,
             cards_dir=cards_dir,
@@ -971,7 +972,7 @@ def run_revision(
 
         # Re-run balance analysis
         logger.info("\n--- Re-running balance analysis ---")
-        new_analysis = analyze_set(set_code)
+        new_analysis = analyze_set()
         new_balance = new_analysis.model_dump()
 
         # Save updated balance analysis
@@ -1078,8 +1079,13 @@ if __name__ == "__main__":
         datefmt="%H:%M:%S",
     )
 
+    # CLI uses the active project. With the on-disk registry walk gone,
+    # the operator has to open the project (via the wizard or future
+    # CLI ``open`` command) before running this script directly.
+    from mtgai.runtime.active_project import write_active_set
+
+    write_active_set(args.set)
     run_revision(
-        set_code=args.set,
         max_rounds=args.max_rounds,
         dry_run=args.dry_run,
         model=args.model,

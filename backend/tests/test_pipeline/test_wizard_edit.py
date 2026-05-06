@@ -21,7 +21,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from mtgai.pipeline import server as pipeline_server
-from mtgai.pipeline import stages as stages_mod
 from mtgai.pipeline.engine import load_state, save_state
 from mtgai.pipeline.models import (
     PipelineConfig,
@@ -50,7 +49,6 @@ def _reset(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(pipeline_server, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(stages_mod, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(active_project, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(active_project, "SETS_ROOT", sets_root)
     monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
@@ -240,7 +238,7 @@ def test_accept_cascades_artifacts_and_resets_stages(client, no_thread_start):
     assert not (set_dir / "reprint_selection.json").exists()
     assert not cards.exists()
 
-    reloaded = load_state("ASD")
+    reloaded = load_state()
     assert reloaded is not None
     assert all(s.status == StageStatus.PENDING for s in reloaded.stages)
     assert reloaded.current_stage_id is None
@@ -307,7 +305,7 @@ def test_accept_clear_theme_json_returns_to_project(client, no_thread_start):
     assert not (set_dir / "skeleton.json").exists()
     # State is preserved with everything reset to PENDING — the user
     # clicks Start to re-extract.
-    reloaded = load_state("ASD")
+    reloaded = load_state()
     assert reloaded is not None
     assert all(s.status == StageStatus.PENDING for s in reloaded.stages)
 
@@ -362,7 +360,7 @@ def test_accept_409_when_engine_running(client, monkeypatch):
     seeded.stages[0].status = StageStatus.COMPLETED
     seeded.stages[0].progress.completed_items = 60
     save_state(seeded)
-    seeded_dump = load_state("ASD").model_dump(mode="json")
+    seeded_dump = load_state().model_dump(mode="json")
 
     class _BusyEngine:
         is_running = True
@@ -384,7 +382,7 @@ def test_accept_409_when_engine_running(client, monkeypatch):
     # are gated behind the engine-running check, so pipeline-state.json
     # and skeleton.json should be untouched.
     assert (set_dir / "skeleton.json").exists()
-    assert load_state("ASD").model_dump(mode="json") == seeded_dump
+    assert load_state().model_dump(mode="json") == seeded_dump
 
 
 def test_accept_409_when_extraction_running(client):

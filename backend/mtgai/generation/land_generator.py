@@ -164,11 +164,10 @@ def _slugify(name: str) -> str:
 
 
 def generate_lands(
-    set_code: str = "ASD",
     on_call_start: Callable[[str], None] | None = None,
     on_card_saved: Callable[[Card], None] | None = None,
 ) -> dict:
-    """Generate land cards for a set.
+    """Generate land cards for the active project.
 
     Returns a summary dict with total_cards and cost_usd.
 
@@ -177,7 +176,10 @@ def generate_lands(
       ``on_card_saved(card)`` fires after each Card is written to disk.
     """
     from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.runtime.active_project import require_active_project
 
+    project = require_active_project()
+    set_code = project.set_code
     set_dir = set_artifact_dir()
     skeleton_path = set_dir / "skeleton.json"
     cards_dir = set_dir / "cards"
@@ -190,10 +192,7 @@ def generate_lands(
     system, user = _build_prompt(set_config)
     tool_schema = _build_tool_schema()
 
-    # Resolve the configured model for the lands stage from per-set settings.
-    from mtgai.settings.model_settings import get_llm_model
-
-    model_id = get_llm_model("lands", set_code)
+    model_id = project.settings.get_llm_model_id("lands")
     if on_call_start is not None:
         on_call_start(model_id)
     response = generate_with_tool(

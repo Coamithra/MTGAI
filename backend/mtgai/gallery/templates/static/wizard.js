@@ -96,7 +96,6 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          set_code: state.activeSet,
           from_stage,
           clear_theme_json: !!clear_theme_json,
         }),
@@ -109,7 +108,6 @@
     },
     async accept({ from_stage, clear_theme_json, theme_payload, set_params_patch, theme_input }) {
       const body = {
-        set_code: state.activeSet,
         from_stage,
         clear_theme_json: !!clear_theme_json,
       };

@@ -123,7 +123,6 @@ def select_best_version(
     colors: list[str],
     prompt: str,
     image_paths: list[Path],
-    set_code: str,
     model: str | None = None,
 ) -> dict:
     """Send images to Claude vision and get the best version pick.
@@ -132,10 +131,10 @@ def select_best_version(
     plus token counts.
     """
     from mtgai.generation.llm_client import _get_provider, _make_tool
-    from mtgai.settings.model_settings import get_llm_model
+    from mtgai.runtime.active_project import require_active_project
 
     if model is None:
-        model = get_llm_model("art_select", set_code)
+        model = require_active_project().settings.get_llm_model_id("art_select")
 
     provider = _get_provider("anthropic")
     facade_model = provider.new_model(model)
@@ -163,19 +162,20 @@ def select_best_version(
 
 
 def select_art_for_set(
-    set_code: str,
     card_filter: str | None = None,
     dry_run: bool = False,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
 ) -> dict:
-    """Run art selection for all cards with multiple versions.
+    """Run art selection for all cards in the active project with multiple versions.
 
     Returns summary dict.
     """
     from mtgai.io.asset_paths import set_artifact_dir
     from mtgai.io.card_io import load_card
     from mtgai.io.paths import card_slug
+    from mtgai.runtime.active_project import require_active_project
 
+    set_code = require_active_project().set_code
     set_dir = set_artifact_dir()
     cards_dir = set_dir / "cards"
     art_dir = set_dir / "art"
@@ -221,7 +221,6 @@ def select_art_for_set(
                 colors=card.colors or [],
                 prompt=card.art_prompt,
                 image_paths=versions,
-                set_code=set_code,
             )
 
             total_input_tokens += selection["input_tokens"]
@@ -288,8 +287,8 @@ def select_art_for_set(
     return summary
 
 
-def generate_selection_report(set_code: str) -> Path:
-    """Generate an HTML report from art selection results."""
+def generate_selection_report() -> Path:
+    """Generate an HTML report from art selection results for the active project."""
 
     from mtgai.io.asset_paths import set_artifact_dir
 
@@ -517,13 +516,19 @@ def main():
         datefmt="%H:%M:%S",
     )
 
+    # CLI uses the active project. With the on-disk registry walk gone,
+    # the operator has to open the project (via the wizard or future CLI
+    # ``open`` command) before running this script directly.
+    from mtgai.runtime.active_project import write_active_set
+
+    write_active_set(args.set)
+
     if args.report_only:
-        report_path = generate_selection_report(args.set)
+        report_path = generate_selection_report()
         print(f"Report generated: {report_path}")
         return
 
     summary = select_art_for_set(
-        set_code=args.set,
         card_filter=args.card,
         dry_run=args.dry_run,
     )
@@ -543,7 +548,7 @@ def main():
 
     # Generate HTML report
     if not summary["dry_run"] and summary["reviewed"] > 0:
-        report_path = generate_selection_report(args.set)
+        report_path = generate_selection_report()
         print(f"\nReport: {report_path}")
 
 

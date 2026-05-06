@@ -663,7 +663,7 @@
         const resp = await fetch('/api/wizard/advance', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ set_code: state.activeSet }),
+          body: JSON.stringify({}),
         });
         const data = await resp.json();
         if (!resp.ok) {

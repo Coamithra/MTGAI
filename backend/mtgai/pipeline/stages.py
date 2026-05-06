@@ -1,9 +1,11 @@
 """Stage registry — maps stage_id to actual pipeline function calls.
 
-Each stage runner receives a set_code and a progress callback, calls the
-appropriate library function, and returns a StageResult with summary info.
-Stages that aren't yet wired to real functions use stub implementations
-that log and return immediately.
+Each stage runner receives a progress callback + emitter, calls the
+appropriate library function, and returns a StageResult with summary
+info. The active project (set_code, settings, asset_folder) is read
+from :mod:`mtgai.runtime.active_project` — runners no longer take a
+``set_code`` parameter. Stages that aren't yet wired to real functions
+use stub implementations that log and return immediately.
 
 Each stage also has a clearer (``STAGE_CLEARERS``) used by the wizard
 edit-flow cascade: when the user accepts edits to a past stage, every
@@ -29,20 +31,19 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
 
+def _set_dir() -> Path:
+    """Where the active project's artifacts live.
 
-def _set_dir(set_code: str) -> Path:
-    """Where ``set_code``'s artifacts live.
-
-    Routes through :func:`mtgai.io.asset_paths.set_artifact_dir` so the
-    user's configured ``asset_folder`` wins over the legacy
-    ``output/sets/<CODE>/`` default — every stage runner + clearer that
-    derives paths from this helper inherits the routing for free.
+    Thin wrapper around :func:`mtgai.io.asset_paths.set_artifact_dir`
+    kept for the by-now-familiar local name. Raises
+    :class:`NoAssetFolderError` if no project is open or its
+    ``asset_folder`` is empty.
     """
     from mtgai.io.asset_paths import set_artifact_dir
 
@@ -74,14 +75,13 @@ class StageResult:
 
 
 def run_skeleton(
-    set_code: str,
     progress_cb: ProgressCallback | None,
     emitter: StageEmitter,
 ) -> StageResult:
     """Generate the set skeleton."""
     from mtgai.skeleton.generator import SetConfig, generate_skeleton
 
-    set_dir = _set_dir(set_code)
+    set_dir = _set_dir()
     theme_path = set_dir / "theme.json"
     template_path = Path("C:/Programming/MTGAI/research/set-template.json")
 
@@ -188,7 +188,6 @@ def run_skeleton(
 
 
 def run_reprints(
-    set_code: str,
     progress_cb: ProgressCallback | None,
     emitter: StageEmitter,
 ) -> StageResult:
@@ -199,7 +198,7 @@ def run_reprints(
         select_reprints,
     )
 
-    set_dir = _set_dir(set_code)
+    set_dir = _set_dir()
     skeleton_path = set_dir / "skeleton.json"
 
     if not skeleton_path.exists():
@@ -243,12 +242,13 @@ def run_reprints(
 
     from mtgai.generation.llm_client import _get_provider, _resolve_provider
     from mtgai.generation.phase_poller import NullPoller, PromptEvalPoller
-    from mtgai.settings.model_settings import get_llm_model
+    from mtgai.runtime.active_project import require_active_project
 
     # Spin up a poller so the activity banner shows real prompt-eval%
     # / generation tok/s during the (potentially long) llamacpp call.
     # Anthropic doesn't expose /slots, so we no-op for that provider.
-    reprint_model = get_llm_model("reprints", set_code)
+    project = require_active_project()
+    reprint_model = project.settings.get_llm_model_id("reprints")
     provider_name = _resolve_provider(reprint_model)
     if provider_name == "llamacpp":
         try:
@@ -306,7 +306,6 @@ def run_reprints(
 
 
 def run_lands(
-    set_code: str,
     progress_cb: ProgressCallback | None,
     emitter: StageEmitter,
 ) -> StageResult:
@@ -370,9 +369,10 @@ def run_lands(
 
     from mtgai.generation.llm_client import _get_provider, _resolve_provider
     from mtgai.generation.phase_poller import NullPoller, PromptEvalPoller
-    from mtgai.settings.model_settings import get_llm_model
+    from mtgai.runtime.active_project import require_active_project
 
-    lands_model = get_llm_model("lands", set_code)
+    project = require_active_project()
+    lands_model = project.settings.get_llm_model_id("lands")
     if _resolve_provider(lands_model) == "llamacpp":
         try:
             poller_ctx: PromptEvalPoller | NullPoller = PromptEvalPoller(
@@ -390,7 +390,6 @@ def run_lands(
 
     with poller_ctx:
         result = generate_lands(
-            set_code=set_code,
             on_call_start=_on_call_start,
             on_card_saved=_on_card_saved,
         )
@@ -432,15 +431,12 @@ def run_lands(
 
 
 def run_card_gen(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Generate cards from skeleton slots."""
     from mtgai.generation.card_generator import generate_set
 
-    result = generate_set(
-        set_code=set_code,
-        progress_callback=progress_cb,
-    )
+    result = generate_set(progress_callback=progress_cb)
     return StageResult(
         total_items=result.get("total_slots", 0),
         completed_items=result.get("filled", 0),
@@ -451,12 +447,12 @@ def run_card_gen(
 
 
 def run_balance(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Run balance analysis on the generated set."""
     from mtgai.analysis.balance import analyze_set
 
-    result = analyze_set(set_code)
+    result = analyze_set()
 
     issues = len(result.issues) if hasattr(result, "issues") else 0
     return StageResult(
@@ -466,12 +462,12 @@ def run_balance(
 
 
 def run_skeleton_rev(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Run skeleton revision based on balance findings."""
     from mtgai.generation.skeleton_reviser import run_revision
 
-    result = run_revision(set_code=set_code)
+    result = run_revision()
 
     replaced = result.get("total_cards_replaced", 0)
     rounds = len(result.get("rounds", []))
@@ -484,15 +480,12 @@ def run_skeleton_rev(
 
 
 def run_ai_review(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Run AI design review on all cards."""
     from mtgai.review.ai_review import review_all_cards
 
-    result = review_all_cards(
-        set_code=set_code,
-        progress_callback=progress_cb,
-    )
+    result = review_all_cards(progress_callback=progress_cb)
     reviewed = result.get("reviewed", 0)
     revised = result.get("revised", 0)
     return StageResult(
@@ -504,12 +497,12 @@ def run_ai_review(
 
 
 def run_finalize(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Run post-review finalization (reminder text injection + validation)."""
     from mtgai.review.finalize import finalize_set
 
-    result = finalize_set(set_code=set_code)
+    result = finalize_set()
 
     modified = result.get("cards_modified", 0)
     manual = result.get("total_manual_errors", 0)
@@ -521,7 +514,7 @@ def run_finalize(
 
 
 def run_human_card_review(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Human card review — this is a pause point, not an automated stage.
 
@@ -532,15 +525,12 @@ def run_human_card_review(
 
 
 def run_art_prompts(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Generate art prompts for all cards."""
     from mtgai.art.prompt_builder import generate_prompts_for_set
 
-    result = generate_prompts_for_set(
-        set_code=set_code,
-        progress_callback=progress_cb,
-    )
+    result = generate_prompts_for_set(progress_callback=progress_cb)
 
     processed = result.get("processed", 0)
     return StageResult(
@@ -552,12 +542,12 @@ def run_art_prompts(
 
 
 def run_char_portraits(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Generate character reference portraits."""
     from mtgai.art.character_portraits import generate_character_portraits
 
-    result = generate_character_portraits(set_code=set_code)
+    result = generate_character_portraits()
 
     generated = result.get("generated", 0)
     return StageResult(
@@ -568,15 +558,12 @@ def run_char_portraits(
 
 
 def run_art_gen(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Generate art for all cards via ComfyUI + Flux."""
     from mtgai.art.image_generator import generate_art_for_set
 
-    result = generate_art_for_set(
-        set_code=set_code,
-        progress_callback=progress_cb,
-    )
+    result = generate_art_for_set(progress_callback=progress_cb)
 
     generated = result.get("generated", 0)
     return StageResult(
@@ -588,15 +575,12 @@ def run_art_gen(
 
 
 def run_art_select(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Select best art version per card via Haiku vision."""
-    from mtgai.art.art_selector import select_best_art_for_set
+    from mtgai.art.art_selector import select_art_for_set
 
-    result = select_best_art_for_set(
-        set_code=set_code,
-        progress_callback=progress_cb,
-    )
+    result = select_art_for_set(progress_callback=progress_cb)
 
     selected = result.get("selected", 0)
     return StageResult(
@@ -608,23 +592,20 @@ def run_art_select(
 
 
 def run_human_art_review(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Human art review — pause point for art gallery review."""
     return StageResult(detail="Awaiting human art review via gallery UI")
 
 
 def run_rendering(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Render all cards to print-ready images."""
     from mtgai.rendering.card_renderer import CardRenderer
 
     renderer = CardRenderer()
-    result = renderer.render_set(
-        set_code=set_code,
-        progress_callback=progress_cb,
-    )
+    result = renderer.render_set(progress_callback=progress_cb)
 
     rendered = result.get("rendered", 0)
     return StageResult(
@@ -636,12 +617,12 @@ def run_rendering(
 
 
 def run_render_qa(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Re-run validators on rendered cards for final QA."""
     from mtgai.validation import validate_card_from_raw
 
-    set_dir = _set_dir(set_code)
+    set_dir = _set_dir()
     cards_dir = set_dir / "cards"
 
     if not cards_dir.exists():
@@ -670,7 +651,7 @@ def run_render_qa(
 
 
 def run_human_final_review(
-    set_code: str, progress_cb: ProgressCallback | None, emitter: StageEmitter
+    progress_cb: ProgressCallback | None, emitter: StageEmitter
 ) -> StageResult:
     """Human final review — pause point for rendered card review."""
     return StageResult(detail="Awaiting human final review via gallery UI")
@@ -713,7 +694,7 @@ STAGE_RUNNERS = {
 # dispatch stays uniform — callers never need to special-case them.
 #
 # Conventions:
-# - Clearers receive a validated ``set_code`` and run synchronously.
+# - Clearers read the active project's artifact dir and run synchronously.
 # - File-not-found is fine (clear is idempotent); permission / I/O
 #   errors propagate so the caller can surface them.
 # - Stages that mutate cards in place (``ai_review``, ``finalize``,
@@ -721,10 +702,10 @@ STAGE_RUNNERS = {
 #   no-op — their effects are erased by re-running ``card_gen``'s
 #   clearer further upstream in the cascade.
 
-StageClearer = Callable[[str], None]
+StageClearer = Callable[[], None]
 
 
-def _no_artifacts(_set_code: str) -> None:
+def _no_artifacts() -> None:
     """No-op clearer for stages that do not own dedicated artifacts."""
     return None
 
@@ -739,26 +720,26 @@ def _remove_path(path: Path) -> None:
         path.unlink()
 
 
-def clear_skeleton(set_code: str) -> None:
-    _remove_path(_set_dir(set_code) / "skeleton.json")
+def clear_skeleton() -> None:
+    _remove_path(_set_dir() / "skeleton.json")
 
 
-def clear_reprints(set_code: str) -> None:
-    _remove_path(_set_dir(set_code) / "reprint_selection.json")
+def clear_reprints() -> None:
+    _remove_path(_set_dir() / "reprint_selection.json")
 
 
-def clear_card_gen(set_code: str) -> None:
-    """Wipe the entire ``cards/`` directory for the set.
+def clear_card_gen() -> None:
+    """Wipe the entire ``cards/`` directory for the active project.
 
     ``card_gen`` owns the per-card JSON files. Lands, reprints, and
     every later in-place mutator (ai_review, finalize, art_prompts,
     art_select) all touch files in this directory; clearing it on a
     cascade upstream of ``card_gen`` resets all of them at once.
     """
-    _remove_path(_set_dir(set_code) / "cards")
+    _remove_path(_set_dir() / "cards")
 
 
-def clear_char_portraits(set_code: str) -> None:
+def clear_char_portraits() -> None:
     """Delete the character reference portraits.
 
     Path matches ``mtgai.art.character_portraits`` (out_dir):
@@ -767,15 +748,15 @@ def clear_char_portraits(set_code: str) -> None:
     which is an upstream input — only the ``character-refs``
     subdirectory belongs to this stage.
     """
-    _remove_path(_set_dir(set_code) / "art-direction" / "character-refs")
+    _remove_path(_set_dir() / "art-direction" / "character-refs")
 
 
-def clear_art_gen(set_code: str) -> None:
-    _remove_path(_set_dir(set_code) / "art")
+def clear_art_gen() -> None:
+    _remove_path(_set_dir() / "art")
 
 
-def clear_rendering(set_code: str) -> None:
-    _remove_path(_set_dir(set_code) / "renders")
+def clear_rendering() -> None:
+    _remove_path(_set_dir() / "renders")
 
 
 STAGE_CLEARERS: dict[str, StageClearer] = {
@@ -799,12 +780,12 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
 }
 
 
-def clear_stage_artifacts(stage_id: str, set_code: str) -> None:
-    """Run the registered clearer for ``stage_id`` against ``set_code``.
+def clear_stage_artifacts(stage_id: str) -> None:
+    """Run the registered clearer for ``stage_id`` against the active project.
 
     Raises ``KeyError`` if no clearer is registered — callers should
     treat that as a programming error (every stage in
     ``STAGE_DEFINITIONS`` must have a clearer entry, even if no-op).
     """
     clearer = STAGE_CLEARERS[stage_id]
-    clearer(set_code)
+    clearer()

@@ -31,7 +31,7 @@ def isolated_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator
     seeding ``sets_root / code / "theme.json"`` etc. directly.
     """
     from mtgai.io import asset_paths
-    from mtgai.pipeline import engine, stages
+    from mtgai.pipeline import engine
     from mtgai.pipeline import server as pipeline_server
     from mtgai.runtime import active_project, runtime_state
     from mtgai.settings import model_settings as ms
@@ -53,9 +53,10 @@ def isolated_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator
     # Modules that hold their own legacy OUTPUT_ROOT/SETS_ROOT bindings.
     # Any of these can leak into real output/sets/ if missed (server's
     # _get_current_state was the canary for this whole class of bug).
+    # ``stages.py`` no longer carries an OUTPUT_ROOT — it reads via
+    # ``set_artifact_dir`` which already consults the active project.
     monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(pipeline_server, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(stages, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
     monkeypatch.setattr(active_project, "OUTPUT_ROOT", tmp_path)

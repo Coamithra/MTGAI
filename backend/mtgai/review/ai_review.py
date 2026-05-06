@@ -51,18 +51,18 @@ TEMPERATURE = 1.0
 MAX_ITERATIONS = 5
 
 
-def _review_model(set_code: str) -> str:
-    """Get the review model from this set's settings."""
-    from mtgai.settings.model_settings import get_llm_model
+def _review_model() -> str:
+    """Get the review model from the active project's settings."""
+    from mtgai.runtime.active_project import require_active_project
 
-    return get_llm_model("ai_review", set_code)
+    return require_active_project().settings.get_llm_model_id("ai_review")
 
 
-def _review_effort(set_code: str) -> str | None:
-    """Get the review effort from this set's settings."""
-    from mtgai.settings.model_settings import get_effort
+def _review_effort() -> str | None:
+    """Get the review effort from the active project's settings."""
+    from mtgai.runtime.active_project import require_active_project
 
-    return get_effort("ai_review", set_code)
+    return require_active_project().settings.get_effort("ai_review")
 
 
 # ---------------------------------------------------------------------------
@@ -1015,7 +1015,7 @@ def _review_to_markdown(r: CardReviewResult) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _generate_summary_report(reviews: list[CardReviewResult], set_code: str) -> str:
+def _generate_summary_report(reviews: list[CardReviewResult]) -> str:
     """Generate a markdown summary report of all reviews."""
     total_cost = sum(r.total_cost_usd for r in reviews)
     total_in = sum(r.total_input_tokens for r in reviews)
@@ -1026,13 +1026,13 @@ def _generate_summary_report(reviews: list[CardReviewResult], set_code: str) -> 
 
     # Determine actual model used from review results
     effective_models = {r.model for r in reviews if r.model}
-    model_str = ", ".join(sorted(effective_models)) if effective_models else _review_model(set_code)
+    model_str = ", ".join(sorted(effective_models)) if effective_models else _review_model()
 
     lines = [
         "# AI Design Review Summary -- Phase 4B",
         "",
         f"Date: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
-        f"Model: {model_str} (effort={_review_effort(set_code) or 'default'})",
+        f"Model: {model_str} (effort={_review_effort() or 'default'})",
         f"Cards reviewed: {len(reviews)}",
         f"Cards changed: {changed}",
         f"Final OK: {ok_count} | Final REVISE: {revise_count}",
@@ -1158,17 +1158,15 @@ def _generate_summary_report(reviews: list[CardReviewResult], set_code: str) -> 
 
 def review_set(
     *,
-    set_code: str = DEFAULT_SET_CODE,
     dry_run: bool = False,
     card_filter: str | None = None,
     skip_lands: bool = True,
     skip_reprints: bool = True,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
 ) -> list[CardReviewResult]:
-    """Run AI design review on all cards in a set.
+    """Run AI design review on all cards in the active project.
 
     Args:
-        set_code: Set code to review.
         dry_run: If True, show plan without calling LLM.
         card_filter: If set, only review cards matching this collector number.
         skip_lands: Skip basic land cards (no design review needed).
@@ -1184,10 +1182,11 @@ def review_set(
         datefmt="%H:%M:%S",
     )
 
-    # Derive paths from set_code. set_artifact_dir routes to the
-    # project's asset_folder when configured.
     from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.runtime.active_project import require_active_project
 
+    project = require_active_project()
+    set_code = project.set_code
     set_dir = set_artifact_dir()
     mechanics_path = set_dir / "mechanics" / "approved.json"
     pointed_q_path = set_dir / "mechanics" / "pointed-questions.json"
@@ -1199,8 +1198,8 @@ def review_set(
     logger.info("=" * 70)
     logger.info(
         "Model: %s | Effort: %s | Max iterations: %d",
-        _review_model(set_code),
-        _review_effort(set_code) or "default",
+        _review_model(),
+        _review_effort() or "default",
         MAX_ITERATIONS,
     )
     logger.info("Set: %s", set_code)
@@ -1273,8 +1272,8 @@ def review_set(
     # Resolve once for the whole stage so a mid-run settings change can't
     # swap the model between cards. Matches the "no mid-stage swap"
     # guarantee in CLAUDE.md (`Model Settings`).
-    review_model = _review_model(set_code)
-    review_effort = _review_effort(set_code)
+    review_model = _review_model()
+    review_effort = _review_effort()
 
     # Review!
     reviews: list[CardReviewResult] = []
@@ -1368,7 +1367,7 @@ def review_set(
                     pass
 
     # Generate summary report
-    report = _generate_summary_report(all_reviews, set_code)
+    report = _generate_summary_report(all_reviews)
     reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = reports_dir / "ai-review-summary.md"
     report_path.write_text(report, encoding="utf-8")
@@ -1380,24 +1379,19 @@ def review_set(
 
 def review_all_cards(
     *,
-    set_code: str = DEFAULT_SET_CODE,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
 ) -> dict:
-    """Run AI design review on all cards, returning a summary dict.
+    """Run AI design review on all cards in the active project, returning a summary dict.
 
     This is the pipeline orchestration entry point. It delegates to ``review_set``
     and returns a dict with keys ``reviewed``, ``revised``, ``cost_usd``, and
     ``summary``.
 
     Args:
-        set_code: Set code to review.
         progress_callback: Optional callback(slot_id, completed, total, message, cost)
             invoked after each card is reviewed.
     """
-    reviews = review_set(
-        set_code=set_code,
-        progress_callback=progress_callback,
-    )
+    reviews = review_set(progress_callback=progress_callback)
     reviewed = len(reviews)
     revised = sum(1 for r in reviews if r.card_was_changed)
     cost_usd = sum(r.total_cost_usd for r in reviews)

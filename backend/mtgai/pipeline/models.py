@@ -182,11 +182,15 @@ def break_point_states(break_points: dict[str, str]) -> dict[str, bool]:
     used by the Project Settings break-points list (server-side payload)
     and the per-tab "Stop after this step" checkbox (wizard bootstrap).
     """
-    return {defn["stage_id"]: _resolve_break_point(defn["stage_id"], break_points)
-            for defn in STAGE_DEFINITIONS}
+    return {
+        defn["stage_id"]: _resolve_break_point(defn["stage_id"], break_points)
+        for defn in STAGE_DEFINITIONS
+    }
 
 
-def build_stages(config: PipelineConfig, break_points: dict[str, str] | None = None) -> list[StageState]:
+def build_stages(
+    config: PipelineConfig, break_points: dict[str, str] | None = None
+) -> list[StageState]:
     """Build the ordered stage list from definitions + user config.
 
     ``break_points`` (when provided) seeds review_mode from the per-set

@@ -199,12 +199,8 @@ class CardRenderer:
     # ------------------------------------------------------------------
     # Art resolution
     # ------------------------------------------------------------------
-    def resolve_art_path(
-        self,
-        card: Card,
-        set_code: str,
-    ) -> Path | None:
-        """Find the selected art image for a card.
+    def resolve_art_path(self, card: Card) -> Path | None:
+        """Find the selected art image for a card in the active project.
 
         Checks ``art-selection-logs/<CN>.json`` for the ``pick`` field
         (e.g. "v2"), then finds the matching file in ``art/``.
@@ -826,7 +822,6 @@ class CardRenderer:
     def render_card(
         self,
         card: Card,
-        set_code: str,
         total_cards: int = 66,
     ) -> Image.Image:
         """Render a single card to a PIL Image.
@@ -848,7 +843,7 @@ class CardRenderer:
         canvas = Image.new("RGBA", (FRAME_W, FRAME_H), (0, 0, 0, 255))
 
         # 2. Art
-        art_path_resolved = self.resolve_art_path(card, set_code)
+        art_path_resolved = self.resolve_art_path(card)
         if art_path_resolved is not None:
             try:
                 art_img = Image.open(art_path_resolved).convert("RGBA")
@@ -932,16 +927,15 @@ class CardRenderer:
     def render_and_save(
         self,
         card: Card,
-        set_code: str,
         total_cards: int = 66,
     ) -> Path:
-        """Render a card and save to output/sets/<SET>/renders/.
+        """Render a card and save to the active project's renders/ folder.
 
         Returns the path of the saved PNG.
         """
         from mtgai.io.asset_paths import set_artifact_dir
 
-        img = self.render_card(card, set_code, total_cards)
+        img = self.render_card(card, total_cards)
 
         # Build the path from the project's set_dir so renders land in
         # the user's asset_folder when configured.
@@ -962,16 +956,14 @@ class CardRenderer:
     # ------------------------------------------------------------------
     def render_set(
         self,
-        set_code: str,
         card_filter: str | None = None,
         dry_run: bool = False,
         force: bool = False,
         progress_callback: Callable[[str, int, int, str, float], None] | None = None,
     ) -> dict:
-        """Render all cards in a set.
+        """Render all cards in the active project.
 
         Args:
-            set_code: The set code (e.g. "ASD").
             card_filter: Optional collector number prefix filter.
             dry_run: If True, log what would be done without rendering.
             force: If True, re-render even if output already exists.
@@ -981,7 +973,9 @@ class CardRenderer:
             failed, errors, dry_run, elapsed_seconds.
         """
         from mtgai.io.asset_paths import set_artifact_dir
+        from mtgai.runtime.active_project import require_active_project
 
+        set_code = require_active_project().set_code
         t0 = time.perf_counter()
         set_dir = set_artifact_dir()
         cards_dir = set_dir / "cards"
@@ -1048,7 +1042,7 @@ class CardRenderer:
                 continue
 
             if dry_run:
-                art = self.resolve_art_path(card, set_code)
+                art = self.resolve_art_path(card)
                 art_status = art.name if art else "NO ART"
                 logger.info(
                     "DRY RUN %s: %s [frame=%s, art=%s]",
@@ -1067,7 +1061,7 @@ class CardRenderer:
                     cn,
                     card.name,
                 )
-                self.render_and_save(card, set_code, total_cards)
+                self.render_and_save(card, total_cards)
                 rendered += 1
                 if progress_callback is not None:
                     completed = rendered + skipped + failed

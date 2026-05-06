@@ -132,26 +132,25 @@ def test_theme_load_returns_json(client):
     assert data["name"] == "Test"
 
 
-def test_theme_load_400_on_blank_code(client):
-    resp = client.get("/api/pipeline/theme/load?set_code=")
-    # Blank set code fails the validation regex -> 400.
-    # FastAPI itself may also bounce empty params with 422; accept either.
-    assert resp.status_code in (400, 422)
+def test_theme_load_409_when_no_project_open(client):
+    """Theme/load now reads the active project — 409 ``no_active_project`` when none.
+
+    Set code is no longer a query param; any stray ``?set_code=...`` is
+    ignored. The endpoint only cares about the in-memory pointer.
+    """
+    resp = client.get("/api/pipeline/theme/load")
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "no_active_project"
 
 
-def test_theme_load_400_on_traversal_attempt(client):
-    """Set code with path-traversal characters -> 400, never reads disk."""
-    resp = client.get("/api/pipeline/theme/load?set_code=../etc")
-    assert resp.status_code == 400
-
-
-def test_theme_save_400_on_invalid_code(client):
-    """Save endpoint rejects malformed set codes the same way load does."""
+def test_theme_save_409_when_no_project_open(client):
+    """Theme/save mirrors theme/load — 409 when no project is open."""
     resp = client.post(
         "/api/pipeline/theme/save",
-        json={"code": "../escape", "name": "x"},
+        json={"name": "x"},
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "no_active_project"
 
 
 def test_extract_stream_404_for_missing_upload(client):

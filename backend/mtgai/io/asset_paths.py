@@ -54,7 +54,5 @@ def set_artifact_dir() -> Path:
         raise NoAssetFolderError("No project is open")
     folder = project.settings.asset_folder
     if not folder:
-        raise NoAssetFolderError(
-            "Asset folder required — pick one on the Project Settings tab"
-        )
+        raise NoAssetFolderError("Asset folder required — pick one on the Project Settings tab")
     return Path(folder)

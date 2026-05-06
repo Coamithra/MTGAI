@@ -241,7 +241,9 @@ def test_serialize_returns_mtg_toml_for_active_set(client):
         "break_points": {},
     }
     client.post("/api/project/materialize", json=body)
-    resp = client.get("/api/project/serialize?set_code=SER")
+    # /api/project/materialize sets the active project, so the no-arg
+    # serialize call returns its TOML.
+    resp = client.get("/api/project/serialize")
     assert resp.status_code == 200
     data = resp.json()
     code, parsed = ms.parse_project_toml(data["mtg_toml"])
@@ -250,9 +252,11 @@ def test_serialize_returns_mtg_toml_for_active_set(client):
     assert parsed.asset_folder == "F:/proj/ser"
 
 
-def test_serialize_400s_when_no_project_open(client):
+def test_serialize_409s_when_no_project_open(client):
+    """No project open → 409 ``no_active_project`` (the same posture every other endpoint uses)."""
     resp = client.get("/api/project/serialize")
-    assert resp.status_code == 400
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "no_active_project"
 
 
 # ---------------------------------------------------------------------------

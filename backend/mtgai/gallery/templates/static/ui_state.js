@@ -7,9 +7,9 @@
  * per-set localStorage keys (`mtgai:<setCode>:configure.preset`) can
  * prefix correctly. There is no `mtgai:active_set` localStorage key.
  *
- * `fetchRuntimeState(setCode?)` hits `GET /api/runtime/state` and
- * returns the parsed payload. Used by every page on mount to hydrate
- * server-side truth (active set, active runs, pipeline state, theme).
+ * `fetchRuntimeState()` hits `GET /api/runtime/state` and returns the
+ * parsed payload. Used by every page on mount to hydrate server-side
+ * truth (active set, active runs, pipeline state, theme).
  */
 
 (function () {
@@ -68,12 +68,10 @@
    * any error (network down, server restarting). Pages should treat
    * null as "fall back to defaults", not a hard failure.
    */
-  async function fetchRuntimeState(code) {
+  async function fetchRuntimeState() {
     try {
-      const url = code
-        ? '/api/runtime/state?set_code=' + encodeURIComponent(code)
-        : '/api/runtime/state';
-      const resp = await fetch(url);
+      // Server reads the active project from in-memory state.
+      const resp = await fetch('/api/runtime/state');
       if (!resp.ok) return null;
       return await resp.json();
     } catch (e) {

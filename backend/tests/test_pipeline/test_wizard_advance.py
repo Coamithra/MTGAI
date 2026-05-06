@@ -184,7 +184,7 @@ def test_kickoff_creates_state_and_spawns_engine(no_thread_start):
     # Persisted to disk so a server restart can pick it up.
     from mtgai.pipeline.engine import load_state
 
-    reloaded = load_state("ASD")
+    reloaded = load_state()
     assert reloaded is not None
     assert reloaded.config.set_code == "ASD"
     assert len(no_thread_start) == 1
@@ -354,28 +354,13 @@ def test_advance_400s_when_completed(client):
     assert resp.status_code == 400
 
 
-@pytest.mark.parametrize(
-    "bad_code",
-    [
-        "BAD-X",  # hyphen — fails the [A-Z0-9]{2,5} shape
-        "X",  # too short
-        "TOOLONG",  # too long (>5)
-        "",  # empty
-    ],
-)
-def test_advance_rejects_malformed_set_code(client, bad_code):
-    resp = client.post("/api/wizard/advance", json={"set_code": bad_code})
-    assert resp.status_code == 400
-
-
-def test_advance_rejects_non_string_set_code(client):
-    resp = client.post("/api/wizard/advance", json={"set_code": 123})
-    assert resp.status_code == 400
-
-
-def test_advance_rejects_missing_set_code(client):
+def test_advance_409s_when_no_project_open(client):
+    """Endpoints read the active project from in-memory state — without
+    one open they 409 with ``no_active_project`` so the wizard can
+    bounce the user to New / Open."""
     resp = client.post("/api/wizard/advance", json={})
-    assert resp.status_code == 400
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "no_active_project"
 
 
 def test_advance_accepts_lowercase_set_code(client, no_thread_start):

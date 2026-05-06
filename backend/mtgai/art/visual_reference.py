@@ -4,11 +4,10 @@ Image generation models don't know what a Moktar or Morlock looks like. This mod
 loads plain-English visual descriptions from a JSON file and injects them into art
 prompts when the card features a setting-specific entity.
 
-The JSON file lives at:
-    output/sets/<SET_CODE>/art-direction/visual-references.json
-
-This is a per-set data file produced during set design (Phase 1A) or art direction
-(Phase 2A). The code is set-agnostic — it just reads whatever JSON is provided.
+The JSON file lives in the active project's asset folder at
+``art-direction/visual-references.json``. This is a per-project data file produced
+during set design (Phase 1A) or art direction (Phase 2A). The code is set-agnostic
+— it just reads whatever JSON is provided.
 """
 
 import json
@@ -17,13 +16,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def _load_visual_refs(set_code: str) -> dict:
-    """Load the visual references JSON for a set. Returns empty dict on failure."""
+def _load_visual_refs() -> dict:
+    """Load the visual references JSON for the active project. Returns empty dict on failure."""
     from mtgai.io.asset_paths import set_artifact_dir
 
     path = set_artifact_dir() / "art-direction" / "visual-references.json"
     if not path.exists():
-        logger.warning("No visual-references.json found for set %s at %s", set_code, path)
+        logger.warning("No visual-references.json found at %s", path)
         return {}
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -32,14 +31,18 @@ def _load_visual_refs(set_code: str) -> dict:
         return {}
 
 
-# Cache per set code to avoid re-reading on every card
+# Cache keyed by the active project's set_code so opening a different project
+# doesn't pick up stale references from the previous one.
 _cache: dict[str, dict] = {}
 
 
-def get_refs(set_code: str) -> dict:
-    """Get the visual references dict for a set, with caching."""
+def get_refs() -> dict:
+    """Get the visual references dict for the active project, with caching."""
+    from mtgai.runtime.active_project import require_active_project
+
+    set_code = require_active_project().set_code
     if set_code not in _cache:
-        _cache[set_code] = _load_visual_refs(set_code)
+        _cache[set_code] = _load_visual_refs()
     return _cache[set_code]
 
 
@@ -48,10 +51,9 @@ def detect_named_characters(
     type_line: str,
     oracle_text: str,
     flavor_text: str | None,
-    set_code: str = "ASD",
 ) -> list[str]:
     """Return list of legendary_characters keys that appear on this card."""
-    refs = get_refs(set_code)
+    refs = get_refs()
     characters = refs.get("legendary_characters", {})
     search_text = " ".join(
         filter(None, [card_name, type_line, oracle_text, flavor_text or ""])
@@ -64,7 +66,6 @@ def get_visual_references(
     type_line: str,
     oracle_text: str,
     flavor_text: str | None,
-    set_code: str = "ASD",
 ) -> str:
     """Return relevant visual reference text for a card.
 
@@ -72,7 +73,7 @@ def get_visual_references(
     keywords that match setting-specific entities, and returns concatenated
     visual descriptions for injection into the art prompt LLM call.
     """
-    refs = get_refs(set_code)
+    refs = get_refs()
     search_text = " ".join(
         filter(None, [card_name, type_line, oracle_text, flavor_text or ""])
     ).lower()
@@ -98,7 +99,7 @@ def get_visual_references(
     return "\n\n".join(results)
 
 
-def get_flux_replacements(set_code: str = "ASD") -> dict[str, str]:
+def get_flux_replacements() -> dict[str, str]:
     """Return the term replacement map for Flux prompt sanitization."""
-    refs = get_refs(set_code)
+    refs = get_refs()
     return refs.get("flux_term_replacements", {})

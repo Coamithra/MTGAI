@@ -173,7 +173,7 @@ def build_wizard_state(set_code: str | None, requested_tab: str | None) -> Wizar
             break_points={},
         )
     try:
-        state = load_state(set_code)
+        state = load_state()
     except NoAssetFolderError:
         state = None
     theme = _load_theme_for(set_code)

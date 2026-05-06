@@ -61,6 +61,7 @@ __all__ = [
     "normalize_code",
     "read_active_project",
     "read_active_set",
+    "require_active_project",
     "write_active_project",
     "write_active_set",
 ]
@@ -111,6 +112,24 @@ def normalize_code(code: str) -> str:
 
 def read_active_project() -> ProjectState | None:
     """Return the current :class:`ProjectState`, or None if no project is open."""
+    return _active_project
+
+
+def require_active_project() -> ProjectState:
+    """Return the current :class:`ProjectState` or raise.
+
+    Stage runners + helpers operate inside an engine run that's been
+    gated at the endpoint layer — by the time they're called, an active
+    project must exist. A missing one is a programming error in those
+    contexts, so this helper raises rather than returning ``None``. The
+    raised :class:`NoAssetFolderError` matches the type
+    :func:`set_artifact_dir` raises so callers that already translate
+    that to a 409 keep working unchanged.
+    """
+    from mtgai.io.asset_paths import NoAssetFolderError
+
+    if _active_project is None:
+        raise NoAssetFolderError("No project is open")
     return _active_project
 
 

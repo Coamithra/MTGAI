@@ -60,8 +60,13 @@ def main() -> None:
         output_root=OUTPUT_ROOT,
     )
 
+    # CLI uses the active project. With the on-disk registry walk gone,
+    # the operator has to open the project (via the wizard or future CLI
+    # ``open`` command) before running this script directly.
+    from mtgai.runtime.active_project import write_active_set
+
+    write_active_set(args.set)
     summary = renderer.render_set(
-        set_code=args.set,
         card_filter=args.card,
         dry_run=args.dry_run,
         force=args.force,

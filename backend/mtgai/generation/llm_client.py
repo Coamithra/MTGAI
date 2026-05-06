@@ -455,9 +455,7 @@ def _generate_llamacpp(
         # local models occasionally invent a tool or pick a leftover name
         # from the system prompt; treating that as success would silently
         # return wrong-shape data.
-        matched = next(
-            (tc for tc in resp.tool_calls if tc.name == tool_name), None
-        )
+        matched = next((tc for tc in resp.tool_calls if tc.name == tool_name), None)
         if matched is not None:
             args = matched.input
             logger.info(

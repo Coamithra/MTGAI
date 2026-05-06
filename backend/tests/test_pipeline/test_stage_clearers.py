@@ -11,17 +11,16 @@ from mtgai.pipeline.models import STAGE_DEFINITIONS
 
 
 @pytest.fixture
-def fake_output_root(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_output: Path
-) -> Path:
-    """Tmp ``output`` root with all artifact-resolving modules patched.
+def fake_output_root(tmp_path: Path, isolated_output: Path) -> Path:
+    """Tmp ``output`` root for stage-clearer tests.
 
-    ``isolated_output`` (from :mod:`tests.conftest`) sets up the asset
-    helper + settings module; the local ``OUTPUT_ROOT`` patch keeps the
-    legacy ``stages_mod.OUTPUT_ROOT`` constant aligned for any caller
-    that still references it directly.
+    Uses :func:`isolated_output` (in :mod:`tests.conftest`) which
+    patches ``asset_paths`` + ``model_settings`` + ``runtime_state``
+    so ``set_artifact_dir`` resolves into ``tmp_path``. Stage clearers
+    route through that helper, so this fixture doesn't need its own
+    monkeypatching beyond what the shared fixture does.
     """
-    monkeypatch.setattr(stages_mod, "OUTPUT_ROOT", tmp_path)
+    del isolated_output  # used for its side-effect (patching modules)
     return tmp_path
 
 
@@ -55,7 +54,7 @@ def test_clear_skeleton_removes_skeleton_json(fake_output_root: Path) -> None:
     (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
     _open_test_project("TST", set_dir)
 
-    stages_mod.clear_stage_artifacts("skeleton", "TST")
+    stages_mod.clear_stage_artifacts("skeleton")
     assert not (set_dir / "skeleton.json").exists()
 
 
@@ -66,7 +65,7 @@ def test_clear_card_gen_removes_cards_dir(fake_output_root: Path) -> None:
     (cards_dir / "001_foo.json").write_text("{}", encoding="utf-8")
     _open_test_project("TST", set_dir)
 
-    stages_mod.clear_stage_artifacts("card_gen", "TST")
+    stages_mod.clear_stage_artifacts("card_gen")
     assert not cards_dir.exists()
 
 
@@ -88,7 +87,7 @@ def test_clear_char_portraits_targets_real_output_dir(fake_output_root: Path) ->
     (refs_dir / "feretha_v1.png").write_bytes(b"\x89PNG")
     _open_test_project("TST", set_dir)
 
-    stages_mod.clear_stage_artifacts("char_portraits", "TST")
+    stages_mod.clear_stage_artifacts("char_portraits")
 
     assert not refs_dir.exists()
     assert visual_refs.exists(), "upstream visual-references.json must be preserved"
@@ -101,7 +100,7 @@ def test_clear_art_gen_removes_art_dir(fake_output_root: Path) -> None:
     (art_dir / "001_foo_v1.png").write_bytes(b"\x89PNG")
     _open_test_project("TST", set_dir)
 
-    stages_mod.clear_stage_artifacts("art_gen", "TST")
+    stages_mod.clear_stage_artifacts("art_gen")
     assert not art_dir.exists()
 
 
@@ -111,7 +110,7 @@ def test_clear_reprints_removes_selection_json(fake_output_root: Path) -> None:
     (set_dir / "reprint_selection.json").write_text("{}", encoding="utf-8")
     _open_test_project("TST", set_dir)
 
-    stages_mod.clear_stage_artifacts("reprints", "TST")
+    stages_mod.clear_stage_artifacts("reprints")
     assert not (set_dir / "reprint_selection.json").exists()
 
 
@@ -122,16 +121,16 @@ def test_clear_rendering_removes_renders_dir(fake_output_root: Path) -> None:
     (renders_dir / "001.png").write_bytes(b"\x89PNG")
     _open_test_project("TST", set_dir)
 
-    stages_mod.clear_stage_artifacts("rendering", "TST")
+    stages_mod.clear_stage_artifacts("rendering")
     assert not renders_dir.exists()
 
 
 def test_clear_is_idempotent_on_missing_artifacts(fake_output_root: Path) -> None:
     """Clearing a stage whose artifacts don't exist should not raise."""
     _open_test_project("NEVER", fake_output_root / "sets" / "NEVER")
-    stages_mod.clear_stage_artifacts("skeleton", "NEVER")
-    stages_mod.clear_stage_artifacts("card_gen", "NEVER")
-    stages_mod.clear_stage_artifacts("rendering", "NEVER")
+    stages_mod.clear_stage_artifacts("skeleton")
+    stages_mod.clear_stage_artifacts("card_gen")
+    stages_mod.clear_stage_artifacts("rendering")
 
 
 def test_in_place_mutator_clearers_are_no_ops(fake_output_root: Path) -> None:
@@ -149,11 +148,11 @@ def test_in_place_mutator_clearers_are_no_ops(fake_output_root: Path) -> None:
     _open_test_project("TST", set_dir)
 
     for stage_id in ("ai_review", "finalize", "art_prompts", "art_select", "skeleton_rev"):
-        stages_mod.clear_stage_artifacts(stage_id, "TST")
+        stages_mod.clear_stage_artifacts(stage_id)
 
     assert sentinel.exists(), "in-place mutator clearers must not touch cards/"
 
 
 def test_unknown_stage_raises_keyerror() -> None:
     with pytest.raises(KeyError):
-        stages_mod.clear_stage_artifacts("not_a_stage", "TST")
+        stages_mod.clear_stage_artifacts("not_a_stage")
