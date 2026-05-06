@@ -1,42 +1,55 @@
-"""Persistent app-wide active-set selector.
+"""In-memory active-project pointer.
 
-The active set is which MTG set the UI is currently working on. It used
-to be inferred from the most-recently-touched ``pipeline-state.json`` /
-``theme.json`` mtime, plus a ``MTGAI_REVIEW_SET`` env-var fallback,
-plus a per-page ``set_code`` form field on every wizard. That made set
-identity surprising to switch and easy to lose between sessions.
+The active set is which MTG project the UI is currently working on.
+Since the .mtg file became the persistent project artifact, the
+active-set pointer dropped its on-disk form (``last_set.toml``) — a
+fresh server process boots with no project loaded, and the wizard
+greets the user with New / Open. The pointer lives only in process
+memory:
 
-This module promotes it to a single explicit preference persisted in
-``output/settings/last_set.toml``. The top-bar set picker reads/writes
-this file via the ``/api/runtime/active-set`` endpoint; the runtime
-state aggregator consults it before the legacy mtime fallback.
+- Set on ``/api/project/{open,materialize}``.
+- Cleared on ``/api/project/new``.
+- Survives page reload (process is the same).
+- Lost on server restart (process death == "no project loaded").
+
+A single Python attribute read/write is atomic in CPython, so no
+explicit lock guards ``_active_code``. The project-switch endpoints
+that mutate it call :func:`await_lock_release` first to drain any
+in-flight AI work — see the lifecycle section in
+``plans/tracker_refactor_remove-active-set.md``.
 
 The code shape (``[A-Z0-9]{2,5}``) is the same regex enforced by
-``pipeline.server._theme_path`` — kept consistent so a new-set scaffold
-here can't produce paths the theme endpoints would reject.
+``pipeline.server._theme_path`` — kept consistent so set codes
+written here can't produce paths the theme endpoints would reject.
 """
 
 from __future__ import annotations
 
-import contextlib
-import json
 import logging
-import os
 import re
-import shutil
-import stat
-import tempfile
-import tomllib
-from pathlib import Path
+import time
 
+from mtgai.runtime import ai_lock
 from mtgai.runtime.runtime_state import OUTPUT_ROOT, SETS_ROOT
 
 logger = logging.getLogger(__name__)
 
 SET_CODE_RE = re.compile(r"^[A-Z0-9]{2,5}$")
 
-_SETTINGS_DIR = OUTPUT_ROOT / "settings"
-_LAST_SET_PATH = _SETTINGS_DIR / "last_set.toml"
+__all__ = [
+    "OUTPUT_ROOT",
+    "SETS_ROOT",
+    "SET_CODE_RE",
+    "await_lock_release",
+    "clear_active_set",
+    "is_valid_set_code",
+    "iter_known_set_codes",
+    "normalize_code",
+    "read_active_set",
+    "write_active_set",
+]
+
+_active_code: str | None = None
 
 
 def is_valid_set_code(code: str | None) -> bool:
@@ -55,53 +68,22 @@ def normalize_code(code: str) -> str:
 
 
 def read_active_set() -> str | None:
-    """Return the persisted active-set code, or None if missing/stale.
-
-    "Stale" means the file points to a code whose ``output/sets/<CODE>/``
-    directory no longer exists — we treat that as no preference rather
-    than silently picking it, so the caller can fall back to the mtime
-    heuristic or prompt the user to pick.
-    """
-    if not _LAST_SET_PATH.exists():
-        return None
-    try:
-        data = tomllib.loads(_LAST_SET_PATH.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError) as e:
-        logger.warning("Failed to read %s: %s", _LAST_SET_PATH, e)
-        return None
-    code = (data.get("runtime") or {}).get("active_set")
-    if not isinstance(code, str) or not is_valid_set_code(code):
-        return None
-    code = normalize_code(code)
-    if not (SETS_ROOT / code).is_dir():
-        return None
-    return code
+    """Return the active-project code, or None if no project is open."""
+    return _active_code
 
 
 def write_active_set(code: str) -> None:
-    """Atomically persist ``code`` as the new active set."""
+    """Set the active-project code. Validates + normalises first."""
+    global _active_code
     if not is_valid_set_code(code):
         raise ValueError(f"Invalid set code: {code!r}")
-    code = normalize_code(code)
-    # Resolve the directory off the (possibly monkeypatched) path so
-    # tests pointing _LAST_SET_PATH at a tmp dir don't fall back to the
-    # real ``output/settings/`` constant.
-    target_dir = _LAST_SET_PATH.parent
-    target_dir.mkdir(parents=True, exist_ok=True)
-    payload = f'[runtime]\nactive_set = "{code}"\n'
-    # Same dir for the temp file so os.replace stays atomic across the
-    # final rename (cross-device renames would fall back to a copy).
-    fd, tmp_path = tempfile.mkstemp(prefix=".last_set-", suffix=".toml.tmp", dir=str(target_dir))
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(payload)
-        os.replace(tmp_path, _LAST_SET_PATH)
-    except Exception:
-        # Clean up the temp file if the replace failed; nothing else
-        # would have pointed at it.
-        with contextlib.suppress(OSError):
-            os.unlink(tmp_path)
-        raise
+    _active_code = normalize_code(code)
+
+
+def clear_active_set() -> None:
+    """Forget the active project. Used by ``/api/project/new``."""
+    global _active_code
+    _active_code = None
 
 
 def iter_known_set_codes() -> list[str]:
@@ -127,86 +109,19 @@ def iter_known_set_codes() -> list[str]:
     return out
 
 
-def list_sets() -> list[dict[str, str | None]]:
-    """Enumerate every registered project, with display name when known.
+def await_lock_release(deadline_s: float = 5.0) -> bool:
+    """Block until the AI lock is free, or the deadline elapses.
 
-    Each entry is ``{"code": <CODE>, "name": <name | None>}``. ``name``
-    comes from the set's ``theme.json`` if present; otherwise None so
-    the UI can decide between "ASD" and "ASD — Anomalous Descent".
-
-    Iteration goes through :func:`iter_known_set_codes` so unregistered
-    scratch dirs are skipped and ``set_artifact_dir`` doesn't seed a
-    settings.toml as a side effect of being looked at.
+    Returns True on clean release (or if the lock was never held), False
+    on timeout. Used by ``/api/project/{new,open,materialize}`` after
+    they call :func:`ai_lock.request_cancel` to drain a cancellable AI
+    run before swapping the active-project pointer. On timeout, callers
+    log a warning and proceed anyway — the cancel signal has been sent
+    and the run will wind down; we don't block the user forever.
     """
-    from mtgai.io.asset_paths import set_artifact_dir
-
-    out: list[dict[str, str | None]] = []
-    for code in iter_known_set_codes():
-        name = _read_theme_name(set_artifact_dir(code) / "theme.json")
-        out.append({"code": code, "name": name})
-    return out
-
-
-def _read_theme_name(theme_path: Path) -> str | None:
-    if not theme_path.exists():
-        return None
-    try:
-        data = json.loads(theme_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    name = data.get("name") if isinstance(data, dict) else None
-    return name if isinstance(name, str) and name.strip() else None
-
-
-def create_set(code: str, name: str | None = None) -> None:
-    """Scaffold ``output/sets/<CODE>/`` for a brand-new set.
-
-    Writes a minimal ``theme.json`` stub when ``name`` is provided so
-    the picker can show "CODE — Name" immediately; otherwise just
-    creates the directory and lets the theme wizard fill in theme.json
-    on first save. Raises ``FileExistsError`` if the directory is
-    already present so callers can return 409 instead of clobbering.
-    """
-    if not is_valid_set_code(code):
-        raise ValueError(f"Invalid set code: {code!r}")
-    code = normalize_code(code)
-    set_dir = SETS_ROOT / code
-    # mkdir(parents=True) without exist_ok raises FileExistsError natively,
-    # so we don't add a redundant pre-check (which would also admit a
-    # TOCTOU window).
-    set_dir.mkdir(parents=True)
-    if name and name.strip():
-        theme_path = set_dir / "theme.json"
-        theme_path.write_text(
-            json.dumps({"code": code, "name": name.strip()}, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-
-
-def _force_remove(func, path, exc):
-    # Windows leaves git pack files / generated assets read-only;
-    # rmtree's default behaviour just re-raises. Strip the read-only bit
-    # and retry so deleting a real set's full output directory works.
-    with contextlib.suppress(OSError):
-        os.chmod(path, stat.S_IWRITE)
-        func(path)
-
-
-def delete_set(code: str) -> None:
-    """Permanently remove ``output/sets/<CODE>/`` and clear it as active.
-
-    Raises ``ValueError`` for malformed codes and ``FileNotFoundError``
-    if the directory doesn't exist so callers can return 400 / 404.
-    Unsets the active set (if it was this one) before removing the
-    tree, so a partial-failure leaves no dangling pointer.
-    """
-    if not is_valid_set_code(code):
-        raise ValueError(f"Invalid set code: {code!r}")
-    code = normalize_code(code)
-    set_dir = SETS_ROOT / code
-    if not set_dir.is_dir():
-        raise FileNotFoundError(f"Set {code} does not exist")
-    if read_active_set() == code:
-        with contextlib.suppress(OSError):
-            _LAST_SET_PATH.unlink()
-    shutil.rmtree(set_dir, onexc=_force_remove)
+    deadline = time.monotonic() + deadline_s
+    while ai_lock.is_running():
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
+    return True

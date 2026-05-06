@@ -53,8 +53,6 @@ def _reset(tmp_path, monkeypatch):
     monkeypatch.setattr(stages_mod, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(active_set, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(active_set, "_SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(active_set, "_LAST_SET_PATH", settings_dir / "last_set.toml")
     monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
 
@@ -64,12 +62,14 @@ def _reset(tmp_path, monkeypatch):
     monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
     monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
 
+    active_set.clear_active_set()
     ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()
     pipeline_server._engine = None
     pipeline_server._engine_task = None
     yield
+    active_set.clear_active_set()
     ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()

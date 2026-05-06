@@ -60,11 +60,13 @@ def isolated_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator
     monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
     monkeypatch.setattr(active_set, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(active_set, "_SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(active_set, "_LAST_SET_PATH", settings_dir / "last_set.toml")
 
+    # Each test starts with no project loaded; the in-memory pointer
+    # would otherwise leak across tests in the same process.
+    active_set.clear_active_set()
     ms.invalidate_cache()
     yield sets_root
+    active_set.clear_active_set()
     ms.invalidate_cache()
 
 

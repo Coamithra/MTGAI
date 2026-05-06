@@ -44,13 +44,13 @@ Card statuses: `draft → validated → approved → art_generated → rendered 
 - `mtgai/generation/skeleton_reviser.py` — LLM proposes slot changes from balance findings, regenerates affected cards.
 - `mtgai/art/` — Flux.1-dev (via ComfyUI at `C:\Programming\ComfyUI`) for art generation, Haiku vision for art selection. PuLID-Flux for character face identity (humanoids only).
 - `mtgai/rendering/` — Pillow-based card compositor (M15 frames from Card Conjurer). Renders at 2010×2814, scales to 822×1122 (300 DPI).
-- `mtgai/runtime/` — cross-cutting runtime (AI mutex, active-set persistence, broadcastable SSE for tab reattach). See "Cross-cutting" below.
+- `mtgai/runtime/` — cross-cutting runtime (AI mutex, in-memory active-project pointer, broadcastable SSE for tab reattach). See "Cross-cutting" below.
 
 ## Cross-cutting
 
 - **AI mutex (`mtgai/runtime/ai_lock.py`)**: app-wide, **one AI call at a time**. All AI-touching endpoints share it. Conflicting requests get 409 with a busy payload. New guarded endpoints wrap their body in `with ai_lock.hold("Action name") as acquired: if not acquired: return 409`. Long-running callers check `ai_lock.is_cancelled()` inside loops.
 - **Tab state (`mtgai/runtime/runtime_state.py`, `extraction_run.py`)**: server is the source of truth for AI run state, pipeline state, and saved theme.json; browser holds UI ephemera in localStorage. SSE streams are broadcastable (tab-switching mid-run does not cancel; cancel is opt-in via the explicit button). New long-running AI runs should follow the same broadcast pattern. Aggregator: `GET /api/runtime/state`.
-- **Active set**: top-bar set picker is the single source of truth (persisted to `output/settings/last_set.toml`). Endpoints under `/api/runtime/`.
+- **Active project**: which `.mtg` is open is the source of truth. The server holds a process-memory pointer (`mtgai/runtime/active_set.py`) — set by `/api/project/{open,materialize}`, cleared by `/api/project/new`, lost on restart so a fresh boot always greets the user with New / Open. Switching projects mid-AI-run requires `force=true` in the request body; without it the endpoint returns 409 + the AI lock's busy payload so the client can render a confirm modal. The cancel path calls `ai_lock.request_cancel()` then `active_set.await_lock_release()` before flipping the pointer.
 - **Reminder text**: not validated, not LLM-generated. Stripped + injected by `reminder_injector` after review. Validators that touch oracle text must skip parenthesized text.
 
 ## Local LLMs
