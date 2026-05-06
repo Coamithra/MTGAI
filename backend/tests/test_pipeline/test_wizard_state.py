@@ -42,10 +42,13 @@ def sets_root(isolated_output):
 def _open_project(code: str, asset_dir):
     """Pin ``code`` as the active project with ``asset_dir`` as its asset folder."""
     from mtgai.runtime import active_project
-    from mtgai.settings.model_settings import ModelSettings, apply_settings
+    from mtgai.settings.model_settings import ModelSettings
 
-    apply_settings(code, ModelSettings(asset_folder=str(asset_dir)))
-    active_project.write_active_set(code)
+    active_project.write_active_project(
+        active_project.ProjectState(
+            set_code=code, settings=ModelSettings(asset_folder=str(asset_dir))
+        )
+    )
 
 
 def _state_for(set_code: str = "TST") -> PipelineState:
@@ -230,11 +233,9 @@ def test_break_points_reflect_settings_toggle(sets_root):
     set_dir = sets_root / "TST"
     set_dir.mkdir()
     _open_project("TST", set_dir)
-    # Apply break_points after opening — _open_project resets the
-    # settings file, so any pre-write would be clobbered.
-    settings = ms.get_settings("TST")
+    settings = ms.get_active_settings()
     new = settings.model_copy(update={"break_points": {"card_gen": "review"}})
-    ms.apply_settings("TST", new)
+    ms.apply_settings(new)
 
     ws = build_wizard_state(requested_tab=None)
     assert ws.break_points["card_gen"] is True
@@ -249,9 +250,9 @@ def test_break_points_human_stage_can_be_overridden_off(sets_root):
     set_dir = sets_root / "TST"
     set_dir.mkdir()
     _open_project("TST", set_dir)
-    settings = ms.get_settings("TST")
+    settings = ms.get_active_settings()
     new = settings.model_copy(update={"break_points": {"human_card_review": "auto"}})
-    ms.apply_settings("TST", new)
+    ms.apply_settings(new)
 
     ws = build_wizard_state(requested_tab=None)
     assert ws.break_points["human_card_review"] is False

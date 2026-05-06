@@ -4,7 +4,7 @@ Renders card images by compositing art, M15 frame templates, and text.
 
 Usage::
 
-    python -m mtgai.rendering --set ASD [--card W-C-01] [--dry-run] [--force]
+    python -m mtgai.rendering --mtg path/to/project.mtg [--card W-C-01] [--dry-run] [--force]
 """
 
 from __future__ import annotations
@@ -28,9 +28,9 @@ def main() -> None:
         description="Render card images from card JSON + art + M15 frames",
     )
     parser.add_argument(
-        "--set",
-        default="ASD",
-        help="Set code (default: ASD)",
+        "--mtg",
+        required=True,
+        help="Path to a .mtg project file (the project's asset_folder must be set)",
     )
     parser.add_argument(
         "--card",
@@ -60,15 +60,12 @@ def main() -> None:
         output_root=OUTPUT_ROOT,
     )
 
-    # CLI shim: stamp the requested set as the active project so
-    # set_artifact_dir() resolves under output/sets/<CODE>/. Operators
-    # running this script directly need to ensure that asset_folder is
-    # configured (via the wizard, or by editing output/sets/<CODE>/
-    # settings.toml) — empty asset_folder will surface a NoAssetFolderError
-    # at the first stage helper that asks for an artifact path.
-    from mtgai.runtime.active_project import write_active_set
+    # CLI shim: pin the .mtg as the active project so set_artifact_dir()
+    # resolves under the project's asset_folder. Empty asset_folder
+    # surfaces NoAssetFolderError at the first artifact-path helper.
+    from mtgai.runtime.cli_shim import activate_from_mtg
 
-    write_active_set(args.set)
+    activate_from_mtg(args.mtg)
     summary = renderer.render_set(
         card_filter=args.card,
         dry_run=args.dry_run,

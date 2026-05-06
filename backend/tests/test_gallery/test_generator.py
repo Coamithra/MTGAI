@@ -205,7 +205,6 @@ class TestExportCardsJson:
         now reads from the active project, so we have to materialise one
         before the function is called.
         """
-        from mtgai.io import asset_paths
         from mtgai.runtime import active_project
         from mtgai.settings import model_settings as ms
 
@@ -213,21 +212,18 @@ class TestExportCardsJson:
         settings_dir = tmp_path / "output" / "settings"
         sets_root.mkdir(parents=True, exist_ok=True)
         settings_dir.mkdir(parents=True, exist_ok=True)
-
-        monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path / "output")
-        monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
         monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path / "output")
         monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
-        monkeypatch.setattr(ms, "SETS_DIR", sets_root)
         monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
         monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
-        ms.invalidate_cache()
-        active_project.clear_active_set()
-        ms.apply_settings("TST", ms.ModelSettings(asset_folder=str(sets_root / "TST")))
-        active_project.write_active_set("TST")
+        active_project.clear_active_project()
+        active_project.write_active_project(
+            active_project.ProjectState(
+                set_code="TST", settings=ms.ModelSettings(asset_folder=str(sets_root / "TST"))
+            )
+        )
         yield
-        active_project.clear_active_set()
-        ms.invalidate_cache()
+        active_project.clear_active_project()
 
     def test_produces_valid_json(self, tmp_path: Path) -> None:
         """The output file should contain valid JSON."""
@@ -394,7 +390,6 @@ class TestBuildGallery:
         active project with the legacy registry path as its asset
         folder so seeded files are resolved.
         """
-        from mtgai.io import asset_paths
         from mtgai.runtime import active_project
         from mtgai.settings import model_settings as ms
 
@@ -402,18 +397,16 @@ class TestBuildGallery:
         settings_dir = tmp_path / "output" / "settings"
         sets_root.mkdir(parents=True, exist_ok=True)
         settings_dir.mkdir(parents=True, exist_ok=True)
-
-        monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path / "output")
-        monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
         monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path / "output")
         monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
-        monkeypatch.setattr(ms, "SETS_DIR", sets_root)
         monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
         monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
-        ms.invalidate_cache()
-        active_project.clear_active_set()
-        ms.apply_settings(set_code, ms.ModelSettings(asset_folder=str(sets_root / set_code)))
-        active_project.write_active_set(set_code)
+        active_project.clear_active_project()
+        active_project.write_active_project(
+            active_project.ProjectState(
+                set_code=set_code, settings=ms.ModelSettings(asset_folder=str(sets_root / set_code))
+            )
+        )
         monkeypatch.setattr(
             "mtgai.gallery.generator._templates_dir",
             lambda: (

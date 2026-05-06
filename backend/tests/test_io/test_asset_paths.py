@@ -13,38 +13,27 @@ from mtgai.settings import model_settings as ms
 
 @pytest.fixture(autouse=True)
 def _isolate_paths(tmp_path, monkeypatch):
-    """Point both modules at a tmp tree.
-
-    ``model_settings`` and ``asset_paths`` each capture path constants
-    at import time. The settings module is the source of truth for
-    ``asset_folder`` and the asset_paths module reads from the active
-    project, so we patch both and clear the active-project pointer
-    between tests.
-    """
+    """Point the settings module at a tmp tree + clear the active-project pointer."""
     settings_dir = tmp_path / "settings"
-    sets_dir = tmp_path / "sets"
     settings_dir.mkdir(parents=True)
-    sets_dir.mkdir(parents=True)
 
     monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(ms, "SETS_DIR", sets_dir)
     monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
     monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
-    monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_dir)
 
-    ms.invalidate_cache()
-    active_project.clear_active_set()
+    active_project.clear_active_project()
     yield
-    active_project.clear_active_set()
-    ms.invalidate_cache()
+    active_project.clear_active_project()
 
 
 def _open_project(code: str, asset_folder: str) -> None:
     """Helper: pin ``code`` as the active project with the given asset folder."""
-    ms.apply_settings(code, ms.ModelSettings(asset_folder=asset_folder))
-    active_project.write_active_set(code)
+    active_project.write_active_project(
+        active_project.ProjectState(
+            set_code=code, settings=ms.ModelSettings(asset_folder=asset_folder)
+        )
+    )
 
 
 def test_raises_when_no_project_open():

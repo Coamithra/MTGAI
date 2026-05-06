@@ -13,44 +13,15 @@ import pytest
 from fastapi.testclient import TestClient
 
 from mtgai.review.server import app
-from mtgai.runtime import ai_lock, extraction_run
+from mtgai.runtime import active_project, ai_lock, extraction_run
 from mtgai.settings import model_settings as ms
 
 
 @pytest.fixture(autouse=True)
-def _reset(tmp_path, monkeypatch):
-    sets_root = tmp_path / "sets"
-    settings_dir = tmp_path / "settings"
-    sets_root.mkdir(parents=True)
-    settings_dir.mkdir(parents=True)
-
-    from mtgai.io import asset_paths
-    from mtgai.pipeline import engine
-    from mtgai.pipeline import server as pipeline_server
-    from mtgai.runtime import active_project, runtime_state
-
-    monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(pipeline_server, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_project, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_project, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
-
-    monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(ms, "SETS_DIR", sets_root)
-    monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
-    monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
-
-    active_project.clear_active_set()
-    ms.invalidate_cache()
+def _reset(isolated_output):
     ai_lock.reset_for_tests()
     extraction_run.reset()
     yield
-    active_project.clear_active_set()
-    ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()
 
@@ -119,15 +90,14 @@ def test_new_returns_blank_draft_payload(client):
     assert "card_gen" in draft["llm_assignments"]
 
 
-def test_new_clears_active_set_pointer(client):
-    from mtgai.runtime.active_project import read_active_set, write_active_set
-
-    (ms.SETS_DIR / "OLD").mkdir()
-    write_active_set("OLD")
-    assert read_active_set() == "OLD"
+def test_new_clears_active_project_pointer(client):
+    active_project.write_active_project(
+        active_project.ProjectState(set_code="OLD", settings=ms.ModelSettings())
+    )
+    assert active_project.read_active_project() is not None
     resp = client.post("/api/project/new", json={})
     assert resp.status_code == 200
-    assert read_active_set() is None
+    assert active_project.read_active_project() is None
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +105,7 @@ def test_new_clears_active_set_pointer(client):
 # ---------------------------------------------------------------------------
 
 
-def test_open_creates_set_dir_and_activates(client):
+def test_open_pins_active_project_from_toml(client):
     settings = ms.ModelSettings(
         set_params=ms.SetParams(set_name="Open Test", set_size=80, mechanic_count=2),
         asset_folder="D:/assets/open-test",
@@ -147,13 +117,11 @@ def test_open_creates_set_dir_and_activates(client):
     assert data["success"] is True
     assert data["set_code"] == "OPN"
 
-    from mtgai.runtime.active_project import read_active_set
-
-    assert read_active_set() == "OPN"
-    assert (ms.SETS_DIR / "OPN" / "settings.toml").exists()
-    loaded = ms.get_settings("OPN")
-    assert loaded.set_params.set_size == 80
-    assert loaded.asset_folder == "D:/assets/open-test"
+    proj = active_project.read_active_project()
+    assert proj is not None
+    assert proj.set_code == "OPN"
+    assert proj.settings.set_params.set_size == 80
+    assert proj.settings.asset_folder == "D:/assets/open-test"
 
 
 def test_open_rejects_empty_body(client):
@@ -177,7 +145,7 @@ def test_open_rejects_missing_set_code(client):
 # ---------------------------------------------------------------------------
 
 
-def test_materialize_creates_dir_and_returns_mtg_toml(client):
+def test_materialize_pins_active_project_and_returns_mtg_toml(client):
     body = {
         "set_code": "MAT",
         "set_params": {"set_name": "Materialised", "set_size": 60, "mechanic_count": 3},
@@ -198,19 +166,18 @@ def test_materialize_creates_dir_and_returns_mtg_toml(client):
     assert code == "MAT"
     assert parsed.set_params.set_name == "Materialised"
     assert parsed.asset_folder == "E:/proj/mat"
-    # Settings.toml on disk holds the same shape.
-    assert (ms.SETS_DIR / "MAT" / "settings.toml").exists()
-    loaded = ms.get_settings("MAT")
-    assert loaded.set_params.set_size == 60
-    # Active set follows.
-    from mtgai.runtime.active_project import read_active_set
-
-    assert read_active_set() == "MAT"
+    # Active project reflects the body.
+    proj = active_project.read_active_project()
+    assert proj is not None
+    assert proj.set_code == "MAT"
+    assert proj.settings.set_params.set_size == 60
+    assert proj.settings.asset_folder == "E:/proj/mat"
 
 
-def test_materialize_rejects_invalid_set_code(client):
+def test_materialize_rejects_empty_set_code(client):
+    """Relaxed validation: only empty / whitespace set codes are rejected."""
     body = {
-        "set_code": "lowercase",  # rejected by SET_CODE_RE
+        "set_code": "   ",
         "set_params": {"set_name": "X", "set_size": 60, "mechanic_count": 3},
         "theme_input": {"kind": "none"},
         "asset_folder": "",
@@ -264,8 +231,8 @@ def test_serialize_409s_when_no_project_open(client):
 # ---------------------------------------------------------------------------
 
 
-def test_asset_folder_save_persists_to_settings(client):
-    # Materialise a set so settings.toml exists.
+def test_asset_folder_save_updates_active_project(client):
+    # Materialise a set so the active-project pointer is set.
     client.post(
         "/api/project/materialize",
         json={
@@ -285,8 +252,7 @@ def test_asset_folder_save_persists_to_settings(client):
     )
     assert resp.status_code == 200
     assert resp.json()["asset_folder"] == "G:/new/folder"
-    loaded = ms.get_settings("AF1")
-    assert loaded.asset_folder == "G:/new/folder"
+    assert active_project.require_active_project().settings.asset_folder == "G:/new/folder"
 
 
 def test_asset_folder_rejects_non_string(client):
@@ -343,10 +309,9 @@ def test_new_returns_409_when_ai_busy(client):
 
 def test_new_with_force_cancels_and_proceeds(client, monkeypatch):
     """force=true -> request_cancel + drain + clear pointer."""
-    from mtgai.runtime import active_project as active_set_mod
-
-    (ms.SETS_DIR / "OLD").mkdir()
-    active_set_mod.write_active_set("OLD")
+    active_project.write_active_project(
+        active_project.ProjectState(set_code="OLD", settings=ms.ModelSettings())
+    )
 
     assert ai_lock.try_acquire("Theme extraction") is True
     cancel_calls = {"n": 0}
@@ -363,16 +328,14 @@ def test_new_with_force_cancels_and_proceeds(client, monkeypatch):
     resp = client.post("/api/project/new", json={"force": True})
     assert resp.status_code == 200
     assert cancel_calls["n"] == 1
-    assert active_set_mod.read_active_set() is None
+    assert active_project.read_active_project() is None
 
 
 def test_new_proceeds_on_drain_timeout(client, monkeypatch):
     """When the lock won't release in time, we still proceed (and log)."""
-    from mtgai.runtime import active_project as active_set_mod
-
     assert ai_lock.try_acquire("Stuck action") is True
     try:
-        monkeypatch.setattr(active_set_mod, "await_lock_release", lambda *a, **kw: False)
+        monkeypatch.setattr(active_project, "await_lock_release", lambda *a, **kw: False)
         resp = client.post("/api/project/new", json={"force": True})
         assert resp.status_code == 200
     finally:

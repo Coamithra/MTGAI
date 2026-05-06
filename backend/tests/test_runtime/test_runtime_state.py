@@ -32,17 +32,15 @@ def _write_theme(set_dir: Path, theme: dict) -> None:
 
 
 def _open_project(code: str, asset_folder: Path) -> None:
-    """Helper: pin ``code`` as the active project with its assets at ``asset_folder``.
+    """Helper: pin ``code`` as the active project with its assets at ``asset_folder``."""
+    from mtgai.settings.model_settings import ModelSettings
 
-    Mirrors the production sequence: ``apply_settings`` writes the
-    settings.toml + ``asset_folder`` pointer, then
-    ``write_active_set`` flips the in-memory pointer (re-reading
-    settings to populate the ProjectState).
-    """
-    from mtgai.settings.model_settings import ModelSettings, apply_settings
-
-    apply_settings(code, ModelSettings(asset_folder=str(asset_folder)))
-    active_project.write_active_set(code)
+    active_project.write_active_project(
+        active_project.ProjectState(
+            set_code=code,
+            settings=ModelSettings(asset_folder=str(asset_folder)),
+        )
+    )
 
 
 def _empty_state_shape(payload: dict) -> None:
@@ -66,7 +64,7 @@ def test_compute_returns_none_when_no_project_loaded(monkeypatch):
     assert payload["theme"] is None
 
 
-def test_compute_ignores_disk_sets_without_explicit_pointer(monkeypatch):
+def test_compute_ignores_disk_sets_without_explicit_pointer(isolated_output, monkeypatch):
     """A theme.json on disk no longer auto-picks the active set.
 
     The mtime fallback was the legacy resolver's last-resort heuristic;
@@ -74,8 +72,7 @@ def test_compute_ignores_disk_sets_without_explicit_pointer(monkeypatch):
     pointer set by ``/api/project/open`` or ``/api/project/materialize``.
     """
     monkeypatch.delenv("MTGAI_REVIEW_SET", raising=False)
-    sets_root = runtime_state.SETS_ROOT
-    _write_theme(sets_root / "ABC", {"code": "ABC", "name": "Test"})
+    _write_theme(isolated_output / "ABC", {"code": "ABC", "name": "Test"})
     payload = runtime_state.compute_runtime_state()
     assert payload["active_set"] is None
     assert payload["theme"] is None
@@ -112,10 +109,9 @@ def test_compute_omits_completed_extraction_run():
     assert payload["active_runs"] == {}
 
 
-def test_compute_loads_theme_when_present():
+def test_compute_loads_theme_when_present(isolated_output):
     """Theme.json under the active project's asset_folder is surfaced."""
-    sets_root = runtime_state.SETS_ROOT
-    asset_dir = sets_root / "TST"
+    asset_dir = isolated_output / "TST"
     _write_theme(
         asset_dir,
         {
@@ -139,46 +135,44 @@ def test_compute_returns_none_theme_when_asset_folder_empty():
     swallows it and returns ``None`` so the wizard renders the no-theme
     state instead of 500ing the runtime endpoint.
     """
-    from mtgai.settings.model_settings import ModelSettings, apply_settings
+    from mtgai.settings.model_settings import ModelSettings
 
-    apply_settings("TST", ModelSettings(asset_folder=""))
-    active_project.write_active_set("TST")
+    active_project.write_active_project(
+        active_project.ProjectState(set_code="TST", settings=ModelSettings(asset_folder=""))
+    )
     payload = runtime_state.compute_runtime_state()
     assert payload["active_set"] == "TST"
     assert payload["theme"] is None
 
 
-def test_in_memory_pointer_drives_resolution(monkeypatch):
+def test_in_memory_pointer_drives_resolution(isolated_output, monkeypatch):
     """Setting the in-memory active-project pointer surfaces in the payload."""
     monkeypatch.delenv("MTGAI_REVIEW_SET", raising=False)
-    sets_root = runtime_state.SETS_ROOT
-    _write_theme(sets_root / "OLD", {"code": "OLD"})
-    _write_theme(sets_root / "PIN", {"code": "PIN", "name": "Pinned"})
+    _write_theme(isolated_output / "OLD", {"code": "OLD"})
+    _write_theme(isolated_output / "PIN", {"code": "PIN", "name": "Pinned"})
 
-    _open_project("PIN", sets_root / "PIN")
+    _open_project("PIN", isolated_output / "PIN")
 
     payload = runtime_state.compute_runtime_state()
     assert payload["active_set"] == "PIN"
     assert payload["theme"]["name"] == "Pinned"
 
 
-def test_clear_pointer_yields_no_project(monkeypatch):
+def test_clear_pointer_yields_no_project(isolated_output, monkeypatch):
     """Clearing the in-memory pointer surfaces the empty New/Open state."""
     monkeypatch.delenv("MTGAI_REVIEW_SET", raising=False)
-    sets_root = runtime_state.SETS_ROOT
-    _write_theme(sets_root / "ALIVE", {"code": "ALIVE"})
+    _write_theme(isolated_output / "ALIVE", {"code": "ALIVE"})
 
-    _open_project("ALIVE", sets_root / "ALIVE")
-    active_project.clear_active_set()
+    _open_project("ALIVE", isolated_output / "ALIVE")
+    active_project.clear_active_project()
 
     payload = runtime_state.compute_runtime_state()
     assert payload["active_set"] is None
 
 
-def test_compute_swallows_corrupt_theme_json():
+def test_compute_swallows_corrupt_theme_json(isolated_output):
     """A malformed theme.json doesn't blow up the endpoint."""
-    sets_root = runtime_state.SETS_ROOT
-    bad = sets_root / "BAD"
+    bad = isolated_output / "BAD"
     bad.mkdir(parents=True)
     (bad / "theme.json").write_text("{ not valid json", encoding="utf-8")
     _open_project("BAD", bad)

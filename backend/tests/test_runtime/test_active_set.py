@@ -1,10 +1,16 @@
-"""Unit tests for the in-memory active-project pointer."""
+"""Behavioural tests for ``await_lock_release`` and ``is_valid_set_code``.
+
+The legacy ``active_set`` shim API (read/write/clear shims +
+iter_known_set_codes + normalize_code + the [A-Z0-9]{2,5} regex) was
+removed when the on-disk registry went away. The active-project pointer
+itself is covered in ``test_active_project.py``; this file holds the
+narrower lock-drain + validator coverage that doesn't fit there.
+"""
 
 from __future__ import annotations
 
 import threading
 import time
-from pathlib import Path
 
 import pytest
 
@@ -12,124 +18,31 @@ from mtgai.runtime import active_project, ai_lock
 
 
 @pytest.fixture(autouse=True)
-def _isolate_paths(tmp_path, monkeypatch):
-    """Redirect output-touching modules at a tmp dir + clear in-memory state.
-
-    ``active_set`` and ``asset_paths`` capture path constants at import
-    time, so they have to be patched on the modules themselves. The
-    in-memory active-project pointer is cleared between tests so leakage
-    can't taint a later assertion.
-    """
-    from mtgai.io import asset_paths
-    from mtgai.settings import model_settings as ms
-
-    sets_root = tmp_path / "sets"
-    sets_root.mkdir(parents=True)
-
-    monkeypatch.setattr(active_project, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_project, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(ms, "SETS_DIR", sets_root)
-    monkeypatch.setattr(ms, "SETTINGS_DIR", tmp_path / "settings")
-    monkeypatch.setattr(ms, "GLOBAL_TOML", tmp_path / "settings" / "global.toml")
-    monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", tmp_path / "settings" / "current.toml")
-
-    active_project.clear_active_set()
+def _reset_state():
+    active_project.clear_active_project()
     ai_lock.reset_for_tests()
-    ms.invalidate_cache()
     yield
-    active_project.clear_active_set()
+    active_project.clear_active_project()
     ai_lock.reset_for_tests()
-    ms.invalidate_cache()
-
-
-def _make_set(set_code: str) -> Path:
-    """Materialise ``set_code`` as a registered project for iter checks."""
-    set_dir = active_project.SETS_ROOT / set_code
-    set_dir.mkdir(parents=True, exist_ok=True)
-    (set_dir / "settings.toml").write_text("", encoding="utf-8")
-    return set_dir
 
 
 # ---------------------------------------------------------------------------
-# is_valid_set_code
+# is_valid_set_code (relaxed: any non-empty trimmed string)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("code", ["AS", "ASD", "DRKSN", "AB12", "12345", "asd"])
-def test_valid_codes(code):
-    """Lowercase is auto-uppercased before validation."""
+@pytest.mark.parametrize("code", ["AS", "ASD", "DRKSN", "DARKSUN", "asd", "AB-CD", "12345"])
+def test_valid_codes_accept_free_form_strings(code):
     assert active_project.is_valid_set_code(code)
 
 
-@pytest.mark.parametrize(
-    "code",
-    [None, "", "A", "TOOLONG", "../etc", "AB-CD", "AB CD"],
-)
-def test_invalid_codes(code):
+@pytest.mark.parametrize("code", [None, "", "   ", "\t\n"])
+def test_invalid_codes_reject_empty_and_whitespace(code):
     assert not active_project.is_valid_set_code(code)
 
 
-# ---------------------------------------------------------------------------
-# read / write / clear round-trip
-# ---------------------------------------------------------------------------
-
-
-def test_read_returns_none_when_unset():
-    assert active_project.read_active_set() is None
-
-
-def test_write_then_read_roundtrip():
-    active_project.write_active_set("ASD")
-    assert active_project.read_active_set() == "ASD"
-
-
-def test_write_normalizes_lowercase():
-    active_project.write_active_set("asd")
-    assert active_project.read_active_set() == "ASD"
-
-
-def test_write_rejects_invalid_code():
-    with pytest.raises(ValueError):
-        active_project.write_active_set("../escape")
-
-
-def test_clear_resets_to_none():
-    active_project.write_active_set("ASD")
-    active_project.clear_active_set()
-    assert active_project.read_active_set() is None
-
-
-# ---------------------------------------------------------------------------
-# iter_known_set_codes
-# ---------------------------------------------------------------------------
-
-
-def test_iter_returns_empty_when_root_missing(tmp_path, monkeypatch):
-    monkeypatch.setattr(active_project, "SETS_ROOT", tmp_path / "absent")
-    assert active_project.iter_known_set_codes() == []
-
-
-def test_iter_lists_registered_projects_alpha():
-    _make_set("ASD")
-    _make_set("DKSN")
-    _make_set("DS1")
-    assert active_project.iter_known_set_codes() == ["ASD", "DKSN", "DS1"]
-
-
-def test_iter_skips_unregistered_dirs():
-    _make_set("ASD")
-    (active_project.SETS_ROOT / "DKSN").mkdir()  # no settings.toml
-    assert active_project.iter_known_set_codes() == ["ASD"]
-
-
-def test_iter_skips_dirs_outside_set_code_shape():
-    _make_set("ASD")
-    (active_project.SETS_ROOT / "DARKSUN").mkdir()  # 7 chars, > regex limit
-    (active_project.SETS_ROOT / "DARKSUN" / "settings.toml").write_text("", encoding="utf-8")
-    assert active_project.iter_known_set_codes() == ["ASD"]
+def test_invalid_code_rejects_non_string():
+    assert not active_project.is_valid_set_code(123)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

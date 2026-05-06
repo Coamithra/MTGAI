@@ -42,20 +42,14 @@ def isolate_sets(isolated_output: Path) -> Path:
 
 
 def _activate(code: str, sets_root: Path | None = None) -> None:
-    """Pin ``code`` as the active project with assets at the legacy path.
+    """Pin ``code`` as the active project with assets under ``sets_root / code``."""
+    from mtgai.runtime.active_project import ProjectState, write_active_project
+    from mtgai.settings.model_settings import ModelSettings
 
-    Tests for the wizard render path used to rely on the now-removed
-    mtime / env-var fallbacks; they have to opt in to a project the
-    same way the runtime does (via the Open / Materialise endpoints).
-    The ``asset_folder`` defaults to ``<sets_root>/<code>`` so seeded
-    files from ``_seed_set`` are still resolved by ``set_artifact_dir``.
-    """
-    from mtgai.runtime.active_project import write_active_set
-    from mtgai.settings.model_settings import ModelSettings, apply_settings
-
-    if sets_root is not None:
-        apply_settings(code, ModelSettings(asset_folder=str(sets_root / code)))
-    write_active_set(code)
+    asset_folder = str(sets_root / code) if sets_root is not None else ""
+    write_active_project(
+        ProjectState(set_code=code, settings=ModelSettings(asset_folder=asset_folder))
+    )
 
 
 def _seed_set(

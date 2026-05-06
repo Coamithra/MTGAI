@@ -1,65 +1,76 @@
-"""Per-set model_settings + global.toml + migration tests."""
+"""Settings module tests — global defaults, profiles, active-project surface."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
+from mtgai.runtime import active_project
 from mtgai.settings import model_settings as ms
 
 
 @pytest.fixture(autouse=True)
 def _isolate_paths(tmp_path, monkeypatch):
-    """Redirect every path the module reads/writes to a tmp tree.
+    """Redirect on-disk paths the module reads/writes to a tmp tree.
 
     Settings + sets dirs are captured at module-import time as constants,
-    so we patch them on the module itself for each test. The cache is
-    flushed too so tests don't see each other's state.
+    so we patch them on the module itself for each test. The active
+    project pointer is cleared between tests so the in-memory pointer
+    can't bleed across runs.
     """
     settings_dir = tmp_path / "settings"
-    sets_dir = tmp_path / "sets"
     settings_dir.mkdir(parents=True)
-    sets_dir.mkdir(parents=True)
 
     monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(ms, "SETS_DIR", sets_dir)
     monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
     monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
+    monkeypatch.setattr(ms, "_global_cache", None, raising=False)
 
-    ms.invalidate_cache()
+    active_project.clear_active_project()
     yield
-    ms.invalidate_cache()
-
-
-def _make_set_dir(set_code: str) -> Path:
-    set_dir = ms.SETS_DIR / set_code
-    set_dir.mkdir(parents=True, exist_ok=True)
-    return set_dir
+    active_project.clear_active_project()
+    monkeypatch.setattr(ms, "_global_cache", None, raising=False)
 
 
 # ---------------------------------------------------------------------------
-# get_settings(set_code)
+# get_active_settings + apply_settings
 # ---------------------------------------------------------------------------
 
 
-def test_get_settings_requires_set_code():
-    with pytest.raises(ValueError):
-        ms.get_settings("")
+def test_get_active_settings_raises_when_no_project_open():
+    from mtgai.io.asset_paths import NoAssetFolderError
+
+    with pytest.raises(NoAssetFolderError):
+        ms.get_active_settings()
 
 
-@pytest.mark.parametrize("bad", ["A", "TOOLONG", "../etc", "AB-CD", "AB CD", "asd"])
-def test_get_settings_rejects_invalid_set_codes(bad):
-    """Lowercase and out-of-shape codes are rejected upfront so a typo
-    can't poison output/sets/<garbage>/."""
-    with pytest.raises(ValueError):
-        ms.get_settings(bad)
+def test_apply_settings_raises_when_no_project_open():
+    from mtgai.io.asset_paths import NoAssetFolderError
+
+    with pytest.raises(NoAssetFolderError):
+        ms.apply_settings(ms.ModelSettings())
 
 
-def test_apply_settings_rejects_invalid_set_code():
-    with pytest.raises(ValueError):
-        ms.apply_settings("../escape", ms.ModelSettings())
+def test_apply_settings_updates_active_project_settings():
+    """``apply_settings`` rewrites the active project's settings field
+    so subsequent ``get_active_settings`` calls see the new value."""
+    initial = ms.ModelSettings(asset_folder="D:/old")
+    active_project.write_active_project(
+        active_project.ProjectState(set_code="ASD", settings=initial)
+    )
+    updated = initial.model_copy(update={"asset_folder": "D:/new"})
+
+    ms.apply_settings(updated)
+
+    assert ms.get_active_settings().asset_folder == "D:/new"
+    proj = active_project.read_active_project()
+    assert proj is not None
+    assert proj.set_code == "ASD"  # set_code is preserved
+
+
+# ---------------------------------------------------------------------------
+# Global settings + presets
+# ---------------------------------------------------------------------------
 
 
 def test_apply_global_settings_rejects_unknown_preset():
@@ -81,91 +92,9 @@ def test_from_preset_rejects_reserved_names():
             ms.ModelSettings.from_preset(name)
 
 
-def test_get_settings_seeds_default_preset_for_brand_new_set():
-    """No legacy current.toml + no per-set file → seed from global default."""
-    _make_set_dir("ASD")
-    settings = ms.get_settings("ASD")
-
-    # Default preset is "recommended", which assigns Opus to card_gen.
+def test_from_preset_resolves_builtin():
+    settings = ms.ModelSettings.from_preset("recommended")
     assert settings.llm_assignments["card_gen"] == "opus"
-    # Per-set file is now on disk.
-    assert (ms.SETS_DIR / "ASD" / "settings.toml").exists()
-
-
-def test_get_settings_caches_after_first_load():
-    _make_set_dir("ASD")
-    s1 = ms.get_settings("ASD")
-    s2 = ms.get_settings("ASD")
-    assert s1 is s2
-
-
-def test_get_settings_loads_existing_per_set_file():
-    """Hand-edited per-set TOML is round-tripped into a ModelSettings."""
-    _make_set_dir("ASD")
-    custom = ms.ModelSettings(
-        llm_assignments={"card_gen": "haiku", "ai_review": "sonnet"},
-        image_assignments={},
-        effort_overrides={},
-    )
-    custom.write_toml(ms.SETS_DIR / "ASD" / "settings.toml")
-    ms.invalidate_cache()
-
-    loaded = ms.get_settings("ASD")
-    assert loaded.llm_assignments["card_gen"] == "haiku"
-    assert loaded.llm_assignments["ai_review"] == "sonnet"
-
-
-def test_get_settings_isolated_per_set():
-    """ASD changes don't bleed into DSN."""
-    _make_set_dir("ASD")
-    _make_set_dir("DSN")
-
-    asd = ms.get_settings("ASD")
-    dsn = ms.get_settings("DSN")
-
-    new = ms.ModelSettings(
-        llm_assignments={"card_gen": "haiku"},
-        image_assignments=dict(asd.image_assignments),
-        effort_overrides=dict(asd.effort_overrides),
-    )
-    ms.apply_settings("ASD", new)
-
-    asd_after = ms.get_settings("ASD")
-    dsn_after = ms.get_settings("DSN")
-
-    assert asd_after.llm_assignments["card_gen"] == "haiku"
-    assert dsn_after.llm_assignments["card_gen"] == dsn.llm_assignments["card_gen"]
-
-
-def test_get_settings_recovers_from_corrupt_per_set_file():
-    """Invalid TOML in settings.toml falls back to seeding (no crash)."""
-    _make_set_dir("ASD")
-    (ms.SETS_DIR / "ASD" / "settings.toml").write_text("{ not valid toml ::: ", encoding="utf-8")
-    ms.invalidate_cache()
-
-    settings = ms.get_settings("ASD")
-    # Recovered to defaults; the corrupt file was overwritten with seed.
-    assert "card_gen" in settings.llm_assignments
-
-
-# ---------------------------------------------------------------------------
-# Migration: legacy current.toml
-# ---------------------------------------------------------------------------
-
-
-def test_get_settings_migrates_from_legacy_current_toml():
-    """A pre-existing current.toml seeds new sets with its values, not defaults."""
-    legacy = ms.ModelSettings(
-        llm_assignments={"card_gen": "haiku", "ai_review": "haiku"},
-        image_assignments={"art_gen": "flux-local"},
-        effort_overrides={},
-    )
-    legacy.write_toml(ms.LEGACY_CURRENT_TOML)
-    _make_set_dir("ASD")
-
-    settings = ms.get_settings("ASD")
-    assert settings.llm_assignments["card_gen"] == "haiku"
-    assert settings.llm_assignments["ai_review"] == "haiku"
 
 
 def test_global_toml_first_create_imports_legacy_as_profile():
@@ -181,7 +110,6 @@ def test_global_toml_first_create_imports_legacy_as_profile():
     glob = ms.get_global_settings()
     assert glob.default_preset == "imported"
     assert (ms.SETTINGS_DIR / "imported.toml").exists()
-    # global.toml is now persisted too.
     assert ms.GLOBAL_TOML.exists()
 
 
@@ -192,103 +120,74 @@ def test_global_toml_first_create_no_legacy_uses_recommended():
     assert ms.GLOBAL_TOML.exists()
 
 
-def test_global_toml_round_trip():
-    """apply_global_settings persists + invalidates cache."""
+def test_global_toml_round_trip(monkeypatch):
+    """apply_global_settings persists, and a fresh load reads the new value."""
     new = ms.GlobalSettings(default_preset="all-haiku")
     ms.apply_global_settings(new)
 
-    ms.invalidate_cache()
+    monkeypatch.setattr(ms, "_global_cache", None, raising=False)
     reloaded = ms.get_global_settings()
     assert reloaded.default_preset == "all-haiku"
 
 
-def test_seed_uses_global_default_preset_when_set():
-    """global.toml's default_preset wins over the built-in 'recommended'."""
-    ms.apply_global_settings(ms.GlobalSettings(default_preset="all-haiku"))
-    _make_set_dir("ASD")
-
-    settings = ms.get_settings("ASD")
-    # all-haiku assigns haiku to every stage, including card_gen.
-    assert settings.llm_assignments["card_gen"] == "haiku"
-
-
 # ---------------------------------------------------------------------------
-# apply_settings + cache invalidation
+# ModelSettings TOML round-trip + to_ui_dict
 # ---------------------------------------------------------------------------
 
 
-def test_apply_settings_writes_only_target_set():
-    _make_set_dir("ASD")
-    _make_set_dir("DSN")
-    # Touch both so files exist.
-    ms.get_settings("ASD")
-    ms.get_settings("DSN")
-
-    asd_path = ms.SETS_DIR / "ASD" / "settings.toml"
-    dsn_path = ms.SETS_DIR / "DSN" / "settings.toml"
-    dsn_mtime = dsn_path.stat().st_mtime_ns
-
-    new = ms.ModelSettings(
-        llm_assignments={"card_gen": "sonnet"},
-        image_assignments={},
-        effort_overrides={},
+def test_settings_round_trips_set_params_break_points(tmp_path):
+    s = ms.ModelSettings(
+        set_params=ms.SetParams(set_name="Test Set", set_size=80, mechanic_count=5),
+        break_points={"card_gen": "review", "balance": "review"},
     )
-    ms.apply_settings("ASD", new)
+    path = tmp_path / "settings.toml"
+    s.write_toml(path)
 
-    # ASD content actually changed (mtime alone is a tautology — it can't
-    # go backwards even if apply did nothing).
-    assert ms.ModelSettings.load_from_file(asd_path).llm_assignments["card_gen"] == "sonnet"
-    # DSN was not touched.
-    assert dsn_path.stat().st_mtime_ns == dsn_mtime
+    loaded = ms.ModelSettings.load_from_file(path)
+    assert loaded.set_params.set_name == "Test Set"
+    assert loaded.set_params.set_size == 80
+    assert loaded.set_params.mechanic_count == 5
+    assert loaded.break_points == {"card_gen": "review", "balance": "review"}
 
 
-def test_apply_settings_replaces_cache():
-    _make_set_dir("ASD")
-    ms.get_settings("ASD")  # populate cache
-
-    new = ms.ModelSettings(
-        llm_assignments={"card_gen": "haiku"},
-        image_assignments={},
-        effort_overrides={},
+def test_settings_round_trips_theme_input(tmp_path):
+    s = ms.ModelSettings(
+        theme_input=ms.ThemeInputSource(
+            kind="pdf", filename="pitch.pdf", upload_id="abcd1234", char_count=12345
+        ),
     )
-    ms.apply_settings("ASD", new)
+    path = tmp_path / "settings.toml"
+    s.write_toml(path)
 
-    assert ms.get_settings("ASD").llm_assignments["card_gen"] == "haiku"
-
-
-def test_apply_settings_requires_set_code():
-    new = ms.ModelSettings()
-    with pytest.raises(ValueError):
-        ms.apply_settings("", new)
-
-
-# ---------------------------------------------------------------------------
-# Convenience wrappers
-# ---------------------------------------------------------------------------
+    loaded = ms.ModelSettings.load_from_file(path)
+    assert loaded.theme_input.kind == "pdf"
+    assert loaded.theme_input.filename == "pitch.pdf"
+    assert loaded.theme_input.upload_id == "abcd1234"
+    assert loaded.theme_input.char_count == 12345
 
 
-def test_get_llm_model_resolves_via_registry():
-    _make_set_dir("ASD")
-    model_id = ms.get_llm_model("card_gen", "ASD")
-    # 'recommended' assigns 'opus' to card_gen → registry resolves to claude-opus model_id.
-    assert "opus" in model_id.lower()
+def test_default_theme_input_is_omitted_from_toml(tmp_path):
+    """``kind == "none"`` is the bootstrap state; don't write it."""
+    import tomllib
+
+    s = ms.ModelSettings()
+    path = tmp_path / "settings.toml"
+    s.write_toml(path)
+
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+    assert "theme_input" not in data
 
 
-def test_get_image_model_returns_key():
-    _make_set_dir("ASD")
-    key = ms.get_image_model("art_gen", "ASD")
-    assert key == "flux-local"
-
-
-def test_get_effort_returns_none_when_unset_for_stage():
-    _make_set_dir("ASD")
-    # 'recommended' doesn't set effort for theme_extract.
-    assert ms.get_effort("theme_extract", "ASD") is None
-
-
-def test_get_effort_returns_value_when_set():
-    _make_set_dir("ASD")
-    assert ms.get_effort("card_gen", "ASD") == "max"
+def test_to_ui_dict_includes_new_blocks():
+    s = ms.ModelSettings(
+        set_params=ms.SetParams(set_name="Z", set_size=50),
+        break_points={"card_gen": "review"},
+    )
+    ui = s.to_ui_dict()
+    assert ui["set_params"] == {"set_name": "Z", "set_size": 50, "mechanic_count": 3}
+    assert ui["break_points"] == {"card_gen": "review"}
+    assert ui["theme_input"]["kind"] == "none"
 
 
 # ---------------------------------------------------------------------------
@@ -347,59 +246,6 @@ def test_from_preset_raises_for_unknown_name():
         ms.ModelSettings.from_preset("does-not-exist")
 
 
-# ---------------------------------------------------------------------------
-# set_params + theme_input + break_points (Project Settings tab)
-# ---------------------------------------------------------------------------
-
-
-def test_settings_round_trips_set_params_break_points():
-    """The new blocks survive a write+load cycle through TOML."""
-    s = ms.ModelSettings(
-        set_params=ms.SetParams(set_name="Test Set", set_size=80, mechanic_count=5),
-        break_points={"card_gen": "review", "balance": "review"},
-    )
-    path = ms.SETS_DIR / "ASD"
-    path.mkdir(parents=True, exist_ok=True)
-    s.write_toml(path / "settings.toml")
-
-    loaded = ms.ModelSettings.load_from_file(path / "settings.toml")
-    assert loaded.set_params.set_name == "Test Set"
-    assert loaded.set_params.set_size == 80
-    assert loaded.set_params.mechanic_count == 5
-    assert loaded.break_points == {"card_gen": "review", "balance": "review"}
-
-
-def test_settings_round_trips_theme_input():
-    s = ms.ModelSettings(
-        theme_input=ms.ThemeInputSource(
-            kind="pdf", filename="pitch.pdf", upload_id="abcd1234", char_count=12345
-        ),
-    )
-    path = ms.SETS_DIR / "ASD"
-    path.mkdir(parents=True, exist_ok=True)
-    s.write_toml(path / "settings.toml")
-
-    loaded = ms.ModelSettings.load_from_file(path / "settings.toml")
-    assert loaded.theme_input.kind == "pdf"
-    assert loaded.theme_input.filename == "pitch.pdf"
-    assert loaded.theme_input.upload_id == "abcd1234"
-    assert loaded.theme_input.char_count == 12345
-
-
-def test_default_theme_input_is_omitted_from_toml():
-    """``kind == "none"`` is the bootstrap state; don't write it."""
-    import tomllib
-
-    s = ms.ModelSettings()
-    path = ms.SETS_DIR / "ASD"
-    path.mkdir(parents=True, exist_ok=True)
-    s.write_toml(path / "settings.toml")
-
-    with open(path / "settings.toml", "rb") as f:
-        data = tomllib.load(f)
-    assert "theme_input" not in data
-
-
 def test_save_profile_strips_set_params_and_theme_input():
     """Profiles are reusable templates — per-set values must not leak in."""
     s = ms.ModelSettings(
@@ -419,106 +265,42 @@ def test_save_profile_strips_set_params_and_theme_input():
     assert data.get("break_points") == {"card_gen": "review"}
 
 
-def test_seed_migrates_set_params_from_theme_json():
-    """A pre-Project-Settings set with name/set_size/mechanic_count in
-    theme.json gets those lifted into settings.toml on first seed."""
-    import json
-
-    set_dir = _make_set_dir("ASD")
-    (set_dir / "theme.json").write_text(
-        json.dumps({"code": "ASD", "name": "Anomalous", "set_size": 75, "mechanic_count": 4}),
-        encoding="utf-8",
-    )
-
-    settings = ms.get_settings("ASD")
-    assert settings.set_params.set_name == "Anomalous"
-    assert settings.set_params.set_size == 75
-    assert settings.set_params.mechanic_count == 4
-    # Existing theme.json => theme_input.kind defaults to "existing" so
-    # the Start button on Project Settings doesn't sit disabled forever.
-    assert settings.theme_input.kind == "existing"
+# ---------------------------------------------------------------------------
+# .mtg project file (dump / parse)
+# ---------------------------------------------------------------------------
 
 
-def test_seed_without_theme_json_leaves_set_params_default():
-    _make_set_dir("ASD")
-    settings = ms.get_settings("ASD")
-    assert settings.set_params.set_name == ""
-    assert settings.set_params.set_size == 60
-    assert settings.theme_input.kind == "none"
-
-
-def test_existing_settings_toml_migrates_on_load_when_set_params_default():
-    """Pre-Project-Settings settings.toml + a populated theme.json get
-    name/set_size/mechanic_count lifted on first get_settings() call."""
-    import json
-
-    set_dir = _make_set_dir("ASD")
-    # Write a "legacy" settings.toml without the new blocks.
-    legacy = ms.ModelSettings(
+def test_dump_and_parse_project_toml_round_trip():
+    settings = ms.ModelSettings(
         llm_assignments={"card_gen": "haiku"},
-        image_assignments={"art_gen": "flux-local"},
-        effort_overrides={},
+        set_params=ms.SetParams(set_name="Test", set_size=120, mechanic_count=4),
+        asset_folder="D:/projects/test",
     )
-    legacy.write_toml(set_dir / "settings.toml")
-    # Force load_from_file to look pre-Project-Settings (defaults).
-    (set_dir / "theme.json").write_text(
-        json.dumps({"code": "ASD", "name": "Avoria", "set_size": 80, "mechanic_count": 4}),
-        encoding="utf-8",
-    )
+    text = ms.dump_project_toml("XYZ", settings)
+    set_code, parsed = ms.parse_project_toml(text)
 
-    settings = ms.get_settings("ASD")
-    assert settings.set_params.set_name == "Avoria"
-    assert settings.set_params.set_size == 80
-    assert settings.set_params.mechanic_count == 4
-    # Migration was persisted: re-read from disk independently.
-    reloaded = ms.ModelSettings.load_from_file(set_dir / "settings.toml")
-    assert reloaded.set_params.set_name == "Avoria"
+    assert set_code == "XYZ"
+    assert parsed.llm_assignments["card_gen"] == "haiku"
+    assert parsed.set_params.set_name == "Test"
+    assert parsed.asset_folder == "D:/projects/test"
 
 
-def test_existing_settings_toml_no_migration_loop_when_theme_absent():
-    """A pre-Project-Settings settings.toml + no theme.json must not
-    rewrite the file on every load (no fields would change)."""
-    import time
-
-    set_dir = _make_set_dir("ASD")
-    legacy = ms.ModelSettings(
-        llm_assignments={"card_gen": "haiku"},
-        image_assignments={"art_gen": "flux-local"},
-        effort_overrides={},
-    )
-    legacy.write_toml(set_dir / "settings.toml")
-    mtime_before = (set_dir / "settings.toml").stat().st_mtime_ns
-
-    ms.get_settings("ASD")
-    ms.invalidate_cache()
-    time.sleep(0.01)
-    ms.get_settings("ASD")
-
-    mtime_after = (set_dir / "settings.toml").stat().st_mtime_ns
-    assert mtime_after == mtime_before, "migration should not rewrite when nothing changes"
+def test_parse_project_toml_rejects_empty_set_code():
+    text = """mtg_file_version = 1
+set_code = ""
+"""
+    with pytest.raises(ValueError):
+        ms.parse_project_toml(text)
 
 
-def test_seed_ignores_non_int_set_size_in_theme_json():
-    """A typo'd set_size ("60" as string) must not coerce — leave default."""
-    import json
-
-    set_dir = _make_set_dir("ASD")
-    (set_dir / "theme.json").write_text(
-        json.dumps({"name": "X", "set_size": "60"}),
-        encoding="utf-8",
-    )
-
-    settings = ms.get_settings("ASD")
-    assert settings.set_params.set_name == "X"
-    assert settings.set_params.set_size == 60  # default, not coerced "60"
+def test_parse_project_toml_rejects_future_version():
+    text = """mtg_file_version = 99
+set_code = "ABC"
+"""
+    with pytest.raises(ValueError):
+        ms.parse_project_toml(text)
 
 
-def test_to_ui_dict_includes_new_blocks():
-    s = ms.ModelSettings(
-        set_params=ms.SetParams(set_name="Z", set_size=50),
-        break_points={"card_gen": "review"},
-    )
-    ui = s.to_ui_dict()
-    assert ui["set_params"] == {"set_name": "Z", "set_size": 50, "mechanic_count": 3}
-    assert ui["break_points"] == {"card_gen": "review"}
-    assert ui["theme_input"]["kind"] == "none"
+def test_dump_project_toml_rejects_empty_set_code():
+    with pytest.raises(ValueError):
+        ms.dump_project_toml("", ms.ModelSettings())

@@ -15,23 +15,17 @@ from mtgai.models.set import DraftArchetype, Set, SetSkeleton
 def isolated_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Redirect every output-touching module at a tmp tree.
 
-    Many modules capture ``OUTPUT_ROOT`` / ``SETS_ROOT`` at import time
-    (the resolution chain ``set_artifact_dir`` walks AND every
-    independent stage runner / server module that derives a path from
-    them). Patching only one breaks subtly: a test seeds files in
-    tmp_path but the request handler reads from the developer's real
-    ``output/sets/`` because *its* OUTPUT_ROOT was never patched.
+    Tests that touch profile / global-settings disk paths or that need
+    a clean active-project pointer between runs declare this fixture.
+    Patches the ``OUTPUT_ROOT`` / ``SETTINGS_DIR`` / ``GLOBAL_TOML`` /
+    ``LEGACY_CURRENT_TOML`` constants on the modules that captured them
+    at import time, then yields the ``tmp_path / "sets"`` root for any
+    fixture that wants to seed per-project artifacts directly.
 
-    This fixture patches the full set so any test that just wants
-    "isolation from the real output dir" can declare ``isolated_output``
-    and stop guessing which constants matter. The model_settings cache
-    is invalidated so each test sees a fresh seed.
-
-    Yields the ``tmp_path / "sets"`` root so test fixtures can keep
-    seeding ``sets_root / code / "theme.json"`` etc. directly.
+    The active-project pointer is cleared before + after the test so
+    cross-test bleed (the in-memory pointer outlives a single test
+    function) doesn't leak.
     """
-    from mtgai.io import asset_paths
-    from mtgai.pipeline import engine
     from mtgai.pipeline import server as pipeline_server
     from mtgai.runtime import active_project, runtime_state
     from mtgai.settings import model_settings as ms
@@ -41,34 +35,18 @@ def isolated_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator
     sets_root.mkdir(parents=True, exist_ok=True)
     settings_dir.mkdir(parents=True, exist_ok=True)
 
-    # Resolution chain: asset_paths is what set_artifact_dir consults.
-    monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
     monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(ms, "SETS_DIR", sets_root)
     monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
     monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
 
-    # Modules that hold their own legacy OUTPUT_ROOT/SETS_ROOT bindings.
-    # Any of these can leak into real output/sets/ if missed (server's
-    # _get_current_state was the canary for this whole class of bug).
-    # ``stages.py`` no longer carries an OUTPUT_ROOT — it reads via
-    # ``set_artifact_dir`` which already consults the active project.
-    monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(pipeline_server, "OUTPUT_ROOT", tmp_path)
+    # Module-level OUTPUT_ROOT bindings that callers still consult.
+    monkeypatch.setattr(pipeline_server, "OUTPUT_ROOT", tmp_path, raising=False)
     monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(active_project, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_project, "SETS_ROOT", sets_root)
 
-    # Each test starts with no project loaded; the in-memory pointer
-    # would otherwise leak across tests in the same process.
-    active_project.clear_active_set()
-    ms.invalidate_cache()
+    active_project.clear_active_project()
     yield sets_root
-    active_project.clear_active_set()
-    ms.invalidate_cache()
+    active_project.clear_active_project()
 
 
 @pytest.fixture

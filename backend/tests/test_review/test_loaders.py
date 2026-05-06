@@ -292,7 +292,6 @@ class TestLoadCardsRaw:
         opens a project with the tmp set dir as its asset folder so
         the cards/ directory is reachable.
         """
-        from mtgai.io import asset_paths
         from mtgai.runtime import active_project
         from mtgai.settings import model_settings as ms
 
@@ -306,23 +305,20 @@ class TestLoadCardsRaw:
         cards_dir.mkdir(parents=True)
         card = _make_card(name="Test", collector_number="T-01")
         _write_card_json(cards_dir, card)
-
-        monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
-        monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
         monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
         monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
-        monkeypatch.setattr(ms, "SETS_DIR", sets_root)
         monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
         monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
-        ms.invalidate_cache()
-        active_project.clear_active_set()
+        active_project.clear_active_project()
         try:
-            ms.apply_settings("TST", ms.ModelSettings(asset_folder=str(asset_dir)))
-            active_project.write_active_set("TST")
+            active_project.write_active_project(
+                active_project.ProjectState(
+                    set_code="TST", settings=ms.ModelSettings(asset_folder=str(asset_dir))
+                )
+            )
             result = load_cards_raw("TST")
         finally:
-            active_project.clear_active_set()
-            ms.invalidate_cache()
+            active_project.clear_active_project()
         assert len(result) == 1
         assert isinstance(result[0], dict)
         assert result[0]["name"] == "Test"

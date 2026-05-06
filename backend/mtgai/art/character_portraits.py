@@ -387,11 +387,20 @@ def main():
     parser = argparse.ArgumentParser(
         description="Generate character reference portraits via ComfyUI + Flux"
     )
-    parser.add_argument("--set", default="ASD", help="Set code (default: ASD)")
+    parser.add_argument(
+        "--mtg",
+        required=True,
+        help="Path to a .mtg project file (the project's asset_folder must be set)",
+    )
     parser.add_argument("--char", default=None, help="Single character key (e.g. feretha, koyl)")
     parser.add_argument("--dry-run", action="store_true", help="Log actions without generating")
     parser.add_argument("--force", action="store_true", help="Regenerate existing portraits")
     args = parser.parse_args()
+
+    # Pin the .mtg as the active project before any artifact-path helper runs.
+    from mtgai.runtime.cli_shim import activate_from_mtg
+
+    activate_from_mtg(args.mtg)
 
     # Log to both console AND file — if the process gets killed, the file survives.
     # Routed through set_artifact_dir so the log lands in the project's
@@ -417,16 +426,6 @@ def main():
     logger.info("Process PID: %d", os.getpid())
     logger.info("Log file: %s", log_file)
     logger.info("=" * 40)
-
-    # CLI shim: stamp the requested set as the active project so
-    # set_artifact_dir() resolves under output/sets/<CODE>/. Operators
-    # running this script directly need to ensure that asset_folder is
-    # configured (via the wizard, or by editing output/sets/<CODE>/
-    # settings.toml) — empty asset_folder will surface a NoAssetFolderError
-    # at the first stage helper that asks for an artifact path.
-    from mtgai.runtime.active_project import write_active_set
-
-    write_active_set(args.set)
     summary = generate_character_portraits(
         char_filter=args.char,
         dry_run=args.dry_run,

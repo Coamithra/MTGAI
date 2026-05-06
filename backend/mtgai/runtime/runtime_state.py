@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
 # `<repo>/output/...`. `runtime_state.py` lives at
 # `<repo>/backend/mtgai/runtime/`, so four parents up lands at the repo root.
 OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent.parent / "output"
-SETS_ROOT = OUTPUT_ROOT / "sets"
 
 
 def _resolve_active_set_code() -> str | None:
@@ -43,11 +42,12 @@ def _resolve_active_set_code() -> str | None:
     Project Settings tab stays gated until the user materialises a
     project).
     """
-    # Lazy import — active_project imports OUTPUT_ROOT/SETS_ROOT from this
-    # module, so importing at module top would create a cycle.
-    from mtgai.runtime.active_project import read_active_set
+    # Lazy import — active_project imports from this module's siblings
+    # via the top-level package, so deferring keeps boot order simple.
+    from mtgai.runtime.active_project import read_active_project
 
-    return read_active_set()
+    project = read_active_project()
+    return project.set_code if project is not None else None
 
 
 def _load_theme() -> dict | None:

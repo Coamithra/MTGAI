@@ -33,44 +33,22 @@ from mtgai.settings import model_settings as ms
 
 
 @pytest.fixture(autouse=True)
-def _reset(tmp_path, monkeypatch):
-    sets_root = tmp_path / "sets"
-    settings_dir = tmp_path / "settings"
-    sets_root.mkdir(parents=True)
-    settings_dir.mkdir(parents=True)
-
-    from mtgai.io import asset_paths
-    from mtgai.pipeline import engine
-    from mtgai.runtime import active_project, runtime_state
-
-    monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(pipeline_server, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_project, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_project, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
-
-    monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(ms, "SETS_DIR", sets_root)
-    monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
-    monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
-
-    active_project.clear_active_set()
-    ms.invalidate_cache()
+def _reset(isolated_output):
     ai_lock.reset_for_tests()
     extraction_run.reset()
     pipeline_server._engine = None
     pipeline_server._engine_task = None
     yield
-    active_project.clear_active_set()
-    ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()
     pipeline_server._engine = None
     pipeline_server._engine_task = None
+
+
+@pytest.fixture
+def sets_root(isolated_output):
+    """Yield the tmp ``sets`` root for tests that need a stable artifact dir."""
+    return isolated_output
 
 
 @pytest.fixture
@@ -105,19 +83,16 @@ def no_thread_start(monkeypatch):
 
 
 def _make_set(code: str) -> None:
-    """Materialise ``code`` as the active project at the legacy registry path.
+    """Pin ``code`` as the active project against an asset folder under the tmp tree."""
+    from mtgai.runtime import active_project
 
-    Tests routinely seed a set + immediately exercise endpoints; opening
-    the project here mirrors the production flow that materialise / open
-    runs so subsequent calls to :func:`set_artifact_dir` can resolve the
-    asset folder without bouncing on a 409.
-    """
-    from mtgai.runtime import active_project, runtime_state
-
-    set_dir = runtime_state.SETS_ROOT / code
+    set_dir = ms.OUTPUT_ROOT / "sets" / code
     set_dir.mkdir(parents=True, exist_ok=True)
-    ms.apply_settings(code, ms.ModelSettings(asset_folder=str(set_dir)))
-    active_project.write_active_set(code)
+    active_project.write_active_project(
+        active_project.ProjectState(
+            set_code=code, settings=ms.ModelSettings(asset_folder=str(set_dir))
+        )
+    )
 
 
 def _seed_state(code: str, *, overall_status: PipelineStatus) -> PipelineState:
@@ -137,7 +112,7 @@ def _seed_state(code: str, *, overall_status: PipelineStatus) -> PipelineState:
 
 def test_build_config_uses_set_params_and_break_points():
     _make_set("ASD")
-    settings = ms.get_settings("ASD")
+    settings = ms.get_active_settings()
     new = settings.model_copy(
         update={
             "set_params": settings.set_params.model_copy(
@@ -146,7 +121,7 @@ def test_build_config_uses_set_params_and_break_points():
             "break_points": {"card_gen": "review", "skeleton": "auto"},
         }
     )
-    ms.apply_settings("ASD", new)
+    ms.apply_settings(new)
 
     config = pipeline_server._build_pipeline_config_from_settings("ASD")
     assert config.set_code == "ASD"

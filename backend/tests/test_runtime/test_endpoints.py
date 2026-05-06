@@ -49,20 +49,22 @@ def test_runtime_state_idle(client, monkeypatch):
     assert data["theme"] is None
 
 
-def test_runtime_state_reflects_active_project(client):
+def test_runtime_state_reflects_active_project(client, isolated_output):
     """The active project drives the runtime payload (no query-param override)."""
-    from mtgai.runtime import active_project, runtime_state
-    from mtgai.settings.model_settings import ModelSettings, apply_settings
+    from mtgai.runtime import active_project
+    from mtgai.settings.model_settings import ModelSettings
 
-    sets_root = runtime_state.SETS_ROOT
-    asset_dir = sets_root / "ABC"
+    asset_dir = isolated_output / "ABC"
     asset_dir.mkdir()
     (asset_dir / "theme.json").write_text(
         json.dumps({"code": "ABC", "name": "Test"}),
         encoding="utf-8",
     )
-    apply_settings("ABC", ModelSettings(asset_folder=str(asset_dir)))
-    active_project.write_active_set("ABC")
+    active_project.write_active_project(
+        active_project.ProjectState(
+            set_code="ABC", settings=ModelSettings(asset_folder=str(asset_dir))
+        )
+    )
 
     resp = client.get("/api/runtime/state")
     assert resp.status_code == 200
@@ -97,33 +99,39 @@ def test_theme_load_404_when_missing(client):
     assert resp.json()["code"] == "no_active_project"
 
 
-def test_theme_load_404_when_project_open_but_file_missing(client):
+def test_theme_load_404_when_project_open_but_file_missing(client, isolated_output):
     """Project open but theme.json missing → 404."""
-    from mtgai.runtime import active_project, runtime_state
-    from mtgai.settings.model_settings import ModelSettings, apply_settings
+    from mtgai.runtime import active_project
+    from mtgai.settings.model_settings import ModelSettings
 
-    asset_dir = runtime_state.SETS_ROOT / "TST"
+    asset_dir = isolated_output / "TST"
     asset_dir.mkdir(parents=True, exist_ok=True)
-    apply_settings("TST", ModelSettings(asset_folder=str(asset_dir)))
-    active_project.write_active_set("TST")
+    active_project.write_active_project(
+        active_project.ProjectState(
+            set_code="TST", settings=ModelSettings(asset_folder=str(asset_dir))
+        )
+    )
 
     resp = client.get("/api/pipeline/theme/load?set_code=TST")
     assert resp.status_code == 404
 
 
-def test_theme_load_returns_json(client):
+def test_theme_load_returns_json(client, isolated_output):
     """A saved theme.json round-trips through /api/pipeline/theme/load."""
-    from mtgai.runtime import active_project, runtime_state
-    from mtgai.settings.model_settings import ModelSettings, apply_settings
+    from mtgai.runtime import active_project
+    from mtgai.settings.model_settings import ModelSettings
 
-    asset_dir = runtime_state.SETS_ROOT / "TST"
+    asset_dir = isolated_output / "TST"
     asset_dir.mkdir(parents=True, exist_ok=True)
     (asset_dir / "theme.json").write_text(
         json.dumps({"code": "TST", "name": "Test", "constraints": []}),
         encoding="utf-8",
     )
-    apply_settings("TST", ModelSettings(asset_folder=str(asset_dir)))
-    active_project.write_active_set("TST")
+    active_project.write_active_project(
+        active_project.ProjectState(
+            set_code="TST", settings=ModelSettings(asset_folder=str(asset_dir))
+        )
+    )
 
     resp = client.get("/api/pipeline/theme/load?set_code=TST")
     assert resp.status_code == 200

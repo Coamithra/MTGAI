@@ -18,9 +18,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
-SETS_ROOT = OUTPUT_ROOT / "sets"
-
 
 class NoAssetFolderError(RuntimeError):
     """No asset folder is configured.

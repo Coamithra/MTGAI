@@ -2,57 +2,26 @@
 
 Covers the eight ``/api/wizard/project*`` routes the kickoff tab calls
 on first paint and on every form change. Underlying ``ModelSettings``
-schema and migration logic is unit-tested in
-``test_settings/test_per_set_settings.py``; these tests pin the FastAPI
-contract — payload shape, status codes, and the cascade-clear gate.
+schema is unit-tested in ``test_settings/test_per_set_settings.py``;
+these tests pin the FastAPI contract — payload shape, status codes, and
+the cascade-clear gate.
 """
 
 from __future__ import annotations
-
-import json
 
 import pytest
 from fastapi.testclient import TestClient
 
 from mtgai.review.server import app
-from mtgai.runtime import ai_lock, extraction_run
+from mtgai.runtime import active_project, ai_lock, extraction_run
 from mtgai.settings import model_settings as ms
 
 
 @pytest.fixture(autouse=True)
-def _reset(tmp_path, monkeypatch):
-    sets_root = tmp_path / "sets"
-    settings_dir = tmp_path / "settings"
-    sets_root.mkdir(parents=True)
-    settings_dir.mkdir(parents=True)
-
-    from mtgai.io import asset_paths
-    from mtgai.pipeline import engine
-    from mtgai.pipeline import server as pipeline_server
-    from mtgai.runtime import active_project, runtime_state
-
-    monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(pipeline_server, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_project, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_project, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
-
-    monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(ms, "SETS_DIR", sets_root)
-    monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
-    monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
-
-    active_project.clear_active_set()
-    ms.invalidate_cache()
+def _reset(isolated_output):
     ai_lock.reset_for_tests()
     extraction_run.reset()
     yield
-    active_project.clear_active_set()
-    ms.invalidate_cache()
     ai_lock.reset_for_tests()
     extraction_run.reset()
 
@@ -62,25 +31,36 @@ def client():
     return TestClient(app)
 
 
-def _make_set(code: str, *, theme: dict | None = None) -> None:
-    """Materialise ``code`` as the active project at the legacy registry path.
+def _open_project(
+    code: str,
+    *,
+    asset_dir=None,
+    set_params: ms.SetParams | None = None,
+    theme_input: ms.ThemeInputSource | None = None,
+) -> None:
+    """Pin ``code`` as the active project with the given settings overrides.
 
-    Writing theme.json before any settings access lets the seed-time
-    migration in ``get_settings`` lift name / set_size / mechanic_count
-    out of theme.json (the pre-Project-Settings layout). The asset
-    folder is layered on top so endpoints can resolve via
-    ``set_artifact_dir``.
+    By default seeds an asset_folder so the wizard cascade-clear gate
+    can resolve ``set_artifact_dir`` for ``pipeline-state.json``-checks.
+    Tests that need a missing asset_folder pass ``asset_dir=""``.
     """
-    from mtgai.runtime import active_project, runtime_state
+    settings = ms.ModelSettings.from_preset("recommended")
+    if set_params is not None:
+        settings = settings.model_copy(update={"set_params": set_params})
+    if theme_input is not None:
+        settings = settings.model_copy(update={"theme_input": theme_input})
+    if asset_dir is None:
+        # Default asset folder under the patched OUTPUT_ROOT so endpoints can
+        # resolve set_artifact_dir without bouncing on a 409.
+        asset_dir = ms.OUTPUT_ROOT / "sets" / code
+    if asset_dir != "":
+        from pathlib import Path
 
-    set_dir = runtime_state.SETS_ROOT / code
-    set_dir.mkdir(parents=True, exist_ok=True)
-    if theme is not None:
-        (set_dir / "theme.json").write_text(json.dumps(theme), encoding="utf-8")
-    settings = ms.get_settings(code)  # triggers seed + migration if applicable
-    settings = settings.model_copy(update={"asset_folder": str(set_dir)})
-    ms.apply_settings(code, settings)
-    active_project.write_active_set(code)
+        Path(asset_dir).mkdir(parents=True, exist_ok=True)
+        settings = settings.model_copy(update={"asset_folder": str(asset_dir)})
+    active_project.write_active_project(
+        active_project.ProjectState(set_code=code, settings=settings)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +69,7 @@ def _make_set(code: str, *, theme: dict | None = None) -> None:
 
 
 def test_get_project_payload_shape(client):
-    _make_set("ASD")
+    _open_project("ASD")
     resp = client.get("/api/wizard/project?set_code=ASD")
     assert resp.status_code == 200
     data = resp.json()
@@ -111,22 +91,6 @@ def test_get_project_payload_shape(client):
     assert data["extraction_active"] is False
 
 
-def test_get_project_payload_picks_up_theme_json_migration(client):
-    """A pre-Project-Settings set with name/set_size in theme.json
-    surfaces those values in set_params via the seed-time migration."""
-    _make_set(
-        "ASD",
-        theme={"code": "ASD", "name": "Anomalous", "set_size": 80, "mechanic_count": 5},
-    )
-    resp = client.get("/api/wizard/project?set_code=ASD")
-    data = resp.json()
-    assert data["set_params"]["set_name"] == "Anomalous"
-    assert data["set_params"]["set_size"] == 80
-    assert data["set_params"]["mechanic_count"] == 5
-    # Existing theme.json => "existing" so Start is enabled.
-    assert data["theme_input"]["kind"] == "existing"
-
-
 def test_get_project_payload_409_when_no_project_open(client):
     """Endpoint reads from the active project — 409 ``no_active_project`` when none is open.
 
@@ -145,19 +109,19 @@ def test_get_project_payload_409_when_no_project_open(client):
 
 
 def test_save_params_live_applies_name_and_mechanic_count(client):
-    _make_set("ASD")
+    _open_project("ASD")
     resp = client.post(
         "/api/wizard/project/params",
         json={"set_code": "ASD", "set_name": "Avoria", "mechanic_count": 4},
     )
     assert resp.status_code == 200
-    settings = ms.get_settings("ASD")
+    settings = active_project.require_active_project().settings
     assert settings.set_params.set_name == "Avoria"
     assert settings.set_params.mechanic_count == 4
 
 
 def test_save_params_rejects_negative_mechanic_count(client):
-    _make_set("ASD")
+    _open_project("ASD")
     resp = client.post(
         "/api/wizard/project/params",
         json={"set_code": "ASD", "mechanic_count": -1},
@@ -165,11 +129,13 @@ def test_save_params_rejects_negative_mechanic_count(client):
     assert resp.status_code == 400
 
 
-def test_save_params_blocks_set_size_change_post_pipeline(client, tmp_path):
+def test_save_params_blocks_set_size_change_post_pipeline(client):
     """set_size lives behind the cascade-clear gate once a pipeline-state.json exists."""
-    _make_set("ASD")
-    # Simulate "pipeline started" by writing a stub state file.
-    (tmp_path / "sets" / "ASD" / "pipeline-state.json").write_text("{}", encoding="utf-8")
+    _open_project("ASD")
+    asset_dir = active_project.require_active_project().settings.asset_folder
+    from pathlib import Path
+
+    (Path(asset_dir) / "pipeline-state.json").write_text("{}", encoding="utf-8")
 
     resp = client.post(
         "/api/wizard/project/params",
@@ -190,7 +156,7 @@ def test_save_params_blocks_set_size_change_post_pipeline(client, tmp_path):
 
 
 def test_save_theme_input_pdf(client):
-    _make_set("ASD")
+    _open_project("ASD")
     resp = client.post(
         "/api/wizard/project/theme-input",
         json={
@@ -202,15 +168,18 @@ def test_save_theme_input_pdf(client):
         },
     )
     assert resp.status_code == 200
-    ti = ms.get_settings("ASD").theme_input
+    ti = active_project.require_active_project().settings.theme_input
     assert ti.kind == "pdf"
     assert ti.upload_id == "abcd1234"
     assert ti.uploaded_at is not None  # server stamps this
 
 
-def test_save_theme_input_blocks_kind_change_post_pipeline(client, tmp_path):
-    _make_set("ASD")
-    (tmp_path / "sets" / "ASD" / "pipeline-state.json").write_text("{}", encoding="utf-8")
+def test_save_theme_input_blocks_kind_change_post_pipeline(client):
+    _open_project("ASD")
+    asset_dir = active_project.require_active_project().settings.asset_folder
+    from pathlib import Path
+
+    (Path(asset_dir) / "pipeline-state.json").write_text("{}", encoding="utf-8")
     # First commit: existing — works (matches seeded default).
     client.post(
         "/api/wizard/project/theme-input",
@@ -230,30 +199,32 @@ def test_save_theme_input_blocks_kind_change_post_pipeline(client, tmp_path):
 
 
 def test_save_break_toggles_on_and_off(client):
-    _make_set("ASD")
+    _open_project("ASD")
     resp_on = client.post(
         "/api/wizard/project/breaks",
         json={"set_code": "ASD", "stage_id": "card_gen", "review": True},
     )
     assert resp_on.status_code == 200
-    assert ms.get_settings("ASD").break_points == {"card_gen": "review"}
+    assert active_project.require_active_project().settings.break_points == {"card_gen": "review"}
 
     resp_off = client.post(
         "/api/wizard/project/breaks",
         json={"set_code": "ASD", "stage_id": "card_gen", "review": False},
     )
     assert resp_off.status_code == 200
-    assert ms.get_settings("ASD").break_points == {}
+    assert active_project.require_active_project().settings.break_points == {}
 
 
 def test_save_break_human_review_stage_can_be_unchecked(client):
-    _make_set("ASD")
+    _open_project("ASD")
     resp = client.post(
         "/api/wizard/project/breaks",
         json={"set_code": "ASD", "stage_id": "human_card_review", "review": False},
     )
     assert resp.status_code == 200
-    assert ms.get_settings("ASD").break_points["human_card_review"] == "auto"
+    assert (
+        active_project.require_active_project().settings.break_points["human_card_review"] == "auto"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -262,25 +233,27 @@ def test_save_break_human_review_stage_can_be_unchecked(client):
 
 
 def test_save_model_llm(client):
-    _make_set("ASD")
+    _open_project("ASD")
     resp = client.post(
         "/api/wizard/project/models",
         json={"set_code": "ASD", "kind": "llm", "stage_id": "card_gen", "value": "haiku"},
     )
     assert resp.status_code == 200
-    assert ms.get_settings("ASD").llm_assignments["card_gen"] == "haiku"
+    assert active_project.require_active_project().settings.llm_assignments["card_gen"] == "haiku"
 
 
 def test_save_model_effort_clears_on_empty_value(client):
-    _make_set("ASD")
+    _open_project("ASD")
     # Default has card_gen effort = max
-    assert ms.get_settings("ASD").effort_overrides.get("card_gen") == "max"
+    assert (
+        active_project.require_active_project().settings.effort_overrides.get("card_gen") == "max"
+    )
     resp = client.post(
         "/api/wizard/project/models",
         json={"set_code": "ASD", "kind": "effort", "stage_id": "card_gen", "value": ""},
     )
     assert resp.status_code == 200
-    assert "card_gen" not in ms.get_settings("ASD").effort_overrides
+    assert "card_gen" not in active_project.require_active_project().settings.effort_overrides
 
 
 # ---------------------------------------------------------------------------
@@ -291,23 +264,18 @@ def test_save_model_effort_clears_on_empty_value(client):
 def test_apply_preset_replaces_models_and_breaks_only(client):
     """Built-in presets travel with model + break-point changes; per-set
     set_params and theme_input are kept."""
-    _make_set("ASD")
-    # Pre-seed set_params + theme_input.
-    settings = ms.get_settings("ASD")
-    settings = settings.model_copy(
-        update={
-            "set_params": ms.SetParams(set_name="MySet", set_size=80),
-            "theme_input": ms.ThemeInputSource(kind="pdf", filename="x.pdf"),
-        }
+    _open_project(
+        "ASD",
+        set_params=ms.SetParams(set_name="MySet", set_size=80),
+        theme_input=ms.ThemeInputSource(kind="pdf", filename="x.pdf"),
     )
-    ms.apply_settings("ASD", settings)
 
     resp = client.post(
         "/api/wizard/project/preset/apply",
         json={"set_code": "ASD", "name": "all-haiku"},
     )
     assert resp.status_code == 200
-    after = ms.get_settings("ASD")
+    after = active_project.require_active_project().settings
     # Models swapped.
     assert after.llm_assignments["card_gen"] == "haiku"
     # Per-set fields preserved.
@@ -316,7 +284,7 @@ def test_apply_preset_replaces_models_and_breaks_only(client):
 
 
 def test_apply_preset_rejects_unknown_name(client):
-    _make_set("ASD")
+    _open_project("ASD")
     resp = client.post(
         "/api/wizard/project/preset/apply",
         json={"set_code": "ASD", "name": "does-not-exist"},
@@ -325,16 +293,14 @@ def test_apply_preset_rejects_unknown_name(client):
 
 
 def test_save_profile_excludes_set_params_and_theme_input(client):
-    _make_set("ASD")
-    settings = ms.get_settings("ASD")
-    settings = settings.model_copy(
-        update={
-            "set_params": ms.SetParams(set_name="MySet", set_size=80),
-            "theme_input": ms.ThemeInputSource(kind="pdf", filename="x.pdf"),
-            "break_points": {"card_gen": "review"},
-        }
+    _open_project(
+        "ASD",
+        set_params=ms.SetParams(set_name="MySet", set_size=80),
+        theme_input=ms.ThemeInputSource(kind="pdf", filename="x.pdf"),
     )
-    ms.apply_settings("ASD", settings)
+    # Layer break_points on top after open.
+    settings = active_project.require_active_project().settings
+    ms.apply_settings(settings.model_copy(update={"break_points": {"card_gen": "review"}}))
 
     resp = client.post(
         "/api/wizard/project/preset/save",
@@ -357,17 +323,14 @@ def test_save_profile_excludes_set_params_and_theme_input(client):
 
 
 def test_start_with_no_input_returns_400(client):
-    _make_set("ASD")
+    _open_project("ASD")
     resp = client.post("/api/wizard/project/start", json={"set_code": "ASD"})
     assert resp.status_code == 400
 
 
 def test_start_with_existing_skips_extraction(client):
     """kind=existing already has theme.json on disk — Start just navigates."""
-    _make_set(
-        "ASD",
-        theme={"code": "ASD", "name": "X"},  # triggers seed-time migration to "existing"
-    )
+    _open_project("ASD", theme_input=ms.ThemeInputSource(kind="existing"))
     resp = client.post("/api/wizard/project/start", json={"set_code": "ASD"})
     assert resp.status_code == 200
     body = resp.json()
@@ -377,7 +340,7 @@ def test_start_with_existing_skips_extraction(client):
 
 def test_start_with_pdf_needs_live_upload(client):
     """If theme_input.upload_id has expired from cache, return 410."""
-    _make_set("ASD")
+    _open_project("ASD")
     # Save a theme-input pointing at a non-existent upload_id.
     client.post(
         "/api/wizard/project/theme-input",

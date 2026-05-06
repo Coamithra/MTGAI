@@ -25,19 +25,20 @@ def fake_output_root(tmp_path: Path, isolated_output: Path) -> Path:
 
 
 def _open_test_project(code: str, asset_dir: Path) -> None:
-    """Pin ``code`` as the active project with the legacy registry path as its asset folder.
+    """Pin ``code`` as the active project with ``asset_dir`` as its asset folder.
 
     Stage clearers route through ``set_artifact_dir`` → reads from the
-    active project. Tests that pre-date this refactor seeded files at
-    ``output/sets/<CODE>/`` and called the clearers directly; opening
-    the project with that path as the asset folder preserves the same
-    layout under the new resolution model.
+    active project. Pinning the asset folder is enough; settings.toml
+    no longer lives at ``output/sets/<CODE>/``.
     """
     from mtgai.runtime import active_project
-    from mtgai.settings.model_settings import ModelSettings, apply_settings
+    from mtgai.settings.model_settings import ModelSettings
 
-    apply_settings(code, ModelSettings(asset_folder=str(asset_dir)))
-    active_project.write_active_set(code)
+    active_project.write_active_project(
+        active_project.ProjectState(
+            set_code=code, settings=ModelSettings(asset_folder=str(asset_dir))
+        )
+    )
 
 
 def test_every_stage_has_a_clearer() -> None:

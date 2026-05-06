@@ -30,8 +30,6 @@ from mtgai.pipeline.stages import STAGE_RUNNERS, StageResult
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
-
 
 def _state_path() -> Path:
     """Where ``pipeline-state.json`` lives for the active project.
@@ -68,67 +66,60 @@ def load_state() -> PipelineState | None:
 
 
 def cleanup_orphan_running_stages() -> list[str]:
-    """Demote any persisted ``RUNNING`` stage to ``FAILED``.
+    """Demote any persisted ``RUNNING`` stage to ``FAILED`` for the active project.
 
-    Called on server boot, before any engine is constructed and before
-    any project has been loaded — so this scan can't go through
-    :func:`set_artifact_dir` (which requires an active project). Walks
-    the legacy on-disk registry under ``output/sets/<CODE>/`` instead;
-    that's where ``pipeline-state.json`` for a project landed when the
-    user hadn't configured an ``asset_folder`` yet. Pipeline states
-    written under a custom asset folder won't be reached on boot —
-    they'll be picked up the next time the user opens that project and
-    a runner re-touches the file.
+    Called from ``/api/project/{open,materialize}`` once the
+    active-project pointer is set, so :func:`set_artifact_dir` resolves
+    cleanly. Reads the freshly-opened project's ``pipeline-state.json``,
+    flips any ``RUNNING`` stage left over from a crashed prior process
+    to ``FAILED``, and writes the file back. Returns a list of
+    ``"<set_code>:<stage_id>"`` strings that were demoted, mainly for
+    logging.
 
-    Returns a list of ``"<set_code>:<stage_id>"`` strings that were
-    demoted, mainly for logging.
+    Returns ``[]`` when no project is open, no ``asset_folder`` is set,
+    or no ``pipeline-state.json`` exists yet — none of those are error
+    states.
     """
-    from mtgai.runtime.active_project import SET_CODE_RE
+    from mtgai.io.asset_paths import NoAssetFolderError
 
-    sets_root = OUTPUT_ROOT / "sets"
-    if not sets_root.exists():
+    try:
+        state_path = _state_path()
+    except NoAssetFolderError:
+        return []
+    if not state_path.exists():
+        return []
+
+    try:
+        state = PipelineState.model_validate_json(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception("cleanup_orphan_running_stages: failed to load %s", state_path)
         return []
 
     demoted: list[str] = []
     now = datetime.now(UTC)
-    for child in sorted(sets_root.iterdir()):
-        # Mirror iter_known_set_codes' shape filter so a stray scratch
-        # dir under output/sets/ can't materialise a state rewrite.
-        if not child.is_dir() or not SET_CODE_RE.fullmatch(child.name):
-            continue
-        state_path = child / "pipeline-state.json"
-        if not state_path.exists():
-            continue
-
-        try:
-            state = PipelineState.model_validate_json(state_path.read_text(encoding="utf-8"))
-        except Exception:
-            logger.exception("cleanup_orphan_running_stages: failed to load %s", state_path)
-            continue
-
-        changed = False
-        for stage in state.stages:
-            if stage.status == StageStatus.RUNNING:
-                stage.status = StageStatus.FAILED
-                stage.progress.error_message = "Interrupted — server restart"
-                stage.progress.finished_at = now
-                demoted.append(f"{state.config.set_code}:{stage.stage_id}")
-                changed = True
-
-        if state.overall_status == PipelineStatus.RUNNING:
-            state.overall_status = PipelineStatus.FAILED
+    changed = False
+    for stage in state.stages:
+        if stage.status == StageStatus.RUNNING:
+            stage.status = StageStatus.FAILED
+            stage.progress.error_message = "Interrupted — server restart"
+            stage.progress.finished_at = now
+            demoted.append(f"{state.config.set_code}:{stage.stage_id}")
             changed = True
 
-        if changed:
-            state.updated_at = now
-            state_path.write_text(
-                json.dumps(state.model_dump(mode="json"), indent=2, default=str),
-                encoding="utf-8",
-            )
+    if state.overall_status == PipelineStatus.RUNNING:
+        state.overall_status = PipelineStatus.FAILED
+        changed = True
+
+    if changed:
+        state.updated_at = now
+        state_path.write_text(
+            json.dumps(state.model_dump(mode="json"), indent=2, default=str),
+            encoding="utf-8",
+        )
 
     if demoted:
         logger.warning(
-            "Demoted %d orphan RUNNING stage(s) on boot: %s",
+            "Demoted %d orphan RUNNING stage(s) on project open: %s",
             len(demoted),
             ", ".join(demoted),
         )

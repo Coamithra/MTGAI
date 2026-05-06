@@ -423,7 +423,6 @@ def _llm_select_reprints(
     pool: list[ReprintCandidate],
     set_config: dict,
     count: int,
-    set_code: str | None = None,
 ) -> list[SelectionPair]:
     """Use Haiku to select the best reprints from pre-filtered candidates.
 
@@ -493,13 +492,13 @@ def _llm_select_reprints(
     )
 
     try:
-        from mtgai.settings.model_settings import get_llm_model
+        from mtgai.runtime.active_project import require_active_project
 
         response = generate_with_tool(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             tool_schema=tool_schema,
-            model=get_llm_model("reprints", set_code or set_config["code"]),
+            model=require_active_project().settings.get_llm_model_id("reprints"),
             temperature=0.0,
             max_tokens=2048,
         )
@@ -597,7 +596,7 @@ def select_reprints(
     slots = identify_reprint_slots(skeleton_path)
 
     # LLM selection
-    selections = _llm_select_reprints(slots, pool, set_config, count, set_code=set_code)
+    selections = _llm_select_reprints(slots, pool, set_config, count)
 
     result = ReprintSelection(
         set_code=set_code,

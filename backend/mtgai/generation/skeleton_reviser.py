@@ -1071,9 +1071,9 @@ if __name__ == "__main__":
         help="Maximum revision rounds (default: 2)",
     )
     parser.add_argument(
-        "--set",
-        default=DEFAULT_SET_CODE,
-        help=f"Set code (default: {DEFAULT_SET_CODE})",
+        "--mtg",
+        required=True,
+        help="Path to a .mtg project file (the project's asset_folder must be set)",
     )
     parser.add_argument(
         "--model",
@@ -1088,15 +1088,9 @@ if __name__ == "__main__":
         datefmt="%H:%M:%S",
     )
 
-    # CLI shim: stamp the requested set as the active project so
-    # set_artifact_dir() resolves under output/sets/<CODE>/. Operators
-    # running this script directly need to ensure that asset_folder is
-    # configured (via the wizard, or by editing output/sets/<CODE>/
-    # settings.toml) — empty asset_folder will surface a NoAssetFolderError
-    # at the first stage helper that asks for an artifact path.
-    from mtgai.runtime.active_project import write_active_set
+    from mtgai.runtime.cli_shim import activate_from_mtg
 
-    write_active_set(args.set)
+    activate_from_mtg(args.mtg)
     run_revision(
         max_rounds=args.max_rounds,
         dry_run=args.dry_run,

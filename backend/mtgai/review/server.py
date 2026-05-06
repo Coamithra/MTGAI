@@ -86,7 +86,7 @@ def _get_set_code() -> str | None:
 
 @asynccontextmanager
 async def _lifespan(application: FastAPI) -> AsyncGenerator[None]:
-    """Boot tasks: clean up stale pipeline state.
+    """Boot lifecycle.
 
     The active-project pointer is in-memory and a fresh process boots
     with no project loaded — the user has to click New / Open to pick
@@ -95,14 +95,12 @@ async def _lifespan(application: FastAPI) -> AsyncGenerator[None]:
     at startup because we don't know which project to mount until one
     is opened; lazy mounting on first open is deferred to a follow-up
     once assets actually live in the asset folder.
+
+    Orphan-stage cleanup (pipeline-state.json with a leftover ``RUNNING``
+    stage from a crashed prior process) runs at project-open time
+    instead — see :func:`mtgai.pipeline.engine.cleanup_orphan_running_stages`
+    for the per-project demote pass.
     """
-    from mtgai.pipeline.engine import cleanup_orphan_running_stages
-
-    # Any pipeline-state.json with a RUNNING stage on disk was left
-    # there by a process that exited mid-stage. Demote those to
-    # FAILED so the wizard surfaces a Retry instead of a stuck spinner.
-    cleanup_orphan_running_stages()
-
     yield
 
 
@@ -343,7 +341,7 @@ async def apply_settings(request: Request) -> JSONResponse:
     body = await request.json()
     try:
         settings = ModelSettings(**body)
-        _apply(set_code, settings)
+        _apply(settings)
         return JSONResponse({"success": True, "set_code": set_code})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)

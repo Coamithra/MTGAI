@@ -30,19 +30,15 @@ def _isolate_settings_paths(tmp_path, monkeypatch):
     directly, so we patch the constants on the module.
     """
     settings_dir = tmp_path / "settings"
-    sets_dir = tmp_path / "sets"
     settings_dir.mkdir(parents=True)
-    sets_dir.mkdir(parents=True)
 
     monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(ms, "SETS_DIR", sets_dir)
     monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
     monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
-
-    ms.invalidate_cache()
+    monkeypatch.setattr(ms, "_global_cache", None, raising=False)
     yield
-    ms.invalidate_cache()
+    monkeypatch.setattr(ms, "_global_cache", None, raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +87,6 @@ class TestGlobalSettingsApi:
         assert resp.json()["success"] is True
 
         # Round-trip through GET.
-        ms.invalidate_cache()
         resp = client.get("/api/settings/global")
         assert resp.json()["default_preset"] == "all-haiku"
 

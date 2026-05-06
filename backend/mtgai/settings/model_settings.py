@@ -1,29 +1,23 @@
-"""Per-stage model assignments — per-set TOML files plus a small global file.
+"""Per-stage model assignments — in-memory state plus a small global file.
 
-Set codes are validated against the same shape used by the rest of the app
-(``[A-Z0-9]{2,5}``) so a typo can't silently poison the directory tree under
-``output/sets/``.
+The active project's :class:`ModelSettings` lives in process memory on the
+:class:`~mtgai.runtime.active_project.ProjectState` pointer; the .mtg file
+the user opens (managed via the browser File System Access API) is the
+persistent artifact. Server endpoints read + mutate the active project's
+settings via :func:`get_active_settings` / :func:`apply_settings`.
 
-Each set owns its own ``output/sets/<SET>/settings.toml`` (LLM/image/effort
-assignments). A separate ``output/settings/global.toml`` carries cross-set
-defaults — currently just the *default preset* used to seed new sets.
-
-Profiles (reusable assignment templates) live in ``output/settings/<name>.toml``;
-the legacy ``output/settings/current.toml`` is treated as a one-time seed
-source for sets that pre-date this refactor and is no longer written to.
-
-Lookup is keyed by ``set_code`` everywhere — ``get_settings(set_code)`` and
-the convenience helpers (``get_llm_model(stage_id, set_code)`` etc.). Stage
-runners are expected to call these helpers once at the top of the run; that
-gives a "no mid-stage swap" guarantee without needing to plumb the resolved
-values onto ``StageState``.
+A separate ``output/settings/global.toml`` carries cross-set defaults
+(currently just the *default preset* used to seed new projects). Profiles
+(reusable assignment templates) live alongside as
+``output/settings/<name>.toml``; the legacy ``output/settings/current.toml``
+is read once on first boot to bootstrap a default profile and is then
+ignored.
 """
 
 from __future__ import annotations
 
 import logging
 import re
-import threading
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -35,24 +29,10 @@ from mtgai.settings.model_registry import get_registry
 if TYPE_CHECKING:
     from tomlkit import TOMLDocument
 
-# Same shape the active-set picker enforces (mtgai.runtime.active_project). Kept
-# as a local copy to avoid a circular dependency on the runtime package.
-_SET_CODE_RE = re.compile(r"^[A-Z0-9]{2,5}$")
-
-
-def _validate_set_code(set_code: str) -> str:
-    if not set_code:
-        raise ValueError("set_code is required")
-    if not _SET_CODE_RE.match(set_code):
-        raise ValueError(f"Invalid set_code {set_code!r}: must match [A-Z0-9]{{2,5}}")
-    return set_code
-
-
 logger = logging.getLogger(__name__)
 
 OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
 SETTINGS_DIR = OUTPUT_ROOT / "settings"
-SETS_DIR = OUTPUT_ROOT / "sets"
 
 GLOBAL_TOML = SETTINGS_DIR / "global.toml"
 LEGACY_CURRENT_TOML = SETTINGS_DIR / "current.toml"
@@ -501,23 +481,8 @@ class GlobalSettings(BaseModel):
 # Caches
 # ---------------------------------------------------------------------------
 
-# Per-set settings, keyed by set_code. Invalidated by apply_settings().
-_per_set_cache: dict[str, ModelSettings] = {}
-
 # Global settings, lazy-loaded.
 _global_cache: GlobalSettings | None = None
-
-# Serialises the seed-on-first-read path inside ``get_settings``.
-# ``set_artifact_dir`` is now called from many request handlers + the
-# server-boot cleanup, so two threads can race the exists() / write_toml()
-# pair on a cold cache and either double-write or interleave the cache
-# update. Hold this lock for the read-or-seed critical section only —
-# cached lookups stay lock-free.
-_seed_lock = threading.Lock()
-
-
-def _set_settings_path(set_code: str) -> Path:
-    return SETS_DIR / set_code / "settings.toml"
 
 
 def _ensure_global_settings() -> GlobalSettings:
@@ -590,230 +555,38 @@ def apply_global_settings(settings: GlobalSettings) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Per-set settings
+# Active-project settings
 # ---------------------------------------------------------------------------
 
 
-def _migrate_set_params_from_theme(set_code: str, settings: ModelSettings) -> ModelSettings:
-    """One-shot lift of name / set_size / mechanic_count out of theme.json.
+def get_active_settings() -> ModelSettings:
+    """Return the open project's :class:`ModelSettings`.
 
-    Pre-Project-Settings these three fields lived on ``theme.json`` and
-    were round-tripped by the Theme tab's save handler. They're set-shape
-    numerics (not extracted content) so they belong in ``settings.toml``.
-    Run only when seeding a brand-new ``settings.toml`` — once the
-    per-set file exists, the theme.json copy is treated as stale.
-
-    The theme.json file itself isn't modified; the next Theme save will
-    drop those keys naturally because the wizard stops writing them.
+    Thin wrapper over :func:`mtgai.runtime.active_project.require_active_project`
+    so callers that only need the settings (not the surrounding
+    ``ProjectState``) don't have to import the runtime helper directly.
+    Raises :class:`mtgai.io.asset_paths.NoAssetFolderError` when no
+    project is open — endpoint handlers translate that to a 409.
     """
-    import json as _json
+    from mtgai.runtime.active_project import require_active_project
 
-    theme_path = SETS_DIR / set_code / "theme.json"
-    if not theme_path.exists():
-        return settings
-    try:
-        theme = _json.loads(theme_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return settings
-    if not isinstance(theme, dict):
-        return settings
-
-    params = settings.set_params
-    name = theme.get("name") if isinstance(theme.get("name"), str) else None
-    set_size = theme.get("set_size") if isinstance(theme.get("set_size"), int) else None
-    mech = theme.get("mechanic_count") if isinstance(theme.get("mechanic_count"), int) else None
-    if name is None and set_size is None and mech is None:
-        return settings
-
-    settings.set_params = SetParams(
-        set_name=name or params.set_name,
-        set_size=set_size if set_size is not None else params.set_size,
-        mechanic_count=mech if mech is not None else params.mechanic_count,
-    )
-    # Theme.json's existence is the "this set has been worked on" signal.
-    # Treat it as the implicit theme input source so the Project Settings
-    # tab doesn't show "no input chosen" + a disabled Start for an
-    # already-extracted set.
-    if settings.theme_input.kind == "none":
-        settings.theme_input = ThemeInputSource(kind="existing")
-    logger.info(
-        "Migrated set_params from theme.json for %s (name=%r set_size=%s mechanic_count=%s)",
-        set_code,
-        name,
-        set_size,
-        mech,
-    )
-    return settings
+    return require_active_project().settings
 
 
-def _seed_per_set_settings(set_code: str) -> ModelSettings:
-    """Build initial ModelSettings for a set with no settings.toml.
+def apply_settings(settings: ModelSettings) -> None:
+    """Update the active project's :class:`ModelSettings` to ``settings``.
 
-    Migration order:
-      1. legacy ``current.toml`` exists → copy it (preserves mid-run state
-         for sets that pre-date this refactor).
-      2. global ``default_preset`` resolves to a built-in preset or a saved
-         profile → seed from it.
-      3. fall back to ``ModelSettings()`` defaults.
-
-    After picking a base, lift name / set_size / mechanic_count out of
-    theme.json if present (pre-Project-Settings sets stored those there).
+    Replaces the pointer's settings wholesale so subsequent
+    :func:`set_artifact_dir` / :func:`get_active_settings` calls see the
+    new values immediately. Persistence is the user's responsibility —
+    they save the .mtg file via the browser File System Access API; this
+    module no longer writes per-project TOML to disk. Raises if no
+    project is open.
     """
-    if LEGACY_CURRENT_TOML.exists():
-        try:
-            settings = ModelSettings.load_from_file(LEGACY_CURRENT_TOML)
-            logger.info(
-                "Seeded settings for set %s from legacy %s", set_code, LEGACY_CURRENT_TOML.name
-            )
-            return _migrate_set_params_from_theme(set_code, settings)
-        except Exception:
-            logger.warning(
-                "Failed to read legacy current.toml when seeding %s; trying global default",
-                set_code,
-                exc_info=True,
-            )
-
-    glob = get_global_settings()
-    try:
-        settings = ModelSettings.from_preset(glob.default_preset)
-        logger.info(
-            "Seeded settings for set %s from default preset %r", set_code, glob.default_preset
-        )
-        return _migrate_set_params_from_theme(set_code, settings)
-    except Exception:
-        logger.warning(
-            "Default preset %r unavailable for set %s; using built-in defaults",
-            glob.default_preset,
-            set_code,
-            exc_info=True,
-        )
-        return _migrate_set_params_from_theme(set_code, ModelSettings())
-
-
-def _looks_pre_project_settings(settings: ModelSettings) -> bool:
-    """True if a loaded settings.toml looks pre-Project-Settings.
-
-    Existing per-set settings.toml files written before this card don't
-    have ``[set_params]`` or ``[theme_input]`` blocks; load_from_file
-    fills them with defaults. We treat "all defaults + no theme input
-    chosen" as the signal to one-shot migrate from theme.json on first
-    load. The set_name == "" gate prevents re-migrating after a user
-    explicitly cleared the name on the Project Settings tab (which
-    would write empty string, but the other fields would have moved).
-    """
-    sp = settings.set_params
-    return (
-        sp.set_name == ""
-        and sp.set_size == 60
-        and sp.mechanic_count == 3
-        and settings.theme_input.kind == "none"
-    )
-
-
-def get_settings(set_code: str) -> ModelSettings:
-    """Return the active model settings for a set.
-
-    Loads ``output/sets/<set_code>/settings.toml`` on first call, seeding
-    the file from migration sources (see ``_seed_per_set_settings``) if it
-    doesn't yet exist. Subsequent calls hit the in-memory cache; the cache
-    is invalidated by :func:`apply_settings`.
-
-    For settings.toml files that pre-date the Project Settings card,
-    name / set_size / mechanic_count are lifted out of theme.json on
-    first load and persisted back; later loads see the already-populated
-    fields and skip the migration.
-    """
-    set_code = _validate_set_code(set_code)
-
-    cached = _per_set_cache.get(set_code)
-    if cached is not None:
-        return cached
-
-    # Two threads can race the cold path (the seed-on-first-read endpoints
-    # are not serialised). Hold _seed_lock just long enough to make the
-    # exists() / write_toml() / cache-fill sequence atomic; the warm-path
-    # cache hit above stays lock-free.
-    with _seed_lock:
-        cached = _per_set_cache.get(set_code)
-        if cached is not None:
-            return cached
-
-        path = _set_settings_path(set_code)
-        if path.exists():
-            try:
-                settings = ModelSettings.load_from_file(path)
-            except Exception:
-                logger.warning("Failed to load %s; reseeding from defaults", path, exc_info=True)
-                settings = _seed_per_set_settings(set_code)
-                settings.write_toml(path)
-            else:
-                if _looks_pre_project_settings(settings):
-                    migrated = _migrate_set_params_from_theme(set_code, settings)
-                    # Only re-write if the migration actually touched
-                    # something — set-without-theme.json round-trip would
-                    # otherwise re-stamp the file with no real change
-                    # every server boot.
-                    if not _looks_pre_project_settings(migrated):
-                        migrated.write_toml(path)
-                    settings = migrated
-        else:
-            settings = _seed_per_set_settings(set_code)
-            settings.write_toml(path)
-
-        _per_set_cache[set_code] = settings
-        return settings
-
-
-def apply_settings(set_code: str, settings: ModelSettings) -> Path:
-    """Persist the given settings as the active config for a set.
-
-    Also rebuilds the in-memory :class:`ProjectState` if the write
-    targets the active project, so subsequent ``set_artifact_dir()``
-    calls see the new ``asset_folder`` (and other fields) without a
-    cache round-trip.
-    """
-    set_code = _validate_set_code(set_code)
-    path = _set_settings_path(set_code)
-    settings.write_toml(path)
-    _per_set_cache[set_code] = settings
-
-    # Lazy import — active_project imports model_settings at module top
-    # for its ProjectState type annotation; importing it here at module
-    # top would cycle.
     from mtgai.runtime import active_project
 
-    proj = active_project.read_active_project()
-    if proj is not None and proj.set_code == set_code:
-        active_project.write_active_project(proj.model_copy(update={"settings": settings}))
-
-    logger.info("Applied settings for set %s -> %s", set_code, path)
-    return path
-
-
-def invalidate_cache(set_code: str | None = None) -> None:
-    """Drop cached settings (for one set or all). Test/debug hook.
-
-    Also clears the in-memory ProjectState pointer when the dropped
-    code matches it: ``set_artifact_dir`` reads
-    ``_active_project.settings.asset_folder`` directly, so the pointer
-    holds an independent reference to the now-invalidated settings and
-    would silently surface stale values until something re-applies.
-    Lazy-imports active_project to avoid the startup cycle (this module
-    is imported at active_project's module top).
-    """
-    global _global_cache
-
-    from mtgai.runtime import active_project
-
-    if set_code is None:
-        _per_set_cache.clear()
-        _global_cache = None
-        active_project.clear_active_project()
-    else:
-        _per_set_cache.pop(set_code, None)
-        proj = active_project.read_active_project()
-        if proj is not None and proj.set_code == set_code:
-            active_project.clear_active_project()
+    proj = active_project.require_active_project()
+    active_project.write_active_project(proj.model_copy(update={"settings": settings}))
 
 
 def list_profiles() -> list[str]:
@@ -830,19 +603,14 @@ def list_profiles() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Convenience functions used by pipeline modules
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
 # Project file (.mtg) serialization
 # ---------------------------------------------------------------------------
 #
-# The .mtg file is settings.toml + a top-level ``set_code`` key so it can
-# live anywhere on disk and still be self-describing. Phase 1: read/write
-# from the browser via File System Access API, applied server-side via
-# /api/project/open by writing the body into the standard
-# ``output/sets/<CODE>/settings.toml`` location.
+# The .mtg file is the persistent project artifact: ``set_code`` +
+# ``mtg_file_version`` headers wrapping the settings.toml body. The
+# browser reads/writes it via the File System Access API; the server
+# parses it on ``/api/project/open`` and pins the result on the
+# active-project pointer.
 
 
 MTG_FILE_VERSION = 1
@@ -857,7 +625,9 @@ def dump_project_toml(set_code: str, settings: ModelSettings) -> str:
     """
     import tomlkit
 
-    set_code = _validate_set_code(set_code)
+    set_code = set_code.strip()
+    if not set_code:
+        raise ValueError("set_code is required")
     doc = tomlkit.document()
     doc.add(tomlkit.comment("MTGAI project file"))
     doc.add(tomlkit.nl())
@@ -891,7 +661,9 @@ def parse_project_toml(text: str) -> tuple[str, ModelSettings]:
     raw_code = data.get("set_code")
     if not isinstance(raw_code, str):
         raise ValueError(".mtg file missing 'set_code'")
-    set_code = _validate_set_code(raw_code.strip().upper())
+    set_code = raw_code.strip()
+    if not set_code:
+        raise ValueError(".mtg file 'set_code' is empty")
     settings = ModelSettings(
         llm_assignments=data.get("llm_assignments", {}),
         image_assignments=data.get("image_assignments", {}),
@@ -902,18 +674,3 @@ def parse_project_toml(text: str) -> tuple[str, ModelSettings]:
         asset_folder=data.get("asset_folder", "") or "",
     )
     return set_code, settings
-
-
-def get_llm_model(stage_id: str, set_code: str) -> str:
-    """Get the API model_id for a pipeline stage."""
-    return get_settings(set_code).get_llm_model_id(stage_id)
-
-
-def get_image_model(stage_id: str, set_code: str) -> str:
-    """Get the image model key for a pipeline stage."""
-    return get_settings(set_code).get_image_model_key(stage_id)
-
-
-def get_effort(stage_id: str, set_code: str) -> str | None:
-    """Get the effort level for a pipeline stage."""
-    return get_settings(set_code).get_effort(stage_id)

@@ -500,7 +500,11 @@ def generate_selection_report() -> Path:
 
 def main():
     parser = argparse.ArgumentParser(description="AI-powered art version selector")
-    parser.add_argument("--set", default="ASD", help="Set code (default: ASD)")
+    parser.add_argument(
+        "--mtg",
+        required=True,
+        help="Path to a .mtg project file (the project's asset_folder must be set)",
+    )
     parser.add_argument("--card", default=None, help="Single card collector number")
     parser.add_argument("--dry-run", action="store_true", help="List cards without calling API")
     parser.add_argument(
@@ -516,15 +520,9 @@ def main():
         datefmt="%H:%M:%S",
     )
 
-    # CLI shim: stamp the requested set as the active project so
-    # set_artifact_dir() resolves under output/sets/<CODE>/. Operators
-    # running this script directly need to ensure that asset_folder is
-    # configured (via the wizard, or by editing output/sets/<CODE>/
-    # settings.toml) — empty asset_folder will surface a NoAssetFolderError
-    # at the first stage helper that asks for an artifact path.
-    from mtgai.runtime.active_project import write_active_set
+    from mtgai.runtime.cli_shim import activate_from_mtg
 
-    write_active_set(args.set)
+    activate_from_mtg(args.mtg)
 
     if args.report_only:
         report_path = generate_selection_report()

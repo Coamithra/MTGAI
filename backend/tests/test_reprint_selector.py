@@ -464,6 +464,18 @@ class TestFormatCandidateTldr:
 
 
 class TestLlmSelectReprints:
+    @pytest.fixture(autouse=True)
+    def _open_project(self):
+        """``_llm_select_reprints`` resolves the model via the active project."""
+        from mtgai.runtime import active_project
+        from mtgai.settings.model_settings import ModelSettings
+
+        active_project.write_active_project(
+            active_project.ProjectState(set_code="TST", settings=ModelSettings())
+        )
+        yield
+        active_project.clear_active_project()
+
     def _mock_haiku_response(self, selections: list[dict]) -> dict:
         return {
             "result": {"selections": selections},
