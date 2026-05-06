@@ -25,6 +25,7 @@ written here can't produce paths the theme endpoints would reject.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -41,6 +42,7 @@ __all__ = [
     "SETS_ROOT",
     "SET_CODE_RE",
     "await_lock_release",
+    "await_lock_release_async",
     "clear_active_set",
     "is_valid_set_code",
     "iter_known_set_codes",
@@ -113,15 +115,32 @@ def await_lock_release(deadline_s: float = 5.0) -> bool:
     """Block until the AI lock is free, or the deadline elapses.
 
     Returns True on clean release (or if the lock was never held), False
-    on timeout. Used by ``/api/project/{new,open,materialize}`` after
-    they call :func:`ai_lock.request_cancel` to drain a cancellable AI
-    run before swapping the active-project pointer. On timeout, callers
-    log a warning and proceed anyway — the cancel signal has been sent
-    and the run will wind down; we don't block the user forever.
+    on timeout. Synchronous variant for non-async callers / tests; the
+    HTTP layer uses :func:`await_lock_release_async` so the event loop
+    isn't frozen for up to ``deadline_s``.
     """
     deadline = time.monotonic() + deadline_s
     while ai_lock.is_running():
         if time.monotonic() >= deadline:
             return False
         time.sleep(0.1)
+    return True
+
+
+async def await_lock_release_async(deadline_s: float = 5.0) -> bool:
+    """Async variant of :func:`await_lock_release`.
+
+    Used by ``/api/project/{new,open,materialize}`` after they call
+    :func:`ai_lock.request_cancel` to drain a cancellable AI run before
+    swapping the active-project pointer. On timeout, callers log a
+    warning and proceed anyway — the cancel signal has been sent and the
+    run will wind down; we don't block the user forever. Yields to the
+    loop between polls so other requests (state aggregator, SSE
+    keepalives) keep flowing while we wait.
+    """
+    deadline = time.monotonic() + deadline_s
+    while ai_lock.is_running():
+        if time.monotonic() >= deadline:
+            return False
+        await asyncio.sleep(0.1)
     return True

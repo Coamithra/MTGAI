@@ -93,8 +93,8 @@ async def _lifespan(application: FastAPI) -> AsyncGenerator[None]:
     up where they left off (the .mtg file is the only persistent
     project artifact). Render / art directories are no longer mounted
     at startup because we don't know which project to mount until one
-    is opened; lazy mounting on first open is deferred to Phase 2 when
-    assets actually live in the asset folder.
+    is opened; lazy mounting on first open is deferred to a follow-up
+    once assets actually live in the asset folder.
     """
     from mtgai.pipeline.engine import cleanup_orphan_running_stages
 

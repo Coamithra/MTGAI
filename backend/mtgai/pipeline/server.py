@@ -202,7 +202,6 @@ async def save_theme(request: Request):
     )
     logger.info("Theme saved to %s", theme_path)
 
-    # _theme_path already validated the code, so write_active_set won't raise.
     active_set.write_active_set(code)
     return JSONResponse({"success": True, "path": str(theme_path)})
 
@@ -1244,7 +1243,7 @@ async def wizard_project_start(request: Request) -> JSONResponse:
 # as the active set; ``serialize`` reads it back out for download.
 
 
-def _project_switch_guard(body: dict) -> JSONResponse | None:
+async def _project_switch_guard(body: object) -> JSONResponse | None:
     """Drain in-flight AI work before swapping the active-project pointer.
 
     Switching projects mid-run would orphan a background AI task against
@@ -1255,16 +1254,22 @@ def _project_switch_guard(body: dict) -> JSONResponse | None:
     (the cancel signal has been sent and the run will wind down) — the
     user shouldn't be blocked indefinitely on a stuck loop.
 
+    ``body`` is whatever the request JSON deserialised to — if it isn't
+    a dict (a list, scalar, or null), we treat ``force`` as absent so
+    the busy path still 409s cleanly instead of crashing on
+    ``.get("force")``.
+
     Returns None when it's safe to proceed; returns the JSONResponse to
     return otherwise.
     """
     if not ai_lock.is_running():
         return None
-    if body.get("force") is not True:
+    force = isinstance(body, dict) and body.get("force") is True
+    if not force:
         payload = ai_lock.busy_payload()
         return JSONResponse(payload, status_code=409)
     ai_lock.request_cancel()
-    if not active_set.await_lock_release():
+    if not await active_set.await_lock_release_async():
         logger.warning(
             "AI lock did not release within deadline after cancel; "
             "proceeding with project switch anyway"
@@ -1302,10 +1307,10 @@ async def project_new(request: Request) -> JSONResponse:
         body = await request.json()
     except json.JSONDecodeError:
         body = {}
+    if (resp := await _project_switch_guard(body)) is not None:
+        return resp
     if not isinstance(body, dict):
         body = {}
-    if (resp := _project_switch_guard(body)) is not None:
-        return resp
     active_set.clear_active_set()
 
     # Seed the form from the user's default preset so they don't have
@@ -1382,8 +1387,10 @@ async def project_open(request: Request) -> JSONResponse:
     )
 
     body = await request.json()
-    if (resp := _project_switch_guard(body)) is not None:
+    if (resp := await _project_switch_guard(body)) is not None:
         return resp
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "toml body required"}, status_code=400)
     text = body.get("toml")
     if not isinstance(text, str) or not text.strip():
         return JSONResponse({"error": "toml body required"}, status_code=400)
@@ -1425,8 +1432,10 @@ async def project_materialize(request: Request) -> JSONResponse:
     )
 
     body = await request.json()
-    if (resp := _project_switch_guard(body)) is not None:
+    if (resp := await _project_switch_guard(body)) is not None:
         return resp
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "Invalid project body"}, status_code=400)
     raw_code = body.get("set_code", "")
     if not isinstance(raw_code, str) or not active_set.is_valid_set_code(raw_code):
         return JSONResponse({"error": "Invalid set_code"}, status_code=400)

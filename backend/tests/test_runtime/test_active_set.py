@@ -150,9 +150,13 @@ def test_await_returns_true_when_lock_releases_in_time():
 
     t = threading.Thread(target=_hold_briefly, daemon=True)
     t.start()
-    # Give the thread a moment to actually acquire before we start polling.
-    time.sleep(0.05)
-    assert ai_lock.is_running()
+    # Poll until the thread actually acquires — a fixed sleep can fall
+    # through the window under load and produce a flaky failure here.
+    deadline = time.monotonic() + 1.0
+    while not ai_lock.is_running():
+        if time.monotonic() >= deadline:
+            raise AssertionError("background thread never acquired the lock")
+        time.sleep(0.01)
     assert active_set.await_lock_release(deadline_s=2.0) is True
     t.join(timeout=1.0)
     assert not ai_lock.is_running()
