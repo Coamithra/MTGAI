@@ -499,10 +499,9 @@ def serve(
     if open_browser:
         threading.Timer(1.5, lambda: webbrowser.open(f"http://localhost:{port}")).start()
 
-    console.print(f"[bold]Starting review server for {set_code} on port {port}...[/bold]")
-    console.print(f"  Review:   http://localhost:{port}/review")
-    console.print(f"  Progress: http://localhost:{port}/progress")
-    console.print(f"  Booster:  http://localhost:{port}/booster")
+    console.print(f"[bold]Starting MTGAI server for {set_code} on port {port}...[/bold]")
+    console.print(f"  Wizard:   http://localhost:{port}/pipeline")
+    console.print(f"  Settings: http://localhost:{port}/settings")
     console.print("[dim]Press Ctrl+C to stop.[/dim]")
 
     logging.basicConfig(

@@ -1,7 +1,4 @@
-"""FastAPI review server — local dev tool for reviewing MTG AI card sets.
-
-Serves the review gallery, handles review submissions, and provides
-progress/booster APIs. Localhost-only, no auth, no CORS.
+"""FastAPI server for the MTGAI wizard. Localhost-only, no auth, no CORS.
 
 Start via CLI:
     python -m mtgai.review serve --set ASD --port 8080
@@ -16,7 +13,6 @@ import json
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -70,14 +66,8 @@ def _set_dir(set_code: str) -> Path:
     return _project_root() / "output" / "sets" / set_code
 
 
-def _get_set_code() -> str:
-    """Resolve the active set code via the runtime-state chain.
-
-    Reuses the same resolver the ``/api/runtime/state`` endpoint uses
-    so the review/booster/progress pages pick up the picker-persisted
-    set without a separate code path. Falls through to the env var and
-    "ASD" defaults inside the resolver.
-    """
+def _get_set_code() -> str | None:
+    """Resolve the active set code, or ``None`` if no project is open."""
     from mtgai.runtime.runtime_state import resolve_active_set_code
 
     return resolve_active_set_code()
@@ -90,42 +80,29 @@ def _get_set_code() -> str:
 
 @asynccontextmanager
 async def _lifespan(application: FastAPI) -> AsyncGenerator[None]:
-    """Mount render and art directories as static file servers on startup.
+    """Boot tasks: clear the active-project pointer + clean up stale state.
 
-    This allows the gallery to load card images via /renders/... and /art/...
-    instead of relative file paths.
+    A server restart starts the wizard with no project loaded — the user
+    has to click New / Open to pick up where they left off (the .mtg file
+    is the only persistent project artifact). Render / art directories
+    are no longer mounted at startup because we don't know which project
+    to mount until one is opened; lazy mounting on first open is
+    deferred to Phase 2 when assets actually live in the asset folder.
     """
+    import contextlib
+
     from mtgai.pipeline.engine import cleanup_orphan_running_stages
-    from mtgai.settings.model_settings import get_settings
+    from mtgai.runtime.active_set import _LAST_SET_PATH
+
+    # Forget which project was active in the previous session — startup
+    # is always "no project loaded".
+    with contextlib.suppress(OSError):
+        _LAST_SET_PATH.unlink(missing_ok=True)
 
     # Any pipeline-state.json with a RUNNING stage on disk was left
     # there by a process that exited mid-stage. Demote those to
     # FAILED so the wizard surfaces a Retry instead of a stuck spinner.
     cleanup_orphan_running_stages()
-
-    set_code = _get_set_code()
-    set_dir = _set_dir(set_code)
-
-    # Seed the active set's model settings (creates settings.toml on disk
-    # via the migration path if it doesn't exist yet) so the first request
-    # against the dashboard doesn't pay that cost. Other sets seed lazily
-    # on first stage call — there's nothing global to "load" anymore.
-    settings = get_settings(set_code)
-    logger.info(
-        "Active set %s model assignments: %s",
-        set_code,
-        dict(settings.llm_assignments),
-    )
-
-    renders_dir = set_dir / "renders"
-    if renders_dir.exists():
-        application.mount("/renders", StaticFiles(directory=str(renders_dir)), name="renders")
-        logger.info("Mounted renders directory: %s", renders_dir)
-
-    art_dir = set_dir / "art"
-    if art_dir.exists():
-        application.mount("/art", StaticFiles(directory=str(art_dir)), name="art")
-        logger.info("Mounted art directory: %s", art_dir)
 
     yield
 
@@ -275,57 +252,8 @@ def _load_cards_as_json(set_code: str) -> tuple[list[dict], str]:
 
 @app.get("/", response_class=RedirectResponse)
 async def root() -> RedirectResponse:
-    """Redirect to review page."""
-    return RedirectResponse(url="/review")
-
-
-@app.get("/review", response_class=HTMLResponse)
-async def review_page(request: Request, set_code: str | None = None) -> HTMLResponse:
-    """Serve the review gallery page.
-
-    Loads all cards, serializes to JSON, passes to the review.html template.
-    """
-    if set_code is None:
-        set_code = _get_set_code()
-
-    from mtgai.review.decisions import get_review_round
-
-    _, cards_json = _load_cards_as_json(set_code)
-    current_round = get_review_round(set_code)
-
-    return templates.TemplateResponse(
-        request,
-        "review.html",
-        {
-            "set_code": set_code,
-            "cards_json": cards_json,
-            "review_round": current_round,
-        },
-    )
-
-
-@app.get("/progress", response_class=HTMLResponse)
-async def progress_page(request: Request, set_code: str | None = None) -> HTMLResponse:
-    """Serve the progress tracking page.
-
-    Shows pending/completed/error status for all non-OK cards.
-    """
-    if set_code is None:
-        set_code = _get_set_code()
-
-    from mtgai.review.decisions import load_progress
-
-    progress = load_progress(set_code)
-    progress_json = progress.model_dump_json() if progress else "{}"
-
-    return templates.TemplateResponse(
-        request,
-        "progress.html",
-        {
-            "set_code": set_code,
-            "progress_json": progress_json,
-        },
-    )
+    """Redirect to the wizard."""
+    return RedirectResponse(url="/pipeline")
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -357,114 +285,9 @@ async def settings_page(request: Request) -> HTMLResponse:
     )
 
 
-@app.get("/booster", response_class=HTMLResponse)
-async def booster_page(request: Request, set_code: str | None = None) -> HTMLResponse:
-    """Serve the booster pack viewer page."""
-    if set_code is None:
-        set_code = _get_set_code()
-
-    _, cards_json = _load_cards_as_json(set_code)
-
-    return templates.TemplateResponse(
-        request,
-        "booster.html",
-        {
-            "set_code": set_code,
-            "cards_json": cards_json,
-        },
-    )
-
-
 # ---------------------------------------------------------------------------
 # API routes
 # ---------------------------------------------------------------------------
-
-
-@app.post("/api/review/submit", response_class=JSONResponse)
-async def submit_review(request: Request, set_code: str | None = None) -> JSONResponse:
-    """Handle review submission.
-
-    Receives decisions JSON, saves to disk, dispatches to pipelines.
-    Returns summary of what was dispatched.
-
-    Request body:
-        {"decisions": {"W-C-01": {"action": "ok", "note": ""}, ...}}
-    """
-    if set_code is None:
-        set_code = _get_set_code()
-
-    from mtgai.review.decisions import (
-        CardDecision,
-        ReviewDecisions,
-        dispatch_decisions,
-        get_review_round,
-        init_progress,
-        save_decisions,
-        save_progress,
-    )
-
-    body = await request.json()
-    raw_decisions = body.get("decisions", {})
-
-    # Parse into Pydantic models
-    card_decisions: dict[str, CardDecision] = {}
-    for cn, data in raw_decisions.items():
-        card_decisions[cn] = CardDecision(
-            action=data.get("action", "ok"),
-            note=data.get("note", ""),
-        )
-
-    review_round = get_review_round(set_code)
-
-    decisions = ReviewDecisions(
-        set_code=set_code,
-        review_round=review_round,
-        timestamp=datetime.now(tz=UTC),
-        decisions=card_decisions,
-    )
-
-    # Save decisions to disk
-    save_decisions(decisions, set_code)
-
-    # Dispatch — write queue files for downstream pipelines
-    dispatch_result = dispatch_decisions(decisions)
-
-    # Init progress tracking for non-OK cards
-    progress = init_progress(decisions)
-    save_progress(progress, set_code)
-
-    # Build summary response
-    summary = decisions.summary
-    manual_paths = [str(p) for p in dispatch_result.manual_tweak_paths]
-
-    # Open manual tweak JSON files in the system editor
-    if dispatch_result.manual_tweak_paths:
-        import os
-        import sys
-
-        for p in dispatch_result.manual_tweak_paths:
-            if p.exists():
-                if sys.platform == "win32":
-                    os.startfile(str(p))
-                elif sys.platform == "darwin":
-                    import subprocess
-
-                    subprocess.Popen(["open", str(p)])
-                else:
-                    import subprocess
-
-                    subprocess.Popen(["xdg-open", str(p)])
-
-    return JSONResponse(
-        {
-            "success": True,
-            "review_round": review_round,
-            "summary": summary,
-            "remake_count": dispatch_result.remake_count,
-            "art_redo_count": dispatch_result.art_redo_count,
-            "manual_tweak_paths": manual_paths,
-        }
-    )
 
 
 @app.get("/api/cards", response_class=JSONResponse)
@@ -472,93 +295,11 @@ async def get_cards(set_code: str | None = None) -> JSONResponse:
     """Return all cards as JSON (for client-side use)."""
     if set_code is None:
         set_code = _get_set_code()
+    if set_code is None:
+        return JSONResponse({"error": "No project is open"}, status_code=400)
 
     card_dicts, _ = _load_cards_as_json(set_code)
     return JSONResponse(card_dicts)
-
-
-@app.get("/api/progress", response_class=JSONResponse)
-async def get_progress(set_code: str | None = None) -> JSONResponse:
-    """Return current progress as JSON (for polling)."""
-    if set_code is None:
-        set_code = _get_set_code()
-
-    from mtgai.review.decisions import load_progress
-
-    progress = load_progress(set_code)
-    if progress is None:
-        return JSONResponse({"cards": {}, "summary": {}})
-
-    return JSONResponse(progress.model_dump(mode="json"))
-
-
-@app.post("/api/progress/reload-manual", response_class=JSONResponse)
-async def reload_manual_edits(set_code: str | None = None) -> JSONResponse:
-    """Re-read card JSONs for manual tweak cards.
-
-    Finds cards marked as manual_tweak in the current decisions,
-    re-reads their JSON files, re-runs validation, and marks them
-    as completed in progress.
-    """
-    if set_code is None:
-        set_code = _get_set_code()
-
-    from mtgai.review.decisions import (
-        ReviewAction,
-        load_decisions,
-        load_progress,
-        save_progress,
-    )
-    from mtgai.review.loaders import load_cards
-
-    decisions = load_decisions(set_code)
-    progress = load_progress(set_code)
-
-    if decisions is None or progress is None:
-        return JSONResponse(
-            {"success": False, "error": "No decisions or progress found."},
-            status_code=404,
-        )
-
-    # Find manual_tweak cards
-    manual_cns = [
-        cn for cn, d in decisions.decisions.items() if d.action == ReviewAction.MANUAL_TWEAK
-    ]
-
-    if not manual_cns:
-        return JSONResponse({"success": True, "updated": [], "cards": []})
-
-    # Re-read all cards from disk
-    all_cards = load_cards(set_code)
-    card_by_cn = {c.collector_number: c for c in all_cards}
-
-    updated: list[str] = []
-    updated_cards: list[dict] = []
-
-    for cn in manual_cns:
-        card = card_by_cn.get(cn)
-        if card is None:
-            logger.warning("Manual tweak card %s not found on disk", cn)
-            continue
-
-        # Mark as completed in progress
-        if cn in progress.cards:
-            progress.cards[cn].status = "completed"
-            updated.append(cn)
-
-        r_map, a_map = _get_image_maps(set_code)
-        updated_cards.append(_card_to_server_dict(card, r_map, a_map))
-
-    # Save updated progress
-    save_progress(progress, set_code)
-
-    return JSONResponse(
-        {
-            "success": True,
-            "updated": updated,
-            "cards": updated_cards,
-        }
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -578,6 +319,8 @@ async def apply_settings(request: Request, set_code: str | None = None) -> JSONR
 
     if set_code is None:
         set_code = _get_set_code()
+    if set_code is None:
+        return JSONResponse({"error": "No project is open"}, status_code=400)
 
     body = await request.json()
     try:
@@ -712,27 +455,3 @@ async def update_global_settings(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(e)}, status_code=400)
 
 
-@app.get("/api/booster", response_class=JSONResponse)
-async def get_booster(set_code: str | None = None, seed: int | None = None) -> JSONResponse:
-    """Generate and return a random booster pack."""
-    if set_code is None:
-        set_code = _get_set_code()
-
-    from mtgai.packs import generate_booster_pack
-    from mtgai.review.loaders import load_cards
-
-    cards = load_cards(set_code)
-    if not cards:
-        return JSONResponse(
-            {"error": "No cards found for set."},
-            status_code=404,
-        )
-
-    try:
-        pack = generate_booster_pack(cards, seed=seed)
-    except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
-
-    r_map, a_map = _get_image_maps(set_code)
-    pack_dicts = [_card_to_server_dict(c, r_map, a_map) for c in pack]
-    return JSONResponse(pack_dicts)

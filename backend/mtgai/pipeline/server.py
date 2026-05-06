@@ -91,10 +91,9 @@ api_router = APIRouter(prefix="/api/pipeline")
 def _render_wizard(request: Request, requested_tab: str | None) -> HTMLResponse | RedirectResponse:
     """Render the wizard shell, or redirect when the requested tab isn't visible.
 
-    Centralises the routing rule: a URL fragment must resolve to a
-    visible tab via :func:`build_wizard_state`. If the user typed
-    ``/pipeline/skeleton`` before that stage exists, we redirect to the
-    latest visible tab so refresh always lands on a real surface.
+    With no project loaded the only visible tab is Project Settings —
+    requests for any other fragment redirect there. Once a project is
+    open, normal tab routing resumes (see :func:`build_wizard_state`).
     """
     set_code = resolve_active_set_code(None)
     ws = build_wizard_state(set_code, requested_tab=requested_tab)
@@ -103,10 +102,6 @@ def _render_wizard(request: Request, requested_tab: str | None) -> HTMLResponse 
             url=f"/pipeline/{ws.active_tab_id}",
             status_code=302,
         )
-    # Pass the serialized snapshot as a dict so Jinja's `tojson` filter
-    # in the template can produce a `</script>`-safe blob. `default=str`
-    # is unnecessary because `serialize_wizard_state` already coerces
-    # `pipeline_state` to JSON-safe types via `model_dump(mode="json")`.
     return templates.TemplateResponse(
         "wizard.html",
         {
@@ -120,9 +115,8 @@ def _render_wizard(request: Request, requested_tab: str | None) -> HTMLResponse 
 async def pipeline_root(request: Request):
     """Wizard root — redirect to the latest visible tab.
 
-    Refresh of the bare ``/pipeline`` URL lands on whatever tab is
-    currently the right surface for the active set's state (per design
-    §11). Bookmarking ``/pipeline`` therefore always re-resolves.
+    With no project loaded the redirect always lands on Project Settings;
+    once one is open it follows the same latest-tab logic as before.
     """
     set_code = resolve_active_set_code(None)
     ws = build_wizard_state(set_code, requested_tab=None)
@@ -208,6 +202,31 @@ async def set_active_set(request: Request) -> JSONResponse:
         logger.error("Failed to persist active set: %s", e)
         return JSONResponse({"error": "Failed to persist active set"}, status_code=500)
     return JSONResponse(compute_runtime_state(code))
+
+
+@router.post("/api/runtime/sets/delete")
+async def delete_set_endpoint(request: Request) -> JSONResponse:
+    """Permanently delete a set's directory tree.
+
+    Body: ``{"code": "<CODE>"}``. Removes ``output/sets/<CODE>/``
+    entirely (cards, art, theme.json, settings.toml, pipeline state,
+    everything). 404 if the directory doesn't exist; if the deleted
+    set was active, the active-set pointer is cleared so the next
+    runtime-state read falls back. Returns the refreshed runtime state.
+    """
+    body = await request.json()
+    raw = body.get("code", "")
+    if not isinstance(raw, str) or not active_set.is_valid_set_code(raw):
+        return JSONResponse({"error": "Invalid set code"}, status_code=400)
+    code = active_set.normalize_code(raw)
+    try:
+        active_set.delete_set(code)
+    except FileNotFoundError:
+        return JSONResponse({"error": f"Set {code} does not exist"}, status_code=404)
+    except OSError as e:
+        logger.error("Failed to delete set %s: %s", code, e)
+        return JSONResponse({"error": "Failed to delete set"}, status_code=500)
+    return JSONResponse(compute_runtime_state())
 
 
 @router.post("/api/runtime/sets")
@@ -888,7 +907,6 @@ def _break_points_payload(settings_obj) -> list[dict[str, Any]]:
         {
             "stage_id": defn["stage_id"],
             "display_name": defn["display_name"],
-            "always_review": defn["always_review"],
             "review": review_by_stage[defn["stage_id"]],
         }
         for defn in STAGE_DEFINITIONS
@@ -930,6 +948,7 @@ def _project_payload(set_code: str) -> dict[str, Any]:
         "set_code": set_code,
         "set_params": settings.set_params.model_dump(),
         "theme_input": settings.theme_input.model_dump(mode="json"),
+        "asset_folder": settings.asset_folder,
         "break_points": _break_points_payload(settings),
         "llm_assignments": dict(settings.llm_assignments),
         "image_assignments": dict(settings.image_assignments),
@@ -1110,18 +1129,24 @@ async def wizard_project_save_break(request: Request) -> JSONResponse:
     defn = next((d for d in STAGE_DEFINITIONS if d["stage_id"] == stage_id), None)
     if defn is None:
         return JSONResponse({"error": f"Unknown stage_id {stage_id!r}"}, status_code=400)
-    if defn["always_review"]:
-        return JSONResponse(
-            {"error": f"{stage_id} is always_review — break point is locked on"},
-            status_code=400,
-        )
+
+    from mtgai.settings.model_settings import DEFAULT_BREAK_POINTS
 
     settings = get_settings(code)
     breaks = dict(settings.break_points)
     if review:
-        breaks[stage_id] = "review"
+        # If the default already says "review", we don't need to write anything;
+        # only persist when the user's choice diverges from the default.
+        if DEFAULT_BREAK_POINTS.get(stage_id) == "review":
+            breaks.pop(stage_id, None)
+        else:
+            breaks[stage_id] = "review"
     else:
-        breaks.pop(stage_id, None)
+        # Same logic mirrored: store "auto" only when overriding a "review" default.
+        if DEFAULT_BREAK_POINTS.get(stage_id) == "review":
+            breaks[stage_id] = "auto"
+        else:
+            breaks.pop(stage_id, None)
 
     new = settings.model_copy(update={"break_points": breaks})
     apply_settings(code, new)
@@ -1308,6 +1333,245 @@ async def wizard_project_start(request: Request) -> JSONResponse:
 
 
 # ---------------------------------------------------------------------------
+# .mtg project file — New / Open / Save / Save-as
+# ---------------------------------------------------------------------------
+#
+# A .mtg file is the user's persistent project artifact. Internally the
+# wizard still keys per-set state off ``output/sets/<CODE>/``; a .mtg
+# is just the per-set settings.toml plus a ``set_code`` top-level so it
+# can live anywhere on disk. ``open`` and ``materialize`` write the
+# parsed body back into ``output/sets/<CODE>/settings.toml`` and pin it
+# as the active set; ``serialize`` reads it back out for download.
+
+
+@router.post("/api/project/new")
+async def project_new() -> JSONResponse:
+    """Forget the current active project; return a blank-form payload.
+
+    Doesn't touch ``output/sets/<CODE>/`` — the user's old project
+    directories stay on disk; only the active-set pointer is cleared
+    so subsequent calls behave as if no project is loaded. The blank
+    payload mirrors the shape of ``/api/wizard/project`` so the
+    Project Settings tab can render an editable form against the same
+    fields without a second fetch.
+    """
+    import contextlib
+
+    from mtgai.pipeline.models import STAGE_DEFINITIONS, break_point_states
+    from mtgai.settings.model_registry import get_registry
+    from mtgai.settings.model_settings import (
+        DEFAULT_BREAK_POINTS,
+        PRESETS,
+        ModelSettings,
+        get_global_settings,
+        list_profiles,
+    )
+
+    with contextlib.suppress(OSError):
+        active_set._LAST_SET_PATH.unlink(missing_ok=True)
+
+    # Seed the form from the user's default preset so they don't have
+    # to re-pick model assignments every New. set_params + theme_input
+    # always start blank — those are per-project, not template-able.
+    glob = get_global_settings()
+    try:
+        seeded = ModelSettings.from_preset(glob.default_preset)
+    except ValueError:
+        seeded = ModelSettings()
+
+    registry = get_registry()
+    review_by_stage = break_point_states(seeded.break_points)
+    break_points = [
+        {
+            "stage_id": d["stage_id"],
+            "display_name": d["display_name"],
+            "review": review_by_stage[d["stage_id"]],
+        }
+        for d in STAGE_DEFINITIONS
+    ]
+    return JSONResponse(
+        {
+            "success": True,
+            "draft": {
+                "set_code": "",
+                "set_params": {"set_name": "", "set_size": 60, "mechanic_count": 3},
+                "theme_input": {"kind": "none"},
+                "asset_folder": "",
+                "break_points": break_points,
+                "llm_assignments": dict(seeded.llm_assignments),
+                "image_assignments": dict(seeded.image_assignments),
+                "effort_overrides": dict(seeded.effort_overrides),
+                "llm_models": [
+                    {
+                        "key": m.key,
+                        "name": m.name,
+                        "tier": m.tier,
+                        "supports_effort": m.supports_effort,
+                    }
+                    for m in registry.list_llm()
+                ],
+                "image_models": [
+                    {"key": m.key, "name": m.name, "implemented": m.implemented}
+                    for m in registry.list_image()
+                ],
+                "builtin_presets": sorted(PRESETS),
+                "saved_profiles": list_profiles(),
+                "pipeline_started": False,
+                "extraction_active": False,
+                "default_breaks": dict(DEFAULT_BREAK_POINTS),
+            },
+        }
+    )
+
+
+@router.post("/api/project/open")
+async def project_open(request: Request) -> JSONResponse:
+    """Load a .mtg TOML body, materialise it on disk, set as active.
+
+    Body: ``{"toml": "<text>"}`` — the browser reads the file via the
+    File System Access API and posts the contents here. Server parses,
+    creates ``output/sets/<CODE>/`` if it doesn't exist, writes
+    settings.toml, and persists the active-set pointer. Returns the
+    parsed set_code so the client can navigate to ``/pipeline/<tab>``.
+    """
+    from mtgai.settings.model_settings import (
+        apply_settings,
+        invalidate_cache,
+        parse_project_toml,
+    )
+
+    body = await request.json()
+    text = body.get("toml")
+    if not isinstance(text, str) or not text.strip():
+        return JSONResponse({"error": "toml body required"}, status_code=400)
+    try:
+        set_code, settings = parse_project_toml(text)
+    except ValueError as e:
+        return JSONResponse({"error": f"Invalid .mtg file: {e}"}, status_code=400)
+
+    set_dir = OUTPUT_ROOT / "sets" / set_code
+    set_dir.mkdir(parents=True, exist_ok=True)
+    invalidate_cache(set_code)
+    apply_settings(set_code, settings)
+    try:
+        active_set.write_active_set(set_code)
+    except (OSError, ValueError) as e:
+        logger.error("Failed to set active project to %s: %s", set_code, e)
+        return JSONResponse({"error": "Failed to activate project"}, status_code=500)
+    return JSONResponse({"success": True, "set_code": set_code})
+
+
+@router.post("/api/project/materialize")
+async def project_materialize(request: Request) -> JSONResponse:
+    """Create / overwrite ``output/sets/<CODE>/`` from in-form state.
+
+    Used by Save & Start when the project hasn't been written to a .mtg
+    yet — the JS holds the form state in memory, posts the full payload
+    here, and the server creates the set dir + settings.toml + sets
+    active. Returns the .mtg TOML the browser then writes via the File
+    System Access API. Body shape mirrors what ``/api/wizard/project``
+    returns for a populated project (set_code, set_params, theme_input,
+    asset_folder, llm_assignments, image_assignments, effort_overrides,
+    break_points).
+    """
+    from mtgai.settings.model_settings import (
+        ModelSettings,
+        SetParams,
+        ThemeInputSource,
+        apply_settings,
+        dump_project_toml,
+        invalidate_cache,
+    )
+
+    body = await request.json()
+    raw_code = body.get("set_code", "")
+    if not isinstance(raw_code, str) or not active_set.is_valid_set_code(raw_code):
+        return JSONResponse({"error": "Invalid set_code"}, status_code=400)
+    set_code = active_set.normalize_code(raw_code)
+
+    try:
+        settings = ModelSettings(
+            llm_assignments=body.get("llm_assignments", {}) or {},
+            image_assignments=body.get("image_assignments", {}) or {},
+            effort_overrides=body.get("effort_overrides", {}) or {},
+            break_points=body.get("break_points", {}) or {},
+            set_params=SetParams(**(body.get("set_params") or {})),
+            theme_input=ThemeInputSource(**(body.get("theme_input") or {})),
+            asset_folder=body.get("asset_folder", "") or "",
+        )
+    except Exception as e:  # pydantic validation, etc.
+        return JSONResponse({"error": f"Invalid project body: {e}"}, status_code=400)
+
+    set_dir = OUTPUT_ROOT / "sets" / set_code
+    set_dir.mkdir(parents=True, exist_ok=True)
+    invalidate_cache(set_code)
+    apply_settings(set_code, settings)
+    try:
+        active_set.write_active_set(set_code)
+    except (OSError, ValueError) as e:
+        logger.error("Failed to set active project to %s: %s", set_code, e)
+        return JSONResponse({"error": "Failed to activate project"}, status_code=500)
+
+    return JSONResponse(
+        {
+            "success": True,
+            "set_code": set_code,
+            "mtg_toml": dump_project_toml(set_code, settings),
+        }
+    )
+
+
+@router.get("/api/project/serialize")
+async def project_serialize(set_code: str | None = None) -> JSONResponse:
+    """Return the .mtg TOML for the active project (or one named explicitly).
+
+    Used by Save when a .mtg path already exists — the browser asks the
+    server for the canonical TOML, then writes it through the existing
+    file handle.
+    """
+    from mtgai.settings.model_settings import dump_project_toml, get_settings
+
+    if not set_code:
+        set_code = active_set.read_active_set()
+    if not set_code or not active_set.is_valid_set_code(set_code):
+        return JSONResponse({"error": "No project is open"}, status_code=400)
+    code = active_set.normalize_code(set_code)
+    if not (OUTPUT_ROOT / "sets" / code).is_dir():
+        return JSONResponse({"error": f"Project {code} does not exist"}, status_code=404)
+    settings = get_settings(code)
+    return JSONResponse(
+        {
+            "success": True,
+            "set_code": code,
+            "mtg_toml": dump_project_toml(code, settings),
+        }
+    )
+
+
+@router.post("/api/wizard/project/asset-folder")
+async def wizard_project_save_asset_folder(request: Request) -> JSONResponse:
+    """Live-apply asset_folder for the active project.
+
+    Plain string field — the browser captures it from showDirectoryPicker
+    (or the "use project file folder" button) and posts it here. Phase 1
+    just persists the value; Phase 2 routes stage outputs into it.
+    """
+    from mtgai.settings.model_settings import apply_settings, get_settings
+
+    body = await request.json()
+    code, err = _validate_set_code_in_body(body)
+    if err:
+        return err
+    folder = body.get("asset_folder", "")
+    if not isinstance(folder, str):
+        return JSONResponse({"error": "asset_folder must be a string"}, status_code=400)
+    settings = get_settings(code)
+    new = settings.model_copy(update={"asset_folder": folder})
+    apply_settings(code, new)
+    return JSONResponse({"success": True, "asset_folder": folder})
+
+
+# ---------------------------------------------------------------------------
 # Wizard advance — auto-advance + Next-step button
 # ---------------------------------------------------------------------------
 
@@ -1317,12 +1581,12 @@ def _build_pipeline_config_from_settings(set_code: str) -> PipelineConfig:
 
     Wizard kickoff path uses this to translate the persisted
     ``set_params`` + ``break_points`` into the engine's input shape:
-    set parameters become top-level fields; break_points (str
-    ``"review"`` / ``"auto"``) translate to ``StageReviewMode`` entries
-    keyed by stage_id. ``always_review`` stages are also forced to
-    REVIEW so the engine pauses for them even if settings.toml omits
-    the entry.
+    set parameters become top-level fields; break_points (``"review"``
+    / ``"auto"``) translate to ``StageReviewMode`` entries keyed by
+    stage_id. Defaults from :data:`DEFAULT_BREAK_POINTS` apply when a
+    stage is unset.
     """
+    from mtgai.pipeline.models import _resolve_break_point
     from mtgai.settings.model_settings import get_settings
 
     settings = get_settings(set_code)
@@ -1330,7 +1594,7 @@ def _build_pipeline_config_from_settings(set_code: str) -> PipelineConfig:
     review_modes: dict[str, StageReviewMode] = {}
     for defn in STAGE_DEFINITIONS:
         sid = defn["stage_id"]
-        if defn["always_review"] or settings.break_points.get(sid) == "review":
+        if _resolve_break_point(sid, settings.break_points):
             review_modes[sid] = StageReviewMode.REVIEW
     return PipelineConfig(
         set_code=set_code,

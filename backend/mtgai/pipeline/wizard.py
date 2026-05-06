@@ -50,9 +50,14 @@ class WizardTab:
 
 @dataclass
 class WizardState:
-    """Resolved shape passed to the wizard template + bootstrap JSON."""
+    """Resolved shape passed to the wizard template + bootstrap JSON.
 
-    active_set: str
+    ``active_set`` is ``None`` when no project file is open — the wizard
+    then renders only the Project Settings tab with the New / Open
+    toolbar; every other tab is gated behind a loaded project.
+    """
+
+    active_set: str | None
     visible_tabs: list[WizardTab]
     latest_tab_id: str
     active_tab_id: str
@@ -61,8 +66,8 @@ class WizardState:
     # stage_id -> True if a break point is set after this stage. Mirrors
     # the Project Settings tab's break-point list so the per-tab "Stop
     # after this step" checkbox can show its initial value without a
-    # second fetch. always_review stages (human_card_review etc.) render
-    # as locked-on regardless of what settings.break_points stores.
+    # second fetch. Defaults from ``DEFAULT_BREAK_POINTS`` apply when a
+    # stage has no explicit override saved.
     break_points: dict[str, bool]
 
 
@@ -142,8 +147,24 @@ def resolve_tab(requested: str | None, tabs: list[WizardTab]) -> str:
     return compute_latest_tab(tabs)
 
 
-def build_wizard_state(set_code: str, requested_tab: str | None) -> WizardState:
-    """Resolve the full wizard state for a set + URL fragment."""
+def build_wizard_state(set_code: str | None, requested_tab: str | None) -> WizardState:
+    """Resolve the full wizard state for a set + URL fragment.
+
+    With ``set_code`` None, the wizard renders only the Project Settings
+    tab; pipeline state, theme, and break-point overrides are all empty
+    because there is nothing on disk to load yet.
+    """
+    if set_code is None:
+        tabs = [WizardTab(id=PROJECT_TAB_ID, title="Project Settings", kind="project")]
+        return WizardState(
+            active_set=None,
+            visible_tabs=tabs,
+            latest_tab_id=PROJECT_TAB_ID,
+            active_tab_id=PROJECT_TAB_ID,
+            pipeline_state=None,
+            theme=None,
+            break_points={},
+        )
     state = load_state(set_code)
     theme = _load_theme_for(set_code)
     tabs = compute_visible_tabs(state, theme)

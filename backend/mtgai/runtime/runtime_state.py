@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
@@ -36,24 +35,23 @@ OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent.parent / "output"
 SETS_ROOT = OUTPUT_ROOT / "sets"
 
 
-def _resolve_active_set_code(override: str | None) -> str:
+def _resolve_active_set_code(override: str | None) -> str | None:
     """Pick the set code the front-end should hydrate against.
 
     Resolution order:
 
     1. Explicit ``override`` arg if non-empty.
-    2. The set persisted in ``output/settings/last_set.toml`` (written
-       by the top-bar set picker). Stale entries — codes whose set dir
-       no longer exists — are skipped, so deleting a set out from
-       under the app falls through to the next step rather than
-       silently keeping the stale pointer.
-    3. The set whose ``pipeline-state.json`` *or* ``theme.json`` was
-       most recently touched on disk — both markers are merged into
-       one mtime-sorted candidate list, so a freshly-saved theme can
-       win over a stale pipeline-state and vice versa. Kept as a
-       fallback for fresh checkouts or pre-picker installs.
-    4. ``MTGAI_REVIEW_SET`` env var.
-    5. ``"ASD"``.
+    2. The set persisted in ``output/settings/last_set.toml``. Stale
+       entries — codes whose set dir no longer exists — are skipped.
+    3. ``None`` — no project is open. Callers must handle this by
+       rendering the empty toolbar-only state (Project Settings shows
+       only New / Open until the user materialises a project).
+
+    The legacy mtime + ``MTGAI_REVIEW_SET`` + ``"ASD"`` fallbacks were
+    dropped when projects became `.mtg` files: a server restart or a
+    fresh clone has *no* implicit project, so the wizard greets the
+    user with New / Open instead of silently dropping them into a
+    half-stale set.
     """
     if override:
         return override.strip().upper()
@@ -62,23 +60,7 @@ def _resolve_active_set_code(override: str | None) -> str:
     # module, so importing at module top would create a cycle.
     from mtgai.runtime.active_set import read_active_set
 
-    persisted = read_active_set()
-    if persisted:
-        return persisted
-
-    if SETS_ROOT.exists():
-        candidates: list[tuple[float, str]] = []
-        for marker in ("pipeline-state.json", "theme.json"):
-            for f in SETS_ROOT.glob(f"*/{marker}"):
-                try:
-                    candidates.append((f.stat().st_mtime, f.parent.name))
-                except OSError:
-                    continue
-        if candidates:
-            candidates.sort(reverse=True)
-            return candidates[0][1]
-
-    return os.environ.get("MTGAI_REVIEW_SET", "ASD")
+    return read_active_set()
 
 
 def _load_theme(set_code: str) -> dict | None:
@@ -137,17 +119,22 @@ def _active_runs_payload() -> dict[str, dict[str, Any]]:
     return runs
 
 
-def resolve_active_set_code(override: str | None = None) -> str:
+def resolve_active_set_code(override: str | None = None) -> str | None:
     """Public entry-point for the active-set resolution chain.
 
-    Thin wrapper over :func:`_resolve_active_set_code` so callers in
-    other modules don't have to reach for the underscored name.
+    Returns ``None`` when no project is loaded — callers must handle
+    that case (typically by rendering the no-project shell).
     """
     return _resolve_active_set_code(override)
 
 
 def compute_runtime_state(set_code_override: str | None = None) -> dict[str, Any]:
-    """Build the ``/api/runtime/state`` payload."""
+    """Build the ``/api/runtime/state`` payload.
+
+    ``active_set`` is ``None`` when no project file is open. The
+    pipeline and theme slices are also ``None`` in that case — there
+    is no set on disk to load them from.
+    """
     from mtgai.runtime.active_set import list_sets
 
     active_set = _resolve_active_set_code(set_code_override)
@@ -156,6 +143,6 @@ def compute_runtime_state(set_code_override: str | None = None) -> dict[str, Any
         "available_sets": list_sets(),
         "ai_lock": ai_lock.busy_payload(),
         "active_runs": _active_runs_payload(),
-        "pipeline": _load_pipeline_summary(active_set),
-        "theme": _load_theme(active_set),
+        "pipeline": _load_pipeline_summary(active_set) if active_set else None,
+        "theme": _load_theme(active_set) if active_set else None,
     }

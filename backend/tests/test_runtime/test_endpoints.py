@@ -48,11 +48,12 @@ def client():
 
 
 def test_runtime_state_idle(client, monkeypatch):
+    """No project loaded → ``active_set`` is null + theme/pipeline blank."""
     monkeypatch.delenv("MTGAI_REVIEW_SET", raising=False)
     resp = client.get("/api/runtime/state")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["active_set"] == "ASD"
+    assert data["active_set"] is None
     assert data["ai_lock"]["running"] is False
     assert data["active_runs"] == {}
     assert data["pipeline"] is None

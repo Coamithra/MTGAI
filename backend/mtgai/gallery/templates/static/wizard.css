@@ -443,11 +443,116 @@
   cursor: pointer;
 }
 
-.wiz-bp-row input:disabled + * { color: #888; }
+.wiz-bp-row--checked label { color: #fff; font-weight: 600; }
 
-.wiz-bp-lock {
-  font-size: 0.75rem;
-  margin-left: 0.2rem;
+.wiz-bp-controls {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+/* Project Settings top toolbar (New / Open / Save) */
+.wiz-proj-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+.wiz-proj-toolbar-active {
+  margin-left: auto;
+  font-size: 0.82rem;
+  color: #aaa;
+}
+.wiz-proj-toolbar-active em {
+  font-style: italic;
+  color: #888;
+}
+.wiz-proj-toolbar-dirty {
+  color: #f5a623;
+  margin-left: 0.3rem;
+}
+
+/* No-project placeholder body (shown when nothing is loaded) */
+.wiz-project-empty {
+  padding: 2rem 1rem;
+  color: #aaa;
+  text-align: center;
+  border: 1px dashed #333;
+  border-radius: 6px;
+  background: #181820;
+}
+.wiz-project-empty p {
+  margin: 0.4rem 0;
+}
+
+/* Asset folder row */
+.wiz-asset-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+.wiz-asset-folder-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Open set modal — set list */
+.wiz-proj-open-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.9rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.wiz-proj-open-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+.wiz-proj-open-pick {
+  flex: 1;
+  text-align: left;
+}
+.wiz-proj-open-del {
+  flex: 0 0 auto;
+}
+
+/* Wizard-owned modal overlay (Open set, etc). Self-contained so a stale
+   page rule can't steal the positioning. */
+.wiz-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.wiz-modal {
+  background: #16213e;
+  border: 1px solid #1a1a3e;
+  border-radius: 8px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.wiz-modal h2 {
+  margin: 0 0 0.8rem 0;
+  font-size: 1.05rem;
+  color: #fff;
+}
+.wiz-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
 }
 
 /* Preset row */
@@ -735,6 +840,18 @@
   font-family: inherit;
 }
 .wiz-btn-secondary:hover { border-color: #4a9eff; color: #e0e0e0; }
+
+.wiz-btn-danger {
+  padding: 0.4rem 0.7rem;
+  border: 1px solid #5a2a2a;
+  border-radius: 6px;
+  background: transparent;
+  color: #d77;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.wiz-btn-danger:hover { border-color: #d44; color: #f99; background: rgba(180, 50, 50, 0.12); }
 
 /* --------------------------------------------------------------------------
    Edit flow — modal + draft banner + pencil tab indicator (design §9)

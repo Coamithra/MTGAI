@@ -207,8 +207,8 @@ def test_serialize_round_trips_visible_tabs(sets_root):
     assert [t["id"] for t in blob["visible_tabs"]] == ["project", "theme"]
     assert blob["pipeline_state"] is None
     assert blob["theme"] == {"code": "TST"}
-    # break_points is keyed by stage_id; always_review stages are forced True
-    # so the per-tab checkbox can render them as locked-on without a second fetch.
+    # break_points is keyed by stage_id; human review stages default to checked
+    # so the per-tab checkbox can render them on without a second fetch.
     assert isinstance(blob["break_points"], dict)
     assert blob["break_points"]["human_card_review"] is True
     assert blob["break_points"]["human_art_review"] is True
@@ -228,4 +228,18 @@ def test_break_points_reflect_settings_toggle(sets_root):
     ws = build_wizard_state("TST", requested_tab=None)
     assert ws.break_points["card_gen"] is True
     assert ws.break_points["skeleton"] is False  # untouched stays off
-    assert ws.break_points["human_card_review"] is True  # always_review still locked-on
+    assert ws.break_points["human_card_review"] is True  # default still on
+
+
+def test_break_points_human_stage_can_be_overridden_off(sets_root):
+    """User can explicitly disable a human-review default break point."""
+    from mtgai.settings import model_settings as ms
+
+    (sets_root / "TST").mkdir()
+    settings = ms.get_settings("TST")
+    new = settings.model_copy(update={"break_points": {"human_card_review": "auto"}})
+    ms.apply_settings("TST", new)
+
+    ws = build_wizard_state("TST", requested_tab=None)
+    assert ws.break_points["human_card_review"] is False
+    assert ws.break_points["human_art_review"] is True  # other defaults intact

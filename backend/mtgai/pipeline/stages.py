@@ -516,8 +516,8 @@ def run_human_card_review(
 ) -> StageResult:
     """Human card review — this is a pause point, not an automated stage.
 
-    The engine pauses here and the user uses the review gallery UI.
-    This function is a no-op; the engine handles the pause via always_review.
+    The engine pauses here when the stage's review_mode is REVIEW (the
+    default for ``human_*`` stages). This function is a no-op.
     """
     return StageResult(detail="Awaiting human card review via gallery UI")
 

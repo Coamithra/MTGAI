@@ -82,15 +82,12 @@ def test_get_project_payload_shape(client):
     # Default seed: empty name, default size, theme_input=none.
     assert data["set_params"]["set_size"] == 60
     assert data["theme_input"]["kind"] == "none"
-    # Break points: every stage rendered, three locked-on.
-    locked = [bp for bp in data["break_points"] if bp["always_review"]]
-    assert {bp["stage_id"] for bp in locked} == {
-        "human_card_review",
-        "human_art_review",
-        "human_final_review",
-    }
-    # Locked stages render as already-on.
-    assert all(bp["review"] for bp in locked)
+    # Break points: every stage rendered; human review stages default to checked-on.
+    by_id = {bp["stage_id"]: bp for bp in data["break_points"]}
+    for sid in ("human_card_review", "human_art_review", "human_final_review"):
+        assert by_id[sid]["review"] is True
+    # No always_review field is exposed any more.
+    assert "always_review" not in data["break_points"][0]
     # Registry slice is included so the dropdowns can render.
     assert any(m["key"] == "opus" for m in data["llm_models"])
     assert any(m["key"] == "flux-local" for m in data["image_models"])
@@ -234,13 +231,14 @@ def test_save_break_toggles_on_and_off(client):
     assert ms.get_settings("ASD").break_points == {}
 
 
-def test_save_break_rejects_always_review_stage(client):
+def test_save_break_human_review_stage_can_be_unchecked(client):
     _make_set("ASD")
     resp = client.post(
         "/api/wizard/project/breaks",
         json={"set_code": "ASD", "stage_id": "human_card_review", "review": False},
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 200
+    assert ms.get_settings("ASD").break_points["human_card_review"] == "auto"
 
 
 # ---------------------------------------------------------------------------

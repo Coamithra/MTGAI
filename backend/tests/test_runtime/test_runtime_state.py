@@ -58,23 +58,34 @@ def _empty_state_shape(payload: dict) -> None:
     assert payload["pipeline"] is None
 
 
-def test_compute_returns_default_set_when_disk_is_empty(monkeypatch):
-    """No sets on disk -> falls back to MTGAI_REVIEW_SET (default ASD)."""
+def test_compute_returns_none_when_no_project_loaded(monkeypatch):
+    """No active-set toml + nothing else → ``active_set`` is ``None``.
+
+    The legacy mtime / env / "ASD" fallbacks were dropped when projects
+    moved to .mtg files: a server start with no project chosen leaves
+    the wizard in the New / Open state rather than silently picking
+    a half-stale set.
+    """
     monkeypatch.delenv("MTGAI_REVIEW_SET", raising=False)
     payload = runtime_state.compute_runtime_state()
-    assert payload["active_set"] == "ASD"
+    assert payload["active_set"] is None
     _empty_state_shape(payload)
     assert payload["theme"] is None
 
 
-def test_compute_resolves_set_from_disk(tmp_path, monkeypatch):
-    """A theme.json on disk picks the active set."""
+def test_compute_ignores_disk_sets_without_explicit_pointer(tmp_path, monkeypatch):
+    """A theme.json on disk no longer auto-picks the active set.
+
+    The mtime fallback was the legacy resolver's last-resort heuristic;
+    today the only way to make a set "active" is via the active-set
+    pointer (POST /api/runtime/active-set or /api/project/open).
+    """
     monkeypatch.delenv("MTGAI_REVIEW_SET", raising=False)
     sets_root = runtime_state.SETS_ROOT
     _write_theme(sets_root / "ABC", {"code": "ABC", "name": "Test"})
     payload = runtime_state.compute_runtime_state()
-    assert payload["active_set"] == "ABC"
-    assert payload["theme"] == {"code": "ABC", "name": "Test"}
+    assert payload["active_set"] is None
+    assert payload["theme"] is None
 
 
 def test_explicit_set_code_override_wins():
@@ -160,8 +171,9 @@ def test_persisted_set_wins_over_mtime_fallback(monkeypatch):
 
 
 def test_persisted_set_skipped_when_dir_missing(monkeypatch):
-    """A stale persisted code (set deleted on disk) falls through to
-    the mtime fallback rather than silently keeping the dead pointer."""
+    """A stale persisted code (set deleted on disk) is treated as no
+    project loaded — the resolver no longer falls back to other sets
+    on disk, so the wizard surfaces the New / Open empty state."""
     monkeypatch.delenv("MTGAI_REVIEW_SET", raising=False)
     sets_root = runtime_state.SETS_ROOT
     _write_theme(sets_root / "ALIVE", {"code": "ALIVE"})
@@ -173,7 +185,7 @@ def test_persisted_set_skipped_when_dir_missing(monkeypatch):
     active_set_mod._LAST_SET_PATH.write_text('[runtime]\nactive_set = "GHOST"\n', encoding="utf-8")
 
     payload = runtime_state.compute_runtime_state()
-    assert payload["active_set"] == "ALIVE"
+    assert payload["active_set"] is None
 
 
 def test_compute_swallows_corrupt_theme_json(tmp_path):

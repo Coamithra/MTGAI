@@ -59,6 +59,9 @@ Local models run through llmfacade's `llamacpp` provider in managed mode (lazy-s
 ## Toolchain Buildout (in progress)
 Making MTGAI reusable for any set, not just ASD. Say "continue toolchain buildout" to resume. Remaining work tracked on Trello: TC-2 (mechanic gen) → TC-3 (archetype gen) → TC-4 (visual refs) → TC-5 (pointed questions template) → TC-6 (prompts module) → TC-7 (skeleton + configure integration).
 
+## Removed legacy pages
+Standalone pages **/theme**, **/review**, **/progress**, **/booster** were removed when the wizard subsumed their surfaces. The HTML templates, JS, and route handlers are deleted from the working tree but preserved in git history — when building out the corresponding pipeline stages (review UI, progress dashboard, booster preview), pull them back via `git show <pre-removal-sha>:backend/mtgai/gallery/templates/<name>.html` (and `static/<name>.js`) or `git checkout <sha> -- <path>`. Underlying business logic in `mtgai/review/decisions.py` and `mtgai/packs.py` was kept untouched.
+
 ## Git
 - Card JSON is version-controlled. Art and rendered images are gitignored.
 - Full ignore patterns in `.gitignore` at repo root.

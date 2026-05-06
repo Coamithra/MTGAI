@@ -58,7 +58,7 @@
       // a desired-state fingerprint covering both the break-point
       // toggle and the Edit button visibility.
       const fingerprint = JSON.stringify({
-        bp: !!stage.always_review || !!state.breakPoints[stage.stage_id],
+        bp: !!state.breakPoints[stage.stage_id],
         editVisible: shouldShowEditButton(stage),
         editing,
       });
@@ -186,30 +186,18 @@
   // ------------------------------------------------------------------
 
   function breakPointToggleHtml(stage, state) {
-    const lockedOn = !!stage.always_review;
-    const checked = lockedOn || !!state.breakPoints[stage.stage_id];
-    const disabledAttr = lockedOn ? 'disabled aria-disabled="true"' : '';
-    const titleAttr = lockedOn
-      ? ' title="Always pauses for review"'
-      : ' title="When checked, the wizard pauses after this stage finishes."';
-    const labelText = lockedOn ? 'Stop after this step (always on)' : 'Stop after this step';
-    const lockGlyph = lockedOn ? ' <span class="wiz-bp-lock" aria-hidden="true">🔒</span>' : '';
+    const checked = !!state.breakPoints[stage.stage_id];
     return `
-      <label class="wiz-stage-break-toggle"${titleAttr}>
-        <input
-          type="checkbox"
-          data-role="stage-break"
-          ${checked ? 'checked' : ''}
-          ${disabledAttr}
-        >
-        ${labelText}${lockGlyph}
+      <label class="wiz-stage-break-toggle" title="When checked, the wizard pauses after this stage finishes.">
+        <input type="checkbox" data-role="stage-break" ${checked ? 'checked' : ''}>
+        Stop after this step
       </label>
     `;
   }
 
   function bindBreakPointToggle(container, stage, state) {
     const cb = container.querySelector('input[data-role="stage-break"]');
-    if (!cb || cb.disabled) return;
+    if (!cb) return;
     cb.addEventListener('change', async () => {
       const desired = cb.checked;
       try {

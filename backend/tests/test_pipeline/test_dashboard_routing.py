@@ -46,8 +46,20 @@ def isolate_sets(tmp_path, monkeypatch):
         "mtgai.runtime.active_set._LAST_SET_PATH",
         tmp_path / "settings" / "last_set.toml",
     )
-    monkeypatch.setenv("MTGAI_REVIEW_SET", "TST")
     return sets_root
+
+
+def _activate(code: str) -> None:
+    """Write the active-project pointer so resolve_active_set_code finds it.
+
+    Tests for the wizard render path used to rely on the now-removed
+    mtime / env-var fallbacks; they have to opt in to a project the
+    same way the runtime does (via the active-set TOML written by the
+    Open / Materialise endpoints).
+    """
+    from mtgai.runtime.active_set import write_active_set
+
+    write_active_set(code)
 
 
 def _seed_set(
@@ -76,6 +88,7 @@ def test_pipeline_root_redirects_to_project_when_brand_new(client, isolate_sets)
 def test_pipeline_root_redirects_to_theme_when_theme_exists(client, isolate_sets):
     """Theme exists, pipeline not started → latest tab is theme."""
     _seed_set(isolate_sets, "TST", theme={"code": "TST", "name": "Test"})
+    _activate("TST")
     resp = client.get("/pipeline", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["location"] == "/pipeline/theme"
@@ -89,6 +102,7 @@ def test_pipeline_root_redirects_to_running_stage(client, isolate_sets):
     state.stages[0].status = StageStatus.COMPLETED
     state.stages[1].status = StageStatus.RUNNING
     _seed_set(isolate_sets, "TST", theme={"code": "TST"}, state=state)
+    _activate("TST")
 
     resp = client.get("/pipeline", follow_redirects=False)
     assert resp.status_code == 302
@@ -109,6 +123,7 @@ def test_pipeline_project_renders_wizard(client, isolate_sets):
 def test_pipeline_project_includes_serialised_state(client, isolate_sets):
     """The wizard bootstrap blob carries active_set + visible_tabs."""
     _seed_set(isolate_sets, "TST", theme={"code": "TST", "name": "Test"})
+    _activate("TST")
     resp = client.get("/pipeline/project")
     assert resp.status_code == 200
     body = resp.text

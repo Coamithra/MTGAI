@@ -90,7 +90,6 @@ class StageState(BaseModel):
     status: StageStatus = StageStatus.PENDING
     review_mode: StageReviewMode = StageReviewMode.AUTO
     review_eligible: bool = True  # Can be set to review mode?
-    always_review: bool = False  # Human review stages — always pause
     progress: StageProgress = Field(default_factory=StageProgress)
 
 
@@ -145,109 +144,35 @@ class PipelineState(BaseModel):
 # ---------------------------------------------------------------------------
 
 STAGE_DEFINITIONS: list[dict] = [
-    {
-        "stage_id": "skeleton",
-        "display_name": "Skeleton Generation",
-        "review_eligible": True,
-        "always_review": False,
-    },
-    {
-        "stage_id": "reprints",
-        "display_name": "Reprint Selection",
-        "review_eligible": True,
-        "always_review": False,
-    },
-    {
-        "stage_id": "lands",
-        "display_name": "Land Generation",
-        "review_eligible": False,
-        "always_review": False,
-    },
-    {
-        "stage_id": "card_gen",
-        "display_name": "Card Generation",
-        "review_eligible": True,
-        "always_review": False,
-    },
-    {
-        "stage_id": "balance",
-        "display_name": "Balance Analysis",
-        "review_eligible": True,
-        "always_review": False,
-    },
-    {
-        "stage_id": "skeleton_rev",
-        "display_name": "Skeleton Revision",
-        "review_eligible": True,
-        "always_review": False,
-    },
-    {
-        "stage_id": "ai_review",
-        "display_name": "AI Design Review",
-        "review_eligible": True,
-        "always_review": False,
-    },
-    {
-        "stage_id": "finalize",
-        "display_name": "Finalization",
-        "review_eligible": False,
-        "always_review": False,
-    },
-    {
-        "stage_id": "human_card_review",
-        "display_name": "Card Review",
-        "review_eligible": True,
-        "always_review": True,
-    },
-    {
-        "stage_id": "art_prompts",
-        "display_name": "Art Prompt Generation",
-        "review_eligible": False,
-        "always_review": False,
-    },
-    {
-        "stage_id": "char_portraits",
-        "display_name": "Character Portraits",
-        "review_eligible": True,
-        "always_review": False,
-    },
-    {
-        "stage_id": "art_gen",
-        "display_name": "Art Generation",
-        "review_eligible": False,
-        "always_review": False,
-    },
-    {
-        "stage_id": "art_select",
-        "display_name": "Art Selection",
-        "review_eligible": True,
-        "always_review": False,
-    },
-    {
-        "stage_id": "human_art_review",
-        "display_name": "Art Review",
-        "review_eligible": True,
-        "always_review": True,
-    },
-    {
-        "stage_id": "rendering",
-        "display_name": "Card Rendering",
-        "review_eligible": False,
-        "always_review": False,
-    },
-    {
-        "stage_id": "render_qa",
-        "display_name": "Render QA",
-        "review_eligible": True,
-        "always_review": False,
-    },
-    {
-        "stage_id": "human_final_review",
-        "display_name": "Final Review",
-        "review_eligible": True,
-        "always_review": True,
-    },
+    {"stage_id": "skeleton", "display_name": "Skeleton Generation", "review_eligible": True},
+    {"stage_id": "reprints", "display_name": "Reprint Selection", "review_eligible": True},
+    {"stage_id": "lands", "display_name": "Land Generation", "review_eligible": False},
+    {"stage_id": "card_gen", "display_name": "Card Generation", "review_eligible": True},
+    {"stage_id": "balance", "display_name": "Balance Analysis", "review_eligible": True},
+    {"stage_id": "skeleton_rev", "display_name": "Skeleton Revision", "review_eligible": True},
+    {"stage_id": "ai_review", "display_name": "AI Design Review", "review_eligible": True},
+    {"stage_id": "finalize", "display_name": "Finalization", "review_eligible": False},
+    {"stage_id": "human_card_review", "display_name": "Card Review", "review_eligible": True},
+    {"stage_id": "art_prompts", "display_name": "Art Prompt Generation", "review_eligible": False},
+    {"stage_id": "char_portraits", "display_name": "Character Portraits", "review_eligible": True},
+    {"stage_id": "art_gen", "display_name": "Art Generation", "review_eligible": False},
+    {"stage_id": "art_select", "display_name": "Art Selection", "review_eligible": True},
+    {"stage_id": "human_art_review", "display_name": "Art Review", "review_eligible": True},
+    {"stage_id": "rendering", "display_name": "Card Rendering", "review_eligible": False},
+    {"stage_id": "render_qa", "display_name": "Render QA", "review_eligible": True},
+    {"stage_id": "human_final_review", "display_name": "Final Review", "review_eligible": True},
 ]
+
+
+def _resolve_break_point(stage_id: str, break_points: dict[str, str]) -> bool:
+    """True iff the wizard should pause after this stage given the settings.
+
+    Falls back to ``DEFAULT_BREAK_POINTS`` so human review stages start
+    checked-on for new sets while still letting users uncheck them.
+    """
+    from mtgai.settings.model_settings import DEFAULT_BREAK_POINTS
+
+    return break_points.get(stage_id, DEFAULT_BREAK_POINTS.get(stage_id, "auto")) == "review"
 
 
 def break_point_states(break_points: dict[str, str]) -> dict[str, bool]:
@@ -256,41 +181,41 @@ def break_point_states(break_points: dict[str, str]) -> dict[str, bool]:
     Single source for the ``settings.break_points`` -> bool resolution
     used by the Project Settings break-points list (server-side payload)
     and the per-tab "Stop after this step" checkbox (wizard bootstrap).
-    ``always_review`` stages render as locked-on regardless of what the
-    settings dict stores — the engine forces a pause for them anyway.
     """
-    return {
-        defn["stage_id"]: bool(
-            defn["always_review"] or break_points.get(defn["stage_id"]) == "review"
-        )
-        for defn in STAGE_DEFINITIONS
-    }
+    return {defn["stage_id"]: _resolve_break_point(defn["stage_id"], break_points)
+            for defn in STAGE_DEFINITIONS}
 
 
-def build_stages(config: PipelineConfig) -> list[StageState]:
-    """Build the ordered stage list from definitions + user config."""
+def build_stages(config: PipelineConfig, break_points: dict[str, str] | None = None) -> list[StageState]:
+    """Build the ordered stage list from definitions + user config.
+
+    ``break_points`` (when provided) seeds review_mode from the per-set
+    settings.toml; falls back to ``stage_review_modes`` on the config
+    for callers that haven't migrated to break_points yet.
+    """
+    bp = break_points or {}
     stages = []
     for defn in STAGE_DEFINITIONS:
         stage_id = defn["stage_id"]
         review_mode = config.stage_review_modes.get(stage_id, StageReviewMode.AUTO)
-        # Human review stages are always in review mode
-        if defn["always_review"]:
+        if break_points is not None and _resolve_break_point(stage_id, bp):
             review_mode = StageReviewMode.REVIEW
         stages.append(
             StageState(
                 stage_id=stage_id,
                 display_name=defn["display_name"],
                 review_eligible=defn["review_eligible"],
-                always_review=defn["always_review"],
                 review_mode=review_mode,
             )
         )
     return stages
 
 
-def create_pipeline_state(config: PipelineConfig) -> PipelineState:
+def create_pipeline_state(
+    config: PipelineConfig, break_points: dict[str, str] | None = None
+) -> PipelineState:
     """Create a fresh pipeline state from user configuration."""
     return PipelineState(
         config=config,
-        stages=build_stages(config),
+        stages=build_stages(config, break_points=break_points),
     )

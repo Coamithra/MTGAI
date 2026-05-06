@@ -23,6 +23,8 @@ import json
 import logging
 import os
 import re
+import shutil
+import stat
 import tempfile
 import tomllib
 from pathlib import Path
@@ -81,11 +83,15 @@ def write_active_set(code: str) -> None:
     if not is_valid_set_code(code):
         raise ValueError(f"Invalid set code: {code!r}")
     code = normalize_code(code)
-    _SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+    # Resolve the directory off the (possibly monkeypatched) path so
+    # tests pointing _LAST_SET_PATH at a tmp dir don't fall back to the
+    # real ``output/settings/`` constant.
+    target_dir = _LAST_SET_PATH.parent
+    target_dir.mkdir(parents=True, exist_ok=True)
     payload = f'[runtime]\nactive_set = "{code}"\n'
     # Same dir for the temp file so os.replace stays atomic across the
     # final rename (cross-device renames would fall back to a copy).
-    fd, tmp_path = tempfile.mkstemp(prefix=".last_set-", suffix=".toml.tmp", dir=str(_SETTINGS_DIR))
+    fd, tmp_path = tempfile.mkstemp(prefix=".last_set-", suffix=".toml.tmp", dir=str(target_dir))
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(payload)
@@ -155,3 +161,32 @@ def create_set(code: str, name: str | None = None) -> None:
             json.dumps({"code": code, "name": name.strip()}, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+
+
+def _force_remove(func, path, exc):  # noqa: ARG001 — rmtree onexc signature
+    # Windows leaves git pack files / generated assets read-only;
+    # rmtree's default behaviour just re-raises. Strip the read-only bit
+    # and retry so deleting a real set's full output directory works.
+    with contextlib.suppress(OSError):
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
+
+def delete_set(code: str) -> None:
+    """Permanently remove ``output/sets/<CODE>/`` and clear it as active.
+
+    Raises ``ValueError`` for malformed codes and ``FileNotFoundError``
+    if the directory doesn't exist so callers can return 400 / 404.
+    Unsets the active set (if it was this one) before removing the
+    tree, so a partial-failure leaves no dangling pointer.
+    """
+    if not is_valid_set_code(code):
+        raise ValueError(f"Invalid set code: {code!r}")
+    code = normalize_code(code)
+    set_dir = SETS_ROOT / code
+    if not set_dir.is_dir():
+        raise FileNotFoundError(f"Set {code} does not exist")
+    if read_active_set() == code:
+        with contextlib.suppress(OSError):
+            _LAST_SET_PATH.unlink()
+    shutil.rmtree(set_dir, onexc=_force_remove)

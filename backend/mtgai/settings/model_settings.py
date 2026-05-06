@@ -108,6 +108,14 @@ DEFAULT_EFFORT: dict[str, str] = {
     "ai_review": "max",
 }
 
+# Stages that default to "review" (pause for human input) when a set has no
+# explicit override saved. Users can still uncheck them on Project Settings.
+DEFAULT_BREAK_POINTS: dict[str, str] = {
+    "human_card_review": "review",
+    "human_art_review": "review",
+    "human_final_review": "review",
+}
+
 # ---------------------------------------------------------------------------
 # Built-in presets
 # ---------------------------------------------------------------------------
@@ -249,6 +257,12 @@ class ModelSettings(BaseModel):
     # single source of truth for everything Project Settings owns.
     set_params: SetParams = Field(default_factory=SetParams)
     theme_input: ThemeInputSource = Field(default_factory=ThemeInputSource)
+    # User-chosen folder for generated artifacts (cards/, theme.json,
+    # pipeline-state.json, art, renders). Empty string until the user picks
+    # one on Project Settings. In Phase 1 the field is captured + persisted
+    # but not yet wired through stage runners — those still write under
+    # ``output/sets/<CODE>/``. Phase 2 routes outputs into this folder.
+    asset_folder: str = ""
 
     def get_llm_model_id(self, stage_id: str) -> str:
         """Resolve the API model_id for a pipeline stage.
@@ -311,6 +325,9 @@ class ModelSettings(BaseModel):
             doc.add(tomlkit.nl())
             doc.add("break_points", dict(self.break_points))
         if not profile_only:
+            if self.asset_folder:
+                doc.add(tomlkit.nl())
+                doc.add("asset_folder", self.asset_folder)
             doc.add(tomlkit.nl())
             doc.add("set_params", self.set_params.model_dump())
             if self.theme_input.kind != "none":
@@ -365,6 +382,7 @@ class ModelSettings(BaseModel):
             break_points=data.get("break_points", {}),
             set_params=SetParams(**data.get("set_params", {})),
             theme_input=ThemeInputSource(**data.get("theme_input", {})),
+            asset_folder=data.get("asset_folder", "") or "",
         )
 
     @classmethod
@@ -434,6 +452,7 @@ class ModelSettings(BaseModel):
             "break_points": dict(self.break_points),
             "set_params": self.set_params.model_dump(),
             "theme_input": self.theme_input.model_dump(mode="json"),
+            "asset_folder": self.asset_folder,
         }
 
 
@@ -762,6 +781,76 @@ def list_profiles() -> list[str]:
 # ---------------------------------------------------------------------------
 # Convenience functions used by pipeline modules
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Project file (.mtg) serialization
+# ---------------------------------------------------------------------------
+#
+# The .mtg file is settings.toml + a top-level ``set_code`` key so it can
+# live anywhere on disk and still be self-describing. Phase 1: read/write
+# from the browser via File System Access API, applied server-side via
+# /api/project/open by writing the body into the standard
+# ``output/sets/<CODE>/settings.toml`` location.
+
+
+MTG_FILE_VERSION = 1
+
+
+def dump_project_toml(set_code: str, settings: ModelSettings) -> str:
+    """Serialize a ``set_code`` + settings pair as a .mtg TOML document.
+
+    Adds ``set_code`` and ``mtg_file_version`` as top-level keys above the
+    standard settings.toml shape. The version field is a forward-compat
+    hook — readers can refuse / migrate when the format changes.
+    """
+    import tomlkit
+
+    set_code = _validate_set_code(set_code)
+    doc = tomlkit.document()
+    doc.add(tomlkit.comment("MTGAI project file"))
+    doc.add(tomlkit.nl())
+    doc.add("mtg_file_version", MTG_FILE_VERSION)
+    doc.add("set_code", set_code)
+    # Body of settings.toml: blank-line separator first, then merge keys.
+    body = settings.to_toml_doc()
+    doc.add(tomlkit.nl())
+    for key, value in body.body:
+        if key is None:
+            continue  # whitespace / comments
+        doc.add(key, value)
+    return tomlkit.dumps(doc)
+
+
+def parse_project_toml(text: str) -> tuple[str, ModelSettings]:
+    """Parse a .mtg TOML body into ``(set_code, ModelSettings)``.
+
+    Raises ``ValueError`` on missing ``set_code`` or a future
+    ``mtg_file_version`` we don't know how to read.
+    """
+    import tomllib
+
+    data = tomllib.loads(text)
+    version = data.get("mtg_file_version", 1)
+    if not isinstance(version, int) or version > MTG_FILE_VERSION:
+        raise ValueError(
+            f"Unsupported .mtg file version {version!r} "
+            f"(this build understands up to {MTG_FILE_VERSION})"
+        )
+    raw_code = data.get("set_code")
+    if not isinstance(raw_code, str):
+        raise ValueError(".mtg file missing 'set_code'")
+    set_code = _validate_set_code(raw_code.strip().upper())
+    settings = ModelSettings(
+        llm_assignments=data.get("llm_assignments", {}),
+        image_assignments=data.get("image_assignments", {}),
+        effort_overrides=data.get("effort_overrides", {}),
+        break_points=data.get("break_points", {}),
+        set_params=SetParams(**data.get("set_params", {})),
+        theme_input=ThemeInputSource(**data.get("theme_input", {})),
+        asset_folder=data.get("asset_folder", "") or "",
+    )
+    return set_code, settings
 
 
 def get_llm_model(stage_id: str, set_code: str) -> str:

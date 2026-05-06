@@ -233,7 +233,7 @@ class PipelineEngine:
                 return
 
             # Check if human review is needed
-            if stage.always_review or stage.review_mode == StageReviewMode.REVIEW:
+            if stage.review_mode == StageReviewMode.REVIEW:
                 stage.status = StageStatus.PAUSED_FOR_REVIEW
                 self.state.overall_status = PipelineStatus.PAUSED
                 save_state(self.state)
