@@ -293,7 +293,9 @@ def get_character_ref_paths(card: Card, set_code: str) -> list[dict]:
     have reference images generated. These should be used as IP-Adapter
     or img2img conditioning in the ComfyUI workflow.
     """
-    refs_dir = OUTPUT_ROOT / "sets" / set_code / "art-direction" / "character-refs"
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    refs_dir = set_artifact_dir(set_code) / "art-direction" / "character-refs"
     if not refs_dir.exists():
         return []
 
@@ -345,7 +347,10 @@ def generate_prompts_for_set(
 
     Returns summary dict with stats.
     """
-    cards_dir = OUTPUT_ROOT / "sets" / set_code / "cards"
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    set_dir = set_artifact_dir(set_code)
+    cards_dir = set_dir / "cards"
     if not cards_dir.exists():
         raise FileNotFoundError(f"Cards directory not found: {cards_dir}")
 
@@ -363,7 +368,7 @@ def generate_prompts_for_set(
     errors = []
 
     # Log directory for prompt generation
-    log_dir = OUTPUT_ROOT / "sets" / set_code / "art-direction" / "prompt-logs"
+    log_dir = set_dir / "art-direction" / "prompt-logs"
     log_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info("Generating art prompts for %d cards in %s", len(card_files), set_code)
@@ -407,7 +412,7 @@ def generate_prompts_for_set(
 
             if not dry_run:
                 card.art_prompt = full_prompt
-                save_card(card, OUTPUT_ROOT)
+                save_card(card, set_dir=set_dir)
 
             processed += 1
             logger.info(

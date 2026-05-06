@@ -12,11 +12,10 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import time as _time
 import traceback
 from datetime import UTC, datetime
 from pathlib import Path
-
-import time as _time
 
 from mtgai.pipeline.events import EventBus, StageEmitter
 from mtgai.pipeline.models import (
@@ -35,7 +34,15 @@ OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
 
 
 def _state_path(set_code: str) -> Path:
-    return OUTPUT_ROOT / "sets" / set_code / "pipeline-state.json"
+    """Where ``pipeline-state.json`` lives for a set.
+
+    Routes through :func:`set_artifact_dir` so the file lands in the
+    project's configured ``asset_folder`` when present, else the legacy
+    ``output/sets/<CODE>/`` location.
+    """
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    return set_artifact_dir(set_code) / "pipeline-state.json"
 
 
 def save_state(state: PipelineState) -> None:
@@ -71,13 +78,23 @@ def cleanup_orphan_running_stages() -> list[str]:
     Returns a list of ``"<set_code>:<stage_id>"`` strings that were
     demoted, mainly for logging.
     """
-    sets_root = OUTPUT_ROOT / "sets"
-    if not sets_root.exists():
-        return []
+    from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.runtime.active_set import iter_known_set_codes
+
+    # Each registered project owns a settings.toml at the canonical
+    # location; its pipeline-state.json may then sit there OR in the
+    # user-chosen ``asset_folder``. iter_known_set_codes already filters
+    # to dirs that have a settings.toml, so set_artifact_dir below is
+    # safe to call without seeding stray scratch dirs.
+    state_paths: list[Path] = []
+    for code in iter_known_set_codes():
+        candidate = set_artifact_dir(code) / "pipeline-state.json"
+        if candidate.exists():
+            state_paths.append(candidate)
 
     demoted: list[str] = []
     now = datetime.now(UTC)
-    for state_path in sets_root.glob("*/pipeline-state.json"):
+    for state_path in state_paths:
         try:
             state = PipelineState.model_validate_json(state_path.read_text(encoding="utf-8"))
         except Exception:

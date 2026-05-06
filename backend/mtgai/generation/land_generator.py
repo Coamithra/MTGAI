@@ -176,7 +176,9 @@ def generate_lands(
       ``on_call_start(model)`` fires right before the Haiku request,
       ``on_card_saved(card)`` fires after each Card is written to disk.
     """
-    set_dir = OUTPUT_ROOT / "sets" / set_code
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    set_dir = set_artifact_dir(set_code)
     skeleton_path = set_dir / "skeleton.json"
     cards_dir = set_dir / "cards"
     cards_dir.mkdir(parents=True, exist_ok=True)

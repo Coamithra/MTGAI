@@ -28,7 +28,10 @@ def _project_root() -> Path:
 
 
 def _set_dir(set_code: str) -> Path:
-    return _project_root() / "output" / "sets" / set_code
+    """Where this set's artifacts live (asset_folder if configured)."""
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    return set_artifact_dir(set_code)
 
 
 def load_analysis_inputs(

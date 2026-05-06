@@ -34,21 +34,26 @@ from mtgai.validation import (
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
-
 
 # ---------------------------------------------------------------------------
 # Core finalization logic
 # ---------------------------------------------------------------------------
 
 
+def _set_dir(set_code: str) -> Path:
+    """Where this set's artifacts live (asset_folder if configured)."""
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    return set_artifact_dir(set_code)
+
+
 def _load_mechanics(set_code: str) -> list[dict]:
-    path = OUTPUT_ROOT / "sets" / set_code / "mechanics" / "approved.json"
+    path = _set_dir(set_code) / "mechanics" / "approved.json"
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _card_files(set_code: str) -> list[Path]:
-    cards_dir = OUTPUT_ROOT / "sets" / set_code / "cards"
+    cards_dir = _set_dir(set_code) / "cards"
     return sorted(cards_dir.glob("*.json"))
 
 
@@ -105,6 +110,10 @@ def finalize_set(
         set_code,
         " (dry run)" if dry_run else "",
     )
+
+    # Hoist the artifact-dir resolution outside the loop — it's constant
+    # for the whole call and the helper triggers a settings.toml read.
+    set_dir = _set_dir(set_code)
 
     for path in card_paths:
         card = load_card(path)
@@ -163,7 +172,7 @@ def finalize_set(
                 logger.warning("    - [%s] %s", err.error_code, err.message)
 
         if not dry_run and modified:
-            save_card(finalized, OUTPUT_ROOT)
+            save_card(finalized, set_dir=set_dir)
 
     summary = {
         "set_code": set_code,
@@ -198,7 +207,7 @@ def finalize_set(
 
 def _write_report(summary: dict, set_code: str) -> Path:
     """Write a markdown finalization report for human review."""
-    reports_dir = OUTPUT_ROOT / "sets" / set_code / "reports"
+    reports_dir = _set_dir(set_code) / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = reports_dir / "finalize-report.md"
 

@@ -37,7 +37,16 @@ OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
 
 
 def _set_dir(set_code: str) -> Path:
-    return OUTPUT_ROOT / "sets" / set_code
+    """Where ``set_code``'s artifacts live.
+
+    Routes through :func:`mtgai.io.asset_paths.set_artifact_dir` so the
+    user's configured ``asset_folder`` wins over the legacy
+    ``output/sets/<CODE>/`` default — every stage runner + clearer that
+    derives paths from this helper inherits the routing for free.
+    """
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    return set_artifact_dir(set_code)
 
 
 # ---------------------------------------------------------------------------
@@ -356,7 +365,7 @@ def run_lands(
     # watch than a "boom, all 6 appear" moment.
     saved_cards: list = []
 
-    def _on_card_saved(card) -> None:  # noqa: ANN001
+    def _on_card_saved(card) -> None:
         saved_cards.append(card)
 
     from mtgai.generation.llm_client import _get_provider, _resolve_provider

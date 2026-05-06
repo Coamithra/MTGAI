@@ -64,8 +64,15 @@ def _resolve_active_set_code(override: str | None) -> str | None:
 
 
 def _load_theme(set_code: str) -> dict | None:
-    """Read ``output/sets/<CODE>/theme.json`` if present."""
-    path = SETS_ROOT / set_code / "theme.json"
+    """Read the project's ``theme.json`` if present.
+
+    Routes through :func:`set_artifact_dir` so theme.json is read from
+    the project's configured ``asset_folder`` when present, else the
+    legacy ``output/sets/<CODE>/`` location.
+    """
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    path = set_artifact_dir(set_code) / "theme.json"
     if not path.exists():
         return None
     try:

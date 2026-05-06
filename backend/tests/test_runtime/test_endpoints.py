@@ -17,24 +17,13 @@ from mtgai.runtime import ai_lock, extraction_run
 
 
 @pytest.fixture(autouse=True)
-def _reset(tmp_path, monkeypatch):
-    sets_root = tmp_path / "sets"
-    settings_dir = tmp_path / "settings"
-    sets_root.mkdir(parents=True)
+def _reset(isolated_output):
+    """Per-test reset of run-state singletons.
 
-    from mtgai.pipeline import engine
-    from mtgai.runtime import active_set, runtime_state
-
-    monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
-    # active_set captures these at import time, so each module-level
-    # constant must be redirected separately.
-    monkeypatch.setattr(active_set, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(active_set, "_SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(active_set, "_LAST_SET_PATH", settings_dir / "last_set.toml")
-
+    ``isolated_output`` (from :mod:`tests.conftest`) handles the full
+    artifact-path patching chain; this wrapper just resets the AI lock
+    and extraction-run state that this test module exercises.
+    """
     ai_lock.reset_for_tests()
     extraction_run.reset()
     yield
@@ -80,16 +69,20 @@ def test_runtime_state_with_explicit_set(client, monkeypatch):
 
 
 def test_runtime_state_includes_available_sets(client):
-    """available_sets enumerates every directory under output/sets/."""
+    """available_sets enumerates every registered project under output/sets/."""
     from mtgai.runtime import runtime_state
 
     sets_root = runtime_state.SETS_ROOT
-    (sets_root / "ASD").mkdir()
-    (sets_root / "ASD" / "theme.json").write_text(
+    asd = sets_root / "ASD"
+    asd.mkdir()
+    (asd / "settings.toml").write_text("", encoding="utf-8")
+    (asd / "theme.json").write_text(
         json.dumps({"code": "ASD", "name": "Anomalous Descent"}),
         encoding="utf-8",
     )
-    (sets_root / "DS1").mkdir()
+    ds1 = sets_root / "DS1"
+    ds1.mkdir()
+    (ds1 / "settings.toml").write_text("", encoding="utf-8")
 
     resp = client.get("/api/runtime/state")
     assert resp.status_code == 200

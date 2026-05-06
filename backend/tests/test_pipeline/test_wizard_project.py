@@ -26,6 +26,7 @@ def _reset(tmp_path, monkeypatch):
     sets_root.mkdir(parents=True)
     settings_dir.mkdir(parents=True)
 
+    from mtgai.io import asset_paths
     from mtgai.pipeline import engine
     from mtgai.pipeline import server as pipeline_server
     from mtgai.runtime import active_set, runtime_state
@@ -38,6 +39,8 @@ def _reset(tmp_path, monkeypatch):
     monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
     monkeypatch.setattr(active_set, "_SETTINGS_DIR", settings_dir)
     monkeypatch.setattr(active_set, "_LAST_SET_PATH", settings_dir / "last_set.toml")
+    monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
 
     monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)

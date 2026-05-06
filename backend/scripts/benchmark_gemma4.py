@@ -276,7 +276,7 @@ def main():
                 print(f"  SKIPPING {model_id} - failed to load")
                 continue
 
-        print(f"  Running theme extraction...")
+        print("  Running theme extraction...")
         try:
             result = run_benchmark(model_id, system_prompt, user_prompt, args.num_ctx)
         except Exception as e:
@@ -316,7 +316,7 @@ def main():
     summary_file.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(f"\nResults saved to: {run_dir}")
     print(f"JSON summary: {summary_file}")
-    print(f"\nReview outputs for quality:")
+    print("\nReview outputs for quality:")
     for key in models_to_test:
         safe_name = key.replace("/", "_").replace(":", "_")
         print(f"  {run_dir / f'{safe_name}_output.md'}")

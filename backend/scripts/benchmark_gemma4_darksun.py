@@ -262,7 +262,7 @@ def main():
         placement = check_gpu_placement(model_info.model_id)
         print(f"  Placement: {placement}")
 
-        print(f"  Running stream_theme_extraction()...")
+        print("  Running stream_theme_extraction()...")
         try:
             result = run_extraction(key, text)
         except Exception as e:

@@ -351,9 +351,29 @@ class TestBuildGallery:
     """Tests for the build_gallery orchestrator."""
 
     def _patch_paths(self, monkeypatch, tmp_path: Path) -> None:
-        """Monkeypatch project root for both generator and loaders modules."""
-        monkeypatch.setattr("mtgai.gallery.generator._project_root", lambda: tmp_path)
-        monkeypatch.setattr("mtgai.review.loaders._project_root", lambda: tmp_path)
+        """Monkeypatch artifact paths so build_gallery sees tmp_path/output.
+
+        Phase 2 routes ``_set_dir`` through :func:`set_artifact_dir` which
+        consults ``model_settings``, so we patch the whole chain (asset
+        helper + settings module) and seed the in-memory cache miss path
+        rather than just overriding ``_project_root``.
+        """
+        from mtgai.io import asset_paths
+        from mtgai.settings import model_settings as ms
+
+        sets_root = tmp_path / "output" / "sets"
+        settings_dir = tmp_path / "output" / "settings"
+        sets_root.mkdir(parents=True, exist_ok=True)
+        settings_dir.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path / "output")
+        monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
+        monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path / "output")
+        monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
+        monkeypatch.setattr(ms, "SETS_DIR", sets_root)
+        monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
+        monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
+        ms.invalidate_cache()
         monkeypatch.setattr(
             "mtgai.gallery.generator._templates_dir",
             lambda: (

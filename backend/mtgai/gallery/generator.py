@@ -33,8 +33,14 @@ def _project_root() -> Path:
 
 
 def _set_dir(set_code: str) -> Path:
-    """Return the output directory for a set code."""
-    return _project_root() / "output" / "sets" / set_code
+    """Return the artifact directory for ``set_code``.
+
+    Routes through :func:`set_artifact_dir` so reads honour the
+    project's configured ``asset_folder``.
+    """
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    return set_artifact_dir(set_code)
 
 
 def _templates_dir() -> Path:

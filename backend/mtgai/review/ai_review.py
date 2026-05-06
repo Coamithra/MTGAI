@@ -1184,8 +1184,11 @@ def review_set(
         datefmt="%H:%M:%S",
     )
 
-    # Derive paths from set_code
-    set_dir = OUTPUT_ROOT / "sets" / set_code
+    # Derive paths from set_code. set_artifact_dir routes to the
+    # project's asset_folder when configured.
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    set_dir = set_artifact_dir(set_code)
     mechanics_path = set_dir / "mechanics" / "approved.json"
     pointed_q_path = set_dir / "mechanics" / "pointed-questions.json"
     reviews_dir = set_dir / "reviews"
@@ -1213,7 +1216,7 @@ def review_set(
     )
 
     # Load cards
-    cards_dir = OUTPUT_ROOT / "sets" / set_code / "cards"
+    cards_dir = set_dir / "cards"
     if not cards_dir.exists():
         logger.error("No cards directory found at %s", cards_dir)
         return []
@@ -1321,7 +1324,7 @@ def review_set(
                 if original_path:
                     original_card = load_card(original_path)
                     updated_card = _apply_revision(original_card, result.revised_card)
-                    save_card(updated_card, OUTPUT_ROOT)
+                    save_card(updated_card, set_dir=set_dir)
                     logger.info("  [%s] Card JSON updated: %s", cn, original_path.name)
             except Exception:
                 logger.exception("  [%s] Failed to apply revision to card JSON", cn)

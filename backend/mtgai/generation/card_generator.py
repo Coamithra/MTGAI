@@ -435,6 +435,7 @@ def _process_batch_result(
     latency_s: float = 0.0,
     stop_reason: str = "",
     effort: str | None = None,
+    set_dir: Path | None = None,
 ) -> list[Card]:
     """Validate, auto-fix, and save each card from a batch result.
 
@@ -569,8 +570,9 @@ def _process_batch_result(
 
         card = card.model_copy(update=update_fields)
 
-        # Save card
-        path = save_card(card, OUTPUT_ROOT)
+        # Save card — route through the project's set_dir so asset_folder
+        # routing wins over the legacy OUTPUT_ROOT/sets/<CODE>/ default.
+        path = save_card(card, set_dir=set_dir)
         progress.filled_slots[slot_id] = str(path)
         existing_cards.append(card)
         saved.append(card)
@@ -706,8 +708,12 @@ def generate_set(
         datefmt="%H:%M:%S",
     )
 
-    # Derive paths from set_code
-    set_dir = OUTPUT_ROOT / "sets" / set_code
+    # Derive paths from set_code. set_artifact_dir routes to the
+    # project's asset_folder when configured, else the legacy
+    # output/sets/<CODE>/.
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    set_dir = set_artifact_dir(set_code)
     skeleton_path = set_dir / "skeleton.json"
     mechanics_path = set_dir / "mechanics" / "approved.json"
     theme_path = set_dir / "theme.json"
@@ -966,6 +972,7 @@ def generate_set(
             latency_s=api_latency,
             stop_reason=result.get("stop_reason", ""),
             effort=active_effort,
+            set_dir=set_dir,
         )
         total_saved += len(saved)
         progress.save()

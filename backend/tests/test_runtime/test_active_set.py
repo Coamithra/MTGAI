@@ -12,25 +12,50 @@ from mtgai.runtime import active_set
 
 @pytest.fixture(autouse=True)
 def _isolate_paths(tmp_path, monkeypatch):
-    """Redirect the module's OUTPUT_ROOT/SETS_ROOT to a tmp dir.
+    """Redirect every output-touching module to a tmp dir.
 
-    The module captures both at import time, so we patch them on the
-    module itself for each test.
+    Both ``active_set`` and the artifact resolver chain (asset_paths +
+    model_settings) capture path constants at import time, so they have
+    to be patched on the modules themselves. The model_settings cache is
+    invalidated so each test sees a fresh seed.
     """
+    from mtgai.io import asset_paths
+    from mtgai.settings import model_settings as ms
+
     sets_root = tmp_path / "sets"
     settings_dir = tmp_path / "settings"
     sets_root.mkdir(parents=True)
+    settings_dir.mkdir(parents=True)
 
     monkeypatch.setattr(active_set, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
     monkeypatch.setattr(active_set, "_SETTINGS_DIR", settings_dir)
     monkeypatch.setattr(active_set, "_LAST_SET_PATH", settings_dir / "last_set.toml")
+    monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
+    monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
+    monkeypatch.setattr(ms, "SETS_DIR", sets_root)
+    monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
+    monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
+
+    ms.invalidate_cache()
     yield
+    ms.invalidate_cache()
 
 
 def _make_set(set_code: str, *, theme_name: str | None = None) -> Path:
+    """Materialise ``set_code`` as a registered project.
+
+    ``settings.toml`` is the canonical "this project exists" marker —
+    ``iter_known_set_codes`` filters dirs without one. Tests that just
+    want a set discoverable need both the directory and the registry
+    pointer; an empty TOML is enough since the model parses missing keys
+    as defaults.
+    """
     set_dir = active_set.SETS_ROOT / set_code
     set_dir.mkdir(parents=True, exist_ok=True)
+    (set_dir / "settings.toml").write_text("", encoding="utf-8")
     if theme_name is not None:
         (set_dir / "theme.json").write_text(
             json.dumps({"code": set_code, "name": theme_name}), encoding="utf-8"

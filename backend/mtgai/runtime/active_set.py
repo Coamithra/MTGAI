@@ -104,26 +104,46 @@ def write_active_set(code: str) -> None:
         raise
 
 
+def iter_known_set_codes() -> list[str]:
+    """Yield set codes for every project registered under ``output/sets/``.
+
+    A project is *registered* by a ``settings.toml`` at the canonical
+    ``output/sets/<CODE>/settings.toml`` path. The artifact dir for that
+    code may then live elsewhere via ``asset_folder``.
+
+    Codes are filtered through :data:`SET_CODE_RE` so stray scratch dirs
+    under ``output/sets/`` don't pollute the iteration. Returned sorted
+    so callers can rely on a stable order.
+    """
+    if not SETS_ROOT.exists():
+        return []
+    out: list[str] = []
+    for child in sorted(SETS_ROOT.iterdir()):
+        if not child.is_dir() or not SET_CODE_RE.fullmatch(child.name):
+            continue
+        if not (child / "settings.toml").exists():
+            continue
+        out.append(child.name)
+    return out
+
+
 def list_sets() -> list[dict[str, str | None]]:
-    """Enumerate every set directory, with display name when known.
+    """Enumerate every registered project, with display name when known.
 
     Each entry is ``{"code": <CODE>, "name": <name | None>}``. ``name``
     comes from the set's ``theme.json`` if present; otherwise None so
     the UI can decide between "ASD" and "ASD — Anomalous Descent".
-    Only directories whose names match :data:`SET_CODE_RE` are listed,
-    so stray scratch dirs under ``output/sets/`` don't pollute the
-    picker.
+
+    Iteration goes through :func:`iter_known_set_codes` so unregistered
+    scratch dirs are skipped and ``set_artifact_dir`` doesn't seed a
+    settings.toml as a side effect of being looked at.
     """
-    if not SETS_ROOT.exists():
-        return []
+    from mtgai.io.asset_paths import set_artifact_dir
+
     out: list[dict[str, str | None]] = []
-    for child in sorted(SETS_ROOT.iterdir()):
-        if not child.is_dir():
-            continue
-        if not SET_CODE_RE.fullmatch(child.name):
-            continue
-        name = _read_theme_name(child / "theme.json")
-        out.append({"code": child.name, "name": name})
+    for code in iter_known_set_codes():
+        name = _read_theme_name(set_artifact_dir(code) / "theme.json")
+        out.append({"code": code, "name": name})
     return out
 
 
@@ -163,7 +183,7 @@ def create_set(code: str, name: str | None = None) -> None:
         )
 
 
-def _force_remove(func, path, exc):  # noqa: ARG001 — rmtree onexc signature
+def _force_remove(func, path, exc):
     # Windows leaves git pack files / generated assets read-only;
     # rmtree's default behaviour just re-raises. Strip the read-only bit
     # and retry so deleting a real set's full output directory works.

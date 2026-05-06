@@ -13,16 +13,15 @@ This is a per-set data file produced during set design (Phase 1A) or art directi
 
 import json
 import logging
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
 
 
 def _load_visual_refs(set_code: str) -> dict:
     """Load the visual references JSON for a set. Returns empty dict on failure."""
-    path = OUTPUT_ROOT / "sets" / set_code / "art-direction" / "visual-references.json"
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    path = set_artifact_dir(set_code) / "art-direction" / "visual-references.json"
     if not path.exists():
         logger.warning("No visual-references.json found for set %s at %s", set_code, path)
         return {}

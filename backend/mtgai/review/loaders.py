@@ -31,8 +31,15 @@ def _project_root() -> Path:
 
 
 def _set_dir(set_code: str) -> Path:
-    """Return the output directory for a set code."""
-    return _project_root() / "output" / "sets" / set_code
+    """Return the artifact directory for ``set_code``.
+
+    Routes through :func:`mtgai.io.asset_paths.set_artifact_dir` so reads
+    follow the project's configured ``asset_folder`` when one is set,
+    otherwise the legacy ``output/sets/<CODE>/`` location.
+    """
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    return set_artifact_dir(set_code)
 
 
 # ---------------------------------------------------------------------------

@@ -21,8 +21,6 @@ from llmfacade import ImageBlock, TextBlock
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
-
 # Load .env
 _ENV_PATH = Path("C:/Programming/MTGAI/.env")
 if _ENV_PATH.exists():
@@ -174,12 +172,14 @@ def select_art_for_set(
 
     Returns summary dict.
     """
+    from mtgai.io.asset_paths import set_artifact_dir
     from mtgai.io.card_io import load_card
     from mtgai.io.paths import card_slug
 
-    cards_dir = OUTPUT_ROOT / "sets" / set_code / "cards"
-    art_dir = OUTPUT_ROOT / "sets" / set_code / "art"
-    log_dir = OUTPUT_ROOT / "sets" / set_code / "art-selection-logs"
+    set_dir = set_artifact_dir(set_code)
+    cards_dir = set_dir / "cards"
+    art_dir = set_dir / "art"
+    log_dir = set_dir / "art-selection-logs"
     log_dir.mkdir(parents=True, exist_ok=True)
 
     card_files = sorted(cards_dir.glob("*.json"))
@@ -291,8 +291,11 @@ def select_art_for_set(
 def generate_selection_report(set_code: str) -> Path:
     """Generate an HTML report from art selection results."""
 
-    log_dir = OUTPUT_ROOT / "sets" / set_code / "art-selection-logs"
-    report_path = OUTPUT_ROOT / "sets" / set_code / "reports" / "art-selection-report.html"
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    set_dir = set_artifact_dir(set_code)
+    log_dir = set_dir / "art-selection-logs"
+    report_path = set_dir / "reports" / "art-selection-report.html"
 
     # Load all per-card results
     results = []
@@ -302,7 +305,7 @@ def generate_selection_report(set_code: str) -> Path:
         results.append(json.loads(log_file.read_text(encoding="utf-8")))
 
     # Load prompts for display
-    prompt_dir = OUTPUT_ROOT / "sets" / set_code / "art-direction" / "prompt-logs"
+    prompt_dir = set_dir / "art-direction" / "prompt-logs"
 
     # Color definitions
     color_css = {

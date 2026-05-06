@@ -24,6 +24,7 @@ from fastapi.responses import (
 )
 from fastapi.templating import Jinja2Templates
 
+from mtgai.io.asset_paths import set_artifact_dir
 from mtgai.pipeline.engine import PipelineEngine, load_state, save_state
 from mtgai.pipeline.events import EventBus, format_sse
 from mtgai.pipeline.models import (
@@ -50,17 +51,17 @@ _SET_CODE_RE = re.compile(r"^[A-Z0-9]{2,5}$")
 
 
 def _theme_path(set_code: str) -> Path | None:
-    """Resolve `output/sets/<CODE>/theme.json` for a validated set code.
+    """Resolve the project's ``theme.json`` for a validated set code.
 
-    Returns None if the code fails the `[A-Z0-9]{2,5}` shape check —
-    callers translate that into a 400. Centralising the path means
-    tests can patch this single helper instead of the inline `Path(...)`
-    construction inside each endpoint.
+    Returns None if the code fails the ``[A-Z0-9]{2,5}`` shape check —
+    callers translate that into a 400. Routes through
+    :func:`set_artifact_dir` so theme.json reads/writes follow the
+    user's configured ``asset_folder``.
     """
     code = (set_code or "").strip().upper()
     if not _SET_CODE_RE.fullmatch(code):
         return None
-    return OUTPUT_ROOT / "sets" / code / "theme.json"
+    return set_artifact_dir(code) / "theme.json"
 
 
 # ---------------------------------------------------------------------------
@@ -644,7 +645,7 @@ def _persist_extraction_to_theme_json(
     """
     from mtgai.settings import model_settings as _ms
 
-    theme_path = OUTPUT_ROOT / "sets" / set_code / "theme.json"
+    theme_path = set_artifact_dir(set_code) / "theme.json"
     existing: dict[str, Any] = {}
     if theme_path.exists():
         try:
@@ -924,7 +925,7 @@ def _project_payload(set_code: str) -> dict[str, Any]:
 
     settings = get_settings(set_code)
     registry = get_registry()
-    pipeline_started = (OUTPUT_ROOT / "sets" / set_code / "pipeline-state.json").exists()
+    pipeline_started = (set_artifact_dir(set_code) / "pipeline-state.json").exists()
     er = extraction_run.current()
     extraction_active = er is not None and er.status == "running"
 
@@ -1027,7 +1028,7 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
     if not isinstance(size, int) or size <= 0:
         return JSONResponse({"error": "set_size must be a positive int"}, status_code=400)
 
-    pipeline_started = (OUTPUT_ROOT / "sets" / code / "pipeline-state.json").exists()
+    pipeline_started = (set_artifact_dir(code) / "pipeline-state.json").exists()
     if pipeline_started and size != current.set_size:
         return JSONResponse(
             {
@@ -1072,7 +1073,7 @@ async def wizard_project_save_theme_input(request: Request) -> JSONResponse:
         return JSONResponse({"error": "Invalid theme-input kind"}, status_code=400)
 
     settings = get_settings(code)
-    pipeline_started = (OUTPUT_ROOT / "sets" / code / "pipeline-state.json").exists()
+    pipeline_started = (set_artifact_dir(code) / "pipeline-state.json").exists()
     if pipeline_started and settings.theme_input.kind != kind:
         return JSONResponse(
             {
@@ -1553,8 +1554,9 @@ async def wizard_project_save_asset_folder(request: Request) -> JSONResponse:
     """Live-apply asset_folder for the active project.
 
     Plain string field — the browser captures it from showDirectoryPicker
-    (or the "use project file folder" button) and posts it here. Phase 1
-    just persists the value; Phase 2 routes stage outputs into it.
+    (or the "use project file folder" button) and posts it here. Stage
+    runners route their outputs through ``set_artifact_dir`` so the
+    setting takes effect on the next stage that runs.
     """
     from mtgai.settings.model_settings import apply_settings, get_settings
 
@@ -1791,7 +1793,7 @@ def _compute_cascade_preview(
                     "item_count": int(count or 0),
                 }
             )
-    theme_json_present = (OUTPUT_ROOT / "sets" / set_code / "theme.json").exists()
+    theme_json_present = (set_artifact_dir(set_code) / "theme.json").exists()
     return {
         "cleared": cleared,
         "clear_theme_json": bool(clear_theme_json and theme_json_present),
@@ -2034,10 +2036,12 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
             update["theme_input"] = new_ti
         apply_settings(code, settings.model_copy(update=update))
 
+    artifact_dir = set_artifact_dir(code)
+
     if theme_payload is not None:
         if not isinstance(theme_payload, dict):
             return JSONResponse({"error": "theme_payload must be an object"}, status_code=400)
-        theme_path = OUTPUT_ROOT / "sets" / code / "theme.json"
+        theme_path = artifact_dir / "theme.json"
         theme_path.parent.mkdir(parents=True, exist_ok=True)
         theme_path.write_text(
             json.dumps(theme_payload, indent=2, ensure_ascii=False),
@@ -2050,7 +2054,7 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
 
     # 3. theme.json wipe (Project Settings → theme_input change).
     if clear_theme_json:
-        theme_path = OUTPUT_ROOT / "sets" / code / "theme.json"
+        theme_path = artifact_dir / "theme.json"
         if theme_path.exists():
             try:
                 theme_path.unlink()
@@ -2058,7 +2062,7 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
                 logger.warning("Failed to delete %s: %s", theme_path, e)
 
     # 4. Decide where to navigate / whether to re-kick the engine.
-    theme_path = OUTPUT_ROOT / "sets" / code / "theme.json"
+    theme_path = artifact_dir / "theme.json"
     if not theme_path.exists():
         # No theme means there's nothing for the engine to start from —
         # send the user back to Project Settings to choose an input + Start.
@@ -2262,7 +2266,7 @@ async def get_stage_logs(stage_id: str):
         return JSONResponse({"error": "No pipeline state"}, status_code=404)
 
     set_code = state.config.set_code
-    set_dir = Path("C:/Programming/MTGAI/output/sets") / set_code
+    set_dir = set_artifact_dir(set_code)
 
     # Map stage_id to likely log locations
     log_paths: dict[str, list[Path]] = {
@@ -2311,19 +2315,30 @@ def _get_current_state() -> PipelineState | None:
     if _engine is not None:
         return _engine.state
 
-    # Fall back to loading from disk — check all set directories
-    output_root = Path("C:/Programming/MTGAI/output/sets")
-    if not output_root.exists():
+    # Fall back to loading from disk — iterate the project registry
+    # and resolve each project's pipeline-state.json via the asset
+    # helper, then pick the most recently modified one.
+    from mtgai.runtime.active_set import iter_known_set_codes
+
+    candidates: list[tuple[Path, str]] = []
+    for code in iter_known_set_codes():
+        state_path = set_artifact_dir(code) / "pipeline-state.json"
+        if state_path.exists():
+            candidates.append((state_path, code))
+
+    if not candidates:
         return None
 
-    # Find the most recently modified pipeline-state.json
-    state_files = list(output_root.glob("*/pipeline-state.json"))
-    if not state_files:
-        return None
-
-    latest = max(state_files, key=lambda p: p.stat().st_mtime)
-    set_code = latest.parent.name
-    return load_state(set_code)
+    # Most-recent first; tolerate malformed state files by walking down
+    # the list — the banner shouldn't 500 the whole app over a stale or
+    # half-written pipeline-state.json on disk.
+    candidates.sort(key=lambda pair: pair[0].stat().st_mtime, reverse=True)
+    for _state_path, set_code in candidates:
+        try:
+            return load_state(set_code)
+        except Exception:
+            logger.warning("Skipping unparseable pipeline-state.json for %s", set_code)
+    return None
 
 
 def get_pipeline_banner_context() -> dict[str, Any] | None:

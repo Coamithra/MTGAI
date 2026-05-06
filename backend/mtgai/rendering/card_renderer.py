@@ -27,7 +27,7 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw
 
 from mtgai.io.card_io import load_card
-from mtgai.io.paths import card_slug, render_path
+from mtgai.io.paths import card_slug
 from mtgai.models.card import Card
 from mtgai.rendering.colors import (
     BLACK,
@@ -141,7 +141,7 @@ def _draw_text_centered(
 # ---------------------------------------------------------------------------
 # MANA_SYMBOL_RE for inline symbol parsing in rules text
 # ---------------------------------------------------------------------------
-import re  # noqa: E402
+import re
 
 MANA_SYMBOL_RE = re.compile(r"\{([^}]+)\}")
 
@@ -211,7 +211,9 @@ class CardRenderer:
 
         Returns ``None`` if no art is found.
         """
-        set_dir = self.output_root / "sets" / set_code
+        from mtgai.io.asset_paths import set_artifact_dir
+
+        set_dir = set_artifact_dir(set_code)
         cn = card.collector_number
 
         # 1. Check art selection log
@@ -937,14 +939,14 @@ class CardRenderer:
 
         Returns the path of the saved PNG.
         """
+        from mtgai.io.asset_paths import set_artifact_dir
+
         img = self.render_card(card, set_code, total_cards)
 
-        dest = render_path(
-            self.output_root,
-            set_code,
-            card.collector_number,
-            card.name,
-        )
+        # Build the path from the project's set_dir so renders land in
+        # the user's asset_folder when configured.
+        set_dir = set_artifact_dir(set_code)
+        dest = set_dir / "renders" / f"{card_slug(card.collector_number, card.name)}.png"
         dest.parent.mkdir(parents=True, exist_ok=True)
 
         img.save(str(dest), dpi=(300, 300))
@@ -978,8 +980,11 @@ class CardRenderer:
             Summary dict with keys: set_code, rendered, skipped,
             failed, errors, dry_run, elapsed_seconds.
         """
+        from mtgai.io.asset_paths import set_artifact_dir
+
         t0 = time.perf_counter()
-        cards_dir = self.output_root / "sets" / set_code / "cards"
+        set_dir = set_artifact_dir(set_code)
+        cards_dir = set_dir / "cards"
 
         # Discover card files
         card_files = sorted(cards_dir.glob("*.json"))
@@ -1029,13 +1034,10 @@ class CardRenderer:
 
             cn = card.collector_number
 
-            # Check if render already exists
-            dest = render_path(
-                self.output_root,
-                set_code,
-                cn,
-                card.name,
-            )
+            # Check if render already exists. set_dir was resolved at
+            # the top of render_set via set_artifact_dir, so this honours
+            # the project's asset_folder.
+            dest = set_dir / "renders" / f"{card_slug(cn, card.name)}.png"
             if dest.is_file() and not force:
                 logger.info(
                     "SKIP %s — render exists: %s",
@@ -1099,7 +1101,7 @@ class CardRenderer:
         }
 
         # Save summary
-        summary_dir = self.output_root / "sets" / set_code / "reports"
+        summary_dir = set_dir / "reports"
         summary_dir.mkdir(parents=True, exist_ok=True)
         summary_path = summary_dir / "render-summary.json"
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")

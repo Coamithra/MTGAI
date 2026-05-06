@@ -10,6 +10,7 @@ visible surface for the active set.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -29,24 +30,15 @@ def client():
 
 
 @pytest.fixture
-def isolate_sets(tmp_path, monkeypatch):
-    """Point the wizard's state-resolution helpers at an empty tmp tree.
+def isolate_sets(isolated_output: Path) -> Path:
+    """Yield the tmp ``sets`` root for tests that need to seed projects.
 
-    Without this, the live ``output/sets`` directory leaks into route
-    tests and the brand-new flow asserts fail when a real set exists.
+    All path patching is delegated to ``isolated_output`` (in
+    :mod:`tests.conftest`) which covers the full chain — including
+    ``pipeline.server.OUTPUT_ROOT``, missing which would let the
+    middleware's banner helper read the real ``output/sets/``.
     """
-    sets_root = tmp_path / "sets"
-    sets_root.mkdir()
-    monkeypatch.setattr("mtgai.pipeline.wizard.SETS_ROOT", sets_root)
-    monkeypatch.setattr("mtgai.pipeline.engine.OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr("mtgai.runtime.runtime_state.SETS_ROOT", sets_root)
-    monkeypatch.setattr("mtgai.runtime.runtime_state.OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr("mtgai.runtime.active_set.SETS_ROOT", sets_root)
-    monkeypatch.setattr(
-        "mtgai.runtime.active_set._LAST_SET_PATH",
-        tmp_path / "settings" / "last_set.toml",
-    )
-    return sets_root
+    return isolated_output
 
 
 def _activate(code: str) -> None:

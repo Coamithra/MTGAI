@@ -642,7 +642,9 @@ def regenerate_slots(
         logger.info("Cards returned: %d (expected %d)", len(raw_cards), len(batch))
 
         # Save batch log to standard generation_logs
-        log_dir = OUTPUT_ROOT / "sets" / set_code / "generation_logs"
+        from mtgai.io.asset_paths import set_artifact_dir
+
+        log_dir = set_artifact_dir(set_code) / "generation_logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         _save_batch_log(
             batch_idx=900 + batch_idx,  # Use high batch numbers to avoid collision
@@ -813,8 +815,12 @@ def run_revision(
     Returns:
         Summary dict (model_dump of RevisionReport).
     """
-    # Derive all paths from set_code
-    set_dir = OUTPUT_ROOT / "sets" / set_code
+    # Derive all paths from set_code. set_artifact_dir routes to the
+    # project's asset_folder when configured, else the legacy
+    # output/sets/<CODE>/.
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    set_dir = set_artifact_dir(set_code)
     skeleton_path = set_dir / "skeleton.json"
     mechanics_path = set_dir / "mechanics" / "approved.json"
     distribution_path = set_dir / "mechanics" / "distribution.json"

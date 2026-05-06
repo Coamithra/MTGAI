@@ -11,7 +11,16 @@ from mtgai.pipeline.models import STAGE_DEFINITIONS
 
 
 @pytest.fixture
-def fake_output_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def fake_output_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_output: Path
+) -> Path:
+    """Tmp ``output`` root with all artifact-resolving modules patched.
+
+    ``isolated_output`` (from :mod:`tests.conftest`) sets up the asset
+    helper + settings module; the local ``OUTPUT_ROOT`` patch keeps the
+    legacy ``stages_mod.OUTPUT_ROOT`` constant aligned for any caller
+    that still references it directly.
+    """
     monkeypatch.setattr(stages_mod, "OUTPUT_ROOT", tmp_path)
     return tmp_path
 

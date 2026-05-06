@@ -113,7 +113,6 @@ def _detect_svg_backend() -> str:
     # 2. Try pycairo + svg.path (bundled Cairo, path-only rendering)
     try:
         import cairo  # pycairo — bundles libcairo on Windows
-        from svg.path import parse_path  # noqa: F401
 
         # Quick smoke test
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 1, 1)
@@ -200,7 +199,7 @@ def _rasterize_svg_pycairo(
 
     try:
         import cairo
-        from svg.path import parse_path  # noqa: F401
+        from svg.path import parse_path
     except ImportError:
         return None
 

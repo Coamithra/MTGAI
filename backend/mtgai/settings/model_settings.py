@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -506,6 +507,14 @@ _per_set_cache: dict[str, ModelSettings] = {}
 # Global settings, lazy-loaded.
 _global_cache: GlobalSettings | None = None
 
+# Serialises the seed-on-first-read path inside ``get_settings``.
+# ``set_artifact_dir`` is now called from many request handlers + the
+# server-boot cleanup, so two threads can race the exists() / write_toml()
+# pair on a cold cache and either double-write or interleave the cache
+# update. Hold this lock for the read-or-seed critical section only —
+# cached lookups stay lock-free.
+_seed_lock = threading.Lock()
+
 
 def _set_settings_path(set_code: str) -> Path:
     return SETS_DIR / set_code / "settings.toml"
@@ -720,29 +729,39 @@ def get_settings(set_code: str) -> ModelSettings:
     if cached is not None:
         return cached
 
-    path = _set_settings_path(set_code)
-    if path.exists():
-        try:
-            settings = ModelSettings.load_from_file(path)
-        except Exception:
-            logger.warning("Failed to load %s; reseeding from defaults", path, exc_info=True)
+    # Two threads can race the cold path (the seed-on-first-read endpoints
+    # are not serialised). Hold _seed_lock just long enough to make the
+    # exists() / write_toml() / cache-fill sequence atomic; the warm-path
+    # cache hit above stays lock-free.
+    with _seed_lock:
+        cached = _per_set_cache.get(set_code)
+        if cached is not None:
+            return cached
+
+        path = _set_settings_path(set_code)
+        if path.exists():
+            try:
+                settings = ModelSettings.load_from_file(path)
+            except Exception:
+                logger.warning("Failed to load %s; reseeding from defaults", path, exc_info=True)
+                settings = _seed_per_set_settings(set_code)
+                settings.write_toml(path)
+            else:
+                if _looks_pre_project_settings(settings):
+                    migrated = _migrate_set_params_from_theme(set_code, settings)
+                    # Only re-write if the migration actually touched
+                    # something — set-without-theme.json round-trip would
+                    # otherwise re-stamp the file with no real change
+                    # every server boot.
+                    if not _looks_pre_project_settings(migrated):
+                        migrated.write_toml(path)
+                    settings = migrated
+        else:
             settings = _seed_per_set_settings(set_code)
             settings.write_toml(path)
-        else:
-            if _looks_pre_project_settings(settings):
-                migrated = _migrate_set_params_from_theme(set_code, settings)
-                # Only re-write if the migration actually touched something —
-                # set-without-theme.json round-trip would otherwise re-stamp
-                # the file with no real change every server boot.
-                if not _looks_pre_project_settings(migrated):
-                    migrated.write_toml(path)
-                settings = migrated
-    else:
-        settings = _seed_per_set_settings(set_code)
-        settings.write_toml(path)
 
-    _per_set_cache[set_code] = settings
-    return settings
+        _per_set_cache[set_code] = settings
+        return settings
 
 
 def apply_settings(set_code: str, settings: ModelSettings) -> Path:

@@ -186,7 +186,10 @@ def generate_character_portraits(
 
     Returns summary dict.
     """
-    refs_path = OUTPUT_ROOT / "sets" / set_code / "art-direction" / "visual-references.json"
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    set_dir = set_artifact_dir(set_code)
+    refs_path = set_dir / "art-direction" / "visual-references.json"
     if not refs_path.exists():
         raise FileNotFoundError(f"Visual references not found: {refs_path}")
 
@@ -198,7 +201,7 @@ def generate_character_portraits(
         if not prompts:
             raise ValueError(f"No character matching '{char_filter}'")
 
-    out_dir = OUTPUT_ROOT / "sets" / set_code / "art-direction" / "character-refs"
+    out_dir = set_dir / "art-direction" / "character-refs"
     out_dir.mkdir(parents=True, exist_ok=True)
     log_dir = out_dir / "logs"
     log_dir.mkdir(exist_ok=True)
@@ -390,9 +393,17 @@ def main():
     parser.add_argument("--force", action="store_true", help="Regenerate existing portraits")
     args = parser.parse_args()
 
-    # Log to both console AND file — if the process gets killed, the file survives
+    # Log to both console AND file — if the process gets killed, the file survives.
+    # Routed through set_artifact_dir so the log lands in the project's
+    # asset_folder when configured (matches generate_character_portraits).
+    from mtgai.io.asset_paths import set_artifact_dir
+
     log_file = (
-        OUTPUT_ROOT / "sets" / args.set / "art-direction" / "character-refs" / "logs" / "run.log"
+        set_artifact_dir(args.set)
+        / "art-direction"
+        / "character-refs"
+        / "logs"
+        / "run.log"
     )
     log_file.parent.mkdir(parents=True, exist_ok=True)
 

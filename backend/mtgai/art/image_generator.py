@@ -24,7 +24,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from mtgai.io.card_io import load_card
-from mtgai.io.paths import art_path, card_slug
+from mtgai.io.paths import card_slug
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +206,7 @@ def start_comfyui(log_dir: Path | None = None) -> subprocess.Popen:
         log_dir.mkdir(parents=True, exist_ok=True)
         comfyui_log = log_dir / "comfyui.log"
         logger.info("ComfyUI output → %s", comfyui_log)
-        log_handle = open(comfyui_log, "w", encoding="utf-8", buffering=1)  # noqa: SIM115
+        log_handle = open(comfyui_log, "w", encoding="utf-8", buffering=1)
         stdout_dest = log_handle
         stderr_dest = log_handle
     else:
@@ -529,9 +529,12 @@ def generate_art_for_set(
 
     Returns summary dict with stats.
     """
-    cards_dir = OUTPUT_ROOT / "sets" / set_code / "cards"
-    art_dir = OUTPUT_ROOT / "sets" / set_code / "art"
-    log_dir = OUTPUT_ROOT / "sets" / set_code / "art-generation-logs"
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    set_dir = set_artifact_dir(set_code)
+    cards_dir = set_dir / "cards"
+    art_dir = set_dir / "art"
+    log_dir = set_dir / "art-generation-logs"
     art_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -580,7 +583,9 @@ def generate_art_for_set(
             if force:
                 version = 1  # overwrite
 
-            dest = art_path(OUTPUT_ROOT, set_code, cn, card.name, version=version)
+            # Build the destination directly from art_dir so asset_folder
+            # routing wins over the legacy art_path() default.
+            dest = art_dir / f"{card_slug(cn, card.name)}_v{version}.png"
 
             logger.info(
                 "GENERATE %s: %s (v%d)%s",

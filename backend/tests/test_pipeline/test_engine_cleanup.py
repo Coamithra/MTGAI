@@ -24,15 +24,30 @@ from mtgai.pipeline.models import (
 
 
 @pytest.fixture
-def fake_output_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def fake_output_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_output: Path
+) -> Path:
+    """Tmp output root with the engine + asset-resolution chain patched.
+
+    ``isolated_output`` (from :mod:`tests.conftest`) redirects the
+    artifact helper + settings module so ``set_artifact_dir`` falls back
+    to the tmp tree for every set; the local ``engine_mod.OUTPUT_ROOT``
+    patch keeps the cleanup scan rooted at the same tmp tree.
+    """
     monkeypatch.setattr(engine_mod, "OUTPUT_ROOT", tmp_path)
-    (tmp_path / "sets").mkdir()
     return tmp_path
 
 
 def _write_state(root: Path, state: PipelineState) -> Path:
+    """Materialise a registered project with a pipeline-state.json on disk.
+
+    The cleanup helper iterates registered projects (those with a
+    ``settings.toml`` at the canonical location), so the empty TOML
+    stub is what makes the project visible to the scan.
+    """
     set_dir = root / "sets" / state.config.set_code
     set_dir.mkdir(parents=True, exist_ok=True)
+    (set_dir / "settings.toml").write_text("", encoding="utf-8")
     path = set_dir / "pipeline-state.json"
     path.write_text(
         json.dumps(state.model_dump(mode="json"), indent=2, default=str),
@@ -130,6 +145,7 @@ def test_skips_unparseable_state_files(fake_output_root: Path) -> None:
     """A corrupt state file shouldn't crash the boot path."""
     bad_dir = fake_output_root / "sets" / "BAD"
     bad_dir.mkdir()
+    (bad_dir / "settings.toml").write_text("", encoding="utf-8")
     (bad_dir / "pipeline-state.json").write_text("{not valid json", encoding="utf-8")
 
     good = _state_with_running_stage("GOOD", "skeleton")

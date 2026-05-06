@@ -115,6 +115,22 @@ def _download_image(filename: str, subfolder: str = "") -> bytes:
 
 
 def main():
+    import sys
+
+    print(
+        "kontext_ab_test is legacy A/B-test tooling and was not migrated to the\n"
+        ".mtg / asset_folder layout. It still hardcodes paths under\n"
+        "output/sets/<CODE>/ and will read empty inputs / write outputs in the\n"
+        "wrong place for any project whose asset_folder is configured.\n"
+        "\n"
+        "If you actually need this script, port its paths through\n"
+        "mtgai.io.asset_paths.set_artifact_dir first (see kontext_ab_test.py:125)\n"
+        "and remove this guard.",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+
+    # ---- legacy body below (left in place for the eventual port) ----
     import argparse
 
     parser = argparse.ArgumentParser(description="A/B test Kontext reference methods")

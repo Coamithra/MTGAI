@@ -285,19 +285,39 @@ class TestLoadCardsRaw:
     """Tests for load_cards_raw() — backward-compatible dict loader."""
 
     def test_returns_dicts(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """load_cards_raw returns list[dict]."""
-        # Set up a fake set dir
-        set_dir = tmp_path / "output" / "sets" / "TST" / "cards"
-        set_dir.mkdir(parents=True)
+        """load_cards_raw returns list[dict].
+
+        Phase 2: ``loaders._set_dir`` routes through
+        :func:`set_artifact_dir`, which falls back to
+        ``asset_paths.SETS_ROOT / set_code`` when the set has no
+        configured ``asset_folder``. We patch both the asset helper and
+        ``model_settings`` so the fallback lands inside ``tmp_path``.
+        """
+        from mtgai.io import asset_paths
+        from mtgai.settings import model_settings as ms
+
+        sets_root = tmp_path / "sets"
+        settings_dir = tmp_path / "settings"
+        sets_root.mkdir(parents=True)
+        settings_dir.mkdir(parents=True)
+
+        cards_dir = sets_root / "TST" / "cards"
+        cards_dir.mkdir(parents=True)
         card = _make_card(name="Test", collector_number="T-01")
-        _write_card_json(set_dir, card)
+        _write_card_json(cards_dir, card)
 
-        # Monkeypatch _project_root to point at tmp
-        import mtgai.review.loaders as loaders_mod
-
-        monkeypatch.setattr(loaders_mod, "_project_root", lambda: tmp_path)
-
-        result = load_cards_raw("TST")
+        monkeypatch.setattr(asset_paths, "OUTPUT_ROOT", tmp_path)
+        monkeypatch.setattr(asset_paths, "SETS_ROOT", sets_root)
+        monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
+        monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
+        monkeypatch.setattr(ms, "SETS_DIR", sets_root)
+        monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
+        monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
+        ms.invalidate_cache()
+        try:
+            result = load_cards_raw("TST")
+        finally:
+            ms.invalidate_cache()
         assert len(result) == 1
         assert isinstance(result[0], dict)
         assert result[0]["name"] == "Test"

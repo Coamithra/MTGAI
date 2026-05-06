@@ -29,30 +29,14 @@ from mtgai.pipeline.wizard import (
 
 
 @pytest.fixture
-def sets_root(tmp_path, monkeypatch):
-    """Isolated SETS_ROOT + per-set settings store.
+def sets_root(isolated_output):
+    """Yield the tmp ``sets`` root for tests that need to seed projects.
 
-    The break-points payload reads through `get_settings(set_code)`
-    which loads the per-set TOML and a global default file. Pointing
-    every settings path at tmp_path keeps the resolver from leaking
-    into the developer's real `<repo>/output/` store.
+    Path patching is delegated to ``isolated_output`` (in
+    :mod:`tests.conftest`), which covers the full chain — resolver
+    helpers, runtime modules, and pipeline server alike.
     """
-    from mtgai.settings import model_settings as ms
-
-    root = tmp_path / "sets"
-    settings_dir = tmp_path / "settings"
-    root.mkdir()
-    settings_dir.mkdir()
-    monkeypatch.setattr("mtgai.pipeline.wizard.SETS_ROOT", root)
-    monkeypatch.setattr("mtgai.pipeline.engine.OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(ms, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(ms, "SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(ms, "SETS_DIR", root)
-    monkeypatch.setattr(ms, "GLOBAL_TOML", settings_dir / "global.toml")
-    monkeypatch.setattr(ms, "LEGACY_CURRENT_TOML", settings_dir / "current.toml")
-    ms.invalidate_cache()
-    yield root
-    ms.invalidate_cache()
+    return isolated_output
 
 
 def _state_for(set_code: str = "TST") -> PipelineState:

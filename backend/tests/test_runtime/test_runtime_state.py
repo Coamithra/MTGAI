@@ -11,35 +11,14 @@ from mtgai.runtime import ai_lock, extraction_run, runtime_state
 
 
 @pytest.fixture(autouse=True)
-def _reset(tmp_path, monkeypatch):
-    """Isolate every test from on-disk pipeline / theme files.
+def _reset(isolated_output):
+    """Per-test reset of run-state singletons.
 
-    The aggregator scans ``output/sets`` for the most-recent set; we
-    redirect it to a per-test tmp dir so a real ASD checkout in the
-    repo doesn't bleed into assertions.
+    ``isolated_output`` (in :mod:`tests.conftest`) handles the full
+    artifact-path patching chain — resolver helpers, runtime modules,
+    pipeline-server module, and active-set state. This wrapper just
+    resets the singletons this test module exercises.
     """
-    sets_root = tmp_path / "sets"
-    settings_dir = tmp_path / "settings"
-    sets_root.mkdir(parents=True)
-    monkeypatch.setattr(runtime_state, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(runtime_state, "OUTPUT_ROOT", tmp_path)
-    # Also patch the engine module's OUTPUT_ROOT so the lazy
-    # _load_pipeline_summary import resolves to our tmp dir.
-    from mtgai.pipeline import engine
-
-    monkeypatch.setattr(engine, "OUTPUT_ROOT", tmp_path)
-
-    # active_set captures OUTPUT_ROOT/SETS_ROOT at import time; redirect
-    # those too so the persisted-set step in the resolver chain is
-    # isolated per-test rather than reading the real on-disk
-    # last_set.toml.
-    from mtgai.runtime import active_set
-
-    monkeypatch.setattr(active_set, "OUTPUT_ROOT", tmp_path)
-    monkeypatch.setattr(active_set, "SETS_ROOT", sets_root)
-    monkeypatch.setattr(active_set, "_SETTINGS_DIR", settings_dir)
-    monkeypatch.setattr(active_set, "_LAST_SET_PATH", settings_dir / "last_set.toml")
-
     ai_lock.reset_for_tests()
     extraction_run.reset()
     yield

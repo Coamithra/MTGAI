@@ -29,7 +29,6 @@ from mtgai.pipeline.models import (
     StageStatus,
     break_point_states,
 )
-from mtgai.runtime.runtime_state import SETS_ROOT
 from mtgai.settings.model_settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -72,13 +71,16 @@ class WizardState:
 
 
 def _load_theme_for(set_code: str) -> dict[str, Any] | None:
-    """Read ``output/sets/<CODE>/theme.json`` if present, else None.
+    """Read the project's ``theme.json`` if present, else None.
 
     Tolerates a malformed file by logging + returning None — a corrupt
     theme.json shouldn't 500 the wizard route; the user sees the brand-new
-    state and can reseed.
+    state and can reseed. Routes through :func:`set_artifact_dir` so the
+    file is read from the project's ``asset_folder`` when configured.
     """
-    path = SETS_ROOT / set_code / "theme.json"
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    path = set_artifact_dir(set_code) / "theme.json"
     if not path.exists():
         return None
     try:
