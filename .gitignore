@@ -33,6 +33,9 @@ env/
 # Output directory (everything generated — cards, art, renders, logs, state)
 output/
 
+# Local project asset folders (per-project .mtg sibling dirs)
+sets (new)/
+
 # llmfacade managed-mode session dir (llama-swap subprocess + generated YAML)
 backend/.llmfacade/
 
