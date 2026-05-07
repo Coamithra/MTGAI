@@ -90,9 +90,14 @@ DEFAULT_EFFORT: dict[str, str] = {
 }
 
 # Stages that default to "review" (pause for human input) when a set has no
-# explicit override saved. Users can still uncheck them on Project Settings.
+# explicit override saved. Users can still uncheck them on Project Settings,
+# but the ``mechanics`` stage's pause is structural — its runner only emits
+# candidates, never the finished ``approved.json``; that comes from the
+# wizard's save endpoint. Unchecking the toggle marks the stage completed
+# without writing approved.json, which crashes downstream stages.
 DEFAULT_BREAK_POINTS: dict[str, str] = {
     "theme_extract": "review",
+    "mechanics": "review",
     "human_card_review": "review",
     "human_art_review": "review",
     "human_final_review": "review",

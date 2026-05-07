@@ -1069,3 +1069,184 @@
 .wiz-toast.success { background: #2ecc71; color: #0a0a1a; }
 .wiz-toast.error { background: #e94560; color: #fff; }
 .wiz-toast.warn { background: #f0ad4e; color: #0a0a1a; }
+
+/* ==========================================================================
+   Mechanics tab (TC-2 candidates strip)
+   ========================================================================== */
+
+.wiz-mech-summary {
+  margin: 0.75rem 0 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  border: 1px solid #2a2a3e;
+}
+.wiz-mech-context {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+  gap: 0.4rem 1rem;
+  margin: 0;
+}
+.wiz-mech-context dt { color: #888; font-size: 0.78rem; }
+.wiz-mech-context dd { margin: 0; color: #ddd; font-size: 0.85rem; }
+.wiz-mech-theme-preview { margin-top: 0.6rem; }
+.wiz-mech-theme-preview summary { cursor: pointer; color: #4a9eff; font-size: 0.85rem; }
+.wiz-mech-theme-text {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  background: #11111e;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  color: #ccc;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.wiz-mech-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.wiz-mech-empty {
+  grid-column: 1 / -1;
+  padding: 2rem;
+  text-align: center;
+  color: #888;
+  font-style: italic;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed #2a2a3e;
+  border-radius: 6px;
+}
+.wiz-mech-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem;
+  background: #15151f;
+  border: 1px solid #2a2a3e;
+  border-radius: 8px;
+  transition: border-color 0.18s;
+}
+.wiz-mech-card[data-ai-generated="true"] { border-color: #4a9eff55; }
+.wiz-mech-card.picked { border-color: #00d4aa; box-shadow: 0 0 0 2px #00d4aa22; }
+.wiz-mech-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.wiz-mech-card-header .wiz-ai-badge { flex: 0 0 auto; }
+.wiz-mech-name {
+  flex: 1 1 auto;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0.4rem 0.55rem;
+  background: #0d0d18;
+  border: 1px solid #2a2a3e;
+  border-radius: 4px;
+  color: #e8e8f0;
+}
+.wiz-mech-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: #ccc;
+}
+.wiz-mech-collision {
+  padding: 0.5rem 0.6rem;
+  background: #ffa50222;
+  color: #ffa502;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.wiz-mech-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.6rem;
+}
+.wiz-mech-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.wiz-mech-label { font-size: 0.72rem; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
+.wiz-mech-chip-row { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.wiz-mech-chip {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  background: #11111e;
+  border: 1px solid #2a2a3e;
+  color: #aaa;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+.wiz-mech-chip:hover { color: #e0e0e0; border-color: #4a9eff; }
+.wiz-mech-chip.active {
+  background: #4a9eff33;
+  color: #4a9eff;
+  border-color: #4a9eff;
+}
+.wiz-mech-reminder {
+  padding: 0.5rem 0.6rem;
+  background: #0d0d18;
+  border: 1px solid #2a2a3e;
+  border-radius: 4px;
+  color: #e8e8f0;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+}
+.wiz-mech-distribution {
+  font-size: 0.85rem;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+.wiz-mech-details {
+  font-size: 0.85rem;
+  color: #bbb;
+  border-top: 1px solid #1f1f2e;
+  padding-top: 0.5rem;
+}
+.wiz-mech-details summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: #ddd;
+  margin-bottom: 0.4rem;
+}
+.wiz-mech-details p { margin: 0.2rem 0; line-height: 1.4; }
+.wiz-mech-details ul { margin: 0.3rem 0 0.6rem 1.2rem; padding: 0; }
+.wiz-mech-details li { margin: 0.15rem 0; }
+.wiz-mech-example {
+  padding: 0.45rem 0.55rem;
+  margin: 0.3rem 0;
+  background: #11111e;
+  border-radius: 4px;
+}
+.wiz-mech-example p { margin: 0.3rem 0 0; color: #ccc; }
+.wiz-mech-rarity { color: #888; font-size: 0.78rem; }
+.wiz-mech-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  border-top: 1px solid #1f1f2e;
+  padding-top: 0.6rem;
+}
+
+.wiz-mech-strip-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.5rem 0 1rem;
+}
+.wiz-mech-pick-count {
+  font-size: 0.85rem;
+  color: #888;
+}
+.wiz-mech-pick-count.ok { color: #00d4aa; font-weight: 600; }
+
+.wiz-mech-locked { opacity: 0.85; }
+.wiz-mech-locked .wiz-mech-card input:disabled,
+.wiz-mech-locked .wiz-mech-card textarea:disabled,
+.wiz-mech-locked .wiz-mech-chip:disabled,
+.wiz-mech-locked button:disabled {
+  cursor: not-allowed;
+}

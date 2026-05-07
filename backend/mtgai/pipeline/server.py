@@ -1062,9 +1062,7 @@ async def wizard_project_save_set_code(request: Request) -> JSONResponse:
     if not isinstance(raw, str):
         return JSONResponse({"error": "set_code must be a string"}, status_code=400)
     code = raw.strip()
-    active_project.write_active_project(
-        project.model_copy(update={"set_code": code})
-    )
+    active_project.write_active_project(project.model_copy(update={"set_code": code}))
     return JSONResponse({"success": True, "set_code": code})
 
 
@@ -1543,9 +1541,7 @@ async def project_new(request: Request) -> JSONResponse:
     # browser-side draft would be lost the moment the user opens any
     # other page (Model Registry, etc.). set_code starts empty (purely
     # cosmetic), set_params + theme_input + asset_folder are blank.
-    active_project.write_active_project(
-        active_project.ProjectState(set_code="", settings=seeded)
-    )
+    active_project.write_active_project(active_project.ProjectState(set_code="", settings=seeded))
 
     registry = get_registry()
     break_points = _break_points_payload(seeded)
@@ -2312,6 +2308,373 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
             "engine_started": True,
             "next_stage_id": next_id,
             "navigate_to": f"/pipeline/{next_id}" if next_id else "/pipeline",
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Wizard Mechanics tab — bespoke candidates strip (TC-2)
+# ---------------------------------------------------------------------------
+
+
+def _mechanics_dir() -> Path:
+    """``<asset_folder>/mechanics`` for the active project."""
+    return set_artifact_dir() / "mechanics"
+
+
+def _read_json(path: Path, default: Any) -> Any:
+    if not path.exists():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.warning("Could not read %s; treating as %r", path, default)
+        return default
+
+
+def _write_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def _theme_summary(theme: dict | None) -> str:
+    if not theme:
+        return ""
+    text = theme.get("theme") or theme.get("setting") or ""
+    if not isinstance(text, str):
+        return ""
+    text = text.strip()
+    return text[:600] + ("…" if len(text) > 600 else "")
+
+
+def _publish_candidate_sections(candidates: list[dict]) -> None:
+    """Re-publish the candidates strip on the global event bus.
+
+    Called after refresh-* writes ``candidates.json`` so any tab that's
+    currently subscribed (or attaches via the replay buffer) sees the
+    latest list.
+    """
+    from mtgai.generation.mechanic_generator import detect_keyword_collisions
+
+    collisions = detect_keyword_collisions(candidates)
+    for idx, mech in enumerate(candidates):
+        event_bus.stage_section_update(
+            "mechanics",
+            f"candidate_{idx}",
+            status="done",
+            content={
+                "mechanic": mech,
+                "collision_with": collisions.get(idx),
+            },
+        )
+
+
+def _stage_status_in_state(stage_id: str) -> str:
+    """Return the current stage status string ("pending" if no state)."""
+    state = _get_current_state()
+    if state is None:
+        return "pending"
+    for s in state.stages:
+        if s.stage_id == stage_id:
+            return s.status.value
+    return "pending"
+
+
+@router.get("/api/wizard/mechanics/state")
+async def wizard_mechanics_state() -> JSONResponse:
+    """First-paint state for the Mechanics tab.
+
+    Reads ``candidates.json`` + ``approved.json`` from disk, surfaces
+    the current ``set_params`` + theme summary, and reports the stage
+    status so the strip can render itself in the right mode (running /
+    paused_for_review / completed / pending).
+    """
+    from mtgai.generation.mechanic_generator import detect_keyword_collisions
+
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    settings = project.settings
+
+    try:
+        mech_dir = _mechanics_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    candidates = _read_json(mech_dir / "candidates.json", [])
+    approved = _read_json(mech_dir / "approved.json", None)
+    try:
+        theme = _read_json(_theme_path(), None)
+    except NoAssetFolderError:
+        theme = None
+    if not isinstance(candidates, list):
+        candidates = []
+
+    collisions = detect_keyword_collisions(candidates)
+    return JSONResponse(
+        {
+            "candidates": candidates,
+            "approved": approved,
+            "set_params": settings.set_params.model_dump(),
+            "theme_summary": _theme_summary(theme),
+            "model_id": settings.get_llm_model_id("mechanics"),
+            "collisions": {str(idx): name for idx, name in collisions.items()},
+            "stage_status": _stage_status_in_state("mechanics"),
+        }
+    )
+
+
+def _coerce_candidates_payload(value: Any) -> list[dict] | None:
+    """Validate the ``candidates`` field of refresh / save bodies."""
+    if not isinstance(value, list):
+        return None
+    out: list[dict] = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            return None
+        out.append(entry)
+    return out
+
+
+def _coerce_indices(value: Any, max_count: int) -> list[int] | None:
+    if not isinstance(value, list):
+        return None
+    out: list[int] = []
+    for entry in value:
+        if not isinstance(entry, int) or entry < 0 or entry >= max_count:
+            return None
+        out.append(entry)
+    return out
+
+
+@router.post("/api/wizard/mechanics/refresh-card")
+async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
+    """Regenerate a single candidate within the paused mechanics stage.
+
+    Body: ``{candidate_index: int, candidates: list[dict]}``. The client
+    sends its current view of the candidates list (so user edits to
+    other rows are preserved); the server runs the LLM, replaces the
+    indexed slot with the first newly-generated candidate, persists the
+    merged list to ``candidates.json``, and re-publishes the strip on
+    the SSE bus so any other subscribers update.
+
+    Refusal modes:
+    * 409 ``no_active_project`` — no project open.
+    * 409 ``no_asset_folder`` — project open but asset_folder unset.
+    * 409 + ``busy_payload`` — another AI action holds the lock.
+    """
+    from mtgai.generation.mechanic_generator import (
+        CANDIDATE_COUNT,
+        generate_mechanic_candidates,
+    )
+
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    body = await request.json()
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+    candidates = _coerce_candidates_payload(body.get("candidates"))
+    if candidates is None:
+        return JSONResponse({"error": "candidates must be a list of dicts"}, status_code=400)
+    idx = body.get("candidate_index")
+    if not isinstance(idx, int) or idx < 0 or idx >= len(candidates):
+        return JSONResponse(
+            {"error": "candidate_index must be an int within the candidates list"},
+            status_code=400,
+        )
+    try:
+        mech_dir = _mechanics_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    with ai_lock.hold("Mechanic candidate refresh") as acquired:
+        if not acquired:
+            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+        try:
+            response = await asyncio.to_thread(generate_mechanic_candidates)
+        except Exception as exc:  # noqa: BLE001 — surface to user
+            logger.exception("Refresh-card LLM call failed")
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    new_mechanics = response["mechanics"]
+    if not new_mechanics:
+        return JSONResponse({"error": "LLM returned no candidates"}, status_code=500)
+
+    merged = list(candidates)
+    # Pad / trim to CANDIDATE_COUNT in case the client's snapshot was stale.
+    while len(merged) < CANDIDATE_COUNT:
+        merged.append({})
+    merged = merged[:CANDIDATE_COUNT]
+    if idx >= len(merged):
+        return JSONResponse({"error": "candidate_index out of range"}, status_code=400)
+    merged[idx] = new_mechanics[0]
+    _write_json(mech_dir / "candidates.json", merged)
+    _publish_candidate_sections(merged)
+
+    return JSONResponse(
+        {
+            "success": True,
+            "candidates": merged,
+            "model_id": response.get("model_id"),
+        }
+    )
+
+
+@router.post("/api/wizard/mechanics/refresh-all")
+async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
+    """Regenerate the candidates whose indices the client passes in.
+
+    Body: ``{indices: list[int], candidates: list[dict]}``. The wizard
+    computes ``indices`` from the rows still flagged
+    ``data-ai-generated="true"`` so user-authored edits survive.
+    """
+    from mtgai.generation.mechanic_generator import (
+        CANDIDATE_COUNT,
+        generate_mechanic_candidates,
+    )
+
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    body = await request.json()
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+    candidates = _coerce_candidates_payload(body.get("candidates"))
+    if candidates is None:
+        return JSONResponse({"error": "candidates must be a list of dicts"}, status_code=400)
+    indices = _coerce_indices(body.get("indices"), max(len(candidates), CANDIDATE_COUNT))
+    if indices is None:
+        return JSONResponse(
+            {"error": "indices must be a list of valid candidate indices"},
+            status_code=400,
+        )
+    if not indices:
+        return JSONResponse({"error": "Nothing to refresh — no AI-flagged rows"}, status_code=400)
+    try:
+        mech_dir = _mechanics_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    with ai_lock.hold("Mechanic candidate refresh") as acquired:
+        if not acquired:
+            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+        try:
+            response = await asyncio.to_thread(generate_mechanic_candidates)
+        except Exception as exc:  # noqa: BLE001 — surface to user
+            logger.exception("Refresh-all LLM call failed")
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    new_mechanics = response["mechanics"]
+    merged = list(candidates)
+    while len(merged) < CANDIDATE_COUNT:
+        merged.append({})
+    merged = merged[:CANDIDATE_COUNT]
+    # Replace flagged indices in order with newly-generated candidates.
+    for replace_idx, new_mech in zip(indices, new_mechanics, strict=False):
+        if 0 <= replace_idx < len(merged):
+            merged[replace_idx] = new_mech
+    _write_json(mech_dir / "candidates.json", merged)
+    _publish_candidate_sections(merged)
+
+    return JSONResponse(
+        {
+            "success": True,
+            "candidates": merged,
+            "model_id": response.get("model_id"),
+        }
+    )
+
+
+@router.post("/api/wizard/mechanics/save")
+async def wizard_mechanics_save(request: Request) -> JSONResponse:
+    """Persist the user's picks as ``approved.json`` plus auto-sidecars.
+
+    Body: ``{picks: list[int], candidates: list[dict]}``. Picks index
+    into ``candidates`` (which carries any inline edits). The handler:
+
+    1. Validates that ``len(picks) == settings.set_params.mechanic_count``
+       and that each pick is in range.
+    2. Writes ``candidates.json`` (snapshot of the user's working state).
+    3. Projects picked candidates → ``approved.json`` shape via
+       :func:`mtgai.generation.mechanic_generator.candidate_to_approved`
+       (renames ``design_rationale`` → ``design_notes``, drops
+       ``example_cards``, derives ``rarity_range``).
+    4. Writes the auto-sidecars: ``evergreen-keywords.json`` (default
+       per-color table), ``pointed-questions.json`` (canonical template
+       with ``{mechanic_names}`` substituted), ``functional-tags.json``
+       (empty stub).
+    5. Returns ``{success, navigate_to: "/pipeline/skeleton"}`` — the
+       client follows up with ``POST /api/wizard/advance`` to flip the
+       stage to COMPLETED and resume the engine.
+    """
+    from mtgai.generation.mechanic_generator import (
+        candidate_to_approved,
+        load_evergreen_defaults,
+        render_pointed_questions,
+    )
+
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    settings = project.settings
+    body = await request.json()
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+    candidates = _coerce_candidates_payload(body.get("candidates"))
+    if candidates is None:
+        return JSONResponse({"error": "candidates must be a list of dicts"}, status_code=400)
+    picks_raw = body.get("picks")
+    if not isinstance(picks_raw, list):
+        return JSONResponse({"error": "picks must be a list of indices"}, status_code=400)
+    expected = settings.set_params.mechanic_count
+    if len(picks_raw) != expected:
+        return JSONResponse(
+            {"error": f"Expected exactly {expected} picks, got {len(picks_raw)}"},
+            status_code=400,
+        )
+    picks: list[int] = []
+    for entry in picks_raw:
+        if not isinstance(entry, int) or entry < 0 or entry >= len(candidates):
+            return JSONResponse(
+                {"error": "Each pick must be an int within candidates"},
+                status_code=400,
+            )
+        picks.append(entry)
+    if len(set(picks)) != len(picks):
+        return JSONResponse({"error": "picks must be unique"}, status_code=400)
+
+    try:
+        mech_dir = _mechanics_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+    mech_dir.mkdir(parents=True, exist_ok=True)
+
+    _write_json(mech_dir / "candidates.json", candidates)
+
+    approved = [candidate_to_approved(candidates[i]) for i in picks]
+    _write_json(mech_dir / "approved.json", approved)
+    _write_json(mech_dir / "evergreen-keywords.json", load_evergreen_defaults())
+    _write_json(mech_dir / "pointed-questions.json", render_pointed_questions(approved))
+    # Empty stub — the LLM doesn't produce functional_tags; balance.py
+    # tolerates the file being missing or empty.
+    _write_json(mech_dir / "functional-tags.json", {})
+
+    logger.info(
+        "Mechanics save: %d picks → %s; sidecars written", len(picks), mech_dir / "approved.json"
+    )
+    return JSONResponse(
+        {
+            "success": True,
+            "approved": approved,
+            "navigate_to": "/pipeline/skeleton",
         }
     )
 

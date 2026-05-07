@@ -249,8 +249,8 @@ def test_advance_kicks_off_when_no_state(client, no_thread_start):
     data = resp.json()
     assert data["success"] is True
     # First non-completed stage is the engine's first stage.
-    assert data["next_stage_id"] == "skeleton"
-    assert data["navigate_to"] == "/pipeline/skeleton"
+    assert data["next_stage_id"] == "mechanics"
+    assert data["navigate_to"] == "/pipeline/mechanics"
     assert pipeline_server._engine is not None
     assert len(no_thread_start) == 1
 
@@ -346,7 +346,7 @@ def test_advance_accepts_lowercase_set_code(client, no_thread_start):
     _make_set("ASD")
     resp = client.post("/api/wizard/advance", json={"set_code": "asd"})
     assert resp.status_code == 200
-    assert resp.json()["next_stage_id"] == "skeleton"
+    assert resp.json()["next_stage_id"] == "mechanics"
 
 
 # ---------------------------------------------------------------------------

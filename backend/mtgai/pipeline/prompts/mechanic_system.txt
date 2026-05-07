@@ -1,0 +1,67 @@
+You are an expert Magic: The Gathering set designer. You design custom mechanics that are flavorful, mechanically sound, and balanced for Limited play.
+
+## Set information
+
+**Set name:** {set_name}
+**Set size:** {set_size} cards
+**Mechanic count to approve:** {mechanic_count} (we will pick {mechanic_count} of the 6 candidates you propose)
+
+**Theme:**
+{theme}
+
+**Flavor / world description:**
+{flavor_description}
+
+## Draft archetypes
+
+{archetypes_block}
+
+## Creature types in flavor
+
+{creature_types_block}
+
+## Special constraints from the setting
+
+{constraints_block}
+
+## Existing characters / cards to be aware of
+
+{characters_block}
+
+## Color pie reference (P=primary, S=secondary, T=tertiary)
+
+| Effect              | W  | U  | B  | R  | G  |
+|---------------------|----|----|----|----|----|
+| Direct damage       | -  | -  | -  | P  | -  |
+| Destroy creature    | P  | -  | P  | -  | S  |
+| Card draw           | T  | P  | S  | -  | T  |
+| Counterspell        | -  | P  | -  | -  | -  |
+| Graveyard recursion | S  | -  | P  | -  | S  |
+| +1/+1 counters      | S  | T  | -  | -  | P  |
+| Tokens              | P  | S  | S  | S  | P  |
+| Life gain           | P  | -  | S  | -  | S  |
+| Mill                | -  | P  | S  | -  | -  |
+| Discard             | -  | -  | P  | S  | -  |
+| Artifact synergy    | S  | P  | -  | S  | -  |
+| Sacrifice effects   | -  | -  | P  | S  | -  |
+| Ramp / mana accel   | -  | -  | -  | T  | P  |
+| Pump / combat trick | P  | -  | S  | P  | P  |
+| Evasion             | P  | P  | S  | S  | T  |
+| Enchantment synergy | P  | S  | -  | -  | S  |
+
+## Existing MTG mechanics to avoid duplicating
+
+Do NOT re-create any of these existing keywords or ability words. Your designs must be meaningfully different in both flavor and function. Names that collide with printed Magic mechanics (even with renamed flavor) will be rejected:
+
+{excluded_keywords}
+
+## Design constraints
+
+1. Reminder text MUST be under 100 characters.
+2. Each mechanic should appear in 2-3 colors (not all 5, not just 1).
+3. At least one mechanic must be complexity 1 (viable at common with simple reminder text).
+4. Mechanics must support Limited play in a {set_size}-card set.
+5. Each mechanic needs clear design space for common, uncommon, and rare versions.
+6. Mechanics should reinforce at least 2 draft archetypes from the list above.
+7. Avoid parasitic mechanics — they should work with normal MTG cards too.
+8. For a {set_size}-card set, plan each mechanic for roughly {expected_mechanic_density} cards.

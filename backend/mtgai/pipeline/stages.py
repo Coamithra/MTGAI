@@ -74,6 +74,134 @@ class StageResult:
 # ---------------------------------------------------------------------------
 
 
+def run_mechanics(
+    progress_cb: ProgressCallback | None,
+    emitter: StageEmitter,
+) -> StageResult:
+    """Generate the set's custom mechanic candidates.
+
+    First entry in :data:`STAGE_RUNNERS` (mechanics → skeleton →
+    reprints → ...). Loads ``theme.json`` + ``set_params``, asks the LLM
+    for 6 candidates, writes them to ``<set>/mechanics/candidates.json``,
+    and returns ``PAUSED_FOR_REVIEW``-equivalent (the engine flips the
+    status because ``mechanics`` defaults to a break-point in
+    :data:`mtgai.settings.model_settings.DEFAULT_BREAK_POINTS`).
+
+    The user picks ``mechanic_count`` candidates on the wizard's
+    Mechanics tab; the bespoke ``/api/wizard/mechanics/save`` endpoint
+    writes ``approved.json`` + sidecars and resumes the engine.
+    """
+    import time as _time
+
+    from mtgai.generation.mechanic_generator import (
+        CANDIDATE_COUNT,
+        detect_keyword_collisions,
+        generate_mechanic_candidates,
+    )
+    from mtgai.runtime import ai_lock
+    from mtgai.runtime.active_project import require_active_project
+
+    set_dir = _set_dir()
+    theme_path = set_dir / "theme.json"
+    if not theme_path.exists():
+        return StageResult(
+            success=False,
+            error_message=(
+                f"theme.json not found: {theme_path}. "
+                "Run theme extraction (Theme tab) before mechanic generation."
+            ),
+        )
+
+    mech_dir = set_dir / "mechanics"
+    mech_dir.mkdir(parents=True, exist_ok=True)
+    candidates_path = mech_dir / "candidates.json"
+
+    sp = require_active_project().settings.set_params
+
+    sections: list[dict] = [
+        {
+            "section_id": "overview",
+            "title": "Mechanic Generation",
+            "content_type": "kv",
+            "status": "running",
+            "content": {
+                "Set": sp.set_name or "(unnamed)",
+                "Set size": str(sp.set_size),
+                "Mechanic count": str(sp.mechanic_count),
+                "Candidates requested": str(CANDIDATE_COUNT),
+            },
+        }
+    ]
+    for i in range(CANDIDATE_COUNT):
+        sections.append(
+            {
+                "section_id": f"candidate_{i}",
+                "title": f"Candidate {i + 1}",
+                "content_type": "mechanic_candidate",
+                "status": "pending",
+            }
+        )
+    emitter.init_sections(sections)
+    emitter.phase("running", "Calling LLM for mechanic candidates")
+
+    with ai_lock.hold("Mechanic generation") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+
+        try:
+            response = generate_mechanic_candidates()
+        except Exception as exc:
+            logger.exception("Mechanic generation failed")
+            return StageResult(success=False, error_message=str(exc))
+
+    candidates = response["mechanics"]
+
+    # Persist the raw LLM output so the wizard tab survives a reload.
+    candidates_path.write_text(
+        json.dumps(candidates, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    collisions = detect_keyword_collisions(candidates)
+    for idx, mech in enumerate(candidates):
+        emitter.update(
+            f"candidate_{idx}",
+            status="done",
+            content={
+                "mechanic": mech,
+                "collision_with": collisions.get(idx),
+            },
+        )
+        # Match the run_lands cascading reveal — each candidate visibly
+        # appears with a small stagger so the strip animates.
+        _time.sleep(0.15)
+
+    emitter.update(
+        "overview",
+        status="done",
+        content={
+            "Set": sp.set_name or "(unnamed)",
+            "Set size": str(sp.set_size),
+            "Mechanic count": str(sp.mechanic_count),
+            "Candidates": str(len(candidates)),
+            "Model": response.get("model_id", "?"),
+            "Tokens": (
+                f"{response.get('input_tokens', 0)} in / {response.get('output_tokens', 0)} out"
+            ),
+        },
+    )
+    emitter.phase("done", f"Generated {len(candidates)} mechanic candidates")
+
+    return StageResult(
+        total_items=len(candidates),
+        completed_items=0,
+        detail="Awaiting human selection via Mechanics tab",
+    )
+
+
 def run_skeleton(
     progress_cb: ProgressCallback | None,
     emitter: StageEmitter,
@@ -640,6 +768,7 @@ def run_human_final_review(
 # ---------------------------------------------------------------------------
 
 STAGE_RUNNERS = {
+    "mechanics": run_mechanics,
     "skeleton": run_skeleton,
     "reprints": run_reprints,
     "lands": run_lands,
@@ -698,6 +827,17 @@ def _remove_path(path: Path) -> None:
         path.unlink()
 
 
+def clear_mechanics() -> None:
+    """Wipe the active project's ``mechanics/`` directory.
+
+    Owns ``candidates.json``, ``approved.json``, ``evergreen-keywords.json``,
+    ``pointed-questions.json``, ``functional-tags.json``. Cascading from
+    a Theme / Project Settings edit drops everything mechanic-related so
+    the next run regenerates from scratch.
+    """
+    _remove_path(_set_dir() / "mechanics")
+
+
 def clear_skeleton() -> None:
     _remove_path(_set_dir() / "skeleton.json")
 
@@ -738,6 +878,7 @@ def clear_rendering() -> None:
 
 
 STAGE_CLEARERS: dict[str, StageClearer] = {
+    "mechanics": clear_mechanics,
     "skeleton": clear_skeleton,
     "reprints": clear_reprints,
     "lands": _no_artifacts,

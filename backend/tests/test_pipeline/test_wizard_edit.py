@@ -104,12 +104,14 @@ def _seed_state(code: str, *, overall_status: PipelineStatus) -> PipelineState:
 def test_preview_lists_completed_downstream_stages(client):
     _make_set("ASD", theme={"code": "ASD", "name": "Test"})
     state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
-    state.stages[0].status = StageStatus.COMPLETED
-    state.stages[0].progress.completed_items = 60
+    # Indices shift past mechanics (now stages[0]); skeleton/reprints/lands
+    # are stages[1..3] in the post-TC-2 pipeline ordering.
     state.stages[1].status = StageStatus.COMPLETED
-    state.stages[1].progress.completed_items = 5
-    state.stages[2].status = StageStatus.PAUSED_FOR_REVIEW
-    state.stages[2].progress.completed_items = 6
+    state.stages[1].progress.completed_items = 60
+    state.stages[2].status = StageStatus.COMPLETED
+    state.stages[2].progress.completed_items = 5
+    state.stages[3].status = StageStatus.PAUSED_FOR_REVIEW
+    state.stages[3].progress.completed_items = 6
     save_state(state)
 
     resp = client.post(
@@ -130,7 +132,9 @@ def test_preview_lists_completed_downstream_stages(client):
 def test_preview_skips_pending_stages(client):
     _make_set("ASD", theme={"code": "ASD"})
     state = _seed_state("ASD", overall_status=PipelineStatus.NOT_STARTED)
-    state.stages[0].status = StageStatus.COMPLETED
+    # Mark skeleton (stages[1] post-TC-2) COMPLETED; mechanics + downstream
+    # stay PENDING and should be excluded from the cleared list.
+    state.stages[1].status = StageStatus.COMPLETED
     save_state(state)
 
     resp = client.post(
@@ -191,10 +195,13 @@ def test_accept_cascades_artifacts_and_resets_stages(client, no_thread_start):
     (cards / "001_foo.json").write_text("{}", encoding="utf-8")
 
     state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
-    state.stages[0].status = StageStatus.COMPLETED  # skeleton
-    state.stages[1].status = StageStatus.COMPLETED  # reprints
-    state.stages[3].status = StageStatus.PAUSED_FOR_REVIEW  # card_gen
-    state.current_stage_id = state.stages[3].stage_id
+    # Index shift after TC-2: mechanics is stages[0]; skeleton/reprints
+    # are [1]/[2]; card_gen is [4].
+    state.stages[0].status = StageStatus.COMPLETED  # mechanics (upstream of cascade)
+    state.stages[1].status = StageStatus.COMPLETED  # skeleton
+    state.stages[2].status = StageStatus.COMPLETED  # reprints
+    state.stages[4].status = StageStatus.PAUSED_FOR_REVIEW  # card_gen
+    state.current_stage_id = state.stages[4].stage_id
     save_state(state)
 
     resp = client.post(
@@ -215,7 +222,12 @@ def test_accept_cascades_artifacts_and_resets_stages(client, no_thread_start):
 
     reloaded = load_state()
     assert reloaded is not None
-    assert all(s.status == StageStatus.PENDING for s in reloaded.stages)
+    # mechanics (upstream of the cascade boundary) stays COMPLETED;
+    # everything from skeleton onward resets to PENDING.
+    by_id = {s.stage_id: s for s in reloaded.stages}
+    assert by_id["mechanics"].status == StageStatus.COMPLETED
+    for sid in ("skeleton", "reprints", "lands", "card_gen"):
+        assert by_id[sid].status == StageStatus.PENDING
     assert reloaded.current_stage_id is None
 
 
@@ -224,7 +236,7 @@ def test_accept_from_theme_resets_all_pipeline_stages(client, no_thread_start):
     (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
 
     state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
-    state.stages[0].status = StageStatus.COMPLETED
+    state.stages[1].status = StageStatus.COMPLETED  # skeleton (post-TC-2 ordering)
     save_state(state)
 
     resp = client.post(
@@ -232,7 +244,10 @@ def test_accept_from_theme_resets_all_pipeline_stages(client, no_thread_start):
         json={"set_code": "ASD", "from_stage": "theme"},
     )
     assert resp.status_code == 200
-    assert resp.json()["next_stage_id"] == "skeleton"
+    # Cascade from "theme" resets every pipeline stage; the engine's
+    # first PENDING after the reset is mechanics (TC-2 added it as the
+    # first stage).
+    assert resp.json()["next_stage_id"] == "mechanics"
     assert not (set_dir / "skeleton.json").exists()
 
 
@@ -474,8 +489,9 @@ def test_resolve_edit_point_returns_stage_index():
     state = create_pipeline_state(
         PipelineConfig(set_code="ASD", set_name="ASD", set_size=20),
     )
-    # card_gen is the 4th stage (index 3) per STAGE_DEFINITIONS.
-    assert pipeline_server._resolve_edit_point("card_gen", state) == 3
+    # card_gen is the 5th stage (index 4) per STAGE_DEFINITIONS post-TC-2:
+    # mechanics, skeleton, reprints, lands, card_gen.
+    assert pipeline_server._resolve_edit_point("card_gen", state) == 4
 
 
 def test_resolve_edit_point_raises_for_unknown_stage():

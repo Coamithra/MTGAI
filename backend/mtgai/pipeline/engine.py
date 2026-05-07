@@ -19,11 +19,13 @@ from pathlib import Path
 
 from mtgai.pipeline.events import EventBus, StageEmitter
 from mtgai.pipeline.models import (
+    STAGE_DEFINITIONS,
     PipelineState,
     PipelineStatus,
     ProgressCallback,
     StageProgress,
     StageReviewMode,
+    StageState,
     StageStatus,
 )
 from mtgai.pipeline.stages import STAGE_RUNNERS, StageResult
@@ -76,12 +78,54 @@ def save_state(state: PipelineState) -> None:
 
 
 def load_state() -> PipelineState | None:
-    """Load pipeline state from disk for the active project, or None if not found."""
+    """Load pipeline state from disk for the active project, or None if not found.
+
+    Reconciles the on-disk ``stages`` list against the current
+    :data:`STAGE_DEFINITIONS` so projects whose ``pipeline-state.json``
+    predates a newly-added stage still load with a complete stage list.
+    Missing stages are inserted as PENDING at their canonical position
+    so the engine runs them on next advance — graceful upgrade for old
+    projects without bespoke per-stage migration logic.
+    """
     path = _state_path()
     if not path.exists():
         return None
     data = json.loads(path.read_text(encoding="utf-8"))
-    return PipelineState.model_validate(data)
+    state = PipelineState.model_validate(data)
+    _sync_stages_with_definitions(state)
+    return state
+
+
+def _sync_stages_with_definitions(state: PipelineState) -> bool:
+    """Insert any missing stages from STAGE_DEFINITIONS into ``state.stages``.
+
+    Mutates ``state`` in place. Existing stages are kept untouched —
+    we don't want to clobber their persisted progress / review_mode.
+    Missing stages get a fresh ``StageState`` in PENDING; the engine
+    runs them on the next advance. Returns True if any stage was
+    inserted, False if the loaded state already covered every stage —
+    callers (e.g. ``cleanup_orphan_running_stages``) use this to decide
+    whether to persist the synced shape.
+    """
+    have = {s.stage_id: s for s in state.stages}
+    if all(d["stage_id"] in have for d in STAGE_DEFINITIONS):
+        return False
+    new_stages: list[StageState] = []
+    for defn in STAGE_DEFINITIONS:
+        sid = defn["stage_id"]
+        if sid in have:
+            new_stages.append(have[sid])
+            continue
+        new_stages.append(
+            StageState(
+                stage_id=sid,
+                display_name=defn["display_name"],
+                review_eligible=defn["review_eligible"],
+                status=StageStatus.PENDING,
+            )
+        )
+    state.stages = new_stages
+    return True
 
 
 def cleanup_orphan_running_stages() -> list[str]:
@@ -113,10 +157,15 @@ def cleanup_orphan_running_stages() -> list[str]:
     except Exception:
         logger.exception("cleanup_orphan_running_stages: failed to load %s", state_path)
         return []
+    # ``load_state`` would also sync, but we read the file directly so we
+    # can tell whether syncing changed anything (the test contract is
+    # "leave a clean state's bytes alone"). Track migration as one of
+    # the change conditions below.
+    synced = _sync_stages_with_definitions(state)
 
     demoted: list[str] = []
     now = datetime.now(UTC)
-    changed = False
+    changed = synced
     for stage in state.stages:
         if stage.status == StageStatus.RUNNING:
             stage.status = StageStatus.FAILED
@@ -131,10 +180,7 @@ def cleanup_orphan_running_stages() -> list[str]:
 
     if changed:
         state.updated_at = now
-        state_path.write_text(
-            json.dumps(state.model_dump(mode="json"), indent=2, default=str),
-            encoding="utf-8",
-        )
+        save_state(state)
 
     if demoted:
         logger.warning(

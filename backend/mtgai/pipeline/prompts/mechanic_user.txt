@@ -1,0 +1,22 @@
+Design 6 mechanic candidates for this set.
+
+Requirements:
+- We will select {mechanic_count} of the 6, so generate extra for choice.
+- Each candidate must feel DISTINCT from the others — different mechanical spaces.
+- Must fit the set's theme and flavor (see system prompt).
+- Span different mechanical spaces:
+  - 2 creature-focused candidates
+  - 2 spell-focused or triggered-ability candidates
+  - 2 candidates that can go on any permanent type
+- At least one MUST be complexity 1 (viable at common with simple reminder text).
+- At least one should be complexity 2-3 for more interesting rare designs.
+- Each mechanic should support 2+ draft archetypes from the set.
+- Provide 2-3 example cards per mechanic showing different rarities.
+
+Think carefully about:
+1. How the mechanic plays in Limited (is it fun? does it create interesting decisions?)
+2. How it reinforces the set's themes and flavor.
+3. How it interacts with the other potential mechanics in this batch.
+4. Whether it has enough design space for {expected_mechanic_density} cards in a {set_size}-card set.
+
+For each mechanic, provide concrete rules text patterns showing how it would appear on commons, uncommons, and rares. Example cards should have complete, valid MTG templating (mana costs, type lines, oracle text with proper formatting).

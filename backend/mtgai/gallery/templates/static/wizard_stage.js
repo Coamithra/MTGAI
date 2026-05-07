@@ -16,11 +16,24 @@
 
   W.registerTabRenderer('stage', renderStageTab);
 
+  // Per-stage body + footer renderers. Stages with bespoke UI (e.g.
+  // ``mechanics`` candidates strip) call ``W.registerStageRenderer``
+  // at module load time; the standard placeholder is used for stages
+  // without an entry. The custom renderer owns content + footer
+  // (header pill, break-point toggle, and edit button still come
+  // from the standard shell). Editing-mode renders the standard
+  // cancel/accept UI even on stages with custom renderers — the
+  // cascade is identical for every stage tab.
+  const customStageRenderers = {};
+  W.registerStageRenderer = function (stageId, fn) {
+    customStageRenderers[stageId] = fn;
+  };
+
   // ------------------------------------------------------------------
   // Stage tab
   // ------------------------------------------------------------------
 
-  function renderStageTab({ tab, root, state }) {
+  function renderStageTab({ tab, root, state, rerender }) {
     const content = root.querySelector('[data-role="content"]');
     const footer = root.querySelector('[data-role="footer"]');
     const headerActions = root.querySelector('[data-role="header-actions"]');
@@ -33,20 +46,36 @@
     }
 
     const editing = !!(W.editFlow && W.editFlow.getDraft(tab.id));
-    const banner = editing
-      ? '<div class="wiz-edit-banner">Editing — Accept will discard everything from this stage onward and re-run.</div>'
-      : '';
-    content.innerHTML = banner + stageBodyHtml(stage);
+    const custom = !editing ? customStageRenderers[stage.stage_id] : null;
 
-    if (footer) {
-      const desiredFooter = editing
-        ? editFooterHtml()
-        : stageFooterHtml(stage, state);
-      if (footer.dataset.lastFooter !== desiredFooter) {
-        footer.innerHTML = desiredFooter;
-        footer.dataset.lastFooter = desiredFooter;
-        if (editing) bindStageEditActions(footer, tab, state);
-        else bindNextStepButton(footer, state);
+    if (custom) {
+      // Custom renderer owns content + footer. We still update the
+      // header pill below + break-point toggle / edit button via
+      // headerActions. The renderer is responsible for being
+      // idempotent on rerender (SSE-driven repaints fire on every
+      // stage_update event).
+      try {
+        custom({ tab, root, state, stage, content, footer, rerender: !!rerender });
+      } catch (err) {
+        console.error('Custom stage renderer failed for', stage.stage_id, err);
+        content.innerHTML = '<div class="wiz-stage-error">Stage renderer failed — see console.</div>';
+      }
+    } else {
+      const banner = editing
+        ? '<div class="wiz-edit-banner">Editing — Accept will discard everything from this stage onward and re-run.</div>'
+        : '';
+      content.innerHTML = banner + stageBodyHtml(stage);
+
+      if (footer) {
+        const desiredFooter = editing
+          ? editFooterHtml()
+          : stageFooterHtml(stage, state);
+        if (footer.dataset.lastFooter !== desiredFooter) {
+          footer.innerHTML = desiredFooter;
+          footer.dataset.lastFooter = desiredFooter;
+          if (editing) bindStageEditActions(footer, tab, state);
+          else bindNextStepButton(footer, state);
+        }
       }
     }
 

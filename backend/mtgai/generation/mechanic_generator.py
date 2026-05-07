@@ -1,8 +1,36 @@
-"""Mechanic generation and validation for custom MTG sets."""
+"""Mechanic candidate generation — driven by ``theme.json`` + ``set_params``.
 
+Wired into the pipeline as the ``mechanics`` stage (first entry in
+``STAGE_RUNNERS``). The runner in ``mtgai.pipeline.stages`` does the
+orchestration; this module owns the prompt assembly, tool-schema
+contract, post-processing (color pie + known-keyword collision check),
+and the sidecar generators that the wizard's save handler invokes.
+
+Templates live next door:
+
+* ``mtgai/pipeline/prompts/mechanic_system.txt`` — system prompt
+* ``mtgai/pipeline/prompts/mechanic_user.txt``   — user prompt
+* ``mtgai/pipeline/templates/mtg_known_keywords.json`` — collision list
+* ``mtgai/pipeline/templates/evergreen_keywords.json`` — per-color defaults
+* ``mtgai/pipeline/templates/pointed_questions.json``  — review questions
+"""
+
+from __future__ import annotations
+
+import json
+import logging
 from pathlib import Path
+from typing import Any
 
 from mtgai.generation.llm_client import generate_with_tool
+
+logger = logging.getLogger(__name__)
+
+_PIPELINE_ROOT = Path(__file__).resolve().parent.parent / "pipeline"
+_PROMPTS_DIR = _PIPELINE_ROOT / "prompts"
+_TEMPLATES_DIR = _PIPELINE_ROOT / "templates"
+
+CANDIDATE_COUNT = 6
 
 # ---------------------------------------------------------------------------
 # Tool schema: defines the structured output the LLM must return
@@ -35,6 +63,7 @@ MECHANIC_TOOL_SCHEMA: dict = {
                         "uncommon_patterns",
                         "rare_patterns",
                         "example_cards",
+                        "distribution",
                     ],
                     "properties": {
                         "name": {
@@ -52,7 +81,7 @@ MECHANIC_TOOL_SCHEMA: dict = {
                         },
                         "reminder_text": {
                             "type": "string",
-                            "description": ("Reminder text in parentheses, under 100 chars"),
+                            "description": "Reminder text in parentheses, under 100 chars",
                         },
                         "colors": {
                             "type": "array",
@@ -66,30 +95,30 @@ MECHANIC_TOOL_SCHEMA: dict = {
                             "type": "integer",
                             "minimum": 1,
                             "maximum": 3,
-                            "description": ("1=common-viable, 2=uncommon+, 3=rare+"),
+                            "description": "1=common-viable, 2=uncommon+, 3=rare+",
                         },
                         "flavor_connection": {
                             "type": "string",
-                            "description": ("How the mechanic connects to set flavor"),
+                            "description": "How the mechanic connects to set flavor",
                         },
                         "design_rationale": {
                             "type": "string",
-                            "description": ("Why this mechanic is good for the set"),
+                            "description": "Why this mechanic is good for the set",
                         },
                         "common_patterns": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": ("Rules text patterns for common cards"),
+                            "description": "Rules text patterns for common cards",
                         },
                         "uncommon_patterns": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": ("Rules text patterns for uncommon cards"),
+                            "description": "Rules text patterns for uncommon cards",
                         },
                         "rare_patterns": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": ("Rules text patterns for rare/mythic cards"),
+                            "description": "Rules text patterns for rare/mythic cards",
                         },
                         "example_cards": {
                             "type": "array",
@@ -122,6 +151,20 @@ MECHANIC_TOOL_SCHEMA: dict = {
                             },
                             "description": "2-3 example cards using this mechanic",
                         },
+                        "distribution": {
+                            "type": "object",
+                            "required": ["common", "uncommon", "rare", "mythic"],
+                            "description": (
+                                "Approximate slot counts per rarity for this mechanic. "
+                                "Should sum to roughly the set's mechanic-density target."
+                            ),
+                            "properties": {
+                                "common": {"type": "integer", "minimum": 0},
+                                "uncommon": {"type": "integer", "minimum": 0},
+                                "rare": {"type": "integer", "minimum": 0},
+                                "mythic": {"type": "integer", "minimum": 0},
+                            },
+                        },
                     },
                 },
             },
@@ -131,118 +174,206 @@ MECHANIC_TOOL_SCHEMA: dict = {
 
 
 # ---------------------------------------------------------------------------
-# Prompts
+# Prompt assembly
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """\
-You are an expert Magic: The Gathering set designer. You design custom mechanics \
-that are flavorful, mechanically sound, and balanced for Limited play.
 
-## Set Information: Anomalous Descent (ASD)
+def _read_template(name: str) -> str:
+    return (_PROMPTS_DIR / name).read_text(encoding="utf-8")
 
-**Theme:** Science-fantasy megadungeon in far-future post-apocalyptic Earth.
 
-**Flavor:** Thousands of years after civilization collapsed, the city of Denethix \
-clings to order at the edge of a wilderness teeming with dinosaurs, moktars, and \
-rogue wizards. Beneath Mount Rendon lies the Anomalous Subsurface Environment — \
-a self-spawning megadungeon that predates humanity, filled with ancient super-science \
-relics, degraded automatons, and things far worse. Adventurers descend seeking fortune. \
-Most don't return.
+def _format_archetypes_block(archetypes: list[Any]) -> str:
+    """Render the draft-archetype list for the system prompt."""
+    if not archetypes:
+        return "(no archetypes specified — design mechanics that work across colors)"
+    lines: list[str] = []
+    for arch in archetypes:
+        if not isinstance(arch, dict):
+            continue
+        colors = arch.get("color_pair") or arch.get("colors") or ""
+        name = arch.get("name") or ""
+        desc = arch.get("description") or ""
+        if name and desc:
+            lines.append(f"- {colors}: {name} — {desc}".lstrip())
+        elif name:
+            lines.append(f"- {colors}: {name}".lstrip())
+    return "\n".join(lines) if lines else "(no archetypes specified)"
 
-The Vizier rules through lies. The Cult of Science worships technology they barely \
-understand. The Society of the Luminous Spark fights slavery. Raiders, wizards, and \
-dinosaurs roam the wilderness. And deep in the dungeon, something watches.
 
-**Set Size:** 60 cards (small set).
-**Custom Mechanics:** 3 (we need 6 candidates to choose from).
+def _format_creature_types_block(creature_types: list[Any]) -> str:
+    if not creature_types:
+        return "(no specific creature types called out)"
+    names: list[str] = []
+    for ct in creature_types:
+        if isinstance(ct, str):
+            names.append(ct)
+        elif isinstance(ct, dict):
+            n = ct.get("name") or ct.get("type")
+            if n:
+                names.append(str(n))
+    return ", ".join(names) if names else "(no specific creature types called out)"
 
-## Draft Archetypes
-- WU: Ancient Technology — artifacts, automatons, incremental value (control)
-- WB: Vizier's Regime — sacrifice, taxation, drain (midrange)
-- WR: Spark Rebellion — go-wide aggro, equipment, combat tricks
-- WG: Frontier Settlers — tokens, +1/+1 counters, go-wide (midrange)
-- UB: Deep Descent — mill, graveyard, card selection (control)
-- UR: Mad Science — spellslinger with artifact synergies (midrange)
-- UG: Dungeon Ecology — +1/+1 counters, creature-based card advantage (midrange)
-- BR: Raider Warbands — aggressive sacrifice, burn (aggro)
-- BG: Twisted Evolution — graveyard recursion, death triggers (midrange)
-- RG: Prehistoric Fury — ramp, dinosaurs, trample (midrange)
 
-## Color Pie Reference (P=primary, S=secondary, T=tertiary)
+def _format_constraints_block(constraints: list[Any]) -> str:
+    if not constraints:
+        return "(no special constraints)"
+    lines: list[str] = []
+    for c in constraints:
+        text = c.get("text") if isinstance(c, dict) else c
+        if text:
+            lines.append(f"- {text}")
+    return "\n".join(lines) if lines else "(no special constraints)"
 
-| Effect              | W  | U  | B  | R  | G  |
-|---------------------|----|----|----|----|-----|
-| Direct damage       | —  | —  | —  | P  | —   |
-| Destroy creature    | P  | —  | P  | —  | S   |
-| Card draw           | T  | P  | S  | —  | T   |
-| Counterspell        | —  | P  | —  | —  | —   |
-| Graveyard recursion | S  | —  | P  | —  | S   |
-| +1/+1 counters      | S  | T  | —  | —  | P   |
-| Tokens              | P  | S  | S  | S  | P   |
-| Life gain           | P  | —  | S  | —  | S   |
-| Mill                | —  | P  | S  | —  | —   |
-| Discard             | —  | —  | P  | S  | —   |
-| Artifact synergy    | S  | P  | —  | S  | —   |
-| Sacrifice effects   | —  | —  | P  | S  | —   |
-| Ramp / mana accel   | —  | —  | —  | T  | P   |
-| Pump / combat trick | P  | —  | S  | P  | P   |
-| Evasion             | P  | P  | S  | S  | T   |
-| Enchantment synergy | P  | S  | —  | —  | S   |
 
-## Existing MTG Mechanics to AVOID Duplicating
-Do NOT re-create any of these existing mechanics. Your designs must be meaningfully \
-different in both flavor and function:
-investigate, explore, surveil, amass, adapt, mutate, foretell, ward, channel, \
-ninjutsu, crew, disturb, venture (into the dungeon), connive, enlist, domain, \
-descend (the existing Ixalan mechanic), discover, disguise, manifest dread, eerie, \
-collect evidence, plot, crime, suspect, offspring, valiant, survival, impending, \
-delirium, threshold, flashback, madness, energy, convoke, delve, fabricate, \
-proliferate, exploit, eternalize, embalm, exert, afterlife, spectacle, riot, \
-escape, devotion, constellation, landfall, kicker, adventure, boast, sagas, \
-learn/lessons, daybound/nightbound, blood tokens, clue tokens, food tokens, \
-treasure tokens, map tokens, powerstone tokens, incubate.
+def _format_characters_block(theme: dict) -> str:
+    """Surface legendary characters + notable cards so the LLM avoids name collisions."""
+    parts: list[str] = []
+    legends = theme.get("legendary_characters") or []
+    notable = theme.get("notable_cards") or []
+    char_names: list[str] = []
+    for entry in legends:
+        if isinstance(entry, dict):
+            n = entry.get("name")
+            if n:
+                char_names.append(str(n))
+        elif isinstance(entry, str):
+            char_names.append(entry)
+    card_names: list[str] = []
+    for entry in notable:
+        if isinstance(entry, dict):
+            n = entry.get("name") or entry.get("text")
+            if n:
+                card_names.append(str(n))
+        elif isinstance(entry, str):
+            card_names.append(entry)
+    if char_names:
+        parts.append("Legendary characters: " + ", ".join(char_names))
+    if card_names:
+        parts.append("Notable cards: " + ", ".join(card_names))
+    return "\n".join(parts) if parts else "(none)"
 
-## Design Constraints
-1. Reminder text MUST be under 100 characters.
-2. Each mechanic should appear in 2-3 colors (not all 5, not just 1).
-3. At least one mechanic must be complexity 1 (viable at common).
-4. Mechanics must support Limited play in a 60-card set.
-5. Each mechanic needs clear design space for common, uncommon, and rare versions.
-6. Mechanics should reinforce at least 2 draft archetypes.
-7. Avoid parasitic mechanics — they should work with normal MTG cards too.
-8. For a 60-card set, each mechanic should appear on roughly 6-10 cards.
-"""
 
-USER_PROMPT = """\
-Design 6 mechanic candidates for the Anomalous Descent (ASD) set.
+def _expected_mechanic_density(set_size: int, mechanic_count: int) -> str:
+    """Rough target for cards-per-mechanic in this set.
 
-Requirements:
-- We will select 3 of the 6, so generate extra for choice
-- Each should feel DISTINCT from the others — different mechanical spaces
-- Must fit the "science-fantasy megadungeon" theme
-- Span different mechanical spaces:
-  - At least one creature-focused mechanic
-  - At least one spell-focused or triggered-ability mechanic
-  - At least one that could go on any permanent type
-- At least one MUST be complexity 1 (viable at common with simple reminder text)
-- At least one should be complexity 2-3 for more interesting rare designs
-- Each mechanic should support 2+ draft archetypes from the set
-- Provide 2-3 example cards per mechanic showing different rarities
+    Total set / (mechanic_count * 2) — about half the set carries
+    custom mechanics, the rest is reprints + lands + non-mechanic
+    designs. Returned as a "min-max" string the prompt drops into
+    its design constraints.
+    """
+    if mechanic_count <= 0:
+        return "6-10"
+    per = max(1, set_size // (mechanic_count * 2))
+    return f"{per}-{per * 2}"
 
-Think carefully about:
-1. How the mechanic plays in Limited (is it fun? does it create interesting decisions?)
-2. How it reinforces the set's themes (dungeon exploration, ancient tech, post-apocalypse)
-3. How it interacts with the other potential mechanics
-4. Whether it has enough design space for 6-10 cards in a 60-card set
 
-For each mechanic, provide concrete rules text patterns showing how it would appear \
-on commons, uncommons, and rares. Example cards should have complete, valid MTG \
-templating (mana costs, type lines, oracle text with proper formatting).
-"""
+def _format_excluded_keywords(known: dict) -> str:
+    """Comma-separated list across every known-keyword bucket."""
+    items: list[str] = []
+    for bucket in ("evergreen", "deciduous", "set_keywords", "ability_words", "token_keywords"):
+        items.extend(known.get(bucket, []))
+    seen: set[str] = set()
+    out: list[str] = []
+    for k in items:
+        kl = k.lower()
+        if kl not in seen:
+            seen.add(kl)
+            out.append(k)
+    return ", ".join(out)
+
+
+def build_mechanic_prompts(
+    theme: dict,
+    set_name: str,
+    set_size: int,
+    mechanic_count: int,
+) -> tuple[str, str]:
+    """Render the mechanic-generation system + user prompts from theme + params."""
+    sys_template = _read_template("mechanic_system.txt")
+    user_template = _read_template("mechanic_user.txt")
+    known = load_known_keywords()
+    expected_density = _expected_mechanic_density(set_size, mechanic_count)
+
+    system_prompt = sys_template.format(
+        set_name=set_name or "(unnamed set)",
+        set_size=set_size,
+        mechanic_count=mechanic_count,
+        theme=(theme.get("theme") or theme.get("setting") or "(no theme provided)").strip(),
+        flavor_description=(theme.get("flavor_description") or "").strip()
+        or "(no flavor description provided)",
+        archetypes_block=_format_archetypes_block(theme.get("draft_archetypes") or []),
+        creature_types_block=_format_creature_types_block(theme.get("creature_types") or []),
+        constraints_block=_format_constraints_block(
+            theme.get("constraints") or theme.get("special_constraints") or []
+        ),
+        characters_block=_format_characters_block(theme),
+        excluded_keywords=_format_excluded_keywords(known),
+        expected_mechanic_density=expected_density,
+    )
+    user_prompt = user_template.format(
+        mechanic_count=mechanic_count,
+        set_size=set_size,
+        expected_mechanic_density=expected_density,
+    )
+    return system_prompt, user_prompt
 
 
 # ---------------------------------------------------------------------------
-# Color pie validation
+# Template loaders
+# ---------------------------------------------------------------------------
+
+
+def load_known_keywords() -> dict[str, list[str]]:
+    """Per-bucket list of MTG keywords + ability words.
+
+    Buckets: ``evergreen``, ``deciduous``, ``set_keywords``,
+    ``ability_words``, ``token_keywords``.
+    """
+    path = _TEMPLATES_DIR / "mtg_known_keywords.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def known_keyword_set() -> set[str]:
+    """Lowercase set of every known printed keyword for collision checks."""
+    out: set[str] = set()
+    for bucket in load_known_keywords().values():
+        for k in bucket:
+            out.add(k.lower())
+    return out
+
+
+def load_evergreen_defaults() -> dict[str, list[str]]:
+    """Per-color default evergreen keyword list — written as a sidecar."""
+    path = _TEMPLATES_DIR / "evergreen_keywords.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_pointed_questions_template() -> list[dict]:
+    """Canonical questions with ``{mechanic_names}`` placeholder."""
+    path = _TEMPLATES_DIR / "pointed_questions.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def render_pointed_questions(approved: list[dict]) -> list[dict]:
+    """Substitute ``{mechanic_names}`` with the joined approved-mechanic names.
+
+    Output shape matches what ``review/ai_review.py`` expects from the
+    on-disk file — same keys, same types, just with the placeholders
+    resolved per project.
+    """
+    names = ", ".join(m.get("name", "?") for m in approved)
+    out: list[dict] = []
+    for q in load_pointed_questions_template():
+        rendered = dict(q)
+        text = rendered.get("question", "")
+        if "{mechanic_names}" in text:
+            rendered["question"] = text.replace("{mechanic_names}", names)
+        out.append(rendered)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Color pie validation (kept; still useful for the candidates strip)
 # ---------------------------------------------------------------------------
 
 # Maps effect keywords to their primary/secondary colors
@@ -265,7 +396,6 @@ COLOR_PIE: dict[str, dict[str, str]] = {
     "enchantment_synergy": {"W": "P", "U": "S", "G": "S"},
 }
 
-# Effect keywords to look for in mechanic text
 EFFECT_KEYWORDS: dict[str, list[str]] = {
     "direct_damage": ["damage", "deals damage"],
     "destroy_creature": ["destroy", "destroys"],
@@ -309,7 +439,6 @@ def validate_mechanic_color_pie(mechanic: dict) -> list[str]:
         warnings.append("ERROR: Mechanic has no assigned colors")
         return warnings
 
-    # Collect all rules text for analysis
     all_text_parts = [
         mechanic.get("reminder_text", ""),
         mechanic.get("design_rationale", ""),
@@ -320,32 +449,26 @@ def validate_mechanic_color_pie(mechanic: dict) -> list[str]:
         all_text_parts.append(card.get("oracle_text", ""))
     all_text = " ".join(all_text_parts).lower()
 
-    # Check each detected effect against color pie
     for effect_name, keywords in EFFECT_KEYWORDS.items():
         if any(kw in all_text for kw in keywords):
             pie = COLOR_PIE.get(effect_name, {})
-            # Check if at least one assigned color has this as P or S
             has_primary_or_secondary = any(pie.get(c) in ("P", "S") for c in colors)
             if not has_primary_or_secondary and pie:
-                # Check if it's at least tertiary
                 has_tertiary = any(pie.get(c) == "T" for c in colors)
                 if has_tertiary:
                     warnings.append(
                         f"WARN: '{effect_name}' is only tertiary in {colors} — use sparingly"
                     )
                 else:
-                    # Could be a false positive from keyword detection
                     warnings.append(
                         f"NOTE: '{effect_name}' detected in text but not "
                         f"primary/secondary in {colors} — verify intent"
                     )
 
-    # Check reminder text length
     reminder = mechanic.get("reminder_text", "")
     if len(reminder) > 100:
         warnings.append(f"ERROR: Reminder text is {len(reminder)} chars (max 100)")
 
-    # Check complexity vs target rarities
     complexity = mechanic.get("complexity", 1)
     if complexity == 1 and not mechanic.get("common_patterns"):
         warnings.append("WARN: Complexity 1 mechanic should have common patterns")
@@ -353,24 +476,67 @@ def validate_mechanic_color_pie(mechanic: dict) -> list[str]:
     return warnings
 
 
-# ---------------------------------------------------------------------------
-# Evergreen keyword assignment
-# ---------------------------------------------------------------------------
+def detect_keyword_collisions(candidates: list[dict]) -> dict[int, str]:
+    """Flag candidates whose name collides with a printed MTG keyword.
 
-
-def assign_evergreen_keywords() -> dict[str, list[str]]:
-    """Return the standard evergreen keyword assignment for each color.
-
-    These are the keywords the set will use on vanilla/french-vanilla creatures
-    and as rider abilities. Based on standard MTG color pie conventions.
+    Returns ``{candidate_index: collision_keyword}`` so the wizard can
+    surface the warning per-card without filtering — the user might still
+    want to keep the candidate and rename it inline.
     """
-    return {
-        "W": ["flying", "first strike", "vigilance", "lifelink", "defender"],
-        "U": ["flying", "ward", "flash", "hexproof"],
-        "B": ["deathtouch", "menace", "lifelink", "flash"],
-        "R": ["haste", "menace", "first strike", "trample"],
-        "G": ["trample", "reach", "vigilance", "flash", "deathtouch"],
-    }
+    known = known_keyword_set()
+    out: dict[int, str] = {}
+    for idx, mech in enumerate(candidates):
+        name = (mech.get("name") or "").strip()
+        if not name:
+            continue
+        if name.lower() in known:
+            out[idx] = name
+    return out
+
+
+# ---------------------------------------------------------------------------
+# approved.json projection
+# ---------------------------------------------------------------------------
+
+
+_APPROVED_FIELDS: tuple[str, ...] = (
+    "name",
+    "keyword_type",
+    "reminder_text",
+    "colors",
+    "complexity",
+    "flavor_connection",
+    "common_patterns",
+    "uncommon_patterns",
+    "rare_patterns",
+    "distribution",
+)
+
+
+def candidate_to_approved(candidate: dict) -> dict:
+    """Project a candidate dict to the on-disk ``approved.json`` shape.
+
+    * Renames ``design_rationale`` → ``design_notes`` (downstream
+      consumers read ``design_notes``).
+    * Drops ``example_cards`` (UI-only).
+    * Synthesises ``rarity_range`` from non-zero ``distribution`` rarities
+      so AI-review prompts have it.
+    """
+    out: dict = {}
+    for key in _APPROVED_FIELDS:
+        if key in candidate:
+            out[key] = candidate[key]
+    out["design_notes"] = candidate.get("design_notes") or candidate.get("design_rationale", "")
+    distribution = candidate.get("distribution") or {}
+    rarity_range = [r for r in ("common", "uncommon", "rare", "mythic") if distribution.get(r, 0)]
+    if not rarity_range:
+        complexity = candidate.get("complexity", 1)
+        if complexity >= 3:
+            rarity_range = ["uncommon", "rare", "mythic"]
+        else:
+            rarity_range = ["common", "uncommon", "rare", "mythic"]
+    out["rarity_range"] = rarity_range
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -378,38 +544,70 @@ def assign_evergreen_keywords() -> dict[str, list[str]]:
 # ---------------------------------------------------------------------------
 
 
-def generate_mechanic_candidates(
-    theme_path: str | Path | None = None,
-) -> list[dict]:
+def generate_mechanic_candidates(*, theme: dict | None = None) -> dict:
     """Generate mechanic candidates for the active project via LLM.
 
-    Args:
-        theme_path: Optional path to theme.json for context.
-            Not directly injected into prompt (already in system prompt),
-            but used for logging/verification.
+    Reads ``theme.json`` and ``set_params`` from the active project,
+    assembles the prompts, and calls ``generate_with_tool``. Returns
+    the raw response shape for callers that want token usage too::
 
-    Returns:
-        List of mechanic candidate dicts.
+        {
+            "mechanics": list[dict],
+            "input_tokens": int,
+            "output_tokens": int,
+            "model_id": str,
+        }
+
+    Raises ``RuntimeError`` if the LLM returns fewer than the required
+    candidate count (the runner translates this to a stage failure).
     """
+    from mtgai.io.asset_paths import set_artifact_dir
     from mtgai.runtime.active_project import require_active_project
 
-    model_id = require_active_project().settings.get_llm_model_id("mechanics")
+    project = require_active_project()
+    settings = project.settings
+    sp = settings.set_params
+    model_id = settings.get_llm_model_id("mechanics")
 
-    print("Calling LLM to generate mechanic candidates...")
-    print(f"  Model: {model_id}")
-    print("  Temperature: 1.0")
-    print("  This may take 30-60 seconds...\n")
+    if theme is None:
+        theme_path = set_artifact_dir() / "theme.json"
+        if not theme_path.exists():
+            raise RuntimeError(f"theme.json not found at {theme_path} — run theme extraction first")
+        theme = json.loads(theme_path.read_text(encoding="utf-8"))
+    assert theme is not None
 
+    system_prompt, user_prompt = build_mechanic_prompts(
+        theme=theme,
+        set_name=sp.set_name or project.set_code or "Custom Set",
+        set_size=sp.set_size,
+        mechanic_count=sp.mechanic_count,
+    )
+
+    logger.info(
+        "Generating %d mechanic candidates (model=%s, set_size=%d, mech_count=%d)",
+        CANDIDATE_COUNT,
+        model_id,
+        sp.set_size,
+        sp.mechanic_count,
+    )
     response = generate_with_tool(
-        system_prompt=SYSTEM_PROMPT,
-        user_prompt=USER_PROMPT,
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
         tool_schema=MECHANIC_TOOL_SCHEMA,
         model=model_id,
         temperature=1.0,
         max_tokens=8192,
     )
-
-    mechanics = response["result"]["mechanics"]
-    print(f"Received {len(mechanics)} mechanic candidates")
-    print(f"  Token usage: {response['input_tokens']} input, {response['output_tokens']} output\n")
-    return mechanics
+    mechanics = response["result"].get("mechanics") or []
+    if len(mechanics) < CANDIDATE_COUNT:
+        raise RuntimeError(
+            f"Mechanic generation returned {len(mechanics)} candidates (expected {CANDIDATE_COUNT})"
+        )
+    if len(mechanics) > CANDIDATE_COUNT:
+        mechanics = mechanics[:CANDIDATE_COUNT]
+    return {
+        "mechanics": mechanics,
+        "input_tokens": response.get("input_tokens", 0),
+        "output_tokens": response.get("output_tokens", 0),
+        "model_id": model_id,
+    }
