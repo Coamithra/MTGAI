@@ -1,12 +1,10 @@
 """Tests for the trimmed /settings page + cross-set defaults endpoints.
 
-The page no longer shows per-stage assignments — those moved to the
-per-set Project Settings tab. /settings owns:
-
-- the default preset for new sets
-- the saved-profiles library (rename / delete / view)
-- a read-only model registry view
-"""
+The page is now a read-only model registry view; per-stage assignments
+live on each project's Project Settings tab. The default-preset and
+saved-profiles surfaces moved off this page entirely (the underlying
+endpoints under ``/api/settings/*`` still exist for the per-project
+preset picker)."""
 
 from __future__ import annotations
 
@@ -47,14 +45,13 @@ def _isolate_settings_paths(tmp_path, monkeypatch):
 
 
 class TestSettingsPage:
-    def test_renders_with_three_sections(self, client):
+    def test_renders_model_registry(self, client):
         resp = client.get("/settings")
         assert resp.status_code == 200
         body = resp.text
-        # Cross-set headings — confirms the trim landed.
-        assert "Default preset for new sets" in body
-        assert "Saved profiles" in body
-        assert "Model registry" in body
+        # Page title + the two registry sections (LLM + Image).
+        assert "Model Registry" in body
+        assert 'id="llm-registry-body"' in body
 
     def test_no_per_stage_assignment_table(self, client):
         """The legacy per-stage table is gone; that lives on the project tab now."""

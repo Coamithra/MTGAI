@@ -75,8 +75,9 @@ def test_get_project_payload_shape(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["set_code"] == "ASD"
-    # Default seed: empty name, default size, theme_input=none.
-    assert data["set_params"]["set_size"] == 60
+    # Default seed: empty name, default size (277, the standard MTG
+    # set), theme_input=none.
+    assert data["set_params"]["set_size"] == 277
     assert data["theme_input"]["kind"] == "none"
     # Break points: every stage rendered; human review stages default to checked-on.
     by_id = {bp["stage_id"]: bp for bp in data["break_points"]}

@@ -31,6 +31,12 @@
     // map (each via its own handler) so toggles in one surface show
     // up in the other without a refetch.
     breakPoints: WIZARD_STATE.break_points || {},
+    // True when a theme extraction worker is running at page-bootstrap
+    // time. The Theme tab reads this on first mount to arm its SSE
+    // streaming handler so kickoff-path full-page navs actually paint
+    // chunks. Stays static after bootstrap (subsequent runs flip the
+    // flag inside wizard_theme.js as needed).
+    extractionActive: !!WIZARD_STATE.extraction_active,
     builtBodies: new Set(),
     eventSource: null,
     // tabId -> { dirty: bool, payload?: object } — held in browser memory

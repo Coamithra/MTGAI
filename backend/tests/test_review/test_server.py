@@ -6,8 +6,6 @@ Uses FastAPI TestClient with minimal fixtures.
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -49,99 +47,16 @@ def _make_card(**overrides):
     return Card(**defaults)
 
 
-def _make_card_list():
-    """Build a small set of cards with mixed rarities for booster tests."""
-    cards = []
-    # 10 commons
-    for i in range(1, 11):
-        cards.append(
-            _make_card(
-                name=f"Common {i}",
-                collector_number=f"W-C-{i:02d}",
-                rarity="common",
-            )
-        )
-    # 3 uncommons
-    for i in range(1, 4):
-        cards.append(
-            _make_card(
-                name=f"Uncommon {i}",
-                collector_number=f"W-U-{i:02d}",
-                rarity="uncommon",
-            )
-        )
-    # 1 rare
-    cards.append(
-        _make_card(
-            name="Rare Card",
-            collector_number="W-R-01",
-            rarity="rare",
-        )
-    )
-    # 1 basic land
-    cards.append(
-        _make_card(
-            name="Plains",
-            collector_number="L-C-01",
-            rarity="common",
-            type_line="Basic Land — Plains",
-            oracle_text="",
-            mana_cost="",
-            cmc=0.0,
-            power=None,
-            toughness=None,
-        )
-    )
-    return cards
-
-
 # ---------------------------------------------------------------------------
 # Route tests
 # ---------------------------------------------------------------------------
 
 
 class TestRootRedirect:
-    def test_redirects_to_review(self, client: TestClient):
+    def test_redirects_to_pipeline(self, client: TestClient):
         response = client.get("/", follow_redirects=False)
         assert response.status_code in (301, 302, 307)
-        assert "/review" in response.headers.get("location", "")
-
-
-class TestReviewPage:
-    @patch("mtgai.review.server._load_cards_as_json")
-    @patch("mtgai.review.server._get_set_code", return_value="TST")
-    def test_review_page_loads(self, mock_set, mock_cards, client: TestClient):
-        mock_cards.return_value = ([], "[]")
-        response = client.get("/review")
-        assert response.status_code == 200
-        assert "text/html" in response.headers.get("content-type", "")
-
-    @patch("mtgai.review.server._load_cards_as_json")
-    @patch("mtgai.review.server._get_set_code", return_value="TST")
-    def test_review_page_contains_set_code(self, mock_set, mock_cards, client: TestClient):
-        mock_cards.return_value = ([], "[]")
-        response = client.get("/review?set_code=TST")
-        assert response.status_code == 200
-        assert "TST" in response.text
-
-
-class TestProgressPage:
-    @patch("mtgai.review.server._get_set_code", return_value="TST")
-    def test_progress_page_loads_no_data(self, mock_set, client: TestClient):
-        with patch("mtgai.review.decisions.load_progress", return_value=None):
-            response = client.get("/progress")
-            assert response.status_code == 200
-            assert "text/html" in response.headers.get("content-type", "")
-
-
-class TestBoosterPage:
-    @patch("mtgai.review.server._load_cards_as_json")
-    @patch("mtgai.review.server._get_set_code", return_value="TST")
-    def test_booster_page_loads(self, mock_set, mock_cards, client: TestClient):
-        mock_cards.return_value = ([], "[]")
-        response = client.get("/booster")
-        assert response.status_code == 200
-        assert "text/html" in response.headers.get("content-type", "")
+        assert "/pipeline" in response.headers.get("location", "")
 
 
 # ---------------------------------------------------------------------------
@@ -159,78 +74,6 @@ class TestApiCards:
         data = response.json()
         assert isinstance(data, list)
         assert len(data) == 1
-
-
-class TestApiProgress:
-    @patch("mtgai.review.server._get_set_code", return_value="TST")
-    def test_returns_empty_when_no_progress(self, mock_set, client: TestClient):
-        with patch("mtgai.review.decisions.load_progress", return_value=None):
-            response = client.get("/api/progress")
-            assert response.status_code == 200
-            data = response.json()
-            assert "cards" in data
-            assert data["cards"] == {}
-
-
-class TestApiSubmitReview:
-    @patch("mtgai.review.server._get_set_code", return_value="TST")
-    def test_submit_review(self, mock_set, client: TestClient, tmp_path: Path):
-        """Submit a review and verify response structure."""
-        # Patch save/dispatch to use tmp_path so we don't write to real output
-        with (
-            patch("mtgai.review.decisions._set_dir", return_value=tmp_path),
-            patch("mtgai.review.decisions.get_review_round", return_value=1),
-        ):
-            # Create a minimal cards dir so dispatch can find card files
-            cards_dir = tmp_path / "cards"
-            cards_dir.mkdir()
-            (cards_dir / "W-C-01_test_guardian.json").write_text(
-                json.dumps({"name": "Test Guardian", "collector_number": "W-C-01"}),
-                encoding="utf-8",
-            )
-
-            body = {
-                "decisions": {
-                    "W-C-01": {"action": "ok", "note": ""},
-                    "B-R-02": {"action": "remake", "note": "too weak"},
-                }
-            }
-            response = client.post("/api/review/submit", json=body)
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is True
-            assert data["review_round"] == 1
-            assert "summary" in data
-
-
-class TestApiBooster:
-    @patch("mtgai.review.server._get_set_code", return_value="TST")
-    def test_booster_returns_pack(self, mock_set, client: TestClient):
-        cards = _make_card_list()
-        with patch("mtgai.review.loaders.load_cards", return_value=cards):
-            response = client.get("/api/booster?seed=42")
-            assert response.status_code == 200
-            data = response.json()
-            assert isinstance(data, list)
-            # Standard pack should have ~15 cards
-            assert len(data) >= 10
-
-    @patch("mtgai.review.server._get_set_code", return_value="TST")
-    def test_booster_empty_set(self, mock_set, client: TestClient):
-        with patch("mtgai.review.loaders.load_cards", return_value=[]):
-            response = client.get("/api/booster")
-            assert response.status_code == 404
-
-
-class TestApiReloadManual:
-    @patch("mtgai.review.server._get_set_code", return_value="TST")
-    def test_reload_no_decisions(self, mock_set, client: TestClient):
-        with (
-            patch("mtgai.review.decisions.load_decisions", return_value=None),
-            patch("mtgai.review.decisions.load_progress", return_value=None),
-        ):
-            response = client.post("/api/progress/reload-manual")
-            assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------

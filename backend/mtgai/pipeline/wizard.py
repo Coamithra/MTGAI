@@ -68,6 +68,14 @@ class WizardState:
     # second fetch. Defaults from ``DEFAULT_BREAK_POINTS`` apply when a
     # stage has no explicit override saved.
     break_points: dict[str, bool]
+    # True when a theme extraction worker is currently running. The
+    # Theme tab uses this on first mount to arm its SSE stream handler
+    # so the kickoff path (Project Settings → Start, full page nav to
+    # /pipeline/theme) actually paints streaming chunks instead of
+    # silently dropping them — without this flag set, the handler
+    # short-circuits because it was originally written for the manual
+    # Refresh-AI button only.
+    extraction_active: bool = False
 
 
 def _load_active_theme() -> dict[str, Any] | None:
@@ -196,6 +204,7 @@ def build_wizard_state(requested_tab: str | None) -> WizardState:
         pipeline_state=state,
         theme=theme,
         break_points=break_point_states(project.settings.break_points),
+        extraction_active=extraction_active,
     )
 
 
@@ -214,4 +223,5 @@ def serialize(ws: WizardState) -> dict[str, Any]:
         ),
         "theme": ws.theme,
         "break_points": dict(ws.break_points),
+        "extraction_active": ws.extraction_active,
     }

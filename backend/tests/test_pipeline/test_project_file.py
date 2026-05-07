@@ -57,11 +57,6 @@ def test_dump_then_parse_round_trips_all_fields():
     assert parsed.llm_assignments == settings.llm_assignments
 
 
-def test_parse_rejects_missing_set_code():
-    with pytest.raises(ValueError, match="set_code"):
-        ms.parse_project_toml("[set_params]\nset_name = 'X'\n")
-
-
 def test_parse_rejects_future_version():
     text = 'mtg_file_version = 999\nset_code = "TST"\n'
     with pytest.raises(ValueError, match="Unsupported"):
@@ -90,14 +85,19 @@ def test_new_returns_blank_draft_payload(client):
     assert "card_gen" in draft["llm_assignments"]
 
 
-def test_new_clears_active_project_pointer(client):
+def test_new_replaces_active_project_with_blank_draft(client):
+    """``/api/project/new`` pins a fresh blank draft so subsequent edits
+    live-apply somewhere instead of being lost. The old pointer must
+    be replaced — that's what matters; the exact draft shape is covered
+    by ``test_new_returns_blank_draft_payload``."""
     active_project.write_active_project(
         active_project.ProjectState(set_code="OLD", settings=ms.ModelSettings())
     )
-    assert active_project.read_active_project() is not None
     resp = client.post("/api/project/new", json={})
     assert resp.status_code == 200
-    assert active_project.read_active_project() is None
+    proj = active_project.read_active_project()
+    assert proj is not None
+    assert proj.set_code == ""
 
 
 # ---------------------------------------------------------------------------
@@ -134,12 +134,6 @@ def test_open_rejects_invalid_toml(client):
     assert resp.status_code == 400
 
 
-def test_open_rejects_missing_set_code(client):
-    text = "[set_params]\nset_name = 'X'\n"
-    resp = client.post("/api/project/open", json={"toml": text})
-    assert resp.status_code == 400
-
-
 # ---------------------------------------------------------------------------
 # POST /api/project/materialize
 # ---------------------------------------------------------------------------
@@ -172,22 +166,6 @@ def test_materialize_pins_active_project_and_returns_mtg_toml(client):
     assert proj.set_code == "MAT"
     assert proj.settings.set_params.set_size == 60
     assert proj.settings.asset_folder == "E:/proj/mat"
-
-
-def test_materialize_rejects_empty_set_code(client):
-    """Relaxed validation: only empty / whitespace set codes are rejected."""
-    body = {
-        "set_code": "   ",
-        "set_params": {"set_name": "X", "set_size": 60, "mechanic_count": 3},
-        "theme_input": {"kind": "none"},
-        "asset_folder": "",
-        "llm_assignments": {},
-        "image_assignments": {},
-        "effort_overrides": {},
-        "break_points": {},
-    }
-    resp = client.post("/api/project/materialize", json=body)
-    assert resp.status_code == 400
 
 
 # ---------------------------------------------------------------------------
@@ -308,7 +286,7 @@ def test_new_returns_409_when_ai_busy(client):
 
 
 def test_new_with_force_cancels_and_proceeds(client, monkeypatch):
-    """force=true -> request_cancel + drain + clear pointer."""
+    """force=true -> request_cancel + drain + replace pointer with blank draft."""
     active_project.write_active_project(
         active_project.ProjectState(set_code="OLD", settings=ms.ModelSettings())
     )
@@ -328,7 +306,9 @@ def test_new_with_force_cancels_and_proceeds(client, monkeypatch):
     resp = client.post("/api/project/new", json={"force": True})
     assert resp.status_code == 200
     assert cancel_calls["n"] == 1
-    assert active_project.read_active_project() is None
+    proj = active_project.read_active_project()
+    assert proj is not None
+    assert proj.set_code == ""
 
 
 def test_new_proceeds_on_drain_timeout(client, monkeypatch):

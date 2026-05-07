@@ -69,13 +69,6 @@ def test_write_trims_whitespace_around_set_code():
     assert loaded.set_code == "asd"
 
 
-def test_write_rejects_empty_set_code():
-    settings = ms.ModelSettings()
-    project = active_project.ProjectState(set_code="   ", settings=settings)
-    with pytest.raises(ValueError):
-        active_project.write_active_project(project)
-
-
 def test_clear_resets_to_none():
     settings = ms.ModelSettings()
     project = active_project.ProjectState(set_code="ABC", settings=settings)

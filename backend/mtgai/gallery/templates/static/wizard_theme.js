@@ -187,19 +187,17 @@
       return;
     }
     if (isThemePast(state)) {
-      // Past Theme + not editing: hide Save Theme so the only commit
-      // path is Edit → cascade (matches design §6.4 / §9 contract for
-      // destructive theme.json changes).
+      // Past Theme + not editing: the only commit path is Edit →
+      // cascade (matches design §6.4 / §9 contract for destructive
+      // theme.json changes), so this row is just a hint.
       actions.innerHTML =
         '<span class="wiz-footer-note">Click Edit above to change theme.json.</span>';
       return;
     }
-    actions.innerHTML = `
-      <button type="button" class="wiz-btn-primary" id="wiz-save-theme">Save Theme</button>
-    `;
-    actions.querySelector('#wiz-save-theme').addEventListener(
-      'click', () => saveTheme(state),
-    );
+    // Latest theme tab + not editing: the unified Save-and-continue
+    // lives in the wizard footer (themeFooterHtml). The body action
+    // row stays empty so we have only one primary action visible.
+    actions.innerHTML = '';
   }
 
   function onEditCancel(state) {
@@ -225,14 +223,14 @@
     }
   }
 
-  async function onEditAccept(state) {
+  // Read the form back into the theme.json payload shape. Returns
+  // { payload, error } — error is the validation message to toast (and
+  // implies payload is null). Shared by the editing-cascade Accept and
+  // the latest-tab Save-and-continue handlers so the validation rules
+  // stay in one place.
+  function collectThemePayload(state) {
     const setting = document.getElementById('wiz-setting').value.trim();
-    if (!setting) {
-      W.toast('Setting prose is empty. Add some text before accepting.', 'error');
-      setSettingMode('edit');
-      document.getElementById('wiz-setting').focus();
-      return;
-    }
+    if (!setting) return { payload: null, error: 'Setting prose is empty.' };
     const constraints = [];
     document.querySelectorAll('#wiz-constraints-list .wiz-list-item').forEach(item => {
       const input = item.querySelector('input');
@@ -257,14 +255,27 @@
     });
     const theme = state.theme || {};
     const { set_size: _ignored_size, mechanic_count: _ignored_mech, ...rest } = theme;
-    const payload = {
-      ...rest,
-      name: theme.name ?? '',
-      code: state.activeSet,
-      setting,
-      constraints,
-      card_requests: cardRequests,
+    return {
+      payload: {
+        ...rest,
+        name: theme.name ?? '',
+        code: state.activeSet,
+        setting,
+        constraints,
+        card_requests: cardRequests,
+      },
+      error: null,
     };
+  }
+
+  async function onEditAccept(state) {
+    const { payload, error } = collectThemePayload(state);
+    if (!payload) {
+      W.toast(`${error} Add some text before accepting.`, 'error');
+      setSettingMode('edit');
+      document.getElementById('wiz-setting').focus();
+      return;
+    }
 
     const accept = document.getElementById('wiz-theme-edit-accept');
     if (accept) {
@@ -336,9 +347,7 @@
         <button type="button" class="wiz-btn-add" id="wiz-add-card-request">+ Add card request</button>
       </div>
 
-      <div class="wiz-theme-actions">
-        <button type="button" class="wiz-btn-primary" id="wiz-save-theme">Save Theme</button>
-      </div>
+      <div class="wiz-theme-actions"></div>
 
       <dialog id="wiz-refresh-theme-dialog" class="wiz-modal">
         <h3 style="margin-top:0">Refresh theme</h3>
@@ -371,11 +380,57 @@
 
     document.getElementById('wiz-add-constraint').addEventListener('click', () => addConstraint('', false));
     document.getElementById('wiz-add-card-request').addEventListener('click', () => addCardRequest('', false));
-    document.getElementById('wiz-save-theme').addEventListener('click', () => saveTheme(state));
 
     bindRefreshHandlers(state);
 
+    // Kickoff path: Project Settings → Start spawns the worker and
+    // navigates here. handleThemeStream() short-circuits when
+    // refreshState.fullActive is false, so without arming it the
+    // textarea + lists stay empty all the way through theme_done.
+    // Both overwrite flags go on too — this is a fresh extraction,
+    // every section should populate from streamed events.
+    if (state.extractionActive) {
+      refreshState.fullActive = true;
+      refreshState.overwriteConstraints = true;
+      refreshState.overwriteCards = true;
+      refreshState.streamSawChunk = false;
+      const ta = document.getElementById('wiz-setting');
+      if (ta) ta.value = '';
+      setFormLocked(true);
+    }
+
     setSettingMode('preview');
+  }
+
+  // Disable every editable surface on the theme tab while the LLM is
+  // streaming — both the kickoff path (mount with extractionActive)
+  // and the manual full Refresh-AI path arm this. Items added by the
+  // streaming handler (replaceListWithAi during theme_constraints /
+  // theme_card_suggestions) need a second pass to catch them, so each
+  // of those branches re-applies the lock if it's still active.
+  function setFormLocked(locked) {
+    const root = document.querySelector('.wiz-tab-body[data-tab-id="theme"]');
+    if (!root) return;
+    root.classList.toggle('wiz-theme-locked', !!locked);
+    const sel = [
+      '#wiz-setting',
+      '#wiz-add-constraint',
+      '#wiz-add-card-request',
+      '.wiz-theme-mode-btn',
+      '#wiz-refresh-constraints',
+      '#wiz-refresh-card-requests',
+      '#wiz-refresh-theme',
+      '#wiz-constraints-list input',
+      '#wiz-card-requests-list textarea',
+      '#wiz-constraints-list .wiz-btn-remove',
+      '#wiz-card-requests-list .wiz-btn-remove',
+    ].join(',');
+    root.querySelectorAll(sel).forEach(el => { el.disabled = !!locked; });
+    // Footer button lives outside .wiz-theme-actions / lists, so query
+    // it separately. data-role lookup keeps the selector stable across
+    // any future renames.
+    const footerBtn = document.querySelector('button[data-role="theme-advance"]');
+    if (footerBtn) footerBtn.disabled = !!locked;
   }
 
   function readSettingProse(theme) {
@@ -557,6 +612,9 @@
       if (!refreshState.overwriteConstraints) return;
       const items = (data && data.constraints) || [];
       replaceListWithAi('wiz-constraints-list', items, addConstraint);
+      // New input rows just got added — re-apply the form lock so they
+      // arrive disabled, matching the rest of the form during streaming.
+      if (refreshState.fullActive) setFormLocked(true);
       return;
     }
     if (name === 'theme_card_suggestions') {
@@ -564,6 +622,7 @@
       const raw = (data && data.suggestions) || [];
       const items = raw.map(s => (s && s.name && s.description) ? `${s.name}: ${s.description}` : (typeof s === 'string' ? s : ''));
       replaceListWithAi('wiz-card-requests-list', items, addCardRequest);
+      if (refreshState.fullActive) setFormLocked(true);
       return;
     }
     if (name === 'theme_done') {
@@ -571,11 +630,13 @@
       const preview = document.getElementById('wiz-setting-preview');
       if (ta && preview) preview.innerHTML = renderMarkdown(ta.value);
       refreshState.fullActive = false;
+      setFormLocked(false);
       W.toast('Theme refresh complete.', 'success');
       return;
     }
     if (name === 'theme_error' || name === 'theme_cancelled') {
       refreshState.fullActive = false;
+      setFormLocked(false);
       W.toast(`Refresh ${name === 'theme_error' ? 'failed' : 'cancelled'}: ${(data && data.message) || ''}`, 'error');
     }
   }
@@ -635,6 +696,7 @@
     refreshState.overwriteConstraints = overwriteConstraints;
     refreshState.overwriteCards = overwriteCards;
     refreshState.streamSawChunk = false;
+    setFormLocked(true);
 
     // Clear the setting textarea + preview so the user can watch the
     // new prose stream in. Also clear AI items in the subsections that
@@ -666,6 +728,7 @@
           W.toast(data.error || `Refresh failed (${resp.status})`, 'error');
         }
         refreshState.fullActive = false;
+        setFormLocked(false);
         return;
       }
       W.toast('Theme refresh kicked off — watch the strip.', 'success');
@@ -675,6 +738,7 @@
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
       refreshState.fullActive = false;
+      setFormLocked(false);
     }
   }
 
@@ -725,83 +789,62 @@
   }
 
   // ------------------------------------------------------------------
-  // Save
+  // Save and continue (theme → skeleton)
   // ------------------------------------------------------------------
 
-  async function saveTheme(state) {
-    const theme = state.theme || {};
-    const setting = document.getElementById('wiz-setting').value.trim();
-
-    if (!setting) {
-      W.toast('Setting prose is empty. Add some text before saving.', 'error');
+  // Mirrors the Project Settings Start button pattern: validate → save →
+  // advance the engine → navigate. The footer button is the only commit
+  // path on the latest theme tab; per-section Refresh-AI runs and the
+  // edit-cascade flow have their own surfaces.
+  async function onSaveAndAdvance(state) {
+    const btn = document.querySelector('button[data-role="theme-advance"]');
+    const original = btn ? btn.textContent : '';
+    const { payload, error } = collectThemePayload(state);
+    if (!payload) {
+      W.toast(`${error} Add some text before continuing.`, 'error');
       setSettingMode('edit');
-      document.getElementById('wiz-setting').focus();
+      const ta = document.getElementById('wiz-setting');
+      if (ta) ta.focus();
       return;
     }
 
-    const constraints = [];
-    document.querySelectorAll('#wiz-constraints-list .wiz-list-item').forEach(item => {
-      const input = item.querySelector('input');
-      if (!input) return;
-      const val = input.value.trim();
-      if (!val) return;
-      constraints.push({
-        text: val,
-        source: item.dataset.aiGenerated === 'true' ? 'ai' : 'human',
-      });
-    });
-
-    const cardRequests = [];
-    document.querySelectorAll('#wiz-card-requests-list .wiz-list-item').forEach(item => {
-      const ta = item.querySelector('textarea');
-      if (!ta) return;
-      const val = ta.value.trim();
-      if (!val) return;
-      cardRequests.push({
-        text: val,
-        source: item.dataset.aiGenerated === 'true' ? 'ai' : 'human',
-      });
-    });
-
-    // Carry forward unrelated keys the AI extractor may have written
-    // (e.g. `special_constraints`, `theme`, `flavor_description` —
-    // legacy companion fields) but drop the set-shape numerics. Those
-    // moved to Project Settings (settings.toml.set_params) so writing
-    // them here would compete with the new source of truth. `code` and
-    // `name` are still written so the set picker can render the title
-    // off theme.json without a settings.toml round-trip.
-    const { set_size: _ignored_size, mechanic_count: _ignored_mech, ...rest } = theme;
-    const payload = {
-      ...rest,
-      name: theme.name ?? '',
-      code: state.activeSet,
-      setting,
-      constraints,
-      card_requests: cardRequests,
-    };
-
-    const btn = document.getElementById('wiz-save-theme');
-    btn.disabled = true;
-    btn.textContent = 'Saving…';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+    }
 
     try {
-      const resp = await fetch('/api/pipeline/theme/save', {
+      const saveResp = await fetch('/api/pipeline/theme/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const result = await resp.json();
-      if (result.success) {
-        state.theme = payload;
-        W.toast(`Theme saved for ${payload.code}`, 'success');
-      } else {
-        W.toast('Error: ' + (result.error || 'Unknown'), 'error');
+      const saveData = await saveResp.json().catch(() => ({}));
+      if (!saveResp.ok || !saveData.success) {
+        W.toast('Save failed: ' + (saveData.error || `HTTP ${saveResp.status}`), 'error');
+        if (btn) { btn.disabled = false; btn.textContent = original; }
+        return;
       }
+      state.theme = payload;
+
+      if (btn) btn.textContent = 'Starting…';
+      const advResp = await fetch('/api/wizard/advance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const advData = await advResp.json().catch(() => ({}));
+      if (!advResp.ok) {
+        W.toast(advData.error || `Start failed (${advResp.status})`, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = original; }
+        return;
+      }
+      // Hard navigate to the first pending stage so the wizard
+      // re-mounts with the engine running and the new tab visible.
+      window.location.assign(advData.navigate_to || '/pipeline/skeleton');
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Save Theme';
+      if (btn) { btn.disabled = false; btn.textContent = original; }
     }
   }
 
@@ -871,67 +914,36 @@
   // ------------------------------------------------------------------
 
   function themeFooterHtml(state) {
-    // Three cases:
-    // 1. Pipeline already started (state.pipeline non-null) → engine
-    //    has been kicked off; auto-advance handles the rest. Hide the
-    //    button. Theme is "past" in the wizard timeline.
-    // 2. No theme.json yet (state.theme null) → user is here ahead of
-    //    extraction completing. Don't surface the button — the worker
-    //    will auto-advance when it finishes (the kickoff is server-side).
-    // 3. theme.json exists, no pipeline state → manual Next-step.
-    //    Common path: an existing set whose theme.json was written in
-    //    a prior session before the auto-advance hook landed, or one
-    //    where the user navigated back to Theme to edit constraints
-    //    before kicking off the pipeline.
-    if (state.pipeline) {
-      return '<span class="wiz-footer-note"></span>';
+    // Past Theme (pipeline started) — the edit-cascade flow handles
+    // changes; no save-and-continue here.
+    if (state.pipeline) return '<span class="wiz-footer-note"></span>';
+    // Edit mode — Cancel/Accept live in the body action row.
+    if (isEditingTheme()) {
+      return '<span class="wiz-footer-note">Saving via Accept above.</span>';
     }
-    if (!state.theme) {
-      return '<span class="wiz-footer-note"></span>';
-    }
+    // Latest theme tab: one button that saves theme.json + advances
+    // the pipeline to Skeleton. Always visible; setFormLocked disables
+    // it during streaming, and onSaveAndAdvance toasts a validation
+    // error if the setting prose is empty (mirrors the Project
+    // Settings Start button pattern).
     return `
-      <button type="button" class="wiz-btn-primary" data-role="theme-next">
-        Next step: Skeleton Generation
+      <button type="button" class="wiz-btn-primary" data-role="theme-advance">
+        Save and continue: Skeleton Generation
       </button>
     `;
   }
 
   function bindThemeFooter(footer, state) {
-    const btn = footer.querySelector('button[data-role="theme-next"]');
+    const btn = footer.querySelector('button[data-role="theme-advance"]');
     if (!btn) return;
-    // Single-slot via .onclick to avoid stacked listeners if the same
-    // DOM node ever survives a re-bind (the dataset.lastFooter guard
-    // makes this rare today, but innerHTML rewrites + onclick is the
-    // belt-and-braces version).
-    btn.onclick = async () => {
-      const original = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = 'Starting…';
-      try {
-        const resp = await fetch('/api/wizard/advance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-        const data = await resp.json();
-        if (!resp.ok) {
-          W.toast(data.error || 'Start failed', 'error');
-          btn.disabled = false;
-          btn.textContent = original;
-          return;
-        }
-        // Hard navigate to the first pending stage so the wizard
-        // re-mounts with the engine already running and the new tab
-        // visible. Soft-navigation would work too but the bootstrap
-        // payload (visible_tabs / pipeline_state) is server-rendered,
-        // so a reload is the simplest way to get them in sync.
-        const target = data.navigate_to || '/pipeline/skeleton';
-        window.location.assign(target);
-      } catch (err) {
-        W.toast('Network error: ' + err.message, 'error');
-        btn.disabled = false;
-        btn.textContent = original;
-      }
-    };
+    // Re-apply the lock on every footer rebind in case extraction is
+    // still in flight when the footer re-renders (refreshState.fullActive
+    // is the live source of truth here; state.extractionActive is the
+    // bootstrap-time snapshot only).
+    if (refreshState.fullActive) btn.disabled = true;
+    // .onclick rather than addEventListener — the footer rebinds via
+    // innerHTML rewrites, and .onclick is naturally single-slot so we
+    // never stack handlers on a surviving node.
+    btn.onclick = () => onSaveAndAdvance(state);
   }
 })();

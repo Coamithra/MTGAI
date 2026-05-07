@@ -279,22 +279,9 @@ def test_dump_and_parse_project_toml_round_trip():
     assert parsed.asset_folder == "D:/projects/test"
 
 
-def test_parse_project_toml_rejects_empty_set_code():
-    text = """mtg_file_version = 1
-set_code = ""
-"""
-    with pytest.raises(ValueError):
-        ms.parse_project_toml(text)
-
-
 def test_parse_project_toml_rejects_future_version():
     text = """mtg_file_version = 99
 set_code = "ABC"
 """
     with pytest.raises(ValueError):
         ms.parse_project_toml(text)
-
-
-def test_dump_project_toml_rejects_empty_set_code():
-    with pytest.raises(ValueError):
-        ms.dump_project_toml("", ms.ModelSettings())

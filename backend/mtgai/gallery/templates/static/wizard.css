@@ -66,20 +66,28 @@
 .wiz-tab .wiz-tab-status.skipped { background: #33333366; color: #666; }
 
 /* --------------------------------------------------------------------------
-   Global progress strip (fixed below tab strip while a stage runs)
+   Global progress strip — sticks to viewport top once scrolled past so the
+   user always sees in-flight work without scrolling back up. Backed by
+   --bg-primary because sticky elements overlay scrolled content; the
+   translucent blue tint sits on top of that opaque base.
    -------------------------------------------------------------------------- */
 .wiz-progress-strip {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0.85rem;
-  background: rgba(74, 158, 255, 0.06);
+  background:
+    linear-gradient(rgba(74, 158, 255, 0.06), rgba(74, 158, 255, 0.06)),
+    var(--bg-primary, #1a1a2e);
   border: 1px solid rgba(74, 158, 255, 0.18);
   border-top: none;
   border-radius: 0 0 6px 6px;
   font-size: 0.78rem;
   color: #ccc;
   margin-bottom: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 
 .wiz-progress-strip[hidden] { display: none; }
@@ -690,6 +698,18 @@
 /* --------------------------------------------------------------------------
    Theme tab body — content controls only (no upload widget)
    -------------------------------------------------------------------------- */
+
+/* Form lock during full theme extraction. Browsers already grey out
+   `disabled` controls; this just adds a not-allowed cursor on hover so
+   the user knows the inputs are intentionally inert (vs. visually
+   broken) and a faint dim on the whole tab body for at-a-glance state. */
+.wiz-theme-locked { opacity: 0.85; }
+.wiz-theme-locked button:disabled,
+.wiz-theme-locked input:disabled,
+.wiz-theme-locked textarea:disabled {
+  cursor: not-allowed;
+}
+
 .wiz-theme-section {
   background: #0f1729;
   border: 1px solid #1f2540;
