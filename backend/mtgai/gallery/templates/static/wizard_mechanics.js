@@ -158,7 +158,6 @@
   }
 
   function candidateCardHtml(mech, idx) {
-    const aiBadge = '<span class="wiz-ai-badge" data-role="ai-badge">AI</span>';
     const collision = local.collisions[String(idx)];
     const collisionWarning = collision
       ? `<div class="wiz-mech-collision">⚠ Name collides with printed keyword: <strong>${escHtml(collision)}</strong>. Rename or pick a different candidate.</div>`
@@ -169,8 +168,17 @@
     const complexity = Number(m.complexity || 1);
     const keywordType = String(m.keyword_type || 'keyword_ability');
     const dist = m.distribution || {};
+    // Provenance lives on the candidate dict — server persists
+    // ``_ai_generated`` in candidates.json so it survives reload, and
+    // refresh-{card,all} preserves the flag for rows the server didn't
+    // overwrite. Default to true for legacy candidates that pre-date
+    // the field.
+    const aiGenerated = m._ai_generated !== false;
+    const aiBadge = aiGenerated
+      ? '<span class="wiz-ai-badge" data-role="ai-badge">AI</span>'
+      : '';
     return `
-      <article class="wiz-mech-card${picked ? ' picked' : ''}" data-idx="${idx}" data-ai-generated="true">
+      <article class="wiz-mech-card${picked ? ' picked' : ''}" data-idx="${idx}"${aiGenerated ? ' data-ai-generated="true"' : ''}>
         <header class="wiz-mech-card-header">
           ${aiBadge}
           <input type="text" class="wiz-mech-name" data-role="mech-name"
@@ -318,10 +326,14 @@
 
     // Edit listeners — clear AI badge once the user touches an editable
     // field. AI provenance is maintained per §5: refresh-all only
-    // overwrites rows still flagged ai-generated.
+    // overwrites rows still flagged ai-generated. The flag also lives
+    // on ``local.candidates[idx]._ai_generated`` so it survives a
+    // ``paintStrip`` rerender (refresh-card, etc.).
     const editFields = card.querySelectorAll('input, textarea, .wiz-mech-chip');
     editFields.forEach(el => {
-      const handler = () => clearAiBadge(card);
+      const handler = () => markEdited(idx, card);
+      // Skip the pick checkbox — it's not a content edit.
+      if (el.dataset && el.dataset.role === 'mech-pick') return;
       if (el.classList.contains('wiz-mech-chip')) el.addEventListener('click', handler);
       else el.addEventListener('input', handler);
     });
@@ -393,10 +405,13 @@
     return next;
   }
 
-  function clearAiBadge(card) {
+  function markEdited(idx, card) {
     delete card.dataset.aiGenerated;
     const badge = card.querySelector('[data-role="ai-badge"]');
     if (badge) badge.remove();
+    if (local.candidates[idx]) {
+      local.candidates[idx] = setField(local.candidates[idx], '_ai_generated', false);
+    }
   }
 
   // ----------------------------------------------------------------------
@@ -525,7 +540,8 @@
       return;
     }
     setLocked(true);
-    const footer = document.querySelector(`.wiz-tab-body[data-tab-id="${STAGE_ID}"] [data-role="footer"]`);
+    const root = document.querySelector(`.wiz-tab-body[data-tab-id="${STAGE_ID}"]`);
+    const footer = getFooter(root);
     const btn = footer && footer.querySelector('[data-role="mech-save-advance"]');
     const original = btn ? btn.textContent : '';
     if (btn) btn.textContent = 'Saving…';

@@ -90,11 +90,7 @@ DEFAULT_EFFORT: dict[str, str] = {
 }
 
 # Stages that default to "review" (pause for human input) when a set has no
-# explicit override saved. Users can still uncheck them on Project Settings,
-# but the ``mechanics`` stage's pause is structural — its runner only emits
-# candidates, never the finished ``approved.json``; that comes from the
-# wizard's save endpoint. Unchecking the toggle marks the stage completed
-# without writing approved.json, which crashes downstream stages.
+# explicit override saved.
 DEFAULT_BREAK_POINTS: dict[str, str] = {
     "theme_extract": "review",
     "mechanics": "review",
@@ -102,6 +98,14 @@ DEFAULT_BREAK_POINTS: dict[str, str] = {
     "human_art_review": "review",
     "human_final_review": "review",
 }
+
+# Stages whose ``review`` break-point is *structural* — the wizard tab
+# is the only path that produces the stage's output (e.g. the Mechanics
+# tab's save endpoint writes ``approved.json``). Skipping the pause
+# would mark the stage COMPLETED without producing the artifacts
+# downstream stages depend on. The break-point endpoint refuses to
+# unset these so a user can't accidentally break their pipeline.
+STRUCTURAL_BREAK_POINTS: frozenset[str] = frozenset({"mechanics"})
 
 # ---------------------------------------------------------------------------
 # Built-in presets

@@ -214,11 +214,23 @@
   // Break-point toggle (per design §6.7 / §8.2)
   // ------------------------------------------------------------------
 
+  // Stages whose pause is structural — the wizard tab is the only
+  // producer of the stage's output (e.g. ``mechanics`` writes
+  // approved.json from the candidates strip). Mirrors
+  // ``STRUCTURAL_BREAK_POINTS`` in mtgai/settings/model_settings.py;
+  // the server rejects unsetting these. Render the checkbox disabled
+  // so the user sees why they can't toggle it.
+  const STRUCTURAL_BREAK_STAGES = new Set(['mechanics']);
+
   function breakPointToggleHtml(stage, state) {
     const checked = !!state.breakPoints[stage.stage_id];
+    const structural = STRUCTURAL_BREAK_STAGES.has(stage.stage_id);
+    const title = structural
+      ? 'Required pause — the wizard tab is the only path that produces this stage\'s output.'
+      : 'When checked, the wizard pauses after this stage finishes.';
     return `
-      <label class="wiz-stage-break-toggle" title="When checked, the wizard pauses after this stage finishes.">
-        <input type="checkbox" data-role="stage-break" ${checked ? 'checked' : ''}>
+      <label class="wiz-stage-break-toggle" title="${title}">
+        <input type="checkbox" data-role="stage-break" ${checked ? 'checked' : ''} ${structural ? 'disabled' : ''}>
         Stop after this step
       </label>
     `;

@@ -985,14 +985,20 @@
   // ------------------------------------------------------------------
 
   function renderBreakPointsSection(data) {
-    const rows = data.break_points.map(bp => `
-      <li class="wiz-bp-row${bp.review ? ' wiz-bp-row--checked' : ''}">
+    const rows = data.break_points.map(bp => {
+      const structural = !!bp.structural;
+      const title = structural
+        ? ' title="Required — the wizard tab is the only producer of this stage\'s output."'
+        : '';
+      return `
+      <li class="wiz-bp-row${bp.review ? ' wiz-bp-row--checked' : ''}${structural ? ' wiz-bp-row--structural' : ''}"${title}>
         <label>
-          <input type="checkbox" data-stage-id="${escAttr(bp.stage_id)}" ${bp.review ? 'checked' : ''}>
-          Break after ${escHtml(bp.display_name)}
+          <input type="checkbox" data-stage-id="${escAttr(bp.stage_id)}" ${bp.review ? 'checked' : ''} ${structural ? 'disabled' : ''}>
+          Break after ${escHtml(bp.display_name)}${structural ? ' (required)' : ''}
         </label>
       </li>
-    `).join('');
+    `;
+    }).join('');
     return `
       <section class="wiz-proj-section">
         <h3>Break points</h3>
@@ -1044,7 +1050,12 @@
     });
 
     const setAll = async (review) => {
-      const cbs = Array.from(document.querySelectorAll('.wiz-bp-row input[type="checkbox"]'));
+      // Skip disabled rows (structural break-points the server refuses
+      // to unset). Their checkbox is already in the only allowed
+      // state, so nothing to do.
+      const cbs = Array.from(
+        document.querySelectorAll('.wiz-bp-row input[type="checkbox"]:not(:disabled)'),
+      );
       for (const cb of cbs) {
         if (cb.checked === review) continue;
         const ok = await setBreakPoint(state, cb.dataset.stageId, review);

@@ -131,6 +131,30 @@ def test_save_params_rejects_negative_mechanic_count(client):
     assert resp.status_code == 400
 
 
+def test_save_params_rejects_mechanic_count_above_candidate_pool(client):
+    """The mechanic candidate pool size is fixed at CANDIDATE_COUNT (= 6).
+
+    A user can only pick up to that many candidates; setting
+    ``mechanic_count`` higher would make the save-and-continue gate
+    permanently unsatisfiable, so the params endpoint refuses.
+    """
+    from mtgai.generation.mechanic_generator import CANDIDATE_COUNT
+
+    _open_project("ASD")
+    resp = client.post(
+        "/api/wizard/project/params",
+        json={"set_code": "ASD", "mechanic_count": CANDIDATE_COUNT + 1},
+    )
+    assert resp.status_code == 400
+    assert "candidate pool" in resp.json()["error"]
+    # Boundary: exactly CANDIDATE_COUNT is allowed.
+    resp = client.post(
+        "/api/wizard/project/params",
+        json={"set_code": "ASD", "mechanic_count": CANDIDATE_COUNT},
+    )
+    assert resp.status_code == 200
+
+
 def test_save_params_blocks_set_size_change_post_pipeline(client):
     """set_size lives behind the cascade-clear gate once a pipeline-state.json exists."""
     _open_project("ASD")
@@ -223,6 +247,35 @@ def test_save_break_human_review_stage_can_be_unchecked(client):
     assert (
         active_project.require_active_project().settings.break_points["human_card_review"] == "auto"
     )
+
+
+def test_save_break_structural_stage_cannot_be_unchecked(client):
+    """``mechanics`` is structural — its candidates strip is the only
+    producer of ``approved.json``. The endpoint refuses ``review=False``
+    so a user can't accidentally break the pipeline.
+    """
+    _open_project("ASD")
+    # Setting it back to review is fine (it's already the default).
+    resp_on = client.post(
+        "/api/wizard/project/breaks",
+        json={"set_code": "ASD", "stage_id": "mechanics", "review": True},
+    )
+    assert resp_on.status_code == 200
+    # Unchecking is rejected with 400 + a structural-pause error message.
+    resp_off = client.post(
+        "/api/wizard/project/breaks",
+        json={"set_code": "ASD", "stage_id": "mechanics", "review": False},
+    )
+    assert resp_off.status_code == 400
+    assert "structural" in resp_off.json()["error"]
+
+
+def test_break_points_payload_marks_structural_rows(client):
+    _open_project("ASD")
+    resp = client.get("/api/wizard/project")
+    by_id = {bp["stage_id"]: bp for bp in resp.json()["break_points"]}
+    assert by_id["mechanics"]["structural"] is True
+    assert by_id["skeleton"]["structural"] is False
 
 
 # ---------------------------------------------------------------------------

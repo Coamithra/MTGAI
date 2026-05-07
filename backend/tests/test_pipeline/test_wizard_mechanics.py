@@ -171,17 +171,17 @@ def test_refresh_card_409_when_ai_busy(client, isolated_output, monkeypatch):
     asset = isolated_output / "sets" / "TST"
     _seed_project(asset)
     _stub_llm(monkeypatch)
-    # Hold the lock manually so the endpoint sees it busy.
-    assert ai_lock.try_acquire("Other action")
-    try:
+    # Use the canonical context-manager pattern so the test couples to
+    # the same surface the production callers do. Hold the lock for
+    # the duration of the request to simulate concurrent AI work.
+    with ai_lock.hold("Other action") as acquired:
+        assert acquired
         resp = client.post(
             "/api/wizard/mechanics/refresh-card",
             json={"candidate_index": 0, "candidates": [_make_candidate("X")]},
         )
         assert resp.status_code == 409
         assert resp.json()["running_action"] == "Other action"
-    finally:
-        ai_lock.release()
 
 
 # ---------------------------------------------------------------------------

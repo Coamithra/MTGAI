@@ -87,13 +87,26 @@ def test_build_mechanic_prompts_handles_missing_optional_blocks() -> None:
     assert "no special constraints" in sys_prompt
 
 
-def test_expected_mechanic_density_scales_with_set_size() -> None:
-    # 60 cards / (3 mechanics *2) = 10 → "10-20"
-    assert mg._expected_mechanic_density(60, 3) == "10-20"
-    # 120 cards / (4 *2) = 15 → "15-30"
-    assert mg._expected_mechanic_density(120, 4) == "15-30"
-    # Zero mechanic_count falls back to a default range, not divide-by-zero.
-    assert mg._expected_mechanic_density(60, 0) == "6-10"
+def test_expected_mechanic_density_lands_in_prompts() -> None:
+    """Density math threads into both prompts as a min-max range string."""
+    # 60 cards / (3 * 2) = 10 → "10-20"
+    sys_p, user_p = mg.build_mechanic_prompts(
+        theme={"theme": "x"}, set_name="X", set_size=60, mechanic_count=3
+    )
+    assert "10-20" in sys_p and "10-20" in user_p
+
+    # 120 cards / (4 * 2) = 15 → "15-30"
+    sys_p, user_p = mg.build_mechanic_prompts(
+        theme={"theme": "x"}, set_name="X", set_size=120, mechanic_count=4
+    )
+    assert "15-30" in sys_p and "15-30" in user_p
+
+    # Zero mechanic_count falls back to a default range — divide-by-zero
+    # would otherwise crash the user prompt template.
+    sys_p, user_p = mg.build_mechanic_prompts(
+        theme={"theme": "x"}, set_name="X", set_size=60, mechanic_count=0
+    )
+    assert "6-10" in sys_p and "6-10" in user_p
 
 
 # ---------------------------------------------------------------------------

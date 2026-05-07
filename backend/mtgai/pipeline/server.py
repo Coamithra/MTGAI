@@ -951,6 +951,7 @@ async def extract_section_endpoint(request: Request):
 # bootstrap payload (mtgai.pipeline.wizard).
 def _break_points_payload(settings_obj) -> list[dict[str, Any]]:
     from mtgai.pipeline.models import STAGE_DEFINITIONS, _resolve_break_point, break_point_states
+    from mtgai.settings.model_settings import STRUCTURAL_BREAK_POINTS
 
     review_by_stage = break_point_states(settings_obj.break_points)
     # Theme extraction isn't a pipeline stage (it runs before the engine
@@ -961,6 +962,7 @@ def _break_points_payload(settings_obj) -> list[dict[str, Any]]:
             "stage_id": "theme_extract",
             "display_name": "Theme Generation",
             "review": _resolve_break_point("theme_extract", settings_obj.break_points),
+            "structural": "theme_extract" in STRUCTURAL_BREAK_POINTS,
         }
     ]
     rows.extend(
@@ -968,6 +970,7 @@ def _break_points_payload(settings_obj) -> list[dict[str, Any]]:
             "stage_id": defn["stage_id"],
             "display_name": defn["display_name"],
             "review": review_by_stage[defn["stage_id"]],
+            "structural": defn["stage_id"] in STRUCTURAL_BREAK_POINTS,
         }
         for defn in STAGE_DEFINITIONS
     )
@@ -1094,6 +1097,22 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
         return JSONResponse({"error": "set_name must be a string"}, status_code=400)
     if not isinstance(mech, int) or mech < 0:
         return JSONResponse({"error": "mechanic_count must be a non-negative int"}, status_code=400)
+    # Mechanic generation always asks the LLM for ``CANDIDATE_COUNT``
+    # candidates; the user picks ``mechanic_count`` of them, so the
+    # ratio is bounded above. Without this cap a user could set
+    # mechanic_count=20 and never satisfy the save-and-continue gate.
+    from mtgai.generation.mechanic_generator import CANDIDATE_COUNT
+
+    if mech > CANDIDATE_COUNT:
+        return JSONResponse(
+            {
+                "error": (
+                    f"mechanic_count cannot exceed {CANDIDATE_COUNT} "
+                    f"(the candidate pool size); got {mech}"
+                )
+            },
+            status_code=400,
+        )
     if not isinstance(size, int) or size <= 0:
         return JSONResponse({"error": "set_size must be a positive int"}, status_code=400)
 
@@ -1212,7 +1231,24 @@ async def wizard_project_save_break(request: Request) -> JSONResponse:
         if defn is None:
             return JSONResponse({"error": f"Unknown stage_id {stage_id!r}"}, status_code=400)
 
-    from mtgai.settings.model_settings import DEFAULT_BREAK_POINTS
+    from mtgai.settings.model_settings import (
+        DEFAULT_BREAK_POINTS,
+        STRUCTURAL_BREAK_POINTS,
+    )
+
+    # Structural break-points (e.g. ``mechanics``) cannot be unset —
+    # their wizard tab is the only producer of the stage's output.
+    if not review and stage_id in STRUCTURAL_BREAK_POINTS:
+        return JSONResponse(
+            {
+                "error": (
+                    f"The {stage_id!r} pause is structural — the wizard tab "
+                    "is the only path that produces the stage's output. "
+                    "Cancel the pipeline and re-kick instead."
+                )
+            },
+            status_code=400,
+        )
 
     breaks = dict(settings.break_points)
     if review:
@@ -2350,28 +2386,6 @@ def _theme_summary(theme: dict | None) -> str:
     return text[:600] + ("…" if len(text) > 600 else "")
 
 
-def _publish_candidate_sections(candidates: list[dict]) -> None:
-    """Re-publish the candidates strip on the global event bus.
-
-    Called after refresh-* writes ``candidates.json`` so any tab that's
-    currently subscribed (or attaches via the replay buffer) sees the
-    latest list.
-    """
-    from mtgai.generation.mechanic_generator import detect_keyword_collisions
-
-    collisions = detect_keyword_collisions(candidates)
-    for idx, mech in enumerate(candidates):
-        event_bus.stage_section_update(
-            "mechanics",
-            f"candidate_{idx}",
-            status="done",
-            content={
-                "mechanic": mech,
-                "collision_with": collisions.get(idx),
-            },
-        )
-
-
 def _stage_status_in_state(stage_id: str) -> str:
     """Return the current stage status string ("pending" if no state)."""
     state = _get_current_state()
@@ -2441,14 +2455,39 @@ def _coerce_candidates_payload(value: Any) -> list[dict] | None:
 
 
 def _coerce_indices(value: Any, max_count: int) -> list[int] | None:
+    """Strict index list coercer — every entry must be in range [0, max_count).
+
+    The merged candidates list is padded / trimmed to ``CANDIDATE_COUNT``
+    server-side, so ``max_count`` is the post-pad bound. Out-of-range
+    or duplicate entries are rejected outright (returning None) — the
+    refresh-all merge loop relies on the indices being in-bounds.
+    """
     if not isinstance(value, list):
         return None
     out: list[int] = []
+    seen: set[int] = set()
     for entry in value:
         if not isinstance(entry, int) or entry < 0 or entry >= max_count:
             return None
+        if entry in seen:
+            return None
+        seen.add(entry)
         out.append(entry)
     return out
+
+
+async def _read_request_json(request: Request) -> tuple[Any, JSONResponse | None]:
+    """Decode the request body or short-circuit with a 400.
+
+    Mirrors the inline ``request.json()`` calls elsewhere in this
+    module but turns a malformed payload into a clean 400 instead of a
+    500 from the FastAPI default error path.
+    """
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return None, JSONResponse({"error": "Request body must be valid JSON"}, status_code=400)
+    return body, None
 
 
 @router.post("/api/wizard/mechanics/refresh-card")
@@ -2458,9 +2497,10 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
     Body: ``{candidate_index: int, candidates: list[dict]}``. The client
     sends its current view of the candidates list (so user edits to
     other rows are preserved); the server runs the LLM, replaces the
-    indexed slot with the first newly-generated candidate, persists the
-    merged list to ``candidates.json``, and re-publishes the strip on
-    the SSE bus so any other subscribers update.
+    indexed slot with the first newly-generated candidate (tagged
+    ``_ai_generated: true``), persists the merged list to
+    ``candidates.json`` inside the AI lock, and returns the merged
+    list so the client can rerender.
 
     Refusal modes:
     * 409 ``no_active_project`` — no project open.
@@ -2476,16 +2516,18 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
         _require_active_project()
     except _NoActiveProject:
         return _no_active_project_response()
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     if not isinstance(body, dict):
         return JSONResponse({"error": "JSON body required"}, status_code=400)
     candidates = _coerce_candidates_payload(body.get("candidates"))
     if candidates is None:
         return JSONResponse({"error": "candidates must be a list of dicts"}, status_code=400)
     idx = body.get("candidate_index")
-    if not isinstance(idx, int) or idx < 0 or idx >= len(candidates):
+    if not isinstance(idx, int) or idx < 0 or idx >= CANDIDATE_COUNT:
         return JSONResponse(
-            {"error": "candidate_index must be an int within the candidates list"},
+            {"error": (f"candidate_index must be an int in [0, {CANDIDATE_COUNT})")},
             status_code=400,
         )
     try:
@@ -2498,24 +2540,23 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
             return JSONResponse(ai_lock.busy_payload(), status_code=409)
         try:
             response = await asyncio.to_thread(generate_mechanic_candidates)
-        except Exception as exc:  # noqa: BLE001 — surface to user
+        except Exception as exc:
             logger.exception("Refresh-card LLM call failed")
             return JSONResponse({"error": str(exc)}, status_code=500)
 
-    new_mechanics = response["mechanics"]
-    if not new_mechanics:
-        return JSONResponse({"error": "LLM returned no candidates"}, status_code=500)
+        new_mechanics = response["mechanics"]
+        if not new_mechanics:
+            return JSONResponse({"error": "LLM returned no candidates"}, status_code=500)
 
-    merged = list(candidates)
-    # Pad / trim to CANDIDATE_COUNT in case the client's snapshot was stale.
-    while len(merged) < CANDIDATE_COUNT:
-        merged.append({})
-    merged = merged[:CANDIDATE_COUNT]
-    if idx >= len(merged):
-        return JSONResponse({"error": "candidate_index out of range"}, status_code=400)
-    merged[idx] = new_mechanics[0]
-    _write_json(mech_dir / "candidates.json", merged)
-    _publish_candidate_sections(merged)
+        merged = list(candidates)
+        # Pad / trim to CANDIDATE_COUNT in case the client's snapshot was stale.
+        while len(merged) < CANDIDATE_COUNT:
+            merged.append({})
+        merged = merged[:CANDIDATE_COUNT]
+        new_mech = dict(new_mechanics[0])
+        new_mech["_ai_generated"] = True
+        merged[idx] = new_mech
+        _write_json(mech_dir / "candidates.json", merged)
 
     return JSONResponse(
         {
@@ -2532,7 +2573,7 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
 
     Body: ``{indices: list[int], candidates: list[dict]}``. The wizard
     computes ``indices`` from the rows still flagged
-    ``data-ai-generated="true"`` so user-authored edits survive.
+    ``_ai_generated: true`` so user-authored edits survive.
     """
     from mtgai.generation.mechanic_generator import (
         CANDIDATE_COUNT,
@@ -2543,16 +2584,21 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
         _require_active_project()
     except _NoActiveProject:
         return _no_active_project_response()
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     if not isinstance(body, dict):
         return JSONResponse({"error": "JSON body required"}, status_code=400)
     candidates = _coerce_candidates_payload(body.get("candidates"))
     if candidates is None:
         return JSONResponse({"error": "candidates must be a list of dicts"}, status_code=400)
-    indices = _coerce_indices(body.get("indices"), max(len(candidates), CANDIDATE_COUNT))
+    # Indices are bound by the post-pad CANDIDATE_COUNT (we pad / trim
+    # ``candidates`` below to that size). Reject duplicates + out-of-range
+    # values up front so the merge loop can trust them.
+    indices = _coerce_indices(body.get("indices"), CANDIDATE_COUNT)
     if indices is None:
         return JSONResponse(
-            {"error": "indices must be a list of valid candidate indices"},
+            {"error": (f"indices must be a list of unique ints in [0, {CANDIDATE_COUNT})")},
             status_code=400,
         )
     if not indices:
@@ -2567,21 +2613,22 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
             return JSONResponse(ai_lock.busy_payload(), status_code=409)
         try:
             response = await asyncio.to_thread(generate_mechanic_candidates)
-        except Exception as exc:  # noqa: BLE001 — surface to user
+        except Exception as exc:
             logger.exception("Refresh-all LLM call failed")
             return JSONResponse({"error": str(exc)}, status_code=500)
 
-    new_mechanics = response["mechanics"]
-    merged = list(candidates)
-    while len(merged) < CANDIDATE_COUNT:
-        merged.append({})
-    merged = merged[:CANDIDATE_COUNT]
-    # Replace flagged indices in order with newly-generated candidates.
-    for replace_idx, new_mech in zip(indices, new_mechanics, strict=False):
-        if 0 <= replace_idx < len(merged):
-            merged[replace_idx] = new_mech
-    _write_json(mech_dir / "candidates.json", merged)
-    _publish_candidate_sections(merged)
+        new_mechanics = response["mechanics"]
+        merged = list(candidates)
+        while len(merged) < CANDIDATE_COUNT:
+            merged.append({})
+        merged = merged[:CANDIDATE_COUNT]
+        # Replace flagged indices in order with newly-generated candidates,
+        # tagging each freshly-LLM-generated row as AI again.
+        for replace_idx, new_mech in zip(indices, new_mechanics, strict=False):
+            tagged = dict(new_mech)
+            tagged["_ai_generated"] = True
+            merged[replace_idx] = tagged
+        _write_json(mech_dir / "candidates.json", merged)
 
     return JSONResponse(
         {
@@ -2625,7 +2672,9 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
     except _NoActiveProject:
         return _no_active_project_response()
     settings = project.settings
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     if not isinstance(body, dict):
         return JSONResponse({"error": "JSON body required"}, status_code=400)
     candidates = _coerce_candidates_payload(body.get("candidates"))
@@ -2657,15 +2706,19 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
         return _no_asset_folder_response(exc)
     mech_dir.mkdir(parents=True, exist_ok=True)
 
+    # Order matters: approved.json is the marker downstream stages
+    # check ("does this project have approved mechanics?"). Write the
+    # sidecars + the candidates snapshot first, approved.json last —
+    # so a partial failure leaves the project in a "still being saved"
+    # state rather than a "downstream stages think they're ready" one.
     _write_json(mech_dir / "candidates.json", candidates)
-
-    approved = [candidate_to_approved(candidates[i]) for i in picks]
-    _write_json(mech_dir / "approved.json", approved)
     _write_json(mech_dir / "evergreen-keywords.json", load_evergreen_defaults())
+    approved = [candidate_to_approved(candidates[i]) for i in picks]
     _write_json(mech_dir / "pointed-questions.json", render_pointed_questions(approved))
     # Empty stub — the LLM doesn't produce functional_tags; balance.py
     # tolerates the file being missing or empty.
     _write_json(mech_dir / "functional-tags.json", {})
+    _write_json(mech_dir / "approved.json", approved)
 
     logger.info(
         "Mechanics save: %d picks → %s; sidecars written", len(picks), mech_dir / "approved.json"

@@ -91,8 +91,6 @@ def run_mechanics(
     Mechanics tab; the bespoke ``/api/wizard/mechanics/save`` endpoint
     writes ``approved.json`` + sidecars and resumes the engine.
     """
-    import time as _time
-
     from mtgai.generation.mechanic_generator import (
         CANDIDATE_COUNT,
         detect_keyword_collisions,
@@ -157,27 +155,33 @@ def run_mechanics(
             logger.exception("Mechanic generation failed")
             return StageResult(success=False, error_message=str(exc))
 
-    candidates = response["mechanics"]
+        candidates = response["mechanics"]
+        # Tag each freshly-LLM-generated candidate with provenance so
+        # the wizard's preserve-on-edit contract works across reloads.
+        # ``wizard_mechanics.js`` flips this to False on user edits and
+        # the refresh-* endpoints preserve it for rows they don't
+        # overwrite.
+        for mech in candidates:
+            mech["_ai_generated"] = True
 
-    # Persist the raw LLM output so the wizard tab survives a reload.
-    candidates_path.write_text(
-        json.dumps(candidates, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-
-    collisions = detect_keyword_collisions(candidates)
-    for idx, mech in enumerate(candidates):
-        emitter.update(
-            f"candidate_{idx}",
-            status="done",
-            content={
-                "mechanic": mech,
-                "collision_with": collisions.get(idx),
-            },
+        # Persist the raw LLM output + emit candidate sections inside
+        # the AI lock so a parallel save / refresh can't observe the
+        # half-written state.
+        candidates_path.write_text(
+            json.dumps(candidates, indent=2, ensure_ascii=False),
+            encoding="utf-8",
         )
-        # Match the run_lands cascading reveal — each candidate visibly
-        # appears with a small stagger so the strip animates.
-        _time.sleep(0.15)
+
+        collisions = detect_keyword_collisions(candidates)
+        for idx, mech in enumerate(candidates):
+            emitter.update(
+                f"candidate_{idx}",
+                status="done",
+                content={
+                    "mechanic": mech,
+                    "collision_with": collisions.get(idx),
+                },
+            )
 
     emitter.update(
         "overview",

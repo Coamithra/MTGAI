@@ -526,7 +526,12 @@ def candidate_to_approved(candidate: dict) -> dict:
     for key in _APPROVED_FIELDS:
         if key in candidate:
             out[key] = candidate[key]
-    out["design_notes"] = candidate.get("design_notes") or candidate.get("design_rationale", "")
+    # Prefer the LLM's tool-schema field (``design_rationale``) over a
+    # hand-edited ``design_notes``; the candidate strip surfaces the
+    # rationale as the editable copy and there's no separate
+    # ``design_notes`` editor today. Falling back the other way is just
+    # defensive in case a future caller flips the field name back.
+    out["design_notes"] = candidate.get("design_rationale") or candidate.get("design_notes", "")
     distribution = candidate.get("distribution") or {}
     rarity_range = [r for r in ("common", "uncommon", "rare", "mythic") if distribution.get(r, 0)]
     if not rarity_range:
@@ -604,6 +609,11 @@ def generate_mechanic_candidates(*, theme: dict | None = None) -> dict:
             f"Mechanic generation returned {len(mechanics)} candidates (expected {CANDIDATE_COUNT})"
         )
     if len(mechanics) > CANDIDATE_COUNT:
+        logger.warning(
+            "LLM returned %d candidates; truncating to first %d",
+            len(mechanics),
+            CANDIDATE_COUNT,
+        )
         mechanics = mechanics[:CANDIDATE_COUNT]
     return {
         "mechanics": mechanics,
