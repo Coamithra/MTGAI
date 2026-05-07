@@ -92,6 +92,7 @@ DEFAULT_EFFORT: dict[str, str] = {
 # Stages that default to "review" (pause for human input) when a set has no
 # explicit override saved. Users can still uncheck them on Project Settings.
 DEFAULT_BREAK_POINTS: dict[str, str] = {
+    "theme_extract": "review",
     "human_card_review": "review",
     "human_art_review": "review",
     "human_final_review": "review",
@@ -200,7 +201,9 @@ class SetParams(BaseModel):
     """
 
     set_name: str = ""
-    set_size: int = 60
+    # Standard MTG premier-set size (matches set-template.json averages).
+    # Smaller dev runs override this in the wizard.
+    set_size: int = 277
     mechanic_count: int = 3
 
 
@@ -625,10 +628,8 @@ def dump_project_toml(set_code: str, settings: ModelSettings) -> str:
     """
     import tomlkit
 
-    from mtgai.runtime.active_project import is_valid_set_code
-
-    if not is_valid_set_code(set_code):
-        raise ValueError(f"Invalid set_code {set_code!r}: must be a non-empty string")
+    if not isinstance(set_code, str):
+        raise ValueError(f"set_code must be a string, got {type(set_code).__name__}")
     set_code = set_code.strip()
     doc = tomlkit.document()
     doc.add(tomlkit.comment("MTGAI project file"))
@@ -648,12 +649,12 @@ def dump_project_toml(set_code: str, settings: ModelSettings) -> str:
 def parse_project_toml(text: str) -> tuple[str, ModelSettings]:
     """Parse a .mtg TOML body into ``(set_code, ModelSettings)``.
 
-    Raises ``ValueError`` on missing ``set_code`` or a future
-    ``mtg_file_version`` we don't know how to read.
+    ``set_code`` is purely cosmetic (the printed label on the card
+    frame); missing/empty is fine and yields an empty string. Raises
+    ``ValueError`` only on type errors or a future ``mtg_file_version``
+    we don't know how to read.
     """
     import tomllib
-
-    from mtgai.runtime.active_project import is_valid_set_code
 
     data = tomllib.loads(text)
     version = data.get("mtg_file_version", 1)
@@ -662,10 +663,10 @@ def parse_project_toml(text: str) -> tuple[str, ModelSettings]:
             f"Unsupported .mtg file version {version!r} "
             f"(this build understands up to {MTG_FILE_VERSION})"
         )
-    raw_code = data.get("set_code")
-    if not is_valid_set_code(raw_code):
-        raise ValueError(".mtg file missing or empty 'set_code'")
-    set_code = raw_code.strip()  # type: ignore[union-attr]
+    raw_code = data.get("set_code", "")
+    if not isinstance(raw_code, str):
+        raise ValueError(".mtg file 'set_code' must be a string")
+    set_code = raw_code.strip()
     settings = ModelSettings(
         llm_assignments=data.get("llm_assignments", {}),
         image_assignments=data.get("image_assignments", {}),

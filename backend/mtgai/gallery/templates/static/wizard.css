@@ -98,6 +98,14 @@
   white-space: nowrap;
 }
 
+.wiz-progress-strip .wiz-progress-stats {
+  color: #999;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .wiz-progress-strip .wiz-progress-bar {
   flex: 0 0 110px;
   height: 4px;
@@ -572,6 +580,60 @@
 
 .wiz-preset-actions {
   margin-top: 0.4rem;
+}
+
+/* Preset controls header inside Model Assignments */
+.wiz-preset-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.wiz-preset-empty {
+  font-size: 0.78rem;
+  color: #666;
+  font-style: italic;
+}
+
+.wiz-preset-chip {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid #2a2f55;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.wiz-preset-chip .wiz-preset-btn {
+  border-radius: 0;
+  border: none;
+  border-right: 1px solid #2a2f55;
+}
+
+.wiz-preset-del {
+  background: transparent;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 0.45rem;
+}
+
+.wiz-preset-del:hover {
+  color: #e94560;
+  background: #e9456020;
+}
+
+.wiz-preset-save {
+  margin-left: auto;
+}
+
+.wiz-required {
+  color: #e94560;
+  font-weight: 700;
+  margin-left: 0.15rem;
 }
 
 /* Models table */

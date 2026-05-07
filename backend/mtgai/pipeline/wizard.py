@@ -97,19 +97,21 @@ def _load_active_theme() -> dict[str, Any] | None:
 def compute_visible_tabs(
     state: PipelineState | None,
     theme: dict[str, Any] | None,
+    extraction_active: bool = False,
 ) -> list[WizardTab]:
     """Build the visible-tab list per design §4.2 + §11.
 
     Project Settings is always visible. Theme appears once a
-    ``theme.json`` exists (or once the pipeline has been started, since
-    that implies a theme was authored). Stage tabs appear up through
-    the latest stage that has left ``PENDING`` — running, paused,
-    completed, failed, or skipped all qualify.
+    ``theme.json`` exists, while an extraction is in progress (so the
+    user can watch it stream), or once the pipeline has been started
+    (since that implies a theme was authored). Stage tabs appear up
+    through the latest stage that has left ``PENDING`` — running,
+    paused, completed, failed, or skipped all qualify.
     """
     tabs: list[WizardTab] = [
         WizardTab(id=PROJECT_TAB_ID, title="Project Settings", kind="project"),
     ]
-    if theme is not None or state is not None:
+    if theme is not None or state is not None or extraction_active:
         tabs.append(WizardTab(id=THEME_TAB_ID, title="Theme", kind="content"))
 
     if state is not None:
@@ -179,7 +181,11 @@ def build_wizard_state(requested_tab: str | None) -> WizardState:
     except NoAssetFolderError:
         state = None
     theme = _load_active_theme()
-    tabs = compute_visible_tabs(state, theme)
+    from mtgai.runtime import extraction_run
+
+    er = extraction_run.current()
+    extraction_active = er is not None and er.status == "running"
+    tabs = compute_visible_tabs(state, theme, extraction_active=extraction_active)
     latest = compute_latest_tab(tabs)
     active = resolve_tab(requested_tab, tabs)
     return WizardState(

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Settings{% endblock %}
+{% block title %}Model Registry{% endblock %}
 {% block nav_settings %}active{% endblock %}
 
 {% block head %}
@@ -191,43 +191,11 @@
 
 {% block content %}
 <div class="settings-page">
-  <h1>Settings</h1>
-  <p class="subtitle">Cross-set defaults. Per-set model assignments are managed from each project's wizard (rolling out across the wizard-redesign phases).</p>
+  <h1>Model Registry</h1>
+  <p class="subtitle">Read-only view of <code>backend/mtgai/settings/models.toml</code>. Edit that file to add or remove models. Per-project model assignments live on each project's Project Settings tab.</p>
 
-  <!-- Default preset -->
   <div class="settings-section">
-    <h2>Default preset for new sets</h2>
-    <p class="section-desc">When you create a new set, its initial model assignments are seeded from this preset.</p>
-    <div class="preset-row">
-      <select id="default-preset">
-        <!-- Populated by JS -->
-      </select>
-    </div>
-  </div>
-
-  <!-- Saved profiles library -->
-  <div class="settings-section">
-    <h2>Saved profiles</h2>
-    <p class="section-desc">Reusable assignment templates. Apply-to-set lives on the project's Project Settings tab.</p>
-    <table class="profiles-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th style="width: 240px">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="profiles-body">
-        <!-- Populated by JS -->
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Read-only model registry -->
-  <div class="settings-section">
-    <h2>Model registry</h2>
-    <p class="section-desc">Read-only view of <code>backend/mtgai/settings/models.toml</code>. Edit that file to add or remove models.</p>
-
-    <h3 style="font-size: 0.95rem; margin: 1rem 0 0.5rem 0; color: #ccc;">LLMs</h3>
+    <h3 style="font-size: 0.95rem; margin: 0 0 0.5rem 0; color: #ccc;">LLMs</h3>
     <table class="registry-table">
       <thead>
         <tr>
@@ -256,23 +224,12 @@
   </div>
 </div>
 
-<dialog id="profile-view-dialog" style="background: #16213e; color: #e0e0e0; border: 1px solid #333; border-radius: 8px; padding: 1.5rem; max-width: 600px; width: 90vw;">
-  <h2 id="profile-view-title" style="margin: 0 0 1rem 0; font-size: 1rem;">Profile</h2>
-  <pre class="profile-view" id="profile-view-body">Loading…</pre>
-  <div style="margin-top: 1rem; text-align: right;">
-    <button class="btn" id="profile-view-close">Close</button>
-  </div>
-</dialog>
-
 <div class="toast" id="toast"></div>
 {% endblock %}
 
 {% block scripts %}
 <script>
   const MODEL_REGISTRY = {{ model_registry | tojson }};
-  const BUILTIN_PRESETS = {{ builtin_presets | tojson }};
-  const SAVED_PROFILES = {{ saved_profiles | tojson }};
-  let DEFAULT_PRESET = {{ default_preset | tojson }};
 </script>
 <script src="/static/settings.js"></script>
 {% endblock %}

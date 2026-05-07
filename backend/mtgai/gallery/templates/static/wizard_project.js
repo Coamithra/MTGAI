@@ -106,6 +106,12 @@
     return String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
   }
 
+  // Tiny red asterisk used after labels/headings of fields the
+  // generation pipeline can't run without.
+  function requiredMark() {
+    return ' <span class="wiz-required" title="Required to run the pipeline">*</span>';
+  }
+
   function renderProjectTab({ root, state }) {
     if (local.initialized) {
       // SSE-driven re-render — refresh the extraction-state strip if
@@ -120,7 +126,10 @@
     const footer = root.querySelector('[data-role="footer"]');
     if (!content) return;
 
-    if (!state.activeSet) {
+    // Server returns active_set === null when no project is open. An
+    // empty string is a valid set_code (purely cosmetic), so check for
+    // null explicitly rather than falsy.
+    if (state.activeSet === null || state.activeSet === undefined) {
       // No project file open — show only the New / Open toolbar and a
       // placeholder. Fields stay hidden until the user picks one or
       // creates a draft via New.
@@ -183,7 +192,6 @@
       ${renderAssetFolderSection(data)}
       ${renderThemeInputSection(data)}
       ${renderBreakPointsSection(data)}
-      ${renderPresetRow(data)}
       ${renderModelAssignmentsSection(data)}
       ${renderExtractionStrip(data)}
     `;
@@ -202,8 +210,8 @@
     bindAssetFolderHandlers(state);
     bindThemeInputHandlers(state);
     bindBreakPointHandlers(state);
-    bindPresetHandlers(state);
     bindModelHandlers(state);
+    bindPresetHandlers(state);
     bindProjectEditHandlers(state);
     if (footer) {
       footer.querySelector('#wiz-start-project').addEventListener('click', () => onSaveAndStart(state));
@@ -223,12 +231,32 @@
   // Top toolbar: New / Open / Save (.mtg files via File System Access API)
   // ------------------------------------------------------------------
 
+  // localStorage keeps the last-saved filename across hard navs (file
+  // handles themselves are not serialisable without IndexedDB, so a
+  // re-Save will still prompt — but the label survives).
+  const LAST_FILE_KEY = 'mtgai:lastFileName';
+
+  function rememberFileName(name) {
+    if (!name) return;
+    try { window.localStorage.setItem(LAST_FILE_KEY, name); } catch (_) {}
+  }
+
+  function recallFileName() {
+    try { return window.localStorage.getItem(LAST_FILE_KEY) || null; } catch (_) { return null; }
+  }
+
   function renderProjectToolbar(data) {
-    const fileLabel = local.fileName
-      ? escHtml(local.fileName)
-      : '<em>Untitled project</em>';
-    const stateLabel = data
-      ? (local.fileHandle ? '' : ' <span class="wiz-proj-toolbar-dirty" title="Unsaved (no file yet)">●</span>')
+    const remembered = local.fileName || recallFileName();
+    const setName = (data && data.set_params && data.set_params.set_name) || '';
+    const fileLabel = remembered
+      ? escHtml(remembered)
+      : (setName ? escHtml(setName) : '<em>Untitled project</em>');
+    // Only flag "needs save destination" when the project really has no
+    // file backing yet — i.e. no remembered name. Once we know the
+    // filename (this session or last), saving will round-trip cleanly
+    // even if the FileSystemFileHandle was lost on hard nav.
+    const stateLabel = data && !remembered
+      ? ' <span class="wiz-proj-toolbar-dirty" title="Unsaved (no file yet)">●</span>'
       : '';
     return `
       <div class="wiz-proj-toolbar">
@@ -277,6 +305,7 @@
       }
       local.fileHandle = null;
       local.fileName = null;
+      try { window.localStorage.removeItem(LAST_FILE_KEY); } catch (_) {}
       local.draft = data.draft;
       local.data = data.draft;
       // Mark untitled so footer label / Save behaviour can branch.
@@ -344,6 +373,7 @@
       }
       local.fileHandle = handle;
       local.fileName = displayName;
+      rememberFileName(displayName);
       local.draft = null;
       // Force a full reload so the wizard shell repaints with the new
       // active set's visible-tabs payload (Theme / stage tabs may now
@@ -391,11 +421,10 @@
   // error toast.
   async function materialiseDraft(state) {
     const draft = local.data;
+    // set_code is purely the printed label on the card frame — empty
+    // is fine. We still uppercase + strip whitespace so the .mtg
+    // serialises a clean value.
     const code = (draft.set_code || '').trim().toUpperCase();
-    if (!/^[A-Z0-9]{2,5}$/.test(code)) {
-      W.toast('Set code is required (2–5 letters or digits)', 'error');
-      return null;
-    }
     const body = {
       set_code: code,
       set_params: draft.set_params,
@@ -444,6 +473,7 @@
       const writable = await handle.createWritable();
       await writable.write(tomlText);
       await writable.close();
+      rememberFileName(local.fileName);
       W.toast(`Saved ${local.fileName}`, 'success');
     } else {
       // Download fallback — no persistent handle, so every Save prompts.
@@ -457,6 +487,7 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       local.fileName = a.download;
+      rememberFileName(local.fileName);
       W.toast(`Downloaded ${local.fileName}`, 'success');
     }
     markClean();
@@ -616,13 +647,9 @@
     const sizeAttrs = cascadeLocked
       ? 'disabled title="Click Edit to change. Will discard everything from Skeleton onward."'
       : '';
-    // Set code is editable only while the project is untitled — once
-    // it's been materialised on disk, the code is the directory name
-    // and renaming is out of scope for Phase 1.
-    const codeEditable = isUntitled();
-    const codeAttrs = codeEditable
-      ? 'maxlength="5" pattern="[A-Z0-9]{2,5}" title="2–5 letters or digits"'
-      : 'disabled';
+    // Set code is purely the printed label on the card frame — always
+    // editable, no coupling to anything on disk.
+    const codeAttrs = 'maxlength="5" title="Optional — printed on the card frame"';
     const editBtn = renderProjectEditControls(data);
     return `
       <section class="wiz-proj-section">
@@ -638,10 +665,10 @@
           <label>Set name
             <input type="text" id="wiz-pp-name" value="${escAttr(sp.set_name)}">
           </label>
-          <label>Target size
+          <label><span>Target size${requiredMark()}</span>
             <input type="number" id="wiz-pp-size" value="${sp.set_size}" min="1" max="500" ${sizeAttrs}>
           </label>
-          <label>Mechanic count
+          <label><span>Mechanic count${requiredMark()}</span>
             <input type="number" id="wiz-pp-mech" value="${sp.mechanic_count}" min="0" max="20">
           </label>
         </div>
@@ -678,6 +705,11 @@
         markDirty();
         refreshFooterLabel();
       });
+      // Live-apply on change (i.e. blur) so nav-away preserves the value.
+      code.addEventListener('change', () => {
+        postJSON('/api/wizard/project/set-code', { set_code: code.value })
+          .catch(err => W.toast('Network error: ' + err.message, 'error'));
+      });
     }
     name.addEventListener('change', () => saveParams(state, { set_name: name.value }));
     // size is a cascade-clear field — only live-apply when there's no
@@ -691,13 +723,6 @@
   }
 
   async function saveParams(state, patch) {
-    if (isUntitled()) {
-      // Untitled draft — mutate local.data only; first Save & Start
-      // materialises the whole shape via /api/project/materialize.
-      local.data.set_params = { ...local.data.set_params, ...patch };
-      markDirty();
-      return;
-    }
     try {
       const resp = await postJSON('/api/wizard/project/params', patch);
       if (!resp.ok) {
@@ -719,16 +744,13 @@
 
   function renderAssetFolderSection(data) {
     const folder = data.asset_folder || '';
-    const supportsPicker = typeof window.showDirectoryPicker === 'function';
-    const browseAttrs = supportsPicker ? '' : 'disabled title="Your browser does not support directory pickers — paste a path instead"';
     return `
       <section class="wiz-proj-section">
-        <h3>Asset folder</h3>
+        <h3>Asset folder${requiredMark()}</h3>
         <p class="wiz-proj-desc">Where the pipeline writes generated artifacts (cards, theme, art, renders).</p>
         <div class="wiz-asset-folder-row">
           <input type="text" id="wiz-asset-folder" value="${escAttr(folder)}" placeholder="Choose a folder…">
-          <button type="button" class="wiz-btn-secondary" id="wiz-asset-folder-browse" ${browseAttrs}>Browse…</button>
-          <button type="button" class="wiz-btn-secondary" id="wiz-asset-folder-here" title="Use the folder containing the .mtg file" ${local.fileHandle ? '' : 'disabled'}>Use project file folder</button>
+          <button type="button" class="wiz-btn-secondary" id="wiz-asset-folder-browse">Browse…</button>
         </div>
       </section>
     `;
@@ -737,54 +759,33 @@
   function bindAssetFolderHandlers(state) {
     const input = document.getElementById('wiz-asset-folder');
     const browse = document.getElementById('wiz-asset-folder-browse');
-    const here = document.getElementById('wiz-asset-folder-here');
     if (input) {
       input.addEventListener('change', () => saveAssetFolder(state, input.value));
     }
     if (browse) {
       browse.addEventListener('click', async () => {
-        if (typeof window.showDirectoryPicker !== 'function') return;
+        // Native OS dialog via the server (tkinter) — the browser's
+        // showDirectoryPicker hides the absolute path, which is what
+        // the Python backend needs.
         try {
-          const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
-          // We can't recover an absolute path from a directory handle —
-          // the user has to type / paste it. Use the handle name as a
-          // hint and prompt for the full path. (Phase 2 will resolve
-          // this via storing the handle for actual writes.)
-          const hint = handle.name || '';
-          const path = prompt('Paste the full asset folder path:', hint);
-          if (path == null) return;
-          if (input) input.value = path.trim();
-          await saveAssetFolder(state, path.trim());
+          const resp = await fetch('/api/wizard/project/pick-folder', { method: 'POST' });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) {
+            W.toast(data.error || 'Browse failed', 'error');
+            return;
+          }
+          if (!data.path) return; // user cancelled
+          if (input) input.value = data.path;
+          await saveAssetFolder(state, data.path);
         } catch (err) {
-          if (err && err.name === 'AbortError') return;
-          W.toast('Browse failed: ' + err.message, 'error');
+          W.toast('Network error: ' + err.message, 'error');
         }
-      });
-    }
-    if (here) {
-      here.addEventListener('click', async () => {
-        if (!local.fileHandle) return;
-        // Same caveat as Browse — we know the file's name but not its
-        // absolute directory, so prompt the user to confirm/paste.
-        const hint = local.fileName ? local.fileName.replace(/\.mtg$/i, '') : '';
-        const path = prompt(
-          'Paste the path of the folder containing the .mtg file:',
-          hint,
-        );
-        if (path == null) return;
-        if (input) input.value = path.trim();
-        await saveAssetFolder(state, path.trim());
       });
     }
   }
 
   async function saveAssetFolder(state, folder) {
     const trimmed = (folder || '').trim();
-    if (isUntitled()) {
-      local.data.asset_folder = trimmed;
-      markDirty();
-      return;
-    }
     try {
       const resp = await postJSON('/api/wizard/project/asset-folder', {
         asset_folder: trimmed,
@@ -816,7 +817,7 @@
       : '';
     return `
       <section class="wiz-proj-section">
-        <h3>Theme input</h3>
+        <h3>Theme input${requiredMark()}</h3>
         <div class="wiz-proj-theme-input">
           <div class="wiz-ti-status" id="wiz-ti-status">${escHtml(status)}</div>
           <div class="wiz-ti-controls">
@@ -826,9 +827,6 @@
             </label>
             <button type="button" class="wiz-btn-secondary" id="wiz-ti-paste-toggle"${inputDisabled}>
               Paste text
-            </button>
-            <button type="button" class="wiz-btn-secondary" id="wiz-ti-existing"${inputDisabled}>
-              Use existing theme.json
             </button>
           </div>
           <textarea id="wiz-ti-paste" class="wiz-ti-paste-area" placeholder="Paste setting prose here…" hidden${inputDisabled}></textarea>
@@ -858,7 +856,6 @@
     const pasteToggle = document.getElementById('wiz-ti-paste-toggle');
     const pasteArea = document.getElementById('wiz-ti-paste');
     const pasteCommit = document.getElementById('wiz-ti-paste-commit');
-    const useExisting = document.getElementById('wiz-ti-existing');
 
     if (fileInput && !fileInput.disabled) {
       fileInput.addEventListener('change', () => onUpload(state, fileInput));
@@ -873,9 +870,6 @@
     }
     if (pasteCommit) {
       pasteCommit.addEventListener('click', () => onPasteCommit(state, pasteArea.value));
-    }
-    if (useExisting && !useExisting.disabled) {
-      useExisting.addEventListener('click', () => commitThemeInput(state, { kind: 'existing' }));
     }
   }
 
@@ -936,12 +930,9 @@
   }
 
   async function commitThemeInput(state, payload) {
-    if (local.editingProject || isUntitled()) {
-      // Edit-mode change OR untitled draft — don't live-apply.
-      // Edit mode: server 409s post-Start; cascade Accept handler reads
-      // the staged value at click time.
-      // Untitled: there's no active set yet, so server-side persistence
-      // is deferred to the first Save & Start.
+    if (local.editingProject) {
+      // Edit-mode change — don't live-apply (server 409s post-Start;
+      // cascade Accept handler reads the staged value at click time).
       const ti = {
         kind: payload.kind,
         filename: payload.filename || null,
@@ -961,7 +952,7 @@
         if (pasteCommit) pasteCommit.hidden = true;
       }
       refreshFooterLabel();
-      if (local.editingProject) W.toast('Captured — Accept above to apply', 'success');
+      W.toast('Captured — Accept above to apply', 'success');
       return;
     }
     try {
@@ -1016,14 +1007,6 @@
   }
 
   async function setBreakPoint(state, stageId, review) {
-    if (isUntitled()) {
-      if (local.data && local.data.break_points) {
-        const row = local.data.break_points.find(bp => bp.stage_id === stageId);
-        if (row) row.review = review;
-      }
-      markDirty();
-      return true;
-    }
     try {
       const resp = await postJSON('/api/wizard/project/breaks', {
         stage_id: stageId,
@@ -1078,24 +1061,22 @@
   }
 
   // ------------------------------------------------------------------
-  // Presets
+  // Presets — inlined into the Model Assignments section header
   // ------------------------------------------------------------------
 
-  function renderPresetRow(data) {
-    const builtins = data.builtin_presets.map(name =>
-      `<button type="button" class="wiz-btn-secondary wiz-preset-btn" data-name="${escAttr(name)}">${escHtml(name)}</button>`
-    ).join('');
-    const profiles = data.saved_profiles.map(name =>
-      `<button type="button" class="wiz-btn-secondary wiz-preset-btn" data-name="${escAttr(name)}">${escHtml(name)}</button>`
-    ).join('');
+  function renderPresetControls(data) {
+    const profiles = (data.saved_profiles || []).map(name => `
+      <span class="wiz-preset-chip">
+        <button type="button" class="wiz-btn-secondary wiz-preset-btn" data-name="${escAttr(name)}">${escHtml(name)}</button>
+        <button type="button" class="wiz-preset-del" data-del-name="${escAttr(name)}" title="Delete preset" aria-label="Delete preset ${escAttr(name)}">×</button>
+      </span>
+    `).join('');
     return `
-      <section class="wiz-proj-section">
-        <h3>Apply preset</h3>
-        <div class="wiz-preset-row">
-          <span class="wiz-preset-group-label">Built-in:</span> ${builtins}
-        </div>
-        ${profiles ? `<div class="wiz-preset-row"><span class="wiz-preset-group-label">Saved:</span> ${profiles}</div>` : ''}
-      </section>
+      <div class="wiz-preset-controls">
+        <span class="wiz-preset-group-label">Presets:</span>
+        ${profiles || '<span class="wiz-preset-empty">none saved</span>'}
+        <button type="button" class="wiz-btn-secondary wiz-preset-save" id="wiz-preset-save">Save as preset…</button>
+      </div>
     `;
   }
 
@@ -1103,18 +1084,21 @@
     document.querySelectorAll('.wiz-preset-btn').forEach(btn => {
       btn.addEventListener('click', () => onApplyPreset(state, btn.dataset.name));
     });
+    document.querySelectorAll('.wiz-preset-del').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        onDeletePreset(state, btn.dataset.delName);
+      });
+    });
+    const saveBtn = document.getElementById('wiz-preset-save');
+    if (saveBtn) saveBtn.addEventListener('click', () => onSavePreset(state));
   }
 
+  // Apply a saved preset to the current model assignments (and break
+  // points). Presets cover only assignment-shaped fields — set params,
+  // theme input, and asset folder are kept.
   async function onApplyPreset(state, name) {
-    if (!confirm(`Apply preset "${name}"? This replaces the current model assignments and break points (set parameters and theme input are kept).`)) return;
-    if (isUntitled()) {
-      // Apply via a synthetic local copy. Re-fetch the preset shape via
-      // the materialise path's defaults isn't worth a server hop;
-      // instead we ask the server to materialise just the preset into
-      // local form fields. For now, refuse with a hint.
-      W.toast('Save the project first, then apply preset.', 'warn');
-      return;
-    }
+    if (!confirm(`Apply preset "${name}"? This replaces the current model assignments and break points.`)) return;
     try {
       const resp = await postJSON('/api/wizard/project/preset/apply', { name });
       if (!resp.ok) {
@@ -1124,6 +1108,52 @@
       }
       W.toast(`Preset "${name}" applied`, 'success');
       markDirty();
+      reloadProject(state);
+    } catch (err) {
+      W.toast('Network error: ' + err.message, 'error');
+    }
+  }
+
+  // Save the current model assignments + break points as a named preset
+  // under output/settings/<name>.toml. set_params + theme_input +
+  // asset_folder are excluded (project-specific, not template-able).
+  async function onSavePreset(state) {
+    const name = (window.prompt('Save preset as (letters, digits, dash, underscore):') || '').trim();
+    if (!name) return;
+    const breakPointsDict = breakPointsListToDict(
+      local.data.break_points || [],
+      local.data.default_breaks || {},
+    );
+    const settingsBody = {
+      llm_assignments: local.data.llm_assignments || {},
+      image_assignments: local.data.image_assignments || {},
+      effort_overrides: local.data.effort_overrides || {},
+      break_points: breakPointsDict,
+    };
+    try {
+      const resp = await postJSON('/api/settings/save', { name, settings: settingsBody });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        W.toast(data.error || 'Save failed', 'error');
+        return;
+      }
+      W.toast(`Preset "${name}" saved`, 'success');
+      reloadProject(state);
+    } catch (err) {
+      W.toast('Network error: ' + err.message, 'error');
+    }
+  }
+
+  async function onDeletePreset(state, name) {
+    if (!confirm(`Delete preset "${name}"? This can't be undone.`)) return;
+    try {
+      const resp = await fetch(`/api/settings/profile/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        W.toast(data.error || 'Delete failed', 'error');
+        return;
+      }
+      W.toast(`Preset "${name}" deleted`, 'success');
       reloadProject(state);
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
@@ -1183,6 +1213,7 @@
     return `
       <section class="wiz-proj-section">
         <h3>Model assignments</h3>
+        ${renderPresetControls(data)}
         <table class="wiz-models-table">
           <thead><tr><th>Stage</th><th>Model</th><th>Effort</th></tr></thead>
           <tbody>
@@ -1241,11 +1272,6 @@
       else if (value) local.data.effort_overrides[stageId] = value;
       else delete local.data.effort_overrides[stageId];
     };
-    if (isUntitled()) {
-      applyLocal();
-      markDirty();
-      return;
-    }
     try {
       const resp = await postJSON('/api/wizard/project/models', {
         kind,
@@ -1272,8 +1298,7 @@
     if (!data.extraction_active) return '<div id="wiz-extraction-strip" hidden></div>';
     return `
       <div id="wiz-extraction-strip" class="wiz-extraction-strip">
-        Theme extraction is in progress — see the global progress strip above.
-        Switch to the Theme tab once it finishes.
+        Theme extraction is in progress — see the strip above, or switch to the Theme tab to watch it stream.
       </div>
     `;
   }
@@ -1281,11 +1306,7 @@
   function canStart(data) {
     if (data.extraction_active) return false;
     if (data.theme_input.kind === 'none') return false;
-    if (isUntitled()) {
-      // Need a valid set_code before we can materialise.
-      const code = (data.set_code || '').trim().toUpperCase();
-      if (!/^[A-Z0-9]{2,5}$/.test(code)) return false;
-    }
+    if (!data.asset_folder) return false;
     return true;
   }
 

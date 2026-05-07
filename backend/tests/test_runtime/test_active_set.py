@@ -27,22 +27,18 @@ def _reset_state():
 
 
 # ---------------------------------------------------------------------------
-# is_valid_set_code (relaxed: any non-empty trimmed string)
+# is_valid_set_code (purely a string type guard — set_code is cosmetic)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("code", ["AS", "ASD", "DRKSN", "DARKSUN", "asd", "AB-CD", "12345"])
-def test_valid_codes_accept_free_form_strings(code):
+@pytest.mark.parametrize("code", ["AS", "ASD", "DRKSN", "DARKSUN", "asd", "AB-CD", "12345", "", "   "])
+def test_valid_codes_accept_any_string(code):
     assert active_project.is_valid_set_code(code)
 
 
-@pytest.mark.parametrize("code", [None, "", "   ", "\t\n"])
-def test_invalid_codes_reject_empty_and_whitespace(code):
-    assert not active_project.is_valid_set_code(code)
-
-
-def test_invalid_code_rejects_non_string():
-    assert not active_project.is_valid_set_code(123)  # type: ignore[arg-type]
+@pytest.mark.parametrize("code", [None, 123, [], {}])
+def test_invalid_codes_reject_non_string(code):
+    assert not active_project.is_valid_set_code(code)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

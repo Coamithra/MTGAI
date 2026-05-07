@@ -169,6 +169,7 @@
       <div class="wiz-progress-strip" id="wiz-progress-strip" hidden>
         <span class="wiz-progress-stage" id="wiz-progress-stage"></span>
         <span class="wiz-progress-activity" id="wiz-progress-activity"></span>
+        <span class="wiz-progress-stats" id="wiz-progress-stats"></span>
         <div class="wiz-progress-bar"><div class="wiz-progress-bar-fill" id="wiz-progress-bar-fill"></div></div>
         <button class="wiz-progress-cancel" id="wiz-progress-cancel" type="button">Cancel</button>
       </div>
@@ -183,6 +184,27 @@
     window.addEventListener('popstate', onPopState);
 
     connectSSE();
+    hydrateProgressStrip();
+  }
+
+  // Show the strip on mount if the server reports an AI run already in
+  // flight (e.g. user navigated into the page mid-extraction). SSE
+  // events update it from there; this is just the cold-start cover so
+  // the strip isn't hidden until the next tick.
+  async function hydrateProgressStrip() {
+    try {
+      const resp = await fetch('/api/ai/status');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data || !data.running) return;
+      showProgressStrip();
+      const stageEl = document.getElementById('wiz-progress-stage');
+      const activityEl = document.getElementById('wiz-progress-activity');
+      const fillEl = document.getElementById('wiz-progress-bar-fill');
+      if (stageEl) stageEl.textContent = data.running_action || 'Working…';
+      if (activityEl) activityEl.textContent = '';
+      if (fillEl) fillEl.style.width = '30%';
+    } catch (_) {}
   }
 
   // ------------------------------------------------------------------
@@ -351,6 +373,41 @@
       handlePhaseEvent(JSON.parse(e.data));
     });
 
+    // Section-refresh result events. Event names mirror the worker's
+    // server-side publish calls. The Theme tab listens via the
+    // W.onSectionResult bridge.
+    [
+      'section_constraints',
+      'section_card_suggestions',
+      'section_constraints_error',
+      'section_suggestions_error',
+      'section_done',
+    ].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onSectionResult;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
+    // Full-theme extraction streaming events (token-level theme_chunk,
+    // plus terminal constraints / card_suggestions / done / error).
+    [
+      'theme_theme_chunk',
+      'theme_constraints',
+      'theme_card_suggestions',
+      'theme_constraints_error',
+      'theme_suggestions_error',
+      'theme_done',
+      'theme_error',
+      'theme_cancelled',
+      'theme_status',
+    ].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onThemeStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     state.eventSource.onerror = () => {
       // EventSource auto-reconnects.
     };
@@ -442,6 +499,20 @@
     if (renderer) renderer({ tab, root: body, state, rerender: true });
   }
 
+  // Phase → bar-width hint. Theme-extractor phases run their own gradient
+  // because the engine ones don't reach those values. Bar moves only
+  // forward within a stage to avoid jitter when prompt_eval ticks
+  // overlap generation.
+  const PHASE_PROGRESS = {
+    starting: 5,
+    loading: 10,
+    counting: 12,
+    running: 30,
+    extracting: 35,
+    generation: 70,
+  };
+  let _phaseLastWidth = 0;
+
   function handlePhaseEvent(data) {
     const phase = data.phase || '';
 
@@ -451,12 +522,14 @@
     // terminal event ever fires for that path.
     if (phase === 'done') {
       hideProgressStrip();
+      _phaseLastWidth = 0;
       return;
     }
 
     showProgressStrip();
     const stageEl = document.getElementById('wiz-progress-stage');
     const activityEl = document.getElementById('wiz-progress-activity');
+    const statsEl = document.getElementById('wiz-progress-stats');
     const fillEl = document.getElementById('wiz-progress-bar-fill');
     if (!stageEl || !activityEl || !fillEl) return;
 
@@ -464,12 +537,54 @@
     const stageObj = state.pipeline
       ? state.pipeline.stages.find(s => s.stage_id === stageId)
       : null;
-    stageEl.textContent = stageObj ? stageObj.display_name : stageId;
+    stageEl.textContent = stageObj ? stageObj.display_name : (stageId || phaseDisplayLabel(phase));
     activityEl.textContent = data.activity || '';
+    if (statsEl) statsEl.textContent = formatPhaseStats(data);
 
-    if (phase === 'starting') fillEl.style.width = '5%';
-    else if (phase === 'running') fillEl.style.width = '30%';
-    else if (phase === 'generation') fillEl.style.width = '60%';
+    // Prefer prompt-eval / generation percentages when present —
+    // they're the most accurate signal we have. Otherwise fall back
+    // to the phase table.
+    let target = PHASE_PROGRESS[phase];
+    if (data.prompt_eval && data.prompt_eval.total) {
+      const pe = data.prompt_eval;
+      const pct = Math.min(100, Math.round((pe.processed / pe.total) * 100));
+      // Map 0-100% prompt-eval into the 30-65 band of the strip so it
+      // visually sits between "running" and "generation".
+      target = 30 + (pct * 0.35);
+    }
+    if (target == null) return;
+    if (target > _phaseLastWidth) {
+      _phaseLastWidth = target;
+      fillEl.style.width = target + '%';
+    }
+  }
+
+  function phaseDisplayLabel(phase) {
+    if (!phase) return '';
+    return phase.charAt(0).toUpperCase() + phase.slice(1);
+  }
+
+  function formatPhaseStats(data) {
+    const parts = [];
+    if (typeof data.elapsed_s === 'number') {
+      parts.push(formatElapsed(data.elapsed_s));
+    }
+    if (data.prompt_eval && data.prompt_eval.total) {
+      const pe = data.prompt_eval;
+      parts.push(`prompt ${pe.processed.toLocaleString()}/${pe.total.toLocaleString()}`);
+    }
+    if (data.generation && typeof data.generation.tok_per_sec === 'number') {
+      const g = data.generation;
+      parts.push(`${g.tokens.toLocaleString()} tok @ ${g.tok_per_sec.toFixed(1)} tok/s`);
+    }
+    return parts.join(' · ');
+  }
+
+  function formatElapsed(s) {
+    if (s < 60) return `${s.toFixed(0)}s`;
+    const m = Math.floor(s / 60);
+    const r = Math.floor(s % 60);
+    return `${m}m ${r}s`;
   }
 
   function showProgressStrip() {

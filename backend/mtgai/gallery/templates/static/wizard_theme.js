@@ -292,7 +292,10 @@
   function themeBodyHtml() {
     return `
       <div class="wiz-theme-section">
-        <h3>Setting</h3>
+        <div class="wiz-theme-section-header-row">
+          <h3>Setting</h3>
+          <button type="button" class="wiz-btn-secondary wiz-refresh-btn" id="wiz-refresh-theme" title="Re-run theme extraction from the source upload">Refresh AI…</button>
+        </div>
         <p class="wiz-theme-section-desc">
           Prose describing your world. Feeds card generation, mechanics, art prompts.
           Edit / preview toggle below.
@@ -310,6 +313,7 @@
       <div class="wiz-theme-section">
         <div class="wiz-theme-section-header-row">
           <h3>Set Constraints</h3>
+          <button type="button" class="wiz-btn-secondary wiz-refresh-btn" id="wiz-refresh-constraints" title="Re-extract constraints from the setting prose">Refresh AI</button>
         </div>
         <p class="wiz-theme-section-desc">
           Structural directives for the skeleton + card generation. Things like
@@ -322,6 +326,7 @@
       <div class="wiz-theme-section">
         <div class="wiz-theme-section-header-row">
           <h3>Card Requests</h3>
+          <button type="button" class="wiz-btn-secondary wiz-refresh-btn" id="wiz-refresh-card-requests" title="Re-extract card requests from the setting prose">Refresh AI</button>
         </div>
         <p class="wiz-theme-section-desc">
           Cards you definitely want in the set — natural-language descriptions
@@ -334,6 +339,21 @@
       <div class="wiz-theme-actions">
         <button type="button" class="wiz-btn-primary" id="wiz-save-theme">Save Theme</button>
       </div>
+
+      <dialog id="wiz-refresh-theme-dialog" class="wiz-modal">
+        <h3 style="margin-top:0">Refresh theme</h3>
+        <p>Re-runs the full theme extraction from your uploaded source. Replaces the setting prose. Pick which AI-generated subsections to also overwrite (unchecked → keep your edits).</p>
+        <label style="display:block;margin:0.5rem 0">
+          <input type="checkbox" id="wiz-refresh-theme-constraints"> Also refresh constraints
+        </label>
+        <label style="display:block;margin:0.5rem 0">
+          <input type="checkbox" id="wiz-refresh-theme-cards"> Also refresh card requests
+        </label>
+        <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">
+          <button type="button" class="wiz-btn-secondary" id="wiz-refresh-theme-cancel">Cancel</button>
+          <button type="button" class="wiz-btn-primary" id="wiz-refresh-theme-confirm">Refresh</button>
+        </div>
+      </dialog>
     `;
   }
 
@@ -352,6 +372,8 @@
     document.getElementById('wiz-add-constraint').addEventListener('click', () => addConstraint('', false));
     document.getElementById('wiz-add-card-request').addEventListener('click', () => addCardRequest('', false));
     document.getElementById('wiz-save-theme').addEventListener('click', () => saveTheme(state));
+
+    bindRefreshHandlers(state);
 
     setSettingMode('preview');
   }
@@ -465,6 +487,232 @@
     delete item.dataset.aiGenerated;
     const badge = item.querySelector('.wiz-ai-badge');
     if (badge) badge.remove();
+  }
+
+  // ------------------------------------------------------------------
+  // Refresh AI — per-section + full theme
+  // ------------------------------------------------------------------
+
+  // Module-level: which subsections the active full-refresh asked the
+  // server to overwrite. The done-event handler reads this to decide
+  // whether to apply constraints / card_suggestions to the form.
+  const refreshState = {
+    fullActive: false,
+    overwriteConstraints: false,
+    overwriteCards: false,
+  };
+
+  function bindRefreshHandlers(state) {
+    const constraintsBtn = document.getElementById('wiz-refresh-constraints');
+    if (constraintsBtn) {
+      constraintsBtn.addEventListener('click', () => onRefreshSection('constraints'));
+    }
+    const cardsBtn = document.getElementById('wiz-refresh-card-requests');
+    if (cardsBtn) {
+      cardsBtn.addEventListener('click', () => onRefreshSection('card_suggestions'));
+    }
+    const themeBtn = document.getElementById('wiz-refresh-theme');
+    if (themeBtn) {
+      themeBtn.addEventListener('click', () => openRefreshThemeDialog());
+    }
+    const dialog = document.getElementById('wiz-refresh-theme-dialog');
+    if (dialog) {
+      dialog.querySelector('#wiz-refresh-theme-cancel').addEventListener('click', () => {
+        if (dialog.close) dialog.close(); else dialog.removeAttribute('open');
+      });
+      dialog.querySelector('#wiz-refresh-theme-confirm').addEventListener('click', () => {
+        const overwriteC = dialog.querySelector('#wiz-refresh-theme-constraints').checked;
+        const overwriteR = dialog.querySelector('#wiz-refresh-theme-cards').checked;
+        if (dialog.close) dialog.close(); else dialog.removeAttribute('open');
+        onRefreshTheme(state, overwriteC, overwriteR);
+      });
+    }
+
+    // Subscribe to global section-result events from wizard.js's SSE.
+    W.onSectionResult = handleSectionResult;
+    W.onThemeStream = handleThemeStream;
+  }
+
+  // Streaming + terminal events for the full extraction. theme_chunk
+  // is the per-token cadence (with tiny aggregated chunks); we append
+  // to the textarea and re-render preview at a throttled rate so the
+  // user sees the prose materialise.
+  let _themePreviewTimer = null;
+  function handleThemeStream(name, data) {
+    if (!refreshState.fullActive) return;
+    if (name === 'theme_theme_chunk') {
+      const ta = document.getElementById('wiz-setting');
+      if (!ta) return;
+      ta.value += (data && data.text) || '';
+      refreshState.streamSawChunk = true;
+      if (_themePreviewTimer) return;
+      _themePreviewTimer = setTimeout(() => {
+        _themePreviewTimer = null;
+        const preview = document.getElementById('wiz-setting-preview');
+        if (preview) preview.innerHTML = renderMarkdown(ta.value);
+      }, 200);
+      return;
+    }
+    if (name === 'theme_constraints') {
+      if (!refreshState.overwriteConstraints) return;
+      const items = (data && data.constraints) || [];
+      replaceListWithAi('wiz-constraints-list', items, addConstraint);
+      return;
+    }
+    if (name === 'theme_card_suggestions') {
+      if (!refreshState.overwriteCards) return;
+      const raw = (data && data.suggestions) || [];
+      const items = raw.map(s => (s && s.name && s.description) ? `${s.name}: ${s.description}` : (typeof s === 'string' ? s : ''));
+      replaceListWithAi('wiz-card-requests-list', items, addCardRequest);
+      return;
+    }
+    if (name === 'theme_done') {
+      const ta = document.getElementById('wiz-setting');
+      const preview = document.getElementById('wiz-setting-preview');
+      if (ta && preview) preview.innerHTML = renderMarkdown(ta.value);
+      refreshState.fullActive = false;
+      W.toast('Theme refresh complete.', 'success');
+      return;
+    }
+    if (name === 'theme_error' || name === 'theme_cancelled') {
+      refreshState.fullActive = false;
+      W.toast(`Refresh ${name === 'theme_error' ? 'failed' : 'cancelled'}: ${(data && data.message) || ''}`, 'error');
+    }
+  }
+
+  function openRefreshThemeDialog() {
+    const dialog = document.getElementById('wiz-refresh-theme-dialog');
+    if (!dialog) return;
+    dialog.querySelector('#wiz-refresh-theme-constraints').checked = false;
+    dialog.querySelector('#wiz-refresh-theme-cards').checked = false;
+    if (typeof dialog.showModal === 'function') dialog.showModal();
+    else dialog.setAttribute('open', '');
+  }
+
+  async function onRefreshSection(kind) {
+    const themeText = (document.getElementById('wiz-setting').value || '').trim();
+    if (!themeText) {
+      W.toast('Setting prose is empty — write something first.', 'error');
+      return;
+    }
+    if (!confirm(`Re-extract ${kind === 'constraints' ? 'constraints' : 'card requests'} from the current setting prose? This replaces AI-generated entries (your edits stay).`)) return;
+    refreshState.fullActive = false;
+
+    // Clear AI items immediately so the user sees a blank slate while
+    // the LLM generates the new batch.
+    const listId = kind === 'constraints' ? 'wiz-constraints-list' : 'wiz-card-requests-list';
+    const list = document.getElementById(listId);
+    if (list) list.querySelectorAll('[data-ai-generated="true"]').forEach(el => el.remove());
+
+    try {
+      const resp = await fetch('/api/pipeline/theme/extract-section', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme_text: themeText, kind }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        if (resp.status === 409 && data.running_action) {
+          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
+        } else {
+          W.toast(data.error || `Refresh failed (${resp.status})`, 'error');
+        }
+        return;
+      }
+      // Body is SSE; we don't need to parse it here — the server also
+      // publishes results to event_bus, which wizard.js's main SSE
+      // hands off to handleSectionResult below. Just drain the stream
+      // so the connection closes cleanly.
+      try { resp.body.cancel && resp.body.cancel(); } catch (_) {}
+    } catch (err) {
+      W.toast('Network error: ' + err.message, 'error');
+    }
+  }
+
+  async function onRefreshTheme(state, overwriteConstraints, overwriteCards) {
+    if (!confirm('Re-run the full theme extraction from the source upload? Replaces the setting prose.')) return;
+    refreshState.fullActive = true;
+    refreshState.overwriteConstraints = overwriteConstraints;
+    refreshState.overwriteCards = overwriteCards;
+    refreshState.streamSawChunk = false;
+
+    // Clear the setting textarea + preview so the user can watch the
+    // new prose stream in. Also clear AI items in the subsections that
+    // were marked for overwrite (their LLM payloads will repopulate).
+    const ta = document.getElementById('wiz-setting');
+    const preview = document.getElementById('wiz-setting-preview');
+    if (ta) ta.value = '';
+    if (preview) preview.innerHTML = '';
+    if (overwriteConstraints) {
+      const cl = document.getElementById('wiz-constraints-list');
+      if (cl) cl.querySelectorAll('[data-ai-generated="true"]').forEach(el => el.remove());
+    }
+    if (overwriteCards) {
+      const rl = document.getElementById('wiz-card-requests-list');
+      if (rl) rl.querySelectorAll('[data-ai-generated="true"]').forEach(el => el.remove());
+    }
+
+    try {
+      const resp = await fetch('/api/wizard/project/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        if (resp.status === 409 && data.running_action) {
+          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
+        } else {
+          W.toast(data.error || `Refresh failed (${resp.status})`, 'error');
+        }
+        refreshState.fullActive = false;
+        return;
+      }
+      W.toast('Theme refresh kicked off — watch the strip.', 'success');
+      // Stay on the Theme tab; the global SSE strip + theme.json reload
+      // on phase=done will repaint the body via the next renderThemeTab
+      // tick fired from wizard.js's stage_update path.
+    } catch (err) {
+      W.toast('Network error: ' + err.message, 'error');
+      refreshState.fullActive = false;
+    }
+  }
+
+  function handleSectionResult(name, data) {
+    if (name === 'section_constraints') {
+      const items = (data && data.constraints) || [];
+      replaceListWithAi('wiz-constraints-list', items, addConstraint);
+      W.toast('Constraints refreshed.', 'success');
+      return;
+    }
+    if (name === 'section_card_suggestions') {
+      const raw = (data && data.suggestions) || [];
+      const items = raw.map(s => (s && s.name && s.description) ? `${s.name}: ${s.description}` : (typeof s === 'string' ? s : ''));
+      replaceListWithAi('wiz-card-requests-list', items, addCardRequest);
+      W.toast('Card requests refreshed.', 'success');
+      return;
+    }
+    if (name === 'section_constraints_error') {
+      W.toast('Constraints extraction failed: ' + (data.message || 'unknown'), 'error');
+      return;
+    }
+    if (name === 'section_suggestions_error') {
+      W.toast('Card-request extraction failed: ' + (data.message || 'unknown'), 'error');
+      return;
+    }
+    // section_done — nothing to do; the strip hides on phase=done.
+  }
+
+  // Replace AI-tagged items only (preserve user edits) with a fresh
+  // batch of AI items. Mirrors the legacy theme.js behaviour.
+  function replaceListWithAi(listId, items, addFn) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    const aiItems = list.querySelectorAll('[data-ai-generated="true"]');
+    aiItems.forEach(el => el.remove());
+    items.forEach(text => {
+      if (text) addFn(text, true);
+    });
   }
 
   function normalizeProvenance(item) {

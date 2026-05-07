@@ -266,29 +266,20 @@ async def root() -> RedirectResponse:
 
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request) -> HTMLResponse:
-    """Serve the cross-set defaults page (default preset + profiles + registry).
+    """Serve the read-only Model Registry page.
 
-    Per-stage assignments live on the per-set Project Settings tab now;
-    this page only owns user-level defaults and the saved-profile library.
+    Preset / profile management moved into the per-project Project
+    Settings tab — this page is now just the registry view.
     """
     from mtgai.settings.model_registry import get_registry
-    from mtgai.settings.model_settings import (
-        PRESETS,
-        get_global_settings,
-        list_profiles,
-    )
 
     registry = get_registry()
-    glob = get_global_settings()
 
     return templates.TemplateResponse(
         request,
         "settings.html",
         {
             "model_registry": registry.to_dict(),
-            "default_preset": glob.default_preset,
-            "builtin_presets": sorted(PRESETS),
-            "saved_profiles": list_profiles(),
         },
     )
 

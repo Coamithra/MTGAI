@@ -77,15 +77,14 @@ _active_project: ProjectState | None = None
 
 
 def is_valid_set_code(code: str | None) -> bool:
-    """Return True if ``code`` is a non-empty trimmed string.
+    """Return True if ``code`` is a string (any value, including empty).
 
-    The legacy ``[A-Z0-9]{2,5}`` regex was relaxed: ``set_code`` is now
-    just a label printed on the card frame and stored in card JSON, so
-    any non-empty user input is acceptable. Endpoints still reject
-    ``""`` / whitespace-only / non-string values via this helper to
-    keep the active-project pointer well-formed.
+    ``set_code`` is purely the label printed on the card frame and stored
+    in card JSON — nothing in the runtime keys off it, so empty is fine.
+    The only check left is the type guard so endpoints don't accept
+    ``None`` / non-string payloads.
     """
-    return isinstance(code, str) and bool(code.strip())
+    return isinstance(code, str)
 
 
 def read_active_project() -> ProjectState | None:
@@ -112,17 +111,17 @@ def require_active_project() -> ProjectState:
 
 
 def write_active_project(project: ProjectState) -> None:
-    """Set the active project. Validates ``set_code`` first.
+    """Set the active project.
 
     Replaces the previous pointer wholesale; callers wanting to update
     only ``settings`` or ``mtg_path`` should ``model_copy`` the existing
     state and pass the result. ``set_code`` is trimmed (no other
     normalisation) — the printed card glyph reflects exactly what the
-    user typed.
+    user typed; empty strings are accepted (it's purely cosmetic).
     """
     global _active_project
-    if not is_valid_set_code(project.set_code):
-        raise ValueError(f"Invalid set code: {project.set_code!r}")
+    if not isinstance(project.set_code, str):
+        raise ValueError(f"set_code must be a string, got {type(project.set_code).__name__}")
     code = project.set_code.strip()
     if code != project.set_code:
         project = project.model_copy(update={"set_code": code})

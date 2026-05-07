@@ -330,6 +330,20 @@ async def upload_for_extraction(request: Request):
         "created_at": _time.monotonic(),
     }
 
+    # Mirror the extracted text to disk under the active project's
+    # asset folder so reloads after a server restart still find the
+    # source. The .mtg only carries an upload_id, which is meaningless
+    # once the in-memory cache evaporates — without this fallback,
+    # hitting Start on a reloaded project trips "Upload expired".
+    try:
+        asset_dir = set_artifact_dir()
+        asset_dir.mkdir(parents=True, exist_ok=True)
+        (asset_dir / "theme_source.txt").write_text(text, encoding="utf-8")
+    except NoAssetFolderError:
+        pass  # asset_folder not picked yet — best effort
+    except OSError as e:
+        logger.warning("Failed to mirror theme upload to disk: %s", e)
+
     return JSONResponse(
         {
             "upload_id": upload_id,
@@ -473,6 +487,30 @@ def _start_extraction_worker(
         stream_theme_extraction,
     )
 
+    # Mirror the streaming-relevant events to the global event
+    # bus so the Theme tab can stream tokens into its textarea
+    # in real time. Restricted set of types so we don't flood
+    # subscribers with internals.
+    _BUS_EVENTS = {
+        "theme_chunk",
+        "constraints",
+        "card_suggestions",
+        "constraints_error",
+        "suggestions_error",
+        "done",
+        "error",
+        "cancelled",
+        "status",
+    }
+
+    def _bus_mirror(event: dict) -> None:
+        etype = event.get("type")
+        if etype in _BUS_EVENTS:
+            try:
+                event_bus.publish(f"theme_{etype}", event)
+            except Exception:
+                pass
+
     def worker() -> None:
         theme_parts: list[str] = []
         theme_cost = 0.0
@@ -484,7 +522,17 @@ def _start_extraction_worker(
             # inside theme_extractor) keeps the side-channel scoped to the
             # streaming worker — section-refresh and any future non-streaming
             # caller stays free of phase telemetry it has no consumer for.
-            set_phase_emitter(extraction_run.append_event)
+            # Also publish to the global event bus so the wizard's progress
+            # strip (which tails /api/pipeline/events) shows the run.
+            def _phase_dual_emit(event: dict) -> None:
+                extraction_run.append_event(event)
+                try:
+                    event_bus.publish("phase", event)
+                except Exception:
+                    pass
+
+            set_phase_emitter(_phase_dual_emit)
+
             for event in stream_theme_extraction(source_text, model_key):
                 etype = event.get("type")
                 if etype == "theme_chunk":
@@ -492,6 +540,7 @@ def _start_extraction_worker(
                 elif etype == "complete":
                     theme_cost = event.get("cost_usd", 0.0)
                 extraction_run.append_event(event)
+                _bus_mirror(event)
                 if etype in ("error", "cancelled"):
                     return
 
@@ -533,33 +582,47 @@ def _start_extraction_worker(
                         _persist_extraction_to_theme_json(
                             full_theme, constraints_list, card_suggestions
                         )
-                        # Auto-advance: with theme.json now on disk, kick
-                        # off the pipeline engine so Skeleton (the first
-                        # real stage) starts running. The helper refuses
-                        # to act on RUNNING / PAUSED states, so re-running
-                        # extraction on an in-flight set is a safe no-op.
-                        _, kickoff_err = _kickoff_pipeline_engine(save_to_set)
-                        if kickoff_err is not None:
-                            # Warning, not info: the user expected the
-                            # wizard to flow into Skeleton and it didn't
-                            # — surfacing this at default log levels
-                            # gives the operator a chance to spot it.
-                            logger.warning(
-                                "Theme to engine auto-advance skipped for %s: %s",
+                        # Auto-advance to Skeleton unless the user asked
+                        # the wizard to break after Theme Generation.
+                        # _resolve_break_point falls back to the
+                        # DEFAULT_BREAK_POINTS table (theme_extract is on
+                        # by default).
+                        from mtgai.pipeline.models import _resolve_break_point
+
+                        proj = active_project.read_active_project()
+                        bps = proj.settings.break_points if proj else {}
+                        if _resolve_break_point("theme_extract", bps):
+                            logger.info(
+                                "Theme break-point set; pausing for review on %s",
                                 save_to_set,
-                                kickoff_err,
                             )
-                    extraction_run.append_event(
-                        {
-                            "type": "done",
-                            "total_cost_usd": round(total_cost, 4),
-                        }
-                    )
+                        else:
+                            _, kickoff_err = _kickoff_pipeline_engine(save_to_set)
+                            if kickoff_err is not None:
+                                # Warning, not info: the user expected
+                                # the wizard to flow into Skeleton and
+                                # it didn't — surfacing this at default
+                                # log levels gives the operator a chance
+                                # to spot it.
+                                logger.warning(
+                                    "Theme to engine auto-advance skipped for %s: %s",
+                                    save_to_set,
+                                    kickoff_err,
+                                )
+                    done_event = {
+                        "type": "done",
+                        "total_cost_usd": round(total_cost, 4),
+                    }
+                    extraction_run.append_event(done_event)
+                    _bus_mirror(done_event)
                     continue
                 extraction_run.append_event(event)
+                _bus_mirror(event)
         except Exception as e:
             logger.error("Theme extraction stream failed: %s", e, exc_info=True)
-            extraction_run.append_event({"type": "error", "message": str(e)})
+            err_event = {"type": "error", "message": str(e)}
+            extraction_run.append_event(err_event)
+            _bus_mirror(err_event)
         finally:
             clear_phase_emitter()
             run = extraction_run.current()
@@ -707,12 +770,27 @@ async def extract_theme_stream(
             return JSONResponse(ai_lock.busy_payload(), status_code=409)
         else:
             cached = _upload_cache.get(upload_id)
-            if not cached:
+            text = cached["text"] if cached else None
+            if text is None:
+                # Cache miss — fall back to the on-disk mirror written by
+                # the upload handler so reload+refresh still works.
+                try:
+                    mirror = set_artifact_dir() / "theme_source.txt"
+                    if mirror.exists():
+                        text = mirror.read_text(encoding="utf-8")
+                except NoAssetFolderError:
+                    text = None
+            if text is None:
                 return JSONResponse({"error": "Upload expired"}, status_code=404)
             if not model_key:
                 model_key = _theme_extract_model_key()
             extraction_run.start_run(upload_id)
-            _start_extraction_worker(upload_id, cached["text"], model_key)
+            try:
+                save_to = active_project.read_active_project()
+                save_to_set = save_to.set_code if save_to else None
+            except Exception:
+                save_to_set = None
+            _start_extraction_worker(upload_id, text, model_key, save_to_set=save_to_set)
             mode = "fresh"
 
         # Subscribe under the same lock so a concurrent start can't
@@ -759,15 +837,41 @@ def _stream_section_refresh(theme_text: str, kind: str, model_key: str):
 
     def push_event(event: dict) -> None:
         q.put(event)
+        # Mirror to the global event bus so the wizard's progress strip
+        # tracks section refreshes the same way it tracks full extractions.
+        try:
+            event_bus.publish("phase", event)
+        except Exception:
+            pass
 
     def worker() -> None:
         try:
             set_phase_emitter(push_event)
             for event in stream_section_extraction(theme_text, model_key, kind):
                 q.put(event)
+                # Section results (constraints / card_suggestions /
+                # constraints_error / suggestions_error / done) also
+                # broadcast on event_bus so the Theme tab can apply
+                # them without a separate stream subscription.
+                etype = event.get("type")
+                if etype in (
+                    "constraints",
+                    "card_suggestions",
+                    "constraints_error",
+                    "suggestions_error",
+                    "done",
+                ):
+                    try:
+                        event_bus.publish(f"section_{etype}", event)
+                    except Exception:
+                        pass
         except Exception as e:
             logger.error("Section refresh (%s) failed: %s", kind, e, exc_info=True)
             q.put({"type": "error", "message": str(e)})
+            try:
+                event_bus.publish("section_done", {"type": "done"})
+            except Exception:
+                pass
         finally:
             clear_phase_emitter()
             q.put(DONE)
@@ -846,17 +950,28 @@ async def extract_section_endpoint(request: Request):
 # break_point_states helper so this stays in lockstep with the wizard
 # bootstrap payload (mtgai.pipeline.wizard).
 def _break_points_payload(settings_obj) -> list[dict[str, Any]]:
-    from mtgai.pipeline.models import STAGE_DEFINITIONS, break_point_states
+    from mtgai.pipeline.models import STAGE_DEFINITIONS, _resolve_break_point, break_point_states
 
     review_by_stage = break_point_states(settings_obj.break_points)
-    return [
+    # Theme extraction isn't a pipeline stage (it runs before the engine
+    # kicks off), but the user can still ask the wizard to pause after
+    # it for review. Surface it as the first row.
+    rows: list[dict[str, Any]] = [
+        {
+            "stage_id": "theme_extract",
+            "display_name": "Theme Generation",
+            "review": _resolve_break_point("theme_extract", settings_obj.break_points),
+        }
+    ]
+    rows.extend(
         {
             "stage_id": defn["stage_id"],
             "display_name": defn["display_name"],
             "review": review_by_stage[defn["stage_id"]],
         }
         for defn in STAGE_DEFINITIONS
-    ]
+    )
+    return rows
 
 
 def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
@@ -928,6 +1043,29 @@ async def wizard_project_payload() -> JSONResponse:
     except _NoActiveProject:
         return _no_active_project_response()
     return JSONResponse(_project_payload(project))
+
+
+@router.post("/api/wizard/project/set-code")
+async def wizard_project_save_set_code(request: Request) -> JSONResponse:
+    """Live-apply set_code (cosmetic label printed on the card frame).
+
+    set_code is a top-level ProjectState field, not inside set_params,
+    so it gets its own tiny endpoint instead of riding /params. Empty
+    is allowed (the label is purely cosmetic).
+    """
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    body = await request.json()
+    raw = body.get("set_code", "")
+    if not isinstance(raw, str):
+        return JSONResponse({"error": "set_code must be a string"}, status_code=400)
+    code = raw.strip()
+    active_project.write_active_project(
+        project.model_copy(update={"set_code": code})
+    )
+    return JSONResponse({"success": True, "set_code": code})
 
 
 @router.post("/api/wizard/project/params")
@@ -1068,9 +1206,13 @@ async def wizard_project_save_break(request: Request) -> JSONResponse:
     if not isinstance(stage_id, str) or not isinstance(review, bool):
         return JSONResponse({"error": "stage_id (str) and review (bool) required"}, status_code=400)
 
-    defn = next((d for d in STAGE_DEFINITIONS if d["stage_id"] == stage_id), None)
-    if defn is None:
-        return JSONResponse({"error": f"Unknown stage_id {stage_id!r}"}, status_code=400)
+    # theme_extract is a virtual row in the break-points list (theme
+    # extraction runs before the engine kicks off, so it's not in
+    # STAGE_DEFINITIONS) — accept it explicitly.
+    if stage_id != "theme_extract":
+        defn = next((d for d in STAGE_DEFINITIONS if d["stage_id"] == stage_id), None)
+        if defn is None:
+            return JSONResponse({"error": f"Unknown stage_id {stage_id!r}"}, status_code=400)
 
     from mtgai.settings.model_settings import DEFAULT_BREAK_POINTS
 
@@ -1200,7 +1342,7 @@ async def wizard_project_save_preset(request: Request) -> JSONResponse:
 
 
 @router.post("/api/wizard/project/start")
-async def wizard_project_start() -> JSONResponse:
+async def wizard_project_start(request: Request) -> JSONResponse:
     """Kick off theme extraction for the chosen input.
 
     Three branches by ``settings.theme_input.kind``:
@@ -1230,12 +1372,35 @@ async def wizard_project_start() -> JSONResponse:
             status_code=400,
         )
 
-    if kind == "existing":
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    force = bool(body.get("force") if isinstance(body, dict) else False)
+
+    if kind == "existing" and not force:
         # Theme.json already on disk — Project Settings is done; the
         # wizard transitions to Theme without spawning an extraction.
         return JSONResponse(
             {"success": True, "extraction_started": False, "navigate_to": "/pipeline/theme"}
         )
+
+    # If theme.json already exists for this asset folder, treat it as
+    # "existing" too — the user re-loaded a project that's been through
+    # extraction before, so re-running it would discard their reviewed
+    # theme. force=true (Refresh-AI from the Theme tab) bypasses this.
+    if not force:
+        try:
+            if (set_artifact_dir() / "theme.json").exists():
+                return JSONResponse(
+                    {
+                        "success": True,
+                        "extraction_started": False,
+                        "navigate_to": "/pipeline/theme",
+                    }
+                )
+        except NoAssetFolderError:
+            pass
 
     upload_id = settings.theme_input.upload_id
     if not upload_id:
@@ -1245,7 +1410,18 @@ async def wizard_project_start() -> JSONResponse:
         )
 
     cached = _upload_cache.get(upload_id)
-    if not cached:
+    text = cached["text"] if cached else None
+    if text is None:
+        # Cache miss (server restart or TTL eviction). Fall back to the
+        # mirrored copy under the asset folder, which the upload handler
+        # writes alongside the in-memory entry.
+        try:
+            mirror = set_artifact_dir() / "theme_source.txt"
+            if mirror.exists():
+                text = mirror.read_text(encoding="utf-8")
+        except NoAssetFolderError:
+            text = None
+    if text is None:
         return JSONResponse(
             {"error": "Upload expired — please re-upload the file"},
             status_code=410,
@@ -1261,7 +1437,7 @@ async def wizard_project_start() -> JSONResponse:
 
     model_key = settings.llm_assignments.get("theme_extract", "haiku")
     extraction_run.start_run(upload_id)
-    _start_extraction_worker(upload_id, cached["text"], model_key, save_to_set=project.set_code)
+    _start_extraction_worker(upload_id, text, model_key, save_to_set=project.set_code)
     return JSONResponse(
         {
             "success": True,
@@ -1353,7 +1529,6 @@ async def project_new(request: Request) -> JSONResponse:
         return resp
     if not isinstance(body, dict):
         body = {}
-    active_project.clear_active_project()
 
     # Seed the form from the user's default preset so they don't have
     # to re-pick model assignments every New. set_params + theme_input
@@ -1363,6 +1538,15 @@ async def project_new(request: Request) -> JSONResponse:
         seeded = ModelSettings.from_preset(glob.default_preset)
     except ValueError:
         seeded = ModelSettings()
+
+    # Pin the seeded settings as the active project so subsequent edits
+    # live-apply and survive page navigation. Without this pin, the
+    # browser-side draft would be lost the moment the user opens any
+    # other page (Model Registry, etc.). set_code starts empty (purely
+    # cosmetic), set_params + theme_input + asset_folder are blank.
+    active_project.write_active_project(
+        active_project.ProjectState(set_code="", settings=seeded)
+    )
 
     registry = get_registry()
     review_by_stage = break_point_states(seeded.break_points)
@@ -1379,7 +1563,7 @@ async def project_new(request: Request) -> JSONResponse:
             "success": True,
             "draft": {
                 "set_code": "",
-                "set_params": {"set_name": "", "set_size": 60, "mechanic_count": 3},
+                "set_params": {"set_name": "", "set_size": 277, "mechanic_count": 3},
                 "theme_input": {"kind": "none"},
                 "asset_folder": "",
                 "break_points": break_points,
@@ -1476,8 +1660,8 @@ async def project_materialize(request: Request) -> JSONResponse:
     if not isinstance(body, dict):
         return JSONResponse({"error": "Invalid project body"}, status_code=400)
     raw_code = body.get("set_code", "")
-    if not isinstance(raw_code, str) or not active_project.is_valid_set_code(raw_code):
-        return JSONResponse({"error": "Invalid set_code"}, status_code=400)
+    if not isinstance(raw_code, str):
+        return JSONResponse({"error": "set_code must be a string"}, status_code=400)
     set_code = raw_code.strip()
 
     try:
@@ -1528,6 +1712,37 @@ async def project_serialize() -> JSONResponse:
             "mtg_toml": dump_project_toml(project.set_code, project.settings),
         }
     )
+
+
+@router.post("/api/wizard/project/pick-folder")
+async def wizard_project_pick_folder() -> JSONResponse:
+    """Pop a native OS folder dialog and return the picked absolute path.
+
+    Browser-only `showDirectoryPicker` hands back a sandboxed handle with
+    no real path, so we run a tkinter dialog on the local server process
+    instead — only sane because the server runs on the user's machine.
+    Returns ``{"path": "..."}`` on selection, ``{"path": null}`` if the
+    user cancelled. Runs the dialog in a worker thread so the event
+    loop isn't blocked.
+    """
+    import asyncio
+    import tkinter as tk
+    from tkinter import filedialog
+
+    def _pick() -> str:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        try:
+            return filedialog.askdirectory(parent=root, mustexist=True) or ""
+        finally:
+            root.destroy()
+
+    try:
+        path = await asyncio.to_thread(_pick)
+    except Exception as e:
+        return JSONResponse({"error": f"Folder picker failed: {e}"}, status_code=500)
+    return JSONResponse({"path": path or None})
 
 
 @router.post("/api/wizard/project/asset-folder")
