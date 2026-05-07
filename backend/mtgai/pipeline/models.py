@@ -181,11 +181,17 @@ def break_point_states(break_points: dict[str, str]) -> dict[str, bool]:
     Single source for the ``settings.break_points`` -> bool resolution
     used by the Project Settings break-points list (server-side payload)
     and the per-tab "Stop after this step" checkbox (wizard bootstrap).
+
+    ``theme_extract`` is included as a virtual entry — it isn't a pipeline
+    stage (it runs before the engine kicks off) but the Theme tab reads
+    its bit for the same per-tab checkbox the stage tabs use.
     """
-    return {
+    out = {
         defn["stage_id"]: _resolve_break_point(defn["stage_id"], break_points)
         for defn in STAGE_DEFINITIONS
     }
+    out["theme_extract"] = _resolve_break_point("theme_extract", break_points)
+    return out
 
 
 def build_stages(

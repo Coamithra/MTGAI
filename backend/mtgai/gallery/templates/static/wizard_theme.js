@@ -82,30 +82,89 @@
     return !!(W.editFlow && W.editFlow.getDraft('theme'));
   }
 
+  // Theme uses the virtual ``theme_extract`` break-point id (see
+  // server.py: theme_extract is accepted alongside the real stage_ids
+  // because theme extraction runs before the engine kicks off).
+  const THEME_BREAK_STAGE_ID = 'theme_extract';
+
+  function shouldShowThemeEditButton(state) {
+    if (!W.editFlow) return false;
+    if (!isThemePast(state)) return false;
+    if (isEditingTheme()) return false;
+    if (W.editFlow.isPipelineRunning()) return false;
+    return true;
+  }
+
   function refreshThemeHeader(root, state) {
     const headerActions = root.querySelector('[data-role="header-actions"]');
     if (!headerActions) return;
-    if (!W.editFlow || !isThemePast(state) || isEditingTheme()) {
-      // Pre-pipeline-start, or already in edit mode — no Edit button.
-      if (headerActions.querySelector('[data-role="theme-edit"]')) {
-        headerActions.innerHTML = '';
-      }
-      return;
+    // Idempotent re-render: SSE-driven rerenders fire on every
+    // stage_update / item_progress event. Use a fingerprint covering
+    // both the break-point checkbox and the Edit button visibility so
+    // we don't detach an in-flight checkbox click before its POST
+    // resolves. Mirrors wizard_stage.js's pattern.
+    const breakChecked = !!(state.breakPoints && state.breakPoints[THEME_BREAK_STAGE_ID]);
+    const editVisible = shouldShowThemeEditButton(state);
+    const fingerprint = JSON.stringify({ bp: breakChecked, editVisible });
+    if (headerActions.dataset.actionsFp === fingerprint) return;
+    headerActions.dataset.actionsFp = fingerprint;
+    const editBtn = editVisible
+      ? '<button type="button" class="wiz-btn-secondary" data-role="theme-edit">Edit</button>'
+      : '';
+    headerActions.innerHTML = themeBreakToggleHtml(breakChecked) + editBtn;
+    bindThemeBreakToggle(headerActions, state);
+    if (editVisible) {
+      headerActions.querySelector('[data-role="theme-edit"]').addEventListener(
+        'click', () => onEditClick(state),
+      );
     }
-    if (W.editFlow.isPipelineRunning()) {
-      // Pipeline running: hide the button (Accept would 409 anyway).
-      if (headerActions.querySelector('[data-role="theme-edit"]')) {
-        headerActions.innerHTML = '';
-      }
-      return;
-    }
-    if (headerActions.querySelector('[data-role="theme-edit"]')) return;
-    headerActions.innerHTML = `
-      <button type="button" class="wiz-btn-secondary" data-role="theme-edit">Edit</button>
+  }
+
+  function themeBreakToggleHtml(checked) {
+    return `
+      <label class="wiz-stage-break-toggle" title="When checked, the wizard pauses after theme extraction finishes (default).">
+        <input type="checkbox" data-role="stage-break" ${checked ? 'checked' : ''}>
+        Stop after this step
+      </label>
     `;
-    headerActions.querySelector('[data-role="theme-edit"]').addEventListener(
-      'click', () => onEditClick(state),
-    );
+  }
+
+  function bindThemeBreakToggle(container, state) {
+    const cb = container.querySelector('input[data-role="stage-break"]');
+    if (!cb) return;
+    cb.addEventListener('change', async () => {
+      const desired = cb.checked;
+      try {
+        const resp = await W.postJSON('/api/wizard/project/breaks', {
+          stage_id: THEME_BREAK_STAGE_ID,
+          review: desired,
+        });
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          W.toast(data.error || 'Save failed', 'error');
+          cb.checked = !desired;
+          return;
+        }
+        if (state.breakPoints) state.breakPoints[THEME_BREAK_STAGE_ID] = desired;
+        // Notify peer renderers (Project Settings) that a break-point
+        // bit changed so its checkbox row stays in sync without a refetch.
+        if (typeof W.onBreakPointChanged === 'function') {
+          W.onBreakPointChanged(THEME_BREAK_STAGE_ID, desired);
+        }
+      } catch (err) {
+        W.toast('Network error: ' + err.message, 'error');
+        cb.checked = !desired;
+      }
+    });
+  }
+
+  function setThemePillStatus(status) {
+    const root = document.querySelector('.wiz-tab-body[data-tab-id="theme"]');
+    if (!root) return;
+    const pill = root.querySelector('.wiz-tab-header .wiz-status-pill');
+    if (!pill) return;
+    pill.className = 'wiz-status-pill ' + status;
+    pill.textContent = status.replace(/_/g, ' ');
   }
 
   function refreshThemeBanner(root, state) {
@@ -628,12 +687,20 @@
       renderSettingPreview();
       refreshState.fullActive = false;
       setFormLocked(false);
+      setThemePillStatus('paused_for_review');
       W.toast('Theme refresh complete.', 'success');
       return;
     }
     if (name === 'theme_error' || name === 'theme_cancelled') {
       refreshState.fullActive = false;
       setFormLocked(false);
+      // Best-effort: revert the pill to paused_for_review if the
+      // textarea has any prose left (the prior theme.json carried
+      // through, or chunks streamed before failure). Otherwise leave
+      // it on 'running' until next reload — the toast tells the user
+      // what happened.
+      const ta = document.getElementById('wiz-setting');
+      if (ta && ta.value.trim()) setThemePillStatus('paused_for_review');
       W.toast(`Refresh ${name === 'theme_error' ? 'failed' : 'cancelled'}: ${(data && data.message) || ''}`, 'error');
     }
   }

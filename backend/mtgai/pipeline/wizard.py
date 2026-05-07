@@ -102,6 +102,28 @@ def _load_active_theme() -> dict[str, Any] | None:
         return None
 
 
+def _compute_theme_status(
+    state: PipelineState | None,
+    theme: dict[str, Any] | None,
+    extraction_active: bool,
+) -> str | None:
+    """Lifecycle status string for the Theme tab pill.
+
+    Mirrors the stage tab pill so Theme reads visually like every other
+    stage: ``running`` while extraction streams, ``paused_for_review``
+    once theme.json exists but the pipeline hasn't kicked off yet,
+    ``completed`` once the pipeline has taken over. ``None`` only when
+    the tab itself isn't visible.
+    """
+    if extraction_active:
+        return "running"
+    if state is not None:
+        return "completed"
+    if theme is not None:
+        return "paused_for_review"
+    return None
+
+
 def compute_visible_tabs(
     state: PipelineState | None,
     theme: dict[str, Any] | None,
@@ -120,7 +142,14 @@ def compute_visible_tabs(
         WizardTab(id=PROJECT_TAB_ID, title="Project Settings", kind="project"),
     ]
     if theme is not None or state is not None or extraction_active:
-        tabs.append(WizardTab(id=THEME_TAB_ID, title="Theme", kind="content"))
+        tabs.append(
+            WizardTab(
+                id=THEME_TAB_ID,
+                title="Theme",
+                kind="content",
+                status=_compute_theme_status(state, theme, extraction_active),
+            )
+        )
 
     if state is not None:
         latest_idx = -1

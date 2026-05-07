@@ -237,7 +237,76 @@ if (resp.status === 409 && data.running_action) {
 Long-running workers must poll `ai_lock.is_cancelled()` so the user
 can hit the cancel button on the progress strip.
 
-## 8. Sticky progress strip
+## 8. Tab status pill
+
+Every editable tab in the strip shows a status pill in its header
+matching the stage lifecycle pill that stage tabs render — `running`
+while AI work is in flight, `paused_for_review` once the tab has
+output the user is being asked to review, `completed` once the
+pipeline has moved past it, `failed` on error. The pill is rendered
+by `wizard.js` (`renderTabShell`) from `tab.status`, with CSS in
+`wizard.css` (`.wiz-tab-header .wiz-status-pill.<status>`).
+
+For stage tabs the status flows directly from
+`PipelineState.stages[i].status` and is updated in place by
+`wizard_stage.js` on each `stage_update` SSE event.
+
+For non-stage tabs (Theme today, future content tabs):
+
+* `wizard.py` computes the status at page-load time from the tab's
+  own lifecycle signals — Theme uses `extraction_active` →
+  `running`, `state is not None` → `completed`, `theme is not None`
+  → `paused_for_review`. See `_compute_theme_status` in
+  `pipeline/wizard.py`.
+* The tab module updates the pill in place on its terminal events
+  via a small helper (Theme: `setThemePillStatus` flips
+  `running` → `paused_for_review` on `theme_done`). The helper just
+  rewrites `pill.className` + `pill.textContent` — same shape that
+  `wizard_stage.js` uses for stages.
+
+The `paused_for_review` pill is the user's visual cue that this tab
+is waiting for them — pair it with the latest-tab Save & Continue
+button (§1) so the call to action and the status pill both point at
+the same gesture.
+
+## 9. "Stop after this step" toggle in tab header
+
+Every stage and content tab carries a `Stop after this step`
+checkbox in its header-actions slot (`[data-role="header-actions"]`).
+It mirrors the matching break-points entry on the Project Settings
+tab — both surfaces edit the same `settings.break_points` map, and
+toggling either keeps the other in sync via
+`window.MTGAIWizard.onBreakPointChanged`.
+
+The checkbox posts to `/api/wizard/project/breaks` with
+`{stage_id, review}`. The server accepts every stage_id in
+`STAGE_DEFINITIONS` plus the virtual `theme_extract` id (theme
+extraction runs before the engine kicks off, so it isn't a real
+stage but it has the same review semantics).
+
+Default-on stages come from `DEFAULT_BREAK_POINTS` in
+`mtgai/settings/model_settings.py` — currently `theme_extract`,
+`human_card_review`, `human_art_review`, `human_final_review`. The
+wizard bootstrap (`break_point_states` in `pipeline/models.py`)
+resolves every stage + the `theme_extract` virtual entry to a bool
+so each tab's checkbox can read its initial state without a second
+fetch.
+
+The shared CSS class is `.wiz-stage-break-toggle` (in `wizard.css`).
+Reuse it — both stage tabs (`wizard_stage.js`) and Theme
+(`wizard_theme.js`) render the toggle with the same classname /
+shape so a hover or disabled treatment lands consistently.
+
+The Project Settings tab itself is the exception: instead of one
+toggle for itself, it surfaces the **full** break-points list. There
+is no "Stop after Project Settings" — kickoff is always manual.
+
+When adding a new tab, the toggle is non-optional. A user who
+configured "Stop after Skeleton" once on Project Settings expects
+to be able to flip the same bit from the Skeleton tab itself; the
+two surfaces are facets of the same setting.
+
+## 10. Sticky progress strip
 
 The top-of-shell progress strip (`#wiz-progress-strip` in
 `wizard.js`) sticks to the viewport top via `position: sticky` so the
@@ -246,7 +315,7 @@ cancel button are populated from the SSE event stream
 (`stage_update`, `phase`, etc.). A new tab adding AI gen doesn't need
 to touch this — publish to the bus and the shell handles the strip.
 
-## 9. Bootstrap snapshot vs live state
+## 11. Bootstrap snapshot vs live state
 
 `WIZARD_STATE` (rendered into `wizard.html` by `serialize()` in
 `pipeline/wizard.py`) is a snapshot at page-load time. Specifically:
@@ -265,7 +334,7 @@ and the in-memory `state` slice on the wizard shell so any subsequent
 re-render reads the right thing — even though the bootstrap value is
 stale, downstream handlers may consume it.
 
-## 10. Misc essentials
+## 12. Misc essentials
 
 * **Toasts**: `W.toast(message, 'success'|'error'|'warn')`. Don't
   use `alert`.
