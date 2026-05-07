@@ -46,14 +46,33 @@ def _state_path() -> Path:
 
 
 def save_state(state: PipelineState) -> None:
-    """Persist pipeline state to disk."""
+    """Persist pipeline state to disk.
+
+    Atomic write via tempfile + os.replace so concurrent readers (e.g.
+    a wizard route hitting load_state mid-save) never see a truncated
+    or empty file. Plain ``write_text`` truncates first, then writes —
+    that gap can race a reader and produce JSONDecodeError.
+    """
+    import os
+    import tempfile
+
     path = _state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     state.updated_at = datetime.now(UTC)
-    path.write_text(
-        json.dumps(state.model_dump(mode="json"), indent=2, default=str),
-        encoding="utf-8",
+    payload = json.dumps(state.model_dump(mode="json"), indent=2, default=str)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=".pipeline-state-", suffix=".json.tmp", dir=str(path.parent)
     )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(payload)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def load_state() -> PipelineState | None:

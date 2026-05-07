@@ -603,8 +603,7 @@
       if (_themePreviewTimer) return;
       _themePreviewTimer = setTimeout(() => {
         _themePreviewTimer = null;
-        const preview = document.getElementById('wiz-setting-preview');
-        if (preview) preview.innerHTML = renderMarkdown(ta.value);
+        renderSettingPreview();
       }, 200);
       return;
     }
@@ -626,9 +625,7 @@
       return;
     }
     if (name === 'theme_done') {
-      const ta = document.getElementById('wiz-setting');
-      const preview = document.getElementById('wiz-setting-preview');
-      if (ta && preview) preview.innerHTML = renderMarkdown(ta.value);
+      renderSettingPreview();
       refreshState.fullActive = false;
       setFormLocked(false);
       W.toast('Theme refresh complete.', 'success');

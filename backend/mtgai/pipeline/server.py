@@ -1511,7 +1511,6 @@ async def project_new(request: Request) -> JSONResponse:
     can prompt for confirmation; with it, the in-flight action is
     cancelled before the pointer is cleared.
     """
-    from mtgai.pipeline.models import STAGE_DEFINITIONS, break_point_states
     from mtgai.settings.model_registry import get_registry
     from mtgai.settings.model_settings import (
         DEFAULT_BREAK_POINTS,
@@ -1549,15 +1548,7 @@ async def project_new(request: Request) -> JSONResponse:
     )
 
     registry = get_registry()
-    review_by_stage = break_point_states(seeded.break_points)
-    break_points = [
-        {
-            "stage_id": d["stage_id"],
-            "display_name": d["display_name"],
-            "review": review_by_stage[d["stage_id"]],
-        }
-        for d in STAGE_DEFINITIONS
-    ]
+    break_points = _break_points_payload(seeded)
     return JSONResponse(
         {
             "success": True,

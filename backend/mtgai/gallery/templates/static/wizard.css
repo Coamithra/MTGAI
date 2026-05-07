@@ -86,7 +86,7 @@
   color: #ccc;
   margin-bottom: 1rem;
   position: sticky;
-  top: 0;
+  top: var(--nav-height, 44px);
   z-index: 50;
 }
 
