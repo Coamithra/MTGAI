@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -595,14 +597,31 @@ def generate_mechanic_candidates(*, theme: dict | None = None) -> dict:
         sp.set_size,
         sp.mechanic_count,
     )
-    response = generate_with_tool(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        tool_schema=MECHANIC_TOOL_SCHEMA,
-        model=model_id,
-        temperature=1.0,
-        max_tokens=8192,
-    )
+    started = time.perf_counter()
+    response: dict[str, Any] | None = None
+    error: str | None = None
+    try:
+        response = generate_with_tool(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            tool_schema=MECHANIC_TOOL_SCHEMA,
+            model=model_id,
+            temperature=1.0,
+            max_tokens=8192,
+        )
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        raise
+    finally:
+        latency_s = time.perf_counter() - started
+        _save_generation_log(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            response=response,
+            model_id=model_id,
+            latency_s=latency_s,
+            error=error,
+        )
     mechanics = response["result"].get("mechanics") or []
     if len(mechanics) < CANDIDATE_COUNT:
         raise RuntimeError(
@@ -621,3 +640,61 @@ def generate_mechanic_candidates(*, theme: dict | None = None) -> dict:
         "output_tokens": response.get("output_tokens", 0),
         "model_id": model_id,
     }
+
+
+def _save_generation_log(
+    *,
+    system_prompt: str,
+    user_prompt: str,
+    response: dict[str, Any] | None,
+    model_id: str,
+    latency_s: float,
+    error: str | None,
+) -> None:
+    """Persist a per-call mechanic-generation log under the active project.
+
+    Path: ``<asset>/mechanics/logs/<isots>.json``. Captures full prompts,
+    raw tool result, token usage, latency, and any error so the user can
+    review what the LLM produced (and re-prompt offline if needed).
+    """
+    from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
+
+    try:
+        log_dir = set_artifact_dir() / "mechanics" / "logs"
+    except NoAssetFolderError:
+        return
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        logger.warning("Could not create mechanic-generation log dir at %s", log_dir)
+        return
+
+    timestamp = datetime.now(UTC).isoformat().replace(":", "-").replace("+00-00", "Z")
+    log_path = log_dir / f"{timestamp}.json"
+    payload: dict[str, Any] = {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "model": model_id,
+        "latency_s": round(latency_s, 2),
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt,
+    }
+    if error is not None:
+        payload["error"] = error
+    if response is not None:
+        payload.update(
+            {
+                "input_tokens": response.get("input_tokens", 0),
+                "output_tokens": response.get("output_tokens", 0),
+                "cache_creation_input_tokens": response.get("cache_creation_input_tokens", 0),
+                "cache_read_input_tokens": response.get("cache_read_input_tokens", 0),
+                "stop_reason": response.get("stop_reason", ""),
+                "raw_result": response.get("result", {}),
+            }
+        )
+    try:
+        log_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except OSError:
+        logger.warning("Could not write mechanic-generation log to %s", log_path)

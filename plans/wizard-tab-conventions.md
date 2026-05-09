@@ -362,3 +362,43 @@ stale, downstream handlers may consume it.
   per `CLAUDE.md`. Theme.json + pipeline-state.json + .mtg are the
   canonical project artifacts — render from them, don't store
   duplicate state in localStorage.
+
+## 13. Section-level Refresh AI button
+
+Every AI-generated content section gets a top-right **Refresh AI** button
+inside its section header (`.wiz-theme-section-header-row` in CSS terms —
+heading on the left, button on the right). The button is **always
+rendered**, regardless of whether the section currently has content. This
+is non-negotiable: when an AI run failed silently or was never kicked off
+(e.g. the user landed on a stage tab whose initial generation produced
+nothing), the Refresh button is the only in-tab recovery path. Without
+it, the user has to drop into the Edit cascade on a past tab to redo the
+section, which also discards downstream content unnecessarily.
+
+Behaviour:
+
+* **Section is empty** → button reads "Generate AI candidates" /
+  "Generate" / similar action verb. Click runs the same endpoint as
+  Refresh; the server branches on the empty payload to do an initial
+  generation. No confirmation dialog (nothing to overwrite).
+* **Section has content** → button reads "Refresh AI…" (ellipsis when a
+  modal will appear). Click confirms with a `confirm()` or modal when
+  the action would overwrite user edits, then calls the endpoint.
+  Preserve-on-edit (§5) still applies: only AI-flagged rows get
+  replaced.
+* **Form locked** (§3 AI gen in flight) → button `disabled` like the
+  rest of the section's interactive surfaces. Include the button in the
+  section's `setFormLocked()` selector list.
+
+References: Theme tab's three section headers + dialog (`themeBodyHtml`
+in `wizard_theme.js`); Mechanics tab's summary header
+(`paintSummary` + `onRefreshAll` in `wizard_mechanics.js`). The shared
+classes are `.wiz-theme-section-header-row` and `.wiz-refresh-btn` —
+reuse them so a hover / disabled treatment lands consistently across
+tabs.
+
+The matching server endpoint accepts both branches (initial-generate
+and partial-refresh) on the same URL; it inspects the request body
+(empty `indices` + empty content list → initial; non-empty `indices` →
+partial). One endpoint, one URL, two payload shapes — see
+`/api/wizard/mechanics/refresh-all` for the pattern.

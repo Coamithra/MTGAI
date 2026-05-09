@@ -2569,14 +2569,23 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
 
 @router.post("/api/wizard/mechanics/refresh-all")
 async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
-    """Regenerate the candidates whose indices the client passes in.
+    """Regenerate AI-flagged candidates, or kick off initial generation.
 
-    Body: ``{indices: list[int], candidates: list[dict]}``. The wizard
-    computes ``indices`` from the rows still flagged
-    ``_ai_generated: true`` so user-authored edits survive.
+    Body: ``{indices: list[int], candidates: list[dict]}``.
+
+    * Both empty → initial generation from scratch (the "Generate AI
+      candidates" button on an empty mechanics tab — used to recover
+      from a stuck/failed initial run without going back through the
+      Theme edit cascade).
+    * ``indices`` non-empty → regenerate those rows only; user-edited
+      rows in ``candidates`` survive untouched.
+
+    Returns ``collisions`` alongside ``candidates`` so the client can
+    re-render warnings without a separate state fetch.
     """
     from mtgai.generation.mechanic_generator import (
         CANDIDATE_COUNT,
+        detect_keyword_collisions,
         generate_mechanic_candidates,
     )
 
@@ -2601,7 +2610,8 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
             {"error": (f"indices must be a list of unique ints in [0, {CANDIDATE_COUNT})")},
             status_code=400,
         )
-    if not indices:
+    initial_generate = not indices and not candidates
+    if not indices and not initial_generate:
         return JSONResponse({"error": "Nothing to refresh — no AI-flagged rows"}, status_code=400)
     try:
         mech_dir = _mechanics_dir()
@@ -2618,22 +2628,32 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
             return JSONResponse({"error": str(exc)}, status_code=500)
 
         new_mechanics = response["mechanics"]
-        merged = list(candidates)
-        while len(merged) < CANDIDATE_COUNT:
-            merged.append({})
-        merged = merged[:CANDIDATE_COUNT]
-        # Replace flagged indices in order with newly-generated candidates,
-        # tagging each freshly-LLM-generated row as AI again.
-        for replace_idx, new_mech in zip(indices, new_mechanics, strict=False):
-            tagged = dict(new_mech)
-            tagged["_ai_generated"] = True
-            merged[replace_idx] = tagged
+        if initial_generate:
+            merged = []
+            for new_mech in new_mechanics[:CANDIDATE_COUNT]:
+                tagged = dict(new_mech)
+                tagged["_ai_generated"] = True
+                merged.append(tagged)
+        else:
+            merged = list(candidates)
+            while len(merged) < CANDIDATE_COUNT:
+                merged.append({})
+            merged = merged[:CANDIDATE_COUNT]
+            # Replace flagged indices in order with newly-generated
+            # candidates, tagging each freshly-LLM-generated row as AI
+            # again.
+            for replace_idx, new_mech in zip(indices, new_mechanics, strict=False):
+                tagged = dict(new_mech)
+                tagged["_ai_generated"] = True
+                merged[replace_idx] = tagged
         _write_json(mech_dir / "candidates.json", merged)
 
+    collisions = detect_keyword_collisions(merged)
     return JSONResponse(
         {
             "success": True,
             "candidates": merged,
+            "collisions": {str(idx): name for idx, name in collisions.items()},
             "model_id": response.get("model_id"),
         }
     )
@@ -2902,6 +2922,7 @@ async def get_stage_logs(stage_id: str):
 
     # Map stage_id to likely log locations
     log_paths: dict[str, list[Path]] = {
+        "mechanics": [set_dir / "mechanics" / "logs"],
         "card_gen": [set_dir / "generation_logs"],
         "ai_review": [set_dir / "reviews"],
         "skeleton_rev": [set_dir / "revision_logs"],

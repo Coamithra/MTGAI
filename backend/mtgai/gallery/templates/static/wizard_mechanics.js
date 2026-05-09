@@ -36,6 +36,7 @@
     stageStatus: 'pending',
     picks: new Set(),
     locked: false,
+    bootstrapping: false,
   };
 
   W.registerStageRenderer(STAGE_ID, render);
@@ -60,7 +61,29 @@
     }
     // Re-render path: status pill / footer reactivity. Don't repaint
     // the body — the user may be mid-edit.
+    const prevStatus = local.stageStatus;
     if (stage) local.stageStatus = stage.status;
+
+    // The stage runs LLM generation synchronously: candidates.json doesn't
+    // exist until the call returns, so an initial bootstrap that fires
+    // while the engine is mid-call sees an empty list. Re-pull state
+    // when status flips out of running so the strip refreshes once the
+    // candidates land. Gated on candidates.length===0 so we don't clobber
+    // user edits after they've appeared.
+    const justFinished =
+      stage
+      && prevStatus !== local.stageStatus
+      && local.stageStatus !== 'pending'
+      && local.stageStatus !== 'running'
+      && local.candidates.length === 0
+      && !local.bootstrapping;
+    if (justFinished) {
+      local.bootstrapping = true;
+      bootstrap(root, state)
+        .catch(err => W.toast('Failed to refresh mechanics state: ' + err.message, 'error'))
+        .finally(() => { local.bootstrapping = false; });
+      return;
+    }
     paintFooter(footer, state);
     setLocked(local.locked);
   }
@@ -123,7 +146,18 @@
     const slot = root.querySelector('[data-role="mech-summary"]');
     if (!slot) return;
     const sp = local.setParams;
+    const hasCandidates = local.candidates.length > 0;
+    const refreshLabel = hasCandidates ? 'Refresh AI…' : 'Generate AI candidates';
+    const refreshTitle = hasCandidates
+      ? 'Regenerate AI-flagged candidates (user-edited rows survive).'
+      : 'Run mechanic generation now.';
     slot.innerHTML = `
+      <div class="wiz-theme-section-header-row">
+        <h3 style="margin:0">Mechanic candidates</h3>
+        <button type="button" class="wiz-btn-secondary wiz-refresh-btn"
+                data-role="mech-refresh-summary"
+                title="${escAttr(refreshTitle)}">${escHtml(refreshLabel)}</button>
+      </div>
       <dl class="wiz-mech-context">
         <dt>Set</dt><dd>${escHtml(sp.set_name || '(unnamed)')}</dd>
         <dt>Size</dt><dd>${escHtml(String(sp.set_size || 0))} cards</dd>
@@ -132,6 +166,8 @@
       </dl>
       ${local.themeSummary ? `<details class="wiz-mech-theme-preview"><summary>Theme excerpt</summary><div class="wiz-mech-theme-text">${escHtml(local.themeSummary)}</div></details>` : ''}
     `;
+    const btn = slot.querySelector('[data-role="mech-refresh-summary"]');
+    if (btn) btn.onclick = () => onRefreshAll();
   }
 
   // ----------------------------------------------------------------------
@@ -142,11 +178,12 @@
     const slot = root.querySelector('[data-role="mech-strip"]');
     if (!slot) return;
     if (!local.candidates.length) {
+      const generating = local.stageStatus === 'running' || local.locked;
       slot.innerHTML = `
         <div class="wiz-mech-empty">
-          ${local.stageStatus === 'running'
+          ${generating
             ? 'Generating candidates… they will stream in here.'
-            : 'No candidates yet. The pipeline will generate 6 once you advance from Theme.'}
+            : 'No candidates yet. Click "Generate AI candidates" above, or advance from Theme.'}
         </div>
       `;
       return;
@@ -294,13 +331,8 @@
       return;
     }
     slot.innerHTML = `
-      <button type="button" class="wiz-btn-secondary" data-role="refresh-all">
-        Refresh all AI candidates
-      </button>
       <span class="wiz-mech-pick-count" data-role="pick-count"></span>
     `;
-    const btn = slot.querySelector('[data-role="refresh-all"]');
-    if (btn) btn.onclick = () => onRefreshAll();
     updatePickCountLabel(root);
   }
 
@@ -455,20 +487,34 @@
     if (local.locked) return;
     const root = document.querySelector('.wiz-tab-body[data-tab-id="mechanics"]');
     if (!root) return;
-    const aiIndices = Array.from(root.querySelectorAll('.wiz-mech-card[data-ai-generated="true"]'))
-      .map(card => Number(card.dataset.idx));
-    if (!aiIndices.length) {
-      W.toast('No AI-flagged rows to refresh — every candidate has been edited.', 'warn');
-      return;
-    }
-    if (local.picks.size > 0) {
-      if (!confirm('Picks are set on this strip. Refreshing will replace AI-flagged rows; user-edited rows survive. Continue?')) {
+
+    // Empty-strip path: no candidates on disk yet (initial generation
+    // failed, or the user navigated here before the engine produced
+    // anything). The button label flips to "Generate AI candidates" in
+    // that state, so skip the AI-flagged-row gate and ask the server
+    // to run a fresh generation.
+    const hasCandidates = local.candidates.length > 0;
+    let aiIndices = [];
+    if (hasCandidates) {
+      aiIndices = Array.from(root.querySelectorAll('.wiz-mech-card[data-ai-generated="true"]'))
+        .map(card => Number(card.dataset.idx));
+      if (!aiIndices.length) {
+        W.toast('No AI-flagged rows to refresh — every candidate has been edited.', 'warn');
         return;
       }
-    } else if (!confirm(`Regenerate ${aiIndices.length} AI-flagged candidate${aiIndices.length === 1 ? '' : 's'}? Edited rows stay.`)) {
-      return;
+      if (local.picks.size > 0) {
+        if (!confirm('Picks are set on this strip. Refreshing will replace AI-flagged rows; user-edited rows survive. Continue?')) {
+          return;
+        }
+      } else if (!confirm(`Regenerate ${aiIndices.length} AI-flagged candidate${aiIndices.length === 1 ? '' : 's'}? Edited rows stay.`)) {
+        return;
+      }
     }
     setLocked(true);
+    // Repaint so the empty-strip message reflects the in-flight call
+    // ("Generating candidates… they will stream in here." instead of
+    // the idle "No candidates yet" copy).
+    paintStrip(root);
     try {
       const resp = await W.postJSON('/api/wizard/mechanics/refresh-all', {
         indices: aiIndices,
@@ -484,9 +530,11 @@
         return;
       }
       local.candidates = data.candidates || local.candidates;
+      local.collisions = data.collisions || local.collisions;
+      paintSummary(root);
       paintStrip(root);
       paintStripActions(root);
-      W.toast('Candidates regenerated.', 'success');
+      W.toast(hasCandidates ? 'Candidates regenerated.' : 'Candidates generated.', 'success');
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
     } finally {
@@ -590,6 +638,7 @@
       '.wiz-mech-card .wiz-mech-chip',
       '[data-role="refresh-card"]',
       '[data-role="refresh-all"]',
+      '[data-role="mech-refresh-summary"]',
     ].join(',');
     root.querySelectorAll(sel).forEach(el => { el.disabled = !!locked; });
     const footerBtn = root.querySelector('[data-role="mech-save-advance"]');
