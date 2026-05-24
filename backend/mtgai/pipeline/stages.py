@@ -206,6 +206,111 @@ def run_mechanics(
     )
 
 
+def run_archetypes(
+    progress_cb: ProgressCallback | None,
+    emitter: StageEmitter,
+) -> StageResult:
+    """Generate the set's ten two-color draft archetypes.
+
+    Runs between ``mechanics`` and ``skeleton``. Reads ``theme.json`` +
+    ``mechanics/approved.json``, asks the LLM for one archetype per color
+    pair, writes them to ``<set>/archetypes.json``, and emits an overview
+    + a table of the picks. AUTO stage (no break point) — the engine
+    advances straight to ``skeleton`` once it finishes.
+    """
+    from mtgai.generation.archetype_generator import generate_archetypes
+    from mtgai.runtime import ai_lock
+
+    set_dir = _set_dir()
+    theme_path = set_dir / "theme.json"
+    if not theme_path.exists():
+        return StageResult(
+            success=False,
+            error_message=(
+                f"theme.json not found: {theme_path}. "
+                "Run theme extraction (Theme tab) before archetype generation."
+            ),
+        )
+    approved_path = set_dir / "mechanics" / "approved.json"
+    if not approved_path.exists():
+        return StageResult(
+            success=False,
+            error_message=(
+                f"approved.json not found: {approved_path}. "
+                "Approve mechanics (Mechanics tab) before archetype generation."
+            ),
+        )
+
+    emitter.init_sections(
+        [
+            {
+                "section_id": "overview",
+                "title": "Archetype Generation",
+                "content_type": "kv",
+                "status": "running",
+            },
+            {
+                "section_id": "archetypes",
+                "title": "Draft Archetypes",
+                "content_type": "table",
+                "status": "pending",
+            },
+        ]
+    )
+    emitter.phase("running", "Calling LLM for draft archetypes")
+
+    with ai_lock.hold("Archetype generation") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+
+        try:
+            response = generate_archetypes()
+        except Exception as exc:
+            logger.exception("Archetype generation failed")
+            return StageResult(success=False, error_message=str(exc))
+
+        archetypes = response["archetypes"]
+        archetypes_path = set_dir / "archetypes.json"
+        archetypes_path.write_text(
+            json.dumps(archetypes, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+    rows: list[list[str]] = [["Pair", "Name", "Speed", "Strategy"]]
+    for arch in archetypes:
+        rows.append(
+            [
+                str(arch.get("color_pair", "?")),
+                str(arch.get("name", "")),
+                str(arch.get("speed", "")),
+                str(arch.get("description", "")),
+            ]
+        )
+    emitter.update("archetypes", status="done", content={"rows": rows, "scrollable": True})
+
+    emitter.update(
+        "overview",
+        status="done",
+        content={
+            "Archetypes": str(len(archetypes)),
+            "Model": response.get("model_id", "?"),
+            "Tokens": (
+                f"{response.get('input_tokens', 0)} in / {response.get('output_tokens', 0)} out"
+            ),
+        },
+    )
+    emitter.phase("done", f"Generated {len(archetypes)} draft archetypes")
+
+    return StageResult(
+        total_items=len(archetypes),
+        completed_items=len(archetypes),
+        detail=f"Generated {len(archetypes)} draft archetypes",
+    )
+
+
 def run_skeleton(
     progress_cb: ProgressCallback | None,
     emitter: StageEmitter,
@@ -773,6 +878,7 @@ def run_human_final_review(
 
 STAGE_RUNNERS = {
     "mechanics": run_mechanics,
+    "archetypes": run_archetypes,
     "skeleton": run_skeleton,
     "reprints": run_reprints,
     "lands": run_lands,
@@ -842,6 +948,17 @@ def clear_mechanics() -> None:
     _remove_path(_set_dir() / "mechanics")
 
 
+def clear_archetypes() -> None:
+    """Wipe the active project's archetype artifacts.
+
+    Owns ``archetypes.json`` and the ``archetypes/`` log directory.
+    Cascading from a Mechanics / Theme / Project Settings edit drops the
+    archetype list so the next run regenerates from the new mechanics.
+    """
+    _remove_path(_set_dir() / "archetypes.json")
+    _remove_path(_set_dir() / "archetypes")
+
+
 def clear_skeleton() -> None:
     _remove_path(_set_dir() / "skeleton.json")
 
@@ -883,6 +1000,7 @@ def clear_rendering() -> None:
 
 STAGE_CLEARERS: dict[str, StageClearer] = {
     "mechanics": clear_mechanics,
+    "archetypes": clear_archetypes,
     "skeleton": clear_skeleton,
     "reprints": clear_reprints,
     "lands": _no_artifacts,

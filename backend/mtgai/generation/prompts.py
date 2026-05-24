@@ -164,15 +164,26 @@ def format_set_context(existing_cards: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def format_slot_specs(slots: list[dict], theme: dict | None = None) -> str:
+def format_slot_specs(
+    slots: list[dict],
+    theme: dict | None = None,
+    archetypes: list[dict] | None = None,
+) -> str:
     """Format a list of skeleton slots into a generation request.
 
     ``theme`` is the set theme.json dict (optional, for archetype descriptions).
+    ``archetypes``, when provided, is the TC-3 ``archetypes.json`` list and
+    overrides the theme's ``draft_archetypes`` for slot annotations. Both
+    shapes carry the same ``color_pair`` / ``name`` / ``description`` keys.
     """
+    arch_source = (
+        archetypes if archetypes is not None else (theme or {}).get("draft_archetypes", [])
+    )
     archetype_map: dict[str, str] = {}
-    if theme:
-        for arch in theme.get("draft_archetypes", []):
-            archetype_map[arch["color_pair"]] = f"{arch['name']}: {arch['description']}"
+    for arch in arch_source:
+        pair = arch.get("color_pair")
+        if pair:
+            archetype_map[pair] = f"{arch.get('name', '')}: {arch.get('description', '')}"
 
     lines: list[str] = [f"Generate exactly {len(slots)} card(s):\n"]
 
@@ -228,11 +239,14 @@ def build_user_prompt(
     mechanics: list[dict],
     existing_cards: list[dict],
     theme: dict | None = None,
+    archetypes: list[dict] | None = None,
 ) -> str:
     """Assemble the complete user prompt for a batch generation call.
 
     Includes: set flavor, relevant mechanics, preventive guidance, existing
-    card context, and slot specifications.
+    card context, and slot specifications. ``archetypes`` (the TC-3
+    ``archetypes.json`` list) overrides the theme's ``draft_archetypes``
+    when provided.
     """
     sections: list[str] = []
 
@@ -267,6 +281,6 @@ def build_user_prompt(
         sections.append(ctx)
 
     # Slot specs
-    sections.append(format_slot_specs(slots, theme))
+    sections.append(format_slot_specs(slots, theme, archetypes))
 
     return "\n\n---\n\n".join(sections)

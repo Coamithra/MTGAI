@@ -59,6 +59,20 @@ def test_clear_skeleton_removes_skeleton_json(fake_output_root: Path) -> None:
     assert not (set_dir / "skeleton.json").exists()
 
 
+def test_clear_archetypes_removes_file_and_logs(fake_output_root: Path) -> None:
+    set_dir = fake_output_root / "sets" / "TST"
+    set_dir.mkdir(parents=True)
+    (set_dir / "archetypes.json").write_text("[]", encoding="utf-8")
+    log_dir = set_dir / "archetypes" / "logs"
+    log_dir.mkdir(parents=True)
+    (log_dir / "2026.json").write_text("{}", encoding="utf-8")
+    _open_test_project("TST", set_dir)
+
+    stages_mod.clear_stage_artifacts("archetypes")
+    assert not (set_dir / "archetypes.json").exists()
+    assert not (set_dir / "archetypes").exists()
+
+
 def test_clear_card_gen_removes_cards_dir(fake_output_root: Path) -> None:
     set_dir = fake_output_root / "sets" / "TST"
     cards_dir = set_dir / "cards"
