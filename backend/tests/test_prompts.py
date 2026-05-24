@@ -81,18 +81,46 @@ def test_format_setting_prose_asd_shape() -> None:
     assert "Flavor text tone: Deadpan, darkly humorous." in block
 
 
-def test_format_setting_prose_accepts_setting_key() -> None:
-    # A setting that uses the alternate "setting" key (not "theme").
+def test_format_setting_prose_real_pipeline_shape() -> None:
+    # The shape _persist_extraction_to_theme_json actually writes: the full
+    # world document lives in "setting", with no "theme" one-liner and no
+    # "flavor_description". The prose must render as the body — NOT be
+    # crammed into the one-line "Theme:" premise slot.
+    block = prompts.format_setting_prose(
+        {
+            "code": "TRN",
+            "name": "Transformers",
+            "setting": (
+                "# World Overview\n\n"
+                "Cybertron is a metal world of sentient machines.\n\n"
+                "Two factions war over the AllSpark."
+            ),
+            "constraints": [{"text": "No humans", "source": "ai"}],
+            "card_requests": [{"text": "Optimus Prime", "source": "ai"}],
+        }
+    )
+    assert "## Set: Transformers" in block
+    assert "Cybertron is a metal world of sentient machines." in block
+    assert "Two factions war over the AllSpark." in block
+    # The multi-paragraph prose must not be mislabeled as a one-liner.
+    assert "Theme:" not in block
+
+
+def test_format_setting_prose_flavor_description_preferred_over_setting() -> None:
+    # When both are present, flavor_description is the prose body and the bare
+    # "setting" is not duplicated; only an explicit "theme" becomes the one-liner.
     block = prompts.format_setting_prose(
         {
             "name": "Brass Sky",
-            "setting": "Steampunk dragons in a clockwork sky.",
+            "theme": "Steampunk dragons in a clockwork sky.",
+            "setting": "Long-form setting text that should be superseded.",
             "flavor_description": "Floating cities tethered by brass chains.",
         }
     )
     assert "## Set: Brass Sky" in block
     assert "Theme: Steampunk dragons in a clockwork sky." in block
-    assert "Floating cities" in block
+    assert "Floating cities tethered by brass chains." in block
+    assert "should be superseded" not in block
 
 
 def test_format_setting_prose_tolerates_missing_fields() -> None:

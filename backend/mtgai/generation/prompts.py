@@ -234,23 +234,26 @@ def format_slot_specs(
 # ---------------------------------------------------------------------------
 
 
-def format_setting_prose(theme: dict) -> str:
+def format_setting_prose(theme: dict | None) -> str:
     """Build the set-flavor section from ``theme.json`` setting prose.
 
     Reads the prose fields the theme extractor writes, tolerating any
     setting's shape (no hardcoded ASD structure, no required keys):
 
     * ``name`` — display name (optional)
-    * ``theme`` / ``setting`` — the one-line premise (either key)
-    * ``flavor_description`` — the multi-paragraph setting prose
+    * ``theme`` — a one-line premise (optional; older ASD-style themes)
+    * ``setting`` / ``flavor_description`` — the multi-paragraph setting prose.
+      The pipeline (``_persist_extraction_to_theme_json``) writes the full
+      world document to ``setting``; ASD-style themes use ``flavor_description``.
     * ``flavor_text_guidelines.tone`` — flavor-text tone hint (optional)
 
     Returns an empty string when no prose is present, so the caller can
     skip the section entirely.
     """
+    theme = theme or {}
     name = (theme.get("name") or "").strip()
-    one_liner = (theme.get("theme") or theme.get("setting") or "").strip()
-    prose = (theme.get("flavor_description") or "").strip()
+    one_liner = (theme.get("theme") or "").strip()
+    prose = (theme.get("flavor_description") or theme.get("setting") or "").strip()
     guidelines = theme.get("flavor_text_guidelines") or {}
     tone = (guidelines.get("tone") or "").strip() if isinstance(guidelines, dict) else ""
 
