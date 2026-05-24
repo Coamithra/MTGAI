@@ -7,7 +7,7 @@
 - **Picking up a card?** Read `CONTRIBUTING.md` first — it's the runbook (tracker doc → worktree → research → design → implement → verify → review → ship).
 
 ## Project Structure
-- Backend: `backend/mtgai/`. Tests: `backend/tests/` (mirrors source). Research: `research/`. Learnings: `learnings/`. Plans + tracker: `plans/` (TRACKER.md is master progress).
+- Backend: `backend/mtgai/`. Tests: `backend/tests/` (mirrors source). Research: `research/`. Learnings: `learnings/`. Plans: `plans/`. Task tracking lives on Trello (see above) — `plans/TRACKER.md` is deprecated (history in git).
 - All `output/` is gitignored. Pre-existing tracked files (ASD's `cards/`, `mechanics/`, `reports/`) stay tracked; new artifacts in `output/` won't be picked up.
 
 ## Development
@@ -57,7 +57,7 @@ Card statuses: `draft → validated → approved → art_generated → rendered 
 Local models run through llmfacade's `llamacpp` provider in managed mode (lazy-spawns `llama-swap`). Registry: `backend/mtgai/settings/models.toml`. For setup, gotchas, and adding a model, see `learnings/local-llm-setup.md`. For benchmarks: `learnings/llamacpp-tc2-benchmark.md`. For the Gemma repetition-loop story: `learnings/gemma-repetition-loops.md`.
 
 ## Toolchain Buildout (in progress)
-Making MTGAI reusable for any set, not just ASD. Say "continue toolchain buildout" to resume. Remaining work tracked on Trello: TC-2 (mechanic gen) → TC-3 (archetype gen) → TC-4 (visual refs) → TC-5 (pointed questions template) → TC-6 (prompts module) → TC-7 (skeleton + configure integration).
+Making MTGAI reusable for any set, not just ASD. Say "continue toolchain buildout" to resume. Shipped: TC-1 (theme extraction), TC-2 (mechanic gen; TC-5 pointed-questions template folded in). Remaining work tracked on Trello: TC-3 (archetype gen) → TC-4 (visual refs) → TC-6 (prompts module) → TC-7 (skeleton + configure integration).
 
 ## Removed legacy pages
 Standalone pages **/theme**, **/review**, **/progress**, **/booster** were removed when the wizard subsumed their surfaces. The HTML templates, JS, and route handlers are deleted from the working tree but preserved in git history — when building out the corresponding pipeline stages (review UI, progress dashboard, booster preview), pull them back via `git show <pre-removal-sha>:backend/mtgai/gallery/templates/<name>.html` (and `static/<name>.js`) or `git checkout <sha> -- <path>`. Underlying business logic in `mtgai/review/decisions.py` and `mtgai/packs.py` was kept untouched.

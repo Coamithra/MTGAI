@@ -57,7 +57,7 @@ MTGAI/
 │   └── reports/            # HTML comparison pages, balance reports
 ├── research/               # Set design research, LLM strategy, experiments
 ├── learnings/              # Per-phase learnings documents
-├── plans/                  # Phase plans + TRACKER.md (master progress)
+├── plans/                  # Phase plans (task tracking on Trello; TRACKER.md deprecated)
 └── config/                 # Print specs, settings
 ```
 
