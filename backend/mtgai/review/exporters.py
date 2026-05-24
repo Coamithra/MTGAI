@@ -171,8 +171,9 @@ def export_print(cards: list[Card], renders_dir: Path, out_dir: Path) -> PrintEx
     """Copy each card's rendered PNG into a flat ``out_dir``.
 
     Cards without a discoverable render are recorded in ``missing`` (not fatal).
-    The copied file keeps its source filename (the card slug), so the directory
-    is ready to upload to a print service. Re-running overwrites existing copies.
+    The copied file is named after the card's slug (preserving the source
+    extension), so distinct cards never collide on filename even when their
+    source renders share a basename. Re-running overwrites existing copies.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     result = PrintExportResult(out_dir=str(out_dir))
@@ -181,6 +182,7 @@ def export_print(cards: list[Card], renders_dir: Path, out_dir: Path) -> PrintEx
         if source is None:
             result.missing.append(card.collector_number)
             continue
-        shutil.copy2(source, out_dir / source.name)
+        dest_name = f"{card_slug(card.collector_number, card.name)}{source.suffix}"
+        shutil.copy2(source, out_dir / dest_name)
         result.copied.append(card.collector_number)
     return result

@@ -287,7 +287,8 @@ class TestExportPrint:
         out = tmp_path / "print"
         result = export_print([card], renders, out)
         assert result.copied == ["C-01"]
-        assert (out / "custom.png").exists()
+        # Destination is named after the card slug, not the source basename.
+        assert (out / f"{card_slug(card.collector_number, card.name)}.png").exists()
 
     def test_respects_explicit_render_path_absolute(self, tmp_path: Path) -> None:
         abs_png = tmp_path / "elsewhere" / "abs.png"
@@ -299,7 +300,8 @@ class TestExportPrint:
         out = tmp_path / "print"
         result = export_print([card], renders, out)
         assert result.copied == ["C-02"]
-        assert (out / "abs.png").exists()
+        # Destination is named after the card slug, not the source basename.
+        assert (out / f"{card_slug(card.collector_number, card.name)}.png").exists()
 
     def test_falls_back_to_slug_when_render_path_missing(self, tmp_path: Path) -> None:
         # render_path points nowhere, but a slug render exists -> use the slug
@@ -326,6 +328,22 @@ class TestExportPrint:
         result = export_print([SAMPLE_CARDS[0]], renders, out)  # second run
         assert result.copied_count == 1
         assert len(list(out.glob("*.png"))) == 1
+
+    def test_same_basename_renders_do_not_collide(self, tmp_path: Path) -> None:
+        # Two distinct cards whose source renders share a basename must land as
+        # two distinct files (named after each card's slug), not overwrite.
+        renders = tmp_path / "renders"
+        renders.mkdir()
+        (tmp_path / "a").mkdir()
+        (tmp_path / "a" / "card.png").write_bytes(b"AAA")
+        (tmp_path / "b").mkdir()
+        (tmp_path / "b" / "card.png").write_bytes(b"BBB")
+        c1 = _make_card(collector_number="X-01", render_path=str(tmp_path / "a" / "card.png"))
+        c2 = _make_card(collector_number="X-02", render_path=str(tmp_path / "b" / "card.png"))
+        out = tmp_path / "print"
+        result = export_print([c1, c2], renders, out)
+        assert result.copied == ["X-01", "X-02"]
+        assert len(list(out.glob("*.png"))) == 2
 
     def test_result_is_pydantic_model(self, tmp_path: Path) -> None:
         renders = tmp_path / "renders"
