@@ -24,6 +24,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from mtgai.analysis.balance import analyze_set
+from mtgai.generation.archetype_generator import load_archetypes
 from mtgai.generation.card_generator import (
     CARD_TOOL_SCHEMA,
     CARDS_BATCH_TOOL_SCHEMA,
@@ -557,12 +558,16 @@ def regenerate_slots(
         logger.warning("No slots found to regenerate")
         return []
 
-    # Derive theme path from mechanics_path location
-    theme_path = mechanics_path.parent.parent / "theme.json"
+    # Derive the asset dir (and theme path) from mechanics_path location
+    asset_dir = mechanics_path.parent.parent
+    theme_path = asset_dir / "theme.json"
 
     # Load mechanics and theme
     mechanics = json.loads(mechanics_path.read_text(encoding="utf-8"))
     theme = json.loads(theme_path.read_text(encoding="utf-8"))
+    # TC-3 archetypes.json drives slot annotations when present; empty/missing
+    # falls back to theme.draft_archetypes (None lets build_user_prompt do that).
+    archetypes = load_archetypes(asset_dir) or None
 
     # Load existing cards (excluding archived ones — only what's in cards_dir)
     existing_cards: list[Card] = []
@@ -606,7 +611,7 @@ def regenerate_slots(
         from mtgai.generation.prompts import build_user_prompt
 
         existing_dicts = [c.model_dump() for c in existing_cards]
-        user_prompt = build_user_prompt(batch, mechanics, existing_dicts, theme)
+        user_prompt = build_user_prompt(batch, mechanics, existing_dicts, theme, archetypes)
 
         tool_schema = CARD_TOOL_SCHEMA if len(batch) == 1 else CARDS_BATCH_TOOL_SCHEMA
 
@@ -714,6 +719,7 @@ def regenerate_slots(
             latency_s=api_latency,
             stop_reason=result.get("stop_reason", ""),
             effort=gen_effort,
+            archetypes=archetypes,
         )
         all_saved.extend(saved)
 

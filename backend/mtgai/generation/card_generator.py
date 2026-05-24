@@ -22,6 +22,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
+from mtgai.generation.archetype_generator import load_archetypes
 from mtgai.generation.llm_client import calc_cost, cost_from_result, generate_with_tool
 from mtgai.generation.prompts import build_user_prompt, load_system_prompt
 from mtgai.io.card_io import load_card, save_card
@@ -218,6 +219,7 @@ def _retry_single_card(
     attempt: int,
     *,
     effort: str | None = None,
+    archetypes: list[dict] | None = None,
 ) -> dict | None:
     """Retry generating a single card that failed to parse.
 
@@ -231,7 +233,7 @@ def _retry_single_card(
     )
     system_prompt = load_system_prompt()
     existing_dicts = [c.model_dump() if hasattr(c, "model_dump") else c for c in existing_cards]
-    user_prompt = build_user_prompt([slot], mechanics, existing_dicts, theme)
+    user_prompt = build_user_prompt([slot], mechanics, existing_dicts, theme, archetypes)
     user_prompt += (
         f"\n\n---\n\nPREVIOUS ATTEMPT FAILED:\n{error_msg}\n\n"
         "Please generate a valid card that fixes these issues."
@@ -438,6 +440,7 @@ def _process_batch_result(
     stop_reason: str = "",
     effort: str | None = None,
     set_dir: Path | None = None,
+    archetypes: list[dict] | None = None,
 ) -> list[Card]:
     """Validate, auto-fix, and save each card from a batch result.
 
@@ -536,6 +539,7 @@ def _process_batch_result(
                 progress,
                 set_code=set_code,
                 effort=effort,
+                archetypes=archetypes,
             )
             if card is None:
                 logger.error(
@@ -606,6 +610,7 @@ def _retry_parse_failure(
     *,
     set_code: str,
     effort: str | None = None,
+    archetypes: list[dict] | None = None,
 ) -> Card | None:
     """Retry a card that completely failed schema validation (couldn't parse)."""
     for attempt in range(2, MAX_RETRIES + 1):
@@ -618,6 +623,7 @@ def _retry_parse_failure(
             model,
             attempt,
             effort=effort,
+            archetypes=archetypes,
         )
         if result is None:
             continue
@@ -747,12 +753,16 @@ def generate_set(
     skeleton = json.loads(skeleton_path.read_text(encoding="utf-8"))
     mechanics = json.loads(mechanics_path.read_text(encoding="utf-8"))
     theme = json.loads(theme_path.read_text(encoding="utf-8"))
+    # TC-3 archetypes.json drives slot annotations when present; an empty/missing
+    # file falls back to theme.draft_archetypes (None lets build_user_prompt do that).
+    archetypes = load_archetypes(set_dir) or None
 
     logger.info(
-        "Loaded: skeleton (%d slots), %d mechanics, theme '%s'",
+        "Loaded: skeleton (%d slots), %d mechanics, theme '%s', %d archetypes",
         len(skeleton["slots"]),
         len(mechanics),
         theme.get("name", "?"),
+        len(archetypes) if archetypes else 0,
     )
 
     progress = GenerationProgress(path=progress_path)
@@ -855,7 +865,7 @@ def generate_set(
             )
 
         existing_dicts = [c.model_dump() for c in existing_cards]
-        user_prompt = build_user_prompt(batch, mechanics, existing_dicts, theme)
+        user_prompt = build_user_prompt(batch, mechanics, existing_dicts, theme, archetypes)
         logger.info(
             "Prompt built: %d chars (system) + %d chars (user) = %d total",
             len(system_prompt),
@@ -981,6 +991,7 @@ def generate_set(
             stop_reason=result.get("stop_reason", ""),
             effort=active_effort,
             set_dir=set_dir,
+            archetypes=archetypes,
         )
         total_saved += len(saved)
         progress.save()

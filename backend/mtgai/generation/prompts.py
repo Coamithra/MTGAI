@@ -230,6 +230,44 @@ def format_slot_specs(
 
 
 # ---------------------------------------------------------------------------
+# Setting prose — the set's flavor section, read from theme.json
+# ---------------------------------------------------------------------------
+
+
+def format_setting_prose(theme: dict) -> str:
+    """Build the set-flavor section from ``theme.json`` setting prose.
+
+    Reads the prose fields the theme extractor writes, tolerating any
+    setting's shape (no hardcoded ASD structure, no required keys):
+
+    * ``name`` — display name (optional)
+    * ``theme`` / ``setting`` — the one-line premise (either key)
+    * ``flavor_description`` — the multi-paragraph setting prose
+    * ``flavor_text_guidelines.tone`` — flavor-text tone hint (optional)
+
+    Returns an empty string when no prose is present, so the caller can
+    skip the section entirely.
+    """
+    name = (theme.get("name") or "").strip()
+    one_liner = (theme.get("theme") or theme.get("setting") or "").strip()
+    prose = (theme.get("flavor_description") or "").strip()
+    guidelines = theme.get("flavor_text_guidelines") or {}
+    tone = (guidelines.get("tone") or "").strip() if isinstance(guidelines, dict) else ""
+
+    if not (one_liner or prose):
+        return ""
+
+    parts: list[str] = [f"## Set: {name}" if name else "## Setting"]
+    if one_liner:
+        parts.append(f"Theme: {one_liner}")
+    if prose:
+        parts.append(prose)
+    if tone:
+        parts.append(f"Flavor text tone: {tone}")
+    return "\n\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # Full user prompt assembly
 # ---------------------------------------------------------------------------
 
@@ -243,21 +281,18 @@ def build_user_prompt(
 ) -> str:
     """Assemble the complete user prompt for a batch generation call.
 
-    Includes: set flavor, relevant mechanics, preventive guidance, existing
-    card context, and slot specifications. ``archetypes`` (the TC-3
-    ``archetypes.json`` list) overrides the theme's ``draft_archetypes``
-    when provided.
+    Includes: set flavor (setting prose from ``theme.json``), relevant
+    mechanics, preventive guidance, existing card context, and slot
+    specifications. ``archetypes`` (the TC-3 ``archetypes.json`` list)
+    overrides the theme's ``draft_archetypes`` when provided.
     """
     sections: list[str] = []
 
-    # Set flavor
+    # Set flavor — setting prose, robust to any setting's theme.json shape
     if theme:
-        sections.append(
-            f"## Set: {theme['name']}\n\n"
-            f"Theme: {theme['theme']}\n\n"
-            f"{theme['flavor_description']}\n\n"
-            f"Flavor text tone: {theme.get('flavor_text_guidelines', {}).get('tone', '')}"
-        )
+        prose_block = format_setting_prose(theme)
+        if prose_block:
+            sections.append(prose_block)
 
     # Relevant mechanics
     relevant_colors: set[str] = set()
