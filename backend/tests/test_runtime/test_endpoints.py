@@ -169,7 +169,7 @@ def test_extract_stream_404_for_missing_upload(client):
 
 def test_extract_stream_busy_when_other_action_held(client):
     """Different AI action holds the lock -> 409 with busy payload."""
-    assert ai_lock.try_acquire("Some other action") is True
+    assert ai_lock.try_acquire("Some other action") is not None
     try:
         resp = client.get("/api/pipeline/theme/extract-stream?upload_id=anything")
         assert resp.status_code == 409

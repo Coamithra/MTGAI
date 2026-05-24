@@ -274,7 +274,7 @@ def _materialise_body(set_code: str) -> dict:
 
 def test_new_returns_409_when_ai_busy(client):
     """No force=true while an AI action holds the lock -> 409 + busy payload."""
-    assert ai_lock.try_acquire("Theme extraction") is True
+    assert ai_lock.try_acquire("Theme extraction") is not None
     try:
         resp = client.post("/api/project/new", json={})
         assert resp.status_code == 409
@@ -291,7 +291,7 @@ def test_new_with_force_cancels_and_proceeds(client, monkeypatch):
         active_project.ProjectState(set_code="OLD", settings=ms.ModelSettings())
     )
 
-    assert ai_lock.try_acquire("Theme extraction") is True
+    assert ai_lock.try_acquire("Theme extraction") is not None
     cancel_calls = {"n": 0}
     real_cancel = ai_lock.request_cancel
 
@@ -313,7 +313,7 @@ def test_new_with_force_cancels_and_proceeds(client, monkeypatch):
 
 def test_new_proceeds_on_drain_timeout(client, monkeypatch):
     """When the lock won't release in time, we still proceed (and log)."""
-    assert ai_lock.try_acquire("Stuck action") is True
+    assert ai_lock.try_acquire("Stuck action") is not None
     try:
         monkeypatch.setattr(active_project, "await_lock_release", lambda *a, **kw: False)
         resp = client.post("/api/project/new", json={"force": True})
@@ -327,7 +327,7 @@ def test_open_returns_409_when_ai_busy(client):
         set_params=ms.SetParams(set_name="X", set_size=60, mechanic_count=3),
     )
     text = ms.dump_project_toml("OPN", settings)
-    assert ai_lock.try_acquire("Card generation") is True
+    assert ai_lock.try_acquire("Card generation") is not None
     try:
         resp = client.post("/api/project/open", json={"toml": text})
         assert resp.status_code == 409
@@ -341,7 +341,7 @@ def test_open_with_force_proceeds(client, monkeypatch):
         set_params=ms.SetParams(set_name="X", set_size=60, mechanic_count=3),
     )
     text = ms.dump_project_toml("OPN", settings)
-    assert ai_lock.try_acquire("Card generation") is True
+    assert ai_lock.try_acquire("Card generation") is not None
 
     real_cancel = ai_lock.request_cancel
 
@@ -358,7 +358,7 @@ def test_open_with_force_proceeds(client, monkeypatch):
 
 
 def test_materialize_returns_409_when_ai_busy(client):
-    assert ai_lock.try_acquire("Background work") is True
+    assert ai_lock.try_acquire("Background work") is not None
     try:
         resp = client.post("/api/project/materialize", json=_materialise_body("MAT"))
         assert resp.status_code == 409
@@ -367,7 +367,7 @@ def test_materialize_returns_409_when_ai_busy(client):
 
 
 def test_materialize_with_force_proceeds(client, monkeypatch):
-    assert ai_lock.try_acquire("Background work") is True
+    assert ai_lock.try_acquire("Background work") is not None
 
     real_cancel = ai_lock.request_cancel
 
