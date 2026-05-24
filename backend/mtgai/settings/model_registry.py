@@ -114,6 +114,16 @@ class ModelRegistry:
             len(registry.llm_models),
             len(registry.image_models),
         )
+
+        # Flag any all-GPU (n_gpu_layers=-1) llamacpp entry whose weights + KV
+        # cache would overrun VRAM: WARN above 85% of free VRAM, over-budget
+        # (>100% of total VRAM) logs an ERROR and — only under
+        # MTGAI_VRAM_CHECK_STRICT — raises VramRiskError. Silently skipped where
+        # it can't measure (gguf absent / no GPU) so it never bricks load.
+        from mtgai.settings.vram_estimate import check_vram_risk
+
+        check_vram_risk(registry.llm_models)
+
         return registry
 
     def get_llm(self, key: str) -> LLMModel | None:
