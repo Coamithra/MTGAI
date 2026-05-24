@@ -4,9 +4,10 @@ Commands:
   list   — Filter and list skeleton slots
   show   — Show detail for a single slot/card
   stats  — Set-level statistics dashboard
+  export — Export finished cards (csv / json / print)
 
 Phase 3A stubs:
-  approve, reject, flag, compare, export, art, gallery
+  approve, reject, flag, compare, art, gallery
 """
 
 import logging
@@ -514,6 +515,109 @@ def serve(
 
 
 # ---------------------------------------------------------------------------
+# review export (CSV / JSON / print)
+# ---------------------------------------------------------------------------
+
+export_app = typer.Typer(
+    name="export",
+    help="Export finished cards to CSV, JSON, or a flat directory of renders.",
+    no_args_is_help=True,
+)
+app.add_typer(export_app, name="export")
+
+
+def _load_cards_for_export(set_code: str):
+    """Load cards for export, surfacing path errors as a clean CLI exit.
+
+    Returns the loaded cards. Exits 1 if no project/asset folder is open.
+    """
+    from mtgai.io.asset_paths import NoAssetFolderError
+    from mtgai.review.loaders import load_cards
+
+    try:
+        return load_cards(set_code)
+    except NoAssetFolderError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from None
+
+
+@export_app.command("csv")
+def export_csv_cmd(
+    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code to export.")] = "ASD",
+    out: Annotated[str, typer.Option("--out", "-o", help="Output CSV file path.")] = "cards.csv",
+) -> None:
+    """Export cards to a flat CSV spreadsheet (one row per card, key fields)."""
+    from pathlib import Path
+
+    from mtgai.review.exporters import export_csv
+
+    cards = _load_cards_for_export(set_code)
+    if not cards:
+        console.print(f"[yellow]No cards found for set {set_code}; nothing to export.[/yellow]")
+        raise typer.Exit(0)
+
+    out_path = Path(out)
+    count = export_csv(cards, out_path)
+    console.print(f"[green]Exported {count} card(s)[/green] to {out_path}")
+
+
+@export_app.command("json")
+def export_json_cmd(
+    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code to export.")] = "ASD",
+    out: Annotated[str, typer.Option("--out", "-o", help="Output JSON file path.")] = "cards.json",
+) -> None:
+    """Export full card data to a single JSON file (list of card objects)."""
+    from pathlib import Path
+
+    from mtgai.review.exporters import export_json
+
+    cards = _load_cards_for_export(set_code)
+    if not cards:
+        console.print(f"[yellow]No cards found for set {set_code}; nothing to export.[/yellow]")
+        raise typer.Exit(0)
+
+    out_path = Path(out)
+    count = export_json(cards, out_path)
+    console.print(f"[green]Exported {count} card(s)[/green] to {out_path}")
+
+
+@export_app.command("print")
+def export_print_cmd(
+    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code to export.")] = "ASD",
+    out: Annotated[
+        str, typer.Option("--out", "-o", help="Output directory for copied renders.")
+    ] = "print/",
+) -> None:
+    """Copy all rendered card PNGs into a flat directory for print upload."""
+    from pathlib import Path
+
+    from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
+    from mtgai.review.exporters import export_print
+
+    cards = _load_cards_for_export(set_code)
+    if not cards:
+        console.print(f"[yellow]No cards found for set {set_code}; nothing to export.[/yellow]")
+        raise typer.Exit(0)
+
+    try:
+        renders_dir = set_artifact_dir() / "renders"
+    except NoAssetFolderError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from None
+
+    out_dir = Path(out)
+    result = export_print(cards, renders_dir, out_dir)
+    console.print(
+        f"[green]Copied {result.copied_count} render(s)[/green] to {out_dir}"
+        f"  |  [yellow]Missing: {result.missing_count}[/yellow]"
+    )
+    if result.missing:
+        preview = ", ".join(result.missing[:10])
+        more = "" if result.missing_count <= 10 else f" (+{result.missing_count - 10} more)"
+        console.print(f"[dim]No render for:[/dim] {preview}{more}")
+
+
+# ---------------------------------------------------------------------------
 # Phase 3A stubs
 # ---------------------------------------------------------------------------
 
@@ -539,12 +643,6 @@ def flag() -> None:
 @app.command("compare")
 def compare() -> None:
     """Compare multiple generation attempts for a card. (Phase 3A)"""
-    console.print("[yellow]Not yet implemented -- Phase 3A[/yellow]")
-
-
-@app.command("export")
-def export() -> None:
-    """Export cards for print or Tabletop Simulator. (Phase 3A)"""
     console.print("[yellow]Not yet implemented -- Phase 3A[/yellow]")
 
 
