@@ -210,3 +210,17 @@ def test_build_user_prompt_no_theme_omits_flavor() -> None:
     assert "## Set:" not in prompt
     assert "## Setting" not in prompt
     assert "Generate exactly 1 card(s)" in prompt
+
+
+def test_build_user_prompt_proseless_theme_omits_flavor() -> None:
+    # A truthy-but-prose-less theme (only metadata, no theme/flavor) must
+    # still skip the flavor section — exercises the `if prose_block:` guard.
+    prompt = prompts.build_user_prompt(
+        [_wu_slot()],
+        _mechanics(),
+        existing_cards=[],
+        theme={"name": "Nameless", "code": "NUL"},
+    )
+    assert "## Set:" not in prompt
+    assert "## Setting" not in prompt
+    assert "Generate exactly 1 card(s)" in prompt
