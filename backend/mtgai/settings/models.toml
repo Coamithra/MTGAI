@@ -79,20 +79,6 @@ supports_vision = false
 supports_caching = false
 n_gpu_layers = -1
 
-[llm.qwen3-4b]
-name = "Qwen 3.5 4B (Local)"
-provider = "llamacpp"
-model_id = "qwen3.5-4b"
-gguf_path = "C:/Models/qwen3.5-4b.gguf"
-tier = 0
-input_price = 0.00
-output_price = 0.00
-context_window = 32768
-supports_effort = false
-supports_vision = false
-supports_caching = false
-n_gpu_layers = -1
-
 [llm.phi4-mini]
 name = "Phi-4 Mini (Local)"
 provider = "llamacpp"

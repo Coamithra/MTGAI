@@ -45,7 +45,7 @@ Reference numbers without MTGAI/llmfacade in the loop. `pp512` = prompt-eval thr
 | llama3.2-3b | 11,158 | 182.4 | 5.7 | |
 | qwen2.5-3b | 11,370 | 184.8 | 5.0 | |
 | phi4-mini | 10,313 | 153.5 | 6.6 | |
-| qwen3.5-4b | — | — | — | **GGUF won't load** — `failed to load model`. Ollama-bundled qwen3.5-4b blob is incompatible. Replace with [Unsloth's Q4_K_M](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF). |
+| qwen3.5-4b | — | — | — | **GGUF won't load** — `failed to load model`. Ollama-bundled qwen3.5-4b blob is incompatible. Resolved 2026-05-24: registry entry removed, no replacement (standardized on Gemma for local LLM). |
 | qwen2.5-14b | 2,904 | 48.9 | 20.8 | Solid middle-tier |
 | vlad-gemma4-26b-dynamic | 486 | 28.9 | 36.7 | Slowest as expected for 14 GB-class on a 12 GB card |
 
@@ -142,10 +142,10 @@ Root cause not investigated. Likely candidates: llmfacade caches the YAML state 
 
 The registry could warn (or refuse) when a llamacpp entry has `n_gpu_layers = -1` and a `cache_type_k` that, combined with the model's weight size and context_window, would exceed available VRAM. Cheaper than auto-placement, catches the footgun at startup.
 
-### qwen3.5-4b GGUF replacement
+### qwen3.5-4b GGUF replacement — RESOLVED (won't-fix), 2026-05-24
 > Trello: [Replace broken qwen3.5-4b GGUF](https://trello.com/c/2fW80Rcy)
 
-Existing `C:\Models\qwen3.5-4b.gguf` (3.39 GB, source unknown — pre-dates the migration audit) fails to load in llama.cpp. Replace with [Unsloth Q4_K_M](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/blob/main/Qwen3.5-4B-Q4_K_M.gguf) (2.74 GB) or UD-Q4_K_XL variant.
+The `C:\Models\qwen3.5-4b.gguf` (3.39 GB, source unknown — pre-dated the migration audit) failed to load in llama.cpp. No replacement was downloaded: local LLM was standardized on Gemma, so a 4B Qwen tier added no value. The dead `qwen35-4b` registry entry (`models.toml`) and its `gguf_path` references (`benchmark_llama_bench.py`) were removed. The on-disk broken GGUF is a manual cleanup on the user's local store.
 
 ### Phase D coverage gap
 

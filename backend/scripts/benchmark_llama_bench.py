@@ -33,7 +33,6 @@ DEFAULT_GGUFS: list[Path] = [
     Path("C:/Models/llama3.2-3b.gguf"),
     Path("C:/Models/qwen2.5-3b.gguf"),
     Path("C:/Models/phi4-mini.gguf"),
-    Path("C:/Models/qwen3.5-4b.gguf"),
     Path("C:/Models/qwen2.5-14b.gguf"),
     Path("C:/Models/vlad-gemma4-26b-dynamic.gguf"),
 ]
