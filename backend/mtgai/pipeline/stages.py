@@ -311,6 +311,114 @@ def run_archetypes(
     )
 
 
+def run_visual_refs(
+    progress_cb: ProgressCallback | None,
+    emitter: StageEmitter,
+) -> StageResult:
+    """Extract the set's visual reference sheet from setting prose.
+
+    Runs between ``archetypes`` and ``skeleton``. Reads ``theme.json``,
+    asks the LLM for concrete appearance descriptions of every
+    setting-specific entity (characters, creature types, factions,
+    landmarks) plus set-wide visual motifs, and writes them to
+    ``<set>/art-direction/visual-references.json`` — the per-project file
+    the art pipeline (``art/visual_reference.py``,
+    ``art/character_portraits.py``) already consumes. AUTO stage (no
+    break point) — the engine advances straight to ``skeleton``.
+    """
+    from mtgai.art.visual_reference_extractor import generate_visual_references
+    from mtgai.runtime import ai_lock
+
+    set_dir = _set_dir()
+    theme_path = set_dir / "theme.json"
+    if not theme_path.exists():
+        return StageResult(
+            success=False,
+            error_message=(
+                f"theme.json not found: {theme_path}. "
+                "Run theme extraction (Theme tab) before visual-reference extraction."
+            ),
+        )
+
+    emitter.init_sections(
+        [
+            {
+                "section_id": "overview",
+                "title": "Visual References",
+                "content_type": "kv",
+                "status": "running",
+            },
+            {
+                "section_id": "categories",
+                "title": "Extracted Entities",
+                "content_type": "table",
+                "status": "pending",
+            },
+        ]
+    )
+    emitter.phase("running", "Calling LLM for visual references")
+
+    with ai_lock.hold("Visual-reference extraction") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+
+        try:
+            response = generate_visual_references()
+        except Exception as exc:
+            logger.exception("Visual-reference extraction failed")
+            return StageResult(success=False, error_message=str(exc))
+
+        references = response["references"]
+        art_dir = set_dir / "art-direction"
+        art_dir.mkdir(parents=True, exist_ok=True)
+        refs_path = art_dir / "visual-references.json"
+        refs_path.write_text(
+            json.dumps(references, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+    category_labels: list[tuple[str, str]] = [
+        ("legendary_characters", "Legendary Characters"),
+        ("creature_types", "Creature Types"),
+        ("factions", "Factions"),
+        ("landmarks", "Landmarks"),
+    ]
+    rows: list[list[str]] = [["Category", "Count", "Entities"]]
+    total_entities = 0
+    for key, label in category_labels:
+        entries = references.get(key) or {}
+        total_entities += len(entries)
+        names = ", ".join(sorted(entries.keys()))
+        rows.append([label, str(len(entries)), names])
+    emitter.update("categories", status="done", content={"rows": rows, "scrollable": True})
+
+    motifs = references.get("visual_motifs") or []
+    replacements = references.get("flux_term_replacements") or {}
+    emitter.update(
+        "overview",
+        status="done",
+        content={
+            "Entities": str(total_entities),
+            "Flux term replacements": str(len(replacements)),
+            "Visual motifs": str(len(motifs)),
+            "Model": response.get("model_id", "?"),
+            "Tokens": (
+                f"{response.get('input_tokens', 0)} in / {response.get('output_tokens', 0)} out"
+            ),
+        },
+    )
+    emitter.phase("done", f"Extracted {total_entities} visual references")
+
+    return StageResult(
+        total_items=total_entities,
+        completed_items=total_entities,
+        detail=f"Extracted {total_entities} visual references",
+    )
+
+
 def run_skeleton(
     progress_cb: ProgressCallback | None,
     emitter: StageEmitter,
@@ -879,6 +987,7 @@ def run_human_final_review(
 STAGE_RUNNERS = {
     "mechanics": run_mechanics,
     "archetypes": run_archetypes,
+    "visual_refs": run_visual_refs,
     "skeleton": run_skeleton,
     "reprints": run_reprints,
     "lands": run_lands,
@@ -959,6 +1068,20 @@ def clear_archetypes() -> None:
     _remove_path(_set_dir() / "archetypes")
 
 
+def clear_visual_refs() -> None:
+    """Wipe the active project's visual-reference artifacts.
+
+    Owns ``art-direction/visual-references.json`` and the
+    ``art-direction/logs/`` directory. The surrounding ``art-direction/``
+    folder also holds ``character-refs/`` (owned by ``char_portraits``),
+    so this clearer deletes only the file + logs it produced, never the
+    whole folder. Cascading from a Theme / Project Settings edit drops the
+    references so the next run regenerates from the new prose.
+    """
+    _remove_path(_set_dir() / "art-direction" / "visual-references.json")
+    _remove_path(_set_dir() / "art-direction" / "logs")
+
+
 def clear_skeleton() -> None:
     _remove_path(_set_dir() / "skeleton.json")
 
@@ -1001,6 +1124,7 @@ def clear_rendering() -> None:
 STAGE_CLEARERS: dict[str, StageClearer] = {
     "mechanics": clear_mechanics,
     "archetypes": clear_archetypes,
+    "visual_refs": clear_visual_refs,
     "skeleton": clear_skeleton,
     "reprints": clear_reprints,
     "lands": _no_artifacts,

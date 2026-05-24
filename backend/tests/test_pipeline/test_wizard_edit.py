@@ -104,14 +104,15 @@ def _seed_state(code: str, *, overall_status: PipelineStatus) -> PipelineState:
 def test_preview_lists_completed_downstream_stages(client):
     _make_set("ASD", theme={"code": "ASD", "name": "Test"})
     state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
-    # Indices shift past mechanics (stages[0]) + archetypes (stages[1]);
-    # skeleton/reprints/lands are stages[2..4] in the post-TC-3 ordering.
-    state.stages[2].status = StageStatus.COMPLETED
-    state.stages[2].progress.completed_items = 60
+    # Indices shift past mechanics (stages[0]) + archetypes (stages[1]) +
+    # visual_refs (stages[2]); skeleton/reprints/lands are stages[3..5] in
+    # the post-TC-4 ordering.
     state.stages[3].status = StageStatus.COMPLETED
-    state.stages[3].progress.completed_items = 5
-    state.stages[4].status = StageStatus.PAUSED_FOR_REVIEW
-    state.stages[4].progress.completed_items = 6
+    state.stages[3].progress.completed_items = 60
+    state.stages[4].status = StageStatus.COMPLETED
+    state.stages[4].progress.completed_items = 5
+    state.stages[5].status = StageStatus.PAUSED_FOR_REVIEW
+    state.stages[5].progress.completed_items = 6
     save_state(state)
 
     resp = client.post(
@@ -132,9 +133,9 @@ def test_preview_lists_completed_downstream_stages(client):
 def test_preview_skips_pending_stages(client):
     _make_set("ASD", theme={"code": "ASD"})
     state = _seed_state("ASD", overall_status=PipelineStatus.NOT_STARTED)
-    # Mark skeleton (stages[2] post-TC-3) COMPLETED; mechanics + archetypes +
-    # downstream stay PENDING and should be excluded from the cleared list.
-    state.stages[2].status = StageStatus.COMPLETED
+    # Mark skeleton (stages[3] post-TC-4) COMPLETED; mechanics + archetypes +
+    # visual_refs + downstream stay PENDING and excluded from the cleared list.
+    state.stages[3].status = StageStatus.COMPLETED
     save_state(state)
 
     resp = client.post(
@@ -195,14 +196,15 @@ def test_accept_cascades_artifacts_and_resets_stages(client, no_thread_start):
     (cards / "001_foo.json").write_text("{}", encoding="utf-8")
 
     state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
-    # Post-TC-3 ordering: mechanics[0], archetypes[1], skeleton[2],
-    # reprints[3], lands[4], card_gen[5].
+    # Post-TC-4 ordering: mechanics[0], archetypes[1], visual_refs[2],
+    # skeleton[3], reprints[4], lands[5], card_gen[6].
     state.stages[0].status = StageStatus.COMPLETED  # mechanics (upstream of cascade)
     state.stages[1].status = StageStatus.COMPLETED  # archetypes (upstream of cascade)
-    state.stages[2].status = StageStatus.COMPLETED  # skeleton
-    state.stages[3].status = StageStatus.COMPLETED  # reprints
-    state.stages[5].status = StageStatus.PAUSED_FOR_REVIEW  # card_gen
-    state.current_stage_id = state.stages[5].stage_id
+    state.stages[2].status = StageStatus.COMPLETED  # visual_refs (upstream of cascade)
+    state.stages[3].status = StageStatus.COMPLETED  # skeleton
+    state.stages[4].status = StageStatus.COMPLETED  # reprints
+    state.stages[6].status = StageStatus.PAUSED_FOR_REVIEW  # card_gen
+    state.current_stage_id = state.stages[6].stage_id
     save_state(state)
 
     resp = client.post(
@@ -238,7 +240,7 @@ def test_accept_from_theme_resets_all_pipeline_stages(client, no_thread_start):
     (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
 
     state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
-    state.stages[2].status = StageStatus.COMPLETED  # skeleton (post-TC-3 ordering)
+    state.stages[3].status = StageStatus.COMPLETED  # skeleton (post-TC-4 ordering)
     save_state(state)
 
     resp = client.post(
@@ -491,9 +493,9 @@ def test_resolve_edit_point_returns_stage_index():
     state = create_pipeline_state(
         PipelineConfig(set_code="ASD", set_name="ASD", set_size=20),
     )
-    # card_gen is the 6th stage (index 5) per STAGE_DEFINITIONS post-TC-3:
-    # mechanics, archetypes, skeleton, reprints, lands, card_gen.
-    assert pipeline_server._resolve_edit_point("card_gen", state) == 5
+    # card_gen is the 7th stage (index 6) per STAGE_DEFINITIONS post-TC-4:
+    # mechanics, archetypes, visual_refs, skeleton, reprints, lands, card_gen.
+    assert pipeline_server._resolve_edit_point("card_gen", state) == 6
 
 
 def test_resolve_edit_point_raises_for_unknown_stage():

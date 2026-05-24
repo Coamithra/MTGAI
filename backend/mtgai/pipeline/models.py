@@ -146,6 +146,7 @@ class PipelineState(BaseModel):
 STAGE_DEFINITIONS: list[dict] = [
     {"stage_id": "mechanics", "display_name": "Mechanic Generation", "review_eligible": True},
     {"stage_id": "archetypes", "display_name": "Archetype Generation", "review_eligible": True},
+    {"stage_id": "visual_refs", "display_name": "Visual References", "review_eligible": True},
     {"stage_id": "skeleton", "display_name": "Skeleton Generation", "review_eligible": True},
     {"stage_id": "reprints", "display_name": "Reprint Selection", "review_eligible": True},
     {"stage_id": "lands", "display_name": "Land Generation", "review_eligible": False},

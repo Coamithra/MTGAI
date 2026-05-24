@@ -1,0 +1,12 @@
+Read the setting prose above and extract the visual reference sheet for this set.
+
+Produce one entry per setting-specific entity (named characters, custom creature types/races, factions with a shared look, and notable landmarks), each with:
+- `category`: legendary_character | creature_type | faction | landmark
+- `key`: short lowercase identifier
+- `name`: proper display name
+- `visual_description`: 2-5 sentences of concrete, renderable appearance (no backstory). Legendary characters start with "Name: " then the description.
+- `flux_replacement`: optional short generic phrase, only for invented words.
+
+Then produce `visual_motifs`: 4-8 short set-wide art-direction notes (colors, materials, lighting, architecture, overall aesthetic).
+
+Cover every named character and every setting-specific creature type the prose mentions. Be vivid and concrete — the art model renders exactly what you write.
