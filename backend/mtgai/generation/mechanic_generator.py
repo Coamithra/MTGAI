@@ -71,12 +71,7 @@ MECHANIC_TOOL_SCHEMA: dict = {
                         "reminder_text",
                         "colors",
                         "complexity",
-                        "flavor_connection",
                         "design_rationale",
-                        "common_patterns",
-                        "uncommon_patterns",
-                        "rare_patterns",
-                        "example_cards",
                         "distribution",
                     ],
                     "properties": {
@@ -111,59 +106,9 @@ MECHANIC_TOOL_SCHEMA: dict = {
                             "maximum": 3,
                             "description": "1=common-viable, 2=uncommon+, 3=rare+",
                         },
-                        "flavor_connection": {
-                            "type": "string",
-                            "description": "How the mechanic connects to set flavor",
-                        },
                         "design_rationale": {
                             "type": "string",
                             "description": "Why this mechanic is good for the set",
-                        },
-                        "common_patterns": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Rules text patterns for common cards",
-                        },
-                        "uncommon_patterns": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Rules text patterns for uncommon cards",
-                        },
-                        "rare_patterns": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Rules text patterns for rare/mythic cards",
-                        },
-                        "example_cards": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "required": [
-                                    "name",
-                                    "mana_cost",
-                                    "type_line",
-                                    "oracle_text",
-                                    "rarity",
-                                ],
-                                "properties": {
-                                    "name": {"type": "string"},
-                                    "mana_cost": {"type": "string"},
-                                    "type_line": {"type": "string"},
-                                    "oracle_text": {"type": "string"},
-                                    "power": {"type": "string"},
-                                    "toughness": {"type": "string"},
-                                    "rarity": {
-                                        "type": "string",
-                                        "enum": [
-                                            "common",
-                                            "uncommon",
-                                            "rare",
-                                            "mythic",
-                                        ],
-                                    },
-                                },
-                            },
-                            "description": "2-3 example cards using this mechanic",
                         },
                         "distribution": {
                             "type": "object",
@@ -333,19 +278,33 @@ def build_mechanic_prompts(
 
 
 def _format_already_designed(accepted: list[dict]) -> str:
-    """Render the accepted-so-far mechanics as a 'do not repeat' block."""
+    """Render the accepted-so-far mechanics as a rich 'vary from these' block.
+
+    Since the trimmed output schema freed up the token budget, we surface
+    the full picture of each prior mechanic — colors, complexity, type,
+    reminder text, rationale — so the model can *see* the distribution so
+    far (e.g. "all complexity 1, all UBR") and deliberately diverge instead
+    of clustering.
+    """
     if not accepted:
         return "No mechanics have been designed yet — this is the first candidate."
-    lines = ["Mechanics already designed (do NOT repeat these or their mechanical space):"]
-    for m in accepted:
+    lines = [
+        "Mechanics already designed for this set so far. Your new mechanic must be "
+        "clearly DISTINCT from all of these — deliberately vary the color identity, "
+        "complexity, and mechanical space; do NOT cluster around what is already here:",
+    ]
+    for i, m in enumerate(accepted, 1):
         name = m.get("name") or "?"
-        colors = "".join(m.get("colors") or []) or "—"
-        cx = m.get("complexity")
-        rationale = (m.get("design_rationale") or m.get("flavor_connection") or "").strip()
-        if len(rationale) > 120:
-            rationale = rationale[:117] + "…"
-        suffix = f" — {rationale}" if rationale else ""
-        lines.append(f"- {name} ({colors}, complexity {cx}){suffix}")
+        colors = "".join(m.get("colors") or []) or "colorless"
+        cx = m.get("complexity", "?")
+        ktype = m.get("keyword_type") or "?"
+        lines.append(f"{i}. {name} — {colors}, complexity {cx}, {ktype}")
+        reminder = (m.get("reminder_text") or "").strip()
+        if reminder:
+            lines.append(f"   text: {reminder}")
+        rationale = (m.get("design_rationale") or "").strip()
+        if rationale:
+            lines.append(f"   rationale: {rationale}")
     return "\n".join(lines)
 
 
@@ -416,7 +375,7 @@ def _is_valid_candidate(m: Any, seen_names: set[str]) -> bool:
         return False
     # A real mechanic carries design metadata an example card never would;
     # this distinguishes it from promoted example-card debris.
-    return bool(m.get("reminder_text") or m.get("design_rationale") or m.get("common_patterns"))
+    return bool(m.get("reminder_text") or m.get("design_rationale"))
 
 
 # ---------------------------------------------------------------------------
@@ -606,10 +565,6 @@ _APPROVED_FIELDS: tuple[str, ...] = (
     "reminder_text",
     "colors",
     "complexity",
-    "flavor_connection",
-    "common_patterns",
-    "uncommon_patterns",
-    "rare_patterns",
     "distribution",
 )
 
@@ -617,9 +572,11 @@ _APPROVED_FIELDS: tuple[str, ...] = (
 def candidate_to_approved(candidate: dict) -> dict:
     """Project a candidate dict to the on-disk ``approved.json`` shape.
 
+    * Copies the ``_APPROVED_FIELDS`` whitelist (name, keyword_type,
+      reminder_text, colors, complexity, distribution) — anything else the
+      candidate carries is dropped.
     * Renames ``design_rationale`` → ``design_notes`` (downstream
       consumers read ``design_notes``).
-    * Drops ``example_cards`` (UI-only).
     * Synthesises ``rarity_range`` from non-zero ``distribution`` rarities
       so AI-review prompts have it.
     """

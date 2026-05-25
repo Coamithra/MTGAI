@@ -6,14 +6,14 @@ This is candidate #{position} of {target} we are collecting; we will ultimately 
 
 Requirements for THIS mechanic:
 - It MUST be DISTINCT from every mechanic already designed above — a genuinely different mechanical space, not a re-skin or minor variation.
+- DELIBERATELY VARY from the ones above: pick a different color identity and a different complexity than the cluster already designed (the set needs a spread, not six near-identical mechanics). If they are all simple, design a richer complexity-2 or complexity-3 one; if they all share colors, branch into the under-used colors.
 - Must fit the set's theme and flavor (see system prompt) and support 2+ of the set's draft archetypes.
-- Provide 2-3 example cards across different rarities, each with complete, valid MTG templating (mana cost, type line, oracle text).
 {needed_hint}
 
 Think carefully about:
 1. How the mechanic plays in Limited — is it fun, does it create interesting decisions?
 2. How it reinforces the set's themes and flavor.
-3. How it differs from the mechanics already designed (avoid overlap).
+3. How it differs from the mechanics already designed in space, color, and complexity (avoid overlap).
 4. Whether it has design space for {expected_mechanic_density} cards in a {set_size}-card set.
 
 Return exactly one mechanic in the tool call.

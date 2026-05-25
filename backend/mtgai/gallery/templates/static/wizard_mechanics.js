@@ -266,22 +266,8 @@
           </div>
         </div>
         <details class="wiz-mech-details">
-          <summary>Why this fits the set</summary>
-          <p>${escHtml(m.flavor_connection || '(no flavor connection given)')}</p>
-        </details>
-        <details class="wiz-mech-details">
           <summary>Design rationale</summary>
           <p>${escHtml(m.design_rationale || '(no rationale given)')}</p>
-        </details>
-        <details class="wiz-mech-details">
-          <summary>Pattern lists (common / uncommon / rare)</summary>
-          ${patternListHtml('Common', m.common_patterns)}
-          ${patternListHtml('Uncommon', m.uncommon_patterns)}
-          ${patternListHtml('Rare/Mythic', m.rare_patterns)}
-        </details>
-        <details class="wiz-mech-details">
-          <summary>Example cards (${(m.example_cards || []).length})</summary>
-          ${(m.example_cards || []).map(exampleCardHtml).join('') || '<p>(none)</p>'}
         </details>
         <footer class="wiz-mech-card-footer">
           <button type="button" class="wiz-btn-secondary" data-role="refresh-card"
@@ -295,28 +281,6 @@
 
   function chipHtml(value, label, active) {
     return `<button type="button" class="wiz-mech-chip${active ? ' active' : ''}" data-value="${escAttr(value)}">${escHtml(label)}</button>`;
-  }
-
-  function patternListHtml(label, items) {
-    const list = (Array.isArray(items) ? items : []);
-    if (!list.length) return `<p><em>${escHtml(label)}:</em> (none)</p>`;
-    return `
-      <p><em>${escHtml(label)}:</em></p>
-      <ul>${list.map(p => `<li>${escHtml(String(p))}</li>`).join('')}</ul>
-    `;
-  }
-
-  function exampleCardHtml(card) {
-    if (!card || typeof card !== 'object') return '';
-    const pt = card.power && card.toughness ? ` ${escHtml(card.power)}/${escHtml(card.toughness)}` : '';
-    return `
-      <div class="wiz-mech-example">
-        <strong>${escHtml(card.name || '?')}</strong> ${escHtml(card.mana_cost || '')} —
-        <em>${escHtml(card.type_line || '')}</em>${pt}
-        <span class="wiz-mech-rarity">[${escHtml(card.rarity || '?')}]</span>
-        <p>${escHtml(card.oracle_text || '')}</p>
-      </div>
-    `;
   }
 
   // ----------------------------------------------------------------------

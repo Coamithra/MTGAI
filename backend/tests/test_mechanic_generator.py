@@ -182,7 +182,10 @@ def test_candidate_to_approved_renames_design_rationale_and_drops_examples() -> 
     approved = mg.candidate_to_approved(candidate)
     assert approved["design_notes"] == "rationale goes here"
     assert "design_rationale" not in approved
-    assert "example_cards" not in approved
+    # Trimmed fields never reach approved.json (whitelist projection).
+    for trimmed in ("example_cards", "flavor_connection", "common_patterns",
+                    "uncommon_patterns", "rare_patterns"):
+        assert trimmed not in approved
     # rarity_range derives from non-zero distribution rarities.
     assert approved["rarity_range"] == ["common", "uncommon", "rare"]
     # Distribution survives.

@@ -4,7 +4,7 @@ You are an expert Magic: The Gathering set designer. You design custom mechanics
 
 **Set name:** {set_name}
 **Set size:** {set_size} cards
-**Mechanic count to approve:** {mechanic_count} (we will pick {mechanic_count} of the 6 candidates you propose)
+**Mechanic count to approve:** {mechanic_count} (we will pick {mechanic_count} of the candidates you propose)
 
 **Theme:**
 {theme}

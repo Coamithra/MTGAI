@@ -2686,8 +2686,8 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
     2. Writes ``candidates.json`` (snapshot of the user's working state).
     3. Projects picked candidates → ``approved.json`` shape via
        :func:`mtgai.generation.mechanic_generator.candidate_to_approved`
-       (renames ``design_rationale`` → ``design_notes``, drops
-       ``example_cards``, derives ``rarity_range``).
+       (copies the field whitelist, renames ``design_rationale`` →
+       ``design_notes``, derives ``rarity_range``).
     4. Writes the auto-sidecars: ``evergreen-keywords.json`` (default
        per-color table), ``pointed-questions.json`` (canonical template
        with ``{mechanic_names}`` substituted), ``functional-tags.json``

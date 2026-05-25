@@ -142,7 +142,7 @@ def _format_mechanics_block(approved: list[Any]) -> str:
             header += f", complexity {complexity}"
         header += ")"
         lines.append(header)
-        notes = mech.get("design_notes") or mech.get("flavor_connection") or ""
+        notes = mech.get("design_notes") or ""
         if notes:
             lines.append(f"    {str(notes).strip()}")
     return "\n".join(lines) if lines else "(no approved mechanics)"
