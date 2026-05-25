@@ -603,6 +603,41 @@
     if (strip) strip.hidden = true;
   }
 
+  // Busy indicator for synchronous, non-streaming AI actions (e.g. the
+  // Mechanics tab's "Re-pick with AI" / candidate refresh). They hold the
+  // AI lock but emit no phase telemetry, so instead of a determinate fill
+  // we show the global progress strip with a label + an indeterminate
+  // animated bar. The AI mutex guarantees no engine phase run overlaps, so
+  // this never fights handlePhaseEvent. Exposed on MTGAIWizard so any tab
+  // module can use it.
+  function showBusy(label) {
+    showProgressStrip();
+    const stageEl = document.getElementById('wiz-progress-stage');
+    const activityEl = document.getElementById('wiz-progress-activity');
+    const statsEl = document.getElementById('wiz-progress-stats');
+    const cancelEl = document.getElementById('wiz-progress-cancel');
+    const bar = document.querySelector('#wiz-progress-strip .wiz-progress-bar');
+    if (stageEl) stageEl.textContent = label || 'Working…';
+    if (activityEl) activityEl.textContent = '';
+    if (statsEl) statsEl.textContent = '';
+    // These actions resolve via their own fetch; the engine cancel button
+    // doesn't apply, so hide it for the duration.
+    if (cancelEl) cancelEl.style.display = 'none';
+    if (bar) bar.classList.add('wiz-progress-bar--indeterminate');
+  }
+
+  function clearBusy() {
+    const bar = document.querySelector('#wiz-progress-strip .wiz-progress-bar');
+    if (bar) bar.classList.remove('wiz-progress-bar--indeterminate');
+    const cancelEl = document.getElementById('wiz-progress-cancel');
+    if (cancelEl) cancelEl.style.display = '';
+    hideProgressStrip();
+    _phaseLastWidth = 0;
+  }
+
+  window.MTGAIWizard.showBusy = showBusy;
+  window.MTGAIWizard.clearBusy = clearBusy;
+
   async function cancelCurrent() {
     try {
       await fetch('/api/ai/cancel', { method: 'POST' });

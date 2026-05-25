@@ -101,13 +101,19 @@ DEFAULT_BREAK_POINTS: dict[str, str] = {
     "human_final_review": "review",
 }
 
-# Stages whose ``review`` break-point is *structural* — the wizard tab
-# is the only path that produces the stage's output (e.g. the Mechanics
-# tab's save endpoint writes ``approved.json``). Skipping the pause
-# would mark the stage COMPLETED without producing the artifacts
-# downstream stages depend on. The break-point endpoint refuses to
-# unset these so a user can't accidentally break their pipeline.
-STRUCTURAL_BREAK_POINTS: frozenset[str] = frozenset({"mechanics"})
+# Stages whose ``review`` break-point is *structural* — the wizard tab is
+# the only path that produces the stage's output, so skipping the pause
+# would mark the stage COMPLETED without the artifacts downstream stages
+# depend on. The break-point endpoint refuses to unset these so a user
+# can't accidentally break their pipeline.
+#
+# ``mechanics`` used to be here (its Save endpoint was the only writer of
+# ``approved.json``), but the stage now auto-picks the best candidates and
+# writes ``approved.json`` + sidecars itself (see ``run_mechanics`` +
+# ``pick_best_mechanics``). It can therefore auto-continue safely, so its
+# pause is a normal (default-on, user-toggleable) review break-point. No
+# stage is structural today; the constant + enforcement stay for future use.
+STRUCTURAL_BREAK_POINTS: frozenset[str] = frozenset()
 
 # ---------------------------------------------------------------------------
 # Built-in presets

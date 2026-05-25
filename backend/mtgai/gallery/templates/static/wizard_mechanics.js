@@ -35,6 +35,11 @@
     collisions: {},
     stageStatus: 'pending',
     picks: new Set(),
+    // The AI picker's rationale (pick-rationale.json): {source, model_id,
+    // overall_rationale, selections:[{name,reason}]}. Surfaced in the
+    // selection block (below the strip) so the user sees why these picks
+    // were chosen.
+    pickRationale: null,
     locked: false,
     bootstrapping: false,
   };
@@ -94,7 +99,7 @@
         <div class="wiz-mech-summary-loading">Loading mechanics state…</div>
       </div>
       <div class="wiz-mech-strip" data-role="mech-strip"></div>
-      <div class="wiz-mech-strip-actions" data-role="mech-strip-actions"></div>
+      <div class="wiz-mech-selection" data-role="mech-selection"></div>
     `;
   }
 
@@ -111,6 +116,7 @@
     const data = await resp.json();
     local.candidates = Array.isArray(data.candidates) ? data.candidates : [];
     local.approved = data.approved || null;
+    local.pickRationale = data.pick_rationale || null;
     local.setParams = data.set_params || local.setParams;
     local.themeSummary = data.theme_summary || '';
     local.modelId = data.model_id || '';
@@ -123,7 +129,7 @@
 
     paintSummary(root);
     paintStrip(root);
-    paintStripActions(root);
+    paintSelection(root);
     paintFooter(getFooter(root), state);
   }
 
@@ -151,6 +157,9 @@
     const refreshTitle = hasCandidates
       ? 'Regenerate AI-flagged candidates (user-edited rows survive).'
       : 'Run mechanic generation now.';
+    // Top of the tab = the created mechanics + their Refresh control. The
+    // pick controls (Re-pick + selection blurb) live below the strip in
+    // ``paintSelection``, mirroring the order of operations.
     slot.innerHTML = `
       <div class="wiz-theme-section-header-row">
         <h3 style="margin:0">Mechanic candidates</h3>
@@ -168,6 +177,29 @@
     `;
     const btn = slot.querySelector('[data-role="mech-refresh-summary"]');
     if (btn) btn.onclick = () => onRefreshAll();
+  }
+
+  // AI-picker rationale banner. Renders nothing for a user-made selection
+  // (source !== 'ai') or when no picker has run yet, so the user's own
+  // picks aren't mislabelled as the AI's.
+  function pickRationaleHtml() {
+    const pr = local.pickRationale;
+    if (!pr || pr.source !== 'ai') return '';
+    const selections = Array.isArray(pr.selections) ? pr.selections : [];
+    const items = selections
+      .map(s => `<li><strong>${escHtml(s.name || '?')}</strong>${s.reason ? ' — ' + escHtml(s.reason) : ''}</li>`)
+      .join('');
+    return `
+      <div class="wiz-mech-pick-rationale" data-role="pick-rationale">
+        <div class="wiz-mech-pick-rationale-head">
+          <span class="wiz-ai-badge">AI</span>
+          <strong>AI reasoning</strong>
+          <span class="wiz-mech-pick-rationale-note">— picked ${selections.length} and pre-checked them above; override any time.</span>
+        </div>
+        ${items ? `<ul class="wiz-mech-pick-list">${items}</ul>` : ''}
+        ${pr.overall_rationale ? `<p class="wiz-mech-pick-overall">${escHtml(pr.overall_rationale)}</p>` : ''}
+      </div>
+    `;
   }
 
   // ----------------------------------------------------------------------
@@ -284,29 +316,55 @@
   }
 
   // ----------------------------------------------------------------------
-  // Strip-level actions row
+  // Selection block — below the strip: Re-pick button, then the blurb about
+  // which mechanics are selected (AI rationale + pick count). Mirrors the
+  // order of operations: create (top) → pick → review selection.
   // ----------------------------------------------------------------------
 
-  function paintStripActions(root) {
-    const slot = root.querySelector('[data-role="mech-strip-actions"]');
+  function paintSelection(root) {
+    const slot = root.querySelector('[data-role="mech-selection"]');
     if (!slot) return;
     if (!local.candidates.length) {
       slot.innerHTML = '';
       return;
     }
+    const sp = local.setParams;
     slot.innerHTML = `
-      <span class="wiz-mech-pick-count" data-role="pick-count"></span>
+      <div class="wiz-mech-selection-actions">
+        <button type="button" class="wiz-btn-secondary" data-role="mech-repick"
+                title="Let the AI re-choose the best ${escAttr(String(sp.mechanic_count || 0))} from the current candidates.">
+          Re-pick with AI
+        </button>
+      </div>
+      ${pickRationaleHtml()}
+      <div class="wiz-mech-final-picks" data-role="final-picks"></div>
     `;
-    updatePickCountLabel(root);
+    const repick = slot.querySelector('[data-role="mech-repick"]');
+    if (repick) repick.onclick = () => onRePick();
+    updateFinalPicks(root);
   }
 
-  function updatePickCountLabel(root) {
-    const span = root.querySelector('[data-role="pick-count"]');
-    if (!span) return;
+  // The "Final picks" box reflects the live checkbox state — distinct from
+  // the AI-reasoning box above (which records what the AI recommended). When
+  // the user overrides a pick, this box (and its count) updates immediately.
+  function updateFinalPicks(root) {
+    const box = root.querySelector('[data-role="final-picks"]');
+    if (!box) return;
     const want = local.setParams.mechanic_count || 0;
-    const have = local.picks.size;
-    span.textContent = `${have}/${want} picked`;
-    span.classList.toggle('ok', have === want);
+    const picked = Array.from(local.picks).sort((a, b) => a - b);
+    const have = picked.length;
+    const body = have
+      ? `<ul class="wiz-mech-final-picks-list">${picked
+          .map(i => `<li>${escHtml((local.candidates[i] && local.candidates[i].name) || '(unnamed)')}</li>`)
+          .join('')}</ul>`
+      : `<p class="wiz-mech-final-picks-empty">No mechanics selected yet — tick "Pick" on the cards above.</p>`;
+    box.innerHTML = `
+      <div class="wiz-mech-final-picks-head">
+        <strong>Final picks</strong>
+        <span class="wiz-mech-pick-count${have === want ? ' ok' : ''}">${have}/${want} picked</span>
+      </div>
+      ${body}
+    `;
   }
 
   // ----------------------------------------------------------------------
@@ -345,7 +403,7 @@
         card.classList.remove('picked');
       }
       const root = card.closest('.wiz-tab-body');
-      updatePickCountLabel(root);
+      updateFinalPicks(root);
       const footer = getFooter(root);
       paintFooter(footer, W.getState());
     });
@@ -418,6 +476,7 @@
     if (local.locked) return;
     if (!confirm('Regenerate this candidate? Other rows stay; this row will be overwritten.')) return;
     setLocked(true);
+    if (W.showBusy) W.showBusy('Regenerating candidate…');
     try {
       const resp = await W.postJSON('/api/wizard/mechanics/refresh-card', {
         candidate_index: idx,
@@ -438,11 +497,12 @@
       // gated to the refreshed slot).
       const root = document.querySelector('.wiz-tab-body[data-tab-id="mechanics"]');
       paintStrip(root);
-      paintStripActions(root);
+      paintSelection(root);
       W.toast('Candidate regenerated.', 'success');
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
     } finally {
+      if (W.clearBusy) W.clearBusy();
       setLocked(false);
     }
   }
@@ -475,6 +535,9 @@
       }
     }
     setLocked(true);
+    if (W.showBusy) {
+      W.showBusy(hasCandidates ? 'Regenerating candidates…' : 'Generating candidates…');
+    }
     // Repaint so the empty-strip message reflects the in-flight call
     // ("Generating candidates… they will stream in here." instead of
     // the idle "No candidates yet" copy).
@@ -495,13 +558,77 @@
       }
       local.candidates = data.candidates || local.candidates;
       local.collisions = data.collisions || local.collisions;
+      // Initial (from-scratch) generation re-runs the AI picker server-side
+      // and returns its picks; apply them so the strip pre-selects.
+      if (Array.isArray(data.picks)) {
+        applyPicks(data.picks, {
+          source: 'ai',
+          overall_rationale: data.overall_rationale,
+          selections: data.selections,
+          model_id: data.model_id,
+        });
+      }
       paintSummary(root);
       paintStrip(root);
-      paintStripActions(root);
+      paintSelection(root);
+      paintFooter(getFooter(root), W.getState());
       W.toast(hasCandidates ? 'Candidates regenerated.' : 'Candidates generated.', 'success');
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
     } finally {
+      if (W.clearBusy) W.clearBusy();
+      setLocked(false);
+    }
+  }
+
+  // Apply an AI selection: replace the picks set + store the rationale.
+  // Out-of-range indices are dropped defensively.
+  function applyPicks(indices, rationale) {
+    const n = local.candidates.length;
+    local.picks = new Set((indices || []).filter(i => Number.isInteger(i) && i >= 0 && i < n));
+    local.pickRationale = rationale || null;
+  }
+
+  async function onRePick() {
+    if (local.locked) return;
+    const root = document.querySelector('.wiz-tab-body[data-tab-id="mechanics"]');
+    if (!root) return;
+    if (
+      local.picks.size > 0
+      && !confirm('Let the AI choose the picks? This replaces your current selection.')
+    ) {
+      return;
+    }
+    setLocked(true);
+    if (W.showBusy) W.showBusy('Selecting the best mechanics…');
+    try {
+      const resp = await W.postJSON('/api/wizard/mechanics/pick', {
+        candidates: local.candidates,
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        if (resp.status === 409 && data.running_action) {
+          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
+        } else {
+          W.toast(data.error || `AI pick failed (${resp.status})`, 'error');
+        }
+        return;
+      }
+      applyPicks(data.picks, {
+        source: 'ai',
+        overall_rationale: data.overall_rationale,
+        selections: data.selections,
+        model_id: data.model_id,
+      });
+      paintSummary(root);
+      paintStrip(root);
+      paintSelection(root);
+      paintFooter(getFooter(root), W.getState());
+      W.toast('AI picked the mechanics.', 'success');
+    } catch (err) {
+      W.toast('Network error: ' + err.message, 'error');
+    } finally {
+      if (W.clearBusy) W.clearBusy();
       setLocked(false);
     }
   }
@@ -603,6 +730,7 @@
       '[data-role="refresh-card"]',
       '[data-role="refresh-all"]',
       '[data-role="mech-refresh-summary"]',
+      '[data-role="mech-repick"]',
     ].join(',');
     root.querySelectorAll(sel).forEach(el => { el.disabled = !!locked; });
     const footerBtn = root.querySelector('[data-role="mech-save-advance"]');

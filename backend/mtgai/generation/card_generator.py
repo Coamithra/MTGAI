@@ -241,6 +241,11 @@ def _retry_single_card(
 
     logger.debug("    Retry prompt length: %d chars", len(user_prompt))
 
+    # Route llmfacade's transcript alongside the bespoke per-card logs. The
+    # bespoke log still owns the post-generation validation/fix/cost detail
+    # llmfacade can't see; this just co-locates the raw conversation HTML.
+    from mtgai.io.asset_paths import set_artifact_dir
+
     try:
         t0 = time.time()
         result = generate_with_tool(
@@ -251,6 +256,7 @@ def _retry_single_card(
             temperature=TEMPERATURE,
             max_tokens=4096,
             effort=effort,
+            log_dir=set_artifact_dir() / "generation_logs",
         )
         latency = time.time() - t0
         cost = cost_from_result(result)
@@ -891,6 +897,7 @@ def generate_set(
                 temperature=TEMPERATURE,
                 max_tokens=8192,
                 effort=active_effort,
+                log_dir=log_dir,
             )
             api_latency = time.time() - t0
         except Exception:

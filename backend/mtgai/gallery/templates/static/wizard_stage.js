@@ -215,12 +215,13 @@
   // ------------------------------------------------------------------
 
   // Stages whose pause is structural — the wizard tab is the only
-  // producer of the stage's output (e.g. ``mechanics`` writes
-  // approved.json from the candidates strip). Mirrors
-  // ``STRUCTURAL_BREAK_POINTS`` in mtgai/settings/model_settings.py;
-  // the server rejects unsetting these. Render the checkbox disabled
-  // so the user sees why they can't toggle it.
-  const STRUCTURAL_BREAK_STAGES = new Set(['mechanics']);
+  // producer of the stage's output, so the server rejects unsetting
+  // them and we render the checkbox disabled. Mirrors
+  // ``STRUCTURAL_BREAK_POINTS`` in mtgai/settings/model_settings.py.
+  // No stage is structural today: ``mechanics`` used to be here, but the
+  // stage now AI-picks its candidates and writes approved.json itself, so
+  // its pause is a normal user-toggleable break-point.
+  const STRUCTURAL_BREAK_STAGES = new Set();
 
   function breakPointToggleHtml(stage, state) {
     const checked = !!state.breakPoints[stage.stage_id];

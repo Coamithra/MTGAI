@@ -245,18 +245,21 @@ def test_generate_visual_references_returns_assembled(_project, monkeypatch) -> 
     assert result["output_tokens"] == 22
 
 
-def test_generate_visual_references_writes_log(_project, monkeypatch) -> None:
+def test_generate_visual_references_routes_log_dir(_project, monkeypatch) -> None:
     from mtgai.io.asset_paths import set_artifact_dir
 
-    monkeypatch.setattr(
-        vre,
-        "generate_with_tool",
-        _stub_generate_with_tool(_entities_fixture(), []),
-    )
+    # The bespoke per-call logger is gone; instead llmfacade's JSONL+HTML
+    # transcript is routed to the per-stage logs dir via ``log_dir``.
+    inner = _stub_generate_with_tool(_entities_fixture(), [])
+    captured: dict = {}
+
+    def stub(*args, **kwargs):
+        captured.update(kwargs)
+        return inner(*args, **kwargs)
+
+    monkeypatch.setattr(vre, "generate_with_tool", stub)
     vre.generate_visual_references()
-    log_dir = set_artifact_dir() / "art-direction" / "logs"
-    assert log_dir.exists()
-    assert list(log_dir.glob("*.json"))
+    assert captured.get("log_dir") == set_artifact_dir() / "art-direction" / "logs"
 
 
 def test_generate_visual_references_raises_when_empty(_project, monkeypatch) -> None:

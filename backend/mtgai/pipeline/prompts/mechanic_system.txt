@@ -6,16 +6,9 @@ You are an expert Magic: The Gathering set designer. You design custom mechanics
 **Set size:** {set_size} cards
 **Mechanic count to approve:** {mechanic_count} (we will pick {mechanic_count} of the candidates you propose)
 
-**Theme:**
-{theme}
-
-**Flavor / world description:**
-{flavor_description}
-
-## Draft archetypes
-
+**Setting:**
+{setting_block}
 {archetypes_block}
-
 ## Creature types in flavor
 
 {creature_types_block}

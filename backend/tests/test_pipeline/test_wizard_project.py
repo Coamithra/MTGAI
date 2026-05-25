@@ -249,32 +249,33 @@ def test_save_break_human_review_stage_can_be_unchecked(client):
     )
 
 
-def test_save_break_structural_stage_cannot_be_unchecked(client):
-    """``mechanics`` is structural — its candidates strip is the only
-    producer of ``approved.json``. The endpoint refuses ``review=False``
-    so a user can't accidentally break the pipeline.
+def test_save_break_mechanics_can_be_unchecked(client):
+    """``mechanics`` is no longer structural — the stage now auto-picks the
+    best candidates and writes ``approved.json`` itself, so it can
+    auto-continue. Unchecking its pause is allowed.
     """
     _open_project("ASD")
-    # Setting it back to review is fine (it's already the default).
+    # Setting it back to review is fine (it's the default).
     resp_on = client.post(
         "/api/wizard/project/breaks",
         json={"set_code": "ASD", "stage_id": "mechanics", "review": True},
     )
     assert resp_on.status_code == 200
-    # Unchecking is rejected with 400 + a structural-pause error message.
+    # Unchecking now succeeds — the AI picker makes the stage self-sufficient.
     resp_off = client.post(
         "/api/wizard/project/breaks",
         json={"set_code": "ASD", "stage_id": "mechanics", "review": False},
     )
-    assert resp_off.status_code == 400
-    assert "structural" in resp_off.json()["error"]
+    assert resp_off.status_code == 200
+    assert active_project.require_active_project().settings.break_points["mechanics"] == "auto"
 
 
-def test_break_points_payload_marks_structural_rows(client):
+def test_break_points_payload_marks_no_structural_rows(client):
+    """No stage is structural today — the AI picker freed ``mechanics``."""
     _open_project("ASD")
     resp = client.get("/api/wizard/project")
     by_id = {bp["stage_id"]: bp for bp in resp.json()["break_points"]}
-    assert by_id["mechanics"]["structural"] is True
+    assert by_id["mechanics"]["structural"] is False
     assert by_id["skeleton"]["structural"] is False
 
 

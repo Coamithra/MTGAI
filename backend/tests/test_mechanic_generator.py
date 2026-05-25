@@ -81,8 +81,10 @@ def test_build_mechanic_prompts_handles_missing_optional_blocks() -> None:
     assert "Bare bones theme." in sys_prompt
     # Empty set_name still renders something rather than KeyError.
     assert "(unnamed set)" in sys_prompt or "set_name" not in sys_prompt
-    # Optional blocks fall back to placeholder strings, not KeyError.
-    assert "no archetypes specified" in sys_prompt
+    # The Draft-archetypes section is omitted entirely when there are none
+    # (mechanics are designed before archetypes exist) — no dead placeholder.
+    assert "## Draft archetypes" not in sys_prompt
+    # Other optional blocks still fall back to placeholder strings, not KeyError.
     assert "no specific creature types" in sys_prompt
     assert "no special constraints" in sys_prompt
 
@@ -183,8 +185,13 @@ def test_candidate_to_approved_renames_design_rationale_and_drops_examples() -> 
     assert approved["design_notes"] == "rationale goes here"
     assert "design_rationale" not in approved
     # Trimmed fields never reach approved.json (whitelist projection).
-    for trimmed in ("example_cards", "flavor_connection", "common_patterns",
-                    "uncommon_patterns", "rare_patterns"):
+    for trimmed in (
+        "example_cards",
+        "flavor_connection",
+        "common_patterns",
+        "uncommon_patterns",
+        "rare_patterns",
+    ):
         assert trimmed not in approved
     # rarity_range derives from non-zero distribution rarities.
     assert approved["rarity_range"] == ["common", "uncommon", "rare"]
@@ -366,3 +373,149 @@ def test_generate_mechanic_candidates_drops_malformed_entries(_project, monkeypa
     result = mg.generate_mechanic_candidates(count=1)
     assert len(result["mechanics"]) == 1
     assert result["mechanics"][0]["name"] == "Mechanic0"
+
+
+# ---------------------------------------------------------------------------
+# AI picker: prompt assembly + pick resolution
+# ---------------------------------------------------------------------------
+
+
+def test_build_pick_prompts_numbers_candidates_and_threads_context() -> None:
+    theme = _theme_fixture()
+    candidates = [_valid_mech(0), _valid_mech(1), _valid_mech(2)]
+    candidates[1]["name"] = "Boilerplate"
+    sys_prompt, user_prompt = mg.build_pick_prompts(
+        theme=theme,
+        set_name="Brass Sky",
+        set_size=120,
+        mechanic_count=2,
+        candidates=candidates,
+    )
+    # Set context threads into the system prompt.
+    assert "Brass Sky" in sys_prompt
+    assert "Steampunk dragons" in sys_prompt
+    assert "Aether Knights" in sys_prompt
+    assert "At least 6 artifact creatures" in sys_prompt
+    assert "select" in sys_prompt.lower()
+    assert "2" in sys_prompt  # mechanic_count
+    # User prompt carries the numbered digest.
+    assert "1. Mechanic0" in user_prompt
+    assert "2. Boilerplate" in user_prompt
+    assert "3. Mechanic2" in user_prompt
+
+
+def test_resolve_picks_maps_1_based_and_dedupes() -> None:
+    selections = [
+        {"candidate_number": 2, "reason": "spread"},
+        {"candidate_number": 2, "reason": "dup ignored"},  # duplicate
+        {"candidate_number": 99, "reason": "out of range"},  # dropped
+        {"candidate_number": 5, "reason": "complex"},
+    ]
+    picks, reasons = mg._resolve_picks(selections, candidate_count_total=6, target=3)
+    # 1-based 2,5 -> 0-based 1,4; topped up with the first unused index (0).
+    assert picks == [1, 4, 0]
+    assert reasons[1] == "spread"
+    assert reasons[4] == "complex"
+    assert 0 not in reasons  # topped-up pick has no model reason
+
+
+def test_resolve_picks_tops_up_when_too_few() -> None:
+    picks, reasons = mg._resolve_picks([], candidate_count_total=6, target=3)
+    assert picks == [0, 1, 2]
+    assert reasons == {}
+
+
+def test_resolve_picks_truncates_when_too_many() -> None:
+    selections = [{"candidate_number": n, "reason": "r"} for n in range(1, 6)]
+    picks, _ = mg._resolve_picks(selections, candidate_count_total=6, target=3)
+    assert picks == [0, 1, 2]
+
+
+def test_pick_best_mechanics_uses_llm_selection(_project, monkeypatch) -> None:
+    candidates = [_valid_mech(i) for i in range(6)]
+
+    def stub(*args, **kwargs):
+        return {
+            "result": {
+                "selections": [
+                    {"candidate_number": 2, "reason": "great in Limited"},
+                    {"candidate_number": 4, "reason": "fills a color gap"},
+                    {"candidate_number": 6, "reason": "deep design space"},
+                ],
+                "overall_rationale": "balanced color + complexity spread",
+            },
+            "input_tokens": 11,
+            "output_tokens": 7,
+        }
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    result = mg.pick_best_mechanics(candidates=candidates)
+    assert result["picks"] == [1, 3, 5]  # 1-based -> 0-based
+    assert [s["name"] for s in result["selections"]] == ["Mechanic1", "Mechanic3", "Mechanic5"]
+    assert result["selections"][0]["reason"] == "great in Limited"
+    assert result["overall_rationale"] == "balanced color + complexity spread"
+    assert result["input_tokens"] == 11
+
+
+def test_pick_best_mechanics_falls_back_on_error(_project, monkeypatch) -> None:
+    candidates = [_valid_mech(i) for i in range(6)]
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(mg, "generate_with_tool", boom)
+    result = mg.pick_best_mechanics(candidates=candidates)
+    # Degrades to the first N (mechanic_count=3 from the fixture).
+    assert result["picks"] == [0, 1, 2]
+    assert result["overall_rationale"] == ""
+
+
+def test_pick_best_mechanics_falls_back_when_no_selections(_project, monkeypatch) -> None:
+    candidates = [_valid_mech(i) for i in range(6)]
+    monkeypatch.setattr(mg, "generate_with_tool", lambda *a, **k: {"result": {}})
+    result = mg.pick_best_mechanics(candidates=candidates)
+    assert result["picks"] == [0, 1, 2]
+
+
+# ---------------------------------------------------------------------------
+# persist_mechanic_selection
+# ---------------------------------------------------------------------------
+
+
+def test_persist_mechanic_selection_writes_all_files(tmp_path) -> None:
+    import json
+
+    candidates = [_valid_mech(i) for i in range(6)]
+    mech_dir = tmp_path / "mechanics"
+    approved = mg.persist_mechanic_selection(
+        mech_dir,
+        candidates,
+        [0, 2],
+        source="ai",
+        overall_rationale="why these two",
+        selections=[{"name": "Mechanic0", "reason": "a"}, {"name": "Mechanic2", "reason": "b"}],
+        model_id="sonnet-test",
+    )
+    # Returns the projected approved list.
+    assert [a["name"] for a in approved] == ["Mechanic0", "Mechanic2"]
+    assert "design_notes" in approved[0] and "design_rationale" not in approved[0]
+
+    # All sidecars + approved + rationale written.
+    for name in (
+        "candidates.json",
+        "evergreen-keywords.json",
+        "pointed-questions.json",
+        "functional-tags.json",
+        "pick-rationale.json",
+        "approved.json",
+    ):
+        assert (mech_dir / name).exists(), name
+
+    rationale = json.loads((mech_dir / "pick-rationale.json").read_text(encoding="utf-8"))
+    assert rationale["source"] == "ai"
+    assert rationale["model_id"] == "sonnet-test"
+    assert rationale["overall_rationale"] == "why these two"
+    assert len(rationale["selections"]) == 2
+    assert "picked_at" in rationale
+    on_disk_approved = json.loads((mech_dir / "approved.json").read_text(encoding="utf-8"))
+    assert [a["name"] for a in on_disk_approved] == ["Mechanic0", "Mechanic2"]

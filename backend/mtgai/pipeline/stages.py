@@ -97,6 +97,8 @@ def run_mechanics(
         candidate_count,
         detect_keyword_collisions,
         generate_mechanic_candidates,
+        persist_mechanic_selection,
+        pick_best_mechanics,
     )
     from mtgai.runtime import ai_lock
     from mtgai.runtime.active_project import require_active_project
@@ -186,6 +188,24 @@ def run_mechanics(
                 },
             )
 
+        # Auto-pick the best `mechanic_count` so the stage produces its own
+        # approved.json + sidecars — the wizard pre-selects these for review,
+        # and a non-halting (auto-continue) run proceeds with them. The
+        # picker degrades to the first N candidates on any LLM failure, so
+        # the stage never auto-continues without a selection on disk.
+        emitter.phase("running", "Selecting the best mechanics")
+        pick = pick_best_mechanics(candidates=candidates)
+        approved = persist_mechanic_selection(
+            mech_dir,
+            candidates,
+            pick["picks"],
+            source="ai",
+            overall_rationale=pick["overall_rationale"],
+            selections=pick["selections"],
+            model_id=pick["model_id"],
+        )
+        picked_names = [a.get("name", "?") for a in approved]
+
     emitter.update(
         "overview",
         status="done",
@@ -194,18 +214,22 @@ def run_mechanics(
             "Set size": str(sp.set_size),
             "Mechanic count": str(sp.mechanic_count),
             "Candidates": str(len(candidates)),
+            "AI picks": ", ".join(picked_names) or "(none)",
             "Model": response.get("model_id", "?"),
             "Tokens": (
                 f"{response.get('input_tokens', 0)} in / {response.get('output_tokens', 0)} out"
             ),
         },
     )
-    emitter.phase("done", f"Generated {len(candidates)} mechanic candidates")
+    emitter.phase(
+        "done",
+        f"Generated {len(candidates)} candidates; AI picked {len(picked_names)}",
+    )
 
     return StageResult(
         total_items=len(candidates),
-        completed_items=0,
-        detail="Awaiting human selection via Mechanics tab",
+        completed_items=len(picked_names),
+        detail=f"AI picked {len(picked_names)} mechanics — review on the Mechanics tab",
     )
 
 

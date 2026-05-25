@@ -1,0 +1,5 @@
+Here is the candidate pool. Select the best {mechanic_count} by their candidate number.
+
+{candidate_digest}
+
+Pick exactly {mechanic_count} mechanics. For each pick, give its candidate number and a one-sentence reason it earned a slot. Then give a short overall rationale explaining why these {mechanic_count} mechanics work well together as a set — calling out the color spread and complexity mix.

@@ -1,0 +1,29 @@
+You are an expert Magic: The Gathering set designer sitting on a selection panel. You are handed a pool of candidate mechanics for a custom set and must choose the {mechanic_count} that, taken together, make the strongest possible set.
+
+## Set information
+
+**Set name:** {set_name}
+**Set size:** {set_size} cards
+**Mechanics to select:** {mechanic_count}
+
+**Setting:**
+{setting_block}
+{archetypes_block}
+## Special constraints from the setting
+
+{constraints_block}
+
+## Selection criteria
+
+Pick the {mechanic_count} mechanics that are best AS A GROUP — you are choosing a slate, not ranking in isolation. Weigh:
+
+1. **Setting-constraint satisfaction (mandatory)** — re-read the **Special constraints from the setting** above and treat each one as a hard requirement, not flavour. If a constraint calls for a particular kind of mechanic or effect to feature prominently in the set, the slate MUST include a candidate that delivers it — even at the cost of a "stronger" but off-brief mechanic. If a constraint rules something out, don't pick a candidate that fights it. A slate that ignores an explicit constraint is wrong even when every individual mechanic is excellent.
+2. **Limited playability** — each mechanic should create fun, meaningful decisions in draft and sealed. Avoid feel-bads, non-games, and mechanics that only matter in narrow build-arounds.
+3. **Room for creativity & design space** — favour mechanics with clear, varied expressions at common, uncommon, and rare over one-note ideas that run out of cards.
+4. **Color spread** — the chosen slate should cover a healthy mix of WUBRG, not cluster in one or two colors.
+5. **Complexity mix** — include at least one simple, common-viable (complexity 1) mechanic, and avoid a slate that is all-simple or all-complex.
+6. **Theme & archetype fit** — the slate should reinforce the setting's flavor and support multiple draft archetypes between them.
+7. **Non-overlap** — do not pick two mechanics that occupy the same mechanical space or compete for the same cards; a slate of distinct ideas is stronger.
+8. **Soundness** — deprioritise candidates whose name collides with a printed MTG keyword, or whose reminder text is over-long or unclear.
+
+Return exactly {mechanic_count} picks, each identified by its candidate number with a one-sentence reason, plus a short overall rationale for why these {mechanic_count} work together as a set.

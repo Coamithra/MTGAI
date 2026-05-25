@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -132,6 +131,48 @@ MECHANIC_TOOL_SCHEMA: dict = {
 }
 
 
+# Tool schema for the AI picker: selects the best N from a candidate pool.
+MECHANIC_PICK_TOOL_SCHEMA: dict = {
+    "name": "select_best_mechanics",
+    "description": (
+        "Select the best mechanics from the candidate pool for this set, "
+        "with a one-line reason per pick and an overall rationale for the slate."
+    ),
+    "input_schema": {
+        "type": "object",
+        "required": ["selections", "overall_rationale"],
+        "properties": {
+            "selections": {
+                "type": "array",
+                "description": "The chosen mechanics, by candidate number.",
+                "items": {
+                    "type": "object",
+                    "required": ["candidate_number", "reason"],
+                    "properties": {
+                        "candidate_number": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "description": "1-based number of the candidate from the list.",
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": "One sentence on why this candidate earned a slot.",
+                        },
+                    },
+                },
+            },
+            "overall_rationale": {
+                "type": "string",
+                "description": (
+                    "Short rationale for the slate as a whole — color spread, "
+                    "complexity mix, and how the picks work together."
+                ),
+            },
+        },
+    },
+}
+
+
 # ---------------------------------------------------------------------------
 # Prompt assembly
 # ---------------------------------------------------------------------------
@@ -141,12 +182,32 @@ def _read_template(name: str) -> str:
     return (_PROMPTS_DIR / name).read_text(encoding="utf-8")
 
 
+def _format_setting_block(theme: dict) -> str:
+    """The setting prose for the prompt's single 'Setting' field.
+
+    Handles both schemas: the current toolchain writes the world document to
+    ``setting``; legacy ASD themes use a short ``theme`` one-liner plus a
+    ``flavor_description`` prose blob. We surface the one-liner (if any) then
+    the prose, so neither schema loses content — and there's no dead
+    "(no flavor description provided)" subsection when only ``setting`` exists.
+    """
+    one_liner = (theme.get("theme") or "").strip()
+    prose = (theme.get("flavor_description") or theme.get("setting") or "").strip()
+    parts = [p for p in (one_liner, prose) if p]
+    return "\n\n".join(parts) if parts else "(no setting provided)"
+
+
 def _format_archetypes_block(archetypes: list[Any]) -> str:
-    """Render the draft-archetype list for the system prompt."""
-    if not archetypes:
-        return "(no archetypes specified — design mechanics that work across colors)"
+    """Render the draft-archetype list, or ``""`` when there are none.
+
+    Returns empty so the builder can omit the whole "## Draft archetypes"
+    section rather than print a misleading placeholder. In the toolchain
+    pipeline mechanics are designed *before* archetypes exist (archetypes are
+    derived from the mechanics downstream), so this is empty for new sets;
+    legacy ASD themes that carry ``draft_archetypes`` still render here.
+    """
     lines: list[str] = []
-    for arch in archetypes:
+    for arch in archetypes or []:
         if not isinstance(arch, dict):
             continue
         colors = arch.get("color_pair") or arch.get("colors") or ""
@@ -156,7 +217,13 @@ def _format_archetypes_block(archetypes: list[Any]) -> str:
             lines.append(f"- {colors}: {name} — {desc}".lstrip())
         elif name:
             lines.append(f"- {colors}: {name}".lstrip())
-    return "\n".join(lines) if lines else "(no archetypes specified)"
+    return "\n".join(lines)
+
+
+def _archetypes_section(archetypes: list[Any]) -> str:
+    """Wrap the archetype list in its section header, or ``""`` when empty."""
+    block = _format_archetypes_block(archetypes)
+    return f"\n## Draft archetypes\n\n{block}\n" if block else ""
 
 
 def _format_creature_types_block(creature_types: list[Any]) -> str:
@@ -257,10 +324,8 @@ def build_mechanic_prompts(
         set_name=set_name or "(unnamed set)",
         set_size=set_size,
         mechanic_count=mechanic_count,
-        theme=(theme.get("theme") or theme.get("setting") or "(no theme provided)").strip(),
-        flavor_description=(theme.get("flavor_description") or "").strip()
-        or "(no flavor description provided)",
-        archetypes_block=_format_archetypes_block(theme.get("draft_archetypes") or []),
+        setting_block=_format_setting_block(theme),
+        archetypes_block=_archetypes_section(theme.get("draft_archetypes") or []),
         creature_types_block=_format_creature_types_block(theme.get("creature_types") or []),
         constraints_block=_format_constraints_block(
             theme.get("constraints") or theme.get("special_constraints") or []
@@ -273,6 +338,66 @@ def build_mechanic_prompts(
         mechanic_count=mechanic_count,
         set_size=set_size,
         expected_mechanic_density=expected_density,
+    )
+    return system_prompt, user_prompt
+
+
+def _format_candidate_digest(candidates: list[dict]) -> str:
+    """Render the candidate pool as a numbered list for the picker prompt.
+
+    One block per candidate — number, name, type, colors, complexity, plus
+    reminder text and rationale — so the LLM can weigh the slate. The
+    1-based numbering is what the pick tool's ``candidate_number`` field
+    refers back to (mapped to a 0-based index in :func:`pick_best_mechanics`).
+    """
+    if not candidates:
+        return "(no candidates)"
+    lines: list[str] = []
+    for i, m in enumerate(candidates, 1):
+        m = m or {}
+        name = (m.get("name") or "?").strip() or "?"
+        colors = "".join(m.get("colors") or []) or "colorless"
+        cx = m.get("complexity", "?")
+        ktype = m.get("keyword_type") or "?"
+        lines.append(f"{i}. {name} — type: {ktype}; colors: {colors}; complexity: {cx}")
+        reminder = (m.get("reminder_text") or "").strip()
+        if reminder:
+            lines.append(f"   reminder: {reminder}")
+        rationale = (m.get("design_rationale") or m.get("design_notes") or "").strip()
+        if rationale:
+            lines.append(f"   rationale: {rationale}")
+    return "\n".join(lines)
+
+
+def build_pick_prompts(
+    theme: dict,
+    set_name: str,
+    set_size: int,
+    mechanic_count: int,
+    candidates: list[dict],
+) -> tuple[str, str]:
+    """Render the picker's system + user prompts from theme + the candidate pool.
+
+    The system prompt carries the set context + the selection criteria;
+    the user prompt carries the numbered candidate digest. Mirrors the
+    generation prompts' split so the system block stays cache-friendly.
+    """
+    sys_template = _read_template("mechanic_pick_system.txt")
+    user_template = _read_template("mechanic_pick_user.txt")
+
+    system_prompt = sys_template.format(
+        set_name=set_name or "(unnamed set)",
+        set_size=set_size,
+        mechanic_count=mechanic_count,
+        setting_block=_format_setting_block(theme),
+        archetypes_block=_archetypes_section(theme.get("draft_archetypes") or []),
+        constraints_block=_format_constraints_block(
+            theme.get("constraints") or theme.get("special_constraints") or []
+        ),
+    )
+    user_prompt = user_template.format(
+        mechanic_count=mechanic_count,
+        candidate_digest=_format_candidate_digest(candidates),
     )
     return system_prompt, user_prompt
 
@@ -642,6 +767,9 @@ def generate_mechanic_candidates(*, theme: dict | None = None, count: int | None
     settings = project.settings
     sp = settings.set_params
     model_id = settings.get_llm_model_id("mechanics")
+    # llmfacade writes each call's JSONL+HTML transcript here (named after the
+    # tool); it's the canonical per-call log — no bespoke logger needed.
+    log_dir = set_artifact_dir() / "mechanics" / "logs"
 
     if theme is None:
         theme_path = set_artifact_dir() / "theme.json"
@@ -703,9 +831,7 @@ def generate_mechanic_candidates(*, theme: dict | None = None, count: int | None
             expected_density=expected_density,
             enforce_simple_floor=enforce_simple_floor,
         )
-        started = time.perf_counter()
         response: dict[str, Any] | None = None
-        error: str | None = None
         try:
             response = generate_with_tool(
                 system_prompt=system_prompt,
@@ -714,22 +840,11 @@ def generate_mechanic_candidates(*, theme: dict | None = None, count: int | None
                 model=model_id,
                 temperature=1.0,
                 max_tokens=4096,
+                log_dir=log_dir,
             )
         except Exception as exc:
-            error = f"{type(exc).__name__}: {exc}"
-            last_error = error
-            logger.warning("Mechanic candidate attempt %d failed: %s", attempt, error)
-        finally:
-            latency_s = time.perf_counter() - started
-            _save_generation_log(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                response=response,
-                model_id=model_id,
-                latency_s=latency_s,
-                error=error,
-                attempt=attempt,
-            )
+            last_error = f"{type(exc).__name__}: {exc}"
+            logger.warning("Mechanic candidate attempt %d failed: %s", attempt, last_error)
 
         if response is None:
             # Fail fast on a persistent hard error (dead provider, missing
@@ -782,65 +897,204 @@ def generate_mechanic_candidates(*, theme: dict | None = None, count: int | None
     }
 
 
-def _save_generation_log(
-    *,
-    system_prompt: str,
-    user_prompt: str,
-    response: dict[str, Any] | None,
-    model_id: str,
-    latency_s: float,
-    error: str | None,
-    attempt: int | None = None,
-) -> None:
-    """Persist a per-call mechanic-generation log under the active project.
+def _resolve_picks(
+    selections: list[Any],
+    candidate_count_total: int,
+    target: int,
+) -> tuple[list[int], dict[int, str]]:
+    """Turn the LLM's raw ``selections`` into exactly ``target`` valid indices.
 
-    Path: ``<asset>/mechanics/logs/<isots>[-a<attempt>].json``. Captures
-    full prompts, raw tool result, token usage, latency, and any error so
-    the user can review what the LLM produced (and re-prompt offline if
-    needed). One file per call in the one-at-a-time loop; ``attempt`` keeps
-    them ordered and distinct.
+    The model returns 1-based ``candidate_number`` values that may be
+    out of range, duplicated, too few, or too many. We map them to 0-based
+    indices, drop anything invalid or repeated, then **top up** with the
+    first unused candidates if we came up short and **truncate** if we got
+    too many — so the caller always receives a clean, deduplicated slate of
+    ``min(target, candidate_count_total)`` picks. Returns ``(picks, reasons)``
+    where ``reasons`` maps a picked index to the model's one-line reason
+    (topped-up picks have no reason).
     """
-    from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
+    want = max(0, min(target, candidate_count_total))
+    picks: list[int] = []
+    reasons: dict[int, str] = {}
+    seen: set[int] = set()
+    for sel in selections or []:
+        if not isinstance(sel, dict):
+            continue
+        num = sel.get("candidate_number")
+        if not isinstance(num, int):
+            continue
+        idx = num - 1  # 1-based in the prompt/tool, 0-based on disk
+        if idx < 0 or idx >= candidate_count_total or idx in seen:
+            continue
+        seen.add(idx)
+        picks.append(idx)
+        reason = sel.get("reason")
+        if isinstance(reason, str) and reason.strip():
+            reasons[idx] = reason.strip()
+        if len(picks) >= want:
+            break
+    # Top up from the front if the model under-selected (or returned junk).
+    if len(picks) < want:
+        for idx in range(candidate_count_total):
+            if idx not in seen:
+                picks.append(idx)
+                seen.add(idx)
+                if len(picks) >= want:
+                    break
+    return picks[:want], reasons
 
-    try:
-        log_dir = set_artifact_dir() / "mechanics" / "logs"
-    except NoAssetFolderError:
-        return
-    try:
-        log_dir.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        logger.warning("Could not create mechanic-generation log dir at %s", log_dir)
-        return
 
-    timestamp = datetime.now(UTC).isoformat().replace(":", "-").replace("+00-00", "Z")
-    suffix = f"-a{attempt}" if attempt is not None else ""
-    log_path = log_dir / f"{timestamp}{suffix}.json"
-    payload: dict[str, Any] = {
-        "timestamp": datetime.now(UTC).isoformat(),
-        "model": model_id,
-        "latency_s": round(latency_s, 2),
-        "system_prompt": system_prompt,
-        "user_prompt": user_prompt,
+def pick_best_mechanics(
+    *,
+    candidates: list[dict],
+    theme: dict | None = None,
+    count: int | None = None,
+) -> dict:
+    """Ask the LLM to pick the best ``count`` mechanics from ``candidates``.
+
+    Reads ``theme.json`` + ``set_params`` from the active project (same as
+    :func:`generate_mechanic_candidates`), renders the picker prompts, and
+    runs a single tool call. The selection criteria (Limited playability,
+    design space, color spread, complexity mix, theme fit, non-overlap)
+    live in ``mechanic_pick_system.txt``.
+
+    Always returns a clean slate — a malformed or failed pick call degrades
+    to the first ``count`` candidates rather than raising, so the stage's
+    auto-continue path can never be left without an ``approved.json``::
+
+        {
+            "picks": list[int],            # 0-based indices into candidates
+            "selections": list[dict],      # [{name, reason}] aligned to picks
+            "overall_rationale": str,
+            "model_id": str,
+            "input_tokens": int,
+            "output_tokens": int,
+        }
+    """
+    from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.runtime.active_project import require_active_project
+
+    project = require_active_project()
+    settings = project.settings
+    sp = settings.set_params
+    model_id = settings.get_llm_model_id("mechanics")
+    log_dir = set_artifact_dir() / "mechanics" / "logs"
+
+    if theme is None:
+        theme_path = set_artifact_dir() / "theme.json"
+        theme = json.loads(theme_path.read_text(encoding="utf-8")) if theme_path.exists() else {}
+    assert theme is not None
+
+    target = sp.mechanic_count if count is None else max(1, count)
+    total = len(candidates)
+
+    def _fallback(reason: str, model: str = model_id) -> dict:
+        picks = list(range(min(target, total)))
+        logger.warning(
+            "Mechanic picker falling back to first %d candidates: %s", len(picks), reason
+        )
+        return {
+            "picks": picks,
+            "selections": [
+                {"name": (candidates[i].get("name") or "?"), "reason": ""} for i in picks
+            ],
+            "overall_rationale": "",
+            "model_id": model,
+            "input_tokens": 0,
+            "output_tokens": 0,
+        }
+
+    if total == 0:
+        return _fallback("empty candidate pool")
+
+    system_prompt, user_prompt = build_pick_prompts(
+        theme=theme,
+        set_name=sp.set_name or project.set_code or "Custom Set",
+        set_size=sp.set_size,
+        mechanic_count=target,
+        candidates=candidates,
+    )
+
+    response: dict[str, Any] | None = None
+    error: str | None = None
+    try:
+        response = generate_with_tool(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            tool_schema=MECHANIC_PICK_TOOL_SCHEMA,
+            model=model_id,
+            temperature=0.4,
+            max_tokens=2048,
+            log_dir=log_dir,
+        )
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+
+    if response is None:
+        return _fallback(error or "no response")
+
+    result = response.get("result") or {}
+    selections_raw = result.get("selections") or []
+    picks, reasons = _resolve_picks(selections_raw, total, target)
+    selections = [
+        {"name": (candidates[i].get("name") or "?"), "reason": reasons.get(i, "")} for i in picks
+    ]
+    return {
+        "picks": picks,
+        "selections": selections,
+        "overall_rationale": (result.get("overall_rationale") or "").strip(),
+        "model_id": model_id,
+        "input_tokens": response.get("input_tokens", 0) or 0,
+        "output_tokens": response.get("output_tokens", 0) or 0,
     }
-    if attempt is not None:
-        payload["attempt"] = attempt
-    if error is not None:
-        payload["error"] = error
-    if response is not None:
-        payload.update(
-            {
-                "input_tokens": response.get("input_tokens", 0),
-                "output_tokens": response.get("output_tokens", 0),
-                "cache_creation_input_tokens": response.get("cache_creation_input_tokens", 0),
-                "cache_read_input_tokens": response.get("cache_read_input_tokens", 0),
-                "stop_reason": response.get("stop_reason", ""),
-                "raw_result": response.get("result", {}),
-            }
+
+
+def persist_mechanic_selection(
+    mech_dir: Path,
+    candidates: list[dict],
+    picks: list[int],
+    *,
+    source: str = "ai",
+    overall_rationale: str = "",
+    selections: list[dict] | None = None,
+    model_id: str = "",
+) -> list[dict]:
+    """Write the candidates snapshot, sidecars, and ``approved.json`` for a selection.
+
+    The single producer of a mechanics-stage selection on disk — used by the
+    stage runner (AI picker), the wizard's ``/save`` (user override), and the
+    re-pick endpoint, so the write order + sidecar set stay identical across
+    all three.
+
+    Order matters: ``approved.json`` is the marker downstream stages check, so
+    the candidates snapshot + sidecars are written first and ``approved.json``
+    last. A ``pick-rationale.json`` sidecar records who chose the slate
+    (``source``: ``"ai"`` or ``"user"``) and the AI's reasons, for the wizard
+    to surface. Returns the projected ``approved`` list.
+    """
+    mech_dir.mkdir(parents=True, exist_ok=True)
+
+    def _write(name: str, data: Any) -> None:
+        (mech_dir / name).write_text(
+            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
         )
-    try:
-        log_path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-    except OSError:
-        logger.warning("Could not write mechanic-generation log to %s", log_path)
+
+    _write("candidates.json", candidates)
+    _write("evergreen-keywords.json", load_evergreen_defaults())
+    approved = [candidate_to_approved(candidates[i]) for i in picks]
+    _write("pointed-questions.json", render_pointed_questions(approved))
+    # Empty stub — the LLM doesn't produce functional_tags; balance.py
+    # tolerates the file being missing or empty.
+    _write("functional-tags.json", {})
+    _write(
+        "pick-rationale.json",
+        {
+            "source": source,
+            "model_id": model_id,
+            "overall_rationale": overall_rationale,
+            "selections": selections or [],
+            "picked_at": datetime.now(UTC).isoformat(),
+        },
+    )
+    _write("approved.json", approved)
+    return approved

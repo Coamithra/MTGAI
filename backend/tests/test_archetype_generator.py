@@ -224,20 +224,22 @@ def test_generate_archetypes_returns_normalized(_project, monkeypatch) -> None:
     assert result["output_tokens"] == 22
 
 
-def test_generate_archetypes_dedupes_and_writes_log(_project, monkeypatch) -> None:
+def test_generate_archetypes_routes_log_dir(_project, monkeypatch) -> None:
     from mtgai.io.asset_paths import set_artifact_dir
 
-    monkeypatch.setattr(
-        ag,
-        "generate_with_tool",
-        _stub_generate_with_tool(ag.COLOR_PAIRS),
-    )
+    # The bespoke per-call logger is gone; instead llmfacade's JSONL+HTML
+    # transcript is routed to the per-stage logs dir via ``log_dir``.
+    inner = _stub_generate_with_tool(ag.COLOR_PAIRS)
+    captured: dict = {}
+
+    def stub(*args, **kwargs):
+        captured.update(kwargs)
+        return inner(*args, **kwargs)
+
+    monkeypatch.setattr(ag, "generate_with_tool", stub)
     result = ag.generate_archetypes()
     assert len(result["archetypes"]) == 10
-    # A per-call log sidecar was written.
-    log_dir = set_artifact_dir() / "archetypes" / "logs"
-    assert log_dir.exists()
-    assert list(log_dir.glob("*.json"))
+    assert captured.get("log_dir") == set_artifact_dir() / "archetypes" / "logs"
 
 
 def test_generate_archetypes_raises_when_undercounted(_project, monkeypatch) -> None:

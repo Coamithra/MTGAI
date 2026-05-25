@@ -26,6 +26,7 @@ import logging
 import os
 import re
 import threading
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -228,6 +229,21 @@ def _get_provider(name: str) -> Provider:
         return prov
 
 
+def _convo_name(tool_schema: dict) -> str:
+    """Human-readable, unique name for an llmfacade conversation.
+
+    llmfacade writes a per-conversation JSONL **and HTML** transcript named
+    after the convo (``<run_dir>/<name>.{jsonl,html}``). Without a name it
+    falls back to an opaque ``convo-<uuid8>``, so every call's HTML log looks
+    alike. Naming after the tool (``select_best_mechanics``,
+    ``submit_mechanic_candidates``, …) makes the operation obvious at a
+    glance; the short uuid keeps names unique so concurrent / repeated calls
+    in one session don't overwrite each other's log.
+    """
+    base = str(tool_schema.get("name") or "call")
+    return f"{base}-{uuid.uuid4().hex[:8]}"
+
+
 def _make_tool(tool_schema: dict) -> Tool:
     """Wrap an MTGAI/Anthropic-style tool schema dict as an llmfacade Tool."""
     return Tool(
@@ -283,18 +299,20 @@ def _generate_anthropic(
     max_tokens: int,
     effort: str | None,
     cache: bool,
+    log_dir: Any = True,
 ) -> dict:
     """Call Anthropic via llmfacade with forced tool_choice."""
     provider = _get_provider("anthropic")
     facade_model = provider.new_model(model)
     convo = facade_model.new_conversation(
+        name=_convo_name(tool_schema),
         system_blocks=[SystemBlock(text=system_prompt, cache=cache)],
         tools=[_make_tool(tool_schema)],
         tool_choice=tool_schema["name"],
         # Provider-level auto_cache_tools is True; explicitly disable here
         # when the caller passes cache=False so we honour the contract.
         auto_cache_tools=cache,
-        log_dir=True,
+        log_dir=log_dir,
     )
 
     send_kwargs: dict[str, Any] = {
@@ -381,6 +399,7 @@ def _generate_llamacpp(
     model: str,
     temperature: float,
     max_tokens: int,
+    log_dir: Any = True,
 ) -> dict:
     """Call a local model through llmfacade's llamacpp provider.
 
@@ -426,11 +445,12 @@ def _generate_llamacpp(
     provider = _get_provider("llamacpp")
     facade_model = _llamacpp_new_model(provider, model)
     convo = facade_model.new_conversation(
+        name=_convo_name(tool_schema),
         system_blocks=[SystemBlock(text=system_prompt)],
         tools=[_make_tool(tool_schema)],
         max_tokens=max_tokens,
         temperature=temperature,
-        log_dir=True,
+        log_dir=log_dir,
     )
 
     next_user: str | None = user_prompt
@@ -543,6 +563,7 @@ def generate_with_tool(
     max_tokens: int = 8192,
     effort: str | None = None,
     cache: bool = True,
+    log_dir: Any | None = None,
 ) -> dict:
     """Call an LLM with tool_use for structured JSON output.
 
@@ -554,6 +575,12 @@ def generate_with_tool(
         through llmfacade's OpenAI-compatible transport. Honours
         ``repeat_penalty`` (unlike the retired Ollama path).
 
+    ``log_dir`` routes llmfacade's per-conversation transcript (JSONL + HTML,
+    named after the tool — see :func:`_convo_name`). Pass a directory to drop
+    the log there (callers use their stage's ``<asset>/<stage>/logs`` so the
+    transcript is the canonical per-call log — no bespoke logger needed).
+    ``None`` (default) keeps llmfacade's default ``<cwd>/logs`` session dirs.
+
     Returns a dict with:
         - result: the parsed tool input (structured JSON)
         - input_tokens / output_tokens: token counts
@@ -563,6 +590,9 @@ def generate_with_tool(
         - model: effective model used
     """
     provider = _resolve_provider(model)
+    # None → True keeps llmfacade's default-on logging (session dirs under cwd);
+    # a Path routes the transcript to a caller-chosen directory.
+    effective_log_dir = True if log_dir is None else log_dir
 
     if provider == "llamacpp":
         return _generate_llamacpp(
@@ -572,6 +602,7 @@ def generate_with_tool(
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,
+            log_dir=effective_log_dir,
         )
 
     model, effort = cap_model(model, effort)
@@ -584,4 +615,5 @@ def generate_with_tool(
         max_tokens=max_tokens,
         effort=effort,
         cache=cache,
+        log_dir=effective_log_dir,
     )

@@ -27,8 +27,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import time
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -332,6 +330,9 @@ def generate_visual_references(*, theme: dict | None = None) -> dict:
     model_id = settings.get_llm_model_id("visual_refs")
 
     asset_dir = set_artifact_dir()
+    # llmfacade writes each call's JSONL+HTML transcript here (named after the
+    # tool); it's the canonical per-call log — no bespoke logger needed.
+    log_dir = asset_dir / "art-direction" / "logs"
     if theme is None:
         theme_path = asset_dir / "theme.json"
         if not theme_path.exists():
@@ -345,31 +346,15 @@ def generate_visual_references(*, theme: dict | None = None) -> dict:
     )
 
     logger.info("Generating visual references (model=%s)", model_id)
-    started = time.perf_counter()
-    response: dict[str, Any] | None = None
-    error: str | None = None
-    try:
-        response = generate_with_tool(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            tool_schema=VISUAL_REF_TOOL_SCHEMA,
-            model=model_id,
-            temperature=1.0,
-            max_tokens=8192,
-        )
-    except Exception as exc:
-        error = f"{type(exc).__name__}: {exc}"
-        raise
-    finally:
-        latency_s = time.perf_counter() - started
-        _save_generation_log(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            response=response,
-            model_id=model_id,
-            latency_s=latency_s,
-            error=error,
-        )
+    response = generate_with_tool(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        tool_schema=VISUAL_REF_TOOL_SCHEMA,
+        model=model_id,
+        temperature=1.0,
+        max_tokens=8192,
+        log_dir=log_dir,
+    )
 
     result = response["result"]
     references = assemble_visual_references(
@@ -390,59 +375,3 @@ def generate_visual_references(*, theme: dict | None = None) -> dict:
     }
 
 
-def _save_generation_log(
-    *,
-    system_prompt: str,
-    user_prompt: str,
-    response: dict[str, Any] | None,
-    model_id: str,
-    latency_s: float,
-    error: str | None,
-) -> None:
-    """Persist a per-call visual-reference generation log under the project.
-
-    Path: ``<asset>/art-direction/logs/<isots>.json``. Captures full
-    prompts, raw tool result, token usage, latency, and any error — same
-    shape as the archetype-generation log.
-    """
-    from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
-
-    try:
-        log_dir = set_artifact_dir() / "art-direction" / "logs"
-    except NoAssetFolderError:
-        return
-    try:
-        log_dir.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        logger.warning("Could not create visual-reference log dir at %s", log_dir)
-        return
-
-    timestamp = datetime.now(UTC).isoformat().replace(":", "-").replace("+00-00", "Z")
-    log_path = log_dir / f"{timestamp}.json"
-    payload: dict[str, Any] = {
-        "timestamp": datetime.now(UTC).isoformat(),
-        "model": model_id,
-        "latency_s": round(latency_s, 2),
-        "system_prompt": system_prompt,
-        "user_prompt": user_prompt,
-    }
-    if error is not None:
-        payload["error"] = error
-    if response is not None:
-        payload.update(
-            {
-                "input_tokens": response.get("input_tokens", 0),
-                "output_tokens": response.get("output_tokens", 0),
-                "cache_creation_input_tokens": response.get("cache_creation_input_tokens", 0),
-                "cache_read_input_tokens": response.get("cache_read_input_tokens", 0),
-                "stop_reason": response.get("stop_reason", ""),
-                "raw_result": response.get("result", {}),
-            }
-        )
-    try:
-        log_path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-    except OSError:
-        logger.warning("Could not write visual-reference log to %s", log_path)

@@ -129,6 +129,19 @@
   transition: width 0.3s ease;
 }
 
+/* Indeterminate mode — for synchronous AI actions with no token telemetry
+   (e.g. "Re-pick with AI"). A fixed-width fill slides across the track. */
+.wiz-progress-strip .wiz-progress-bar--indeterminate .wiz-progress-bar-fill {
+  width: 45%;
+  transition: none;
+  animation: wiz-indeterminate 1.1s linear infinite;
+}
+
+@keyframes wiz-indeterminate {
+  from { margin-left: -45%; }
+  to { margin-left: 100%; }
+}
+
 .wiz-progress-strip .wiz-progress-cancel {
   flex: 0 0 auto;
   padding: 0.25rem 0.6rem;
@@ -1102,6 +1115,67 @@
   line-height: 1.45;
 }
 
+/* AI-reasoning box — what the AI recommended + why (static once picked). */
+.wiz-mech-pick-rationale {
+  padding: 0.6rem 0.8rem;
+  background: #9b59b612;
+  border: 1px solid #9b59b633;
+  border-radius: 6px;
+}
+.wiz-mech-pick-rationale-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  color: #ddd;
+  font-size: 0.85rem;
+}
+.wiz-mech-pick-rationale-head strong { color: #c89be8; }
+.wiz-mech-pick-rationale-note { color: #999; font-weight: 400; }
+.wiz-mech-pick-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+  color: #ccc;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.wiz-mech-pick-list strong { color: #c89be8; }
+.wiz-mech-pick-overall {
+  margin: 0.5rem 0 0;
+  color: #aaa;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+/* Final-picks box — the live current selection (reflects the checkboxes). */
+.wiz-mech-final-picks {
+  padding: 0.6rem 0.8rem;
+  background: #11111e;
+  border: 1px solid #2a2a3e;
+  border-radius: 6px;
+}
+.wiz-mech-final-picks-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.wiz-mech-final-picks-head strong { color: #e0e0e0; font-size: 0.9rem; }
+.wiz-mech-final-picks-list {
+  margin: 0.45rem 0 0;
+  padding-left: 1.2rem;
+  color: #ddd;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+.wiz-mech-final-picks-empty {
+  margin: 0.4rem 0 0;
+  color: #888;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
 .wiz-mech-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
@@ -1231,11 +1305,17 @@
   padding-top: 0.6rem;
 }
 
-.wiz-mech-strip-actions {
+/* Selection block — sits below the candidate strip: Re-pick button, then
+   the blurb (AI rationale + pick count). Vertical flow so the order of
+   operations reads top-to-bottom. */
+.wiz-mech-selection {
   display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin: 0.5rem 0 1rem;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0.75rem 0 1rem;
+}
+.wiz-mech-selection-actions {
+  display: flex;
 }
 .wiz-mech-pick-count {
   font-size: 0.85rem;

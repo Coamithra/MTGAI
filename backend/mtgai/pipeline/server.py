@@ -2429,6 +2429,7 @@ async def wizard_mechanics_state() -> JSONResponse:
 
     candidates = _read_json(mech_dir / "candidates.json", [])
     approved = _read_json(mech_dir / "approved.json", None)
+    pick_rationale = _read_json(mech_dir / "pick-rationale.json", None)
     try:
         theme = _read_json(_theme_path(), None)
     except NoAssetFolderError:
@@ -2441,6 +2442,7 @@ async def wizard_mechanics_state() -> JSONResponse:
         {
             "candidates": candidates,
             "approved": approved,
+            "pick_rationale": pick_rationale,
             "set_params": settings.set_params.model_dump(),
             "theme_summary": _theme_summary(theme),
             "model_id": settings.get_llm_model_id("mechanics"),
@@ -2598,6 +2600,8 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
         candidate_count,
         detect_keyword_collisions,
         generate_mechanic_candidates,
+        persist_mechanic_selection,
+        pick_best_mechanics,
     )
 
     try:
@@ -2643,12 +2647,26 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
             return JSONResponse({"error": str(exc)}, status_code=500)
 
         new_mechanics = response["mechanics"]
+        pick: dict | None = None
         if initial_generate:
             merged = []
             for new_mech in new_mechanics[:pool]:
                 tagged = dict(new_mech)
                 tagged["_ai_generated"] = True
                 merged.append(tagged)
+            # A from-scratch regeneration replaces the whole pool, so any
+            # prior approved.json points at stale rows — re-run the AI
+            # picker and rewrite the selection (mirrors the stage runner).
+            pick = await asyncio.to_thread(pick_best_mechanics, candidates=merged)
+            persist_mechanic_selection(
+                mech_dir,
+                merged,
+                pick["picks"],
+                source="ai",
+                overall_rationale=pick["overall_rationale"],
+                selections=pick["selections"],
+                model_id=pick["model_id"],
+            )
         else:
             merged = list(candidates)
             while len(merged) < pool:
@@ -2656,12 +2674,13 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
             merged = merged[:pool]
             # Replace flagged indices in order with newly-generated
             # candidates, tagging each freshly-LLM-generated row as AI
-            # again.
+            # again. A targeted refresh leaves the existing selection
+            # alone — the user can re-pick explicitly.
             for replace_idx, new_mech in zip(indices, new_mechanics, strict=False):
                 tagged = dict(new_mech)
                 tagged["_ai_generated"] = True
                 merged[replace_idx] = tagged
-        _write_json(mech_dir / "candidates.json", merged)
+            _write_json(mech_dir / "candidates.json", merged)
 
     collisions = detect_keyword_collisions(merged)
     return JSONResponse(
@@ -2670,6 +2689,9 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
             "candidates": merged,
             "collisions": {str(idx): name for idx, name in collisions.items()},
             "model_id": response.get("model_id"),
+            "picks": pick["picks"] if pick else None,
+            "selections": pick["selections"] if pick else None,
+            "overall_rationale": pick["overall_rationale"] if pick else None,
         }
     )
 
@@ -2691,16 +2713,17 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
     4. Writes the auto-sidecars: ``evergreen-keywords.json`` (default
        per-color table), ``pointed-questions.json`` (canonical template
        with ``{mechanic_names}`` substituted), ``functional-tags.json``
-       (empty stub).
+       (empty stub), and ``pick-rationale.json`` (marked ``source: user``,
+       overwriting any AI-picker rationale).
     5. Returns ``{success, navigate_to: "/pipeline/skeleton"}`` — the
        client follows up with ``POST /api/wizard/advance`` to flip the
        stage to COMPLETED and resume the engine.
+
+    The write order (sidecars + candidates first, ``approved.json`` last) is
+    owned by :func:`mtgai.generation.mechanic_generator.persist_mechanic_selection`,
+    shared with the stage runner's AI picker and the re-pick endpoint.
     """
-    from mtgai.generation.mechanic_generator import (
-        candidate_to_approved,
-        load_evergreen_defaults,
-        render_pointed_questions,
-    )
+    from mtgai.generation.mechanic_generator import persist_mechanic_selection
 
     try:
         project = _require_active_project()
@@ -2739,21 +2762,15 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
         mech_dir = _mechanics_dir()
     except NoAssetFolderError as exc:
         return _no_asset_folder_response(exc)
-    mech_dir.mkdir(parents=True, exist_ok=True)
 
-    # Order matters: approved.json is the marker downstream stages
-    # check ("does this project have approved mechanics?"). Write the
-    # sidecars + the candidates snapshot first, approved.json last —
-    # so a partial failure leaves the project in a "still being saved"
-    # state rather than a "downstream stages think they're ready" one.
-    _write_json(mech_dir / "candidates.json", candidates)
-    _write_json(mech_dir / "evergreen-keywords.json", load_evergreen_defaults())
-    approved = [candidate_to_approved(candidates[i]) for i in picks]
-    _write_json(mech_dir / "pointed-questions.json", render_pointed_questions(approved))
-    # Empty stub — the LLM doesn't produce functional_tags; balance.py
-    # tolerates the file being missing or empty.
-    _write_json(mech_dir / "functional-tags.json", {})
-    _write_json(mech_dir / "approved.json", approved)
+    approved = persist_mechanic_selection(
+        mech_dir,
+        candidates,
+        picks,
+        source="user",
+        selections=[{"name": (candidates[i].get("name") or "?"), "reason": ""} for i in picks],
+        model_id=settings.get_llm_model_id("mechanics"),
+    )
 
     logger.info(
         "Mechanics save: %d picks → %s; sidecars written", len(picks), mech_dir / "approved.json"
@@ -2763,6 +2780,80 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
             "success": True,
             "approved": approved,
             "navigate_to": "/pipeline/skeleton",
+        }
+    )
+
+
+@router.post("/api/wizard/mechanics/pick")
+async def wizard_mechanics_pick(request: Request) -> JSONResponse:
+    """Re-run the AI picker over the current candidates and write the selection.
+
+    Body: ``{candidates: list[dict]}`` — the client's current working view
+    (inline edits included). Runs :func:`pick_best_mechanics` inside the AI
+    lock, writes ``approved.json`` + sidecars + ``pick-rationale.json``
+    (``source: ai``) via the shared persist helper, and returns the chosen
+    indices + per-pick reasons so the strip can pre-select and surface them
+    without a separate state fetch.
+
+    Lets the user ask the AI to (re-)choose without manually ticking
+    checkboxes — e.g. after editing or regenerating candidates. The picker
+    degrades to the first N candidates rather than failing, so a successful
+    call always leaves a valid selection on disk.
+
+    Refusal modes mirror the other mechanics AI endpoints: 409
+    ``no_active_project`` / ``no_asset_folder``, or 409 + ``busy_payload``
+    when another AI action holds the lock.
+    """
+    from mtgai.generation.mechanic_generator import (
+        persist_mechanic_selection,
+        pick_best_mechanics,
+    )
+
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+    candidates = _coerce_candidates_payload(body.get("candidates"))
+    if candidates is None:
+        return JSONResponse({"error": "candidates must be a list of dicts"}, status_code=400)
+    if not candidates:
+        return JSONResponse({"error": "No candidates to pick from"}, status_code=400)
+    try:
+        mech_dir = _mechanics_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    with ai_lock.hold("Mechanic AI pick") as acquired:
+        if not acquired:
+            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+        try:
+            pick = await asyncio.to_thread(pick_best_mechanics, candidates=candidates)
+        except Exception as exc:
+            logger.exception("Mechanic pick LLM call failed")
+            return JSONResponse({"error": str(exc)}, status_code=500)
+        approved = persist_mechanic_selection(
+            mech_dir,
+            candidates,
+            pick["picks"],
+            source="ai",
+            overall_rationale=pick["overall_rationale"],
+            selections=pick["selections"],
+            model_id=pick["model_id"],
+        )
+
+    return JSONResponse(
+        {
+            "success": True,
+            "picks": pick["picks"],
+            "selections": pick["selections"],
+            "overall_rationale": pick["overall_rationale"],
+            "approved": approved,
+            "model_id": pick["model_id"],
         }
     )
 

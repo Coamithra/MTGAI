@@ -286,3 +286,99 @@ def test_save_400_when_picks_duplicate(client, isolated_output):
     )
     assert resp.status_code == 400
     assert "unique" in resp.json()["error"]
+
+
+def test_save_writes_pick_rationale_marked_user(client, isolated_output):
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset, mechanic_count=2)
+    candidates = [_make_candidate(f"M{i}") for i in range(6)]
+    resp = client.post(
+        "/api/wizard/mechanics/save",
+        json={"picks": [1, 3], "candidates": candidates},
+    )
+    assert resp.status_code == 200
+    rationale = json.loads(
+        (asset / "mechanics" / "pick-rationale.json").read_text(encoding="utf-8")
+    )
+    assert rationale["source"] == "user"
+    assert [s["name"] for s in rationale["selections"]] == ["M1", "M3"]
+
+
+# ---------------------------------------------------------------------------
+# POST /api/wizard/mechanics/pick (AI picker)
+# ---------------------------------------------------------------------------
+
+
+def _stub_pick(monkeypatch, candidate_numbers: list[int]) -> None:
+    """Stub ``generate_with_tool`` to return a fixed AI pick selection."""
+
+    def stub(*args, **kwargs):
+        return {
+            "result": {
+                "selections": [
+                    {"candidate_number": n, "reason": f"reason {n}"} for n in candidate_numbers
+                ],
+                "overall_rationale": "good spread",
+            },
+            "input_tokens": 3,
+            "output_tokens": 4,
+        }
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+
+
+def test_pick_writes_approved_and_returns_picks(client, isolated_output, monkeypatch):
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset, mechanic_count=3)
+    _stub_pick(monkeypatch, [2, 4, 6])  # 1-based
+    candidates = [_make_candidate(f"M{i}") for i in range(6)]
+
+    resp = client.post("/api/wizard/mechanics/pick", json={"candidates": candidates})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["picks"] == [1, 3, 5]  # 0-based
+    assert data["overall_rationale"] == "good spread"
+    assert [a["name"] for a in data["approved"]] == ["M1", "M3", "M5"]
+    # approved.json + AI rationale persisted.
+    mech_dir = asset / "mechanics"
+    approved = json.loads((mech_dir / "approved.json").read_text(encoding="utf-8"))
+    assert [a["name"] for a in approved] == ["M1", "M3", "M5"]
+    rationale = json.loads((mech_dir / "pick-rationale.json").read_text(encoding="utf-8"))
+    assert rationale["source"] == "ai"
+
+
+def test_pick_400_when_no_candidates(client, isolated_output, monkeypatch):
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _stub_pick(monkeypatch, [1, 2, 3])
+    resp = client.post("/api/wizard/mechanics/pick", json={"candidates": []})
+    assert resp.status_code == 400
+
+
+def test_pick_409_when_ai_busy(client, isolated_output, monkeypatch):
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _stub_pick(monkeypatch, [1, 2, 3])
+    candidates = [_make_candidate(f"M{i}") for i in range(6)]
+    with ai_lock.hold("Other action") as acquired:
+        assert acquired
+        resp = client.post("/api/wizard/mechanics/pick", json={"candidates": candidates})
+        assert resp.status_code == 409
+        assert resp.json()["running_action"] == "Other action"
+
+
+def test_state_surfaces_pick_rationale(client, isolated_output):
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    mech_dir = asset / "mechanics"
+    mech_dir.mkdir()
+    (mech_dir / "candidates.json").write_text(
+        json.dumps([_make_candidate(f"C{i}") for i in range(6)]), encoding="utf-8"
+    )
+    (mech_dir / "pick-rationale.json").write_text(
+        json.dumps({"source": "ai", "overall_rationale": "balanced", "selections": []}),
+        encoding="utf-8",
+    )
+    data = client.get("/api/wizard/mechanics/state").json()
+    assert data["pick_rationale"]["source"] == "ai"
+    assert data["pick_rationale"]["overall_rationale"] == "balanced"
