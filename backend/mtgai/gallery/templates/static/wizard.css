@@ -1330,3 +1330,109 @@
 .wiz-mech-locked button:disabled {
   cursor: not-allowed;
 }
+
+/* ------------------------------------------------------------------ */
+/* Archetypes tab (TC-3) — a 10-card grid, one per two-color pair.    */
+/* ------------------------------------------------------------------ */
+.wiz-arch-loading { color: #888; font-style: italic; padding: 0.5rem 0; }
+.wiz-arch-blurb { color: #999; font-size: 0.82rem; margin: 0.1rem 0 0.6rem; line-height: 1.4; }
+.wiz-arch-context {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.75rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+.wiz-arch-context dt { color: #888; }
+.wiz-arch-context dd { margin: 0; color: #ddd; }
+.wiz-arch-theme-preview { font-size: 0.82rem; color: #aaa; margin-bottom: 0.25rem; }
+.wiz-arch-theme-preview summary { cursor: pointer; color: #bbb; }
+.wiz-arch-theme-text { margin-top: 0.4rem; line-height: 1.45; color: #aaa; white-space: pre-wrap; }
+
+.wiz-arch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.wiz-arch-empty {
+  grid-column: 1 / -1;
+  padding: 2rem;
+  text-align: center;
+  color: #888;
+  font-style: italic;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed #2a2a3e;
+  border-radius: 6px;
+}
+.wiz-arch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem;
+  background: #15151f;
+  border: 1px solid #2a2a3e;
+  border-radius: 8px;
+  transition: border-color 0.18s;
+}
+.wiz-arch-card[data-ai-generated="true"] { border-color: #4a9eff55; }
+.wiz-arch-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.wiz-arch-pips { display: inline-flex; gap: 3px; flex: 0 0 auto; }
+.wiz-arch-pip {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid #00000055;
+  box-shadow: inset 0 0 0 1px #ffffff22;
+}
+/* WUBRG mana colours (Card Conjurer / WotC-ish swatches). */
+.wiz-arch-pip-W { background: #f8f4e3; }
+.wiz-arch-pip-U { background: #4a9eff; }
+.wiz-arch-pip-B { background: #5b5366; }
+.wiz-arch-pip-R { background: #e8694a; }
+.wiz-arch-pip-G { background: #4caf7d; }
+.wiz-arch-pair { display: flex; flex-direction: column; line-height: 1.1; flex: 1 1 auto; }
+.wiz-arch-pair-code { font-weight: 700; font-size: 0.95rem; color: #e8e8f0; letter-spacing: 0.04em; }
+.wiz-arch-guild { font-size: 0.72rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+.wiz-arch-card-header .wiz-ai-badge { flex: 0 0 auto; }
+.wiz-arch-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.wiz-arch-label { font-size: 0.72rem; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
+.wiz-arch-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.4rem 0.55rem;
+  background: #0d0d18;
+  border: 1px solid #2a2a3e;
+  border-radius: 4px;
+  color: #e8e8f0;
+}
+.wiz-arch-desc {
+  padding: 0.5rem 0.6rem;
+  background: #0d0d18;
+  border: 1px solid #2a2a3e;
+  border-radius: 4px;
+  color: #e8e8f0;
+  font-size: 0.85rem;
+  font-family: inherit;
+  line-height: 1.45;
+  resize: vertical;
+}
+.wiz-arch-name:focus, .wiz-arch-desc:focus { outline: none; border-color: #4a9eff; }
+.wiz-arch-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  border-top: 1px solid #1f1f2e;
+  padding-top: 0.6rem;
+}
+.wiz-arch-locked { opacity: 0.85; }
+.wiz-arch-locked .wiz-arch-card input:disabled,
+.wiz-arch-locked .wiz-arch-card textarea:disabled,
+.wiz-arch-locked button:disabled {
+  cursor: not-allowed;
+}

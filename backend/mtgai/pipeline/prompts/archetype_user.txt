@@ -8,6 +8,5 @@ For each archetype provide just these fields:
 Think about:
 1. How each pair's identity flows from the set's flavor and approved mechanics.
 2. Keeping the ten archetypes distinct in plan and pace.
-3. Whether enough commons and uncommons support each deck in a {set_size}-card Limited environment.
 
 Return exactly ten archetypes, one per color pair.

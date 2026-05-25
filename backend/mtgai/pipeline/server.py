@@ -2873,6 +2873,355 @@ async def wizard_mechanics_pick(request: Request) -> JSONResponse:
 
 
 # ---------------------------------------------------------------------------
+# Wizard Archetypes tab — bespoke per-color-pair review strip (TC-3)
+#
+# Unlike mechanics there's no "pick" step: all ten two-color pairs are kept,
+# one archetype each. The tab is a 10-card grid the user can edit + refresh.
+# ``archetypes.json`` is the canonical artifact (strictly color_pair / name /
+# description); AI-vs-human provenance is kept out of it in a sidecar
+# ``archetypes/provenance.json`` (color_pair -> "ai"|"human") so the
+# preserve-on-refresh contract (§5) survives reloads without polluting the
+# downstream-consumed file. A pair missing from the sidecar defaults to "ai"
+# (the stage runner writes archetypes.json with no provenance).
+# ---------------------------------------------------------------------------
+
+
+def _order_working_archetypes(working: list[dict] | None) -> list[dict]:
+    """Normalize a working archetype list to one entry per pair in WUBRG order.
+
+    Returns exactly ten ``{color_pair, name, description, _ai_generated}``
+    dicts (one per :data:`COLOR_PAIRS` entry), filling any missing pair with
+    an empty AI-flagged placeholder. Input pairs are canonicalised; the first
+    entry seen per pair wins and any extras / malformed entries are dropped.
+    """
+    from mtgai.generation.archetype_generator import COLOR_PAIRS, normalize_color_pair
+
+    by_pair: dict[str, dict] = {}
+    for a in working or []:
+        if not isinstance(a, dict):
+            continue
+        cp = normalize_color_pair(a.get("color_pair"))
+        if cp is None or cp in by_pair:
+            continue
+        by_pair[cp] = a
+    out: list[dict] = []
+    for p in COLOR_PAIRS:
+        a = by_pair.get(p)
+        out.append(
+            {
+                "color_pair": p,
+                "name": (a.get("name") or "") if a else "",
+                "description": (a.get("description") or "") if a else "",
+                "_ai_generated": bool(a.get("_ai_generated", True)) if a else True,
+            }
+        )
+    return out
+
+
+def _persist_archetypes_working(asset_dir: Path, ordered: list[dict]) -> list[dict]:
+    """Write ``archetypes.json`` (clean) + the provenance sidecar.
+
+    ``ordered`` is the ten-entry working view. Empty placeholder pairs (no
+    name and no description) are skipped from both files so the canonical
+    artifact never carries junk entries. Returns the list written to
+    ``archetypes.json`` (clean, content-only).
+    """
+    clean: list[dict] = []
+    provenance: dict[str, str] = {}
+    for a in ordered:
+        pair = a["color_pair"]
+        name = (a.get("name") or "").strip()
+        desc = (a.get("description") or "").strip()
+        if not name and not desc:
+            continue
+        clean.append({"color_pair": pair, "name": name, "description": desc})
+        provenance[pair] = "ai" if a.get("_ai_generated", True) else "human"
+    _write_json(asset_dir / "archetypes.json", clean)
+    _write_json(asset_dir / "archetypes" / "provenance.json", provenance)
+    return clean
+
+
+@router.get("/api/wizard/archetypes/state")
+async def wizard_archetypes_state() -> JSONResponse:
+    """First-paint state for the Archetypes tab.
+
+    Reads ``archetypes.json`` + the provenance sidecar, folds provenance
+    into per-pair ``_ai_generated`` flags, and returns the full ten-pair
+    working view (missing pairs as empty AI placeholders) alongside the
+    canonical pair order/labels, set params, theme excerpt, model id, and
+    the current stage status.
+    """
+    from mtgai.generation.archetype_generator import (
+        COLOR_PAIRS,
+        normalize_color_pair,
+        pair_label,
+    )
+
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    settings = project.settings
+
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    archetypes = _read_json(asset / "archetypes.json", [])
+    if not isinstance(archetypes, list):
+        archetypes = []
+    provenance = _read_json(asset / "archetypes" / "provenance.json", {})
+    prov = provenance if isinstance(provenance, dict) else {}
+
+    flagged: list[dict] = []
+    for a in archetypes:
+        if not isinstance(a, dict):
+            continue
+        cp = normalize_color_pair(a.get("color_pair"))
+        if cp is None:
+            continue
+        flagged.append({**a, "color_pair": cp, "_ai_generated": prov.get(cp) != "human"})
+    working = _order_working_archetypes(flagged)
+    has_content = any((a["name"] or a["description"]) for a in working)
+
+    try:
+        theme = _read_json(_theme_path(), None)
+    except NoAssetFolderError:
+        theme = None
+
+    return JSONResponse(
+        {
+            "archetypes": working,
+            "has_content": has_content,
+            "pairs": [{"pair": p, "label": pair_label(p)} for p in COLOR_PAIRS],
+            "set_params": settings.set_params.model_dump(),
+            "theme_summary": _theme_summary(theme),
+            "model_id": settings.get_llm_model_id("archetypes"),
+            "stage_status": _stage_status_in_state("archetypes"),
+        }
+    )
+
+
+@router.post("/api/wizard/archetypes/refresh-card")
+async def wizard_archetypes_refresh_card(request: Request) -> JSONResponse:
+    """Regenerate the archetype for a single color pair.
+
+    Body: ``{color_pair: str, archetypes: list[dict]}``. The client sends
+    its current working view (so edits to other pairs survive); the server
+    runs a *focused* regeneration (``generate_archetypes(focus_pairs=[pair],
+    existing=working)``) so the new design stays distinct from the kept
+    pairs, swaps the one pair in (tagged AI), persists, and returns the
+    merged working view.
+
+    Refusal modes mirror the mechanics AI endpoints: 409 ``no_active_project``
+    / ``no_asset_folder``, or 409 + ``busy_payload`` when the AI lock is held.
+    """
+    from mtgai.generation.archetype_generator import generate_archetypes, normalize_color_pair
+
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+    color_pair = normalize_color_pair(body.get("color_pair"))
+    if color_pair is None:
+        return JSONResponse(
+            {"error": "color_pair must be a valid two-color pair (WUBRG order)"},
+            status_code=400,
+        )
+    working = _coerce_candidates_payload(body.get("archetypes"))
+    if working is None:
+        return JSONResponse({"error": "archetypes must be a list of dicts"}, status_code=400)
+
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    ordered = _order_working_archetypes(working)
+    with ai_lock.hold("Archetype refresh") as acquired:
+        if not acquired:
+            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+        try:
+            response = await asyncio.to_thread(
+                generate_archetypes, focus_pairs=[color_pair], existing=ordered
+            )
+        except Exception as exc:
+            logger.exception("Archetype refresh-card LLM call failed")
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+        fresh = response["archetypes"]
+        new_entry = next((a for a in fresh if a.get("color_pair") == color_pair), None)
+        if new_entry is None:
+            return JSONResponse(
+                {"error": f"Regeneration produced no archetype for {color_pair}"},
+                status_code=500,
+            )
+        for entry in ordered:
+            if entry["color_pair"] == color_pair:
+                entry["name"] = new_entry.get("name") or ""
+                entry["description"] = new_entry.get("description") or ""
+                entry["_ai_generated"] = True
+                break
+        _persist_archetypes_working(asset, ordered)
+
+    return JSONResponse(
+        {"success": True, "archetypes": ordered, "model_id": response.get("model_id")}
+    )
+
+
+@router.post("/api/wizard/archetypes/refresh-all")
+async def wizard_archetypes_refresh_all(request: Request) -> JSONResponse:
+    """Regenerate AI-flagged pairs, or kick off initial generation.
+
+    Body: ``{pairs: list[str], archetypes: list[dict]}``.
+
+    * Both empty → initial full generation (the "Generate" button on an
+      empty Archetypes tab — recovers a stuck/failed initial run without the
+      Theme/Mechanics edit cascade). All ten pairs come back AI-flagged.
+    * ``pairs`` non-empty → a single full regeneration, then only the listed
+      pairs are swapped in (re-tagged AI); pairs the user hand-edited survive
+      untouched. Generating the full set in one coherent pass keeps the kept
+      and refreshed archetypes consistent with each other.
+    """
+    from mtgai.generation.archetype_generator import generate_archetypes, normalize_color_pair
+
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+    working = _coerce_candidates_payload(body.get("archetypes"))
+    if working is None:
+        return JSONResponse({"error": "archetypes must be a list of dicts"}, status_code=400)
+
+    raw_pairs = body.get("pairs")
+    if not isinstance(raw_pairs, list):
+        return JSONResponse({"error": "pairs must be a list of color-pair codes"}, status_code=400)
+    refresh_pairs: set[str] = set()
+    for entry in raw_pairs:
+        cp = normalize_color_pair(entry)
+        if cp is None:
+            return JSONResponse(
+                {"error": f"Invalid color pair in pairs: {entry!r}"}, status_code=400
+            )
+        refresh_pairs.add(cp)
+
+    has_working = any(
+        isinstance(a, dict)
+        and ((a.get("name") or "").strip() or (a.get("description") or "").strip())
+        for a in working
+    )
+    initial_generate = not refresh_pairs and not has_working
+    if not refresh_pairs and not initial_generate:
+        return JSONResponse(
+            {"error": "Nothing to refresh — no AI-flagged pairs"}, status_code=400
+        )
+
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    ordered = _order_working_archetypes(working)
+    with ai_lock.hold("Archetype refresh") as acquired:
+        if not acquired:
+            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+        try:
+            response = await asyncio.to_thread(generate_archetypes)
+        except Exception as exc:
+            logger.exception("Archetype refresh-all LLM call failed")
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+        fresh_by_pair = {a["color_pair"]: a for a in response["archetypes"]}
+        for entry in ordered:
+            pair = entry["color_pair"]
+            replace = initial_generate or pair in refresh_pairs
+            if replace and pair in fresh_by_pair:
+                fresh = fresh_by_pair[pair]
+                entry["name"] = fresh.get("name") or ""
+                entry["description"] = fresh.get("description") or ""
+                entry["_ai_generated"] = True
+        _persist_archetypes_working(asset, ordered)
+
+    return JSONResponse(
+        {"success": True, "archetypes": ordered, "model_id": response.get("model_id")}
+    )
+
+
+@router.post("/api/wizard/archetypes/save")
+async def wizard_archetypes_save(request: Request) -> JSONResponse:
+    """Persist the reviewed archetypes and report the next stage.
+
+    Body: ``{archetypes: list[dict]}`` — the ten-pair working view with any
+    inline edits. Validates that every pair has a non-empty name +
+    description, writes ``archetypes.json`` (clean) + the provenance sidecar,
+    and returns ``{success, navigate_to}`` pointing at the stage that follows
+    ``archetypes`` in ``STAGE_DEFINITIONS`` (``skeleton`` today). The client
+    follows up with ``POST /api/wizard/advance`` to flip the stage
+    COMPLETED and resume the engine.
+
+    No AI lock — this is a pure disk write (matches ``mechanics/save``).
+    """
+    from mtgai.generation.archetype_generator import pair_label
+
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+    working = _coerce_candidates_payload(body.get("archetypes"))
+    if working is None:
+        return JSONResponse({"error": "archetypes must be a list of dicts"}, status_code=400)
+
+    ordered = _order_working_archetypes(working)
+    for a in ordered:
+        if not (a.get("name") or "").strip() or not (a.get("description") or "").strip():
+            return JSONResponse(
+                {"error": f"{pair_label(a['color_pair'])} needs both a name and a description."},
+                status_code=400,
+            )
+
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    clean = _persist_archetypes_working(asset, ordered)
+    logger.info("Archetypes save: %d archetypes → %s", len(clean), asset / "archetypes.json")
+
+    arch_idx = next(
+        (i for i, d in enumerate(STAGE_DEFINITIONS) if d["stage_id"] == "archetypes"),
+        -1,
+    )
+    next_id = (
+        STAGE_DEFINITIONS[arch_idx + 1]["stage_id"]
+        if 0 <= arch_idx < len(STAGE_DEFINITIONS) - 1
+        else None
+    )
+    return JSONResponse(
+        {
+            "success": True,
+            "archetypes": clean,
+            "navigate_to": f"/pipeline/{next_id}" if next_id else "/pipeline",
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # API routes
 # ---------------------------------------------------------------------------
 

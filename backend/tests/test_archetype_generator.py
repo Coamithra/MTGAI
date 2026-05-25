@@ -82,8 +82,10 @@ def test_build_archetype_prompts_substitutes_fields() -> None:
     # The ten color pairs are listed.
     for pair in ag.COLOR_PAIRS:
         assert pair in sys_prompt
-    # Set size threads into the user prompt.
-    assert "120" in user_prompt
+    # Set size threads into the system prompt (the default user prompt no
+    # longer references it).
+    assert "120" in sys_prompt
+    assert user_prompt  # user prompt still renders (no set_size placeholder now)
 
 
 def test_build_archetype_prompts_handles_missing_blocks() -> None:
@@ -267,3 +269,48 @@ def test_generate_archetypes_raises_when_undercounted(_project, monkeypatch) -> 
     )
     with pytest.raises(RuntimeError, match="valid archetypes"):
         ag.generate_archetypes()
+
+
+# ---------------------------------------------------------------------------
+# Focused regeneration (per-card / partial Refresh AI path)
+# ---------------------------------------------------------------------------
+
+
+def test_pair_label() -> None:
+    assert ag.pair_label("WU") == "WU (White-Blue)"
+    assert ag.pair_label("RG") == "RG (Red-Green)"
+
+
+def test_build_prompts_focus_uses_focus_template_and_existing_block() -> None:
+    existing = [
+        {"color_pair": "WU", "name": "Sky Wardens", "description": "win in the air"},
+        {"color_pair": "UB", "name": "Cogthieves", "description": "grind value"},
+    ]
+    _system, user = ag.build_archetype_prompts(
+        theme=_theme_fixture(),
+        approved=_approved_fixture(),
+        set_name="Brass Sky",
+        set_size=120,
+        focus_pairs=["WU"],
+        existing=existing,
+    )
+    # Asks to redesign only WU, and shows the OTHER kept pair (UB) for context
+    # while excluding the focus pair itself.
+    assert "WU (White-Blue)" in user
+    assert "Redesign 1" in user
+    assert "Cogthieves" in user
+    assert "Sky Wardens" not in user
+
+
+def test_generate_archetypes_focus_filters_to_requested_pair(_project, monkeypatch) -> None:
+    # Model returns all ten; a focused call keeps only the requested pair.
+    monkeypatch.setattr(ag, "generate_with_tool", _stub_generate_with_tool(ag.COLOR_PAIRS))
+    result = ag.generate_archetypes(focus_pairs=["UG"])
+    assert [a["color_pair"] for a in result["archetypes"]] == ["UG"]
+
+
+def test_generate_archetypes_focus_raises_when_pair_absent(_project, monkeypatch) -> None:
+    # Model returns pairs that don't include the requested one.
+    monkeypatch.setattr(ag, "generate_with_tool", _stub_generate_with_tool(["WU", "WB"]))
+    with pytest.raises(RuntimeError, match="none of the requested pairs"):
+        ag.generate_archetypes(focus_pairs=["RG"])

@@ -39,6 +39,17 @@ COLOR_PAIRS: list[str] = ["WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", 
 # WUBRG rank for canonicalising a raw pair ("UW" -> "WU").
 _WUBRG_RANK: dict[str, int] = {c: i for i, c in enumerate("WUBRG")}
 
+# Full colour names, for human-readable pair labels in the focused-regen prompt
+# ("WU" -> "White-Blue"). The full archetype prompt spells these out in its
+# pair list; the focus prompt reuses the same labels.
+_COLOR_FULL: dict[str, str] = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green"}
+
+
+def pair_label(pair: str) -> str:
+    """``"WU"`` -> ``"WU (White-Blue)"`` for prompt + UI display."""
+    names = "-".join(_COLOR_FULL.get(c, c) for c in pair)
+    return f"{pair} ({names})"
+
 # Minimum surviving archetypes after dedupe before the runner treats the
 # call as a failure. We ask for all ten; allow a small shortfall (a model
 # occasionally merges two adjacent pairs) but bail if it's badly under.
@@ -156,16 +167,53 @@ def _format_constraints_block(constraints: list[Any]) -> str:
     return "\n".join(lines) if lines else "(no special constraints)"
 
 
+def _format_existing_block(existing: list[dict] | None, focus_pairs: list[str]) -> str:
+    """Render the kept archetypes (the pairs *not* being regenerated).
+
+    Used only by the focused-regen prompt so the LLM redesigns a few pairs
+    while staying distinct from the ones the user is keeping. Pairs in
+    ``focus_pairs`` are excluded (they're the ones being replaced), as are
+    entries with no content yet (empty placeholders carry no useful signal).
+    """
+    skip = set(focus_pairs)
+    lines: list[str] = []
+    for arch in existing or []:
+        if not isinstance(arch, dict):
+            continue
+        pair = normalize_color_pair(arch.get("color_pair"))
+        if pair is None or pair in skip:
+            continue
+        name = (arch.get("name") or "").strip()
+        desc = (arch.get("description") or "").strip()
+        if not name and not desc:
+            continue
+        lines.append(f"- {pair_label(pair)} — {name or '(unnamed)'}: {desc or '(no intent)'}")
+    if not lines:
+        return "(No other archetypes are locked in yet — just design the requested pair(s).)"
+    header = (
+        "Already-designed archetypes for the OTHER pairs "
+        "(keep your new designs distinct and non-overlapping):"
+    )
+    return header + "\n" + "\n".join(lines)
+
+
 def build_archetype_prompts(
     theme: dict,
     approved: list[dict],
     set_name: str,
     set_size: int,
+    *,
+    focus_pairs: list[str] | None = None,
+    existing: list[dict] | None = None,
 ) -> tuple[str, str]:
-    """Render the archetype-generation system + user prompts."""
-    sys_template = _read_template("archetype_system.txt")
-    user_template = _read_template("archetype_user.txt")
+    """Render the archetype-generation system + user prompts.
 
+    With ``focus_pairs`` set, the user prompt asks the model to regenerate
+    *only* those pairs (passing the remaining archetypes as context via
+    ``existing`` so the new designs stay distinct) — the per-card / partial
+    "Refresh AI" path. Without it, the full ten-pair brief is used.
+    """
+    sys_template = _read_template("archetype_system.txt")
     system_prompt = sys_template.format(
         set_name=set_name or "(unnamed set)",
         set_size=set_size,
@@ -175,7 +223,17 @@ def build_archetype_prompts(
             theme.get("constraints") or theme.get("special_constraints") or []
         ),
     )
-    user_prompt = user_template.format(set_size=set_size)
+
+    if focus_pairs:
+        user_template = _read_template("archetype_user_focus.txt")
+        user_prompt = user_template.format(
+            set_size=set_size,
+            focus_count=len(focus_pairs),
+            focus_pairs=", ".join(pair_label(p) for p in focus_pairs),
+            existing_block=_format_existing_block(existing, focus_pairs),
+        )
+    else:
+        user_prompt = _read_template("archetype_user.txt").format(set_size=set_size)
     return system_prompt, user_prompt
 
 
@@ -265,6 +323,8 @@ def generate_archetypes(
     *,
     theme: dict | None = None,
     approved: list[dict] | None = None,
+    focus_pairs: list[str] | None = None,
+    existing: list[dict] | None = None,
 ) -> dict:
     """Generate the set's draft archetypes for the active project via LLM.
 
@@ -279,9 +339,16 @@ def generate_archetypes(
             "model_id": str,
         }
 
-    Raises ``RuntimeError`` if fewer than :data:`MIN_ARCHETYPES` survive
-    color-pair normalization (the runner translates this to a stage
-    failure).
+    Full run (``focus_pairs=None``): asks for all ten pairs and raises
+    ``RuntimeError`` if fewer than :data:`MIN_ARCHETYPES` survive color-pair
+    normalization (the runner translates this to a stage failure).
+
+    Focused run (``focus_pairs`` given): the wizard's per-card / partial
+    "Refresh AI" path — regenerates only those pairs, passing ``existing``
+    (the user's current working list) as context so the new designs stay
+    distinct from the kept ones. The returned ``archetypes`` are filtered to
+    the requested pairs; raises ``RuntimeError`` if the model produced none
+    of them.
     """
     from mtgai.io.asset_paths import set_artifact_dir
     from mtgai.runtime.active_project import require_active_project
@@ -311,17 +378,33 @@ def generate_archetypes(
         loaded = json.loads(approved_path.read_text(encoding="utf-8"))
         approved = loaded if isinstance(loaded, list) else []
 
+    # Canonicalise the requested focus pairs (drop anything invalid); a
+    # caller that passes only junk degrades to a full run.
+    norm_focus: list[str] | None = None
+    if focus_pairs:
+        seen: set[str] = set()
+        norm_focus = []
+        for p in focus_pairs:
+            cp = normalize_color_pair(p)
+            if cp is not None and cp not in seen:
+                seen.add(cp)
+                norm_focus.append(cp)
+        norm_focus = norm_focus or None
+
     system_prompt, user_prompt = build_archetype_prompts(
         theme=theme,
         approved=approved,
         set_name=sp.set_name or project.set_code or "Custom Set",
         set_size=sp.set_size,
+        focus_pairs=norm_focus,
+        existing=existing,
     )
 
     logger.info(
-        "Generating draft archetypes (model=%s, approved_mechanics=%d)",
+        "Generating draft archetypes (model=%s, approved_mechanics=%d, focus=%s)",
         model_id,
         len(approved),
+        norm_focus or "all",
     )
     response = generate_with_tool(
         system_prompt=system_prompt,
@@ -335,7 +418,15 @@ def generate_archetypes(
 
     raw = response["result"].get("archetypes") or []
     archetypes = dedupe_and_complete(raw)
-    if len(archetypes) < MIN_ARCHETYPES:
+    if norm_focus:
+        wanted = set(norm_focus)
+        archetypes = [a for a in archetypes if a["color_pair"] in wanted]
+        if not archetypes:
+            raise RuntimeError(
+                "Focused archetype regeneration produced none of the requested pairs "
+                f"({', '.join(norm_focus)})"
+            )
+    elif len(archetypes) < MIN_ARCHETYPES:
         raise RuntimeError(
             f"Archetype generation produced {len(archetypes)} valid archetypes "
             f"(expected {len(COLOR_PAIRS)}, minimum {MIN_ARCHETYPES})"
