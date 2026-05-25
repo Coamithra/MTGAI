@@ -214,8 +214,8 @@ class SetParams(BaseModel):
     """
 
     set_name: str = ""
-    # Standard MTG premier-set size (matches set-template.json averages).
-    # Smaller dev runs override this in the wizard.
+    # Standard MTG premier-set size (the skeleton generator's BASE_RARITY_COUNTS
+    # baseline). Smaller dev runs override this in the wizard.
     set_size: int = 277
     mechanic_count: int = 3
 

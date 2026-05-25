@@ -428,7 +428,6 @@ def run_skeleton(
 
     set_dir = _set_dir()
     theme_path = set_dir / "theme.json"
-    template_path = Path("C:/Programming/MTGAI/research/set-template.json")
 
     if not theme_path.exists():
         return StageResult(
@@ -466,7 +465,7 @@ def run_skeleton(
     )
 
     reserved_slots = build_reserved_slots(theme_data)
-    result = generate_skeleton(config, template_path, reserved_slots=reserved_slots)
+    result = generate_skeleton(config, reserved_slots=reserved_slots)
 
     # Save skeleton
     skeleton_path = set_dir / "skeleton.json"

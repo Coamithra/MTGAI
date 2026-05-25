@@ -10,7 +10,6 @@ Given a SetConfig and the research-derived set template, this module:
 
 from __future__ import annotations
 
-import json
 import logging
 from enum import StrEnum
 from pathlib import Path
@@ -173,16 +172,6 @@ class SkeletonResult(BaseModel):
     archetype_slots: dict[str, list[str]] = Field(default_factory=dict)
     balance_report: BalanceReport = Field(default_factory=BalanceReport)
     total_slots: int = 0
-
-
-# ---------------------------------------------------------------------------
-# Template loading
-# ---------------------------------------------------------------------------
-
-
-def _load_template(template_path: Path) -> dict:
-    """Read and parse the set-template.json file."""
-    return json.loads(template_path.read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -948,13 +937,16 @@ def build_reserved_slots(theme: dict) -> list[ReservedSlotSpec]:
 
 def generate_skeleton(
     config: SetConfig,
-    template_path: Path,
     reserved_slots: list[ReservedSlotSpec] | None = None,
 ) -> SkeletonResult:
-    """Build the full set skeleton from a config and template.
+    """Build the full set skeleton from a config.
+
+    Slot distribution targets (rarity counts, color split, mana curve, type
+    ratios) come from the module-level constants, which encode the averages
+    of recent premier sets (see ``BASE_RARITY_COUNTS`` etc.).
 
     Steps:
-      1. Load template and scale rarity counts.
+      1. Scale rarity counts to the target set size.
       2. Distribute colors within each rarity.
       3. Assign card types per (color, rarity) block.
       4. Assign CMC targets following the mana curve.
@@ -968,7 +960,6 @@ def generate_skeleton(
     cards onto matching slots without changing slot counts or color/rarity/type,
     so all hard constraints still hold.
     """
-    _template = _load_template(template_path)  # available for future use
     rarity_counts = _scale_rarity(config.set_size)
 
     all_slots: list[SkeletonSlot] = []

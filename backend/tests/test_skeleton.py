@@ -43,9 +43,6 @@ from mtgai.skeleton.generator import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Path to the real set-template.json used by the generator.
-TEMPLATE_PATH = Path(__file__).resolve().parents[2] / "research" / "set-template.json"
-
 
 def _make_config(set_size: int = 60, **kwargs) -> SetConfig:
     """Build a minimal SetConfig for testing."""
@@ -62,7 +59,7 @@ def _make_config(set_size: int = 60, **kwargs) -> SetConfig:
 
 def _generate(set_size: int = 60) -> SkeletonResult:
     """Convenience wrapper: generate a skeleton at the given size."""
-    return generate_skeleton(_make_config(set_size), TEMPLATE_PATH)
+    return generate_skeleton(_make_config(set_size))
 
 
 # ---------------------------------------------------------------------------
@@ -613,7 +610,7 @@ class TestEdgeCases:
             set_size=60,
             special_constraints=["tribal_heavy", "artifact_matters"],
         )
-        result = generate_skeleton(cfg, TEMPLATE_PATH)
+        result = generate_skeleton(cfg)
         assert result.total_slots == 60
         assert result.config.special_constraints == [
             "tribal_heavy",
@@ -996,19 +993,19 @@ class TestReservedSlotsIntegration:
             "card_requests": ["Throne — a relic", "Beacon — a light"],
         }
         reserved = build_reserved_slots(theme)
-        result = generate_skeleton(_make_config(60), TEMPLATE_PATH, reserved_slots=reserved)
+        result = generate_skeleton(_make_config(60), reserved_slots=reserved)
         assert result.total_slots == 60
         assert result.balance_report.all_hard_passed is True
         stamped = [s for s in result.slots if s.reserved_card]
         assert len(stamped) == len(reserved)
 
     def test_none_is_noop(self):
-        result = generate_skeleton(_make_config(60), TEMPLATE_PATH, reserved_slots=None)
+        result = generate_skeleton(_make_config(60), reserved_slots=None)
         assert all(s.reserved_card is None for s in result.slots)
 
     def test_reserved_card_round_trips_through_save(self, tmp_path: Path):
         reserved = [ReservedSlotSpec(name="Pinned Card", rarity="mythic")]
-        result = generate_skeleton(_make_config(60), TEMPLATE_PATH, reserved_slots=reserved)
+        result = generate_skeleton(_make_config(60), reserved_slots=reserved)
         json_path, txt_path = save_skeleton(result, tmp_path)
         loaded = json.loads(json_path.read_text(encoding="utf-8"))
         stamped = [s for s in loaded["slots"] if s.get("reserved_card")]
