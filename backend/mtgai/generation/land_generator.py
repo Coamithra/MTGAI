@@ -14,6 +14,7 @@ from pathlib import Path
 
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.generation.reprint_selector import extract_set_config
+from mtgai.io.atomic import atomic_write_text
 from mtgai.models.card import Card
 from mtgai.models.enums import Color, Rarity
 
@@ -228,9 +229,9 @@ def generate_lands(
         card = _make_basic_card(basic, flavor, set_code)
         filename = f"{basic['cn']}_{_slugify(basic['name'])}.json"
         path = cards_dir / filename
-        path.write_text(
+        atomic_write_text(
+            path,
             json.dumps(card.model_dump(mode="json"), indent=2, ensure_ascii=False),
-            encoding="utf-8",
         )
         cards_saved += 1
         logger.info("  Saved %s: %s", basic["name"], filename)
@@ -241,9 +242,9 @@ def generate_lands(
         card = _make_nonbasic_card(nonbasic_data, set_code)
         filename = f"L-06_{_slugify(nonbasic_data['name'])}.json"
         path = cards_dir / filename
-        path.write_text(
+        atomic_write_text(
+            path,
             json.dumps(card.model_dump(mode="json"), indent=2, ensure_ascii=False),
-            encoding="utf-8",
         )
         cards_saved += 1
         if on_card_saved is not None:

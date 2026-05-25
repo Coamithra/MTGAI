@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.generation.prompts import format_mechanic_block
+from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
 from mtgai.models.card import Card
 
@@ -892,14 +893,14 @@ def _save_review_log(
 
     # JSON for resumability + summary report
     json_path = reviews_dir / f"{review.collector_number}.json"
-    json_path.write_text(
+    atomic_write_text(
+        json_path,
         review.model_dump_json(indent=2),
-        encoding="utf-8",
     )
 
     # Markdown for human reading
     md_path = reviews_dir / f"{review.collector_number}.md"
-    md_path.write_text(_review_to_markdown(review), encoding="utf-8")
+    atomic_write_text(md_path, _review_to_markdown(review))
 
     return json_path
 
@@ -1370,7 +1371,7 @@ def review_set(
     report = _generate_summary_report(all_reviews)
     reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = reports_dir / "ai-review-summary.md"
-    report_path.write_text(report, encoding="utf-8")
+    atomic_write_text(report_path, report)
     logger.info("Summary report:  %s", report_path)
     logger.info("Review logs:     %s", reviews_dir)
 

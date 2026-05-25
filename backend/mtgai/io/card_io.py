@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from mtgai.io.atomic import atomic_write_text
 from mtgai.io.paths import card_slug, set_dir
 from mtgai.models.card import Card
 from mtgai.models.set import Set
@@ -32,8 +33,7 @@ def save_card(card: Card, output_root: Path | None = None, *, set_dir: Path | No
     else:
         target_dir = output_root / "sets" / card.set_code.upper() / "cards"
     path = target_dir / f"{card_slug(card.collector_number, card.name)}.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(card.model_dump_json(indent=2), encoding="utf-8")
+    atomic_write_text(path, card.model_dump_json(indent=2))
     return path
 
 
@@ -45,9 +45,8 @@ def load_card(path: Path) -> Card:
 def save_set(mtg_set: Set, output_root: Path) -> Path:
     """Save set metadata (without cards) as set.json."""
     path = set_dir(output_root, mtg_set.code) / "set.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
     set_without_cards = mtg_set.model_copy(update={"cards": []})
-    path.write_text(set_without_cards.model_dump_json(indent=2), encoding="utf-8")
+    atomic_write_text(path, set_without_cards.model_dump_json(indent=2))
     return path
 
 

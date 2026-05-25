@@ -19,6 +19,8 @@ from pathlib import Path
 
 from llmfacade import ImageBlock, TextBlock
 
+from mtgai.io.atomic import atomic_write_text
+
 logger = logging.getLogger(__name__)
 
 # Load .env
@@ -240,7 +242,7 @@ def select_art_for_set(
 
             # Save per-card log
             log_path = log_dir / f"{cn}.json"
-            log_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+            atomic_write_text(log_path, json.dumps(result, indent=2))
 
             logger.info(
                 "  → %s (confidence: %s) — %s",
@@ -282,7 +284,7 @@ def select_art_for_set(
     }
 
     summary_path = log_dir / "summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    atomic_write_text(summary_path, json.dumps(summary, indent=2))
 
     return summary
 
@@ -489,7 +491,7 @@ def generate_selection_report() -> Path:
 </html>"""
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(html, encoding="utf-8")
+    atomic_write_text(report_path, html)
     return report_path
 
 

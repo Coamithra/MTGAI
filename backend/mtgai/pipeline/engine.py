@@ -50,31 +50,18 @@ def _state_path() -> Path:
 def save_state(state: PipelineState) -> None:
     """Persist pipeline state to disk.
 
-    Atomic write via tempfile + os.replace so concurrent readers (e.g.
-    a wizard route hitting load_state mid-save) never see a truncated
-    or empty file. Plain ``write_text`` truncates first, then writes —
-    that gap can race a reader and produce JSONDecodeError.
+    Atomic write (temp file + retrying ``os.replace``) via
+    :func:`mtgai.io.atomic.atomic_write_text` so concurrent readers (e.g. a
+    wizard route hitting load_state mid-save) never see a truncated file, and
+    a transient Windows lock on the temp file (Defender's on-access scanner,
+    the search indexer, a sync client) is retried instead of crashing the
+    engine thread. Plain ``write_text`` gives neither guarantee.
     """
-    import os
-    import tempfile
+    from mtgai.io.atomic import atomic_write_text
 
-    path = _state_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
     state.updated_at = datetime.now(UTC)
     payload = json.dumps(state.model_dump(mode="json"), indent=2, default=str)
-    fd, tmp_path = tempfile.mkstemp(
-        prefix=".pipeline-state-", suffix=".json.tmp", dir=str(path.parent)
-    )
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(payload)
-        os.replace(tmp_path, path)
-    except Exception:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
+    atomic_write_text(_state_path(), payload)
 
 
 def load_state() -> PipelineState | None:

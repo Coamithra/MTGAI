@@ -26,6 +26,7 @@ from mtgai.art.image_generator import (
     is_comfyui_running,
     kill_comfyui,
 )
+from mtgai.io.atomic import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +263,7 @@ def generate_character_portraits(
             "elapsed_seconds": round(time.time() - start_time, 1),
             "last_completed": None,
         }
-        progress_path.write_text(json.dumps(progress, indent=2), encoding="utf-8")
+        atomic_write_text(progress_path, json.dumps(progress, indent=2))
 
     try:
         for idx, (p, version) in enumerate(work_items, 1):
@@ -311,7 +312,7 @@ def generate_character_portraits(
                     **metadata,
                 }
                 log_path = log_dir / f"{slug}_v{version}.json"
-                log_path.write_text(json.dumps(log_entry, indent=2), encoding="utf-8")
+                atomic_write_text(log_path, json.dumps(log_entry, indent=2))
 
                 generated += 1
 
@@ -324,7 +325,7 @@ def generate_character_portraits(
                     "elapsed_seconds": round(time.time() - start_time, 1),
                     "last_completed": f"{p['name']} v{version}",
                 }
-                progress_path.write_text(json.dumps(progress_data, indent=2), encoding="utf-8")
+                atomic_write_text(progress_path, json.dumps(progress_data, indent=2))
 
             except Exception as e:
                 logger.error("%s FAILED %s v%d: %s", progress_label, p["name"], version, e)
@@ -351,7 +352,7 @@ def generate_character_portraits(
             "traceback": tb,
         }
         crash_path = log_dir / "crash.json"
-        crash_path.write_text(json.dumps(crash_data, indent=2), encoding="utf-8")
+        atomic_write_text(crash_path, json.dumps(crash_data, indent=2))
         logger.error("Crash details saved to %s", crash_path)
         logger.info("Re-run to resume from where you left off.")
         raise
@@ -373,12 +374,12 @@ def generate_character_portraits(
 
     # Save summary
     summary_path = log_dir / "summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    atomic_write_text(summary_path, json.dumps(summary, indent=2))
 
     # Save prompt reference (all prompts in one file for easy review)
     prompt_ref = {p["key"]: {"name": p["name"], "prompt": p["prompt"]} for p in prompts}
     prompt_ref_path = out_dir / "prompts.json"
-    prompt_ref_path.write_text(json.dumps(prompt_ref, indent=2), encoding="utf-8")
+    atomic_write_text(prompt_ref_path, json.dumps(prompt_ref, indent=2))
 
     return summary
 

@@ -24,6 +24,7 @@ from typing import Any
 
 from llmfacade import SystemBlock
 
+from mtgai.io.atomic import atomic_write_text
 from mtgai.runtime import ai_lock
 
 logger = logging.getLogger(__name__)
@@ -1242,7 +1243,7 @@ def _write_call_meta(jsonl_path: Path | None, data: dict) -> None:
         return
     meta_path = jsonl_path.with_suffix(".meta.json")
     try:
-        meta_path.write_text(_json.dumps(data, indent=2), encoding="utf-8")
+        atomic_write_text(meta_path, _json.dumps(data, indent=2))
     except Exception as e:
         logger.warning("Failed to write call meta to %s: %s", meta_path, e)
 

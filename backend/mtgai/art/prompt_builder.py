@@ -28,6 +28,7 @@ from mtgai.art.visual_reference import (
     get_visual_references,
 )
 from mtgai.generation.llm_client import generate_with_tool
+from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
 from mtgai.models.card import Card
 
@@ -407,7 +408,7 @@ def generate_prompts_for_set(
                 "output_tokens": out_tok,
             }
             log_path = log_dir / f"{card.collector_number}.json"
-            log_path.write_text(json.dumps(log_entry, indent=2), encoding="utf-8")
+            atomic_write_text(log_path, json.dumps(log_entry, indent=2))
 
             if not dry_run:
                 card.art_prompt = full_prompt
@@ -457,7 +458,7 @@ def generate_prompts_for_set(
 
     # Save summary
     summary_path = log_dir / "summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    atomic_write_text(summary_path, json.dumps(summary, indent=2))
 
     logger.info(
         "Done: %d processed, %d skipped, %d errors. ~$%.4f",

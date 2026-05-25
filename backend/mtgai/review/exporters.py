@@ -23,6 +23,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from mtgai.io.atomic import atomic_write_text
 from mtgai.io.paths import card_slug
 from mtgai.models.card import Card
 
@@ -118,7 +119,7 @@ def export_json(cards: list[Card], out_path: Path) -> int:
     """
     out_path.parent.mkdir(parents=True, exist_ok=True)
     payload = [card.model_dump(mode="json") for card in cards]
-    out_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    atomic_write_text(out_path, json.dumps(payload, indent=2, ensure_ascii=False))
     return len(cards)
 
 

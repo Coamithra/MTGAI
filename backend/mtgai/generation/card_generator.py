@@ -25,6 +25,7 @@ from pathlib import Path
 from mtgai.generation.archetype_generator import load_archetypes
 from mtgai.generation.llm_client import calc_cost, cost_from_result, generate_with_tool
 from mtgai.generation.prompts import build_user_prompt, load_system_prompt
+from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
 from mtgai.models.card import Card, GenerationAttempt
 from mtgai.models.enums import CardStatus
@@ -140,7 +141,8 @@ class GenerationProgress:
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
+        atomic_write_text(
+            self.path,
             json.dumps(
                 {
                     "filled_slots": self.filled_slots,
@@ -153,7 +155,6 @@ class GenerationProgress:
                 },
                 indent=2,
             ),
-            encoding="utf-8",
         )
 
     def record_call(
@@ -333,7 +334,7 @@ def _save_generation_log(
             "user_prompt": user_prompt,
         },
     }
-    log_path.write_text(json.dumps(log_data, indent=2, ensure_ascii=False), encoding="utf-8")
+    atomic_write_text(log_path, json.dumps(log_data, indent=2, ensure_ascii=False))
 
 
 # ---------------------------------------------------------------------------
@@ -385,7 +386,7 @@ def _save_batch_log(
             "user_prompt_length": len(user_prompt),
         },
     }
-    log_path.write_text(json.dumps(log_data, indent=2, ensure_ascii=False), encoding="utf-8")
+    atomic_write_text(log_path, json.dumps(log_data, indent=2, ensure_ascii=False))
 
 
 # ---------------------------------------------------------------------------

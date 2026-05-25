@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from mtgai.analysis.models import AnalysisSeverity, BalanceAnalysisResult
+from mtgai.io.atomic import atomic_write_text
 
 
 def _project_root() -> Path:
@@ -193,15 +194,15 @@ def save_report(
     sdir.mkdir(parents=True, exist_ok=True)
 
     json_path = sdir / "balance-analysis.json"
-    json_path.write_text(
+    atomic_write_text(
+        json_path,
         result.model_dump_json(indent=2),
-        encoding="utf-8",
     )
 
     md_path = sdir / "balance-report.md"
-    md_path.write_text(
+    atomic_write_text(
+        md_path,
         generate_markdown_report(result),
-        encoding="utf-8",
     )
 
     return json_path, md_path

@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
+from mtgai.io.atomic import atomic_write_text
 from mtgai.settings.model_registry import get_registry
 
 if TYPE_CHECKING:
@@ -352,7 +353,7 @@ class ModelSettings(BaseModel):
         import tomlkit
 
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(tomlkit.dumps(self.to_toml_doc()), encoding="utf-8")
+        atomic_write_text(path, tomlkit.dumps(self.to_toml_doc()))
         return path
 
     def save_profile(self, name: str) -> Path:
@@ -366,7 +367,7 @@ class ModelSettings(BaseModel):
         name = validate_profile_name(name)
         path = SETTINGS_DIR / f"{name}.toml"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(tomlkit.dumps(self.to_toml_doc(profile_only=True)), encoding="utf-8")
+        atomic_write_text(path, tomlkit.dumps(self.to_toml_doc(profile_only=True)))
         logger.info("Saved profile %r to %s", name, path)
         return path
 
@@ -485,7 +486,7 @@ class GlobalSettings(BaseModel):
         doc.add(tomlkit.comment("MTGAI cross-set defaults"))
         doc.add(tomlkit.nl())
         doc.add("default_preset", self.default_preset)
-        path.write_text(tomlkit.dumps(doc), encoding="utf-8")
+        atomic_write_text(path, tomlkit.dumps(doc))
         return path
 
     @classmethod

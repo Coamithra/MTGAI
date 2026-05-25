@@ -36,6 +36,7 @@ from mtgai.generation.card_generator import (
 )
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.generation.prompts import load_system_prompt
+from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card
 from mtgai.models.card import Card
 from mtgai.skeleton.generator import SetConfig
@@ -160,9 +161,9 @@ def _save_revision_log(
         },
     }
 
-    log_path.write_text(
+    atomic_write_text(
+        log_path,
         json.dumps(log_data, indent=2, ensure_ascii=False),
-        encoding="utf-8",
     )
     logger.info("Revision log saved: %s", log_path)
     return log_path
@@ -740,9 +741,9 @@ def regenerate_slots(
                 "user_prompt": user_prompt,
             },
         }
-        regen_log_path.write_text(
+        atomic_write_text(
+            regen_log_path,
             json.dumps(regen_log_data, indent=2, ensure_ascii=False),
-            encoding="utf-8",
         )
         logger.info("Regen log saved: %s", regen_log_path)
 
@@ -849,7 +850,7 @@ def write_revision_report(report: RevisionReport, path: Path) -> None:
             lines.append(f"- {card_name}")
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write_text(path, "\n".join(lines))
     logger.info("Revision report written: %s", path)
 
 
@@ -1011,9 +1012,9 @@ def run_revision(
         slots_to_regen = apply_revision_plan(plan, skeleton, cards_dir, archive_dir)
 
         # Save updated skeleton
-        skeleton_path.write_text(
+        atomic_write_text(
+            skeleton_path,
             json.dumps(skeleton, indent=2, ensure_ascii=False),
-            encoding="utf-8",
         )
         logger.info("Skeleton updated: %s", skeleton_path)
 
@@ -1035,9 +1036,9 @@ def run_revision(
         new_balance = new_analysis.model_dump()
 
         # Save updated balance analysis
-        balance_path.write_text(
+        atomic_write_text(
+            balance_path,
             json.dumps(new_balance, indent=2, ensure_ascii=False),
-            encoding="utf-8",
         )
 
         # Post-revision metrics
@@ -1083,9 +1084,9 @@ def run_revision(
 
     # Also save structured JSON
     json_path = reports_dir / "revision-report.json"
-    json_path.write_text(
+    atomic_write_text(
+        json_path,
         report.model_dump_json(indent=2),
-        encoding="utf-8",
     )
 
     logger.info("\n" + "=" * 70)

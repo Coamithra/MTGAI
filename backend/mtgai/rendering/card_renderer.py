@@ -26,6 +26,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
 
+from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card
 from mtgai.io.paths import card_slug
 from mtgai.models.card import Card
@@ -1098,7 +1099,7 @@ class CardRenderer:
         summary_dir = set_dir / "reports"
         summary_dir.mkdir(parents=True, exist_ok=True)
         summary_path = summary_dir / "render-summary.json"
-        summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        atomic_write_text(summary_path, json.dumps(summary, indent=2))
         logger.info("Render summary saved: %s", summary_path)
 
         return summary

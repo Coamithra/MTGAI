@@ -23,6 +23,7 @@ import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 
+from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card
 from mtgai.io.paths import card_slug
 
@@ -507,7 +508,7 @@ def _load_progress(progress_path: Path) -> dict:
 
 def _save_progress(progress: dict, progress_path: Path) -> None:
     """Save generation progress tracker."""
-    progress_path.write_text(json.dumps(progress, indent=2), encoding="utf-8")
+    atomic_write_text(progress_path, json.dumps(progress, indent=2))
 
 
 def generate_art_for_set(
@@ -630,7 +631,7 @@ def generate_art_for_set(
                         **metadata,
                     }
                     log_path = log_dir / f"{cn}_v{version}.json"
-                    log_path.write_text(json.dumps(log_entry, indent=2), encoding="utf-8")
+                    atomic_write_text(log_path, json.dumps(log_entry, indent=2))
 
                     # Track progress
                     progress["completed"][cn] = {
@@ -681,7 +682,7 @@ def generate_art_for_set(
 
     # Save summary
     summary_path = log_dir / "summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    atomic_write_text(summary_path, json.dumps(summary, indent=2))
 
     return summary
 

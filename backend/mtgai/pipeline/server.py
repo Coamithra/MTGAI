@@ -24,6 +24,7 @@ from fastapi.responses import (
 from fastapi.templating import Jinja2Templates
 
 from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
+from mtgai.io.atomic import atomic_write_text
 from mtgai.pipeline.engine import PipelineEngine, load_state, save_state
 from mtgai.pipeline.events import EventBus, format_sse
 from mtgai.pipeline.models import (
@@ -244,9 +245,9 @@ async def save_theme(request: Request):
         return _no_asset_folder_response(exc)
 
     theme_path.parent.mkdir(parents=True, exist_ok=True)
-    theme_path.write_text(
+    atomic_write_text(
+        theme_path,
         json.dumps(body, indent=2, ensure_ascii=False),
-        encoding="utf-8",
     )
     logger.info("Theme saved to %s", theme_path)
 
@@ -346,7 +347,7 @@ async def upload_for_extraction(request: Request):
     try:
         asset_dir = set_artifact_dir()
         asset_dir.mkdir(parents=True, exist_ok=True)
-        (asset_dir / "theme_source.txt").write_text(text, encoding="utf-8")
+        atomic_write_text(asset_dir / "theme_source.txt", text)
     except NoAssetFolderError:
         pass  # asset_folder not picked yet — best effort
     except OSError as e:
@@ -689,9 +690,9 @@ def _persist_extraction_to_theme_json(
         ],
     }
     theme_path.parent.mkdir(parents=True, exist_ok=True)
-    theme_path.write_text(
+    atomic_write_text(
+        theme_path,
         json.dumps(payload, indent=2, ensure_ascii=False),
-        encoding="utf-8",
     )
     logger.info("Persisted extraction result to %s", theme_path)
 
@@ -2297,9 +2298,9 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
             return JSONResponse({"error": "theme_payload must be an object"}, status_code=400)
         theme_path = artifact_dir / "theme.json"
         theme_path.parent.mkdir(parents=True, exist_ok=True)
-        theme_path.write_text(
+        atomic_write_text(
+            theme_path,
             json.dumps(theme_payload, indent=2, ensure_ascii=False),
-            encoding="utf-8",
         )
 
     # 2. Cascade-clear pipeline artifacts + reset stages to PENDING.
@@ -2378,9 +2379,9 @@ def _read_json(path: Path, default: Any) -> Any:
 
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    atomic_write_text(
+        path,
         json.dumps(payload, indent=2, ensure_ascii=False),
-        encoding="utf-8",
     )
 
 

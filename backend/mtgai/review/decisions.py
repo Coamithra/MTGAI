@@ -21,6 +21,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from mtgai.io.atomic import atomic_write_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -127,12 +129,12 @@ def save_decisions(
 
     # Always write the latest file
     latest_path = out_dir / "review-decisions.json"
-    latest_path.write_text(payload, encoding="utf-8")
+    atomic_write_text(latest_path, payload)
     logger.info("Saved review decisions to %s", latest_path)
 
     # Also write the round-specific file for audit trail
     round_path = out_dir / f"review-decisions-round-{decisions.review_round}.json"
-    round_path.write_text(payload, encoding="utf-8")
+    atomic_write_text(round_path, payload)
     logger.info("Saved round %d decisions to %s", decisions.review_round, round_path)
 
     return latest_path
@@ -244,7 +246,7 @@ def dispatch_decisions(
             "timestamp": decisions.timestamp.isoformat(),
         }
         remake_path = set_dir / "remake-queue.json"
-        remake_path.write_text(json.dumps(queue, indent=2), encoding="utf-8")
+        atomic_write_text(remake_path, json.dumps(queue, indent=2))
         result.remake_queue_path = remake_path
         result.remake_count = len(remakes)
         logger.info("Wrote remake queue: %d card(s) -> %s", len(remakes), remake_path)
@@ -258,7 +260,7 @@ def dispatch_decisions(
             "timestamp": decisions.timestamp.isoformat(),
         }
         art_redo_path = set_dir / "art-redo-queue.json"
-        art_redo_path.write_text(json.dumps(queue, indent=2), encoding="utf-8")
+        atomic_write_text(art_redo_path, json.dumps(queue, indent=2))
         result.art_redo_queue_path = art_redo_path
         result.art_redo_count = len(art_redos)
         logger.info("Wrote art-redo queue: %d card(s) -> %s", len(art_redos), art_redo_path)
@@ -349,7 +351,7 @@ def save_progress(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     path = out_dir / "review-progress.json"
-    path.write_text(progress.model_dump_json(indent=2), encoding="utf-8")
+    atomic_write_text(path, progress.model_dump_json(indent=2))
     logger.info("Saved review progress to %s", path)
     return path
 

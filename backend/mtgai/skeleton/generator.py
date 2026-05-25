@@ -16,6 +16,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
 
+from mtgai.io.atomic import atomic_write_text
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -1124,15 +1126,15 @@ def save_skeleton(result: SkeletonResult, output_dir: Path) -> tuple[Path, Path]
 
     # --- skeleton.json ---
     json_path = output_dir / "skeleton.json"
-    json_path.write_text(
+    atomic_write_text(
+        json_path,
         result.model_dump_json(indent=2),
-        encoding="utf-8",
     )
 
     # --- skeleton-overview.txt ---
     txt_path = output_dir / "skeleton-overview.txt"
     lines = _render_overview(result)
-    txt_path.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write_text(txt_path, "\n".join(lines))
 
     return json_path, txt_path
 

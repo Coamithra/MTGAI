@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from mtgai.io.atomic import atomic_write_text
+
 if TYPE_CHECKING:
     from mtgai.pipeline.events import StageEmitter
     from mtgai.pipeline.models import ProgressCallback
@@ -172,9 +174,9 @@ def run_mechanics(
         # Persist the raw LLM output + emit candidate sections inside
         # the AI lock so a parallel save / refresh can't observe the
         # half-written state.
-        candidates_path.write_text(
+        atomic_write_text(
+            candidates_path,
             json.dumps(candidates, indent=2, ensure_ascii=False),
-            encoding="utf-8",
         )
 
         collisions = detect_keyword_collisions(candidates)
@@ -301,9 +303,9 @@ def run_archetypes(
 
         archetypes = response["archetypes"]
         archetypes_path = set_dir / "archetypes.json"
-        archetypes_path.write_text(
+        atomic_write_text(
+            archetypes_path,
             json.dumps(archetypes, indent=2, ensure_ascii=False),
-            encoding="utf-8",
         )
 
     rows: list[list[str]] = [["Pair", "Name", "Intent"]]
@@ -404,9 +406,9 @@ def run_visual_refs(
         art_dir = set_dir / "art-direction"
         art_dir.mkdir(parents=True, exist_ok=True)
         refs_path = art_dir / "visual-references.json"
-        refs_path.write_text(
+        atomic_write_text(
+            refs_path,
             json.dumps(references, indent=2, ensure_ascii=False),
-            encoding="utf-8",
         )
 
     category_labels: list[tuple[str, str]] = [
@@ -499,9 +501,9 @@ def run_skeleton(
     # Save skeleton
     skeleton_path = set_dir / "skeleton.json"
     skeleton_path.parent.mkdir(parents=True, exist_ok=True)
-    skeleton_path.write_text(
+    atomic_write_text(
+        skeleton_path,
         json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
-        encoding="utf-8",
     )
 
     rarity_rows = [["Rarity", "Count"]]
@@ -660,9 +662,9 @@ def run_reprints(
     count = len(result.selections)
     # Save selection result
     output_path = set_dir / "reprint_selection.json"
-    output_path.write_text(
+    atomic_write_text(
+        output_path,
         json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
-        encoding="utf-8",
     )
 
     # Cascade tile reveal so the user sees picks land one-by-one rather

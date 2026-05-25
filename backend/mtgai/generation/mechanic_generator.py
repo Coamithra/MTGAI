@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from mtgai.generation.llm_client import generate_with_tool
+from mtgai.io.atomic import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -1052,9 +1053,7 @@ def persist_mechanic_selection(
     mech_dir.mkdir(parents=True, exist_ok=True)
 
     def _write(name: str, data: Any) -> None:
-        (mech_dir / name).write_text(
-            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        atomic_write_text(mech_dir / name, json.dumps(data, indent=2, ensure_ascii=False))
 
     _write("candidates.json", candidates)
     _write("evergreen-keywords.json", load_evergreen_defaults())

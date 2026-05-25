@@ -15,6 +15,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
+from mtgai.io.atomic import atomic_write_text
 from mtgai.models.card import Card
 from mtgai.review.loaders import load_cards
 
@@ -155,9 +156,9 @@ def export_cards_json(
     data_dir.mkdir(parents=True, exist_ok=True)
 
     json_path = data_dir / "cards.json"
-    json_path.write_text(
+    atomic_write_text(
+        json_path,
         json.dumps(gallery_dicts, indent=2, ensure_ascii=False),
-        encoding="utf-8",
     )
 
     logger.info("Exported %d cards to %s", len(gallery_dicts), json_path)
@@ -241,7 +242,7 @@ def build_gallery(
         card_count=len(cards),
     )
     index_path = output_dir / "index.html"
-    index_path.write_text(index_html, encoding="utf-8")
+    atomic_write_text(index_path, index_html)
     logger.info("Rendered index.html (%d cards)", len(cards))
 
     # 4. Optionally open in browser

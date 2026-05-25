@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from mtgai.generation.reminder_injector import finalize_reminder_text
+from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
 from mtgai.models.card import Card
 from mtgai.validation import (
@@ -260,6 +261,6 @@ def _write_report(summary: dict) -> Path:
         lines.append("")
 
     report_text = "\n".join(lines)
-    report_path.write_text(report_text, encoding="utf-8")
+    atomic_write_text(report_path, report_text)
     logger.info("Report written to %s", report_path)
     return report_path
