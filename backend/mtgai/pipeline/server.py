@@ -157,12 +157,13 @@ async def pipeline_root(request: Request):
 
 @router.get("/pipeline/configure")
 async def pipeline_configure() -> RedirectResponse:
-    """Legacy route — redirects into the wizard, theme-aware.
+    """Legacy route — redirect into the wizard, theme-aware (single hop).
 
-    The standalone configure page was subsumed by the wizard. We route to
-    the latest visible tab: with no ``theme.json`` that's Project Settings —
-    where a theme is authored before the pipeline can run — and with one it's
-    the theme/stage surface the user left off on.
+    The standalone configure page was subsumed by the wizard. Resolves to the
+    latest visible tab — Project Settings when no ``theme.json`` exists (where
+    a theme is authored before the pipeline can run), else the theme/stage
+    surface the user left off on — matching ``/pipeline`` but without the extra
+    redirect hop.
     """
     ws = build_wizard_state(requested_tab=None)
     return RedirectResponse(url=f"/pipeline/{ws.latest_tab_id}", status_code=302)

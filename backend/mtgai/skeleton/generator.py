@@ -721,6 +721,12 @@ def _build_balance_report(
 
 _RARITY_RANK: dict[str, int] = {"common": 0, "uncommon": 1, "rare": 2, "mythic": 3}
 
+# Types the skeleton matrix never auto-generates (lands come from the `lands`
+# stage; planeswalkers are placed explicitly). A request of one of these types
+# must match such a slot exactly or it can't be reserved here — stamping it on
+# a creature slot would emit a self-contradictory card-gen prompt.
+_HARD_MATCH_TYPES: set[str] = {SlotCardType.LAND, SlotCardType.PLANESWALKER}
+
 # Scanned in order: the first keyword found in a type line wins, so
 # "Artifact Creature" maps to creature and "Legendary Artifact — Vehicle"
 # to artifact.
@@ -745,7 +751,7 @@ def _card_type_from_type_line(type_line: str | None) -> str | None:
 
 
 def _normalize_rarity(value: object) -> str | None:
-    rarity = (value or "").strip().lower() if isinstance(value, str) else ""
+    rarity = value.strip().lower() if isinstance(value, str) else ""
     return rarity if rarity in _RARITY_RANK else None
 
 
@@ -810,8 +816,9 @@ def _apply_reservations(
     zero everywhere and so takes the highest-rarity open slot. Constrained
     specs are placed first so they win their ideal slots. Reservation only
     stamps ``reserved_card`` — it never changes a slot's color/rarity/type/cmc,
-    so balance constraints are unaffected. Returns specs that found no slot
-    (only once the matrix is exhausted).
+    so balance constraints are unaffected. Returns the specs that found no slot
+    — once the matrix is exhausted, or a land/planeswalker request with no
+    matching slot (these belong to the lands / explicit-placement stages).
     """
     if not reserved:
         return []
@@ -829,6 +836,8 @@ def _apply_reservations(
             and not s.is_reprint_slot
             and s.card_type != SlotCardType.LAND
         ]
+        if spec.card_type in _HARD_MATCH_TYPES:
+            candidates = [s for s in candidates if s.card_type == spec.card_type]
         if not candidates:
             unplaced.append(spec)
             continue

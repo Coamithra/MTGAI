@@ -513,3 +513,9 @@ class TestBuildRevisionPrompt:
         # legacy special_constraints so the section is never empty by accident.
         user = self._build({"special_constraints": ["Legacy only"]})
         assert "Legacy only" in user
+
+    def test_fallback_handles_provenance_dicts_without_crashing(self):
+        # SetConfig raises (no code), and the legacy constraints are unhashable
+        # {text, source} dicts — the dedup must coerce them, not TypeError.
+        user = self._build({"special_constraints": [{"text": "No mill", "source": "ai"}]})
+        assert "No mill" in user

@@ -361,15 +361,24 @@ def _format_theme_section(theme: dict) -> str:
         raw_constraints = [*cfg.constraints, *cfg.special_constraints]
         card_requests = list(cfg.card_requests)
     except Exception:
+        # SetConfig needs name + code; without them fall back to the raw dict.
         raw_constraints = list(theme.get("special_constraints") or [])
         card_requests = []
 
+    # Coerce both shapes (bare strings or {text, source}) to deduped strings.
+    # The except path can carry provenance dicts, which are unhashable.
     seen: set[str] = set()
     constraints: list[str] = []
-    for c in raw_constraints:
-        if c not in seen:
-            seen.add(c)
-            constraints.append(c)
+    for item in raw_constraints:
+        if isinstance(item, str):
+            text = item.strip()
+        elif isinstance(item, dict) and isinstance(item.get("text"), str):
+            text = item["text"].strip()
+        else:
+            continue
+        if text and text not in seen:
+            seen.add(text)
+            constraints.append(text)
 
     name = theme.get("name") or ""
     code = theme.get("code") or ""

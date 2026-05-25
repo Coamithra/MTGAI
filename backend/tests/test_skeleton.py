@@ -958,6 +958,22 @@ class TestApplyReservations:
         assert len(unplaced) == 1
         assert sum(1 for s in slots if s.reserved_card) == 1
 
+    def test_planeswalker_request_unplaced_when_no_pw_slot(self):
+        # The skeleton matrix has no planeswalker slots; a PW request must go
+        # unplaced rather than land on a contradictory creature slot.
+        slots = [_slot("U-M-01", "U", "mythic", card_type="creature")]
+        spec = ReservedSlotSpec(name="Jace", card_type="planeswalker")
+        unplaced = _apply_reservations(slots, [spec])
+        assert unplaced == [spec]
+        assert all(s.reserved_card is None for s in slots)
+
+    def test_land_request_unplaced(self):
+        slots = [_slot("G-C-01", "G", "common", card_type="creature")]
+        spec = ReservedSlotSpec(name="Some Land", card_type="land")
+        unplaced = _apply_reservations(slots, [spec])
+        assert unplaced == [spec]
+        assert all(s.reserved_card is None for s in slots)
+
     def test_empty_is_noop(self):
         slots = [_slot("W-C-01", "W", "common")]
         assert _apply_reservations(slots, []) == []
