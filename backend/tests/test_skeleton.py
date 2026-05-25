@@ -23,15 +23,20 @@ from mtgai.skeleton.generator import (
     COLOR_PAIRS,
     COLORS,
     MechanicTag,
+    ReservedSlotSpec,
     SlotCardType,
+    _apply_reservations,
     _assign_cmcs,
     _assign_mechanic_tags,
+    _card_type_from_type_line,
     _check_color_balance,
     _check_creature_density,
     _check_rarity_totals,
     _check_signpost_uncommons,
     _distribute_colors,
     _scale_rarity,
+    _split_request,
+    build_reserved_slots,
 )
 
 # ---------------------------------------------------------------------------
@@ -745,3 +750,251 @@ class TestSetConfigProvenanceCoercion:
             ]
         )
         assert cfg.constraints == ["Kept"]
+
+
+# ---------------------------------------------------------------------------
+# Reserved slots (TC-7)
+# ---------------------------------------------------------------------------
+
+
+def _slot(
+    slot_id: str,
+    color: str,
+    rarity: str,
+    card_type: str = "creature",
+    color_pair: str | None = None,
+    is_reprint_slot: bool = False,
+) -> SkeletonSlot:
+    return SkeletonSlot(
+        slot_id=slot_id,
+        color=color,
+        rarity=rarity,
+        card_type=card_type,
+        cmc_target=3,
+        color_pair=color_pair,
+        is_reprint_slot=is_reprint_slot,
+    )
+
+
+class TestCardTypeFromTypeLine:
+    """_card_type_from_type_line scans a full type line for the slot type."""
+
+    def test_creature(self):
+        assert _card_type_from_type_line("Legendary Creature — Human Wizard") == "creature"
+
+    def test_artifact(self):
+        assert _card_type_from_type_line("Legendary Artifact — Vehicle") == "artifact"
+
+    def test_artifact_creature_prefers_creature(self):
+        # Creature is scanned before artifact, so artifact creatures map to creature.
+        assert _card_type_from_type_line("Artifact Creature — Golem") == "creature"
+
+    def test_planeswalker(self):
+        assert _card_type_from_type_line("Legendary Planeswalker — Jace") == "planeswalker"
+
+    def test_unknown_returns_none(self):
+        assert _card_type_from_type_line("Tribal Whatsit") is None
+        assert _card_type_from_type_line(None) is None
+
+
+class TestSplitRequest:
+    """_split_request peels a name off a prose 'Name — description'."""
+
+    def test_em_dash(self):
+        assert _split_request("Feretha — dead wizard-ruler") == (
+            "Feretha",
+            "dead wizard-ruler",
+        )
+
+    def test_colon(self):
+        assert _split_request("Stone Head: flying vehicle") == ("Stone Head", "flying vehicle")
+
+    def test_no_separator(self):
+        assert _split_request("Just A Name") == ("Just A Name", "")
+
+
+class TestBuildReservedSlots:
+    """build_reserved_slots turns theme.json anchors into ReservedSlotSpecs."""
+
+    def test_legendary_characters_full_spec(self):
+        theme = {
+            "legendary_characters": [
+                {
+                    "name": "Feretha, the Undying",
+                    "colors": ["U", "B"],
+                    "role": "Dead wizard-ruler",
+                    "rarity": "mythic",
+                    "type": "Legendary Creature — Human Wizard",
+                }
+            ]
+        }
+        specs = build_reserved_slots(theme)
+        assert len(specs) == 1
+        spec = specs[0]
+        assert spec.name == "Feretha, the Undying"
+        assert spec.colors == ["U", "B"]
+        assert spec.rarity == "mythic"
+        assert spec.card_type == "creature"
+        assert spec.description == "Dead wizard-ruler"
+
+    def test_notable_cards_colorless_artifact(self):
+        theme = {
+            "notable_cards": [
+                {
+                    "name": "Fereyn's Stone Head",
+                    "type": "Legendary Artifact — Vehicle",
+                    "colors": [],
+                    "notes": "Detachable flying vehicle.",
+                }
+            ]
+        }
+        specs = build_reserved_slots(theme)
+        assert specs[0].card_type == "artifact"
+        assert specs[0].colors == []
+        assert specs[0].description == "Detachable flying vehicle."
+
+    def test_card_requests_prose_strings(self):
+        theme = {"card_requests": ["Throne of Glass — a powerful relic"]}
+        specs = build_reserved_slots(theme)
+        assert specs[0].name == "Throne of Glass"
+        assert specs[0].description == "a powerful relic"
+        assert specs[0].rarity is None
+        assert specs[0].card_type is None
+
+    def test_card_requests_provenance_objects(self):
+        theme = {"card_requests": [{"text": "Relic — a thing", "source": "ai"}]}
+        specs = build_reserved_slots(theme)
+        assert specs[0].name == "Relic"
+
+    def test_dedupes_by_name_case_insensitive(self):
+        theme = {
+            "legendary_characters": [
+                {"name": "Feretha", "colors": ["U"], "rarity": "rare", "type": "Creature"}
+            ],
+            "card_requests": ["feretha — duplicate prose"],
+        }
+        specs = build_reserved_slots(theme)
+        # Structured anchor wins; prose duplicate dropped.
+        assert len(specs) == 1
+        assert specs[0].rarity == "rare"
+
+    def test_empty_theme_returns_empty(self):
+        assert build_reserved_slots({}) == []
+
+    def test_tolerates_malformed_entries(self):
+        theme = {
+            "legendary_characters": ["not a dict", {"no_name": True}],
+            "card_requests": ["", "   "],
+        }
+        assert build_reserved_slots(theme) == []
+
+
+class TestApplyReservations:
+    """_apply_reservations claims slots best-effort without mutating structure."""
+
+    def test_constrained_spec_matches_color_rarity_type(self):
+        slots = [
+            _slot("W-C-01", "W", "common"),
+            _slot("UB-M-01", "multicolor", "mythic", color_pair="UB"),
+            _slot("U-R-01", "U", "rare"),
+        ]
+        spec = ReservedSlotSpec(
+            name="Feretha", colors=["U", "B"], rarity="mythic", card_type="creature"
+        )
+        unplaced = _apply_reservations(slots, [spec])
+        assert unplaced == []
+        reserved = [s for s in slots if s.reserved_card]
+        assert len(reserved) == 1
+        assert reserved[0].slot_id == "UB-M-01"
+        assert reserved[0].reserved_card == "Feretha"
+
+    def test_colorless_artifact_lands_on_artifact_slot(self):
+        slots = [
+            _slot("W-C-01", "W", "common", card_type="creature"),
+            _slot("X-R-01", "colorless", "rare", card_type="artifact"),
+        ]
+        spec = ReservedSlotSpec(name="Stone Head", colors=[], card_type="artifact")
+        _apply_reservations(slots, [spec])
+        reserved = [s for s in slots if s.reserved_card]
+        assert reserved[0].slot_id == "X-R-01"
+
+    def test_name_only_prefers_higher_rarity(self):
+        slots = [
+            _slot("W-C-01", "W", "common"),
+            _slot("U-M-01", "U", "mythic"),
+            _slot("B-U-01", "B", "uncommon"),
+        ]
+        spec = ReservedSlotSpec(name="Mystery Card")
+        _apply_reservations(slots, [spec])
+        reserved = [s for s in slots if s.reserved_card]
+        assert reserved[0].slot_id == "U-M-01"
+
+    def test_skips_reprint_and_land_slots(self):
+        slots = [
+            _slot("R-R-01", "R", "rare", is_reprint_slot=True),
+            _slot("X-C-01", "colorless", "common", card_type="land"),
+            _slot("G-C-01", "G", "common"),
+        ]
+        spec = ReservedSlotSpec(name="Only Option")
+        _apply_reservations(slots, [spec])
+        reserved = [s for s in slots if s.reserved_card]
+        assert len(reserved) == 1
+        assert reserved[0].slot_id == "G-C-01"
+
+    def test_two_specs_do_not_collide(self):
+        slots = [
+            _slot("U-M-01", "U", "mythic"),
+            _slot("B-M-02", "B", "mythic"),
+        ]
+        specs = [ReservedSlotSpec(name="A"), ReservedSlotSpec(name="B")]
+        _apply_reservations(slots, specs)
+        reserved_names = {s.reserved_card for s in slots if s.reserved_card}
+        assert reserved_names == {"A", "B"}
+
+    def test_more_specs_than_slots_returns_unplaced(self):
+        slots = [_slot("W-C-01", "W", "common")]
+        specs = [ReservedSlotSpec(name="A"), ReservedSlotSpec(name="B")]
+        unplaced = _apply_reservations(slots, specs)
+        assert len(unplaced) == 1
+        assert sum(1 for s in slots if s.reserved_card) == 1
+
+    def test_empty_is_noop(self):
+        slots = [_slot("W-C-01", "W", "common")]
+        assert _apply_reservations(slots, []) == []
+        assert slots[0].reserved_card is None
+
+
+class TestReservedSlotsIntegration:
+    """generate_skeleton honors reserved_slots without breaking the matrix."""
+
+    def test_reservations_preserve_total_and_constraints(self):
+        theme = {
+            "legendary_characters": [
+                {
+                    "name": "Feretha",
+                    "colors": ["U", "B"],
+                    "rarity": "mythic",
+                    "type": "Legendary Creature — Wizard",
+                }
+            ],
+            "card_requests": ["Throne — a relic", "Beacon — a light"],
+        }
+        reserved = build_reserved_slots(theme)
+        result = generate_skeleton(_make_config(60), TEMPLATE_PATH, reserved_slots=reserved)
+        assert result.total_slots == 60
+        assert result.balance_report.all_hard_passed is True
+        stamped = [s for s in result.slots if s.reserved_card]
+        assert len(stamped) == len(reserved)
+
+    def test_none_is_noop(self):
+        result = generate_skeleton(_make_config(60), TEMPLATE_PATH, reserved_slots=None)
+        assert all(s.reserved_card is None for s in result.slots)
+
+    def test_reserved_card_round_trips_through_save(self, tmp_path: Path):
+        reserved = [ReservedSlotSpec(name="Pinned Card", rarity="mythic")]
+        result = generate_skeleton(_make_config(60), TEMPLATE_PATH, reserved_slots=reserved)
+        json_path, txt_path = save_skeleton(result, tmp_path)
+        loaded = json.loads(json_path.read_text(encoding="utf-8"))
+        stamped = [s for s in loaded["slots"] if s.get("reserved_card")]
+        assert stamped and stamped[0]["reserved_card"] == "Pinned Card"
+        assert "Reserved Cards" in txt_path.read_text(encoding="utf-8")

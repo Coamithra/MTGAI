@@ -38,6 +38,7 @@ from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.generation.prompts import load_system_prompt
 from mtgai.io.card_io import load_card
 from mtgai.models.card import Card
+from mtgai.skeleton.generator import SetConfig
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +347,45 @@ def _extract_set_level_issues(balance: dict) -> str:
     return "\n".join(lines)
 
 
+def _format_theme_section(theme: dict) -> str:
+    """Build the 'Set Theme' prompt section with setting constraints + requests.
+
+    Normalizes ``theme.json`` through ``SetConfig`` so the reviser honors the
+    new-format ``constraints`` / ``card_requests`` (and legacy
+    ``special_constraints``) regardless of provenance shape. The setting
+    one-liner is included when present; the long ``setting`` prose is omitted
+    to keep the analytical prompt compact.
+    """
+    try:
+        cfg = SetConfig(**theme)
+        raw_constraints = [*cfg.constraints, *cfg.special_constraints]
+        card_requests = list(cfg.card_requests)
+    except Exception:
+        raw_constraints = list(theme.get("special_constraints") or [])
+        card_requests = []
+
+    seen: set[str] = set()
+    constraints: list[str] = []
+    for c in raw_constraints:
+        if c not in seen:
+            seen.add(c)
+            constraints.append(c)
+
+    name = theme.get("name") or ""
+    code = theme.get("code") or ""
+    lines = ["## Set Theme", "", f"**{name}** ({code})"]
+    one_liner = (theme.get("theme") or "").strip()
+    if one_liner:
+        lines += ["", one_liner]
+    if constraints:
+        lines += ["", "Setting constraints:"]
+        lines += [f"- {c}" for c in constraints]
+    if card_requests:
+        lines += ["", "Requested cards:"]
+        lines += [f"- {r}" for r in card_requests]
+    return "\n".join(lines)
+
+
 def build_revision_prompt(
     cards: list[Card],
     balance: dict,
@@ -393,13 +433,8 @@ def build_revision_prompt(
                 dist_lines.append(f"  - {slot['slot_id']}: {slot.get('mechanic_usage', '')[:100]}")
     sections.append("## Mechanic Distribution Targets\n\n" + "\n".join(dist_lines))
 
-    # 5. Set theme summary
-    sections.append(
-        f"## Set Theme\n\n"
-        f"**{theme['name']}** ({theme['code']})\n\n"
-        f"{theme['theme']}\n\n"
-        f"Special constraints: {', '.join(theme.get('special_constraints', []))}"
-    )
+    # 5. Set theme summary + setting constraints / requested cards
+    sections.append(_format_theme_section(theme))
 
     # 6. Instructions
     sections.append(

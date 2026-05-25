@@ -3,9 +3,11 @@
 from mtgai.skeleton.generator import (
     BalanceReport,
     ConstraintResult,
+    ReservedSlotSpec,
     SetConfig,
     SkeletonResult,
     SkeletonSlot,
+    build_reserved_slots,
     generate_skeleton,
     save_skeleton,
 )
@@ -13,9 +15,11 @@ from mtgai.skeleton.generator import (
 __all__ = [
     "BalanceReport",
     "ConstraintResult",
+    "ReservedSlotSpec",
     "SetConfig",
     "SkeletonResult",
     "SkeletonSlot",
+    "build_reserved_slots",
     "generate_skeleton",
     "save_skeleton",
 ]

@@ -11,10 +11,13 @@ Given a SetConfig and the research-derived set template, this module:
 from __future__ import annotations
 
 import json
+import logging
 from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -117,6 +120,25 @@ class SkeletonSlot(BaseModel):
     card_id: str | None = None
     notes: str = ""
     color_pair: str | None = None  # for multicolor slots
+    # A requested card pinned to this slot ("<name> — <description>"), set by
+    # the reserved-slot pass from theme.json card_requests / legendary anchors.
+    reserved_card: str | None = None
+
+
+class ReservedSlotSpec(BaseModel):
+    """A card the set should contain, mapped onto a skeleton slot.
+
+    Built from ``theme.json`` (``card_requests`` prose + structured
+    ``legendary_characters`` / ``notable_cards`` anchors). All constraint
+    fields are optional — a name-only spec still gets reserved, taking the
+    highest-rarity open slot. ``colors`` uses single-letter codes (``["U", "B"]``).
+    """
+
+    name: str
+    colors: list[str] = Field(default_factory=list)
+    rarity: str | None = None
+    card_type: str | None = None  # SlotCardType value
+    description: str = ""
 
 
 class ConstraintResult(BaseModel):
@@ -694,6 +716,223 @@ def _build_balance_report(
 
 
 # ---------------------------------------------------------------------------
+# Reserved slots — pin requested cards from theme.json onto the matrix
+# ---------------------------------------------------------------------------
+
+_RARITY_RANK: dict[str, int] = {"common": 0, "uncommon": 1, "rare": 2, "mythic": 3}
+
+# Scanned in order: the first keyword found in a type line wins, so
+# "Artifact Creature" maps to creature and "Legendary Artifact — Vehicle"
+# to artifact.
+_TYPE_LINE_KEYWORDS: list[tuple[str, str]] = [
+    ("planeswalker", SlotCardType.PLANESWALKER),
+    ("creature", SlotCardType.CREATURE),
+    ("instant", SlotCardType.INSTANT),
+    ("sorcery", SlotCardType.SORCERY),
+    ("artifact", SlotCardType.ARTIFACT),
+    ("enchantment", SlotCardType.ENCHANTMENT),
+    ("land", SlotCardType.LAND),
+]
+
+
+def _card_type_from_type_line(type_line: str | None) -> str | None:
+    """Derive a SlotCardType from a full type line (e.g. 'Legendary Creature — X')."""
+    tl = (type_line or "").lower()
+    for keyword, card_type in _TYPE_LINE_KEYWORDS:
+        if keyword in tl:
+            return card_type
+    return None
+
+
+def _normalize_rarity(value: object) -> str | None:
+    rarity = (value or "").strip().lower() if isinstance(value, str) else ""
+    return rarity if rarity in _RARITY_RANK else None
+
+
+def _normalize_pair(colors: list[str]) -> str:
+    """Map two color codes to their canonical COLOR_PAIRS ordering."""
+    wanted = set(colors)
+    for pair in COLOR_PAIRS:
+        if set(pair) == wanted:
+            return pair
+    return "".join(colors)
+
+
+def _spec_color_target(colors: list[str]) -> tuple[str, str | None] | None:
+    """Map a spec's color codes to a (slot_color, color_pair) match target.
+
+    One color → that mono color; two → a multicolor pair. Zero or 3+ colors
+    carry no usable color constraint (returns None) — colorlessness is matched
+    via card_type instead.
+    """
+    codes = [c for c in colors if c in COLORS]
+    if len(codes) == 1:
+        return (codes[0], None)
+    if len(codes) == 2:
+        return ("multicolor", _normalize_pair(codes))
+    return None
+
+
+def _is_constrained(spec: ReservedSlotSpec) -> bool:
+    return bool(spec.rarity or spec.card_type or _spec_color_target(spec.colors))
+
+
+def _reservation_score(
+    slot: SkeletonSlot,
+    spec: ReservedSlotSpec,
+    target: tuple[str, str | None] | None,
+) -> int:
+    """How well a slot satisfies a spec's constraints (higher = better)."""
+    score = 0
+    if target is not None:
+        tcolor, tpair = target
+        if slot.color == tcolor and (tpair is None or slot.color_pair == tpair):
+            score += 4
+    if spec.rarity and slot.rarity == spec.rarity:
+        score += 2
+    if spec.card_type and slot.card_type == spec.card_type:
+        score += 1
+    return score
+
+
+def _format_reserved(spec: ReservedSlotSpec) -> str:
+    return f"{spec.name} — {spec.description}" if spec.description else spec.name
+
+
+def _apply_reservations(
+    slots: list[SkeletonSlot],
+    reserved: list[ReservedSlotSpec],
+) -> list[ReservedSlotSpec]:
+    """Claim one slot per reserved spec, in place, best-effort.
+
+    Each spec takes the best-scoring unclaimed, non-reprint, non-land slot
+    (ties broken toward higher rarity, then slot_id); a name-only spec scores
+    zero everywhere and so takes the highest-rarity open slot. Constrained
+    specs are placed first so they win their ideal slots. Reservation only
+    stamps ``reserved_card`` — it never changes a slot's color/rarity/type/cmc,
+    so balance constraints are unaffected. Returns specs that found no slot
+    (only once the matrix is exhausted).
+    """
+    if not reserved:
+        return []
+
+    claimed: set[str] = set()
+    unplaced: list[ReservedSlotSpec] = []
+    ordered = sorted(reserved, key=lambda s: 0 if _is_constrained(s) else 1)
+
+    for spec in ordered:
+        target = _spec_color_target(spec.colors)
+        candidates = [
+            s
+            for s in slots
+            if s.slot_id not in claimed
+            and not s.is_reprint_slot
+            and s.card_type != SlotCardType.LAND
+        ]
+        if not candidates:
+            unplaced.append(spec)
+            continue
+        best = sorted(
+            candidates,
+            key=lambda s: (
+                -_reservation_score(s, spec, target),
+                -_RARITY_RANK.get(s.rarity, 0),
+                s.slot_id,
+            ),
+        )[0]
+        best.reserved_card = _format_reserved(spec)
+        claimed.add(best.slot_id)
+
+    return unplaced
+
+
+def _normalize_request_items(value: object) -> list[str]:
+    """Coerce a card_requests list (bare strings or {text, source}) to strings."""
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    for item in value:
+        if isinstance(item, str) and item.strip():
+            out.append(item.strip())
+        elif isinstance(item, dict):
+            text = item.get("text")
+            if isinstance(text, str) and text.strip():
+                out.append(text.strip())
+    return out
+
+
+def _split_request(text: str) -> tuple[str, str]:
+    """Split a prose request 'Name — description' into (name, description)."""
+    text = text.strip()
+    for sep in (" — ", " - ", ": "):
+        if sep in text:
+            name, desc = text.split(sep, 1)
+            return name.strip(), desc.strip()
+    return text, ""
+
+
+def build_reserved_slots(theme: dict) -> list[ReservedSlotSpec]:
+    """Build reserved-slot specs from a raw ``theme.json`` dict.
+
+    Sources, in priority order (first occurrence of a name wins):
+      * ``legendary_characters`` / ``notable_cards`` — structured anchors with
+        colors, rarity, and a type line → fully-constrained specs.
+      * ``card_requests`` — prose ('Name — description') → name-only specs.
+
+    Tolerant of missing keys and either provenance shape; deduped by name.
+    """
+    specs: list[ReservedSlotSpec] = []
+    seen: set[str] = set()
+
+    def _add(
+        name: object,
+        colors: object,
+        rarity: str | None,
+        card_type: str | None,
+        description: object,
+    ) -> None:
+        clean_name = name.strip() if isinstance(name, str) else ""
+        if not clean_name or clean_name.casefold() in seen:
+            return
+        seen.add(clean_name.casefold())
+        specs.append(
+            ReservedSlotSpec(
+                name=clean_name,
+                colors=[c for c in colors if isinstance(c, str)]
+                if isinstance(colors, list)
+                else [],
+                rarity=rarity,
+                card_type=card_type,
+                description=description.strip() if isinstance(description, str) else "",
+            )
+        )
+
+    for entry in theme.get("legendary_characters") or []:
+        if isinstance(entry, dict):
+            _add(
+                entry.get("name"),
+                entry.get("colors"),
+                _normalize_rarity(entry.get("rarity")),
+                _card_type_from_type_line(entry.get("type")),
+                entry.get("role"),
+            )
+    for entry in theme.get("notable_cards") or []:
+        if isinstance(entry, dict):
+            _add(
+                entry.get("name"),
+                entry.get("colors"),
+                _normalize_rarity(entry.get("rarity")),
+                _card_type_from_type_line(entry.get("type")),
+                entry.get("notes"),
+            )
+    for text in _normalize_request_items(theme.get("card_requests")):
+        name, desc = _split_request(text)
+        _add(name, [], None, None, desc)
+
+    return specs
+
+
+# ---------------------------------------------------------------------------
 # Main generator
 # ---------------------------------------------------------------------------
 
@@ -701,6 +940,7 @@ def _build_balance_report(
 def generate_skeleton(
     config: SetConfig,
     template_path: Path,
+    reserved_slots: list[ReservedSlotSpec] | None = None,
 ) -> SkeletonResult:
     """Build the full set skeleton from a config and template.
 
@@ -711,8 +951,13 @@ def generate_skeleton(
       4. Assign CMC targets following the mana curve.
       5. Assign mechanic complexity tags.
       6. Tag slots with draft archetype associations.
-      7. Run constraint validation.
-      8. Return the assembled SkeletonResult.
+      7. Pin any ``reserved_slots`` (requested cards) onto matching slots.
+      8. Run constraint validation.
+      9. Return the assembled SkeletonResult.
+
+    ``reserved_slots`` (from ``build_reserved_slots(theme)``) stamps requested
+    cards onto matching slots without changing slot counts or color/rarity/type,
+    so all hard constraints still hold.
     """
     _template = _load_template(template_path)  # available for future use
     rarity_counts = _scale_rarity(config.set_size)
@@ -808,6 +1053,14 @@ def generate_skeleton(
             for tag in item["archetype_tags"]:
                 if tag in archetype_index:
                     archetype_index[tag].append(sid)
+
+    unplaced = _apply_reservations(all_slots, reserved_slots or [])
+    if unplaced:
+        logger.info(
+            "Skeleton: %d requested card(s) could not be reserved (matrix full): %s",
+            len(unplaced),
+            ", ".join(s.name for s in unplaced),
+        )
 
     balance = _build_balance_report(all_slots, config.set_size)
 
@@ -915,6 +1168,12 @@ def _render_overview(result: SkeletonResult) -> list[str]:
 
     lines.append("")
     lines.append("All hard constraints passed: " + ("YES" if br.all_hard_passed else "NO"))
+
+    reserved = [s for s in result.slots if s.reserved_card]
+    if reserved:
+        lines += ["", f"=== Reserved Cards ({len(reserved)}) ==="]
+        for s in sorted(reserved, key=lambda s: s.slot_id):
+            lines.append(f"  {s.slot_id:10s}  {s.reserved_card}")
 
     # --- Slot listing ---
     lines += ["", "=== Slot Matrix ==="]

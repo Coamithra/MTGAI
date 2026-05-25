@@ -191,6 +191,19 @@ def test_format_slot_specs_monocolor_archetype_tags() -> None:
     assert "Supports archetypes: Skies: go wide in the air" in spec
 
 
+def test_format_slot_specs_surfaces_reserved_card() -> None:
+    # A reserved slot (from theme.json card_requests) must reach the card-gen
+    # prompt so the LLM designs the requested card on that slot.
+    slot = {**_wu_slot(), "reserved_card": "Feretha, the Undying — dead wizard-ruler"}
+    spec = prompts.format_slot_specs([slot], None, None)
+    assert "REQUESTED CARD — design this slot as: Feretha, the Undying — dead wizard-ruler" in spec
+
+
+def test_format_slot_specs_no_reserved_marker_when_absent() -> None:
+    spec = prompts.format_slot_specs([_wu_slot()], None, None)
+    assert "REQUESTED CARD" not in spec
+
+
 # ---------------------------------------------------------------------------
 # build_user_prompt — regression + override threading
 # ---------------------------------------------------------------------------

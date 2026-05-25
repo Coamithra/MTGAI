@@ -220,6 +220,10 @@ def format_slot_specs(
         if slot.get("is_reprint_slot"):
             spec += "\n   REPRINT SLOT — design a card suitable as a reprint from an existing set"
 
+        reserved_card = (slot.get("reserved_card") or "").strip()
+        if reserved_card:
+            spec += f"\n   REQUESTED CARD — design this slot as: {reserved_card}"
+
         notes = slot.get("notes", "").strip()
         if notes:
             spec += f"\n   Notes: {notes}"

@@ -9,6 +9,7 @@ from mtgai.generation.skeleton_reviser import (
     SlotChange,
     apply_revision_plan,
     archive_card,
+    build_revision_prompt,
     extract_metrics,
     serialize_all_cards,
     serialize_card_compact,
@@ -461,3 +462,54 @@ class TestWriteRevisionReport:
         assert path.exists()
         content = path.read_text(encoding="utf-8")
         assert "Total rounds: 0" in content
+
+
+# ---------------------------------------------------------------------------
+# build_revision_prompt — setting constraints threading (TC-7)
+# ---------------------------------------------------------------------------
+
+
+class TestBuildRevisionPrompt:
+    """The reviser prompt must surface theme.json setting constraints + requests."""
+
+    def _build(self, theme: dict) -> str:
+        _system, user = build_revision_prompt(
+            cards=[_make_card()],
+            balance={},
+            mechanics=[],
+            distribution={},
+            theme=theme,
+        )
+        return user
+
+    def test_new_format_constraints_appear(self):
+        user = self._build({"name": "S", "code": "STC", "constraints": ["At least 6 artifacts"]})
+        assert "Setting constraints:" in user
+        assert "At least 6 artifacts" in user
+
+    def test_legacy_special_constraints_appear(self):
+        user = self._build(
+            {"name": "S", "code": "STC", "special_constraints": ["Artifact subtheme"]}
+        )
+        assert "Artifact subtheme" in user
+
+    def test_card_requests_appear(self):
+        user = self._build({"name": "S", "code": "STC", "card_requests": ["Throne — a relic"]})
+        assert "Requested cards:" in user
+        assert "Throne — a relic" in user
+
+    def test_provenance_objects_normalized(self):
+        user = self._build(
+            {
+                "name": "S",
+                "code": "STC",
+                "constraints": [{"text": "No mill", "source": "ai"}],
+            }
+        )
+        assert "No mill" in user
+
+    def test_falls_back_when_setconfig_invalid(self):
+        # No "code" → SetConfig raises; the except branch still surfaces the
+        # legacy special_constraints so the section is never empty by accident.
+        user = self._build({"special_constraints": ["Legacy only"]})
+        assert "Legacy only" in user

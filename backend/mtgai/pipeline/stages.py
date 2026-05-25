@@ -424,7 +424,7 @@ def run_skeleton(
     emitter: StageEmitter,
 ) -> StageResult:
     """Generate the set skeleton."""
-    from mtgai.skeleton.generator import SetConfig, generate_skeleton
+    from mtgai.skeleton.generator import SetConfig, build_reserved_slots, generate_skeleton
 
     set_dir = _set_dir()
     theme_path = set_dir / "theme.json"
@@ -446,6 +446,7 @@ def run_skeleton(
                 "content_type": "table",
             },
             {"section_id": "types", "title": "Type Distribution", "content_type": "table"},
+            {"section_id": "reserved", "title": "Reserved Cards", "content_type": "table"},
             {"section_id": "slots", "title": "Slot List", "content_type": "table"},
         ]
     )
@@ -464,7 +465,8 @@ def run_skeleton(
         },
     )
 
-    result = generate_skeleton(config, template_path)
+    reserved_slots = build_reserved_slots(theme_data)
+    result = generate_skeleton(config, template_path, reserved_slots=reserved_slots)
 
     # Save skeleton
     skeleton_path = set_dir / "skeleton.json"
@@ -501,7 +503,19 @@ def run_skeleton(
         type_rows.append([t.title(), str(n)])
     emitter.update("types", status="done", content={"rows": type_rows})
 
-    slot_rows: list[list[str]] = [["Slot", "Color", "Rarity", "Type", "CMC", "Mechanic"]]
+    reserved_rows: list[list[str]] = [["Slot", "Requested Card"]]
+    for slot in result.slots:
+        if slot.reserved_card:
+            reserved_rows.append([slot.slot_id, slot.reserved_card])
+    emitter.update(
+        "reserved",
+        status="done",
+        content={"rows": reserved_rows, "scrollable": True},
+    )
+
+    slot_rows: list[list[str]] = [
+        ["Slot", "Color", "Rarity", "Type", "CMC", "Mechanic", "Reserved"]
+    ]
     for slot in result.slots:
         slot_rows.append(
             [
@@ -511,6 +525,7 @@ def run_skeleton(
                 slot.card_type,
                 str(slot.cmc_target),
                 slot.mechanic_tag,
+                slot.reserved_card or "",
             ]
         )
     emitter.update(
