@@ -36,8 +36,10 @@ output/
 # Local project asset folders (per-project .mtg sibling dirs)
 sets (new)/
 
-# llmfacade managed-mode session dir (llama-swap subprocess + generated YAML)
-backend/.llmfacade/
+# llmfacade managed-mode session dir (llama-swap subprocess + generated YAML).
+# Matches at any level — lands in backend/ for the normal `serve` workflow,
+# but at the repo root when the server is launched from there.
+.llmfacade/
 
 # Per-process log dirs from local runs
 backend/logs/
