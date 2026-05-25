@@ -32,7 +32,19 @@ _PIPELINE_ROOT = Path(__file__).resolve().parent.parent / "pipeline"
 _PROMPTS_DIR = _PIPELINE_ROOT / "prompts"
 _TEMPLATES_DIR = _PIPELINE_ROOT / "templates"
 
-CANDIDATE_COUNT = 6
+# Maximum number of mechanics a user may select for a single set — a sanity
+# cap so the candidate pool (twice this, see ``candidate_count``) stays bounded.
+MAX_MECHANIC_COUNT = 6
+
+
+def candidate_count(mechanic_count: int) -> int:
+    """Size of the candidate pool to generate for a given selection count.
+
+    Twice the number the user will pick — enough slack for genuine choice
+    and for dropping the occasional malformed local-model candidate.
+    """
+    return max(1, mechanic_count * 2)
+
 
 # ---------------------------------------------------------------------------
 # Tool schema: defines the structured output the LLM must return
@@ -320,6 +332,93 @@ def build_mechanic_prompts(
     return system_prompt, user_prompt
 
 
+def _format_already_designed(accepted: list[dict]) -> str:
+    """Render the accepted-so-far mechanics as a 'do not repeat' block."""
+    if not accepted:
+        return "No mechanics have been designed yet — this is the first candidate."
+    lines = ["Mechanics already designed (do NOT repeat these or their mechanical space):"]
+    for m in accepted:
+        name = m.get("name") or "?"
+        colors = "".join(m.get("colors") or []) or "—"
+        cx = m.get("complexity")
+        rationale = (m.get("design_rationale") or m.get("flavor_connection") or "").strip()
+        if len(rationale) > 120:
+            rationale = rationale[:117] + "…"
+        suffix = f" — {rationale}" if rationale else ""
+        lines.append(f"- {name} ({colors}, complexity {cx}){suffix}")
+    return "\n".join(lines)
+
+
+def _needed_hint(accepted: list[dict], remaining: int, enforce_simple_floor: bool) -> str:
+    """Adaptive nudge to preserve the spread the batch prompt used to guarantee.
+
+    The single strongest invariant from the old batch prompt was 'at least
+    one complexity-1 (common-viable) mechanic'. If none exists yet and we're
+    running low on remaining slots, force this one to fill that gap. Only
+    applies when building a full pool (``enforce_simple_floor``) — a targeted
+    refresh of one slot shouldn't be biased toward simple designs.
+    """
+    if not enforce_simple_floor:
+        return ""
+    has_simple = any(m.get("complexity") == 1 for m in accepted)
+    if not has_simple and remaining <= 2:
+        return (
+            "- IMPORTANT: none of the mechanics so far are complexity 1, and the set "
+            "needs at least one. Make THIS mechanic complexity 1 — simple enough to be "
+            "viable at common with short reminder text."
+        )
+    return ""
+
+
+def build_single_mechanic_user_prompt(
+    *,
+    accepted: list[dict],
+    position: int,
+    target: int,
+    mechanic_count: int,
+    set_size: int,
+    expected_density: str,
+    enforce_simple_floor: bool = True,
+) -> str:
+    """Render the per-call user prompt asking for ONE distinct mechanic.
+
+    The system prompt (theme/flavor/constraints) is unchanged and shared
+    across every call in the loop; only this user prompt varies, threading
+    the already-accepted mechanics so the model avoids repeats.
+    """
+    template = _read_template("mechanic_user_single.txt")
+    remaining = max(0, target - len(accepted))
+    return template.format(
+        position=position,
+        target=target,
+        mechanic_count=mechanic_count,
+        set_size=set_size,
+        expected_mechanic_density=expected_density,
+        already_block=_format_already_designed(accepted),
+        needed_hint=_needed_hint(accepted, remaining, enforce_simple_floor),
+    )
+
+
+def _is_valid_candidate(m: Any, seen_names: set[str]) -> bool:
+    """Accept only well-formed, non-duplicate mechanic objects.
+
+    Guards against the local-model JSON degradation that motivated the
+    one-at-a-time loop: malformed entries (null/blank ``name``) and
+    example-card debris promoted to the top level by JSON repair (which
+    lack mechanic-level metadata) are rejected, as are duplicates.
+    """
+    if not isinstance(m, dict):
+        return False
+    name = m.get("name")
+    if not isinstance(name, str) or not name.strip():
+        return False
+    if name.strip().lower() in seen_names:
+        return False
+    # A real mechanic carries design metadata an example card never would;
+    # this distinguishes it from promoted example-card debris.
+    return bool(m.get("reminder_text") or m.get("design_rationale") or m.get("common_patterns"))
+
+
 # ---------------------------------------------------------------------------
 # Template loaders
 # ---------------------------------------------------------------------------
@@ -551,7 +650,7 @@ def candidate_to_approved(candidate: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def generate_mechanic_candidates(*, theme: dict | None = None) -> dict:
+def generate_mechanic_candidates(*, theme: dict | None = None, count: int | None = None) -> dict:
     """Generate mechanic candidates for the active project via LLM.
 
     Reads ``theme.json`` and ``set_params`` from the active project,
@@ -565,10 +664,21 @@ def generate_mechanic_candidates(*, theme: dict | None = None) -> dict:
             "model_id": str,
         }
 
-    Raises ``RuntimeError`` if the LLM returns fewer than the required
-    candidate count (the runner translates this to a stage failure).
+    Generates ONE mechanic per call rather than the whole pool at once:
+    local models degrade on long structured output (a single big tool call
+    returned syntactically-valid but semantically-shredded JSON once the
+    generation grew long — clean first mechanic, junk by the third). Each
+    short call stays coherent; we validate the result, drop malformed or
+    duplicate entries, feed the accepted names back so the model avoids
+    repeats, and loop until the candidate pool (twice ``mechanic_count``)
+    is reached or the attempt budget is spent.
+
+    Succeeds as long as at least ``mechanic_count`` valid candidates are
+    collected (that's all the user picks); raises ``RuntimeError`` only if
+    the loop can't reach that floor, or if calls fail repeatedly up front.
     """
     from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.runtime import ai_lock
     from mtgai.runtime.active_project import require_active_project
 
     project = require_active_project()
@@ -583,61 +693,134 @@ def generate_mechanic_candidates(*, theme: dict | None = None) -> dict:
         theme = json.loads(theme_path.read_text(encoding="utf-8"))
     assert theme is not None
 
-    system_prompt, user_prompt = build_mechanic_prompts(
+    # System prompt (theme/flavor/constraints) is stable across the whole
+    # loop and prompt-cache-friendly; only the per-call user prompt varies,
+    # threading the already-accepted mechanics. We discard the batch user
+    # prompt build_mechanic_prompts returns and build a single-mechanic one.
+    system_prompt, _ = build_mechanic_prompts(
         theme=theme,
         set_name=sp.set_name or project.set_code or "Custom Set",
         set_size=sp.set_size,
         mechanic_count=sp.mechanic_count,
     )
+    expected_density = _expected_mechanic_density(sp.set_size, sp.mechanic_count)
+    # Callers ask for exactly what they need: the stage / initial generation
+    # wants the full pool (twice mechanic_count); the refresh-one endpoint wants 1.
+    target = candidate_count(sp.mechanic_count) if count is None else max(1, count)
+    floor = max(1, min(sp.mechanic_count, target))
+    max_attempts = max(3, target * 2)
+    # The "must include a complexity-1 mechanic" floor is a whole-pool concern;
+    # don't impose it on a targeted single-slot refresh (count given).
+    enforce_simple_floor = count is None
 
     logger.info(
-        "Generating %d mechanic candidates (model=%s, set_size=%d, mech_count=%d)",
-        CANDIDATE_COUNT,
+        "Generating up to %d mechanic candidates one at a time "
+        "(model=%s, set_size=%d, mech_count=%d, floor=%d, max_attempts=%d)",
+        target,
         model_id,
         sp.set_size,
         sp.mechanic_count,
+        floor,
+        max_attempts,
     )
-    started = time.perf_counter()
-    response: dict[str, Any] | None = None
-    error: str | None = None
-    try:
-        response = generate_with_tool(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            tool_schema=MECHANIC_TOOL_SCHEMA,
-            model=model_id,
-            temperature=1.0,
-            max_tokens=8192,
+
+    accepted: list[dict] = []
+    seen_names: set[str] = set()
+    total_in = 0
+    total_out = 0
+    attempt = 0
+    consecutive_errors = 0
+    last_error: str | None = None
+
+    while len(accepted) < target and attempt < max_attempts:
+        if ai_lock.is_cancelled():
+            logger.info("Mechanic generation cancelled after %d candidate(s)", len(accepted))
+            break
+        attempt += 1
+        user_prompt = build_single_mechanic_user_prompt(
+            accepted=accepted,
+            position=len(accepted) + 1,
+            target=target,
+            mechanic_count=sp.mechanic_count,
+            set_size=sp.set_size,
+            expected_density=expected_density,
+            enforce_simple_floor=enforce_simple_floor,
         )
-    except Exception as exc:
-        error = f"{type(exc).__name__}: {exc}"
-        raise
-    finally:
-        latency_s = time.perf_counter() - started
-        _save_generation_log(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            response=response,
-            model_id=model_id,
-            latency_s=latency_s,
-            error=error,
-        )
-    mechanics = response["result"].get("mechanics") or []
-    if len(mechanics) < CANDIDATE_COUNT:
+        started = time.perf_counter()
+        response: dict[str, Any] | None = None
+        error: str | None = None
+        try:
+            response = generate_with_tool(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                tool_schema=MECHANIC_TOOL_SCHEMA,
+                model=model_id,
+                temperature=1.0,
+                max_tokens=4096,
+            )
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            last_error = error
+            logger.warning("Mechanic candidate attempt %d failed: %s", attempt, error)
+        finally:
+            latency_s = time.perf_counter() - started
+            _save_generation_log(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response=response,
+                model_id=model_id,
+                latency_s=latency_s,
+                error=error,
+                attempt=attempt,
+            )
+
+        if response is None:
+            # Fail fast on a persistent hard error (dead provider, missing
+            # model) rather than burning the whole attempt budget on it.
+            consecutive_errors += 1
+            if consecutive_errors >= 3 and not accepted:
+                raise RuntimeError(
+                    f"Mechanic generation failed {consecutive_errors} calls in a row "
+                    f"with no valid candidates: {last_error}"
+                )
+            continue
+        consecutive_errors = 0
+        total_in += response.get("input_tokens", 0) or 0
+        total_out += response.get("output_tokens", 0) or 0
+
+        returned = (response.get("result") or {}).get("mechanics") or []
+        before = len(accepted)
+        for m in returned:
+            if _is_valid_candidate(m, seen_names):
+                accepted.append(m)
+                seen_names.add(str(m["name"]).strip().lower())
+                if len(accepted) >= target:
+                    break
+        if len(accepted) == before:
+            logger.info(
+                "Attempt %d yielded no valid new candidate (%d returned); retrying",
+                attempt,
+                len(returned),
+            )
+
+    if len(accepted) < floor:
         raise RuntimeError(
-            f"Mechanic generation returned {len(mechanics)} candidates (expected {CANDIDATE_COUNT})"
+            f"Mechanic generation produced only {len(accepted)} valid candidate(s) "
+            f"after {attempt} attempt(s); need at least {floor}. The model may be "
+            "returning malformed tool output — try a different mechanics model or re-run."
         )
-    if len(mechanics) > CANDIDATE_COUNT:
+    if len(accepted) < target:
         logger.warning(
-            "LLM returned %d candidates; truncating to first %d",
-            len(mechanics),
-            CANDIDATE_COUNT,
+            "Collected %d/%d mechanic candidates after %d attempts (>= floor of %d, proceeding)",
+            len(accepted),
+            target,
+            attempt,
+            floor,
         )
-        mechanics = mechanics[:CANDIDATE_COUNT]
     return {
-        "mechanics": mechanics,
-        "input_tokens": response.get("input_tokens", 0),
-        "output_tokens": response.get("output_tokens", 0),
+        "mechanics": accepted[:target],
+        "input_tokens": total_in,
+        "output_tokens": total_out,
         "model_id": model_id,
     }
 
@@ -650,12 +833,15 @@ def _save_generation_log(
     model_id: str,
     latency_s: float,
     error: str | None,
+    attempt: int | None = None,
 ) -> None:
     """Persist a per-call mechanic-generation log under the active project.
 
-    Path: ``<asset>/mechanics/logs/<isots>.json``. Captures full prompts,
-    raw tool result, token usage, latency, and any error so the user can
-    review what the LLM produced (and re-prompt offline if needed).
+    Path: ``<asset>/mechanics/logs/<isots>[-a<attempt>].json``. Captures
+    full prompts, raw tool result, token usage, latency, and any error so
+    the user can review what the LLM produced (and re-prompt offline if
+    needed). One file per call in the one-at-a-time loop; ``attempt`` keeps
+    them ordered and distinct.
     """
     from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
 
@@ -670,7 +856,8 @@ def _save_generation_log(
         return
 
     timestamp = datetime.now(UTC).isoformat().replace(":", "-").replace("+00-00", "Z")
-    log_path = log_dir / f"{timestamp}.json"
+    suffix = f"-a{attempt}" if attempt is not None else ""
+    log_path = log_dir / f"{timestamp}{suffix}.json"
     payload: dict[str, Any] = {
         "timestamp": datetime.now(UTC).isoformat(),
         "model": model_id,
@@ -678,6 +865,8 @@ def _save_generation_log(
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
     }
+    if attempt is not None:
+        payload["attempt"] = attempt
     if error is not None:
         payload["error"] = error
     if response is not None:

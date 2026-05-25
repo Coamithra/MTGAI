@@ -81,10 +81,12 @@ def run_mechanics(
     """Generate the set's custom mechanic candidates.
 
     First entry in :data:`STAGE_RUNNERS` (mechanics → skeleton →
-    reprints → ...). Loads ``theme.json`` + ``set_params``, asks the LLM
-    for 6 candidates, writes them to ``<set>/mechanics/candidates.json``,
-    and returns ``PAUSED_FOR_REVIEW``-equivalent (the engine flips the
-    status because ``mechanics`` defaults to a break-point in
+    reprints → ...). Loads ``theme.json`` + ``set_params``, asks the
+    generator for a candidate pool of twice ``mechanic_count`` (produced
+    one at a time and validated, to survive local-model JSON degradation), writes
+    them to ``<set>/mechanics/candidates.json``, and returns
+    ``PAUSED_FOR_REVIEW``-equivalent (the engine flips the status because
+    ``mechanics`` defaults to a break-point in
     :data:`mtgai.settings.model_settings.DEFAULT_BREAK_POINTS`).
 
     The user picks ``mechanic_count`` candidates on the wizard's
@@ -92,7 +94,7 @@ def run_mechanics(
     writes ``approved.json`` + sidecars and resumes the engine.
     """
     from mtgai.generation.mechanic_generator import (
-        CANDIDATE_COUNT,
+        candidate_count,
         detect_keyword_collisions,
         generate_mechanic_candidates,
     )
@@ -115,6 +117,7 @@ def run_mechanics(
     candidates_path = mech_dir / "candidates.json"
 
     sp = require_active_project().settings.set_params
+    pool = candidate_count(sp.mechanic_count)
 
     sections: list[dict] = [
         {
@@ -126,11 +129,11 @@ def run_mechanics(
                 "Set": sp.set_name or "(unnamed)",
                 "Set size": str(sp.set_size),
                 "Mechanic count": str(sp.mechanic_count),
-                "Candidates requested": str(CANDIDATE_COUNT),
+                "Candidates requested": str(pool),
             },
         }
     ]
-    for i in range(CANDIDATE_COUNT):
+    for i in range(pool):
         sections.append(
             {
                 "section_id": f"candidate_{i}",

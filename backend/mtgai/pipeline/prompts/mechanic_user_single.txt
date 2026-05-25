@@ -1,0 +1,19 @@
+Design ONE new mechanic candidate for this set. We generate candidates one at a time so each design stays sharp; you only need to produce a single, complete mechanic now.
+
+This is candidate #{position} of {target} we are collecting; we will ultimately select {mechanic_count} of them for the set.
+
+{already_block}
+
+Requirements for THIS mechanic:
+- It MUST be DISTINCT from every mechanic already designed above — a genuinely different mechanical space, not a re-skin or minor variation.
+- Must fit the set's theme and flavor (see system prompt) and support 2+ of the set's draft archetypes.
+- Provide 2-3 example cards across different rarities, each with complete, valid MTG templating (mana cost, type line, oracle text).
+{needed_hint}
+
+Think carefully about:
+1. How the mechanic plays in Limited — is it fun, does it create interesting decisions?
+2. How it reinforces the set's themes and flavor.
+3. How it differs from the mechanics already designed (avoid overlap).
+4. Whether it has design space for {expected_mechanic_density} cards in a {set_size}-card set.
+
+Return exactly one mechanic in the tool call.

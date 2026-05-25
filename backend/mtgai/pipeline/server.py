@@ -1105,18 +1105,18 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
         return JSONResponse({"error": "set_name must be a string"}, status_code=400)
     if not isinstance(mech, int) or mech < 0:
         return JSONResponse({"error": "mechanic_count must be a non-negative int"}, status_code=400)
-    # Mechanic generation always asks the LLM for ``CANDIDATE_COUNT``
-    # candidates; the user picks ``mechanic_count`` of them, so the
-    # ratio is bounded above. Without this cap a user could set
-    # mechanic_count=20 and never satisfy the save-and-continue gate.
-    from mtgai.generation.mechanic_generator import CANDIDATE_COUNT
+    # Mechanic generation produces a candidate pool of twice ``mechanic_count``
+    # and the user picks ``mechanic_count`` of it, so the pool always satisfies
+    # the save-and-continue gate. We still cap the count itself so an absurd
+    # value (e.g. 20) can't trigger a runaway 40-candidate generation.
+    from mtgai.generation.mechanic_generator import MAX_MECHANIC_COUNT
 
-    if mech > CANDIDATE_COUNT:
+    if mech > MAX_MECHANIC_COUNT:
         return JSONResponse(
             {
                 "error": (
-                    f"mechanic_count cannot exceed {CANDIDATE_COUNT} "
-                    f"(the candidate pool size); got {mech}"
+                    f"mechanic_count cannot exceed {MAX_MECHANIC_COUNT} "
+                    f"(maximum mechanics per set); got {mech}"
                 )
             },
             status_code=400,
@@ -2465,8 +2465,8 @@ def _coerce_candidates_payload(value: Any) -> list[dict] | None:
 def _coerce_indices(value: Any, max_count: int) -> list[int] | None:
     """Strict index list coercer — every entry must be in range [0, max_count).
 
-    The merged candidates list is padded / trimmed to ``CANDIDATE_COUNT``
-    server-side, so ``max_count`` is the post-pad bound. Out-of-range
+    The merged candidates list is padded / trimmed to the candidate-pool
+    size server-side, so ``max_count`` is the post-pad bound. Out-of-range
     or duplicate entries are rejected outright (returning None) — the
     refresh-all merge loop relies on the indices being in-bounds.
     """
@@ -2516,14 +2516,15 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
     * 409 + ``busy_payload`` — another AI action holds the lock.
     """
     from mtgai.generation.mechanic_generator import (
-        CANDIDATE_COUNT,
+        candidate_count,
         generate_mechanic_candidates,
     )
 
     try:
-        _require_active_project()
+        project = _require_active_project()
     except _NoActiveProject:
         return _no_active_project_response()
+    pool = candidate_count(project.settings.set_params.mechanic_count)
     body, err = await _read_request_json(request)
     if err is not None:
         return err
@@ -2533,9 +2534,9 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
     if candidates is None:
         return JSONResponse({"error": "candidates must be a list of dicts"}, status_code=400)
     idx = body.get("candidate_index")
-    if not isinstance(idx, int) or idx < 0 or idx >= CANDIDATE_COUNT:
+    if not isinstance(idx, int) or idx < 0 or idx >= pool:
         return JSONResponse(
-            {"error": (f"candidate_index must be an int in [0, {CANDIDATE_COUNT})")},
+            {"error": (f"candidate_index must be an int in [0, {pool})")},
             status_code=400,
         )
     try:
@@ -2547,7 +2548,9 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
         if not acquired:
             return JSONResponse(ai_lock.busy_payload(), status_code=409)
         try:
-            response = await asyncio.to_thread(generate_mechanic_candidates)
+            # Only the first result is used to replace the one slot — ask
+            # for exactly one so we don't run the full top-up loop.
+            response = await asyncio.to_thread(generate_mechanic_candidates, count=1)
         except Exception as exc:
             logger.exception("Refresh-card LLM call failed")
             return JSONResponse({"error": str(exc)}, status_code=500)
@@ -2557,10 +2560,10 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
             return JSONResponse({"error": "LLM returned no candidates"}, status_code=500)
 
         merged = list(candidates)
-        # Pad / trim to CANDIDATE_COUNT in case the client's snapshot was stale.
-        while len(merged) < CANDIDATE_COUNT:
+        # Pad / trim to the candidate-pool size in case the client's snapshot was stale.
+        while len(merged) < pool:
             merged.append({})
-        merged = merged[:CANDIDATE_COUNT]
+        merged = merged[:pool]
         new_mech = dict(new_mechanics[0])
         new_mech["_ai_generated"] = True
         merged[idx] = new_mech
@@ -2592,15 +2595,16 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
     re-render warnings without a separate state fetch.
     """
     from mtgai.generation.mechanic_generator import (
-        CANDIDATE_COUNT,
+        candidate_count,
         detect_keyword_collisions,
         generate_mechanic_candidates,
     )
 
     try:
-        _require_active_project()
+        project = _require_active_project()
     except _NoActiveProject:
         return _no_active_project_response()
+    pool = candidate_count(project.settings.set_params.mechanic_count)
     body, err = await _read_request_json(request)
     if err is not None:
         return err
@@ -2609,13 +2613,13 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
     candidates = _coerce_candidates_payload(body.get("candidates"))
     if candidates is None:
         return JSONResponse({"error": "candidates must be a list of dicts"}, status_code=400)
-    # Indices are bound by the post-pad CANDIDATE_COUNT (we pad / trim
+    # Indices are bound by the post-pad pool size (we pad / trim
     # ``candidates`` below to that size). Reject duplicates + out-of-range
     # values up front so the merge loop can trust them.
-    indices = _coerce_indices(body.get("indices"), CANDIDATE_COUNT)
+    indices = _coerce_indices(body.get("indices"), pool)
     if indices is None:
         return JSONResponse(
-            {"error": (f"indices must be a list of unique ints in [0, {CANDIDATE_COUNT})")},
+            {"error": (f"indices must be a list of unique ints in [0, {pool})")},
             status_code=400,
         )
     initial_generate = not indices and not candidates
@@ -2629,8 +2633,11 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
     with ai_lock.hold("Mechanic candidate refresh") as acquired:
         if not acquired:
             return JSONResponse(ai_lock.busy_payload(), status_code=409)
+        # Initial generation wants the full pool; a targeted refresh only
+        # needs as many fresh candidates as there are flagged rows.
+        gen_count = pool if initial_generate else len(indices)
         try:
-            response = await asyncio.to_thread(generate_mechanic_candidates)
+            response = await asyncio.to_thread(generate_mechanic_candidates, count=gen_count)
         except Exception as exc:
             logger.exception("Refresh-all LLM call failed")
             return JSONResponse({"error": str(exc)}, status_code=500)
@@ -2638,15 +2645,15 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
         new_mechanics = response["mechanics"]
         if initial_generate:
             merged = []
-            for new_mech in new_mechanics[:CANDIDATE_COUNT]:
+            for new_mech in new_mechanics[:pool]:
                 tagged = dict(new_mech)
                 tagged["_ai_generated"] = True
                 merged.append(tagged)
         else:
             merged = list(candidates)
-            while len(merged) < CANDIDATE_COUNT:
+            while len(merged) < pool:
                 merged.append({})
-            merged = merged[:CANDIDATE_COUNT]
+            merged = merged[:pool]
             # Replace flagged indices in order with newly-generated
             # candidates, tagging each freshly-LLM-generated row as AI
             # again.

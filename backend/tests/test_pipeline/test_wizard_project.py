@@ -131,26 +131,26 @@ def test_save_params_rejects_negative_mechanic_count(client):
     assert resp.status_code == 400
 
 
-def test_save_params_rejects_mechanic_count_above_candidate_pool(client):
-    """The mechanic candidate pool size is fixed at CANDIDATE_COUNT (= 6).
+def test_save_params_rejects_mechanic_count_above_max(client):
+    """``mechanic_count`` is capped at ``MAX_MECHANIC_COUNT``.
 
-    A user can only pick up to that many candidates; setting
-    ``mechanic_count`` higher would make the save-and-continue gate
-    permanently unsatisfiable, so the params endpoint refuses.
+    The candidate pool scales as twice the count, so the pool always
+    satisfies the save-and-continue gate; the cap just keeps the count
+    (and thus generation cost) from running away.
     """
-    from mtgai.generation.mechanic_generator import CANDIDATE_COUNT
+    from mtgai.generation.mechanic_generator import MAX_MECHANIC_COUNT
 
     _open_project("ASD")
     resp = client.post(
         "/api/wizard/project/params",
-        json={"set_code": "ASD", "mechanic_count": CANDIDATE_COUNT + 1},
+        json={"set_code": "ASD", "mechanic_count": MAX_MECHANIC_COUNT + 1},
     )
     assert resp.status_code == 400
-    assert "candidate pool" in resp.json()["error"]
-    # Boundary: exactly CANDIDATE_COUNT is allowed.
+    assert "maximum mechanics" in resp.json()["error"]
+    # Boundary: exactly MAX_MECHANIC_COUNT is allowed.
     resp = client.post(
         "/api/wizard/project/params",
-        json={"set_code": "ASD", "mechanic_count": CANDIDATE_COUNT},
+        json={"set_code": "ASD", "mechanic_count": MAX_MECHANIC_COUNT},
     )
     assert resp.status_code == 200
 

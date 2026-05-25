@@ -250,27 +250,33 @@ def _project(isolated_output, monkeypatch) -> None:
     )
 
 
-def _stub_generate_with_tool(count: int):
+def _valid_mech(i: int) -> dict:
+    return {
+        "name": f"Mechanic{i}",
+        "keyword_type": "keyword_ability",
+        "reminder_text": "(...)",
+        "colors": ["W"],
+        "complexity": 1,
+        "flavor_connection": "fits",
+        "design_rationale": "good",
+        "common_patterns": ["x"],
+        "uncommon_patterns": [],
+        "rare_patterns": [],
+        "example_cards": [],
+        "distribution": {"common": 1, "uncommon": 0, "rare": 0, "mythic": 0},
+    }
+
+
+def _stub_n_per_call(n: int):
+    """Return ``n`` fresh, distinct mechanics per call (a counter keeps
+    names unique across calls so the dedup loop makes progress)."""
+    counter = {"next": 0}
+
     def stub(*args, **kwargs):
-        mechanics = [
-            {
-                "name": f"Mechanic{i}",
-                "keyword_type": "keyword_ability",
-                "reminder_text": "(...)",
-                "colors": ["W"],
-                "complexity": 1,
-                "flavor_connection": "fits",
-                "design_rationale": "good",
-                "common_patterns": ["x"],
-                "uncommon_patterns": [],
-                "rare_patterns": [],
-                "example_cards": [],
-                "distribution": {"common": 1, "uncommon": 0, "rare": 0, "mythic": 0},
-            }
-            for i in range(count)
-        ]
+        start = counter["next"]
+        counter["next"] += n
         return {
-            "result": {"mechanics": mechanics},
+            "result": {"mechanics": [_valid_mech(j) for j in range(start, start + n)]},
             "input_tokens": 10,
             "output_tokens": 20,
         }
@@ -278,15 +284,82 @@ def _stub_generate_with_tool(count: int):
     return stub
 
 
-def test_generate_mechanic_candidates_returns_capped_six(_project, monkeypatch) -> None:
-    monkeypatch.setattr(mg, "generate_with_tool", _stub_generate_with_tool(8))
+def _stub_distinct_then_dupes(distinct: int):
+    """Yield ``distinct`` unique mechanics, then keep returning a duplicate
+    so the loop can't make further progress (exercises the floor / cap)."""
+    counter = {"call": 0}
+
+    def stub(*args, **kwargs):
+        i = counter["call"]
+        counter["call"] += 1
+        idx = i if i < distinct else 0  # repeats Mechanic0 once exhausted
+        return {
+            "result": {"mechanics": [_valid_mech(idx)]},
+            "input_tokens": 10,
+            "output_tokens": 20,
+        }
+
+    return stub
+
+
+def test_generate_mechanic_candidates_loops_one_at_a_time(_project, monkeypatch) -> None:
+    # One fresh mechanic per call -> six calls to reach the target of six.
+    monkeypatch.setattr(mg, "generate_with_tool", _stub_n_per_call(1))
+    result = mg.generate_mechanic_candidates()
+    names = [m["name"] for m in result["mechanics"]]
+    assert len(names) == 6
+    assert len(set(names)) == 6  # all distinct
+    # Tokens are summed across the six calls.
+    assert result["input_tokens"] == 60
+    assert result["output_tokens"] == 120
+
+
+def test_generate_mechanic_candidates_caps_at_target(_project, monkeypatch) -> None:
+    # A call returning more than needed is truncated to the target.
+    monkeypatch.setattr(mg, "generate_with_tool", _stub_n_per_call(8))
     result = mg.generate_mechanic_candidates()
     assert len(result["mechanics"]) == 6
-    assert result["input_tokens"] == 10
-    assert result["output_tokens"] == 20
 
 
-def test_generate_mechanic_candidates_raises_when_undercounted(_project, monkeypatch) -> None:
-    monkeypatch.setattr(mg, "generate_with_tool", _stub_generate_with_tool(3))
-    with pytest.raises(RuntimeError, match="3 candidates"):
+def test_generate_mechanic_candidates_honours_count_arg(_project, monkeypatch) -> None:
+    # The refresh-one path asks for a single candidate.
+    monkeypatch.setattr(mg, "generate_with_tool", _stub_n_per_call(1))
+    result = mg.generate_mechanic_candidates(count=1)
+    assert len(result["mechanics"]) == 1
+
+
+def test_generate_mechanic_candidates_accepts_floor_when_stuck(_project, monkeypatch) -> None:
+    # mechanic_count == 3 (fixture); the model yields only 3 distinct ones
+    # then loops on a duplicate. We accept the floor rather than failing.
+    monkeypatch.setattr(mg, "generate_with_tool", _stub_distinct_then_dupes(3))
+    result = mg.generate_mechanic_candidates()
+    assert len(result["mechanics"]) == 3
+
+
+def test_generate_mechanic_candidates_raises_below_floor(_project, monkeypatch) -> None:
+    # Only 2 distinct ever produced — below the floor of 3 -> failure.
+    monkeypatch.setattr(mg, "generate_with_tool", _stub_distinct_then_dupes(2))
+    with pytest.raises(RuntimeError, match="at least 3"):
         mg.generate_mechanic_candidates()
+
+
+def test_generate_mechanic_candidates_drops_malformed_entries(_project, monkeypatch) -> None:
+    # Debris (null name, or example-card-shaped objects lacking mechanic
+    # metadata) is dropped; only the well-formed mechanic survives.
+    def stub(*args, **kwargs):
+        return {
+            "result": {
+                "mechanics": [
+                    {"name": None, "reminder_text": "(x)"},  # null name
+                    {"mana_cost": "1R", "oracle_text": "deal 1"},  # example-card debris
+                    _valid_mech(0),  # the real one
+                ]
+            },
+            "input_tokens": 5,
+            "output_tokens": 5,
+        }
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    result = mg.generate_mechanic_candidates(count=1)
+    assert len(result["mechanics"]) == 1
+    assert result["mechanics"][0]["name"] == "Mechanic0"

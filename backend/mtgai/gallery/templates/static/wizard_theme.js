@@ -986,13 +986,13 @@
       return '<span class="wiz-footer-note">Saving via Accept above.</span>';
     }
     // Latest theme tab: one button that saves theme.json + advances
-    // the pipeline to Skeleton. Always visible; setFormLocked disables
-    // it during streaming, and onSaveAndAdvance toasts a validation
-    // error if the setting prose is empty (mirrors the Project
+    // the pipeline to Mechanic Generation. Always visible; setFormLocked
+    // disables it during streaming, and onSaveAndAdvance toasts a
+    // validation error if the setting prose is empty (mirrors the Project
     // Settings Start button pattern).
     return `
       <button type="button" class="wiz-btn-primary" data-role="theme-advance">
-        Save and continue: Skeleton Generation
+        Save and continue: Mechanic Generation
       </button>
     `;
   }
