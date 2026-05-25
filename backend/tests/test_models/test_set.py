@@ -46,16 +46,15 @@ def test_set_skeleton():
 
 
 def test_draft_archetype():
-    """Draft archetypes have required fields."""
+    """Draft archetypes carry just color_pair + name + free-text intent."""
     arch = DraftArchetype(
         color_pair="BR",
         name="Rakdos Sacrifice",
-        description="Sacrifice creatures for value",
-        primary_mechanics=["sacrifice"],
-        signpost_uncommon="Rakdos Pyromancer",
+        description="Sacrifice creatures for value; close with reach + recursion.",
     )
     assert arch.color_pair == "BR"
-    assert arch.signpost_uncommon == "Rakdos Pyromancer"
+    assert arch.name == "Rakdos Sacrifice"
+    assert "Sacrifice creatures" in arch.description
 
 
 def test_empty_set():
@@ -175,10 +174,16 @@ def test_all_color_pair_archetypes(pair, guild):
 
 
 def test_archetype_minimal():
-    """Archetype with only required fields."""
+    """Archetype is exactly the three core fields — no structural extras."""
     arch = DraftArchetype(color_pair="WU", name="Fliers", description="Fly high")
-    assert arch.primary_mechanics == []
-    assert arch.signpost_uncommon is None
+    assert arch.model_dump() == {
+        "color_pair": "WU",
+        "name": "Fliers",
+        "description": "Fly high",
+    }
+    # The old structural fields are gone — intent lives in the description now.
+    assert not hasattr(arch, "primary_mechanics")
+    assert not hasattr(arch, "signpost_uncommon")
 
 
 def test_archetype_round_trip():
@@ -186,9 +191,7 @@ def test_archetype_round_trip():
     arch = DraftArchetype(
         color_pair="UB",
         name="Dimir Control",
-        description="Tempo and removal",
-        primary_mechanics=["surveil", "tempo"],
-        signpost_uncommon="Dimir Spybug",
+        description="Tempo and removal, grinding the long game with card advantage.",
     )
     json_str = arch.model_dump_json()
     restored = DraftArchetype.model_validate_json(json_str)

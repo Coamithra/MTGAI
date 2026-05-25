@@ -43,12 +43,14 @@ def _approved_fixture() -> list[dict]:
             "name": "Salvage",
             "colors": ["W", "U", "G"],
             "complexity": 1,
+            "reminder_text": "(Exile the top two cards; you may play artifacts from among them.)",
             "design_notes": "Filter the top of your library for artifacts.",
         },
         {
             "name": "Malfunction",
             "colors": ["W", "U", "R"],
             "complexity": 2,
+            "reminder_text": "(This enters with two stun counters; remove one each upkeep.)",
             "design_notes": "Enters tapped with counters that tick down.",
         },
     ]
@@ -70,11 +72,13 @@ def test_build_archetype_prompts_substitutes_fields() -> None:
     assert "Brass Sky" in sys_prompt
     assert "Steampunk dragons" in sys_prompt
     assert "Floating cities" in sys_prompt
-    # Approved-mechanic names thread into the mechanics block.
+    # Approved-mechanic names + their oracle (reminder) text thread into the
+    # mechanics block; the fluffy design_notes do NOT.
     assert "Salvage" in sys_prompt and "Malfunction" in sys_prompt
-    assert "Dragon" in sys_prompt and "Tinker-Knight" in sys_prompt
+    assert "you may play artifacts from among them" in sys_prompt
+    assert "Filter the top of your library" not in sys_prompt
+    # Setting constraints thread through.
     assert "At least 6 artifact creatures" in sys_prompt
-    assert "Yenna of Ten Spires" in sys_prompt
     # The ten color pairs are listed.
     for pair in ag.COLOR_PAIRS:
         assert pair in sys_prompt
@@ -94,7 +98,6 @@ def test_build_archetype_prompts_handles_missing_blocks() -> None:
     assert "(unnamed set)" in sys_prompt
     # Optional blocks fall back to placeholders, not KeyError.
     assert "no approved mechanics" in sys_prompt
-    assert "no specific creature types" in sys_prompt
     assert "no special constraints" in sys_prompt
 
 
@@ -142,8 +145,25 @@ def test_dedupe_and_complete_keeps_one_per_pair_in_order() -> None:
     # The "UW" entry won the WU slot (first seen) and was normalized.
     wu = next(a for a in out if a["color_pair"] == "WU")
     assert wu["name"] == "First WU (unordered code)"
-    # primary_mechanics is defaulted in.
-    assert wu["primary_mechanics"] == []
+
+
+def test_dedupe_and_complete_drops_stray_keys() -> None:
+    # A model (especially a local one) can emit extra fields the slimmed
+    # schema doesn't define; dedupe projects to exactly color_pair/name/
+    # description so the on-disk archetype is strictly name + intent.
+    raw = [
+        {
+            "color_pair": "WU",
+            "name": "Skies",
+            "description": "win in the air",
+            "speed": "tempo",
+            "signpost_uncommon": "Some Bird",
+            "signpost_uncommon_description": "a 2/2 flier",
+            "primary_mechanics": ["Salvage"],
+        }
+    ]
+    out = ag.dedupe_and_complete(raw)
+    assert out == [{"color_pair": "WU", "name": "Skies", "description": "win in the air"}]
 
 
 # ---------------------------------------------------------------------------
@@ -194,10 +214,7 @@ def _stub_generate_with_tool(pairs):
             {
                 "color_pair": p,
                 "name": f"Archetype {p}",
-                "description": "a strategy",
-                "primary_mechanics": ["Salvage"],
-                "signpost_uncommon": "a gold uncommon",
-                "speed": "midrange",
+                "description": "win by attacking with evasive fliers",
             }
             for p in pairs
         ]

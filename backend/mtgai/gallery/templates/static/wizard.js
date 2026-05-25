@@ -24,6 +24,12 @@
     latestTabId: WIZARD_STATE.latest_tab_id,
     tabs: WIZARD_STATE.visible_tabs,
     pipeline: WIZARD_STATE.pipeline_state,
+    // Ordered [{id, name}] of every pipeline stage, sourced from the
+    // backend's STAGE_DEFINITIONS. Always present (unlike `pipeline`,
+    // which is null until kickoff), so footers can name an upcoming
+    // stage before the engine has started. See nextStageEntryAfter /
+    // firstStageEntry below.
+    stageDefs: WIZARD_STATE.stage_definitions || [],
     theme: WIZARD_STATE.theme,
     // stage_id -> bool, mirrors settings.break_points. Both the
     // Project Settings break-point list and the per-tab "Stop after
@@ -64,6 +70,34 @@
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  // Next-stage lookup for footer labels + post-advance navigation.
+  // Backed by the backend's STAGE_DEFINITIONS (via state.pipeline.stages
+  // once the engine is running, else state.stageDefs) — so inserting or
+  // reordering a stage server-side flows through here without a
+  // client-side stage list to keep in sync (the mechanics footer once
+  // hardcoded "Skeleton" here and silently lied once archetypes/
+  // visual_refs landed between them). Returns {id, name} of the stage
+  // after stageId, or null if stageId is last / not found.
+  function orderedStages() {
+    const live = state.pipeline && state.pipeline.stages;
+    if (live && live.length) {
+      return live.map(s => ({ id: s.stage_id, name: s.display_name }));
+    }
+    return state.stageDefs || [];
+  }
+  window.MTGAIWizard.nextStageEntryAfter = (stageId) => {
+    const stages = orderedStages();
+    const idx = stages.findIndex(s => s.id === stageId);
+    if (idx < 0 || idx === stages.length - 1) return null;
+    return stages[idx + 1];
+  };
+  // First pipeline stage — what runs after a pre-stage content tab (the
+  // Theme tab's "next"). Same backing list as nextStageEntryAfter, so it
+  // works before kickoff when state.pipeline is still null.
+  window.MTGAIWizard.firstStageEntry = () => {
+    const stages = orderedStages();
+    return stages.length ? stages[0] : null;
+  };
 
   // Edit flow (§9) — modal preview + draft state + cascade Accept.
   // Per-tab renderers call window.MTGAIWizard.editFlow.* to gate their

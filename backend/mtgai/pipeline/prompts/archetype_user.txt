@@ -1,17 +1,13 @@
 Design the ten two-color draft archetypes for this set — one for each color pair, in WUBRG guild order (WU, WB, WR, WG, UB, UR, UG, BR, BG, RG).
 
-For each archetype provide:
+For each archetype provide just these fields:
 - `color_pair`: the exact two-letter pair code.
 - `name`: a flavorful archetype name rooted in the setting.
-- `description`: 1-2 sentences on how the deck is built and how it wins.
-- `primary_mechanics`: the approved set mechanics (exact names) this deck leans on. Choose mechanics whose colors overlap the pair.
-- `signpost_uncommon`: a short description of the gold uncommon that signals this archetype to a drafter (what it does and why it points at the deck).
-- `speed`: one of aggro, midrange, control, tempo, combo.
+- `description`: free-text intent. Lead with the WIN CONDITION — how a deck drafting this pair actually closes the game — then how it's built to get there. Where they genuinely apply, weave in: whether the deck leans heavily on one of the approved set mechanics, and whether it hinges on a particular key enabler card. Pace/speed is inherent in the gameplan you describe, so don't state it separately.
 
 Think about:
 1. How each pair's identity flows from the set's flavor and approved mechanics.
-2. How a drafter reads the signpost uncommon and commits to the deck.
-3. Keeping the ten archetypes distinct in plan and speed.
-4. Whether enough commons and uncommons support each deck in a {set_size}-card Limited environment.
+2. Keeping the ten archetypes distinct in plan and pace.
+3. Whether enough commons and uncommons support each deck in a {set_size}-card Limited environment.
 
 Return exactly ten archetypes, one per color pair.

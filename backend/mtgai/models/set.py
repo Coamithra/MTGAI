@@ -11,13 +11,19 @@ from mtgai.models.mechanic import Mechanic
 
 
 class DraftArchetype(BaseModel):
-    """One of the 10 two-color draft archetypes."""
+    """One of the 10 two-color draft archetypes.
+
+    Deliberately minimal: a ``name`` plus a free-text ``description`` (the
+    intent — what the deck does and, above all, how it wins). Mechanic
+    leanings and pace live inside that prose rather than as structured
+    fields. Signpost uncommons are no longer modelled here — they're a
+    skeleton concern (``SkeletonSlot.signpost_for``), so card-gen designs
+    the gold uncommon from the archetype intent rather than a pre-named card.
+    """
 
     color_pair: str
     name: str
     description: str
-    primary_mechanics: list[str] = Field(default_factory=list)
-    signpost_uncommon: str | None = None
 
 
 class SetSkeleton(BaseModel):

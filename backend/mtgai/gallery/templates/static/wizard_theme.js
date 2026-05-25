@@ -904,8 +904,12 @@
         return;
       }
       // Hard navigate to the first pending stage so the wizard
-      // re-mounts with the engine running and the new tab visible.
-      window.location.assign(advData.navigate_to || '/pipeline/skeleton');
+      // re-mounts with the engine running and the new tab visible. The
+      // kickoff endpoint returns navigate_to on the happy path; the
+      // fallback derives the first stage rather than hardcoding one.
+      const first = W.firstStageEntry();
+      const fallback = first ? `/pipeline/${first.id}` : '/pipeline';
+      window.location.assign(advData.navigate_to || fallback);
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
       if (btn) { btn.disabled = false; btn.textContent = original; }
@@ -986,13 +990,16 @@
       return '<span class="wiz-footer-note">Saving via Accept above.</span>';
     }
     // Latest theme tab: one button that saves theme.json + advances
-    // the pipeline to Mechanic Generation. Always visible; setFormLocked
+    // the pipeline to its first stage. Always visible; setFormLocked
     // disables it during streaming, and onSaveAndAdvance toasts a
     // validation error if the setting prose is empty (mirrors the Project
-    // Settings Start button pattern).
+    // Settings Start button pattern). The first-stage name is derived
+    // (never hardcoded) so it tracks STAGE_DEFINITIONS reordering.
+    const first = W.firstStageEntry();
+    const firstName = first ? first.name : 'the first stage';
     return `
       <button type="button" class="wiz-btn-primary" data-role="theme-advance">
-        Save and continue: Mechanic Generation
+        Save and continue: ${firstName}
       </button>
     `;
   }

@@ -306,13 +306,12 @@ def run_archetypes(
             encoding="utf-8",
         )
 
-    rows: list[list[str]] = [["Pair", "Name", "Speed", "Strategy"]]
+    rows: list[list[str]] = [["Pair", "Name", "Intent"]]
     for arch in archetypes:
         rows.append(
             [
                 str(arch.get("color_pair", "?")),
                 str(arch.get("name", "")),
-                str(arch.get("speed", "")),
                 str(arch.get("description", "")),
             ]
         )
@@ -344,14 +343,17 @@ def run_visual_refs(
 ) -> StageResult:
     """Extract the set's visual reference sheet from setting prose.
 
-    Runs between ``archetypes`` and ``skeleton``. Reads ``theme.json``,
-    asks the LLM for concrete appearance descriptions of every
-    setting-specific entity (characters, creature types, factions,
+    Runs just before the art stages (between ``human_card_review`` and
+    ``art_prompts``): ``art_prompts`` + ``char_portraits`` are its only
+    consumers, and nothing from ``skeleton`` through ``card_gen`` needs
+    it, so there's no reason to generate it pre-skeleton. Reads
+    ``theme.json``, asks the LLM for concrete appearance descriptions of
+    every setting-specific entity (characters, creature types, factions,
     landmarks) plus set-wide visual motifs, and writes them to
     ``<set>/art-direction/visual-references.json`` — the per-project file
     the art pipeline (``art/visual_reference.py``,
     ``art/character_portraits.py``) already consumes. AUTO stage (no
-    break point) — the engine advances straight to ``skeleton``.
+    break point) — the engine advances straight to ``art_prompts``.
     """
     from mtgai.art.visual_reference_extractor import generate_visual_references
     from mtgai.runtime import ai_lock
@@ -540,7 +542,7 @@ def run_skeleton(
     )
 
     slot_rows: list[list[str]] = [
-        ["Slot", "Color", "Rarity", "Type", "CMC", "Mechanic", "Reserved"]
+        ["Slot", "Color", "Rarity", "Type", "CMC", "Mechanic", "Signpost", "Reserved"]
     ]
     for slot in result.slots:
         slot_rows.append(
@@ -551,6 +553,7 @@ def run_skeleton(
                 slot.card_type,
                 str(slot.cmc_target),
                 slot.mechanic_tag,
+                slot.signpost_for or "",
                 slot.reserved_card or "",
             ]
         )
@@ -1028,7 +1031,6 @@ def run_human_final_review(
 STAGE_RUNNERS = {
     "mechanics": run_mechanics,
     "archetypes": run_archetypes,
-    "visual_refs": run_visual_refs,
     "skeleton": run_skeleton,
     "reprints": run_reprints,
     "lands": run_lands,
@@ -1038,6 +1040,7 @@ STAGE_RUNNERS = {
     "ai_review": run_ai_review,
     "finalize": run_finalize,
     "human_card_review": run_human_card_review,
+    "visual_refs": run_visual_refs,
     "art_prompts": run_art_prompts,
     "char_portraits": run_char_portraits,
     "art_gen": run_art_gen,
@@ -1165,7 +1168,6 @@ def clear_rendering() -> None:
 STAGE_CLEARERS: dict[str, StageClearer] = {
     "mechanics": clear_mechanics,
     "archetypes": clear_archetypes,
-    "visual_refs": clear_visual_refs,
     "skeleton": clear_skeleton,
     "reprints": clear_reprints,
     "lands": _no_artifacts,
@@ -1175,6 +1177,7 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
     "ai_review": _no_artifacts,
     "finalize": _no_artifacts,
     "human_card_review": _no_artifacts,
+    "visual_refs": clear_visual_refs,
     "art_prompts": _no_artifacts,
     "char_portraits": clear_char_portraits,
     "art_gen": clear_art_gen,

@@ -226,20 +226,6 @@ def _archetypes_section(archetypes: list[Any]) -> str:
     return f"\n## Draft archetypes\n\n{block}\n" if block else ""
 
 
-def _format_creature_types_block(creature_types: list[Any]) -> str:
-    if not creature_types:
-        return "(no specific creature types called out)"
-    names: list[str] = []
-    for ct in creature_types:
-        if isinstance(ct, str):
-            names.append(ct)
-        elif isinstance(ct, dict):
-            n = ct.get("name") or ct.get("type")
-            if n:
-                names.append(str(n))
-    return ", ".join(names) if names else "(no specific creature types called out)"
-
-
 def _format_constraints_block(constraints: list[Any]) -> str:
     if not constraints:
         return "(no special constraints)"
@@ -249,34 +235,6 @@ def _format_constraints_block(constraints: list[Any]) -> str:
         if text:
             lines.append(f"- {text}")
     return "\n".join(lines) if lines else "(no special constraints)"
-
-
-def _format_characters_block(theme: dict) -> str:
-    """Surface legendary characters + notable cards so the LLM avoids name collisions."""
-    parts: list[str] = []
-    legends = theme.get("legendary_characters") or []
-    notable = theme.get("notable_cards") or []
-    char_names: list[str] = []
-    for entry in legends:
-        if isinstance(entry, dict):
-            n = entry.get("name")
-            if n:
-                char_names.append(str(n))
-        elif isinstance(entry, str):
-            char_names.append(entry)
-    card_names: list[str] = []
-    for entry in notable:
-        if isinstance(entry, dict):
-            n = entry.get("name") or entry.get("text")
-            if n:
-                card_names.append(str(n))
-        elif isinstance(entry, str):
-            card_names.append(entry)
-    if char_names:
-        parts.append("Legendary characters: " + ", ".join(char_names))
-    if card_names:
-        parts.append("Notable cards: " + ", ".join(card_names))
-    return "\n".join(parts) if parts else "(none)"
 
 
 def _expected_mechanic_density(set_size: int, mechanic_count: int) -> str:
@@ -326,11 +284,9 @@ def build_mechanic_prompts(
         mechanic_count=mechanic_count,
         setting_block=_format_setting_block(theme),
         archetypes_block=_archetypes_section(theme.get("draft_archetypes") or []),
-        creature_types_block=_format_creature_types_block(theme.get("creature_types") or []),
         constraints_block=_format_constraints_block(
             theme.get("constraints") or theme.get("special_constraints") or []
         ),
-        characters_block=_format_characters_block(theme),
         excluded_keywords=_format_excluded_keywords(known),
         expected_mechanic_density=expected_density,
     )
@@ -483,20 +439,30 @@ def build_single_mechanic_user_prompt(
     )
 
 
-def _is_valid_candidate(m: Any, seen_names: set[str]) -> bool:
-    """Accept only well-formed, non-duplicate mechanic objects.
+def _is_valid_candidate(m: Any, seen_names: set[str], known: set[str]) -> bool:
+    """Accept only well-formed, non-duplicate, non-colliding mechanic objects.
 
     Guards against the local-model JSON degradation that motivated the
     one-at-a-time loop: malformed entries (null/blank ``name``) and
     example-card debris promoted to the top level by JSON repair (which
     lack mechanic-level metadata) are rejected, as are duplicates.
+
+    A candidate whose name matches a printed MTG keyword (``known``,
+    lowercased) is rejected too, so the loop regenerates a replacement
+    instead of keeping it: the wizard has no inline rename, so a colliding
+    candidate is dead weight. This promotes the keyword collision from a
+    soft warning to a hard reject — the system prompt already excludes
+    known keywords, this is the backstop for the occasional slip-through.
     """
     if not isinstance(m, dict):
         return False
     name = m.get("name")
     if not isinstance(name, str) or not name.strip():
         return False
-    if name.strip().lower() in seen_names:
+    normalized = name.strip().lower()
+    if normalized in seen_names:
+        return False
+    if normalized in known:
         return False
     # A real mechanic carries design metadata an example card never would;
     # this distinguishes it from promoted example-card debris.
@@ -809,6 +775,10 @@ def generate_mechanic_candidates(*, theme: dict | None = None, count: int | None
         max_attempts,
     )
 
+    # Printed-keyword set for the hard collision reject below. Built once
+    # (it reads a template file) and reused across every attempt.
+    known_keywords = known_keyword_set()
+
     accepted: list[dict] = []
     seen_names: set[str] = set()
     total_in = 0
@@ -863,11 +833,18 @@ def generate_mechanic_candidates(*, theme: dict | None = None, count: int | None
         returned = (response.get("result") or {}).get("mechanics") or []
         before = len(accepted)
         for m in returned:
-            if _is_valid_candidate(m, seen_names):
-                accepted.append(m)
-                seen_names.add(str(m["name"]).strip().lower())
-                if len(accepted) >= target:
-                    break
+            if not _is_valid_candidate(m, seen_names, known_keywords):
+                nm = m.get("name") if isinstance(m, dict) else None
+                if isinstance(nm, str) and nm.strip().lower() in known_keywords:
+                    logger.info(
+                        "Rejected mechanic %r — collides with a printed keyword; regenerating",
+                        nm.strip(),
+                    )
+                continue
+            accepted.append(m)
+            seen_names.add(str(m["name"]).strip().lower())
+            if len(accepted) >= target:
+                break
         if len(accepted) == before:
             logger.info(
                 "Attempt %d yielded no valid new candidate (%d returned); retrying",

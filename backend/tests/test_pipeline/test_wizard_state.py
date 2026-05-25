@@ -217,6 +217,15 @@ def test_serialize_round_trips_visible_tabs(sets_root):
     assert [t["id"] for t in blob["visible_tabs"]] == ["project", "theme"]
     assert blob["pipeline_state"] is None
     assert blob["theme"] == {"code": "TST"}
+    # The canonical stage list is always present (even pre-kickoff, when
+    # pipeline_state is None) so footers can name an upcoming stage. It
+    # mirrors STAGE_DEFINITIONS order: mechanics → archetypes → skeleton
+    # (visual_refs moved down to just before art_prompts).
+    stage_ids = [s["id"] for s in blob["stage_definitions"]]
+    assert stage_ids[:4] == ["mechanics", "archetypes", "skeleton", "reprints"]
+    assert blob["stage_definitions"][0]["name"] == "Mechanic Generation"
+    # visual_refs now sits immediately before art_prompts.
+    assert stage_ids[stage_ids.index("visual_refs") + 1] == "art_prompts"
     # break_points is keyed by stage_id; human review stages default to checked
     # so the per-tab checkbox can render them on without a second fetch.
     assert isinstance(blob["break_points"], dict)

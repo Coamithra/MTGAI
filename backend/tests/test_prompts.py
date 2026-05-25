@@ -204,6 +204,29 @@ def test_format_slot_specs_no_reserved_marker_when_absent() -> None:
     assert "REQUESTED CARD" not in spec
 
 
+def test_format_slot_specs_surfaces_signpost_with_archetype_intent() -> None:
+    # A slot flagged signpost_for must tell card-gen to design the gold
+    # uncommon for that pair, threading the archetype's intent.
+    slot = {**_wu_slot(), "signpost_for": "WU"}
+    archetypes = [{"color_pair": "WU", "name": "Sky Patrol", "description": "win in the air"}]
+    spec = prompts.format_slot_specs([slot], None, archetypes)
+    assert "SIGNPOST UNCOMMON for the WU archetype" in spec
+    assert "Sky Patrol: win in the air" in spec
+
+
+def test_format_slot_specs_signpost_without_archetype_still_flags() -> None:
+    # No archetype entry for the pair: still flag the slot as the signpost,
+    # just without the intent suffix (card-gen designs a fitting gold uncommon).
+    slot = {**_wu_slot(), "signpost_for": "WU"}
+    spec = prompts.format_slot_specs([slot], None, [])
+    assert "SIGNPOST UNCOMMON for the WU archetype" in spec
+
+
+def test_format_slot_specs_no_signpost_marker_when_absent() -> None:
+    spec = prompts.format_slot_specs([_wu_slot()], None, None)
+    assert "SIGNPOST UNCOMMON" not in spec
+
+
 # ---------------------------------------------------------------------------
 # build_user_prompt — regression + override threading
 # ---------------------------------------------------------------------------

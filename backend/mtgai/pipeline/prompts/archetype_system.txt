@@ -5,29 +5,18 @@ You are an expert Magic: The Gathering set designer specializing in Limited draf
 **Set name:** {set_name}
 **Set size:** {set_size} cards
 
-**Theme:**
-{theme}
-
-**Flavor / world description:**
-{flavor_description}
+**Setting:**
+{setting_block}
 
 ## Approved set mechanics
 
-These are the custom mechanics that have been approved for the set. Each archetype must lean on the mechanics that overlap its colors — the archetypes exist to give those mechanics a home in draft.
+These are the custom mechanics approved for the set. Where a mechanic's colors overlap a pair, consider giving it a home in that archetype — but an archetype does NOT need a custom mechanic to be good. Many of the strongest draft archetypes are built around card types or evergreen themes, not a set keyword.
 
 {mechanics_block}
-
-## Creature types in flavor
-
-{creature_types_block}
 
 ## Special constraints from the setting
 
 {constraints_block}
-
-## Existing characters / cards to be aware of
-
-{characters_block}
 
 ## The ten color pairs (WUBRG guild order)
 
@@ -47,8 +36,29 @@ You must design exactly one archetype for EACH of these ten two-color pairs:
 ## Design rules
 
 1. One archetype per color pair, in the order above. Use the exact two-letter `color_pair` code (WU, WB, WR, WG, UB, UR, UG, BR, BG, RG).
-2. Each archetype gets a flavorful `name` rooted in the setting (a faction, place, or strategy — Tarkir-clan / Ravnica-guild style), a 1-2 sentence `description` of how the deck wins, and a `signpost_uncommon` describing the gold uncommon that signals the archetype to a drafter.
-3. `primary_mechanics` lists the approved set mechanics (by exact name) the archetype is built around. Pick mechanics whose colors overlap the pair. An archetype may list zero mechanics only if no approved mechanic fits its colors.
-4. `speed` is one of: aggro, midrange, control, tempo, combo. Spread speeds across the ten pairs — do not make every deck midrange.
-5. Make the ten archetypes feel distinct from each other. Adjacent guilds should not collapse into the same plan.
-6. Archetypes must be draftable in a {set_size}-card Limited environment — supported by enough commons and uncommons to be a real deck, not a build-around novelty.
+2. Each archetype has just two parts: a flavorful `name` rooted in the setting (a faction, place, or strategy — Tarkir-clan / Ravnica-guild style), and a free-text `description` of its intent.
+3. The single most important thing the `description` must convey is the **win condition** — how does a deck drafting this archetype actually close out the game? Lead with that, then explain how the deck is built to get there.
+4. Beyond the win condition, the `description` can weave in — where they genuinely apply, never forced — whether the archetype leans heavily on one of the approved set mechanics, and whether it hinges on a particular key enabler card. Pace/speed (aggro, control, tempo, …) is inherent in the gameplan you describe; don't state it as a separate label.
+5. Lean on the well-worn Limited archetype patterns as starting points (pick whatever fits the pair's colors and the setting). The recurring, evergreen ones:
+   - Fliers / Skies — evasive creatures, tempo, racing in the air
+   - Aggro / Auras / Heroic — cheap creatures, combat tricks, pump, fast clock
+   - Go-wide / Tokens — many small creatures, anthems, board buffs, counters
+   - Tempo — efficient threats, bounce, tapping, deny the opponent's turns
+   - Control — removal, card advantage, a few bombs, win the long game
+   - Spellslinger / Spells-matter — instants & sorceries, prowess/magecraft, burn, card draw
+   - Artifacts — artifact density, cost reduction (affinity/improvise), artifacts-matter payoffs
+   - Graveyard / Self-mill — fill the yard, recursion, flashback, delve, attrition
+   - Reanimator — discard or mill a fatty, then cheat it back early
+   - Sacrifice / Aristocrats — sac fodder, death triggers, drain, removal-heavy
+   - Discard / Madness — looting and draw-discard to fuel madness/graveyard payoffs
+   - +1/+1 Counters — grow creatures, proliferate, counter synergies
+   - Ramp / Big mana / Stompy — mana acceleration, oversized threats, payoffs
+   - Landfall / Lands-matter — extra land drops, landfall triggers, pump
+   - Lifegain — incidental lifegain plus payoffs for crossing a threshold
+   - Blink / Flicker — repeatable enter-the-battlefield value
+   - Voltron / Equipment — pile auras/equipment onto one evasive threat
+   - Midrange / Goodstuff — efficient creatures, two-for-one removal, out-value the opponent
+   - Kindred / Tribal — a shared creature type with per-copy payoffs
+   - Mill — grind the opponent's library as an alternate win condition
+6. Make the ten archetypes feel distinct from each other — vary the gameplans so adjacent guilds don't collapse into the same plan.
+7. Archetypes must be draftable in a {set_size}-card Limited environment — supported by enough commons and uncommons to be a real deck, not a build-around novelty.

@@ -159,3 +159,36 @@ def test_skips_unparseable_state_file(project_with_state):
 
     demoted = engine_mod.cleanup_orphan_running_stages()
     assert demoted == []
+
+
+def test_load_state_reorders_legacy_stage_order(project_with_state):
+    """A state saved before a stage *reorder* is rebuilt into canonical
+    order on load — not only when a stage is missing.
+
+    Locks in ``visual_refs`` moving from pre-skeleton to just-before-
+    ``art_prompts`` for existing projects: an on-disk state whose stages
+    are all present but in the old order must come back canonical, with
+    each existing StageState (and its persisted status) preserved.
+    """
+    asset_dir, write_state = project_with_state
+    state = create_pipeline_state(PipelineConfig(set_code="OLD", set_name="Test", set_size=20))
+    # Simulate the legacy on-disk order: pull visual_refs out of its
+    # canonical slot and reinsert it right after archetypes, marking it
+    # COMPLETED so we can prove the StageState is preserved, not recreated.
+    vr = next(s for s in state.stages if s.stage_id == "visual_refs")
+    vr.status = StageStatus.COMPLETED
+    rest = [s for s in state.stages if s.stage_id != "visual_refs"]
+    arch_idx = next(i for i, s in enumerate(rest) if s.stage_id == "archetypes")
+    state.stages = [*rest[: arch_idx + 1], vr, *rest[arch_idx + 1 :]]
+    write_state(state)
+
+    reloaded = engine_mod.load_state()
+    assert reloaded is not None
+    ids = [s.stage_id for s in reloaded.stages]
+    # visual_refs reconciled to just before art_prompts...
+    assert ids[ids.index("visual_refs") + 1] == "art_prompts"
+    # ...and archetypes now leads straight into skeleton.
+    assert ids[ids.index("archetypes") + 1] == "skeleton"
+    # The existing StageState's COMPLETED status survives the reorder.
+    reloaded_vr = next(s for s in reloaded.stages if s.stage_id == "visual_refs")
+    assert reloaded_vr.status == StageStatus.COMPLETED

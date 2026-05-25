@@ -26,6 +26,7 @@ from typing import Any
 from mtgai.io.asset_paths import NoAssetFolderError
 from mtgai.pipeline.engine import load_state
 from mtgai.pipeline.models import (
+    STAGE_DEFINITIONS,
     PipelineState,
     StageStatus,
     break_point_states,
@@ -246,6 +247,15 @@ def serialize(ws: WizardState) -> dict[str, Any]:
         "visible_tabs": [
             {"id": t.id, "title": t.title, "kind": t.kind, "status": t.status}
             for t in ws.visible_tabs
+        ],
+        # The full ordered stage list, independent of whether the pipeline
+        # has been kicked off yet. ``pipeline_state`` is null until the
+        # engine starts, so footers that need to name an upcoming stage
+        # before then (the Theme tab's "next = first stage") read this
+        # instead. Sourced from STAGE_DEFINITIONS so client-side next-step
+        # labels never hardcode a stage name (see MTGAIWizard helpers).
+        "stage_definitions": [
+            {"id": d["stage_id"], "name": d["display_name"]} for d in STAGE_DEFINITIONS
         ],
         "pipeline_state": (
             ws.pipeline_state.model_dump(mode="json") if ws.pipeline_state else None

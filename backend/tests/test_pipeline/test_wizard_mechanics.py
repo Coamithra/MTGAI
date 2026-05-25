@@ -237,7 +237,9 @@ def test_save_writes_approved_and_sidecars(client, isolated_output):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["navigate_to"] == "/pipeline/skeleton"
+    # The stage after mechanics is archetypes (not skeleton — archetypes
+    # + visual_refs were inserted between them).
+    assert data["navigate_to"] == "/pipeline/archetypes"
     assert len(data["approved"]) == 2
     assert data["approved"][0]["name"] == "M0"
     assert data["approved"][1]["name"] == "M4"

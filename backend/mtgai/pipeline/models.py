@@ -146,7 +146,6 @@ class PipelineState(BaseModel):
 STAGE_DEFINITIONS: list[dict] = [
     {"stage_id": "mechanics", "display_name": "Mechanic Generation", "review_eligible": True},
     {"stage_id": "archetypes", "display_name": "Archetype Generation", "review_eligible": True},
-    {"stage_id": "visual_refs", "display_name": "Visual References", "review_eligible": True},
     {"stage_id": "skeleton", "display_name": "Skeleton Generation", "review_eligible": True},
     {"stage_id": "reprints", "display_name": "Reprint Selection", "review_eligible": True},
     {"stage_id": "lands", "display_name": "Land Generation", "review_eligible": False},
@@ -156,6 +155,9 @@ STAGE_DEFINITIONS: list[dict] = [
     {"stage_id": "ai_review", "display_name": "AI Design Review", "review_eligible": True},
     {"stage_id": "finalize", "display_name": "Finalization", "review_eligible": False},
     {"stage_id": "human_card_review", "display_name": "Card Review", "review_eligible": True},
+    # visual_refs feeds only the art stages (prompt_builder + character_portraits),
+    # so it sits here — right before art_prompts — not pre-skeleton.
+    {"stage_id": "visual_refs", "display_name": "Visual References", "review_eligible": True},
     {"stage_id": "art_prompts", "display_name": "Art Prompt Generation", "review_eligible": False},
     {"stage_id": "char_portraits", "display_name": "Character Portraits", "review_eligible": True},
     {"stage_id": "art_gen", "display_name": "Art Generation", "review_eligible": False},

@@ -2715,9 +2715,10 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
        with ``{mechanic_names}`` substituted), ``functional-tags.json``
        (empty stub), and ``pick-rationale.json`` (marked ``source: user``,
        overwriting any AI-picker rationale).
-    5. Returns ``{success, navigate_to: "/pipeline/skeleton"}`` — the
-       client follows up with ``POST /api/wizard/advance`` to flip the
-       stage to COMPLETED and resume the engine.
+    5. Returns ``{success, navigate_to}`` pointing at the stage that
+       follows ``mechanics`` in ``STAGE_DEFINITIONS`` (``archetypes``
+       today) — the client follows up with ``POST /api/wizard/advance``
+       to flip the stage to COMPLETED and resume the engine.
 
     The write order (sidecars + candidates first, ``approved.json`` last) is
     owned by :func:`mtgai.generation.mechanic_generator.persist_mechanic_selection`,
@@ -2775,11 +2776,24 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
     logger.info(
         "Mechanics save: %d picks → %s; sidecars written", len(picks), mech_dir / "approved.json"
     )
+    # Navigate to whatever stage actually follows mechanics in
+    # STAGE_DEFINITIONS (archetypes today) rather than a hardcoded
+    # target — keeps the client's footer label + this redirect in lockstep
+    # when stages are inserted between mechanics and skeleton.
+    mech_idx = next(
+        (i for i, d in enumerate(STAGE_DEFINITIONS) if d["stage_id"] == "mechanics"),
+        -1,
+    )
+    next_id = (
+        STAGE_DEFINITIONS[mech_idx + 1]["stage_id"]
+        if 0 <= mech_idx < len(STAGE_DEFINITIONS) - 1
+        else None
+    )
     return JSONResponse(
         {
             "success": True,
             "approved": approved,
-            "navigate_to": "/pipeline/skeleton",
+            "navigate_to": f"/pipeline/{next_id}" if next_id else "/pipeline",
         }
     )
 

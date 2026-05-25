@@ -122,6 +122,10 @@ class SkeletonSlot(BaseModel):
     # A requested card pinned to this slot ("<name> — <description>"), set by
     # the reserved-slot pass from theme.json card_requests / legendary anchors.
     reserved_card: str | None = None
+    # The color pair whose draft archetype this slot is the signpost uncommon
+    # for (one multicolor uncommon per pair, set by the default-matrix pass).
+    # card-gen reads it to design the gold uncommon that defines the archetype.
+    signpost_for: str | None = None
 
 
 class ReservedSlotSpec(BaseModel):
@@ -930,6 +934,36 @@ def build_reserved_slots(theme: dict) -> list[ReservedSlotSpec]:
     return specs
 
 
+def _mark_signpost_slots(slots: list[SkeletonSlot]) -> int:
+    """Flag one multicolor-uncommon slot per color pair as its signpost.
+
+    The signpost uncommon is the gold card that defines a draft archetype.
+    For each pair in WUBRG order we stamp ``signpost_for`` on the first
+    multicolor-uncommon slot carrying that pair. This is naturally capped
+    at the multicolor-uncommon slots that exist — 10 at full set size, ~5
+    at dev size (the same slots :func:`_check_signpost_uncommons` counts),
+    so small sets simply leave the uncovered pairs without a signpost.
+
+    ``card-gen`` reads the flag (via the archetype lookup) to design the
+    gold uncommon that defines that pair's archetype. This is the
+    deterministic default matrix; a later LLM skeleton-revision pass may
+    reassign it. Returns the number of slots flagged.
+    """
+    marked = 0
+    for pair in COLOR_PAIRS:
+        for slot in slots:
+            if (
+                slot.rarity == "uncommon"
+                and slot.color == "multicolor"
+                and slot.color_pair == pair
+                and slot.signpost_for is None
+            ):
+                slot.signpost_for = pair
+                marked += 1
+                break
+    return marked
+
+
 # ---------------------------------------------------------------------------
 # Main generator
 # ---------------------------------------------------------------------------
@@ -1061,6 +1095,9 @@ def generate_skeleton(
             len(unplaced),
             ", ".join(s.name for s in unplaced),
         )
+
+    n_signposts = _mark_signpost_slots(all_slots)
+    logger.info("Skeleton: flagged %d signpost uncommon slot(s)", n_signposts)
 
     balance = _build_balance_report(all_slots, config.set_size)
 

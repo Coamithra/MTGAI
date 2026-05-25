@@ -645,9 +645,12 @@
     const isPaused = local.stageStatus === 'paused_for_review';
     const isCompleted = local.stageStatus === 'completed';
 
+    const next = W.nextStageEntryAfter(STAGE_ID);
+    const nextName = next ? next.name : 'the next stage';
+
     let html;
     if (isCompleted && isLatest) {
-      html = `<span class="wiz-footer-note">Mechanics saved. Engine is on Skeleton — switch tabs to follow.</span>`;
+      html = `<span class="wiz-footer-note">Mechanics saved. Engine is on ${nextName} — switch tabs to follow.</span>`;
     } else if (!isLatest) {
       // Past tab — edit cascade is the only way through. wizard_stage.js
       // owns the Edit button + cascade flow.
@@ -658,7 +661,7 @@
       const ok = have === want;
       html = `
         <button type="button" class="wiz-btn-primary" data-role="mech-save-advance" ${ok && !local.locked ? '' : 'disabled'}>
-          Save & Continue: Skeleton Generation
+          Save & Continue: ${nextName}
         </button>
         <span class="wiz-footer-note">${have}/${want} picks selected.</span>
       `;
@@ -705,7 +708,9 @@
         if (btn) btn.textContent = original;
         return;
       }
-      window.location.assign(advData.navigate_to || saveData.navigate_to || '/pipeline/skeleton');
+      const next = W.nextStageEntryAfter(STAGE_ID);
+      const nextHref = next ? `/pipeline/${next.id}` : '/pipeline';
+      window.location.assign(advData.navigate_to || saveData.navigate_to || nextHref);
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
       if (btn) btn.textContent = original;

@@ -26,8 +26,9 @@ double-check (re-scope tracked separately on `69f9d1ef`).
 
 Pipeline order (mechanics + archetypes already precede skeleton):
 ```
-theme → mechanics(approved.json) → archetypes → visual_refs → skeleton(seed)
+theme → mechanics(approved.json) → archetypes → skeleton(seed)
       → CONSTRAINTS STAGE (this)  → card_gen → balance → skeleton_rev(double-check) → …
+      (visual_refs runs later, just before the art stages — not a pre-skeleton input)
 ```
 
 ## Core design decisions (locked)

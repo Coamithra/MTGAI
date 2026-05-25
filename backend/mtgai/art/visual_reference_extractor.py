@@ -1,10 +1,11 @@
 """Visual-reference extraction — driven by ``theme.json`` setting prose.
 
-Wired into the pipeline as the ``visual_refs`` stage (between
-``archetypes`` and ``skeleton`` in ``STAGE_RUNNERS``). The runner in
-``mtgai.pipeline.stages`` does the orchestration; this module owns the
-prompt assembly, tool-schema contract, the flat-entity -> nested-category
-assembly, and the per-call log sidecar.
+Wired into the pipeline as the ``visual_refs`` stage (just before
+``art_prompts``, its earliest consumer — the art stages are the only
+ones that read its output). The runner in ``mtgai.pipeline.stages`` does
+the orchestration; this module owns the prompt assembly, tool-schema
+contract, the flat-entity -> nested-category assembly, and the per-call
+log sidecar.
 
 Mirrors ``generation/archetype_generator.py`` in shape. Templates live in
 the pipeline prompts dir:
@@ -130,6 +131,21 @@ def _read_template(name: str) -> str:
     return (_PROMPTS_DIR / name).read_text(encoding="utf-8")
 
 
+def _format_setting_block(theme: dict) -> str:
+    """The setting prose for the prompt's single 'Setting' field.
+
+    Handles both schemas: the current toolchain writes the world document to
+    ``setting``; legacy ASD themes use a short ``theme`` one-liner plus a
+    ``flavor_description`` prose blob. We surface the one-liner (if any) then
+    the prose, so neither schema loses content — and there's no dead
+    "(no flavor description provided)" subsection when only ``setting`` exists.
+    """
+    one_liner = (theme.get("theme") or "").strip()
+    prose = (theme.get("flavor_description") or theme.get("setting") or "").strip()
+    parts = [p for p in (one_liner, prose) if p]
+    return "\n\n".join(parts) if parts else "(no setting provided)"
+
+
 def _format_characters_block(theme: dict) -> str:
     """Render the named-character hints for the system prompt.
 
@@ -196,9 +212,7 @@ def build_visual_reference_prompts(theme: dict, set_name: str) -> tuple[str, str
 
     system_prompt = sys_template.format(
         set_name=set_name or "(unnamed set)",
-        theme=(theme.get("theme") or theme.get("setting") or "(no theme provided)").strip(),
-        flavor_description=(theme.get("flavor_description") or "").strip()
-        or "(no flavor description provided)",
+        setting_block=_format_setting_block(theme),
         characters_block=_format_characters_block(theme),
         creature_types_block=_format_creature_types_block(theme.get("creature_types")),
         constraints_block=_format_constraints_block(
@@ -373,5 +387,3 @@ def generate_visual_references(*, theme: dict | None = None) -> dict:
         "output_tokens": response.get("output_tokens", 0),
         "model_id": model_id,
     }
-
-

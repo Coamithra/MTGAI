@@ -81,11 +81,13 @@ def load_state() -> PipelineState | None:
     """Load pipeline state from disk for the active project, or None if not found.
 
     Reconciles the on-disk ``stages`` list against the current
-    :data:`STAGE_DEFINITIONS` so projects whose ``pipeline-state.json``
-    predates a newly-added stage still load with a complete stage list.
-    Missing stages are inserted as PENDING at their canonical position
-    so the engine runs them on next advance — graceful upgrade for old
-    projects without bespoke per-stage migration logic.
+    :data:`STAGE_DEFINITIONS` — both membership and order — so projects
+    whose ``pipeline-state.json`` predates a newly-added stage *or* a
+    stage reorder still load with a complete, canonically-ordered stage
+    list. Missing stages are inserted as PENDING and existing ones are
+    moved to their canonical position so the engine runs them in the
+    right order on next advance — a graceful upgrade for old projects
+    without bespoke per-stage migration logic.
     """
     path = _state_path()
     if not path.exists():
@@ -97,24 +99,31 @@ def load_state() -> PipelineState | None:
 
 
 def _sync_stages_with_definitions(state: PipelineState) -> bool:
-    """Insert any missing stages from STAGE_DEFINITIONS into ``state.stages``.
+    """Reconcile ``state.stages`` with STAGE_DEFINITIONS — order *and* membership.
 
-    Mutates ``state`` in place. Existing stages are kept untouched —
-    we don't want to clobber their persisted progress / review_mode.
-    Missing stages get a fresh ``StageState`` in PENDING; the engine
-    runs them on the next advance. Returns True if any stage was
-    inserted, False if the loaded state already covered every stage —
+    Mutates ``state`` in place. Rebuilds the stage list in canonical
+    STAGE_DEFINITIONS order, looking up each existing stage by id so its
+    persisted progress / review_mode is preserved (never clobbered) and
+    inserting a fresh PENDING ``StageState`` for any that are missing.
+    Stages no longer present in STAGE_DEFINITIONS are dropped. This keeps
+    the open path a graceful upgrade for projects whose
+    ``pipeline-state.json`` predates either a newly-added stage *or* a
+    stage *reorder* (e.g. ``visual_refs`` moving from pre-skeleton to
+    pre-art) — no bespoke per-change migration logic.
+
+    Returns True if anything changed (a stage was added, dropped, or
+    moved), False if the loaded state already matched canonically —
     callers (e.g. ``cleanup_orphan_running_stages``) use this to decide
-    whether to persist the synced shape.
+    whether to persist the synced shape, so a clean state's bytes stay
+    untouched.
     """
     have = {s.stage_id: s for s in state.stages}
-    if all(d["stage_id"] in have for d in STAGE_DEFINITIONS):
-        return False
     new_stages: list[StageState] = []
     for defn in STAGE_DEFINITIONS:
         sid = defn["stage_id"]
-        if sid in have:
-            new_stages.append(have[sid])
+        existing = have.get(sid)
+        if existing is not None:
+            new_stages.append(existing)
             continue
         new_stages.append(
             StageState(
@@ -124,6 +133,8 @@ def _sync_stages_with_definitions(state: PipelineState) -> bool:
                 status=StageStatus.PENDING,
             )
         )
+    if [s.stage_id for s in new_stages] == [s.stage_id for s in state.stages]:
+        return False
     state.stages = new_stages
     return True
 

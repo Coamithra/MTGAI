@@ -224,6 +224,16 @@ def format_slot_specs(
         if reserved_card:
             spec += f"\n   REQUESTED CARD — design this slot as: {reserved_card}"
 
+        signpost_for = (slot.get("signpost_for") or "").strip()
+        if signpost_for:
+            arch = archetype_map.get(signpost_for)
+            arch_note = f" — {arch}" if arch else ""
+            spec += (
+                f"\n   SIGNPOST UNCOMMON for the {signpost_for} archetype{arch_note}. "
+                "Design the gold uncommon that defines and enables this archetype — the "
+                "card a drafter sees and immediately knows what deck to build."
+            )
+
         notes = slot.get("notes", "").strip()
         if notes:
             spec += f"\n   Notes: {notes}"

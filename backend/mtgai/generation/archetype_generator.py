@@ -11,10 +11,11 @@ Mirrors ``mechanic_generator.py`` in shape. Templates live next door:
 * ``mtgai/pipeline/prompts/archetype_system.txt`` — system prompt
 * ``mtgai/pipeline/prompts/archetype_user.txt``   — user prompt
 
-Output is a JSON array, one entry per two-color pair, each matching
-``mtgai.models.set.DraftArchetype`` (plus a ``speed`` hint key the model
-tolerates as an extra). Written to ``<asset>/archetypes.json`` — the
-single source later stages (TC-6 prompts, TC-7 skeleton) consume.
+Output is a JSON array, one entry per two-color pair, each projected to
+``mtgai.models.set.DraftArchetype`` (``color_pair`` + ``name`` + free-text
+``description``); ``dedupe_and_complete`` drops any extra keys a model
+emits. Written to ``<asset>/archetypes.json`` — the single source later
+stages (TC-6 prompts, TC-7 skeleton) consume.
 """
 
 from __future__ import annotations
@@ -43,8 +44,6 @@ _WUBRG_RANK: dict[str, int] = {c: i for i, c in enumerate("WUBRG")}
 # occasionally merges two adjacent pairs) but bail if it's badly under.
 MIN_ARCHETYPES = 8
 
-SPEED_VALUES: list[str] = ["aggro", "midrange", "control", "tempo", "combo"]
-
 # ---------------------------------------------------------------------------
 # Tool schema: defines the structured output the LLM must return
 # ---------------------------------------------------------------------------
@@ -64,14 +63,7 @@ ARCHETYPE_TOOL_SCHEMA: dict = {
                 "description": "List of draft archetypes, one per color pair",
                 "items": {
                     "type": "object",
-                    "required": [
-                        "color_pair",
-                        "name",
-                        "description",
-                        "primary_mechanics",
-                        "signpost_uncommon",
-                        "speed",
-                    ],
+                    "required": ["color_pair", "name", "description"],
                     "properties": {
                         "color_pair": {
                             "type": "string",
@@ -84,23 +76,14 @@ ARCHETYPE_TOOL_SCHEMA: dict = {
                         },
                         "description": {
                             "type": "string",
-                            "description": "1-2 sentence strategy: how the deck is built and wins",
-                        },
-                        "primary_mechanics": {
-                            "type": "array",
-                            "items": {"type": "string"},
                             "description": (
-                                "Approved set mechanics (exact names) this archetype leans on"
+                                "Free-text intent. Lead with the WIN CONDITION (how a deck "
+                                "drafting this pair closes the game), then how it's built to "
+                                "get there. Where they apply, weave in whether the deck leans "
+                                "heavily on an approved set mechanic and whether it hinges on a "
+                                "key enabler card. Pace/speed is inherent in the gameplan; "
+                                "don't state it separately."
                             ),
-                        },
-                        "signpost_uncommon": {
-                            "type": "string",
-                            "description": "The gold uncommon that signals this archetype",
-                        },
-                        "speed": {
-                            "type": "string",
-                            "enum": SPEED_VALUES,
-                            "description": "Archetype speed",
                         },
                     },
                 },
@@ -119,11 +102,27 @@ def _read_template(name: str) -> str:
     return (_PROMPTS_DIR / name).read_text(encoding="utf-8")
 
 
+def _format_setting_block(theme: dict) -> str:
+    """The setting prose for the prompt's single 'Setting' field.
+
+    Handles both schemas: the current toolchain writes the world document to
+    ``setting``; legacy ASD themes use a short ``theme`` one-liner plus a
+    ``flavor_description`` prose blob. We surface the one-liner (if any) then
+    the prose, so neither schema loses content — and there's no dead
+    "(no flavor description provided)" subsection when only ``setting`` exists.
+    """
+    one_liner = (theme.get("theme") or "").strip()
+    prose = (theme.get("flavor_description") or theme.get("setting") or "").strip()
+    parts = [p for p in (one_liner, prose) if p]
+    return "\n\n".join(parts) if parts else "(no setting provided)"
+
+
 def _format_mechanics_block(approved: list[Any]) -> str:
     """Render the approved-mechanics list for the system prompt.
 
-    Each mechanic shows name, colors, complexity, and design notes so the
-    LLM can tie each archetype to the mechanics that share its colors.
+    Each mechanic shows name, colors, complexity, and its **reminder
+    (oracle) text** — what the mechanic actually does, not its flavor
+    rationale — so the LLM ties archetypes to the mechanics' real effects.
     """
     if not approved:
         return "(no approved mechanics — design archetypes around the set's flavor)"
@@ -140,24 +139,10 @@ def _format_mechanics_block(approved: list[Any]) -> str:
             header += f", complexity {complexity}"
         header += ")"
         lines.append(header)
-        notes = mech.get("design_notes") or ""
-        if notes:
-            lines.append(f"    {str(notes).strip()}")
+        reminder = (mech.get("reminder_text") or "").strip()
+        if reminder:
+            lines.append(f"    {reminder}")
     return "\n".join(lines) if lines else "(no approved mechanics)"
-
-
-def _format_creature_types_block(creature_types: list[Any]) -> str:
-    if not creature_types:
-        return "(no specific creature types called out)"
-    names: list[str] = []
-    for ct in creature_types:
-        if isinstance(ct, str):
-            names.append(ct)
-        elif isinstance(ct, dict):
-            n = ct.get("name") or ct.get("type")
-            if n:
-                names.append(str(n))
-    return ", ".join(names) if names else "(no specific creature types called out)"
 
 
 def _format_constraints_block(constraints: list[Any]) -> str:
@@ -169,34 +154,6 @@ def _format_constraints_block(constraints: list[Any]) -> str:
         if text:
             lines.append(f"- {text}")
     return "\n".join(lines) if lines else "(no special constraints)"
-
-
-def _format_characters_block(theme: dict) -> str:
-    """Surface legendary characters + notable cards as flavor anchors."""
-    parts: list[str] = []
-    legends = theme.get("legendary_characters") or []
-    notable = theme.get("notable_cards") or []
-    char_names: list[str] = []
-    for entry in legends:
-        if isinstance(entry, dict):
-            n = entry.get("name")
-            if n:
-                char_names.append(str(n))
-        elif isinstance(entry, str):
-            char_names.append(entry)
-    card_names: list[str] = []
-    for entry in notable:
-        if isinstance(entry, dict):
-            n = entry.get("name") or entry.get("text")
-            if n:
-                card_names.append(str(n))
-        elif isinstance(entry, str):
-            card_names.append(entry)
-    if char_names:
-        parts.append("Legendary characters: " + ", ".join(char_names))
-    if card_names:
-        parts.append("Notable cards: " + ", ".join(card_names))
-    return "\n".join(parts) if parts else "(none)"
 
 
 def build_archetype_prompts(
@@ -212,15 +169,11 @@ def build_archetype_prompts(
     system_prompt = sys_template.format(
         set_name=set_name or "(unnamed set)",
         set_size=set_size,
-        theme=(theme.get("theme") or theme.get("setting") or "(no theme provided)").strip(),
-        flavor_description=(theme.get("flavor_description") or "").strip()
-        or "(no flavor description provided)",
+        setting_block=_format_setting_block(theme),
         mechanics_block=_format_mechanics_block(approved),
-        creature_types_block=_format_creature_types_block(theme.get("creature_types") or []),
         constraints_block=_format_constraints_block(
             theme.get("constraints") or theme.get("special_constraints") or []
         ),
-        characters_block=_format_characters_block(theme),
     )
     user_prompt = user_template.format(set_size=set_size)
     return system_prompt, user_prompt
@@ -259,6 +212,12 @@ def dedupe_and_complete(archetypes: list[Any]) -> list[dict]:
     :data:`COLOR_PAIRS` order. Does NOT fabricate missing pairs — a short
     list is a soft signal the runner surfaces (and ultimately bails on via
     :data:`MIN_ARCHETYPES`).
+
+    Each survivor is projected to exactly the schema's fields
+    (``color_pair`` / ``name`` / ``description``). The tool schema only
+    constrains what's *required*, so a model — especially a local one —
+    can still emit stray keys (``speed``, ``signpost_uncommon``, …); this
+    drops them so the on-disk archetype is strictly name + intent.
     """
     by_pair: dict[str, dict] = {}
     for arch in archetypes:
@@ -267,10 +226,11 @@ def dedupe_and_complete(archetypes: list[Any]) -> list[dict]:
         pair = normalize_color_pair(arch.get("color_pair"))
         if pair is None or pair in by_pair:
             continue
-        cleaned = dict(arch)
-        cleaned["color_pair"] = pair
-        cleaned.setdefault("primary_mechanics", [])
-        by_pair[pair] = cleaned
+        by_pair[pair] = {
+            "color_pair": pair,
+            "name": str(arch.get("name") or ""),
+            "description": str(arch.get("description") or ""),
+        }
     return [by_pair[p] for p in COLOR_PAIRS if p in by_pair]
 
 
@@ -386,5 +346,3 @@ def generate_archetypes(
         "output_tokens": response.get("output_tokens", 0),
         "model_id": model_id,
     }
-
-

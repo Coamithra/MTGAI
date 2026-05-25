@@ -306,19 +306,6 @@
     `;
   }
 
-  // Next-stage display name comes from state.pipeline.stages, which is
-  // sourced from the backend's STAGE_DEFINITIONS. Avoids duplicating
-  // the stage list client-side (so adding a stage server-side doesn't
-  // silently regress the footer label here).
-  function nextStageEntryAfter(state, stageId) {
-    if (!state.pipeline || !state.pipeline.stages) return null;
-    const stages = state.pipeline.stages;
-    const idx = stages.findIndex(s => s.stage_id === stageId);
-    if (idx < 0 || idx === stages.length - 1) return null;
-    const next = stages[idx + 1];
-    return { id: next.stage_id, name: next.display_name };
-  }
-
   function isFinalStage(state, stageId) {
     if (!state.pipeline || !state.pipeline.stages) return false;
     const stages = state.pipeline.stages;
@@ -339,7 +326,7 @@
     // (the engine just walks to the next stage), so we only render
     // Next-step on PAUSED_FOR_REVIEW.
     if (isLatest && stage.status === 'paused_for_review') {
-      const next = nextStageEntryAfter(state, stage.stage_id);
+      const next = window.MTGAIWizard.nextStageEntryAfter(stage.stage_id);
       const label = next ? `Next step: ${next.name}` : 'Next step';
       return `<button type="button" class="wiz-btn-primary" data-role="next-step">${escHtml(label)}</button>`;
     }

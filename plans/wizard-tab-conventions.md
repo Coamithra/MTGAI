@@ -32,9 +32,40 @@ Every editable tab ends in a single primary button in the wizard footer
   flow (Cancel + Accept Edits). Don't put a second commit button there
   on the latest tab — one primary action per tab.
 
+**The next-step label + nav are derived, never hardcoded.** A footer
+that names the upcoming stage ("Save & Continue: Archetype Generation")
+or falls back to a `/pipeline/<stage>` path must read the stage from the
+backend's `STAGE_DEFINITIONS`, never a literal. Two shared helpers on
+`window.MTGAIWizard` do this:
+
+* `nextStageEntryAfter(stageId)` → `{id, name}` of the stage *after*
+  `stageId` (or `null` if last). For stage tabs — e.g. the Mechanics
+  footer uses `nextStageEntryAfter('mechanics')`.
+* `firstStageEntry()` → `{id, name}` of the **first** pipeline stage, for
+  a pre-stage content tab whose "next" is wherever the pipeline starts
+  (the Theme tab). Works before kickoff too.
+
+Both back onto the same ordered list: `state.pipeline.stages` once the
+engine is running, else the `stage_definitions` bootstrap key (added by
+`serialize()` in `pipeline/wizard.py` precisely so content tabs can name
+a stage before `pipeline_state` exists). Insert or reorder a stage
+server-side in `STAGE_DEFINITIONS` and every footer follows automatically
+— no client-side stage list to keep in sync. The server side matches:
+`/api/wizard/mechanics/save` computes its `navigate_to` from
+`STAGE_DEFINITIONS` rather than returning a literal path.
+
+This rule exists because the Mechanics and Theme footers once hardcoded
+`"Skeleton"` / `"Mechanic Generation"` and silently lied the moment the
+`archetypes` stage was inserted between mechanics and skeleton — exactly
+the kind of stage reordering that should cost zero footer edits. **Exception:** when a content tab's successor is another
+content tab (not a pipeline stage), a fixed label is correct — Project
+Settings → Theme reads "Continue to Theme" because Theme isn't a stage.
+Only derive when the successor is a pipeline stage.
+
 References: Project Settings `onSaveAndStart` in
 `wizard_project.js:1313`, Theme `onSaveAndAdvance` and `themeFooterHtml`
-in `wizard_theme.js`.
+in `wizard_theme.js`, the shared next-step helpers in `wizard.js`, and
+the generic stage footer in `wizard_stage.js` (`stageFooterHtml`).
 
 ## 2. Required fields → red asterisk + canStart()
 

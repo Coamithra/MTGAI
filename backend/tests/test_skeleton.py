@@ -34,6 +34,7 @@ from mtgai.skeleton.generator import (
     _check_rarity_totals,
     _check_signpost_uncommons,
     _distribute_colors,
+    _mark_signpost_slots,
     _scale_rarity,
     _split_request,
     build_reserved_slots,
@@ -308,6 +309,85 @@ class TestSignpostUncommons:
         ]
         result = _check_signpost_uncommons(slots, set_size=280)
         assert result.passed is True
+
+
+class TestSignpostMarking:
+    """_mark_signpost_slots: one multicolor uncommon per pair flagged."""
+
+    def _multi_uncommons(self, pairs: list[str], per_pair: int = 1) -> list[SkeletonSlot]:
+        slots: list[SkeletonSlot] = []
+        for pair in pairs:
+            for n in range(per_pair):
+                slots.append(
+                    SkeletonSlot(
+                        slot_id=f"{pair}-U-{n:02d}",
+                        color="multicolor",
+                        rarity="uncommon",
+                        card_type="creature",
+                        cmc_target=3,
+                        color_pair=pair,
+                    )
+                )
+        return slots
+
+    def test_marks_one_per_pair(self):
+        # Two multicolor uncommons per pair — only the first of each is flagged.
+        slots = self._multi_uncommons(COLOR_PAIRS, per_pair=2)
+        marked = _mark_signpost_slots(slots)
+        assert marked == 10
+        flagged = [s for s in slots if s.signpost_for]
+        assert len(flagged) == 10
+        assert {s.signpost_for for s in flagged} == set(COLOR_PAIRS)
+        # Each flagged slot points at its own pair, and only the first per pair.
+        for s in flagged:
+            assert s.signpost_for == s.color_pair
+            assert s.slot_id.endswith("-00")
+
+    def test_caps_at_available_slots_dev_size(self):
+        # Dev-size skeletons only have ~5 multicolor uncommons — only those pairs
+        # get a signpost; the rest simply go uncovered (matches the learning).
+        slots = self._multi_uncommons(COLOR_PAIRS[:5])
+        marked = _mark_signpost_slots(slots)
+        assert marked == 5
+        assert {s.signpost_for for s in slots if s.signpost_for} == set(COLOR_PAIRS[:5])
+
+    def test_ignores_non_signpost_slots(self):
+        # Commons, rares, and mono-color slots are never signposts.
+        slots = [
+            SkeletonSlot(
+                slot_id="WU-C",
+                color="multicolor",
+                rarity="common",
+                card_type="creature",
+                cmc_target=2,
+                color_pair="WU",
+            ),
+            SkeletonSlot(
+                slot_id="WU-R",
+                color="multicolor",
+                rarity="rare",
+                card_type="creature",
+                cmc_target=4,
+                color_pair="WU",
+            ),
+            SkeletonSlot(
+                slot_id="W-U", color="W", rarity="uncommon", card_type="creature", cmc_target=2
+            ),
+        ]
+        assert _mark_signpost_slots(slots) == 0
+        assert all(s.signpost_for is None for s in slots)
+
+    def test_generate_skeleton_flags_signposts(self):
+        # End-to-end: a generated dev-size skeleton flags exactly its
+        # multicolor-uncommon count, one per distinct pair.
+        result = generate_skeleton(_make_config(60))
+        flagged = [s for s in result.slots if s.signpost_for]
+        multi_unc = [s for s in result.slots if s.color == "multicolor" and s.rarity == "uncommon"]
+        assert 0 < len(flagged) <= len(multi_unc)
+        # One signpost per pair — no pair flagged twice.
+        pairs = [s.signpost_for for s in flagged]
+        assert len(pairs) == len(set(pairs))
+        assert all(s.signpost_for == s.color_pair for s in flagged)
 
 
 class TestRarityTotalsConstraint:

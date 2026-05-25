@@ -59,10 +59,7 @@ def test_build_mechanic_prompts_substitutes_theme_fields() -> None:
     assert "Steampunk dragons" in sys_prompt
     assert "Floating cities" in sys_prompt
     assert "Aether Knights" in sys_prompt and "Boilerworks" in sys_prompt
-    assert "Dragon" in sys_prompt and "Tinker-Knight" in sys_prompt
     assert "At least 6 artifact creatures" in sys_prompt
-    assert "Yenna of Ten Spires" in sys_prompt
-    assert "Maglith the Boilermaker" in sys_prompt
     # Mechanic count threads through.
     assert "3" in sys_prompt
     assert "3" in user_prompt
@@ -85,7 +82,6 @@ def test_build_mechanic_prompts_handles_missing_optional_blocks() -> None:
     # (mechanics are designed before archetypes exist) — no dead placeholder.
     assert "## Draft archetypes" not in sys_prompt
     # Other optional blocks still fall back to placeholder strings, not KeyError.
-    assert "no specific creature types" in sys_prompt
     assert "no special constraints" in sys_prompt
 
 
@@ -229,6 +225,31 @@ def test_detect_keyword_collisions_flags_printed_keywords() -> None:
 def test_detect_keyword_collisions_is_case_insensitive() -> None:
     collisions = mg.detect_keyword_collisions([{"name": "scavenge"}])
     assert collisions == {0: "scavenge"}
+
+
+def test_is_valid_candidate_rejects_printed_keyword_collision() -> None:
+    """A name matching a printed keyword is a hard reject, so the generation
+    loop regenerates rather than keeping an unrenameable colliding candidate."""
+    known = mg.known_keyword_set()
+    assert "reconfigure" in known  # guards the fixture: Reconfigure is printed.
+    colliding = {"name": "Reconfigure", "reminder_text": "Transform this card."}
+    custom = {"name": "Weaponize", "reminder_text": "Transform this card."}
+    assert mg._is_valid_candidate(colliding, set(), known) is False
+    # Case-insensitive, same as the display-path collision check.
+    assert mg._is_valid_candidate({**colliding, "name": "reCONFIGURE"}, set(), known) is False
+    # A non-colliding, well-formed candidate still passes.
+    assert mg._is_valid_candidate(custom, set(), known) is True
+
+
+def test_is_valid_candidate_still_rejects_dupes_and_malformed() -> None:
+    """The collision check is additive — existing dupe/malformed guards hold."""
+    known = mg.known_keyword_set()
+    assert mg._is_valid_candidate({"name": "Weaponize"}, set(), known) is False  # no metadata
+    assert mg._is_valid_candidate({"name": ""}, set(), known) is False  # blank name
+    assert (
+        mg._is_valid_candidate({"name": "Weaponize", "reminder_text": "x"}, {"weaponize"}, known)
+        is False  # duplicate of an already-accepted name
+    )
 
 
 # ---------------------------------------------------------------------------
