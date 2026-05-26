@@ -26,6 +26,28 @@
 <script src="/static/wizard_project.js"></script>
 <script src="/static/wizard_theme.js"></script>
 <script src="/static/wizard_stage.js"></script>
+{# Per-stage renderers, in STAGE_DEFINITIONS order. Each registers itself
+   into wizard_stage.js's customStageRenderers map via
+   W.registerStageRenderer(stage_id, ...) at parse time; stages with no
+   module here fall back to the generic stage placeholder. Skeleton has no
+   bespoke module yet (it still uses the generic shell). #}
 <script src="/static/wizard_mechanics.js"></script>
 <script src="/static/wizard_archetypes.js"></script>
+<script src="/static/wizard_reprints.js"></script>
+<script src="/static/wizard_lands.js"></script>
+<script src="/static/wizard_card_gen.js"></script>
+<script src="/static/wizard_balance.js"></script>
+<script src="/static/wizard_skeleton_rev.js"></script>
+<script src="/static/wizard_ai_review.js"></script>
+<script src="/static/wizard_finalize.js"></script>
+<script src="/static/wizard_human_card_review.js"></script>
+<script src="/static/wizard_visual_refs.js"></script>
+<script src="/static/wizard_art_prompts.js"></script>
+<script src="/static/wizard_char_portraits.js"></script>
+<script src="/static/wizard_art_gen.js"></script>
+<script src="/static/wizard_art_select.js"></script>
+<script src="/static/wizard_human_art_review.js"></script>
+<script src="/static/wizard_rendering.js"></script>
+<script src="/static/wizard_render_qa.js"></script>
+<script src="/static/wizard_human_final_review.js"></script>
 {% endblock %}
