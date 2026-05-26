@@ -310,6 +310,13 @@ def assign_requests(
         reserved[sid] = req
         if text:
             tweaked[sid] = text
+    if len(reserved) < len(reqs):
+        logger.warning(
+            "Placed %d/%d card requests; %d unplaced",
+            len(reserved),
+            len(reqs),
+            len(reqs) - len(reserved),
+        )
     return tweaked, reserved, response
 
 
@@ -410,8 +417,17 @@ def relabel_skeleton(
         sid: {"tweaked_text": text, "reserved_card": reserved.get(sid)}
         for sid, text in tweaked.items()
     }
+    requested = len(
+        [
+            r
+            for r in (theme.get("card_requests") or [])
+            if (r.get("text") if isinstance(r, dict) else r)
+        ]
+    )
     return {
         "updates": updates,
+        "requests_total": requested,
+        "requests_placed": len(reserved),
         "model_id": model_id,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,

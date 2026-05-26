@@ -163,8 +163,11 @@
 
   function rowHtml(s, ro) {
     const reserved = (s.reserved_card || '').trim();
+    const cls = 'wiz-skel-row'
+      + (isChanged(s) ? ' wiz-skel-row--changed' : '')
+      + (reserved ? ' wiz-skel-row--req' : '');
     return `
-      <div class="wiz-skel-row${isChanged(s) ? ' wiz-skel-row--changed' : ''}" data-slot-id="${escAttr(s.slot_id)}">
+      <div class="${cls}" data-slot-id="${escAttr(s.slot_id)}">
         <div class="wiz-skel-row-head">
           <span class="wiz-skel-slotid">${escHtml(s.slot_id)}</span>
           ${reserved ? `<span class="wiz-skel-reqbadge" title="Requested card placed here">★ ${escHtml(reserved)}</span>` : ''}

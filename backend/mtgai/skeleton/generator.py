@@ -920,6 +920,12 @@ def _split_request(text: str) -> tuple[str, str]:
 def build_reserved_slots(theme: dict) -> list[ReservedSlotSpec]:
     """Build reserved-slot specs from a raw ``theme.json`` dict.
 
+    NOTE: not currently used by the pipeline — Skeleton Generation places
+    ``card_requests`` via the LLM relabel pass (``skeleton_relabel`` Pass 2),
+    not this deterministic pre-placement. Kept (with ``generate_skeleton``'s
+    ``reserved_slots`` parameter + ``_apply_reservations``) for potential reuse
+    and still covered by tests.
+
     Sources, in priority order (first occurrence of a name wins):
       * ``legendary_characters`` / ``notable_cards`` — structured anchors with
         colors, rarity, and a type line → fully-constrained specs.

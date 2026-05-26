@@ -1475,8 +1475,9 @@
   border-left: 3px solid #2a2a3e;
   border-radius: 6px;
 }
-/* A relabeled slot gets a blue spine; a placed request a gold one. */
+/* A relabeled slot gets a blue spine; a placed request a gold one (wins). */
 .wiz-skel-row--changed { border-left-color: #4a9eff; }
+.wiz-skel-row--req { border-left-color: #c9a237; }
 .wiz-skel-row-head { display: flex; align-items: baseline; gap: 0.5rem; }
 .wiz-skel-slotid { font-family: monospace; font-size: 0.78rem; color: #c8c8d4; font-weight: 600; }
 .wiz-skel-reqbadge {

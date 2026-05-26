@@ -1243,6 +1243,7 @@
     { id: 'theme_extract', label: 'Theme extraction' },
     { id: 'mechanics', label: 'Mechanic generation' },
     { id: 'archetypes', label: 'Archetype generation' },
+    { id: 'skeleton', label: 'Skeleton generation' },
     { id: 'reprints', label: 'Reprint selection' },
     { id: 'lands', label: 'Land generation' },
     { id: 'card_gen', label: 'Card generation' },

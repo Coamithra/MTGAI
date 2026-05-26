@@ -47,6 +47,7 @@ LLM_STAGE_NAMES: dict[str, str] = {
     "theme_extract": "Theme Extraction",
     "mechanics": "Mechanic Generation",
     "archetypes": "Archetype Generation",
+    "skeleton": "Skeleton Generation",
     "visual_refs": "Visual References",
     "reprints": "Reprint Selection",
     "lands": "Land Generation",

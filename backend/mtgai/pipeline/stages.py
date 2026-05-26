@@ -555,6 +555,8 @@ def run_skeleton(
         )
     emitter.update("slots", status="done", content={"rows": slot_rows, "scrollable": True})
 
+    requested = relabel.get("requests_total", placed)
+    placed_str = f"{placed}/{requested}" if requested else str(placed)
     emitter.update(
         "overview",
         status="done",
@@ -562,18 +564,20 @@ def run_skeleton(
             "Set": config.name or config.code,
             "Slots": str(slot_count),
             "Slots changed": str(changed),
-            "Requests placed": str(placed),
+            "Requests placed": placed_str,
             "Model": relabel.get("model_id", "?"),
             "Cost": f"${relabel.get('cost_usd', 0.0):.4f}",
         },
     )
     emitter.phase("done", f"Skeleton ready — {slot_count} slots, {changed} relabeled")
-    logger.info("Skeleton: %d slots, %d relabeled, %d requests placed", slot_count, changed, placed)
+    logger.info(
+        "Skeleton: %d slots, %d relabeled, %s requests placed", slot_count, changed, placed_str
+    )
     return StageResult(
         total_items=slot_count,
         completed_items=slot_count,
         cost_usd=relabel.get("cost_usd", 0.0),
-        detail=f"Skeleton: {slot_count} slots, {changed} relabeled, {placed} requests placed",
+        detail=f"Skeleton: {slot_count} slots, {changed} relabeled, {placed_str} requests placed",
     )
 
 
