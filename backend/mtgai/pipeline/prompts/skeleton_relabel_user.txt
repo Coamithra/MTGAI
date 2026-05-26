@@ -1,5 +1,5 @@
-Here is the DEFAULT SKELETON — {slot_count} slots, one per line, as `slot_id: Color · rarity · type · CMCn · mechanic`.
+Here is the NORMAL set — {slot_count} slots, one per line, as `slot_id: Color · rarity · type · CMCn · mechanic`.
 
-Rewrite every slot's descriptor so the set reads as this setting — name the mechanics, honor the constraints, keep the default's overall shape except where the setting demands a bold, deliberate deviation. Return all {slot_count} slots through the tool, each with its original `slot_id` and its rewritten one-line `text`.
+Tweak it into this set: bend the counts until the set-wide amounts are true — the constraints, plus enough of each mechanic to draft around (and none on too many) and enough cards per color pair to support its archetype. Add a tag or note to a line only where a constraint requires it, and leave any slot nothing set-wide touches exactly as it is. Return all {slot_count} slots through the tool — same `slot_id` each, with the rewritten one-line `text`.
 
 {default_listing}
