@@ -1,40 +1,26 @@
-# Tracker: feat/skeleton-generation
+# Tracker: feat/skeleton-generation (card 69f9d1ef)
 
-Reshape of the just-merged constraints stage (card 69f9d1ef) per design feedback:
-collapse the separate `constraints` stage into ONE "Skeleton Generation" stage.
+Reshape of the constraints stage into ONE "Skeleton Generation" stage.
+Design: `plans/skeleton-generation.md`.
 
-## Design (locked with user)
-- ONE `skeleton` stage: deterministic seed → render each slot to a ` · ` string
-  → LLM rewrites each string to fit theme/constraints/requests → store `tweaked_text`
-  per slot in skeleton.json. Pass 2 places card_requests onto slots.
-- skeleton.json keeps structured slots (reprints/lands untouched) + adds tweaked_text.
-  Default string is re-rendered from structured fields (no separate default file).
-- Diff UI: per-slot default-vs-tweaked diff via a proper word-level LCS diff
-  (zero-dep, hand-rolled) — highlights actual changed tokens, not field splits.
-- Auto-runs (no manual "Derive matrix"); Refresh re-rolls. Pauses for review.
-- card-gen reads tweaked_text; programmatic color-batcher returns (LLM batcher deleted).
-- "constraints" name gone everywhere; assignment + break-point move to `skeleton`.
+## State: MERGED to master, pending live validation
 
-## Implement
-- [ ] SkeletonSlot: add `tweaked_text: str | None`; add render_slot_string()
-- [ ] skeleton_relabel.py (rename from constraint_deriver.py): relabel + assign passes
-      operate on per-slot strings; reconcile by slot_id; load helper drops
-- [ ] run_skeleton: seed → render → LLM relabel+assign (ai_lock, logs→skeleton/logs)
-      → write skeleton.json w/ tweaked_text. Remove run_constraints + clear_constraints.
-- [ ] models.py: remove `constraints` STAGE_DEFINITIONS entry
-- [ ] model_settings.py: drop `constraints` (assignments/presets/breaks); add `skeleton`
-      (local default + recommended/all-local + DEFAULT_BREAK_POINTS review)
-- [ ] wizard.py: remove fold (_fold_constraints_status + skip)
-- [ ] wizard.js: remove constraints stage_update special-case
-- [ ] wizard_stage.js: remove FOLDED_HOST/foldedStage
-- [ ] server.py: /api/wizard/constraints/* → /api/wizard/skeleton/* (read/write skeleton.json)
-- [ ] card_generator.py: read tweaked_text; drop llm_group_slots (programmatic batcher)
-- [ ] prompts.py: _blob branch → tweaked_text branch
-- [ ] wizard_skeleton.js: diff UI (default vs tweaked, field highlight), auto-run, skeleton endpoints
-- [ ] prompts/*.txt: rename + reword for string-rewrite (drop "constraints"/"matrix" wording)
-- [ ] tests: rework test_constraint_deriver→skeleton relabel; fix fold/stage-order tests
-- [ ] CLAUDE.md + rename plans/constraints-stage.md → skeleton-generation.md
+- [x] Design locked with user (one stage; default→string→LLM rewrite→tweaked_text;
+      structured fields stay default; word-level diff UI; auto-run; local default)
+- [x] Implemented: skeleton_relabel.py (was constraint_deriver.py), run_skeleton
+      (default + relabel), SkeletonSlot.tweaked_text + render_slot_string,
+      card_gen reads tweaked_text + programmatic batcher, /api/wizard/skeleton/*,
+      wizard_skeleton.js diff UI, constraints stage/json/fold/batcher removed
+- [x] settings: `skeleton` assignment + break-point + Settings UI row; local default
+- [x] Verified: ruff clean, 1235 pytest pass, boot-smoke (endpoints + JS wired)
+- [x] /review done — 2 should-fix + 2 nits all fixed (Settings row, unplaced-request
+      warning + "N/M placed", build_reserved_slots note, gold spine)
+- [x] CLAUDE.md + plan updated; merged to master (FF)
+- [ ] LIVE VALIDATION (DoD): regenerate a real set (Transformers) and confirm the
+      relabel/quality — needs the user's local-model env; card stays in Doing until done
 
-## Verify / ship
-- [ ] ruff + import + pytest; boot smoke
-- [ ] /review; merge to master; cleanup
+## Follow-ups (separate cards)
+- 6a15fa81 — review nits from the first (constraints) pass; re-check relevance
+  (the LLM-batcher caching nit is now moot — batcher removed; the save-validation
+  nit moot — endpoint reworked). Can likely be closed.
+- 6a13f98e — theme-first rework of the post-balance skeleton_rev prompt.
