@@ -199,6 +199,21 @@ def format_slot_specs(
             reserved = (slot.get("reserved_card") or "").strip()
             if reserved:
                 spec += f"\n   REQUESTED CARD — design this slot as: {reserved}"
+            # The structural flags survive the relabel untouched, so keep their
+            # deterministic instructions rather than trusting the blob's prose.
+            if slot.get("is_reprint_slot"):
+                spec += (
+                    "\n   REPRINT SLOT — design a card suitable as a reprint "
+                    "from an existing set"
+                )
+            signpost_for = (slot.get("signpost_for") or "").strip()
+            if signpost_for:
+                arch = archetype_map.get(signpost_for)
+                arch_note = f" — {arch}" if arch else ""
+                spec += (
+                    f"\n   SIGNPOST UNCOMMON for the {signpost_for} archetype{arch_note}. "
+                    "Design the gold uncommon that defines and enables this archetype."
+                )
             lines.append(spec)
             continue
 

@@ -263,8 +263,9 @@ def relabel_matrix(
     model: str,
     log_dir: Path | None = None,
 ) -> tuple[list[dict], dict]:
-    """Run Pass 1. Returns (matrix, usage) where matrix is one {slot_id, blob}
-    per seed slot (reconciled — every seed slot present, extras dropped)."""
+    """Run Pass 1. Returns (matrix, response) where matrix is one {slot_id, blob}
+    per seed slot (reconciled — every seed slot present, extras dropped) and
+    response is the raw ``generate_with_tool`` dict (tokens + model for costing)."""
     system_prompt = _read_template("constraints_relabel_system.txt").format(
         set_name=set_name or "(unnamed set)",
         set_size=set_size,
@@ -327,8 +328,9 @@ def assign_requests(
     model: str,
     log_dir: Path | None = None,
 ) -> tuple[list[dict], dict | None]:
-    """Run Pass 2 in place. Returns (matrix, usage); usage is None when there
-    are no requests to place (no LLM call)."""
+    """Run Pass 2 in place. Returns (matrix, response); response is the raw
+    ``generate_with_tool`` dict, or None when there are no requests to place
+    (no LLM call)."""
     reqs = [r for r in (card_requests or []) if (r.get("text") if isinstance(r, dict) else r)]
     if not reqs:
         return matrix, None

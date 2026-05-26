@@ -197,7 +197,7 @@ and `lands` (independent) are untouched. The constraints stage writes a parallel
 - `settings/model_settings.py`: `constraints` → `sonnet` in `DEFAULT_LLM_ASSIGNMENTS`
   + recommended preset (the batcher reuses the same model).
 - card-gen consumption: `card_generator` loads `constraints.json` when present and
-  builds per-slot prompts from the blob (`prompts.format_fluffy_specs`), grouping via
+  builds per-slot prompts from the blob (`prompts.format_slot_specs`'s `_blob` branch), grouping via
   `llm_group_slots`; **falls back to the structured `format_slot_specs` +
   `group_slots_into_batches` path when absent** (backward-compat for old sets/tests).
 
