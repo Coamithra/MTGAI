@@ -484,6 +484,16 @@ def run_skeleton(
 
     theme_data = json.loads(theme_path.read_text(encoding="utf-8"))
     config = SetConfig(**theme_data)
+    # set_size + set_name are project parameters (settings.set_params), not
+    # theme.json content — theme.json no longer carries them, so SetConfig
+    # would otherwise fall back to its dev-set default (60) and size every set
+    # at 60 slots. Pull the real values from the active project.
+    from mtgai.runtime.active_project import require_active_project
+
+    sp = require_active_project().settings.set_params
+    config = config.model_copy(
+        update={"set_size": sp.set_size, "name": sp.set_name or config.name}
+    )
     emitter.update(
         "overview",
         status="done",

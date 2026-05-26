@@ -67,20 +67,25 @@ IMAGE_STAGE_NAMES: dict[str, str] = {
 # Default assignments (matching current hardcoded behaviour)
 # ---------------------------------------------------------------------------
 
+# Local-by-default (user policy): every stage defaults to the local Gemma model
+# so a fresh project — or any stage a project hasn't pinned (e.g. a newly-added
+# stage like ``constraints``) — never silently hits a paid cloud API. Opt into
+# cloud per-stage in Settings, or apply the ``recommended`` preset wholesale.
+_LOCAL_DEFAULT = "gemma4-26b-vram-dynamic"
 DEFAULT_LLM_ASSIGNMENTS: dict[str, str] = {
-    "theme_extract": "haiku",
-    "mechanics": "sonnet",
-    "archetypes": "sonnet",
-    "constraints": "sonnet",
-    "visual_refs": "sonnet",
-    "reprints": "haiku",
-    "lands": "haiku",
-    "card_gen": "opus",
-    "balance": "sonnet",
-    "skeleton_rev": "opus",
-    "ai_review": "opus",
-    "art_prompts": "haiku",
-    "art_select": "haiku",
+    "theme_extract": _LOCAL_DEFAULT,
+    "mechanics": _LOCAL_DEFAULT,
+    "archetypes": _LOCAL_DEFAULT,
+    "constraints": _LOCAL_DEFAULT,
+    "visual_refs": _LOCAL_DEFAULT,
+    "reprints": _LOCAL_DEFAULT,
+    "lands": _LOCAL_DEFAULT,
+    "card_gen": _LOCAL_DEFAULT,
+    "balance": _LOCAL_DEFAULT,
+    "skeleton_rev": _LOCAL_DEFAULT,
+    "ai_review": _LOCAL_DEFAULT,
+    "art_prompts": _LOCAL_DEFAULT,
+    "art_select": _LOCAL_DEFAULT,
 }
 
 DEFAULT_IMAGE_ASSIGNMENTS: dict[str, str] = {
@@ -163,6 +168,7 @@ PRESETS: dict[str, dict] = {
             "theme_extract": "gemma4-26b-vram-dynamic",
             "mechanics": "gemma4-26b-vram-dynamic",
             "archetypes": "gemma4-26b-vram-dynamic",
+            "constraints": "gemma4-26b-vram-dynamic",
             "visual_refs": "gemma4-26b-vram-dynamic",
             "reprints": "gemma4-26b-vram-dynamic",
             "lands": "gemma4-26b-vram-dynamic",
