@@ -28,6 +28,7 @@ the relabel. Mirrors ``archetype_generator.py`` in shape; templates live in
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,23 @@ from mtgai.skeleton.generator import render_slot_string
 logger = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "pipeline" / "prompts"
+
+# Relabel robustness. Local models routinely stop partway through the slot
+# array — returning a parseable but PARTIAL tool call (occasionally with
+# malformed trailing JSON the parser drops) — without tripping the max_tokens
+# truncation guard. So a single call can't be trusted: we resend the whole
+# prompt and retry up to RELABEL_MAX_ATTEMPTS, keeping the most-complete
+# response, and treat a result still missing too many slots as a hard error so
+# the caller surfaces it instead of shipping a near-default skeleton.
+RELABEL_MAX_ATTEMPTS = 3
+RELABEL_MIN_COVERAGE = 0.9
+# A few dropped slots are fine — they keep their default descriptor. The hard
+# error only fires past this many, so it scales: max(this, 10% of the set).
+RELABEL_MAX_STRAGGLERS = 3
+
+
+class RelabelIncompleteError(RuntimeError):
+    """Relabel returned descriptors for too few slots, even after retries."""
 
 
 # ---------------------------------------------------------------------------
@@ -199,6 +217,43 @@ def _format_assign_listing(slots: list[dict], tweaked: dict[str, str]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _collect_relabeled(response: dict, valid_ids: set[str], by_id: dict[str, str]) -> int:
+    """Fold a relabel response's slots into ``by_id`` in place.
+
+    Accepts only entries whose ``slot_id`` is a real, not-yet-filled slot with
+    non-empty text — so a partial response, a hallucinated id, or a duplicate is
+    ignored rather than trusted. Returns how many NEW descriptors were added.
+    """
+    added = 0
+    for item in response.get("result", {}).get("slots") or []:
+        if not isinstance(item, dict):
+            continue
+        sid = str(item.get("slot_id") or "").strip()
+        text = str(item.get("text") or "").strip()
+        if sid in valid_ids and text and sid not in by_id:
+            by_id[sid] = text
+            added += 1
+    return added
+
+
+def _merge_relabel_responses(responses: list[dict], by_id: dict[str, str], model: str) -> dict:
+    """Collapse per-attempt responses into one, summing token usage.
+
+    ``relabel_skeleton`` reads token counts + ``cost_from_result`` off the
+    returned dict, so the merged dict must carry summed ``input_tokens`` /
+    ``output_tokens`` and the model id.
+    """
+    return {
+        "result": {"slots": [{"slot_id": sid, "text": text} for sid, text in by_id.items()]},
+        "input_tokens": sum(r.get("input_tokens", 0) for r in responses),
+        "output_tokens": sum(r.get("output_tokens", 0) for r in responses),
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "stop_reason": responses[-1].get("stop_reason", "") if responses else "",
+        "model": responses[-1].get("model", model) if responses else model,
+    }
+
+
 def relabel_slots(
     *,
     slots: list[dict],
@@ -211,7 +266,14 @@ def relabel_slots(
     log_dir: Path | None = None,
 ) -> tuple[dict[str, str], dict]:
     """Run Pass 1. Returns (tweaked, response) where tweaked maps every
-    slot_id to its rewritten descriptor (a dropped slot keeps its default)."""
+    slot_id to its rewritten descriptor.
+
+    Robust to partial responses: each attempt resends the whole prompt; if it
+    comes back missing more than the straggler tolerance, we retry from scratch
+    up to ``RELABEL_MAX_ATTEMPTS`` and keep the most-complete attempt. If even
+    the best is still too incomplete we raise ``RelabelIncompleteError`` so the
+    caller surfaces it rather than silently shipping mostly-default slots.
+    """
     system_prompt = _read_template("skeleton_relabel_system.txt").format(
         set_name=set_name or "(unnamed set)",
         set_size=set_size,
@@ -227,36 +289,63 @@ def relabel_slots(
         default_listing=_render_default_listing(slots),
     )
 
-    response = generate_with_tool(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        tool_schema=RELABEL_TOOL_SCHEMA,
-        model=model,
-        temperature=1.0,
-        max_tokens=16384,
-        log_dir=log_dir,
-    )
-    by_id: dict[str, str] = {}
-    for item in response["result"].get("slots") or []:
-        if not isinstance(item, dict):
-            continue
-        sid = str(item.get("slot_id") or "").strip()
-        text = str(item.get("text") or "").strip()
-        if sid and text and sid not in by_id:
-            by_id[sid] = text
+    valid_ids = {str(s.get("slot_id")) for s in slots}
+    tolerable = max(RELABEL_MAX_STRAGGLERS, math.ceil(len(slots) * (1.0 - RELABEL_MIN_COVERAGE)))
+    best: dict[str, str] = {}
+    responses: list[dict] = []
+    last_error: Exception | None = None
 
-    tweaked: dict[str, str] = {}
-    missing = 0
-    for s in slots:
-        sid = str(s.get("slot_id"))
-        text = by_id.get(sid)
-        if text is None:
-            missing += 1
-            text = render_slot_string(s)
-        tweaked[sid] = text
+    for attempt in range(1, RELABEL_MAX_ATTEMPTS + 1):
+        try:
+            response = generate_with_tool(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                tool_schema=RELABEL_TOOL_SCHEMA,
+                model=model,
+                temperature=1.0,
+                max_tokens=16384,
+                log_dir=log_dir,
+            )
+        except Exception as exc:  # transport / truncation / no-valid-tool-output
+            last_error = exc
+            logger.warning(
+                "Relabel attempt %d/%d failed: %s", attempt, RELABEL_MAX_ATTEMPTS, exc
+            )
+            continue
+        responses.append(response)
+        by_id: dict[str, str] = {}
+        _collect_relabeled(response, valid_ids, by_id)
+        logger.info(
+            "Relabel attempt %d/%d: %d/%d slots covered",
+            attempt,
+            RELABEL_MAX_ATTEMPTS,
+            len(by_id),
+            len(slots),
+        )
+        if len(by_id) > len(best):
+            best = by_id
+        if len(slots) - len(best) <= tolerable:
+            break  # complete enough — stop retrying
+
+    if not responses and last_error is not None:
+        # Every attempt raised — nothing usable came back at all.
+        raise RelabelIncompleteError(
+            f"Relabel produced no usable output after {RELABEL_MAX_ATTEMPTS} attempts: {last_error}"
+        ) from last_error
+
+    missing = len(slots) - len(best)
+    if missing > tolerable:
+        raise RelabelIncompleteError(
+            f"Relabel only covered {len(best)}/{len(slots)} slots after "
+            f"{RELABEL_MAX_ATTEMPTS} attempts — the model kept returning a partial set. "
+            "Re-roll from the Skeleton tab."
+        )
     if missing:
-        logger.warning("Relabel dropped %d/%d slots; kept their defaults", missing, len(slots))
-    return tweaked, response
+        logger.warning("Relabel kept %d/%d slots on their defaults", missing, len(slots))
+
+    tweaked = {str(s.get("slot_id")): best.get(str(s.get("slot_id"))) or render_slot_string(s)
+               for s in slots}
+    return tweaked, _merge_relabel_responses(responses, best, model)
 
 
 # ---------------------------------------------------------------------------

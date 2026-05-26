@@ -143,6 +143,85 @@ def test_relabel_reconciles_missing_and_drops_unknown(_project, monkeypatch) -> 
     assert tweaked["R-R-04"] == render_slot_string(seed[-1])
 
 
+def test_relabel_resends_whole_prompt_until_complete(monkeypatch) -> None:
+    """An insufficient attempt triggers a full resend; the next complete attempt
+    wins, and token usage is summed across both calls."""
+    seed = _seed_slots()
+    calls = {"n": 0}
+
+    def stub(*_a, **_k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # First attempt comes back empty (partial / garbage) → resend.
+            return {"result": {"slots": []}, "model": "m", "input_tokens": 3, "output_tokens": 4}
+        # The resend covers the whole set.
+        return {
+            "result": {
+                "slots": [{"slot_id": s["slot_id"], "text": f"themed {s['slot_id']}"} for s in seed]
+            },
+            "model": "m",
+            "input_tokens": 3,
+            "output_tokens": 4,
+        }
+
+    monkeypatch.setattr(sr, "generate_with_tool", stub)
+    tweaked, resp = sr.relabel_slots(
+        slots=seed,
+        theme=_theme(),
+        approved=_approved(),
+        archetypes=[],
+        set_name="T",
+        set_size=4,
+        model="m",
+    )
+    assert calls["n"] == 2
+    # Every slot relabeled (none on default); tokens summed across both attempts.
+    assert all(v.startswith("themed ") for v in tweaked.values())
+    assert resp["input_tokens"] == 6
+    assert resp["output_tokens"] == 8
+
+
+def test_relabel_raises_when_persistently_partial(monkeypatch) -> None:
+    """If the model never returns enough slots, relabel raises instead of
+    silently shipping mostly-default descriptors."""
+    seed = _seed_slots()  # 4 slots; tolerance is max(3, 10%) = 3, so all-missing fails.
+
+    def stub(*_a, **_k):
+        return {"result": {"slots": []}, "model": "m", "input_tokens": 1, "output_tokens": 1}
+
+    monkeypatch.setattr(sr, "generate_with_tool", stub)
+    with pytest.raises(sr.RelabelIncompleteError):
+        sr.relabel_slots(
+            slots=seed,
+            theme=_theme(),
+            approved=_approved(),
+            archetypes=[],
+            set_name="T",
+            set_size=4,
+            model="m",
+        )
+
+
+def test_relabel_raises_when_every_attempt_errors(monkeypatch) -> None:
+    """Transport errors on every attempt surface as RelabelIncompleteError."""
+    seed = _seed_slots()
+
+    def stub(*_a, **_k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(sr, "generate_with_tool", stub)
+    with pytest.raises(sr.RelabelIncompleteError):
+        sr.relabel_slots(
+            slots=seed,
+            theme=_theme(),
+            approved=_approved(),
+            archetypes=[],
+            set_name="T",
+            set_size=4,
+            model="m",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Pass 2 — request assignment
 # ---------------------------------------------------------------------------
