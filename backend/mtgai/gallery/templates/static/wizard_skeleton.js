@@ -69,7 +69,9 @@
       return;
     }
     paintFooter(footer, state);
-    setLocked(local.locked);
+    // Re-sync the form lock: an SSE event may have flipped the stage to
+    // `running` (engine relabel in flight) since the last paint.
+    applyFormLock();
   }
 
   function mountShellHtml() {
@@ -100,6 +102,7 @@
     paintSummary(root, state);
     paintGrid(root, state);
     paintFooter(getFooter(root), state);
+    applyFormLock();
   }
 
   // ----------------------------------------------------------------------
@@ -124,7 +127,7 @@
         <h3 style="margin:0">Default → tweaked skeleton</h3>
         <button type="button" class="wiz-btn-secondary wiz-refresh-btn"
                 data-role="skel-refresh"
-                title="${escAttr(title)}" ${isPast ? 'disabled' : ''}>${escHtml(label)}</button>
+                title="${escAttr(title)}" ${isPast || aiBusy() ? 'disabled' : ''}>${escHtml(label)}</button>
       </div>
       <p class="wiz-skel-blurb">The deterministic default skeleton, each slot rewritten by the LLM to fit the set. Changed parts are highlighted; edit any tweaked line, then continue.</p>
       <dl class="wiz-skel-context">
@@ -156,7 +159,10 @@
       return;
     }
     const isPast = isPastTab(state);
-    const ro = isPast ? 'disabled' : '';
+    // Disabled when the tab is past (edit-cascade only) OR an AI run is in
+    // flight — the freshly built textareas must come up locked so a relabel
+    // repaint doesn't hand the user editable fields mid-run (§3).
+    const ro = (isPast || aiBusy()) ? 'disabled' : '';
     slot.innerHTML = local.slots.map(s => rowHtml(s, ro)).join('');
     if (!isPast) bindGrid(slot);
   }
@@ -362,16 +368,32 @@
   // Form lock (§3)
   // ----------------------------------------------------------------------
 
+  // AI is "active" on this tab when this tab kicked off an op (local.locked)
+  // OR the engine is running the skeleton stage (relabel in flight). Either
+  // way every editable surface must be disabled.
+  function aiBusy() {
+    return local.locked || local.stageStatus === 'running';
+  }
+
   function setLocked(locked) {
     local.locked = !!locked;
+    applyFormLock();
+  }
+
+  // Sync the DOM to aiBusy(). paintGrid/paintSummary already build their
+  // controls disabled inline from aiBusy(), but the footer button + the
+  // container class still need syncing, and SSE-driven re-renders call this
+  // directly so a stage flipping to `running` locks an already-painted grid.
+  function applyFormLock() {
     const root = bodyRoot();
     if (!root) return;
-    root.classList.toggle('wiz-skel-locked', !!locked);
+    const locked = aiBusy();
+    root.classList.toggle('wiz-skel-locked', locked);
     root.querySelectorAll('.wiz-skel-tweak, [data-role="skel-refresh"]').forEach(el => {
-      el.disabled = !!locked;
+      el.disabled = locked;
     });
     const footerBtn = root.querySelector('[data-role="skel-save-advance"]');
-    if (footerBtn) footerBtn.disabled = !!locked;
+    if (footerBtn) footerBtn.disabled = locked;
   }
 
   // ----------------------------------------------------------------------

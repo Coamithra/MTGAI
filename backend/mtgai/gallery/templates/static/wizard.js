@@ -553,23 +553,67 @@
   };
   let _phaseLastWidth = 0;
 
+  // Live elapsed clock for the progress strip. Engine phases that wrap a
+  // single non-streaming LLM call (skeleton relabel, archetypes, visual_refs,
+  // mechanics gen) emit one `phase` event then go silent for the whole call —
+  // without a client-side ticker the "Xs" stat freezes and the strip looks
+  // hung. We seed elapsed from each event and tick it forward between them.
+  let _phaseClock = { base: 0, seededAt: 0, lastData: null, timer: null };
+
+  // A phase has a real per-unit progress signal only when it reports token
+  // throughput (theme-extractor streaming). Engine stages whose work is one
+  // blocking LLM call report none — for those an indeterminate animation is
+  // honest where a frozen determinate fill is not.
+  function phaseHasLiveStats(data) {
+    return !!(
+      (data.prompt_eval && data.prompt_eval.total)
+      || (data.generation && typeof data.generation.tok_per_sec === 'number')
+    );
+  }
+
+  function renderPhaseStatsLive() {
+    const statsEl = document.getElementById('wiz-progress-stats');
+    if (!statsEl || !_phaseClock.lastData) return;
+    const live = _phaseClock.base + (performance.now() - _phaseClock.seededAt) / 1000;
+    statsEl.textContent = formatPhaseStats(
+      Object.assign({}, _phaseClock.lastData, { elapsed_s: live }),
+    );
+  }
+
+  function startPhaseClock(data) {
+    _phaseClock.base = typeof data.elapsed_s === 'number' ? data.elapsed_s : 0;
+    _phaseClock.seededAt = performance.now();
+    _phaseClock.lastData = data;
+    if (!_phaseClock.timer) {
+      _phaseClock.timer = setInterval(renderPhaseStatsLive, 1000);
+    }
+  }
+
+  function stopPhaseClock() {
+    if (_phaseClock.timer) clearInterval(_phaseClock.timer);
+    _phaseClock = { base: 0, seededAt: 0, lastData: null, timer: null };
+  }
+
+  function setStripIndeterminate(on) {
+    const bar = document.querySelector('#wiz-progress-strip .wiz-progress-bar');
+    if (bar) bar.classList.toggle('wiz-progress-bar--indeterminate', !!on);
+  }
+
   function handlePhaseEvent(data) {
     const phase = data.phase || '';
 
     // Phase events come from non-pipeline AI runs too (theme section
-    // refreshes etc.) — without this, the strip would stick at 100%
-    // forever after a section refresh because no `pipeline_status`
-    // terminal event ever fires for that path.
+    // refreshes etc.) — without this, the strip would stick forever after a
+    // section refresh because no `pipeline_status` terminal event fires for
+    // that path. hideProgressStrip() also stops the clock + resets the bar.
     if (phase === 'done') {
       hideProgressStrip();
-      _phaseLastWidth = 0;
       return;
     }
 
     showProgressStrip();
     const stageEl = document.getElementById('wiz-progress-stage');
     const activityEl = document.getElementById('wiz-progress-activity');
-    const statsEl = document.getElementById('wiz-progress-stats');
     const fillEl = document.getElementById('wiz-progress-bar-fill');
     if (!stageEl || !activityEl || !fillEl) return;
 
@@ -579,23 +623,34 @@
       : null;
     stageEl.textContent = stageObj ? stageObj.display_name : (stageId || phaseDisplayLabel(phase));
     activityEl.textContent = data.activity || '';
-    if (statsEl) statsEl.textContent = formatPhaseStats(data);
 
-    // Prefer prompt-eval / generation percentages when present —
-    // they're the most accurate signal we have. Otherwise fall back
-    // to the phase table.
-    let target = PHASE_PROGRESS[phase];
-    if (data.prompt_eval && data.prompt_eval.total) {
+    // Seed the elapsed clock from this event and paint now; the interval
+    // keeps "Xs" advancing between (often sparse) phase events.
+    startPhaseClock(data);
+    renderPhaseStatsLive();
+
+    if (phaseHasLiveStats(data)) {
+      // Quantitative signal (token rate / prompt-eval) → determinate fill.
+      setStripIndeterminate(false);
+      let target = PHASE_PROGRESS[phase];
       const pe = data.prompt_eval;
-      const pct = Math.min(100, Math.round((pe.processed / pe.total) * 100));
-      // Map 0-100% prompt-eval into the 30-65 band of the strip so it
-      // visually sits between "running" and "generation".
-      target = 30 + (pct * 0.35);
-    }
-    if (target == null) return;
-    if (target > _phaseLastWidth) {
-      _phaseLastWidth = target;
-      fillEl.style.width = target + '%';
+      if (pe && pe.total) {
+        const pct = Math.min(100, Math.round((pe.processed / pe.total) * 100));
+        // Map 0-100% prompt-eval into the 30-65 band of the strip.
+        target = 30 + (pct * 0.35);
+      }
+      if (target == null) return;
+      if (target > _phaseLastWidth) {
+        _phaseLastWidth = target;
+        fillEl.style.width = target + '%';
+      }
+    } else {
+      // No per-unit progress (a single blocking LLM call) → an honest
+      // indeterminate animation beats a frozen determinate fill. Clear any
+      // inline width so the animation's CSS-driven width takes effect.
+      setStripIndeterminate(true);
+      fillEl.style.width = '';
+      _phaseLastWidth = 0;
     }
   }
 
@@ -635,6 +690,14 @@
   function hideProgressStrip() {
     const strip = document.getElementById('wiz-progress-strip');
     if (strip) strip.hidden = true;
+    // Single teardown for every hide path (phase `done`, pipeline terminal,
+    // clearBusy): stop the elapsed ticker and reset the bar so the next run
+    // starts clean (no leftover inline width fighting the indeterminate anim).
+    stopPhaseClock();
+    setStripIndeterminate(false);
+    const fillEl = document.getElementById('wiz-progress-bar-fill');
+    if (fillEl) fillEl.style.width = '';
+    _phaseLastWidth = 0;
   }
 
   // Busy indicator for synchronous, non-streaming AI actions (e.g. the
