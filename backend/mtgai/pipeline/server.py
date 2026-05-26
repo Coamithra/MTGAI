@@ -3223,6 +3223,176 @@ async def wizard_archetypes_save(request: Request) -> JSONResponse:
 
 
 # ---------------------------------------------------------------------------
+# Constraints — the themed matrix, reviewed on the (folded) Skeleton tab
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/wizard/constraints/state")
+async def wizard_constraints_state() -> JSONResponse:
+    """First-paint state for the Skeleton tab's constraints review surface.
+
+    The ``constraints`` stage has no standalone tab — the Skeleton tab owns its
+    review. Returns the structured seed (``skeleton.json`` slots) for the
+    *before* view, the themed matrix (``constraints.json`` slots) for the
+    *after* view, plus the skeleton + constraints stage statuses (the latter
+    drives the review/save controls).
+    """
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    settings = project.settings
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    skeleton = _read_json(asset / "skeleton.json", {})
+    raw_seed = skeleton.get("slots") if isinstance(skeleton, dict) else None
+    seed: list[dict] = []
+    for s in raw_seed or []:
+        if isinstance(s, dict):
+            seed.append(
+                {
+                    "slot_id": s.get("slot_id"),
+                    "color": s.get("color"),
+                    "rarity": s.get("rarity"),
+                    "card_type": s.get("card_type"),
+                    "cmc_target": s.get("cmc_target"),
+                    "mechanic_tag": s.get("mechanic_tag"),
+                    "signpost_for": s.get("signpost_for"),
+                    "reserved_card": s.get("reserved_card"),
+                }
+            )
+
+    matrix_doc = _read_json(asset / "constraints.json", {})
+    matrix = matrix_doc.get("slots") if isinstance(matrix_doc, dict) else None
+    matrix = matrix if isinstance(matrix, list) else []
+
+    try:
+        theme = _read_json(_theme_path(), None)
+    except NoAssetFolderError:
+        theme = None
+
+    return JSONResponse(
+        {
+            "seed": seed,
+            "matrix": matrix,
+            "has_matrix": bool(matrix),
+            "set_params": settings.set_params.model_dump(),
+            "theme_summary": _theme_summary(theme),
+            "model_id": settings.get_llm_model_id("constraints"),
+            "skeleton_status": _stage_status_in_state("skeleton"),
+            "constraints_status": _stage_status_in_state("constraints"),
+        }
+    )
+
+
+@router.post("/api/wizard/constraints/refresh")
+async def wizard_constraints_refresh() -> JSONResponse:
+    """Re-derive the themed matrix (Pass 1 relabel + Pass 2 request placement).
+
+    A full re-roll: overwrites ``constraints.json``. Also the §13 recovery path
+    when the stage produced nothing. Holds the AI lock; 409 + busy payload when
+    another AI action is in flight.
+    """
+    from mtgai.generation.constraint_deriver import derive_constraints
+
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    with ai_lock.hold("Constraint derivation") as acquired:
+        if not acquired:
+            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+        try:
+            result = await asyncio.to_thread(derive_constraints)
+        except Exception as exc:
+            logger.exception("Constraint refresh failed")
+            return JSONResponse({"error": str(exc)}, status_code=500)
+        atomic_write_text(
+            asset / "constraints.json",
+            json.dumps(result, indent=2, ensure_ascii=False),
+        )
+
+    return JSONResponse(
+        {"success": True, "matrix": result["slots"], "model_id": result.get("model_id")}
+    )
+
+
+@router.post("/api/wizard/constraints/save")
+async def wizard_constraints_save(request: Request) -> JSONResponse:
+    """Persist the reviewed matrix and report the next stage.
+
+    Body: ``{slots: [{slot_id, blob, reserved_card}]}`` — the matrix with any
+    inline edits. Validates every slot has a non-empty blob, merges into the
+    existing ``constraints.json`` (preserving model_id / cost metadata), and
+    returns ``{success, navigate_to}`` pointing at the stage that follows
+    ``constraints`` (``reprints``). The client follows up with
+    ``POST /api/wizard/advance``. No AI lock — a pure disk write.
+    """
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+    raw = body.get("slots")
+    if not isinstance(raw, list) or not raw:
+        return JSONResponse({"error": "slots must be a non-empty list"}, status_code=400)
+
+    slots: list[dict] = []
+    for s in raw:
+        if not isinstance(s, dict):
+            return JSONResponse({"error": "each slot must be an object"}, status_code=400)
+        sid = str(s.get("slot_id") or "").strip()
+        blob = str(s.get("blob") or "").strip()
+        if not sid or not blob:
+            return JSONResponse(
+                {"error": f"slot {sid or '?'} needs a non-empty blob"}, status_code=400
+            )
+        rc = s.get("reserved_card")
+        rc = str(rc).strip() if rc else ""
+        slots.append({"slot_id": sid, "blob": blob, "reserved_card": rc or None})
+
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    existing = _read_json(asset / "constraints.json", {})
+    doc = existing if isinstance(existing, dict) else {}
+    doc["slots"] = slots
+    doc.setdefault("seed_slot_count", len(slots))
+    atomic_write_text(asset / "constraints.json", json.dumps(doc, indent=2, ensure_ascii=False))
+    logger.info("Constraints save: %d slots → %s", len(slots), asset / "constraints.json")
+
+    c_idx = next(
+        (i for i, d in enumerate(STAGE_DEFINITIONS) if d["stage_id"] == "constraints"), -1
+    )
+    next_id = (
+        STAGE_DEFINITIONS[c_idx + 1]["stage_id"]
+        if 0 <= c_idx < len(STAGE_DEFINITIONS) - 1
+        else None
+    )
+    return JSONResponse(
+        {
+            "success": True,
+            "matrix": slots,
+            "navigate_to": f"/pipeline/{next_id}" if next_id else "/pipeline",
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # API routes
 # ---------------------------------------------------------------------------
 

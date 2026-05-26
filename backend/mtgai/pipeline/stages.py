@@ -578,6 +578,92 @@ def run_skeleton(
     )
 
 
+def run_constraints(
+    progress_cb: ProgressCallback | None,
+    emitter: StageEmitter,
+) -> StageResult:
+    """Relabel the seed skeleton into a themed, free-text constraint matrix.
+
+    Runs between ``skeleton`` and ``reprints``. Reads the seed
+    ``skeleton.json`` + ``theme.json`` + ``mechanics/approved.json`` +
+    ``archetypes.json``, runs two LLM passes (relabel-in-place, then assign
+    ``card_requests`` to slots), and writes the fluffy matrix to
+    ``<set>/constraints.json`` keyed by ``slot_id``. Card generation reads
+    this matrix per slot (falling back to the structured skeleton when
+    absent). The seed ``skeleton.json`` is left untouched so ``reprints`` /
+    ``lands`` keep reading the structured shape.
+    """
+    from mtgai.generation.constraint_deriver import derive_constraints, render_seed_matrix
+    from mtgai.runtime import ai_lock
+
+    set_dir = _set_dir()
+    skeleton_path = set_dir / "skeleton.json"
+    if not skeleton_path.exists():
+        return StageResult(
+            success=False,
+            error_message=f"skeleton.json not found: {skeleton_path}. Run Skeleton first.",
+        )
+    seed = json.loads(skeleton_path.read_text(encoding="utf-8"))
+    seed_slots = seed.get("slots") or []
+
+    emitter.init_sections(
+        [
+            {"section_id": "overview", "title": "Constraint Derivation", "content_type": "kv"},
+            {"section_id": "matrix", "title": "Seed → Themed Matrix", "content_type": "table"},
+        ]
+    )
+    emitter.phase("running", "Relabeling the skeleton to fit the set")
+
+    with ai_lock.hold("Constraint derivation") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+        try:
+            result = derive_constraints()
+        except Exception as exc:
+            logger.exception("Constraint derivation failed")
+            return StageResult(success=False, error_message=str(exc))
+
+        matrix = result["slots"]
+        atomic_write_text(
+            set_dir / "constraints.json",
+            json.dumps(result, indent=2, ensure_ascii=False),
+        )
+
+    # Before/after table: seed descriptor (minus slot_id) vs the themed blob.
+    seed_by_id = {s["slot_id"]: s for s in seed_slots}
+    rows: list[list[str]] = [["Slot", "Seed", "Themed", "Req"]]
+    for m in matrix:
+        sid = m["slot_id"]
+        s = seed_by_id.get(sid)
+        seed_desc = render_seed_matrix([s]).split(" | ", 1)[-1] if s else ""
+        rows.append([sid, seed_desc, m["blob"], "★" if m.get("reserved_card") else ""])
+    emitter.update("matrix", status="done", content={"rows": rows, "scrollable": True})
+
+    placed = sum(1 for m in matrix if m.get("reserved_card"))
+    emitter.update(
+        "overview",
+        status="done",
+        content={
+            "Slots": str(len(matrix)),
+            "Requests placed": str(placed),
+            "Model": result.get("model_id", "?"),
+            "Tokens": f"{result.get('input_tokens', 0)} in / {result.get('output_tokens', 0)} out",
+            "Cost": f"${result.get('cost_usd', 0.0):.4f}",
+        },
+    )
+    emitter.phase("done", f"Themed {len(matrix)} slots, placed {placed} requests")
+    logger.info("Constraint matrix: %d slots, %d requests placed", len(matrix), placed)
+    return StageResult(
+        total_items=len(matrix),
+        completed_items=len(matrix),
+        cost_usd=result.get("cost_usd", 0.0),
+        detail=f"Themed {len(matrix)} slots, placed {placed} requests",
+    )
+
+
 def run_reprints(
     progress_cb: ProgressCallback | None,
     emitter: StageEmitter,
@@ -849,7 +935,15 @@ def run_balance(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
 
 
 def run_skeleton_rev(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Run skeleton revision based on balance findings."""
+    """Run skeleton revision based on balance findings.
+
+    Re-scoped (card 69f9d1ef): the heavy theme/constraints/requests application
+    now happens up front in the ``constraints`` stage (pre-generation), so this
+    post-balance pass is a lighter "did anything slip through?" double-check on
+    the generated cards rather than the place TRC is first honored. Its prompt
+    is still the legacy balance-driven reviser; the theme-first prompt rework is
+    tracked separately on card 6a13f98e.
+    """
     from mtgai.generation.skeleton_reviser import run_revision
 
     result = run_revision()
@@ -1034,6 +1128,7 @@ STAGE_RUNNERS = {
     "mechanics": run_mechanics,
     "archetypes": run_archetypes,
     "skeleton": run_skeleton,
+    "constraints": run_constraints,
     "reprints": run_reprints,
     "lands": run_lands,
     "card_gen": run_card_gen,
@@ -1132,6 +1227,17 @@ def clear_skeleton() -> None:
     _remove_path(_set_dir() / "skeleton.json")
 
 
+def clear_constraints() -> None:
+    """Wipe the themed constraint matrix + its logs.
+
+    Owns ``constraints.json`` and the ``constraints/`` log directory.
+    Cascading from a Skeleton / Archetypes / Mechanics / Theme edit drops
+    the matrix so the next run re-derives it from the new seed.
+    """
+    _remove_path(_set_dir() / "constraints.json")
+    _remove_path(_set_dir() / "constraints")
+
+
 def clear_reprints() -> None:
     _remove_path(_set_dir() / "reprint_selection.json")
 
@@ -1171,6 +1277,7 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
     "mechanics": clear_mechanics,
     "archetypes": clear_archetypes,
     "skeleton": clear_skeleton,
+    "constraints": clear_constraints,
     "reprints": clear_reprints,
     "lands": _no_artifacts,
     "card_gen": clear_card_gen,

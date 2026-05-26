@@ -1,0 +1,7 @@
+Assign each requested card below to the single best-fitting slot in the themed matrix, and rewrite that slot's blob to become that card. Each request goes to exactly one slot_id; no two requests share a slot. Return all {request_count} assignments through the tool.
+
+## Requested cards ({request_count})
+{card_requests}
+
+## Themed matrix ({slot_count} slots)
+{matrix_blobs}

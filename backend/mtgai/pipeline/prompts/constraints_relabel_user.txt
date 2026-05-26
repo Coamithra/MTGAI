@@ -1,0 +1,7 @@
+Here is the SEED SKELETON — {slot_count} slots, one per line, in the form:
+
+  slot_id | color | rarity | type | CMC | complexity-tier [| signpost: PAIR] [| seed-note]
+
+Relabel every slot so the set reads as this setting, honoring the mechanic floors/caps and the deviation hazards. Return all {slot_count} slots through the tool, each with its original `slot_id` and a free-text `blob`. Preserve the seed's overall shape except where the setting demands a bold, deliberate deviation.
+
+{seed_matrix}

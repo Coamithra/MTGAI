@@ -155,6 +155,56 @@ committing a field:
   stage tab, reviewed directly — the model emits only the matrix, no narration.
 
 ## Out of scope
-- Re-scoping / moving the post-gen `skeleton_rev` (tracked on `69f9d1ef`).
-- Actually authoring the pass-1/pass-2 prompts (needs a real `approved.json`).
 - Booster/print rarity-legality enforcement (later phase; see rarity tripwire).
+- Full prompt rework of the post-gen `skeleton_rev` reviser to be theme-first
+  (tracked separately on `6a13f98e`); here it is only re-scoped + documented as
+  a lighter "did anything slip?" double-check.
+
+## Implementation (feat/constraints-stage — as built)
+
+Decided with the user when picking up the card:
+- **Full free-text matrix** (the north-star above), with the color batcher kept
+  but driven by a **cheap LLM grouping pass** over the blobs (programmatic
+  grouping on free text won't work; an LLM groups fine).
+- The seed-vs-tweaked review UI is **folded into the Skeleton tab** (one bespoke
+  tab shows seed + tweaked + refresh + progress), not a separate Constraints tab.
+- `skeleton_rev` **kept, re-scoped** to a lighter post-balance double-check.
+
+### Artifacts + join key
+`slot_id` is the stable join key. `skeleton.json` stays the structured seed
+(unchanged), so `reprints` (reads structure, writes its own `reprint_selection.json`)
+and `lands` (independent) are untouched. The constraints stage writes a parallel
+**`constraints.json`** = the fluffy matrix:
+```
+{ "model_id", "cost_usd", "seed_slot_count",
+  "slots": [ {"slot_id": "W-C-01", "blob": "<free-text relabel>", "reserved_card": null}, … ] }
+```
+
+### Backend
+- `mtgai/generation/constraint_deriver.py` (NEW, mirrors `archetype_generator.py`):
+  `derive_constraints()` orchestrates Pass 1 (`relabel_matrix` — seed lines in,
+  N blobs out, reconciled by slot_id) + Pass 2 (`assign_requests` — card_requests
+  → slot_id, blob rewritten to fold the request in). `load_constraints_matrix()`
+  loader. `llm_group_slots()` = the LLM color-batcher used by card-gen.
+- Prompts in `mtgai/pipeline/prompts/`: `constraints_relabel_{system,user}.txt`,
+  `constraints_assign_{system,user}.txt` (NEW — the existing `constraints_system.txt`
+  is the theme-extractor's prose→constraints stub; left alone).
+- `pipeline/stages.py`: `run_constraints` (reads skeleton/theme/approved/archetypes,
+  derives under `ai_lock`, writes `constraints.json`, emits before/after sections) +
+  `clear_constraints`. Registered in `STAGE_RUNNERS` / `STAGE_CLEARERS`.
+- `pipeline/models.py`: `constraints` stage after `skeleton`, before `reprints`
+  (review_eligible, default break-point on so the Skeleton tab can review the matrix).
+- `settings/model_settings.py`: `constraints` → `sonnet` in `DEFAULT_LLM_ASSIGNMENTS`
+  + recommended preset (the batcher reuses the same model).
+- card-gen consumption: `card_generator` loads `constraints.json` when present and
+  builds per-slot prompts from the blob (`prompts.format_fluffy_specs`), grouping via
+  `llm_group_slots`; **falls back to the structured `format_slot_specs` +
+  `group_slots_into_batches` path when absent** (backward-compat for old sets/tests).
+
+### Frontend
+- `wizard.py compute_visible_tabs`: suppress the standalone `constraints` tab.
+- `wizard_skeleton.js` (NEW, mirrors `wizard_archetypes.js`): bespoke Skeleton tab —
+  seed slot table + tweaked matrix (changed cells highlighted), editable blobs,
+  section Refresh AI (re-runs constraints, indeterminate `showBusy`), Save & Continue
+  (advances past constraints).
+- `pipeline/server.py`: `/api/wizard/constraints/{state,refresh,save}`.

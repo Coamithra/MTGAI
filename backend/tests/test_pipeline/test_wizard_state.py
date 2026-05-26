@@ -120,9 +120,31 @@ def test_fully_complete_shows_every_stage():
         stage.status = StageStatus.COMPLETED
     state.overall_status = PipelineStatus.COMPLETED
     tabs = compute_visible_tabs(state=state, theme={"code": "TST"})
-    expected_count = 2 + len(state.stages)
+    tab_ids = [t.id for t in tabs]
+    # ``constraints`` has no standalone tab — it folds into the Skeleton tab.
+    # Every other stage gets one, plus project + theme.
+    assert "constraints" not in tab_ids
+    expected_count = 2 + len(state.stages) - 1
     assert len(tabs) == expected_count
     assert tabs[-1].id == state.stages[-1].stage_id
+
+
+def test_constraints_status_folds_onto_skeleton_tab():
+    """The tab-less constraints stage mirrors its status onto the Skeleton tab."""
+    state = _state_for()
+    for stage in state.stages:
+        if stage.stage_id in ("mechanics", "archetypes", "skeleton"):
+            stage.status = StageStatus.COMPLETED
+        elif stage.stage_id == "constraints":
+            stage.status = StageStatus.PAUSED_FOR_REVIEW
+    tabs = compute_visible_tabs(state=state, theme={"code": "TST"})
+    tab_ids = [t.id for t in tabs]
+    assert "constraints" not in tab_ids
+    skeleton_tab = next(t for t in tabs if t.id == "skeleton")
+    # The Skeleton tab pill shows the constraints status, not skeleton's.
+    assert skeleton_tab.status == StageStatus.PAUSED_FOR_REVIEW.value
+    # Skeleton is the rightmost (latest) visible tab while constraints reviews.
+    assert tabs[-1].id == "skeleton"
 
 
 # ----------------------------------------------------------------------
@@ -219,10 +241,10 @@ def test_serialize_round_trips_visible_tabs(sets_root):
     assert blob["theme"] == {"code": "TST"}
     # The canonical stage list is always present (even pre-kickoff, when
     # pipeline_state is None) so footers can name an upcoming stage. It
-    # mirrors STAGE_DEFINITIONS order: mechanics → archetypes → skeleton
-    # (visual_refs moved down to just before art_prompts).
+    # mirrors STAGE_DEFINITIONS order: mechanics → archetypes → skeleton →
+    # constraints (visual_refs moved down to just before art_prompts).
     stage_ids = [s["id"] for s in blob["stage_definitions"]]
-    assert stage_ids[:4] == ["mechanics", "archetypes", "skeleton", "reprints"]
+    assert stage_ids[:4] == ["mechanics", "archetypes", "skeleton", "constraints"]
     assert blob["stage_definitions"][0]["name"] == "Mechanic Generation"
     # visual_refs now sits immediately before art_prompts.
     assert stage_ids[stage_ids.index("visual_refs") + 1] == "art_prompts"

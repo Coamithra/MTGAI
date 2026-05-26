@@ -188,6 +188,20 @@ def format_slot_specs(
     lines: list[str] = [f"Generate exactly {len(slots)} card(s):\n"]
 
     for i, slot in enumerate(slots, 1):
+        # Themed-matrix path (constraints stage): the slot's spec is the
+        # LLM-relabeled free-text blob — color/rarity/type/mechanic/archetype
+        # are all prose in it, so we emit it verbatim instead of rebuilding a
+        # structured line. ``reserved_card`` is repeated explicitly in case the
+        # blob didn't fold the request in.
+        blob = (slot.get("_blob") or "").strip()
+        if blob:
+            spec = f"Card {i}: {blob}"
+            reserved = (slot.get("reserved_card") or "").strip()
+            if reserved:
+                spec += f"\n   REQUESTED CARD — design this slot as: {reserved}"
+            lines.append(spec)
+            continue
+
         color = slot["color"]
         color_name = _expand_color(color)
         rarity = slot["rarity"]

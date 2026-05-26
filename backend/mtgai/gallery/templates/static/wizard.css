@@ -1436,3 +1436,79 @@
 .wiz-arch-locked button:disabled {
   cursor: not-allowed;
 }
+
+/* ----------------------------------------------------------------------
+   Skeleton tab — seed skeleton + LLM-tweaked themed matrix (constraints)
+   ---------------------------------------------------------------------- */
+.wiz-skel-loading { color: #888; font-style: italic; padding: 1rem 0; }
+.wiz-skel-blurb { color: #999; font-size: 0.82rem; margin: 0.1rem 0 0.6rem; line-height: 1.4; }
+.wiz-skel-context {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.75rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+.wiz-skel-context dt { color: #888; }
+.wiz-skel-context dd { margin: 0; color: #ddd; }
+.wiz-skel-theme-preview { font-size: 0.82rem; color: #aaa; margin-bottom: 0.25rem; }
+.wiz-skel-theme-preview summary { cursor: pointer; color: #bbb; }
+.wiz-skel-theme-text { margin-top: 0.4rem; line-height: 1.45; color: #aaa; white-space: pre-wrap; }
+
+.wiz-skel-grid { margin: 1rem 0; }
+.wiz-skel-empty {
+  padding: 2rem;
+  text-align: center;
+  color: #888;
+  font-style: italic;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed #2a2a3e;
+  border-radius: 6px;
+}
+.wiz-skel-table { display: flex; flex-direction: column; gap: 4px; }
+.wiz-skel-head, .wiz-skel-row {
+  display: grid;
+  grid-template-columns: 72px minmax(150px, 0.85fr) 1.5fr;
+  gap: 0.6rem;
+  align-items: start;
+}
+.wiz-skel-head {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  padding: 0 0.5rem 0.3rem;
+  border-bottom: 1px solid #2a2a3e;
+  position: sticky;
+  top: 0;
+  background: #0d0d18;
+  z-index: 1;
+}
+.wiz-skel-row {
+  padding: 0.45rem 0.5rem;
+  background: #15151f;
+  border: 1px solid #2a2a3e;
+  border-radius: 6px;
+}
+.wiz-skel-row--req { border-color: #c9a23788; background: #1a1710; }
+.wiz-skel-slotid { font-family: monospace; font-size: 0.78rem; color: #c8c8d4; font-weight: 600; }
+.wiz-skel-seed { font-size: 0.78rem; color: #9a9aa6; line-height: 1.35; }
+.wiz-skel-themed { display: flex; flex-direction: column; gap: 0.3rem; }
+.wiz-skel-reqbadge { font-size: 0.72rem; color: #e0c463; }
+.wiz-skel-blob {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.55rem;
+  background: #0d0d18;
+  border: 1px solid #2a2a3e;
+  border-radius: 4px;
+  color: #e8e8f0;
+  font-size: 0.82rem;
+  font-family: inherit;
+  line-height: 1.4;
+  resize: vertical;
+}
+.wiz-skel-blob:focus { outline: none; border-color: #4a9eff; }
+.wiz-skel-locked { opacity: 0.85; }
+.wiz-skel-locked .wiz-skel-blob:disabled,
+.wiz-skel-locked button:disabled { cursor: not-allowed; }

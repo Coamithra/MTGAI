@@ -71,6 +71,7 @@ DEFAULT_LLM_ASSIGNMENTS: dict[str, str] = {
     "theme_extract": "haiku",
     "mechanics": "sonnet",
     "archetypes": "sonnet",
+    "constraints": "sonnet",
     "visual_refs": "sonnet",
     "reprints": "haiku",
     "lands": "haiku",
@@ -97,6 +98,9 @@ DEFAULT_EFFORT: dict[str, str] = {
 DEFAULT_BREAK_POINTS: dict[str, str] = {
     "theme_extract": "review",
     "mechanics": "review",
+    # Pause after the themed matrix is derived so the user reviews it on the
+    # Skeleton tab before reprints/card-gen consume it. Auto-toggleable.
+    "constraints": "review",
     "human_card_review": "review",
     "human_art_review": "review",
     "human_final_review": "review",
@@ -126,6 +130,7 @@ PRESETS: dict[str, dict] = {
             "theme_extract": "haiku",
             "mechanics": "sonnet",
             "archetypes": "sonnet",
+            "constraints": "sonnet",
             "visual_refs": "sonnet",
             "reprints": "haiku",
             "card_gen": "opus",

@@ -36,6 +36,10 @@ logger = logging.getLogger(__name__)
 
 PROJECT_TAB_ID = "project"
 THEME_TAB_ID = "theme"
+SKELETON_TAB_ID = "skeleton"
+# The constraints stage has no standalone tab — its review surface (seed vs
+# themed matrix) is folded into the Skeleton tab.
+CONSTRAINTS_STAGE_ID = "constraints"
 
 
 @dataclass
@@ -160,6 +164,11 @@ def compute_visible_tabs(
         if latest_idx >= 0:
             for idx in range(latest_idx + 1):
                 stage = state.stages[idx]
+                # ``constraints`` has no standalone tab — its review surface is
+                # folded into the Skeleton tab. Skip it here; its status is
+                # mirrored onto the Skeleton tab's pill below.
+                if stage.stage_id == CONSTRAINTS_STAGE_ID:
+                    continue
                 tabs.append(
                     WizardTab(
                         id=stage.stage_id,
@@ -168,7 +177,25 @@ def compute_visible_tabs(
                         status=stage.status.value,
                     )
                 )
+        _fold_constraints_status(state, tabs)
     return tabs
+
+
+def _fold_constraints_status(state: PipelineState, tabs: list[WizardTab]) -> None:
+    """Mirror the (tab-less) ``constraints`` stage status onto the Skeleton tab.
+
+    The Skeleton tab owns the constraints review surface, so once the
+    constraints stage has started its status — not skeleton's — is the one the
+    user should see on the Skeleton tab's pill (running while the matrix is
+    derived, paused_for_review when it's ready to review, completed after).
+    """
+    constraints = next((s for s in state.stages if s.stage_id == CONSTRAINTS_STAGE_ID), None)
+    if constraints is None or constraints.status == StageStatus.PENDING:
+        return
+    for tab in tabs:
+        if tab.id == SKELETON_TAB_ID:
+            tab.status = constraints.status.value
+            return
 
 
 def compute_latest_tab(tabs: list[WizardTab]) -> str:
