@@ -114,12 +114,13 @@ curve checks) **moves into the prompt — but as data, not prose.**
 - **Mechanics = floors + caps, not full assignment.** Tag only enough slots
   with a named mechanic to hit each mechanic's minimum; cap the max; leave the
   rest open-menu. Kills monoculture + orphans without killing variance.
-- **Techniques:** emit a short *directives preamble first* (how it read the
-  constraints into distribution shifts — the human-inspectable artifact we
-  review *instead of* validating the matrix), then the matrix. Anchor format +
-  boldness with 1–2 few-shots (one themed rewrite, one bold deviation). The #1
-  failure mode is **timidity** (returning a near-identical matrix); counter by
-  framing the seed as generic/bland and forcing the directives commitment.
+- **Techniques:** the model emits just the relabeled matrix (no preamble). The
+  review surface is the **full matrix rendered in the stage tab** — a human
+  reads the slots directly, so we never need the model to narrate its own
+  reasoning. Anchor format + boldness with 1–2 few-shots (one themed rewrite,
+  one bold deviation). The #1 failure mode is **timidity** (returning a
+  near-identical matrix); counter by framing the seed as generic/bland and by
+  the few-shot bold-deviation example.
 
 Worked example (format + taste):
 ```
@@ -144,11 +145,14 @@ committing a field:
   "count rarities, flag if off" pass (or, only then, promote rarity to a
   structured field).
 
-## Open decisions
-- Pass 1 directives preamble: free text vs lightly structured (for the review
-  surface)?
-- How hard a floor on "playability" rules (min creature density for limited)
-  vs letting color/curve skew freely?
+## Resolved decisions
+- **No playability floor.** The pass honors the count-only contract and nothing
+  else — no minimum creature density, no color/curve guardrails. If the
+  constraints push the LLM into a "broken" or unbalanced skeleton, let it; the
+  human reviews the matrix in the tab and the prose-level "seed is authoritative"
+  framing is the only nudge toward preservation.
+- **No directives preamble.** The review surface is the full matrix shown in the
+  stage tab, reviewed directly — the model emits only the matrix, no narration.
 
 ## Out of scope
 - Re-scoping / moving the post-gen `skeleton_rev` (tracked on `69f9d1ef`).
