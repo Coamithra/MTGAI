@@ -764,22 +764,6 @@ def generate_set(
     # file falls back to theme.draft_archetypes (None lets build_user_prompt do that).
     archetypes = load_archetypes(set_dir) or None
 
-    # Themed constraint matrix (constraints stage). When present, each slot's
-    # generation spec is the LLM-relabeled free-text blob; absent, card-gen
-    # falls back to the structured skeleton fields (older / pre-constraints sets).
-    from mtgai.generation.constraint_deriver import load_constraints_matrix
-
-    constraint_matrix = load_constraints_matrix(set_dir)
-    matrix_by_id: dict[str, dict] = (
-        {m["slot_id"]: m for m in constraint_matrix} if constraint_matrix else {}
-    )
-    for s in skeleton["slots"]:
-        m = matrix_by_id.get(s["slot_id"])
-        if m:
-            s["_blob"] = m.get("blob") or ""
-            if m.get("reserved_card"):
-                s["reserved_card"] = m["reserved_card"]
-
     logger.info(
         "Loaded: skeleton (%d slots), %d mechanics, theme '%s', %d archetypes",
         len(skeleton["slots"]),
@@ -833,24 +817,11 @@ def generate_set(
                 logger.warning("Could not load existing card: %s", p)
     logger.info("Loaded %d existing cards for set context", len(existing_cards))
 
-    # Group into batches. With a themed matrix, the seed's programmatic color
-    # key is gone (color is prose in the blob), so an LLM groups same-color /
-    # same-archetype siblings; otherwise the structured color-keyed batcher.
-    if matrix_by_id:
-        from mtgai.generation.constraint_deriver import llm_group_slots
-
-        group_model = require_active_project().settings.get_llm_model_id("constraints")
-        groups = llm_group_slots(
-            [{"slot_id": s["slot_id"], "blob": s.get("_blob", "")} for s in unfilled],
-            batch_size=BATCH_SIZE,
-            model=group_model,
-            log_dir=set_dir / "constraints" / "logs",
-        )
-        by_id = {s["slot_id"]: s for s in unfilled}
-        batches = [[by_id[sid] for sid in g if sid in by_id] for g in groups]
-        batches = [b for b in batches if b]
-    else:
-        batches = group_slots_into_batches(unfilled)
+    # Group into batches by color/pair. Slots carry the LLM-relabeled
+    # ``tweaked_text`` (Skeleton Generation) which format_slot_specs uses as the
+    # per-slot spec; the structured color stays the seed's, so the programmatic
+    # color-keyed batcher still groups siblings correctly.
+    batches = group_slots_into_batches(unfilled)
 
     logger.info("")
     logger.info("Planned: %d batches (%d cards)", len(batches), len(unfilled))

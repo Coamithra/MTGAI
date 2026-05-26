@@ -29,18 +29,6 @@
     customStageRenderers[stageId] = fn;
   };
 
-  // Stages folded into another tab: the folded stage's status + break point are
-  // what the host tab's header reflects. ``constraints`` has no standalone tab —
-  // its review surface lives on the Skeleton tab (see wizard_skeleton.js +
-  // wizard.compute_visible_tabs), so that tab's pill + "Stop after this step"
-  // toggle should track ``constraints``, not ``skeleton``.
-  const FOLDED_HOST = { skeleton: 'constraints' };
-  function foldedStage(state, stageId) {
-    const id = FOLDED_HOST[stageId];
-    if (!id || !state.pipeline) return null;
-    return state.pipeline.stages.find(s => s.stage_id === id) || null;
-  }
-
   // ------------------------------------------------------------------
   // Stage tab
   // ------------------------------------------------------------------
@@ -91,11 +79,6 @@
       }
     }
 
-    // The break-point toggle tracks the folded stage when there is one
-    // (constraints on the Skeleton tab) so "Stop after this step" gates the
-    // matrix review, not the deterministic skeleton pass. The Edit button stays
-    // bound to this tab's own stage — its cascade clears from here onward.
-    const bpStage = foldedStage(state, stage.stage_id) || stage;
     if (headerActions) {
       // Idempotent re-render: SSE-driven rerenders fire on every
       // stage_update / item_progress event. Replacing innerHTML on
@@ -104,28 +87,23 @@
       // a desired-state fingerprint covering both the break-point
       // toggle and the Edit button visibility.
       const fingerprint = JSON.stringify({
-        bp: !!state.breakPoints[bpStage.stage_id],
+        bp: !!state.breakPoints[stage.stage_id],
         editVisible: shouldShowEditButton(stage),
         editing,
       });
       if (headerActions.dataset.actionsFp !== fingerprint) {
-        headerActions.innerHTML = breakPointToggleHtml(bpStage, state)
+        headerActions.innerHTML = breakPointToggleHtml(stage, state)
           + editButtonHtml(stage);
         headerActions.dataset.actionsFp = fingerprint;
-        bindBreakPointToggle(headerActions, bpStage, state);
+        bindBreakPointToggle(headerActions, stage, state);
         bindEditButton(headerActions, tab, state);
       }
     }
 
     const pill = root.querySelector('.wiz-status-pill');
     if (pill) {
-      // Show the folded stage's status once it has started (so the Skeleton
-      // tab reads "running"/"paused for review" while the matrix is derived /
-      // reviewed); until then the skeleton stage's own status stands.
-      const folded = foldedStage(state, stage.stage_id);
-      const pillStatus = folded && folded.status !== 'pending' ? folded.status : stage.status;
-      pill.className = 'wiz-status-pill ' + pillStatus;
-      pill.textContent = pillStatus.replace(/_/g, ' ');
+      pill.className = 'wiz-status-pill ' + stage.status;
+      pill.textContent = stage.status.replace(/_/g, ' ');
     }
   }
 

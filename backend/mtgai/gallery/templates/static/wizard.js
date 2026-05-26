@@ -475,19 +475,6 @@
     stage.status = status;
     if (progress) stage.progress = progress;
 
-    // ``constraints`` has no standalone tab — its review surface is folded into
-    // the Skeleton tab (see compute_visible_tabs). Mirror its status onto the
-    // Skeleton tab's pill rather than appending a constraints tab (which would
-    // undo the server-side fold), then repaint the active tab so the folded
-    // Skeleton renderer reacts to the matrix landing / pausing.
-    if (stageId === 'constraints') {
-      const skelTab = state.tabs.find(t => t.id === 'skeleton');
-      if (skelTab && status !== 'pending') skelTab.status = status;
-      renderTabStrip();
-      rerenderActiveStageBody();
-      return;
-    }
-
     const tabIdx = state.tabs.findIndex(t => t.id === stageId);
     if (tabIdx >= 0) {
       state.tabs[tabIdx].status = status;

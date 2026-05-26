@@ -68,15 +68,16 @@ IMAGE_STAGE_NAMES: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 # Local-by-default (user policy): every stage defaults to the local Gemma model
-# so a fresh project — or any stage a project hasn't pinned (e.g. a newly-added
-# stage like ``constraints``) — never silently hits a paid cloud API. Opt into
-# cloud per-stage in Settings, or apply the ``recommended`` preset wholesale.
+# so a fresh project — or any stage an older project hasn't pinned (e.g.
+# Skeleton Generation's LLM relabel, absent from .mtg files predating it) —
+# never silently hits a paid cloud API. Opt into cloud per-stage in Settings,
+# or apply the ``recommended`` preset wholesale.
 _LOCAL_DEFAULT = "gemma4-26b-vram-dynamic"
 DEFAULT_LLM_ASSIGNMENTS: dict[str, str] = {
     "theme_extract": _LOCAL_DEFAULT,
     "mechanics": _LOCAL_DEFAULT,
     "archetypes": _LOCAL_DEFAULT,
-    "constraints": _LOCAL_DEFAULT,
+    "skeleton": _LOCAL_DEFAULT,
     "visual_refs": _LOCAL_DEFAULT,
     "reprints": _LOCAL_DEFAULT,
     "lands": _LOCAL_DEFAULT,
@@ -103,9 +104,9 @@ DEFAULT_EFFORT: dict[str, str] = {
 DEFAULT_BREAK_POINTS: dict[str, str] = {
     "theme_extract": "review",
     "mechanics": "review",
-    # Pause after the themed matrix is derived so the user reviews it on the
-    # Skeleton tab before reprints/card-gen consume it. Auto-toggleable.
-    "constraints": "review",
+    # Pause after Skeleton Generation so the user reviews the relabeled skeleton
+    # (default vs tweaked) before reprints/card-gen consume it. Auto-toggleable.
+    "skeleton": "review",
     "human_card_review": "review",
     "human_art_review": "review",
     "human_final_review": "review",
@@ -135,7 +136,7 @@ PRESETS: dict[str, dict] = {
             "theme_extract": "haiku",
             "mechanics": "sonnet",
             "archetypes": "sonnet",
-            "constraints": "sonnet",
+            "skeleton": "sonnet",
             "visual_refs": "sonnet",
             "reprints": "haiku",
             "card_gen": "opus",
@@ -168,7 +169,7 @@ PRESETS: dict[str, dict] = {
             "theme_extract": "gemma4-26b-vram-dynamic",
             "mechanics": "gemma4-26b-vram-dynamic",
             "archetypes": "gemma4-26b-vram-dynamic",
-            "constraints": "gemma4-26b-vram-dynamic",
+            "skeleton": "gemma4-26b-vram-dynamic",
             "visual_refs": "gemma4-26b-vram-dynamic",
             "reprints": "gemma4-26b-vram-dynamic",
             "lands": "gemma4-26b-vram-dynamic",

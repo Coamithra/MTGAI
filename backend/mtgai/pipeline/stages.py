@@ -454,12 +454,25 @@ def run_skeleton(
     progress_cb: ProgressCallback | None,
     emitter: StageEmitter,
 ) -> StageResult:
-    """Generate the set skeleton."""
-    from mtgai.skeleton.generator import SetConfig, build_reserved_slots, generate_skeleton
+    """Generate the set skeleton: deterministic default → LLM relabel.
+
+    Two phases in one stage. First builds the deterministic, balanced *default*
+    skeleton from the project's set params. Then renders each slot to a one-line
+    descriptor and runs the LLM relabel (``skeleton_relabel.relabel_skeleton``):
+    Pass 1 rewrites every descriptor to fit the theme / constraints / mechanics,
+    Pass 2 places ``card_requests`` onto slots. The rewrite is stored per slot as
+    ``tweaked_text`` (card generation's spec); the structured fields stay the
+    default so ``reprints`` / ``lands`` read them unchanged. The default skeleton
+    is saved before the LLM runs, so a relabel failure leaves a usable (un-themed)
+    skeleton the user can re-roll from the Skeleton tab.
+    """
+    from mtgai.generation.skeleton_relabel import relabel_skeleton
+    from mtgai.runtime import ai_lock
+    from mtgai.runtime.active_project import require_active_project
+    from mtgai.skeleton.generator import SetConfig, generate_skeleton, render_slot_string
 
     set_dir = _set_dir()
     theme_path = set_dir / "theme.json"
-
     if not theme_path.exists():
         return StageResult(
             success=False,
@@ -468,209 +481,99 @@ def run_skeleton(
 
     emitter.init_sections(
         [
-            {"section_id": "overview", "title": "Set Overview", "content_type": "kv"},
-            {"section_id": "rarity", "title": "Rarity Counts", "content_type": "table"},
-            {
-                "section_id": "colors",
-                "title": "Color Distribution",
-                "content_type": "table",
-            },
-            {"section_id": "types", "title": "Type Distribution", "content_type": "table"},
-            {"section_id": "reserved", "title": "Reserved Cards", "content_type": "table"},
-            {"section_id": "slots", "title": "Slot List", "content_type": "table"},
+            {"section_id": "overview", "title": "Skeleton Generation", "content_type": "kv"},
+            {"section_id": "slots", "title": "Default → Tweaked", "content_type": "table"},
         ]
     )
-    emitter.phase("running", "Generating skeleton")
+    emitter.phase("running", "Building the default skeleton")
 
     theme_data = json.loads(theme_path.read_text(encoding="utf-8"))
     config = SetConfig(**theme_data)
     # set_size + set_name are project parameters (settings.set_params), not
-    # theme.json content — theme.json no longer carries them, so SetConfig
-    # would otherwise fall back to its dev-set default (60) and size every set
-    # at 60 slots. Pull the real values from the active project.
-    from mtgai.runtime.active_project import require_active_project
-
+    # theme.json content — theme.json no longer carries them, so SetConfig would
+    # otherwise fall back to its dev-set default (60). Pull the real values.
     sp = require_active_project().settings.set_params
-    config = config.model_copy(
-        update={"set_size": sp.set_size, "name": sp.set_name or config.name}
-    )
-    emitter.update(
-        "overview",
-        status="done",
-        content={
-            "Set code": config.code,
-            "Set name": config.name,
-            "Size": str(config.set_size),
-            "Theme": (config.theme or "")[:120],
-        },
-    )
+    config = config.model_copy(update={"set_size": sp.set_size, "name": sp.set_name or config.name})
 
-    reserved_slots = build_reserved_slots(theme_data)
-    result = generate_skeleton(config, reserved_slots=reserved_slots)
-
-    # Save skeleton
+    # Phase 1: deterministic default. Save it immediately so a relabel failure
+    # still leaves a usable skeleton (card-gen falls back to render_slot_string).
+    result = generate_skeleton(config)
     skeleton_path = set_dir / "skeleton.json"
     skeleton_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(
         skeleton_path,
         json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
     )
-
-    rarity_rows = [["Rarity", "Count"]]
-    for r, n in result.balance_report.rarity_counts.items():
-        rarity_rows.append([r.title(), str(n)])
-    emitter.update("rarity", status="done", content={"rows": rarity_rows})
-
-    color_label: dict[str, str] = {
-        "W": "White",
-        "U": "Blue",
-        "B": "Black",
-        "R": "Red",
-        "G": "Green",
-        "multicolor": "Multicolor",
-        "colorless": "Colorless",
-    }
-    color_rows: list[list[str]] = [["Color", "Count"]]
-    for c, n in result.balance_report.color_counts.items():
-        color_rows.append([color_label.get(c, c), str(n)])
-    emitter.update("colors", status="done", content={"rows": color_rows})
-
-    type_rows: list[list[str]] = [["Type", "Count"]]
-    for t, n in sorted(
-        result.balance_report.type_counts.items(),
-        key=lambda kv: -kv[1],
-    ):
-        type_rows.append([t.title(), str(n)])
-    emitter.update("types", status="done", content={"rows": type_rows})
-
-    reserved_rows: list[list[str]] = [["Slot", "Requested Card"]]
-    for slot in result.slots:
-        if slot.reserved_card:
-            reserved_rows.append([slot.slot_id, slot.reserved_card])
-    emitter.update(
-        "reserved",
-        status="done",
-        content={"rows": reserved_rows, "scrollable": True},
-    )
-
-    slot_rows: list[list[str]] = [
-        ["Slot", "Color", "Rarity", "Type", "CMC", "Mechanic", "Signpost", "Reserved"]
-    ]
-    for slot in result.slots:
-        slot_rows.append(
-            [
-                slot.slot_id,
-                color_label.get(slot.color, slot.color),
-                slot.rarity[:1].upper(),
-                slot.card_type,
-                str(slot.cmc_target),
-                slot.mechanic_tag,
-                slot.signpost_for or "",
-                slot.reserved_card or "",
-            ]
-        )
-    emitter.update(
-        "slots",
-        status="done",
-        content={"rows": slot_rows, "scrollable": True},
-    )
-
     slot_count = len(result.slots)
-    emitter.phase(
-        "done",
-        f"Skeleton ready — {slot_count} slots",
-    )
-    logger.info("Skeleton generated: %d slots", slot_count)
-    return StageResult(
-        total_items=slot_count,
-        completed_items=slot_count,
-        detail=f"Generated skeleton with {slot_count} slots",
-    )
 
-
-def run_constraints(
-    progress_cb: ProgressCallback | None,
-    emitter: StageEmitter,
-) -> StageResult:
-    """Relabel the seed skeleton into a themed, free-text constraint matrix.
-
-    Runs between ``skeleton`` and ``reprints``. Reads the seed
-    ``skeleton.json`` + ``theme.json`` + ``mechanics/approved.json`` +
-    ``archetypes.json``, runs two LLM passes (relabel-in-place, then assign
-    ``card_requests`` to slots), and writes the fluffy matrix to
-    ``<set>/constraints.json`` keyed by ``slot_id``. Card generation reads
-    this matrix per slot (falling back to the structured skeleton when
-    absent). The seed ``skeleton.json`` is left untouched so ``reprints`` /
-    ``lands`` keep reading the structured shape.
-    """
-    from mtgai.generation.constraint_deriver import derive_constraints, render_seed_matrix
-    from mtgai.runtime import ai_lock
-
-    set_dir = _set_dir()
-    skeleton_path = set_dir / "skeleton.json"
-    if not skeleton_path.exists():
-        return StageResult(
-            success=False,
-            error_message=f"skeleton.json not found: {skeleton_path}. Run Skeleton first.",
-        )
-    seed = json.loads(skeleton_path.read_text(encoding="utf-8"))
-    seed_slots = seed.get("slots") or []
-
-    emitter.init_sections(
-        [
-            {"section_id": "overview", "title": "Constraint Derivation", "content_type": "kv"},
-            {"section_id": "matrix", "title": "Seed → Themed Matrix", "content_type": "table"},
-        ]
-    )
+    # Phase 2: LLM relabel + request placement.
     emitter.phase("running", "Relabeling the skeleton to fit the set")
-
-    with ai_lock.hold("Constraint derivation") as acquired:
+    with ai_lock.hold("Skeleton relabel") as acquired:
         if not acquired:
             return StageResult(
                 success=False,
                 error_message="Another AI action holds the lock; try again later.",
             )
         try:
-            result = derive_constraints()
+            relabel = relabel_skeleton(slots=[s.model_dump() for s in result.slots])
         except Exception as exc:
-            logger.exception("Constraint derivation failed")
-            return StageResult(success=False, error_message=str(exc))
+            logger.exception("Skeleton relabel failed")
+            return StageResult(
+                success=False,
+                error_message=(
+                    f"Default skeleton built ({slot_count} slots) but the relabel failed: {exc}. "
+                    "Re-roll from the Skeleton tab."
+                ),
+            )
 
-        matrix = result["slots"]
+        updates = relabel["updates"]
+        for slot in result.slots:
+            upd = updates.get(slot.slot_id)
+            if not upd:
+                continue
+            slot.tweaked_text = upd.get("tweaked_text")
+            if upd.get("reserved_card"):
+                slot.reserved_card = upd["reserved_card"]
         atomic_write_text(
-            set_dir / "constraints.json",
-            json.dumps(result, indent=2, ensure_ascii=False),
+            skeleton_path,
+            json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
         )
 
-    # Before/after table: seed descriptor (minus slot_id) vs the themed blob.
-    seed_by_id = {s["slot_id"]: s for s in seed_slots}
-    rows: list[list[str]] = [["Slot", "Seed", "Themed", "Req"]]
-    for m in matrix:
-        sid = m["slot_id"]
-        s = seed_by_id.get(sid)
-        seed_desc = render_seed_matrix([s]).split(" | ", 1)[-1] if s else ""
-        rows.append([sid, seed_desc, m["blob"], "★" if m.get("reserved_card") else ""])
-    emitter.update("matrix", status="done", content={"rows": rows, "scrollable": True})
+    # Default → Tweaked table (the diff the Skeleton tab renders richly).
+    changed = 0
+    placed = 0
+    slot_rows: list[list[str]] = [["Slot", "Default", "Tweaked", "Req"]]
+    for slot in result.slots:
+        default_text = render_slot_string(slot.model_dump())
+        tweaked_text = slot.tweaked_text or default_text
+        if tweaked_text != default_text:
+            changed += 1
+        if slot.reserved_card:
+            placed += 1
+        slot_rows.append(
+            [slot.slot_id, default_text, tweaked_text, "★" if slot.reserved_card else ""]
+        )
+    emitter.update("slots", status="done", content={"rows": slot_rows, "scrollable": True})
 
-    placed = sum(1 for m in matrix if m.get("reserved_card"))
     emitter.update(
         "overview",
         status="done",
         content={
-            "Slots": str(len(matrix)),
+            "Set": config.name or config.code,
+            "Slots": str(slot_count),
+            "Slots changed": str(changed),
             "Requests placed": str(placed),
-            "Model": result.get("model_id", "?"),
-            "Tokens": f"{result.get('input_tokens', 0)} in / {result.get('output_tokens', 0)} out",
-            "Cost": f"${result.get('cost_usd', 0.0):.4f}",
+            "Model": relabel.get("model_id", "?"),
+            "Cost": f"${relabel.get('cost_usd', 0.0):.4f}",
         },
     )
-    emitter.phase("done", f"Themed {len(matrix)} slots, placed {placed} requests")
-    logger.info("Constraint matrix: %d slots, %d requests placed", len(matrix), placed)
+    emitter.phase("done", f"Skeleton ready — {slot_count} slots, {changed} relabeled")
+    logger.info("Skeleton: %d slots, %d relabeled, %d requests placed", slot_count, changed, placed)
     return StageResult(
-        total_items=len(matrix),
-        completed_items=len(matrix),
-        cost_usd=result.get("cost_usd", 0.0),
-        detail=f"Themed {len(matrix)} slots, placed {placed} requests",
+        total_items=slot_count,
+        completed_items=slot_count,
+        cost_usd=relabel.get("cost_usd", 0.0),
+        detail=f"Skeleton: {slot_count} slots, {changed} relabeled, {placed} requests placed",
     )
 
 
@@ -948,7 +851,7 @@ def run_skeleton_rev(progress_cb: ProgressCallback | None, emitter: StageEmitter
     """Run skeleton revision based on balance findings.
 
     Re-scoped (card 69f9d1ef): the heavy theme/constraints/requests application
-    now happens up front in the ``constraints`` stage (pre-generation), so this
+    now happens up front in Skeleton Generation (the LLM relabel pass), so this
     post-balance pass is a lighter "did anything slip through?" double-check on
     the generated cards rather than the place TRC is first honored. Its prompt
     is still the legacy balance-driven reviser; the theme-first prompt rework is
@@ -1138,7 +1041,6 @@ STAGE_RUNNERS = {
     "mechanics": run_mechanics,
     "archetypes": run_archetypes,
     "skeleton": run_skeleton,
-    "constraints": run_constraints,
     "reprints": run_reprints,
     "lands": run_lands,
     "card_gen": run_card_gen,
@@ -1234,18 +1136,15 @@ def clear_visual_refs() -> None:
 
 
 def clear_skeleton() -> None:
-    _remove_path(_set_dir() / "skeleton.json")
+    """Wipe the skeleton + its relabel logs.
 
-
-def clear_constraints() -> None:
-    """Wipe the themed constraint matrix + its logs.
-
-    Owns ``constraints.json`` and the ``constraints/`` log directory.
-    Cascading from a Skeleton / Archetypes / Mechanics / Theme edit drops
-    the matrix so the next run re-derives it from the new seed.
+    Owns ``skeleton.json`` (default fields + ``tweaked_text``) and the
+    ``skeleton/`` log directory (the relabel-pass transcripts). Cascading from
+    an Archetypes / Mechanics / Theme edit drops it so the next run rebuilds the
+    default and re-relabels.
     """
-    _remove_path(_set_dir() / "constraints.json")
-    _remove_path(_set_dir() / "constraints")
+    _remove_path(_set_dir() / "skeleton.json")
+    _remove_path(_set_dir() / "skeleton")
 
 
 def clear_reprints() -> None:
@@ -1287,7 +1186,6 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
     "mechanics": clear_mechanics,
     "archetypes": clear_archetypes,
     "skeleton": clear_skeleton,
-    "constraints": clear_constraints,
     "reprints": clear_reprints,
     "lands": _no_artifacts,
     "card_gen": clear_card_gen,

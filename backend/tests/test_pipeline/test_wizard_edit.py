@@ -104,7 +104,7 @@ def _seed_state(code: str, *, overall_status: PipelineStatus) -> PipelineState:
 def test_preview_lists_completed_downstream_stages(client):
     _make_set("ASD", theme={"code": "ASD", "name": "Test"})
     state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
-    # Post-reorder: mechanics[0], archetypes[1]; skeleton/constraints/reprints
+    # Post-reorder: mechanics[0], archetypes[1]; skeleton/reprints/lands
     # are stages[2..4] (visual_refs moved down to just before art_prompts).
     state.stages[2].status = StageStatus.COMPLETED
     state.stages[2].progress.completed_items = 60
@@ -122,7 +122,7 @@ def test_preview_lists_completed_downstream_stages(client):
     data = resp.json()
     cleared_ids = [c["stage_id"] for c in data["cleared"]]
     # All three non-pending stages reported, in pipeline order.
-    assert cleared_ids[:3] == ["skeleton", "constraints", "reprints"]
+    assert cleared_ids[:3] == ["skeleton", "reprints", "lands"]
     # Item counts come through.
     assert data["cleared"][0]["item_count"] == 60
     # No theme.json wipe by default.
@@ -492,10 +492,10 @@ def test_resolve_edit_point_returns_stage_index():
     state = create_pipeline_state(
         PipelineConfig(set_code="ASD", set_name="ASD", set_size=20),
     )
-    # card_gen is the 7th stage (index 6) per STAGE_DEFINITIONS post-reorder:
-    # mechanics, archetypes, skeleton, constraints, reprints, lands, card_gen
+    # card_gen is the 6th stage (index 5) per STAGE_DEFINITIONS post-reorder:
+    # mechanics, archetypes, skeleton, reprints, lands, card_gen
     # (visual_refs moved down to just before art_prompts).
-    assert pipeline_server._resolve_edit_point("card_gen", state) == 6
+    assert pipeline_server._resolve_edit_point("card_gen", state) == 5
 
 
 def test_resolve_edit_point_raises_for_unknown_stage():

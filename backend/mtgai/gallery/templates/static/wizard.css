@@ -1438,7 +1438,7 @@
 }
 
 /* ----------------------------------------------------------------------
-   Skeleton tab — seed skeleton + LLM-tweaked themed matrix (constraints)
+   Skeleton tab — default skeleton vs LLM relabel (Skeleton Generation)
    ---------------------------------------------------------------------- */
 .wiz-skel-loading { color: #888; font-style: italic; padding: 1rem 0; }
 .wiz-skel-blurb { color: #999; font-size: 0.82rem; margin: 0.1rem 0 0.6rem; line-height: 1.4; }
@@ -1455,7 +1455,7 @@
 .wiz-skel-theme-preview summary { cursor: pointer; color: #bbb; }
 .wiz-skel-theme-text { margin-top: 0.4rem; line-height: 1.45; color: #aaa; white-space: pre-wrap; }
 
-.wiz-skel-grid { margin: 1rem 0; }
+.wiz-skel-grid { display: flex; flex-direction: column; gap: 6px; margin: 1rem 0; }
 .wiz-skel-empty {
   padding: 2rem;
   text-align: center;
@@ -1465,37 +1465,38 @@
   border: 1px dashed #2a2a3e;
   border-radius: 6px;
 }
-.wiz-skel-table { display: flex; flex-direction: column; gap: 4px; }
-.wiz-skel-head, .wiz-skel-row {
-  display: grid;
-  grid-template-columns: 72px minmax(150px, 0.85fr) 1.5fr;
-  gap: 0.6rem;
-  align-items: start;
-}
-.wiz-skel-head {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #888;
-  padding: 0 0.5rem 0.3rem;
-  border-bottom: 1px solid #2a2a3e;
-  position: sticky;
-  top: 0;
-  background: #0d0d18;
-  z-index: 1;
-}
 .wiz-skel-row {
-  padding: 0.45rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
   background: #15151f;
   border: 1px solid #2a2a3e;
+  border-left: 3px solid #2a2a3e;
   border-radius: 6px;
 }
-.wiz-skel-row--req { border-color: #c9a23788; background: #1a1710; }
+/* A relabeled slot gets a blue spine; a placed request a gold one. */
+.wiz-skel-row--changed { border-left-color: #4a9eff; }
+.wiz-skel-row-head { display: flex; align-items: baseline; gap: 0.5rem; }
 .wiz-skel-slotid { font-family: monospace; font-size: 0.78rem; color: #c8c8d4; font-weight: 600; }
-.wiz-skel-seed { font-size: 0.78rem; color: #9a9aa6; line-height: 1.35; }
-.wiz-skel-themed { display: flex; flex-direction: column; gap: 0.3rem; }
-.wiz-skel-reqbadge { font-size: 0.72rem; color: #e0c463; }
-.wiz-skel-blob {
+.wiz-skel-reqbadge {
+  font-size: 0.72rem;
+  color: #e0c463;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The default→tweaked word diff. */
+.wiz-skel-diff {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #888;
+  word-break: break-word;
+}
+.wiz-skel-eq { color: #9a9aa6; }
+.wiz-skel-del { color: #e8694a; text-decoration: line-through; opacity: 0.8; }
+.wiz-skel-ins { color: #6fcf7f; background: #6fcf7f22; border-radius: 2px; }
+.wiz-skel-tweak {
   width: 100%;
   box-sizing: border-box;
   padding: 0.4rem 0.55rem;
@@ -1508,7 +1509,7 @@
   line-height: 1.4;
   resize: vertical;
 }
-.wiz-skel-blob:focus { outline: none; border-color: #4a9eff; }
+.wiz-skel-tweak:focus { outline: none; border-color: #4a9eff; }
 .wiz-skel-locked { opacity: 0.85; }
-.wiz-skel-locked .wiz-skel-blob:disabled,
+.wiz-skel-locked .wiz-skel-tweak:disabled,
 .wiz-skel-locked button:disabled { cursor: not-allowed; }

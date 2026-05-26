@@ -146,12 +146,9 @@ class PipelineState(BaseModel):
 STAGE_DEFINITIONS: list[dict] = [
     {"stage_id": "mechanics", "display_name": "Mechanic Generation", "review_eligible": True},
     {"stage_id": "archetypes", "display_name": "Archetype Generation", "review_eligible": True},
+    # Skeleton Generation builds the deterministic default + runs the LLM
+    # relabel (theme/constraints/requests → tweaked_text per slot) in one stage.
     {"stage_id": "skeleton", "display_name": "Skeleton Generation", "review_eligible": True},
-    # constraints relabels the seed skeleton into the themed matrix. Its
-    # review surface is FOLDED into the Skeleton tab (see compute_visible_tabs),
-    # so it never gets a standalone tab — but it's a real engine stage with its
-    # own break point (default-on) so the pipeline pauses for the matrix review.
-    {"stage_id": "constraints", "display_name": "Constraint Derivation", "review_eligible": True},
     {"stage_id": "reprints", "display_name": "Reprint Selection", "review_eligible": True},
     {"stage_id": "lands", "display_name": "Land Generation", "review_eligible": False},
     {"stage_id": "card_gen", "display_name": "Card Generation", "review_eligible": True},

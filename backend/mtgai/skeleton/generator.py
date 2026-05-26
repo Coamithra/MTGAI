@@ -128,6 +128,48 @@ class SkeletonSlot(BaseModel):
     # for (one multicolor uncommon per pair, set by the default-matrix pass).
     # card-gen reads it to design the gold uncommon that defines the archetype.
     signpost_for: str | None = None
+    # The LLM-rewritten one-line descriptor for this slot — the deterministic
+    # default (``render_slot_string``) rewritten to fit the set's theme /
+    # constraints / requests during Skeleton Generation. ``None`` until the
+    # relabel pass runs; card generation reads it as the slot's spec, and the
+    # Skeleton tab diffs it against the default. The structured fields above
+    # stay the deterministic seed (so reprints/lands read them unchanged).
+    tweaked_text: str | None = None
+
+
+# Full color names for the human-readable one-line slot descriptor. WUBRG
+# singles plus the two pseudo-colors the matrix uses.
+_COLOR_FULL: dict[str, str] = {
+    "W": "White",
+    "U": "Blue",
+    "B": "Black",
+    "R": "Red",
+    "G": "Green",
+    "multicolor": "Multicolor",
+    "colorless": "Colorless",
+}
+
+
+def render_slot_string(slot: dict) -> str:
+    """Render a skeleton slot to its one-line descriptor.
+
+    ``"White · common · creature · CMC1 · vanilla"`` — the deterministic
+    default the Skeleton Generation stage hands to the LLM to rewrite, the
+    string card generation falls back to, and the left side of the Skeleton
+    tab's diff. Takes a slot dict (the on-disk / loaded shape) so stage runners
+    and endpoints can call it without rehydrating a ``SkeletonSlot``.
+    """
+    parts = [
+        _COLOR_FULL.get(slot.get("color", ""), slot.get("color") or "?"),
+        slot.get("rarity") or "?",
+        slot.get("card_type") or "?",
+        f"CMC{slot.get('cmc_target', '?')}",
+        slot.get("mechanic_tag") or "",
+    ]
+    descriptor = " · ".join(p for p in parts if p)
+    if slot.get("signpost_for"):
+        descriptor += f" · signpost:{slot['signpost_for']}"
+    return descriptor
 
 
 class ReservedSlotSpec(BaseModel):
