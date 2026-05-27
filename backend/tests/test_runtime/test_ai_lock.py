@@ -26,24 +26,28 @@ def test_idle_state():
 
 
 def test_try_acquire_publishes_action():
-    assert ai_lock.try_acquire("Theme extraction") is True
+    run_id = ai_lock.try_acquire("Theme extraction")
+    assert isinstance(run_id, int) and run_id >= 1
     try:
         action = ai_lock.current_action()
         assert action is not None
         assert action.name == "Theme extraction"
         assert action.log_path is None
+        assert ai_lock.current_run_id() == run_id
     finally:
         ai_lock.release()
 
 
-def test_try_acquire_returns_false_when_held():
-    assert ai_lock.try_acquire("first") is True
+def test_try_acquire_returns_none_when_held():
+    first_id = ai_lock.try_acquire("first")
+    assert isinstance(first_id, int) and first_id >= 1
     try:
-        assert ai_lock.try_acquire("second") is False
+        assert ai_lock.try_acquire("second") is None
         # The published action stays as the original holder.
         action = ai_lock.current_action()
         assert action is not None
         assert action.name == "first"
+        assert ai_lock.current_run_id() == first_id
     finally:
         ai_lock.release()
 
@@ -55,18 +59,21 @@ def test_release_clears_state():
     assert ai_lock.current_action() is None
 
 
-def test_hold_context_yields_true_on_success():
-    with ai_lock.hold("ctx") as ok:
-        assert ok is True
+def test_hold_context_yields_run_id_on_success():
+    with ai_lock.hold("ctx") as run_id:
+        assert isinstance(run_id, int) and run_id >= 1
         assert ai_lock.is_running() is True
+        assert ai_lock.current_run_id() == run_id
     assert ai_lock.is_running() is False
+    # Released runs report idle.
+    assert ai_lock.current_run_id() == 0
 
 
-def test_hold_context_yields_false_when_busy():
-    assert ai_lock.try_acquire("first") is True
+def test_hold_context_yields_none_when_busy():
+    assert ai_lock.try_acquire("first") is not None
     try:
-        with ai_lock.hold("second") as ok:
-            assert ok is False
+        with ai_lock.hold("second") as run_id:
+            assert run_id is None
             # The first holder is still the published action.
             action = ai_lock.current_action()
             assert action is not None
@@ -84,6 +91,81 @@ def test_request_cancel_sets_event_when_held():
     ai_lock.try_acquire("a")
     try:
         assert ai_lock.is_cancelled() is False
+        assert ai_lock.request_cancel() is True
+        assert ai_lock.is_cancelled() is True
+    finally:
+        ai_lock.release()
+
+
+def test_run_id_is_monotonic_across_acquires():
+    """Each acquire gets a strictly larger run_id; idle reports 0."""
+    assert ai_lock.current_run_id() == 0
+
+    first = ai_lock.try_acquire("a")
+    assert isinstance(first, int) and first >= 1
+    ai_lock.release()
+    assert ai_lock.current_run_id() == 0
+
+    second = ai_lock.try_acquire("b")
+    assert isinstance(second, int)
+    ai_lock.release()
+
+    third = ai_lock.try_acquire("c")
+    assert isinstance(third, int)
+    ai_lock.release()
+
+    assert first < second < third
+
+
+def test_request_cancel_with_matching_run_id_cancels():
+    """Passing the held run's id cancels it (same as the None path)."""
+    run_id = ai_lock.try_acquire("a")
+    assert run_id is not None
+    try:
+        assert ai_lock.request_cancel(run_id=run_id) is True
+        assert ai_lock.is_cancelled() is True
+    finally:
+        ai_lock.release()
+
+
+def test_stale_cancel_does_not_kill_a_newer_run():
+    """A cancel scoped to an old run_id is a no-op once a new run holds the lock.
+
+    This is the race the run_id guard closes: a cancel request captured
+    run A's id, but by the time it fires run A has released and run B has
+    acquired the lock reusing the same lock state. request_cancel(A) must
+    NOT abort B.
+    """
+    # Run A acquires, then releases (as if it finished naturally).
+    run_a = ai_lock.try_acquire("run A")
+    assert run_a is not None
+    ai_lock.release()
+
+    # Run B acquires next — different, larger run_id.
+    run_b = ai_lock.try_acquire("run B")
+    assert run_b is not None
+    assert run_b != run_a
+    try:
+        # The stale cancel aimed at A must not touch B.
+        assert ai_lock.request_cancel(run_id=run_a) is False
+        assert ai_lock.is_cancelled() is False
+        # B's own id still cancels B.
+        assert ai_lock.request_cancel(run_id=run_b) is True
+        assert ai_lock.is_cancelled() is True
+    finally:
+        ai_lock.release()
+
+
+def test_request_cancel_with_run_id_when_idle_is_false():
+    """A run-scoped cancel against an idle lock is a no-op."""
+    assert ai_lock.request_cancel(run_id=1) is False
+    assert ai_lock.is_cancelled() is False
+
+
+def test_request_cancel_none_still_cancels_current_run():
+    """The legacy arg-less call cancels whatever is running (UI cancel path)."""
+    ai_lock.try_acquire("a")
+    try:
         assert ai_lock.request_cancel() is True
         assert ai_lock.is_cancelled() is True
     finally:
@@ -127,7 +209,7 @@ def test_update_log_path_when_idle_is_noop():
 def test_only_one_thread_wins():
     """Two threads racing for the lock — exactly one acquires."""
     barrier = threading.Barrier(2)
-    results: list[bool] = []
+    results: list[int | None] = []
     lock = threading.Lock()
 
     def worker(name: str):
@@ -135,7 +217,7 @@ def test_only_one_thread_wins():
         got = ai_lock.try_acquire(name)
         with lock:
             results.append(got)
-        if got:
+        if got is not None:
             # Hold briefly so the other thread sees it as locked.
             time.sleep(0.05)
             ai_lock.release()
@@ -147,7 +229,12 @@ def test_only_one_thread_wins():
     t1.join()
     t2.join()
 
-    assert sorted(results) == [False, True]
+    # Exactly one winner (a run_id) and one loser (None).
+    winners = [r for r in results if r is not None]
+    losers = [r for r in results if r is None]
+    assert len(winners) == 1
+    assert len(losers) == 1
+    assert winners[0] >= 1
 
 
 def test_started_at_is_monotonic_within_run():
@@ -168,13 +255,13 @@ def test_hold_releases_on_exception():
     Without the `finally` in the context manager, an unrelated worker
     bug would brick the whole AI subsystem until the process restarts.
     """
-    with pytest.raises(RuntimeError), ai_lock.hold("crashy") as ok:
-        assert ok is True
+    with pytest.raises(RuntimeError), ai_lock.hold("crashy") as run_id:
+        assert isinstance(run_id, int) and run_id >= 1
         raise RuntimeError("boom")
 
     # Lock must be free after the exception unwinds.
     assert ai_lock.is_running() is False
-    assert ai_lock.try_acquire("next") is True
+    assert ai_lock.try_acquire("next") is not None
     ai_lock.release()
 
 
@@ -185,7 +272,7 @@ def test_release_when_idle_is_safe():
     assert ai_lock.is_running() is False
 
     # And a new acquire still works.
-    assert ai_lock.try_acquire("after-bad-release") is True
+    assert ai_lock.try_acquire("after-bad-release") is not None
     try:
         action = ai_lock.current_action()
         assert action is not None

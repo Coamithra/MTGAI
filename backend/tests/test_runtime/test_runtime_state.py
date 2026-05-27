@@ -80,7 +80,7 @@ def test_compute_ignores_disk_sets_without_explicit_pointer(isolated_output, mon
 
 def test_compute_includes_ai_lock_running_payload():
     """When the lock is held, the payload reflects it."""
-    assert ai_lock.try_acquire("Test action") is True
+    assert ai_lock.try_acquire("Test action") is not None
     try:
         payload = runtime_state.compute_runtime_state()
         assert payload["ai_lock"]["running"] is True

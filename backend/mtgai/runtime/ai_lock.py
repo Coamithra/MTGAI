@@ -9,13 +9,25 @@ Cancel signalling rides alongside: any thread can call
 :func:`request_cancel`, and long-running callers poll :func:`is_cancelled`
 to abort.
 
-**WARNING — non-reentrant.** Call sites must acquire and release
-sequentially; nesting from inside a held ``with hold(...)`` block on the
-same thread will return ``False`` (i.e. "busy") and the inner work won't
-run. The previous theme-only ``RLock`` allowed re-entry but every actual
-caller released between phases, so reentrancy was unused. If a future
-caller needs to nest, restructure to acquire once at the outer layer
-rather than reintroducing reentrancy.
+**Run identity.** Each successful acquire stamps the run with a
+monotonically increasing ``run_id`` (>= 1), returned by
+:func:`try_acquire` / :func:`hold` and exposed via :func:`current_run_id`.
+:func:`request_cancel` accepts an optional ``run_id`` so a *stale* cancel
+(a slow cancel request that fires after the run it meant to kill already
+released and a *different* run reacquired the lock) is dropped instead of
+aborting the wrong run. See :func:`request_cancel` for the exact race.
+
+**WARNING — strictly non-reentrant; this is NOT an ``RLock``.** A thread
+that already holds the lock and calls :func:`try_acquire` / :func:`hold`
+again does NOT re-enter: the nested call sees the lock as held and returns
+busy (``None`` from :func:`try_acquire`, a falsy yield from :func:`hold`),
+so the nested work *silently does not run*. The previous theme-only
+``RLock`` allowed re-entry, but every real caller released between phases,
+so reentrancy was unused. A future caller that needs nested AI work must
+acquire ONCE at the outermost layer and pass the held state inward — do
+not reintroduce an ``RLock`` (it would let two logically distinct AI
+actions run concurrently under one acquire, defeating the mutex). See
+:func:`hold` for the same warning at the call-site level.
 """
 
 from __future__ import annotations
@@ -48,6 +60,12 @@ _state_lock = threading.Lock()
 _current: AIAction | None = None
 _cancel_event = threading.Event()
 
+# Monotonic per-acquire counter. Bumped inside the critical section on every
+# successful acquire so each run gets a unique, ever-increasing id (>= 1).
+# ``_current_run_id`` mirrors the active run's id while held; 0 means idle.
+_run_counter = 0
+_current_run_id = 0
+
 
 def is_running() -> bool:
     """True iff an AI action is currently in flight."""
@@ -66,14 +84,46 @@ def is_cancelled() -> bool:
     return _cancel_event.is_set()
 
 
-def request_cancel() -> bool:
+def current_run_id() -> int:
+    """The id of the run currently holding the lock, or 0 if idle.
+
+    Run ids are monotonic and start at 1 (see :func:`try_acquire`), so a
+    return of 0 unambiguously means "no run is held". Callers that want to
+    cancel only their *own* run pass this value to :func:`request_cancel`.
+    """
+    with _state_lock:
+        return _current_run_id
+
+
+def request_cancel(run_id: int | None = None) -> bool:
     """Signal the active action to abort.
 
-    Returns True if an action was running, False if idle. Safe to call
-    from any thread.
+    Returns True if a matching action was running and was signalled, False
+    if there was nothing to cancel (idle, or ``run_id`` named a run that is
+    no longer the one holding the lock). Safe to call from any thread.
+
+    ``run_id`` closes a stale-cancel race. Without it, "cancel whatever is
+    running now" can mis-fire: run A acquires (id 1), the user's cancel HTTP
+    handler is dispatched, A finishes and releases, run B acquires (id 2),
+    *then* the handler finally calls ``request_cancel()`` — which would set
+    the cancel flag on B even though the user meant to stop A. A caller that
+    captured A's id at acquire time and passes ``request_cancel(run_id=1)``
+    is instead a no-op once B holds the lock, so B runs undisturbed.
+
+    Passing ``None`` keeps the legacy "cancel the current run, whatever it
+    is" behavior — appropriate for UI-driven cancels where the user is
+    explicitly aborting whatever they can see is running right now.
     """
     with _state_lock:
         if _current is None:
+            return False
+        if run_id is not None and run_id != _current_run_id:
+            logger.info(
+                "Stale cancel ignored: requested run_id=%s but active run_id=%s (%s)",
+                run_id,
+                _current_run_id,
+                _current.name,
+            )
             return False
         action_name = _current.name
         _cancel_event.set()
@@ -81,25 +131,31 @@ def request_cancel() -> bool:
     return True
 
 
-def try_acquire(name: str, log_path: Path | None = None) -> bool:
+def try_acquire(name: str, log_path: Path | None = None) -> int | None:
     """Atomically claim the lock and publish :class:`AIAction`.
 
-    Returns True on success, False if another action is already running.
-    Callers MUST pair True with :func:`release` (a ``try / finally`` is
-    enough — see :func:`hold` for the context-manager form).
+    Returns the new run's monotonic ``run_id`` (an ``int`` >= 1, always
+    truthy) on success, or ``None`` if another action is already running.
+    Callers MUST pair a successful acquire with :func:`release` (a
+    ``try / finally`` is enough — see :func:`hold` for the context-manager
+    form). Hold onto the returned id if you intend to cancel only your own
+    run later via :func:`request_cancel`.
     """
     with _state_lock:
-        global _current
+        global _current, _run_counter, _current_run_id
         if _current is not None:
-            return False
+            return None
+        _run_counter += 1
+        _current_run_id = _run_counter
         _current = AIAction(
             name=name,
             started_at=datetime.now(tz=UTC),
             log_path=log_path,
         )
         _cancel_event.clear()
-    logger.info("AI lock acquired: %s", name)
-    return True
+        run_id = _current_run_id
+    logger.info("AI lock acquired: %s (run_id=%s)", name, run_id)
+    return run_id
 
 
 def release() -> None:
@@ -111,11 +167,12 @@ def release() -> None:
     should never fire in practice).
     """
     with _state_lock:
-        global _current
+        global _current, _current_run_id
         if _current is None:
             logger.warning("ai_lock.release() called when no action was held")
             return
         _current = None
+        _current_run_id = 0
 
 
 def update_log_path(log_path: Path) -> None:
@@ -156,19 +213,30 @@ def busy_payload() -> dict[str, Any]:
 
 
 @contextmanager
-def hold(name: str, log_path: Path | None = None) -> Iterator[bool]:
+def hold(name: str, log_path: Path | None = None) -> Iterator[int | None]:
     """Acquire the AI lock for the duration of a ``with`` block.
 
-    Yields True on success and False if another action is already running.
-    On True, the lock is released on context exit even if the body raises.
-    The caller is expected to bail out (yield an error event, return 409)
-    when False is yielded.
+    Yields the new run's ``run_id`` (an ``int`` >= 1, always truthy) on
+    success, or ``None`` if another action is already running. On success
+    the lock is released on context exit even if the body raises. The
+    caller is expected to bail out (yield an error event, return 409) when
+    ``None`` is yielded — the idiom is ``with hold(...) as acquired: if not
+    acquired: <bail>``.
+
+    **WARNING — strictly non-reentrant; this is NOT an ``RLock``.** Calling
+    ``hold(...)`` (or :func:`try_acquire`) again from a thread that is
+    already inside a held ``hold(...)`` block does NOT re-enter: the nested
+    call sees the lock as held and yields ``None`` (busy), so the nested
+    body is skipped and its work silently does not run — it does NOT raise,
+    so the bug can hide. Structure nested AI work to acquire ONCE at the
+    outermost layer and pass the held state inward; never wrap an
+    inner AI step in its own ``hold(...)`` when an outer one is live.
     """
-    acquired = try_acquire(name, log_path=log_path)
+    run_id = try_acquire(name, log_path=log_path)
     try:
-        yield acquired
+        yield run_id
     finally:
-        if acquired:
+        if run_id is not None:
             release()
 
 
@@ -179,7 +247,8 @@ def reset_for_tests() -> None:
     rest of the API exists to enforce. Tests use it to isolate from each
     other and from leftover state if a test crashes mid-acquire.
     """
-    global _current
+    global _current, _current_run_id
     with _state_lock:
         _current = None
+        _current_run_id = 0
     _cancel_event.clear()
