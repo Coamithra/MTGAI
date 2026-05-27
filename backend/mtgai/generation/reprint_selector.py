@@ -41,6 +41,7 @@ from mtgai.generation.skeleton_prompt_blocks import (
     format_mechanics_block,
     format_setting_block,
 )
+from mtgai.io.atomic import atomic_write_text
 from mtgai.models.card import Card
 from mtgai.models.enums import Color, Rarity
 
@@ -228,15 +229,24 @@ def _load_set_context(asset: Path, cfg: dict) -> dict[str, str]:
     }
 
 
-def _load_slot_texts(skeleton_path: Path) -> list[dict[str, str]]:
+def _load_slot_texts(skeleton_path: Path, *, include_reprints: bool = True) -> list[dict[str, str]]:
     """Each unfilled slot as ``{slot_id, text}`` — its relabeled ``tweaked_text``
-    (the slot's plain-text spec), or the default descriptor as a fallback."""
+    (the slot's plain-text spec), or the default descriptor as a fallback.
+
+    By default reprint-stamped slots are *included* (the reprint placement pass
+    needs every ordinary slot, and re-rolls re-place over them). Pass
+    ``include_reprints=False`` for readers that treat a placed reprint as a filled
+    card — e.g. the lands fixing investigation, whose "unfilled slots" view must
+    not double-count slots the reprint stage already claimed.
+    """
     from mtgai.skeleton.generator import render_slot_string
 
     skeleton = _read_json(skeleton_path, {})
     out: list[dict[str, str]] = []
     for slot in skeleton.get("slots", []) if isinstance(skeleton, dict) else []:
         if not isinstance(slot, dict) or slot.get("card_id") is not None:
+            continue
+        if not include_reprints and slot.get("is_reprint_slot"):
             continue
         sid = str(slot.get("slot_id") or "").strip()
         if not sid:
@@ -627,6 +637,73 @@ def select_reprints(
         len(full_pool),
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Skeleton write-back — incorporate the chosen reprints into the skeleton
+# ---------------------------------------------------------------------------
+
+
+def reset_reprint_stamps(skeleton: dict) -> bool:
+    """Clear every slot's reprint stamp in-place. Returns True if anything changed.
+
+    The inverse of stamping: a re-roll or ``clear_reprints`` un-marks the slots so
+    they return to ordinary, generatable slots. ``tweaked_text`` was never touched,
+    so each slot's themed descriptor survives intact.
+    """
+    changed = False
+    for slot in skeleton.get("slots", []) if isinstance(skeleton, dict) else []:
+        if not isinstance(slot, dict):
+            continue
+        if slot.get("is_reprint_slot") or slot.get("reprint_card") is not None:
+            slot["is_reprint_slot"] = False
+            slot["reprint_card"] = None
+            changed = True
+    return changed
+
+
+def _reprint_identity(c: ReprintCandidate) -> str:
+    """One-line identity for a placed reprint, stamped onto its skeleton slot."""
+    return f"{c.name} · {c.type_line} · {c.mana_cost or 'no cost'}"
+
+
+def apply_selection_to_skeleton(skeleton_path: Path, selection: ReprintSelection) -> int:
+    """Write the chosen reprints back into ``skeleton.json`` (reset, then stamp).
+
+    For each placed reprint, find its slot by ``slot_id`` and mark
+    ``is_reprint_slot=True`` + ``reprint_card=<identity>``. Resets any prior reprint
+    stamps first, so this is idempotent and safe after a re-roll (the previous run's
+    stamps are wiped; only the current selection's remain). Leaves ``tweaked_text``
+    untouched. Returns the number of slots stamped.
+
+    Downstream effect: card-gen skips reprint slots (no double-generation), and the
+    lands fixing investigation drops them from its unfilled-slot view — the reprint
+    is the slot's card now.
+    """
+    skeleton = _read_json(skeleton_path, None)
+    if not isinstance(skeleton, dict) or not isinstance(skeleton.get("slots"), list):
+        logger.warning("apply_selection_to_skeleton: no usable skeleton at %s", skeleton_path)
+        return 0
+
+    reset_reprint_stamps(skeleton)
+    by_id = {
+        str(s.get("slot_id")): s
+        for s in skeleton["slots"]
+        if isinstance(s, dict) and s.get("slot_id")
+    }
+    stamped = 0
+    for pair in selection.selections:
+        slot = by_id.get(str(pair.slot.slot_id))
+        if slot is None:
+            logger.warning("Reprint slot %s not in skeleton; skipping stamp", pair.slot.slot_id)
+            continue
+        slot["is_reprint_slot"] = True
+        slot["reprint_card"] = _reprint_identity(pair.candidate)
+        stamped += 1
+
+    atomic_write_text(skeleton_path, json.dumps(skeleton, indent=2, ensure_ascii=False))
+    logger.info("Stamped %d reprint slots into %s", stamped, skeleton_path.name)
+    return stamped
 
 
 # ---------------------------------------------------------------------------

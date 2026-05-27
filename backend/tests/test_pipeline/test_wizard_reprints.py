@@ -225,6 +225,12 @@ def test_refresh_runs_selection_with_pinned_knob(client, isolated_output, monkey
     # knobs + selection both persisted
     assert json.loads((asset / "reprints" / "knobs.json").read_text())["common"] == 1
     assert (asset / "reprint_selection.json").exists()
+    # The pick is stamped back into the skeleton so card-gen skips the slot and the
+    # lands investigation sees it as filled.
+    slot = json.loads((asset / "skeleton.json").read_text())["slots"][0]
+    assert slot["slot_id"] == "B-C-03"
+    assert slot["is_reprint_slot"] is True
+    assert "Murder" in slot["reprint_card"]
 
 
 def test_refresh_400_when_no_skeleton(client, isolated_output, monkeypatch):

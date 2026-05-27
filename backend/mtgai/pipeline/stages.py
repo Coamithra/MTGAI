@@ -646,6 +646,7 @@ def run_reprints(
     """Select reprints from curated pool."""
     from mtgai.generation.reprint_selector import (
         _load_slot_texts,
+        apply_selection_to_skeleton,
         load_reprint_pool,
         select_reprints,
     )
@@ -728,6 +729,12 @@ def run_reprints(
         json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
     )
 
+    # Incorporate the picks into the skeleton: stamp each placed slot is_reprint_slot
+    # + reprint_card (reset-then-stamp, so a re-run replaces cleanly). Downstream,
+    # card-gen skips these slots and the lands fixing investigation drops them from
+    # its unfilled-slot view — the reprint is the slot's card now.
+    apply_selection_to_skeleton(skeleton_path, result)
+
     # Cascade tile reveal so the user sees picks land one-by-one rather
     # than all at once after the LLM call. The picks are already chosen;
     # this is purely visual pacing on top of the existing fade-in CSS.
@@ -799,21 +806,21 @@ def run_lands(
             status="running",
             content={
                 "Model": model_id,
-                "Asking for": "5 basic flavor texts + 1 nonbasic design",
+                "Asking for": "basic-land alternates + dual-land investigation",
             },
             detail="Generating…",
         )
         emitter.update("lands", status="running")
         emitter.phase(
             "running",
-            f"Calling {provider_label} for land flavor + nonbasic design",
+            f"Calling {provider_label} for land flavor + fixing investigation",
         )
 
     # Buffer the saved cards so we can stagger their reveal AFTER the LLM
-    # call returns. The single Haiku/Gemma call returns all 6 lands at
-    # once, but emitting them one-by-one with a short sleep gives the UI
-    # a cascading fade-in (matches the fade-in CSS) and is much nicer to
-    # watch than a "boom, all 6 appear" moment.
+    # calls return. The two calls (basics, then the fixing investigation) yield
+    # ~10-20 basic-land alternates plus maybe a dual; emitting them one-by-one
+    # with a short sleep gives the UI a cascading fade-in (matches the fade-in
+    # CSS) and is much nicer to watch than a "boom, all of them appear" moment.
     saved_cards: list = []
 
     def _on_card_saved(card) -> None:
@@ -845,7 +852,7 @@ def run_lands(
             on_call_start=_on_call_start,
             on_card_saved=_on_card_saved,
         )
-    count = result.get("total_cards", 6)
+    count = result.get("total_cards", 5)
     cost = result.get("cost_usd", 0.0)
 
     # Cascade: emit each tile with a short delay so the UI can animate.
@@ -1210,14 +1217,28 @@ def clear_skeleton() -> None:
 
 
 def clear_reprints() -> None:
-    """Wipe the reprint selection + its LLM transcripts.
+    """Wipe the reprint selection + its LLM transcripts, and un-stamp the skeleton.
 
     Owns ``reprint_selection.json`` and the ``reprints/`` log directory (the
     ``assign_reprints`` LLM transcripts). Cascading from a Skeleton / upstream
-    edit drops both so the next run re-selects from a clean slate.
+    edit drops both so the next run re-selects from a clean slate. Also clears the
+    ``is_reprint_slot`` / ``reprint_card`` stamps the reprint stage wrote into
+    ``skeleton.json``, so those slots return to ordinary generatable slots.
     """
-    _remove_path(_set_dir() / "reprint_selection.json")
-    _remove_path(_set_dir() / "reprints")
+    from mtgai.generation.reprint_selector import reset_reprint_stamps
+
+    set_dir = _set_dir()
+    _remove_path(set_dir / "reprint_selection.json")
+    _remove_path(set_dir / "reprints")
+
+    skeleton_path = set_dir / "skeleton.json"
+    if skeleton_path.exists():
+        try:
+            skeleton = json.loads(skeleton_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            skeleton = None
+        if isinstance(skeleton, dict) and reset_reprint_stamps(skeleton):
+            atomic_write_text(skeleton_path, json.dumps(skeleton, indent=2, ensure_ascii=False))
 
 
 def clear_card_gen() -> None:

@@ -10,15 +10,19 @@
  * Mountain, Forest (with flavour text) + 1 setting-specific nonbasic.
  *
  * Conventions honoured:
- *   §1  Footer is a wiz-footer-note only — lands never pause for review.
+ *   §1  Lands never *auto*-pause for review. The footer shows a status note plus a
+ *       "Next" button: a plain client-side tab change when the engine has already
+ *       advanced, or — if a break point ("Stop after this step") paused the engine
+ *       here — a resume (POST /api/wizard/advance) then navigate, like Reprints.
  *   §3  Form lock during AI gen.
  *   §6  Past-tab edit cascade via wizard_stage.js / W.editFlow.
  *   §8  Status pill flows from stage state.
  *   §9  "Stop after this step" — handled by wizard_stage.js.
  *   §13 Section-level Refresh-AI button, always rendered on the latest tab.
  *
- * The grid is read-only for this precreation pass.  The Refresh button is
- * a placeholder that toasts a TODO until the backend endpoint is added.
+ * The grid is read-only.  The Refresh button re-runs the lands stage under the
+ * AI lock via ``POST /api/wizard/lands/refresh`` (basic-land alternate arts +
+ * the dual-land fixing investigation), then repaints from the response.
  */
 
 (function () {
@@ -93,10 +97,33 @@
       .wiz-lands-rarity-u { background: #c0d0e022; color: #b0c8d8; }
       .wiz-lands-rarity-r { background: #ffd70022; color: #ffd700; }
 
+      /* Collector number — the alternate-printing key (L-01a, L-01b, …) */
+      .wiz-lands-cn {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.66rem;
+        letter-spacing: 0.04em;
+        color: #6a7da0;
+        flex-shrink: 0;
+      }
+
       .wiz-lands-type {
         font-size: 0.73rem;
         color: #888;
         font-style: italic;
+      }
+
+      /* Per-alternate art brief — makes each printing visibly distinct */
+      .wiz-lands-brief {
+        font-size: 0.73rem;
+        color: #8fa6c8;
+        line-height: 1.4;
+      }
+      .wiz-lands-brief-label {
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 0.62rem;
+        color: #5d6f92;
+        margin-right: 0.35rem;
       }
       .wiz-lands-oracle {
         font-size: 0.76rem;
@@ -126,11 +153,14 @@
   // ── Module state ──────────────────────────────────────────────────────────
   const local = {
     initialized: false,
-    lands: [],          // simplified land objects: {name, type_line, rarity, oracle_text, flavor_text}
+    // simplified land objects:
+    //   {name, type_line, rarity, oracle_text, flavor_text, collector_number, design_notes}
+    lands: [],
     hasContent: false,
     stageStatus: 'pending',
     locked: false,
     bootstrapping: false,
+    state: null,        // latest wizard state, kept so refresh can repaint
   };
 
   W.registerStageRenderer(STAGE_ID, render);
@@ -138,6 +168,7 @@
   // ── Top-level render ──────────────────────────────────────────────────────
 
   function render({ root, state, stage, content, footer }) {
+    local.state = state;
     if (!local.initialized) {
       local.initialized = true;
       local.stageStatus = stage ? stage.status : 'pending';
@@ -185,11 +216,12 @@
   // ── Bootstrap from server ─────────────────────────────────────────────────
 
   async function bootstrap(root, state) {
-    // TODO: implement GET /api/wizard/lands/state that returns
-    //   { lands: [{name, type_line, rarity, oracle_text, flavor_text}],
+    local.state = state;
+    // GET /api/wizard/lands/state returns the durable tile shape read from the
+    //   L-* card JSONs in <asset>/cards/:
+    //   { lands: [{name, type_line, rarity, oracle_text, flavor_text,
+    //              collector_number, design_notes}],
     //     has_content: bool, stage_status: str }
-    //   reading the land card JSONs from <asset>/cards/ (filter type_line
-    //   contains "Land").
     let data = null;
     try {
       const resp = await fetch('/api/wizard/lands/state');
@@ -274,12 +306,16 @@
       return;
     }
 
-    // Sort: basics first (alphabetical), then nonbasics.
+    // Sort: basics first (alphabetical), then nonbasics. Within one land type the
+    // alternates share a name, so break ties on collector number (L-01a < L-01b)
+    // to keep a type's printings in a stable, readable order.
     const sorted = [...local.lands].sort((a, b) => {
       const aBasic = isBasicType(a.type_line);
       const bBasic = isBasicType(b.type_line);
       if (aBasic !== bBasic) return aBasic ? -1 : 1;
-      return (a.name || '').localeCompare(b.name || '');
+      const byName = (a.name || '').localeCompare(b.name || '');
+      if (byName !== 0) return byName;
+      return (a.collector_number || '').localeCompare(b.collector_number || '');
     });
 
     slot.innerHTML = `<div class="wiz-lands-grid">${sorted.map(l => landTileHtml(l)).join('')}</div>`;
@@ -293,33 +329,77 @@
 
     const oracle = land.oracle_text || '';
     const flavor = land.flavor_text || '';
+    const cn = land.collector_number || '';
+    const brief = artBrief(land);
 
     return `
       <article class="wiz-lands-tile" data-basic="${escAttr(String(isBasic))}">
         <div class="wiz-lands-tile-header">
           <span class="wiz-lands-name">${escHtml(land.name || '(unnamed)')}</span>
+          ${cn ? `<span class="wiz-lands-cn">${escHtml(cn)}</span>` : ''}
           <span class="wiz-lands-rarity ${rarityClass}">${rarityLabel}</span>
         </div>
         ${land.type_line ? `<div class="wiz-lands-type">${escHtml(land.type_line)}</div>` : ''}
+        ${brief ? `<div class="wiz-lands-brief"><span class="wiz-lands-brief-label">Art</span>${escHtml(brief)}</div>` : ''}
         ${oracle ? `<div class="wiz-lands-oracle">${escHtml(oracle)}</div>` : ''}
         ${flavor ? `<div class="wiz-lands-flavor">${escHtml(flavor)}</div>` : ''}
       </article>
     `;
   }
 
+  // The lands stage stores each alternate's one-sentence art brief in
+  // design_notes as "Alternate basic land art — <scene>". Strip that prefix so
+  // the tile shows just the scene; the bonus dual's design_notes is an internal
+  // note (not an art brief), so it isn't surfaced here.
+  const ALT_BRIEF_PREFIX = 'Alternate basic land art';
+  function artBrief(land) {
+    const notes = (land.design_notes || '').trim();
+    if (!notes.startsWith(ALT_BRIEF_PREFIX)) return '';
+    // Drop the prefix and any leading em-dash / hyphen separator + spaces.
+    return notes.slice(ALT_BRIEF_PREFIX.length).replace(/^[\s—–-]+/, '').trim();
+  }
+
   function isBasicType(typeLine) {
     return /\bBasic\b/i.test(typeLine || '');
   }
 
-  // ── Refresh placeholder ───────────────────────────────────────────────────
+  // ── Refresh: re-run the lands stage under the AI lock ────────────────────
 
   async function onRefreshAll() {
     if (local.locked) return;
     if (local.hasContent) {
       if (!confirm('Regenerate all land cards? Existing land JSONs will be replaced.')) return;
     }
-    // TODO: POST /api/wizard/lands/refresh triggers run_lands re-execution.
-    W.toast('Regenerating lands is not yet wired to the backend. Follow-up needed.', 'warn');
+    const root = bodyRoot();
+    const state = local.state;
+    setLocked(true);
+    if (W.showBusy) W.showBusy(local.hasContent ? 'Regenerating land cards…' : 'Generating land cards…');
+    try {
+      const resp = await W.postJSON('/api/wizard/lands/refresh', {});
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        if (resp.status === 409 && data.running_action) {
+          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
+        } else {
+          W.toast(data.error || `Refresh failed (${resp.status})`, 'error');
+        }
+        return;
+      }
+      local.lands = Array.isArray(data.lands) ? data.lands : [];
+      local.hasContent = !!data.has_content || local.lands.length > 0;
+      if (data.stage_status) local.stageStatus = data.stage_status;
+      if (root) {
+        paintSummary(root, state);
+        paintGrid(root, state);
+        paintFooter(getFooter(root), state);
+      }
+      W.toast('Land cards regenerated.', 'success');
+    } catch (err) {
+      W.toast('Network error: ' + err.message, 'error');
+    } finally {
+      if (W.clearBusy) W.clearBusy();
+      setLocked(false);
+    }
   }
 
   // ── Footer: note only — lands never pause for review (§1) ────────────────
@@ -328,14 +408,27 @@
     if (!footer) return;
     const isLatest = !state || state.latestTabId === STAGE_ID;
     const isCompleted = local.stageStatus === 'completed';
+    // Lands never *auto*-pauses for review, but a break point ("Stop after this
+    // step") can pause the engine here — then continuing means resuming the engine,
+    // not just changing tabs. ``onGoNext(next, resume=true)`` handles that.
+    const isPaused = local.stageStatus === 'paused_for_review';
     const next = W.nextStageEntryAfter(STAGE_ID);
     const nextName = next ? next.name : 'the next stage';
 
+    // The "Next" button moves to the following tab. When paused it first resumes the
+    // engine; otherwise it's a plain navigation (the engine already advanced on its
+    // own). If the target tab isn't visible yet the server redirects to the latest.
+    const nextBtn = next
+      ? `<button type="button" class="wiz-btn-primary" data-role="lands-next">Next: ${escHtml(next.name)} →</button>`
+      : '';
+
     let html;
     if (!isLatest) {
-      html = `<span class="wiz-footer-note">Past tab — use Edit above to revise land cards.</span>`;
+      html = `${nextBtn}<span class="wiz-footer-note">Past tab — use Edit above to revise land cards.</span>`;
+    } else if (isPaused) {
+      html = `${nextBtn}<span class="wiz-footer-note">Paused after lands — continue when ready.</span>`;
     } else if (isCompleted) {
-      html = `<span class="wiz-footer-complete">✓ Lands generated — engine will continue to ${escHtml(nextName)}.</span>`;
+      html = `${nextBtn}<span class="wiz-footer-complete">✓ Lands generated — engine will continue to ${escHtml(nextName)}.</span>`;
     } else if (local.stageStatus === 'running') {
       html = `<span class="wiz-footer-note">Generating land cards…</span>`;
     } else {
@@ -345,6 +438,38 @@
     if (footer.dataset.lastFooter !== html) {
       footer.innerHTML = html;
       footer.dataset.lastFooter = html;
+    }
+    const btn = footer.querySelector('[data-role="lands-next"]');
+    if (btn) btn.onclick = () => onGoNext(next, isPaused);
+  }
+
+  async function onGoNext(next, resumeEngine) {
+    if (local.locked) return;
+    const nextHref = next ? `/pipeline/${next.id}` : '/pipeline';
+    // Not paused — the engine already moved on, so this is a plain tab change.
+    if (!resumeEngine) {
+      window.location.assign(nextHref);
+      return;
+    }
+    // Paused at a break point: resume the engine (mirrors the Reprints advance),
+    // then navigate to the next tab.
+    setLocked(true);
+    try {
+      const resp = await W.postJSON('/api/wizard/advance', {});
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        if (resp.status === 409 && data.running_action) {
+          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
+        } else {
+          W.toast(data.error || `Advance failed (${resp.status})`, 'error');
+        }
+        return;
+      }
+      window.location.assign(data.navigate_to || nextHref);
+    } catch (err) {
+      W.toast('Network error: ' + err.message, 'error');
+    } finally {
+      setLocked(false);
     }
   }
 

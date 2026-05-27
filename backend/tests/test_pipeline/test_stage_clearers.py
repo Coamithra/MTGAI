@@ -129,6 +129,32 @@ def test_clear_reprints_removes_selection_json(fake_output_root: Path) -> None:
     assert not (set_dir / "reprint_selection.json").exists()
 
 
+def test_clear_reprints_unstamps_skeleton(fake_output_root: Path) -> None:
+    # Clearing reprints must also revert the reprint stamps the stage wrote into
+    # skeleton.json, so the slot returns to an ordinary (generatable) slot.
+    import json
+
+    set_dir = fake_output_root / "sets" / "TST"
+    set_dir.mkdir(parents=True)
+    (set_dir / "reprint_selection.json").write_text("{}", encoding="utf-8")
+    skeleton = {
+        "slots": [
+            {"slot_id": "A", "is_reprint_slot": True, "reprint_card": "Murder · Instant"},
+            {"slot_id": "B", "is_reprint_slot": False},
+        ]
+    }
+    (set_dir / "skeleton.json").write_text(json.dumps(skeleton), encoding="utf-8")
+    _open_test_project("TST", set_dir)
+
+    stages_mod.clear_stage_artifacts("reprints")
+
+    slots = {s["slot_id"]: s for s in json.loads((set_dir / "skeleton.json").read_text())["slots"]}
+    assert slots["A"]["is_reprint_slot"] is False
+    assert slots["A"]["reprint_card"] is None
+    # The skeleton itself survives (only the stamps were cleared).
+    assert (set_dir / "skeleton.json").exists()
+
+
 def test_clear_rendering_removes_renders_dir(fake_output_root: Path) -> None:
     set_dir = fake_output_root / "sets" / "TST"
     renders_dir = set_dir / "renders"

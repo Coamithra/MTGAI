@@ -158,6 +158,13 @@ class SkeletonSlot(BaseModel):
     # colour-pair (``WG``), or three-colour trio (``WUB``) — so each member is
     # distinguishable in the descriptor (``· cycle:<name> (WG)``).
     cycle_member: str | None = None
+    # When this slot was filled by the reprint stage, the chosen reprint's identity
+    # ("<name> · <type_line> · <mana_cost>"), stamped alongside ``is_reprint_slot``
+    # by ``reprint_selector.apply_selection_to_skeleton``. Card-gen skips reprint
+    # slots (it doesn't generate over them) and the lands fixing investigation drops
+    # them from its "unfilled slots" view — the reprint is the slot's card now.
+    # ``tweaked_text`` is left untouched so a re-roll/clear can cleanly un-stamp.
+    reprint_card: str | None = None
 
 
 # Full color names for the human-readable one-line slot descriptor. WUBRG

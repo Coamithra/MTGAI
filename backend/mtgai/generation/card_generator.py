@@ -810,9 +810,18 @@ def generate_set(
             progress.total_cost_usd,
         )
 
-    # Filter to unfilled slots. Land slots (including land cycles like guildgates)
-    # are owned by the `lands` stage, not card-gen, so they are skipped here.
-    all_slots = [s for s in skeleton["slots"] if s.get("card_type") != "land"]
+    # Filter to unfilled slots. Ordinary (non-land) slots plus any land slot that
+    # is a cycle member (e.g. a guildgate cycle) are generated here — card-gen owns
+    # land cycles now, batching them with their shared template. A stray standalone
+    # land (none exist today) stays excluded; the `lands` stage handles basics + its
+    # one investigated bonus dual. Reprint-stamped slots are also excluded — the
+    # reprint stage already claimed them (the reprint IS the slot's card), so
+    # generating over them would double-fill the slot.
+    all_slots = [
+        s
+        for s in skeleton["slots"]
+        if (s.get("card_type") != "land" or s.get("cycle_id")) and not s.get("is_reprint_slot")
+    ]
     if resume:
         unfilled = [
             s

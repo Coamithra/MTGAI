@@ -461,3 +461,38 @@ the modal latches on a `stage_id + error` signature (`_failureShownSig`)
 and only re-shows after the next `running`. A new tab adding AI gen gets
 this for free — fail the stage (return `StageResult(success=False, …)`
 or raise) and the shell handles the modal; don't roll your own.
+
+## 15. Stage LLM transcripts → `<asset>/<stage>/logs`
+
+Every stage generator that makes an AI call **must** route its llmfacade
+transcript (JSONL **and HTML**) to the stage's own
+`<asset>/<stage>/logs` directory by passing `log_dir=` to
+`generate_with_tool` / `generate_text` / `stream_text`:
+
+```python
+log_dir = set_dir / "<stage>" / "logs"
+generate_with_tool(..., log_dir=log_dir)
+```
+
+Omitting `log_dir` (default `None` → `True`) silently falls back to
+llmfacade's session dirs under `backend/logs/` — the transcript still
+gets written, but it's nowhere near the stage's artifacts, so the user
+(and you, debugging a bad generation) can't find it next to the
+cards/JSON the stage produced. The Lands tab shipped without this and
+the logs went missing from the stage folder; don't repeat it.
+
+This is the established pattern across every stage: mechanics →
+`mechanics/logs`, archetypes → `archetypes/logs`, visual_refs →
+`art-direction/logs`, skeleton → `skeleton/logs`, reprints →
+`reprints/logs`, lands → `lands/logs`, card-gen → `generation_logs`. A
+`Path` writes flat into that dir (no `llmfacade<stamp>` session subdir,
+no auto-prune); llmfacade creates the directory. The transcript is named
+after the tool via `_convo_name`, so the file is self-identifying. See
+the **"LLM call logs"** note in `CLAUDE.md` for the transport detail.
+
+The one exception is `card_generator`, which *additionally* keeps a
+bespoke per-card/batch log for the post-generation validation errors +
+applied fixes + cost that llmfacade can't capture — but it still routes
+the llmfacade transcript to the same dir. Don't reinvent that bespoke
+logger for other stages; the llmfacade transcript is the canonical
+per-call log.

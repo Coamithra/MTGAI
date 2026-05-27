@@ -1,8 +1,9 @@
 """Phase B/C integration tests for cycles (card 6a16d8ff).
 
-Covers cycle-coherent batching in card-gen, the CYCLE MEMBER prompt instruction,
-reprint identification skipping cycle members, and the lands stage generating a
-land cycle (``generate_with_tool`` monkeypatched — no real model).
+Covers cycle-coherent batching in card-gen (ordinary *and* land cycles, which
+card-gen owns now — not the lands stage), the CYCLE MEMBER prompt instruction,
+and that the reprint stage offers every unfilled slot to placement (cycle
+avoidance is prompt-driven).
 """
 
 from __future__ import annotations
@@ -10,7 +11,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import mtgai.generation.land_generator as land_gen
 from mtgai.generation.card_generator import group_slots_into_batches
 from mtgai.generation.prompts import format_slot_specs
 from mtgai.generation.reprint_selector import _load_slot_texts
@@ -56,6 +56,20 @@ class TestCycleBatching:
         batches = group_slots_into_batches(slots, batch_size=4)
         cycle_batches = [b for b in batches if b[0].get("cycle_id") == "gates"]
         assert [len(b) for b in cycle_batches] == [4, 4, 2]
+
+    def test_land_cycle_members_batched_together(self):
+        # Land cycles are owned by card-gen now: land slots carrying a cycle_id
+        # batch as their own cycle just like any other family, so a guildgate
+        # cycle is designed together with its shared template.
+        slots = [
+            _slot("g1", "multicolor", color_pair="WU", cycle_id="gates", card_type="land"),
+            _slot("g2", "multicolor", color_pair="UB", cycle_id="gates", card_type="land"),
+            _slot("c1", "W", card_type="creature"),
+        ]
+        batches = group_slots_into_batches(slots, batch_size=10)
+        gate_batch = next(b for b in batches if b[0].get("cycle_id") == "gates")
+        assert len(gate_batch) == 2
+        assert all(s["card_type"] == "land" for s in gate_batch)
 
 
 # ---------------------------------------------------------------------------
@@ -130,88 +144,3 @@ def test_load_slot_texts_includes_cycle_members(tmp_path: Path):
     path.write_text(json.dumps(skeleton), encoding="utf-8")
     ids = {s["slot_id"] for s in _load_slot_texts(path)}
     assert ids == {"1", "2"}  # both unfilled (incl. cycle member); "3" is taken
-
-
-# ---------------------------------------------------------------------------
-# Land-cycle generation (Phase C)
-# ---------------------------------------------------------------------------
-
-
-def test_generate_land_cycles_writes_members(tmp_path: Path, monkeypatch):
-    skeleton = {
-        "cycles": [
-            {
-                "id": "gates",
-                "name": "Guildgates",
-                "span": "pairs10",
-                "rarity": "common",
-                "card_type": "land",
-                "template": "Enters tapped; taps for the pair.",
-            }
-        ],
-        "slots": [
-            {
-                "slot_id": "045",
-                "color": "multicolor",
-                "color_pair": "WU",
-                "card_type": "land",
-                "rarity": "common",
-                "cmc_target": 0,
-                "cycle_id": "gates",
-            },
-            {
-                "slot_id": "046",
-                "color": "multicolor",
-                "color_pair": "UB",
-                "card_type": "land",
-                "rarity": "common",
-                "cmc_target": 0,
-                "cycle_id": "gates",
-            },
-        ],
-    }
-
-    def fake_tool(**kwargs):
-        return {
-            "result": {
-                "lands": [
-                    {
-                        "name": "Azorius Gate",
-                        "type_line": "Land",
-                        "oracle_text": "Enters tapped.",
-                        "flavor_text": "A.",
-                    },
-                    {
-                        "name": "Dimir Gate",
-                        "type_line": "Land",
-                        "oracle_text": "Enters tapped.",
-                        "flavor_text": "B.",
-                    },
-                ]
-            },
-            "input_tokens": 5,
-            "output_tokens": 5,
-        }
-
-    monkeypatch.setattr(land_gen, "generate_with_tool", fake_tool)
-    monkeypatch.setattr(land_gen, "cost_from_result", lambda _r: 0.002)
-
-    summary = land_gen.generate_land_cycles(
-        skeleton, {"name": "Test", "flavor_description": "A city."}, "model", "TST", tmp_path
-    )
-    assert summary["total_cards"] == 2
-    files = sorted(p.name for p in tmp_path.glob("*.json"))
-    assert any("azorius_gate" in f for f in files)
-    azorius = json.loads(
-        (tmp_path / next(p for p in files if "azorius" in p)).read_text(encoding="utf-8")
-    )
-    assert azorius["card_types"] == ["Land"]
-    assert azorius["collector_number"] == "045"
-    # color_identity derived from the WU pair
-    assert set(azorius["color_identity"]) == {"W", "U"}
-
-
-def test_generate_land_cycles_noop_without_land_cycles(tmp_path: Path):
-    skeleton = {"slots": [{"slot_id": "1", "color": "W", "card_type": "creature"}]}
-    summary = land_gen.generate_land_cycles(skeleton, {}, "m", "TST", tmp_path)
-    assert summary == {"total_cards": 0, "cost_usd": 0.0}

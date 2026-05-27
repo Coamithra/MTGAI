@@ -11,12 +11,17 @@ import pytest
 
 from mtgai.generation.reprint_selector import (
     ReprintCandidate,
+    ReprintSelection,
+    ReprintSlot,
+    SelectionPair,
     _load_slot_texts,
+    apply_selection_to_skeleton,
     convert_to_card,
     extract_set_config,
     format_candidate_tldr,
     load_reprint_knobs,
     load_reprint_pool,
+    reset_reprint_stamps,
     select_reprints,
 )
 
@@ -156,6 +161,98 @@ class TestLoadSlotTexts:
             encoding="utf-8",
         )
         assert _load_slot_texts(sk) == []
+
+    def test_include_reprints_toggle(self, tmp_path: Path):
+        # A reprint-stamped slot is listed by default (placement pass wants every
+        # ordinary slot) but excluded for readers that treat it as filled (lands).
+        sk = tmp_path / "skeleton.json"
+        sk.write_text(
+            json.dumps(
+                _skeleton(
+                    [
+                        {"slot_id": "A", "tweaked_text": "a", "card_id": None},
+                        {
+                            "slot_id": "B",
+                            "tweaked_text": "b",
+                            "card_id": None,
+                            "is_reprint_slot": True,
+                            "reprint_card": "Murder · Instant · {1}{B}{B}",
+                        },
+                    ]
+                )
+            ),
+            encoding="utf-8",
+        )
+        assert {s["slot_id"] for s in _load_slot_texts(sk)} == {"A", "B"}
+        assert {s["slot_id"] for s in _load_slot_texts(sk, include_reprints=False)} == {"A"}
+
+
+# ---------------------------------------------------------------------------
+# Skeleton write-back (stamp / reset)
+# ---------------------------------------------------------------------------
+
+
+def _selection(pairs: list[tuple[str, str]]) -> ReprintSelection:
+    """Build a ReprintSelection from (slot_id, card_name) tuples."""
+    return ReprintSelection(
+        set_code="TST",
+        set_size=60,
+        target_reprint_count=len(pairs),
+        selections=[
+            SelectionPair(
+                slot=ReprintSlot(slot_id=sid, descriptor="orig"),
+                candidate=_make_candidate(name=name),
+                reason="r",
+            )
+            for sid, name in pairs
+        ],
+        all_candidates_considered=10,
+        selection_timestamp="2026-05-27T00:00:00+00:00",
+    )
+
+
+class TestApplySelectionToSkeleton:
+    def test_stamps_placed_slot_only(self, tmp_path: Path):
+        sk = tmp_path / "skeleton.json"
+        sk.write_text(json.dumps(_skeleton()), encoding="utf-8")
+        stamped = apply_selection_to_skeleton(sk, _selection([("B-C-03", "Murder")]))
+        assert stamped == 1
+        slots = {s["slot_id"]: s for s in json.loads(sk.read_text())["slots"]}
+        assert slots["B-C-03"]["is_reprint_slot"] is True
+        assert "Murder" in slots["B-C-03"]["reprint_card"]
+        # The other slot is untouched.
+        assert not slots["G-C-01"].get("is_reprint_slot")
+        # tweaked_text is preserved (so a later un-stamp restores the themed slot).
+        assert slots["B-C-03"]["tweaked_text"] == "Black common removal instant"
+
+    def test_rerun_resets_prior_stamps(self, tmp_path: Path):
+        # A re-roll that places elsewhere must un-stamp the previous slot.
+        sk = tmp_path / "skeleton.json"
+        sk.write_text(json.dumps(_skeleton()), encoding="utf-8")
+        apply_selection_to_skeleton(sk, _selection([("B-C-03", "Murder")]))
+        apply_selection_to_skeleton(sk, _selection([("G-C-01", "Llanowar Elves")]))
+        slots = {s["slot_id"]: s for s in json.loads(sk.read_text())["slots"]}
+        assert not slots["B-C-03"]["is_reprint_slot"]
+        assert slots["B-C-03"]["reprint_card"] is None
+        assert slots["G-C-01"]["is_reprint_slot"] is True
+
+    def test_missing_slot_is_skipped(self, tmp_path: Path):
+        sk = tmp_path / "skeleton.json"
+        sk.write_text(json.dumps(_skeleton()), encoding="utf-8")
+        stamped = apply_selection_to_skeleton(sk, _selection([("DOES-NOT-EXIST", "Murder")]))
+        assert stamped == 0
+
+    def test_reset_reprint_stamps(self):
+        skeleton = _skeleton(
+            [
+                {"slot_id": "A", "is_reprint_slot": True, "reprint_card": "Murder · Instant"},
+                {"slot_id": "B", "is_reprint_slot": False},
+            ]
+        )
+        assert reset_reprint_stamps(skeleton) is True
+        assert all(not s.get("is_reprint_slot") for s in skeleton["slots"])
+        # Idempotent: a second reset finds nothing to change.
+        assert reset_reprint_stamps(skeleton) is False
 
 
 # ---------------------------------------------------------------------------

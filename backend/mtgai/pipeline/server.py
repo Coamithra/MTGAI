@@ -3427,7 +3427,7 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
     if isinstance(body, dict) and isinstance(body.get("knobs"), dict):
         _write_reprint_knobs(asset, body)
 
-    from mtgai.generation.reprint_selector import select_reprints
+    from mtgai.generation.reprint_selector import apply_selection_to_skeleton, select_reprints
 
     with ai_lock.hold("Reprint selection") as acquired:
         if not acquired:
@@ -3444,6 +3444,10 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
         asset / "reprint_selection.json",
         json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
     )
+    # Stamp the picks into the skeleton (reset-then-stamp) so card-gen skips them and
+    # the lands investigation sees an accurate unfilled-slot view. A manual re-roll
+    # replaces the prior stamps cleanly.
+    apply_selection_to_skeleton(skeleton_path, result)
 
     selections = result.model_dump(mode="json")["selections"]
     knobs_payload = _reprint_knobs_payload(asset)
@@ -3459,6 +3463,104 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
             **knobs_payload,
         }
     )
+
+
+@router.get("/api/wizard/lands/state")
+async def wizard_lands_state() -> JSONResponse:
+    """First-paint state for the Lands tab.
+
+    Reads the lands-stage card JSONs from ``<asset>/cards/`` — the 5 basics
+    (``L-01``..``L-05``) plus the optional investigated dual (``L-06``) — and
+    returns the simplified tile shape the tab renders. Land *cycles* are owned by
+    card-gen (they appear on the Cards tab), so they're excluded here via the
+    ``L-`` collector-number convention the lands stage uses. The stage emits live
+    tiles over SSE while running; this endpoint is the durable source the tab
+    bootstraps from on reload.
+    """
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    cards_dir = asset / "cards"
+    lands: list[dict] = []
+    if cards_dir.exists():
+        for path in sorted(cards_dir.glob("*.json")):
+            card = _read_json(path, None)
+            if not isinstance(card, dict):
+                continue
+            if not str(card.get("collector_number") or "").upper().startswith("L-"):
+                continue
+            lands.append(
+                {
+                    "name": card.get("name") or "",
+                    "type_line": card.get("type_line") or "",
+                    "rarity": card.get("rarity") or "",
+                    "oracle_text": card.get("oracle_text") or "",
+                    "flavor_text": card.get("flavor_text") or "",
+                    "collector_number": card.get("collector_number") or "",
+                    # The per-alternate art brief lives in design_notes
+                    # ("Alternate basic land art — <scene>"); the tab surfaces it
+                    # so the variant printings of a basic are visibly distinct.
+                    "design_notes": card.get("design_notes") or "",
+                }
+            )
+
+    return JSONResponse(
+        {
+            "lands": lands,
+            "has_content": bool(lands),
+            "stage_status": _stage_status_in_state("lands"),
+        }
+    )
+
+
+@router.post("/api/wizard/lands/refresh")
+async def wizard_lands_refresh() -> JSONResponse:
+    """Manual re-roll of the lands stage under the AI lock — the engine runs this
+    stage automatically, but the tab's Refresh button calls here.
+
+    Re-runs ``generate_lands`` (basic-land alternate arts + the dual-land fixing
+    investigation). Each run first clears the prior ``L-*`` card JSONs, so a
+    refresh fully replaces the basics' alternates (the random per-type count +
+    lettered collector numbers mean a fresh run can't reliably overwrite the old
+    set in place). Returns the same shape as ``/state`` so the tab repaints from
+    the freshly-written cards. Requires ``skeleton.json`` — lands read the set's
+    fixing context from the skeleton's slots.
+    """
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    skeleton_path = asset / "skeleton.json"
+    if not skeleton_path.exists():
+        return JSONResponse(
+            {"error": "No skeleton.json yet — run Skeleton Generation first."}, status_code=400
+        )
+
+    from mtgai.generation.land_generator import generate_lands
+
+    with ai_lock.hold("Land generation") as acquired:
+        if not acquired:
+            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+        try:
+            await asyncio.to_thread(generate_lands)
+        except Exception as exc:
+            logger.exception("Land refresh failed")
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    # Re-read the freshly-written L-* cards into the tile shape (same source of
+    # truth the tab bootstraps from), keeping the response shape DRY.
+    return await wizard_lands_state()
 
 
 @router.get("/api/wizard/skeleton/state")
