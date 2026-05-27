@@ -209,8 +209,7 @@ def format_slot_specs(
             # deterministic instructions rather than trusting the blob's prose.
             if slot.get("is_reprint_slot"):
                 spec += (
-                    "\n   REPRINT SLOT — design a card suitable as a reprint "
-                    "from an existing set"
+                    "\n   REPRINT SLOT — design a card suitable as a reprint from an existing set"
                 )
             signpost_for = (slot.get("signpost_for") or "").strip()
             if signpost_for:
@@ -220,6 +219,7 @@ def format_slot_specs(
                     f"\n   SIGNPOST UNCOMMON for the {signpost_for} archetype{arch_note}. "
                     "Design the gold uncommon that defines and enables this archetype."
                 )
+            spec += _cycle_note(slot)
             lines.append(spec)
             continue
 
@@ -273,9 +273,29 @@ def format_slot_specs(
         if notes:
             spec += f"\n   Notes: {notes}"
 
+        spec += _cycle_note(slot)
         lines.append(spec)
 
     return "\n".join(lines)
+
+
+def _cycle_note(slot: dict) -> str:
+    """A CYCLE instruction for a cycle-member slot, else "".
+
+    Card-gen batches a cycle's members together; this tells the model they are one
+    family that must share a design template / parallel structure. The shared
+    template is stamped onto the slot dict (``cycle_template``) by card_generator.
+    """
+    if not slot.get("cycle_id"):
+        return ""
+    template = (slot.get("cycle_template") or "").strip()
+    note = (
+        "\n   CYCLE MEMBER — this card is one of a cycle generated together; "
+        "give the family parallel structure and a shared design."
+    )
+    if template:
+        note += f" Cycle template: {template}"
+    return note
 
 
 # ---------------------------------------------------------------------------

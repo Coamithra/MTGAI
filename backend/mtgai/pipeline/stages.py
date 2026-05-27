@@ -466,6 +466,7 @@ def run_skeleton(
     is saved before the LLM runs, so a relabel failure leaves a usable (un-themed)
     skeleton the user can re-roll from the Skeleton tab.
     """
+    from mtgai.generation.skeleton_knobs_tuner import tune_skeleton_knobs
     from mtgai.generation.skeleton_relabel import relabel_skeleton
     from mtgai.runtime import ai_lock
     from mtgai.runtime.active_project import require_active_project
@@ -485,7 +486,6 @@ def run_skeleton(
             {"section_id": "slots", "title": "Default → Tweaked", "content_type": "table"},
         ]
     )
-    emitter.phase("running", "Building the default skeleton")
 
     theme_data = json.loads(theme_path.read_text(encoding="utf-8"))
     config = SetConfig(**theme_data)
@@ -495,25 +495,36 @@ def run_skeleton(
     sp = require_active_project().settings.set_params
     config = config.model_copy(update={"set_size": sp.set_size, "name": sp.set_name or config.name})
 
-    # Phase 1: deterministic default. Save it immediately so a relabel failure
-    # still leaves a usable skeleton (card-gen falls back to render_slot_string).
-    result = generate_skeleton(config)
     skeleton_path = set_dir / "skeleton.json"
     skeleton_path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(
-        skeleton_path,
-        json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
-    )
-    slot_count = len(result.slots)
 
-    # Phase 2: LLM relabel + request placement.
-    emitter.phase("running", "Relabeling the skeleton to fit the set")
-    with ai_lock.hold("Skeleton relabel") as acquired:
+    # Phases 0-2 share one AI-lock hold: phase 0 (knob tuning) and phase 2
+    # (relabel) are both LLM calls; the deterministic build (phase 1) sits between
+    # them. The default skeleton is saved right after the build, before the
+    # relabel — so a relabel failure still leaves a usable (un-themed) skeleton.
+    emitter.phase("running", "Tuning the skeleton to fit the set")
+    with ai_lock.hold("Skeleton generation") as acquired:
         if not acquired:
             return StageResult(
                 success=False,
                 error_message="Another AI action holds the lock; try again later.",
             )
+
+        # Phase 0: LLM knob tuning (default-on-failure — never a hard error).
+        knobs, knob_meta = tune_skeleton_knobs(theme=theme_data)
+
+        # Phase 1: deterministic build from the tuned knobs.
+        emitter.phase("running", "Building the skeleton")
+        result = generate_skeleton(config, knobs=knobs)
+        result.knobs_defaulted = bool(knob_meta.get("defaulted"))
+        atomic_write_text(
+            skeleton_path,
+            json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
+        )
+        slot_count = len(result.slots)
+
+        # Phase 2: LLM relabel + request placement.
+        emitter.phase("running", "Relabeling the skeleton to fit the set")
         try:
             relabel = relabel_skeleton(
                 slots=[s.model_dump() for s in result.slots],
@@ -583,37 +594,47 @@ def run_skeleton(
 
     requested = relabel.get("requests_total", placed)
     placed_str = f"{placed}/{requested}" if requested else str(placed)
-    emitter.update(
-        "overview",
-        status="done",
-        content={
-            "Set": config.name or config.code,
-            "Slots": str(slot_count),
-            "Slots changed": str(changed),
-            "Requests placed": placed_str,
-            "Model": relabel.get("model_id", "?"),
-            "Cost": f"${relabel.get('cost_usd', 0.0):.4f}",
-        },
-    )
+    from mtgai.skeleton.knobs import KNOB_SPECS
+
+    total_cost = relabel.get("cost_usd", 0.0) + knob_meta.get("cost_usd", 0.0)
+    # How many knobs the tuner moved off their defaults (the "what did the AI do"
+    # at the structural level).
+    tuned_knobs = sum(1 for spec in KNOB_SPECS if getattr(result.knobs, spec.key) != spec.default)
+    knobs_cell = "defaults" if result.knobs_defaulted else f"{tuned_knobs} tuned"
+    overview = {
+        "Set": config.name or config.code,
+        "Slots": str(slot_count),
+        "Slots changed": str(changed),
+        "Requests placed": placed_str,
+        "Knobs": knobs_cell,
+        "Model": relabel.get("model_id", "?"),
+        "Cost": f"${total_cost:.4f}",
+    }
+    if result.cycles:
+        overview["Cycles"] = ", ".join(c.name for c in result.cycles)
+    emitter.update("overview", status="done", content=overview)
     incomplete = bool(relabel.get("incomplete"))
     incomplete_note = " (relabel incomplete — re-roll to finish)" if incomplete else ""
+    cycle_note = f", {len(result.cycles)} cycle(s)" if result.cycles else ""
     emitter.phase(
-        "done", f"Skeleton ready — {slot_count} slots, {changed} relabeled{incomplete_note}"
+        "done",
+        f"Skeleton ready — {slot_count} slots, {changed} relabeled{cycle_note}{incomplete_note}",
     )
     logger.info(
-        "Skeleton: %d slots, %d relabeled, %s requests placed%s",
+        "Skeleton: %d slots, %d relabeled, %s requests placed, %d cycle(s)%s",
         slot_count,
         changed,
         placed_str,
+        len(result.cycles),
         " [INCOMPLETE]" if incomplete else "",
     )
     return StageResult(
         total_items=slot_count,
         completed_items=slot_count,
-        cost_usd=relabel.get("cost_usd", 0.0),
+        cost_usd=total_cost,
         detail=(
             f"Skeleton: {slot_count} slots, {changed} relabeled, "
-            f"{placed_str} requests placed{incomplete_note}"
+            f"{placed_str} requests placed{cycle_note}{incomplete_note}"
         ),
     )
 

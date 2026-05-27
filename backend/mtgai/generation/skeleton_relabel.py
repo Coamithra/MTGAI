@@ -36,6 +36,13 @@ from pathlib import Path
 from typing import Any
 
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool, stream_text
+from mtgai.generation.skeleton_prompt_blocks import (
+    format_archetypes_block,
+    format_card_requests,
+    format_constraints_block,
+    format_mechanics_block,
+    format_setting_block,
+)
 from mtgai.skeleton.generator import render_slot_string
 
 logger = logging.getLogger(__name__)
@@ -190,63 +197,13 @@ def _read_template(name: str) -> str:
     return (_PROMPTS_DIR / name).read_text(encoding="utf-8")
 
 
-def _format_setting_block(theme: dict) -> str:
-    one_liner = (theme.get("theme") or "").strip()
-    prose = (theme.get("flavor_description") or theme.get("setting") or "").strip()
-    parts = [p for p in (one_liner, prose) if p]
-    return "\n\n".join(parts) if parts else "(no setting provided)"
-
-
-def _format_mechanics_block(approved: list[Any]) -> str:
-    """Render approved mechanics with their effect, framed as floors/caps."""
-    if not approved:
-        return "(no named mechanics — relabel around the set's flavor only)"
-    lines: list[str] = []
-    for mech in approved:
-        if not isinstance(mech, dict):
-            continue
-        name = mech.get("name") or "?"
-        colors = mech.get("colors") or []
-        colors_str = "".join(str(c) for c in colors) if colors else "any"
-        lines.append(f"- {name} ({colors_str})")
-        reminder = (mech.get("reminder_text") or mech.get("rules_text") or "").strip()
-        if reminder:
-            lines.append(f"    {reminder}")
-    return "\n".join(lines) if lines else "(no named mechanics)"
-
-
-def _format_archetypes_block(archetypes: list[Any]) -> str:
-    if not archetypes:
-        return "(no archetypes provided)"
-    lines: list[str] = []
-    for arch in archetypes:
-        if not isinstance(arch, dict):
-            continue
-        pair = arch.get("color_pair") or "?"
-        name = (arch.get("name") or "").strip()
-        desc = (arch.get("description") or "").strip()
-        lines.append(f"- {pair} {name}: {desc}")
-    return "\n".join(lines) if lines else "(no archetypes provided)"
-
-
-def _format_constraints_block(constraints: list[Any]) -> str:
-    if not constraints:
-        return "(no special constraints — keep the default's standard shape)"
-    lines: list[str] = []
-    for c in constraints:
-        text = c.get("text") if isinstance(c, dict) else c
-        if text:
-            lines.append(f"- {text}")
-    return "\n".join(lines) if lines else "(no special constraints)"
-
-
-def _format_card_requests(requests: list[Any]) -> str:
-    lines: list[str] = []
-    for i, req in enumerate(requests, 1):
-        text = req.get("text") if isinstance(req, dict) else req
-        if text:
-            lines.append(f"{i}. {text}")
-    return "\n".join(lines) if lines else "(none)"
+# The set-context block formatters are shared with the phase-0 knob tuner; they
+# live in ``skeleton_prompt_blocks`` so the two passes frame the set identically.
+_format_setting_block = format_setting_block
+_format_mechanics_block = format_mechanics_block
+_format_archetypes_block = format_archetypes_block
+_format_constraints_block = format_constraints_block
+_format_card_requests = format_card_requests
 
 
 def _render_default_listing(slots: list[dict]) -> str:

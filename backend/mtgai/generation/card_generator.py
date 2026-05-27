@@ -190,15 +190,31 @@ def group_slots_into_batches(
 ) -> list[list[dict]]:
     """Group unfilled skeleton slots into batches for generation.
 
-    Groups by color first (mono-color batches), then multicolor signposts,
-    then colorless.  Each batch is at most ``batch_size`` slots.
+    **Cycle members** (slots carrying a ``cycle_id``) are pulled out first and
+    each cycle becomes its own batch (split if it exceeds ``batch_size``), so the
+    family is designed together with parallel structure and its shared template.
+    The rest group by color (mono-color batches, then multicolor pairs, then
+    colorless), each at most ``batch_size`` slots.
     """
-    by_color: dict[str, list[dict]] = {}
+    cycle_groups: dict[str, list[dict]] = {}
+    ordinary: list[dict] = []
     for slot in slots:
-        key = slot.get("color_pair") or slot["color"]
-        by_color.setdefault(key, []).append(slot)
+        cid = slot.get("cycle_id")
+        if cid:
+            cycle_groups.setdefault(cid, []).append(slot)
+        else:
+            ordinary.append(slot)
 
     batches: list[list[dict]] = []
+    # Cycle batches first (deterministic by cycle_id) so the family lands as a unit.
+    for _, members in sorted(cycle_groups.items()):
+        for i in range(0, len(members), batch_size):
+            batches.append(members[i : i + batch_size])
+
+    by_color: dict[str, list[dict]] = {}
+    for slot in ordinary:
+        key = slot.get("color_pair") or slot["color"]
+        by_color.setdefault(key, []).append(slot)
     for group in (v for _, v in sorted(by_color.items())):
         for i in range(0, len(group), batch_size):
             batches.append(group[i : i + batch_size])
@@ -764,6 +780,18 @@ def generate_set(
     # file falls back to theme.draft_archetypes (None lets build_user_prompt do that).
     archetypes = load_archetypes(set_dir) or None
 
+    # Stamp each cycle member with its cycle's shared template so the family is
+    # generated with parallel structure (format_slot_specs reads cycle_template).
+    cycle_templates = {
+        c.get("id"): c.get("template", "")
+        for c in (skeleton.get("cycles") or [])
+        if isinstance(c, dict) and c.get("id")
+    }
+    for s in skeleton["slots"]:
+        cid = s.get("cycle_id")
+        if cid and cycle_templates.get(cid):
+            s["cycle_template"] = cycle_templates[cid]
+
     logger.info(
         "Loaded: skeleton (%d slots), %d mechanics, theme '%s', %d archetypes",
         len(skeleton["slots"]),
@@ -782,8 +810,9 @@ def generate_set(
             progress.total_cost_usd,
         )
 
-    # Filter to unfilled slots
-    all_slots = skeleton["slots"]
+    # Filter to unfilled slots. Land slots (including land cycles like guildgates)
+    # are owned by the `lands` stage, not card-gen, so they are skipped here.
+    all_slots = [s for s in skeleton["slots"] if s.get("card_type") != "land"]
     if resume:
         unfilled = [
             s

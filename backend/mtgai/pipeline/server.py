@@ -3236,6 +3236,37 @@ def _skeleton_slot_view(slot: dict) -> dict:
         "default_text": default_text,
         "tweaked_text": tweaked or default_text,
         "reserved_card": slot.get("reserved_card"),
+        "cycle_id": slot.get("cycle_id"),
+    }
+
+
+def _skeleton_knobs_payload(skeleton: dict) -> dict:
+    """The knobs / cycles / specs block of the Skeleton tab state.
+
+    Reads the persisted ``knobs`` off ``skeleton.json`` (defaulting when absent —
+    a pre-knobs skeleton) and pairs it with the spec bounds the UI renders
+    controls from. Kept separate so both ``/state`` and the knob endpoints return
+    the same shape.
+    """
+    from mtgai.skeleton.knobs import SkeletonKnobs, knob_specs_payload
+
+    raw = skeleton.get("knobs")
+    knobs = SkeletonKnobs.model_validate(raw) if isinstance(raw, dict) else SkeletonKnobs()
+    # The cycles the build actually KEPT live at the top level of the result
+    # (cycles too big for their rarity budget are dropped from there but remain in
+    # ``knobs.cycles`` as proposed); show the kept ones so the UI never lists a
+    # cycle that isn't in the matrix. Fall back to the proposed list for a
+    # pre-knobs skeleton with no top-level ``cycles``.
+    kept_cycles = skeleton.get("cycles")
+    cycles = (
+        kept_cycles if isinstance(kept_cycles, list) else [c.model_dump() for c in knobs.cycles]
+    )
+    return {
+        "knobs": knobs.model_dump(),
+        "knob_specs": knob_specs_payload(),
+        "cycles": cycles,
+        "knobs_defaulted": bool(skeleton.get("knobs_defaulted")),
+        "knob_warnings": skeleton.get("knob_warnings", []),
     }
 
 
@@ -3285,6 +3316,133 @@ async def wizard_skeleton_state() -> JSONResponse:
             "relabeled": int(skeleton.get("relabeled_slots", 0))
             if isinstance(skeleton, dict)
             else 0,
+            **_skeleton_knobs_payload(skeleton if isinstance(skeleton, dict) else {}),
+        }
+    )
+
+
+def _rebuild_skeleton_from_knobs(asset, skeleton: dict, knobs) -> dict:
+    """Deterministically rebuild ``skeleton.json`` from new knobs, in place.
+
+    Rebuilding changes the slot matrix, so the LLM relabel (``tweaked_text`` +
+    request placements) is dropped — the tab tells the user to Refresh to
+    re-theme. Returns the new skeleton dict (also written to disk).
+    """
+    from mtgai.skeleton.generator import SetConfig, generate_skeleton
+
+    config_raw = skeleton.get("config") if isinstance(skeleton, dict) else None
+    config = SetConfig.model_validate(config_raw) if isinstance(config_raw, dict) else None
+    if config is None:
+        raise ValueError("skeleton.json has no config to rebuild from")
+    result = generate_skeleton(config, knobs=knobs)
+    new_skeleton = result.model_dump(mode="json")
+    atomic_write_text(
+        asset / "skeleton.json", json.dumps(new_skeleton, indent=2, ensure_ascii=False)
+    )
+    return new_skeleton
+
+
+@router.post("/api/wizard/skeleton/knobs")
+async def wizard_skeleton_knobs(request: Request) -> JSONResponse:
+    """Validate edited knobs and rebuild the default skeleton deterministically.
+
+    Body: ``{knobs: {...}, provenance: {...}, pinned: [...]}``. The knobs are
+    validated/clamped through :class:`SkeletonKnobs` (so a hand-typed value can
+    never produce an illegal skeleton), then ``generate_skeleton`` rebuilds the
+    matrix. No AI lock — a pure deterministic rebuild. The relabel is dropped;
+    the client then hits Refresh to re-theme. Returns the new slots + knobs +
+    any clamp warnings.
+    """
+    from mtgai.skeleton.knobs import SkeletonKnobs
+
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    skeleton = _read_json(asset / "skeleton.json", {})
+    if not isinstance(skeleton, dict) or not skeleton.get("slots"):
+        return JSONResponse(
+            {"error": "No skeleton.json yet — run Skeleton Generation first."}, status_code=400
+        )
+
+    payload = dict(body.get("knobs") or {})
+    payload["cycles"] = body.get("cycles", payload.get("cycles", []))
+    payload["pinned"] = body.get("pinned", [])
+    payload["provenance"] = body.get("provenance", {})
+    knobs, warnings = SkeletonKnobs.from_payload(payload)
+    try:
+        new_skeleton = _rebuild_skeleton_from_knobs(asset, skeleton, knobs)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    logger.info("Skeleton knobs applied (rebuilt %d slots)", len(new_skeleton.get("slots", [])))
+    return JSONResponse(
+        {
+            "success": True,
+            "slots": [_skeleton_slot_view(s) for s in new_skeleton.get("slots", [])],
+            "warnings": warnings + list(new_skeleton.get("knob_warnings", [])),
+            **_skeleton_knobs_payload(new_skeleton),
+        }
+    )
+
+
+@router.post("/api/wizard/skeleton/knobs/tune")
+async def wizard_skeleton_knobs_tune() -> JSONResponse:
+    """Re-run the phase-0 LLM knob tuner, respecting pinned knobs, then rebuild.
+
+    Holds the AI lock (it is an LLM call). The current skeleton's knobs are passed
+    as the tuner's base so pinned values survive the re-roll. On any tuner failure
+    the defaults (or the pinned base) are used — never a hard error. Returns the
+    rebuilt slots + the freshly-tuned knobs.
+    """
+    from mtgai.generation.skeleton_knobs_tuner import tune_skeleton_knobs
+    from mtgai.skeleton.knobs import SkeletonKnobs
+
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    skeleton = _read_json(asset / "skeleton.json", {})
+    if not isinstance(skeleton, dict) or not skeleton.get("slots"):
+        return JSONResponse(
+            {"error": "No skeleton.json yet — run Skeleton Generation first."}, status_code=400
+        )
+    raw = skeleton.get("knobs")
+    base = SkeletonKnobs.model_validate(raw) if isinstance(raw, dict) else SkeletonKnobs()
+
+    with ai_lock.hold("Skeleton knob tuning") as acquired:
+        if not acquired:
+            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+        try:
+            knobs, meta = await asyncio.to_thread(tune_skeleton_knobs, base=base)
+            new_skeleton = _rebuild_skeleton_from_knobs(asset, skeleton, knobs)
+        except Exception as exc:
+            logger.exception("Skeleton knob tuning failed")
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    return JSONResponse(
+        {
+            "success": True,
+            "slots": [_skeleton_slot_view(s) for s in new_skeleton.get("slots", [])],
+            "defaulted": bool(meta.get("defaulted")),
+            "model_id": meta.get("model_id"),
+            "warnings": list(new_skeleton.get("knob_warnings", [])),
+            **_skeleton_knobs_payload(new_skeleton),
         }
     )
 

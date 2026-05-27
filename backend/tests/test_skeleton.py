@@ -683,7 +683,7 @@ class TestEdgeCases:
         assert rarity_check[0].passed is True
 
     def test_base_set_size_277(self):
-        """Base size should produce counts very close to BASE_RARITY_COUNTS."""
+        """Base size should produce counts very close to the rarity-weight defaults."""
         result = _generate(277)
         assert result.total_slots == 277
 

@@ -1,7 +1,36 @@
 # Theme-Driven Skeleton Knobs + Cycle Primitive
 
-**Status:** proposed. Builds on **Skeleton Generation** (`plans/skeleton-generation.md`).
+**Status:** in progress on `feat/skeleton-knobs` (all three phases). Builds on
+**Skeleton Generation** (`plans/skeleton-generation.md`).
 **Trello:** [Theme-driven skeleton knobs + cycle primitive](https://trello.com/c/gL2qnXFr)
+
+## Implementation map (as built)
+
+| File | Change |
+|---|---|
+| `skeleton/knobs.py` (new) | `SkeletonKnobs` (flat scalar fields + `cycles` + `provenance`/`pinned`), `KnobSpec` registry (one source of bounds), `Cycle`/`CycleSpan`, clamp-on-validate, `from_payload()` (clamp + warnings), feasibility helper, span→pair constants. |
+| `skeleton/generator.py` | `generate_skeleton(config, knobs=None, reserved_slots=None)`. Knobs thread into `_scale_rarity` / `_distribute_colors` / `_assign_card_types` / `_mark_signpost_slots` / `_check_signpost_uncommons`. Cycles reserved first (balance-preserving even spans), members stamped `cycle_id`. Planeswalker retype from mythic non-creature slots. `SkeletonSlot.cycle_id`; `SkeletonResult.knobs` + `.cycles` + `.knobs_defaulted`. Defaults reproduce today's skeleton (planeswalker default **0** so the failure path is unchanged). |
+| `generation/skeleton_prompt_blocks.py` (new) | Shared `_format_*` block helpers lifted out of `skeleton_relabel.py` (setting / mechanics / archetypes / constraints / card_requests). |
+| `generation/skeleton_knobs_tuner.py` (new) | Phase-0 LLM tuner: one structured tool call → `SkeletonKnobs`, clamped, pins respected, default-on-failure (`knobs_defaulted`). |
+| `pipeline/prompts/skeleton_knobs_{system,user}.txt` (new) | Phase-0 prompt. |
+| `pipeline/stages.py` `run_skeleton` | Phase 0 (tune) → phase 1 (build) → phase 2 (relabel), all under one AI-lock hold. |
+| `pipeline/server.py` | `/skeleton/state` returns knobs+specs+cycles; `POST /skeleton/knobs` (validate + deterministic rebuild); `POST /skeleton/knobs/tune` (re-run phase 0, respect pins). |
+| `gallery/templates/static/wizard_skeleton.js` + `wizard.css` | Knobs panel above the slot diff: bounded controls from the specs, provenance badges, pin, Apply + Tune-with-AI; cycle list. |
+| `generation/card_generator.py` | Skip `card_type == "land"` slots (lands stage owns them); cycle-coherent batching (members in one batch); thread the cycle `template` into the prompt. |
+| `generation/prompts.py` `format_slot_specs` | Emit the cycle `template` for cycle members. |
+| `generation/reprint_selector.py` | Reprint identification skips cycle members. |
+| `generation/land_generator.py` + `lands` stage | Generate land-cycle slots (one call, shared template) in addition to basics + the legacy fixing land. |
+
+**Behavior-preservation contract:** with default knobs and no cycles,
+`generate_skeleton` produces a skeleton structurally identical to today's for
+the constraint-bearing dimensions (rarity counts, per-color balance, creature
+density, signpost coverage). The non-creature *type split* (instant / sorcery /
+enchantment / artifact) is now driven by a normalized `noncreature_*` bias whose
+defaults approximate — but do not bit-for-bit reproduce — the old per-rarity
+ratios; no hard constraint depends on that split. `planeswalker_count` defaults
+to **0** (today's skeleton has no planeswalker slot; the phase-0 tuner sets it to
+1 for typical sets), so a failed/absent phase 0 leaves the failure-path skeleton
+unchanged.
 
 ## Problem
 

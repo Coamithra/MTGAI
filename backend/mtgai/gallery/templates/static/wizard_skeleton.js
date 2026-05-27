@@ -40,6 +40,14 @@
     streaming: false,
     incomplete: false,
     streamUpdates: {},
+    // Structural knobs (Phase 0). `knobs` is the value map, `knobSpecs` the
+    // bounds the controls render from, `cycles` the reserved cycle families,
+    // `knobsDefaulted` true when the phase-0 tuner fell back to defaults.
+    knobs: {},
+    knobSpecs: [],
+    cycles: [],
+    knobsDefaulted: false,
+    knobWarnings: [],
   };
 
   W.registerStageRenderer(STAGE_ID, render);
@@ -89,6 +97,7 @@
       <div class="wiz-skel-summary" data-role="skel-summary">
         <div class="wiz-skel-loading">Loading skeleton…</div>
       </div>
+      <div class="wiz-skel-knobs" data-role="skel-knobs"></div>
       <div class="wiz-skel-grid" data-role="skel-grid"></div>
     `;
   }
@@ -108,6 +117,11 @@
     local.modelId = data.model_id || '';
     local.stageStatus = data.stage_status || local.stageStatus;
     local.incomplete = !!data.incomplete;
+    local.knobs = data.knobs || {};
+    local.knobSpecs = Array.isArray(data.knob_specs) ? data.knob_specs : [];
+    local.cycles = Array.isArray(data.cycles) ? data.cycles : [];
+    local.knobsDefaulted = !!data.knobs_defaulted;
+    local.knobWarnings = Array.isArray(data.knob_warnings) ? data.knob_warnings : [];
     // Re-apply any provisional slots that streamed in before this fetch landed
     // (a tab mounted mid-relabel: /state returns the pre-relabel default skeleton
     // while the live stream is already overwriting individual slots).
@@ -120,8 +134,201 @@
     local.hasTweaked = !!data.has_tweaked || local.slots.some(s => isChanged(s));
 
     paintSummary(root, state);
+    paintKnobs(root, state);
     paintGrid(root, state);
     paintFooter(getFooter(root), state);
+    applyFormLock();
+  }
+
+  // ----------------------------------------------------------------------
+  // Knobs panel — structural knobs (Phase 0) + cycles, above the slot diff
+  // ----------------------------------------------------------------------
+
+  const GROUP_LABELS = {
+    rarity: 'Rarity weights',
+    multicolor: 'Multicolor density',
+    colorless: 'Colorless density',
+    creature: 'Creature density',
+    noncreature: 'Non-creature type bias',
+    special: 'Planeswalkers & signposts',
+  };
+
+  function paintKnobs(root, state) {
+    const slot = root.querySelector('[data-role="skel-knobs"]');
+    if (!slot) return;
+    if (!local.knobSpecs.length) { slot.innerHTML = ''; return; }
+    const isPast = isPastTab(state);
+    const disabled = isPast || aiBusy();
+
+    // Group specs by their `group`, preserving first-seen order.
+    const groups = [];
+    const byGroup = {};
+    local.knobSpecs.forEach(spec => {
+      if (!byGroup[spec.group]) { byGroup[spec.group] = []; groups.push(spec.group); }
+      byGroup[spec.group].push(spec);
+    });
+
+    const tunedCount = local.knobSpecs.filter(s => Number(local.knobs[s.key]) !== Number(s.default)).length;
+    const provSummary = local.knobsDefaulted
+      ? '<span class="wiz-skel-knob-prov default">defaults (AI tuning unavailable)</span>'
+      : `<span class="wiz-skel-knob-prov ${tunedCount ? 'ai' : 'default'}">${tunedCount} knob(s) tuned</span>`;
+    const warnHtml = (local.knobWarnings || []).length
+      ? `<div class="wiz-skel-incomplete">⚠ ${local.knobWarnings.map(escHtml).join('<br>')}</div>`
+      : '';
+    const cyclesHtml = local.cycles.length
+      ? `<div class="wiz-skel-cycles"><strong>Cycles:</strong> ${local.cycles.map(cycleChip).join(' ')}</div>`
+      : '';
+
+    slot.innerHTML = `
+      <details class="wiz-skel-knobs-box" ${tunedCount || local.cycles.length ? 'open' : ''}>
+        <summary class="wiz-theme-section-header-row">
+          <span><strong>Structural knobs</strong> ${provSummary}</span>
+        </summary>
+        <p class="wiz-skel-blurb">Theme-tuned structure for the skeleton — the AI proposes within research-derived ranges, you adjust. Pin a knob to keep it on a re-tune. Applying knobs rebuilds the default skeleton; Relabel to re-theme it.</p>
+        ${warnHtml}
+        ${cyclesHtml}
+        <div class="wiz-skel-knob-groups">
+          ${groups.map(g => groupHtml(g, byGroup[g], disabled)).join('')}
+        </div>
+        <div class="wiz-skel-knob-actions">
+          <button type="button" class="wiz-btn-secondary" data-role="knob-tune" ${disabled ? 'disabled' : ''}
+                  title="Re-run the AI tuner (keeps pinned knobs)">Tune with AI…</button>
+          <button type="button" class="wiz-btn-primary" data-role="knob-apply" ${disabled ? 'disabled' : ''}
+                  title="Rebuild the default skeleton from these knobs">Apply &amp; rebuild</button>
+        </div>
+      </details>`;
+    bindKnobs(slot);
+  }
+
+  function cycleChip(c) {
+    const label = `${escHtml(c.name || c.id)} (${escHtml(c.span)} ${escHtml(c.rarity)} ${escHtml(c.card_type)})`;
+    return `<span class="wiz-skel-cycle-chip" title="${escAttr(c.template || '')}">${label}</span>`;
+  }
+
+  function groupHtml(group, specs, disabled) {
+    return `
+      <fieldset class="wiz-skel-knob-group">
+        <legend>${escHtml(GROUP_LABELS[group] || group)}</legend>
+        ${specs.map(s => knobRowHtml(s, disabled)).join('')}
+      </fieldset>`;
+  }
+
+  function knobRowHtml(spec, disabled) {
+    const val = local.knobs[spec.key];
+    const prov = (local.knobs.provenance || {})[spec.key] || 'default';
+    const pinned = (local.knobs.pinned || []).includes(spec.key);
+    const badge = prov === 'ai' ? '<span class="wiz-ai-badge">AI</span>'
+      : prov === 'user' ? '<span class="wiz-skel-userbadge">edited</span>' : '';
+    return `
+      <div class="wiz-skel-knob" data-knob="${escAttr(spec.key)}">
+        <label title="${escAttr(spec.help || '')}">${escHtml(spec.label)} ${badge}</label>
+        <input type="number" data-role="knob-input" min="${spec.min}" max="${spec.max}"
+               step="${spec.step}" value="${val == null ? spec.default : val}" ${disabled ? 'disabled' : ''}>
+        <span class="wiz-skel-knob-range">${spec.min}–${spec.max}</span>
+        <label class="wiz-skel-knob-pin" title="Keep this value on a re-tune">
+          <input type="checkbox" data-role="knob-pin" ${pinned ? 'checked' : ''} ${disabled ? 'disabled' : ''}> pin
+        </label>
+      </div>`;
+  }
+
+  function bindKnobs(slot) {
+    slot.querySelectorAll('.wiz-skel-knob').forEach(row => {
+      const key = row.dataset.knob;
+      const input = row.querySelector('[data-role="knob-input"]');
+      const pin = row.querySelector('[data-role="knob-pin"]');
+      if (input) {
+        input.addEventListener('input', () => {
+          local.knobs[key] = input.value === '' ? null : Number(input.value);
+          local.knobs.provenance = local.knobs.provenance || {};
+          local.knobs.provenance[key] = 'user';  // §5 provenance: hand edit
+        });
+      }
+      if (pin) {
+        pin.addEventListener('change', () => {
+          local.knobs.pinned = (local.knobs.pinned || []).filter(k => k !== key);
+          if (pin.checked) local.knobs.pinned.push(key);
+        });
+      }
+    });
+    const apply = slot.querySelector('[data-role="knob-apply"]');
+    if (apply) apply.onclick = onApplyKnobs;
+    const tune = slot.querySelector('[data-role="knob-tune"]');
+    if (tune) tune.onclick = onTuneKnobs;
+  }
+
+  function knobValuesPayload() {
+    const values = {};
+    local.knobSpecs.forEach(s => { values[s.key] = local.knobs[s.key]; });
+    return {
+      knobs: values,
+      cycles: local.cycles,
+      pinned: local.knobs.pinned || [],
+      provenance: local.knobs.provenance || {},
+    };
+  }
+
+  async function onApplyKnobs() {
+    if (local.locked) return;
+    if (local.hasTweaked && !confirm(
+        'Rebuilding the skeleton from these knobs discards the current relabel. Continue?')) {
+      return;
+    }
+    setLocked(true);
+    if (W.showBusy) W.showBusy('Rebuilding skeleton from knobs…');
+    try {
+      const resp = await W.postJSON('/api/wizard/skeleton/knobs', knobValuesPayload());
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) return reportError(resp, data, 'Apply knobs failed');
+      applyKnobsResponse(data);
+      W.toast((data.warnings || []).length
+        ? 'Skeleton rebuilt (some values clamped). Relabel to re-theme.'
+        : 'Skeleton rebuilt from knobs. Relabel to re-theme.',
+        (data.warnings || []).length ? 'warn' : 'success');
+    } catch (err) {
+      W.toast('Network error: ' + err.message, 'error');
+    } finally {
+      if (W.clearBusy) W.clearBusy();
+      setLocked(false);
+    }
+  }
+
+  async function onTuneKnobs() {
+    if (local.locked) return;
+    setLocked(true);
+    if (W.showBusy) W.showBusy('Tuning the skeleton to the set…');
+    try {
+      const resp = await W.postJSON('/api/wizard/skeleton/knobs/tune', {});
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) return reportError(resp, data, 'Tune failed');
+      applyKnobsResponse(data);
+      W.toast(data.defaulted
+        ? 'AI tuning unavailable — defaults kept.'
+        : 'Knobs re-tuned to the set. Relabel to re-theme.',
+        data.defaulted ? 'warn' : 'success');
+    } catch (err) {
+      W.toast('Network error: ' + err.message, 'error');
+    } finally {
+      if (W.clearBusy) W.clearBusy();
+      setLocked(false);
+    }
+  }
+
+  // A knobs endpoint rebuilt the default skeleton: adopt the new slots + knobs and
+  // repaint. The relabel is gone (rebuild clears tweaked_text), so hasTweaked resets.
+  function applyKnobsResponse(data) {
+    if (Array.isArray(data.slots)) local.slots = data.slots;
+    if (data.knobs) local.knobs = data.knobs;
+    if (Array.isArray(data.knob_specs)) local.knobSpecs = data.knob_specs;
+    if (Array.isArray(data.cycles)) local.cycles = data.cycles;
+    local.knobsDefaulted = !!data.knobs_defaulted;
+    local.knobWarnings = Array.isArray(data.warnings) ? data.warnings : [];
+    local.hasTweaked = local.slots.some(s => isChanged(s));
+    const root = bodyRoot();
+    if (!root) return;
+    paintSummary(root, W.getState());
+    paintKnobs(root, W.getState());
+    paintGrid(root, W.getState());
+    paintFooter(getFooter(root), W.getState());
     applyFormLock();
   }
 
@@ -568,7 +775,10 @@
     if (!root) return;
     const locked = aiBusy();
     root.classList.toggle('wiz-skel-locked', locked);
-    root.querySelectorAll('.wiz-skel-tweak, [data-role="skel-refresh"]').forEach(el => {
+    root.querySelectorAll(
+      '.wiz-skel-tweak, [data-role="skel-refresh"], [data-role="knob-input"], '
+      + '[data-role="knob-pin"], [data-role="knob-apply"], [data-role="knob-tune"]'
+    ).forEach(el => {
       el.disabled = locked;
     });
     const footerBtn = root.querySelector('[data-role="skel-save-advance"]');
