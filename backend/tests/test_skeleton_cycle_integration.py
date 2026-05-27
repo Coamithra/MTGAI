@@ -13,7 +13,7 @@ from pathlib import Path
 import mtgai.generation.land_generator as land_gen
 from mtgai.generation.card_generator import group_slots_into_batches
 from mtgai.generation.prompts import format_slot_specs
-from mtgai.generation.reprint_selector import identify_reprint_slots
+from mtgai.generation.reprint_selector import _load_slot_texts
 
 # ---------------------------------------------------------------------------
 # Cycle-coherent batching
@@ -92,11 +92,15 @@ class TestCyclePromptNote:
 
 
 # ---------------------------------------------------------------------------
-# Reprint identification skips cycle members
+# Reprint candidate slots: all unfilled slots (cycle avoidance is prompt-driven)
 # ---------------------------------------------------------------------------
 
 
-def test_reprint_identification_skips_cycle_members(tmp_path: Path):
+def test_load_slot_texts_includes_cycle_members(tmp_path: Path):
+    """Slots are plain text after the skeleton stage, so the reprint stage offers
+    *every* unfilled slot to the placement LLM — cycle members included. Avoiding
+    them is the placement prompt's job (the descriptor carries a ``cycle:`` tag),
+    not a structured filter."""
     skeleton = {
         "slots": [
             {
@@ -118,13 +122,14 @@ def test_reprint_identification_skips_cycle_members(tmp_path: Path):
                 "card_id": None,
                 "cycle_id": "c",
             },
+            # A filled slot is excluded (you can't reprint over an assigned card).
+            {"slot_id": "3", "tweaked_text": "taken", "card_id": "already"},
         ]
     }
     path = tmp_path / "skeleton.json"
     path.write_text(json.dumps(skeleton), encoding="utf-8")
-    slots = identify_reprint_slots(path)
-    ids = {s.slot_id for s in slots}
-    assert "1" in ids and "2" not in ids
+    ids = {s["slot_id"] for s in _load_slot_texts(path)}
+    assert ids == {"1", "2"}  # both unfilled (incl. cycle member); "3" is taken
 
 
 # ---------------------------------------------------------------------------

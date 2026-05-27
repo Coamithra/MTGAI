@@ -1,11 +1,21 @@
 """Reprint selection for MTG set generation.
 
-Identifies eligible skeleton slots, pre-filters the curated reprint pool by hard
-constraints (color, rarity, type), then uses a single Haiku LLM call to pick the
-best reprints for the set. Cost: ~$0.002 per selection.
+Two LLM passes, mirroring the skeleton's relabel/assign split:
 
-This should run BEFORE card generation so that reprint slots are not wasted on
-LLM-generated cards.
+* **Select** (``_select_from_pool``) — given the set's theme + mechanics +
+  archetypes + constraints and the curated, setting-agnostic reprint pool, the
+  model picks the ``count`` staples that best fit the set. Pool fit only — no
+  placement.
+* **Place** (``_place_reprints``) — given the chosen cards and the skeleton's
+  *plain-text* slot list, the model assigns each reprint to the best-fitting
+  ordinary slot. Slots are free text after the skeleton stage, so "don't put a
+  reprint on a named character / signpost / cycle slot" is enforced by prompt
+  engineering, not structured filtering. Retry/dedup like the relabel's Pass 2.
+
+The count is a single total (see ``reprint_knobs``); rarity-per-slot no longer
+exists as structured data. Cost: a couple of cheap calls on the ``reprints``
+model (local Gemma by default). Runs BEFORE card generation so reprint slots
+aren't spent on generated cards.
 """
 
 from __future__ import annotations
@@ -14,9 +24,23 @@ import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field
 
+from mtgai.generation.reprint_knobs import (
+    RARITIES,
+    ReprintKnobs,
+    default_knobs,
+    from_payload,
+    resolve_targets,
+)
+from mtgai.generation.skeleton_prompt_blocks import (
+    format_archetypes_block,
+    format_constraints_block,
+    format_mechanics_block,
+    format_setting_block,
+)
 from mtgai.models.card import Card
 from mtgai.models.enums import Color, Rarity
 
@@ -28,14 +52,9 @@ logger = logging.getLogger(__name__)
 
 _POOL_PATH = Path(__file__).parent / "reprint_pool.json"
 
-# Mechanic tags that indicate a slot can accept a reprint (no set-specific mechanic)
-_REPRINT_ELIGIBLE_MECHANIC_TAGS = {"vanilla", "french_vanilla", "evergreen"}
-
-# Card types most commonly reprinted
-_REPRINT_ELIGIBLE_TYPES = {"instant", "sorcery", "creature", "enchantment", "artifact", "land"}
-
-# Max candidates per slot sent to LLM (sorted by EDHREC popularity)
-_MAX_CANDIDATES_PER_SLOT = 15
+# Pass 2 (placement) is flaky on local models — a call may place only some of the
+# chosen cards. Retry, accumulating placements (dedup by card + slot).
+_PLACE_MAX_ATTEMPTS = 3
 
 
 # ---------------------------------------------------------------------------
@@ -65,19 +84,14 @@ class ReprintCandidate(BaseModel):
 
 
 class ReprintSlot(BaseModel):
-    """A skeleton slot to be filled with a reprint."""
+    """The slot a reprint was placed on — its id + the plain-text spec it had."""
 
     slot_id: str
-    color: str
-    rarity: str
-    card_type: str
-    role_needed: str
-    cmc_target: int | None = None
-    mechanic_tag: str = ""
+    descriptor: str = ""
 
 
 class SelectionPair(BaseModel):
-    """A matched slot + candidate pair, with LLM reasoning."""
+    """A chosen reprint + the slot it was placed on, with the LLM's reasoning."""
 
     slot: ReprintSlot
     candidate: ReprintCandidate
@@ -90,6 +104,9 @@ class ReprintSelection(BaseModel):
     set_code: str
     set_size: int
     target_reprint_count: int
+    # The per-rarity targets the select pass was asked for (soft guidance, not
+    # enforced). None for the legacy flat-count path. Sum ~= target_reprint_count.
+    per_rarity_targets: dict[str, int] | None = None
     selections: list[SelectionPair]
     all_candidates_considered: int
     selection_timestamp: str
@@ -133,233 +150,15 @@ def load_reprint_pool(pool_path: Path | None = None) -> list[ReprintCandidate]:
     return candidates
 
 
-# ---------------------------------------------------------------------------
-# Set config extraction
-# ---------------------------------------------------------------------------
-
-
-def extract_set_config(skeleton_path: Path) -> dict:
-    """Read skeleton.json and build the set_config dict.
-
-    Returns a dict with keys: name, code, theme, flavor_description, themes,
-    creature_types, special_constraints, set_size.
-    """
-    with open(skeleton_path, encoding="utf-8") as f:
-        skeleton = json.load(f)
-
-    config = skeleton.get("config", {})
-
-    # Infer themes from flavor_description and special_constraints
-    themes: list[str] = []
-    flavor = config.get("flavor_description", "").lower()
-    constraints = config.get("special_constraints", [])
-
-    theme_keywords = {
-        "artifact": ["artifact", "relic", "automaton", "construct", "super-science"],
-        "megadungeon": ["megadungeon", "dungeon"],
-        "science-fantasy": ["science-fantasy", "super-science"],
-        "post-apocalyptic": ["post-apocalyptic", "apocalyptic", "collapsed"],
-        "dinosaur": ["dinosaur"],
-        "horror": ["horror", "nightmare"],
-        "enchantment": ["enchantment"],
-        "graveyard": ["graveyard", "undead", "zombie"],
-    }
-    for theme, kws in theme_keywords.items():
-        if any(kw in flavor for kw in kws):
-            themes.append(theme)
-
-    for c in constraints:
-        cl = c.lower()
-        if "artifact" in cl and "artifact" not in themes:
-            themes.append("artifact")
-        if "dinosaur" in cl and "dinosaur" not in themes:
-            themes.append("dinosaur")
-
-    creature_types: list[str] = []
-    type_candidates = [
-        "Dinosaur",
-        "Human",
-        "Wizard",
-        "Construct",
-        "Elf",
-        "Angel",
-        "Horror",
-        "Beast",
-        "Rat",
-        "Dragon",
-        "Zombie",
-    ]
-    for ct in type_candidates:
-        if ct.lower() in flavor or any(ct.lower() in c.lower() for c in constraints):
-            creature_types.append(ct)
-
-    return {
-        "name": config.get("name", ""),
-        "code": config.get("code", ""),
-        "theme": config.get("theme", ""),
-        "flavor_description": config.get("flavor_description", ""),
-        "themes": themes,
-        "creature_types": creature_types,
-        "special_constraints": constraints,
-        "set_size": config.get("set_size", 60),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Slot identification
-# ---------------------------------------------------------------------------
-
-
-def _infer_role(color: str, card_type: str, cmc: int | None, mechanic_tag: str) -> str:
-    """Infer the functional role needed for a skeleton slot."""
-    ct_lower = card_type.lower()
-
-    if ct_lower == "land" or (color == "colorless" and ct_lower == "land"):
-        return "mana_fixing"
-    if color == "colorless" and ct_lower == "artifact":
-        return "utility_creature"
-    if ct_lower == "creature" and mechanic_tag in ("vanilla", "french_vanilla"):
-        return "utility_creature"
-
-    if ct_lower in ("instant", "sorcery"):
-        if color == "B":
-            return "removal_hard_kill"
-        if color == "R":
-            return "removal_damage"
-        if color == "W":
-            return "combat_trick" if cmc is not None and cmc <= 3 else "removal_exile"
-        if color == "U":
-            return "counterspell" if cmc is not None and cmc <= 2 else "removal_bounce"
-        if color == "G":
-            return "removal_fight" if cmc is not None and cmc <= 2 else "combat_trick"
-
-    if ct_lower == "enchantment":
-        if color == "W":
-            return "removal_exile"
-        if color == "G":
-            return "artifact_removal"
-        return "utility_creature"
-
-    if ct_lower == "creature":
-        return "utility_creature"
-
-    return "utility_creature"
-
-
-def identify_reprint_slots(skeleton_path: Path) -> list[ReprintSlot]:
-    """Read skeleton.json and identify slots eligible for reprints.
-
-    A slot is eligible if:
-    - mechanic_tag is in {vanilla, french_vanilla, evergreen}
-    - card_type is a commonly reprinted type
-    - NOT already assigned (card_id is null)
-    - NOT a cycle member (cycles are bespoke families designed together, never
-      filled by an existing reprint)
-    """
-    with open(skeleton_path, encoding="utf-8") as f:
-        skeleton = json.load(f)
-
-    slots: list[ReprintSlot] = []
-    for slot_data in skeleton.get("slots", []):
-        mechanic_tag = slot_data.get("mechanic_tag", "")
-        card_type = slot_data.get("card_type", "")
-        card_id = slot_data.get("card_id")
-
-        if card_id is not None:
-            continue
-        if slot_data.get("cycle_id"):
-            continue
-        if mechanic_tag not in _REPRINT_ELIGIBLE_MECHANIC_TAGS:
-            continue
-        if card_type.lower() not in _REPRINT_ELIGIBLE_TYPES:
-            continue
-
-        color = slot_data.get("color", "")
-        rarity = slot_data.get("rarity", "")
-        cmc_target = slot_data.get("cmc_target")
-        role = _infer_role(color, card_type, cmc_target, mechanic_tag)
-
-        slots.append(
-            ReprintSlot(
-                slot_id=slot_data["slot_id"],
-                color=color,
-                rarity=rarity,
-                card_type=card_type,
-                role_needed=role,
-                cmc_target=cmc_target,
-                mechanic_tag=mechanic_tag,
-            )
-        )
-
-    logger.info(
-        "Identified %d reprint-eligible slots from skeleton (%d total slots)",
-        len(slots),
-        len(skeleton.get("slots", [])),
-    )
-    return slots
-
-
-# ---------------------------------------------------------------------------
-# Pre-filtering
-# ---------------------------------------------------------------------------
-
-
-def _color_matches(candidate_colors: list[str], slot_color: str) -> bool:
-    """Check if a candidate's colors match a slot's color requirement."""
-    if slot_color == "colorless":
-        return len(candidate_colors) == 0
-    if slot_color == "multicolor":
-        return len(candidate_colors) >= 2
-    return candidate_colors == [slot_color]
-
-
-def _type_matches(candidate_type_line: str, slot_card_type: str) -> bool:
-    """Check if a candidate's type line is compatible with the slot's card type."""
-    ct_lower = candidate_type_line.lower()
-    st_lower = slot_card_type.lower()
-
-    if st_lower in ct_lower:
-        return True
-    if st_lower == "creature" and "creature" in ct_lower:
-        return True
-    if st_lower == "enchantment" and "enchantment" in ct_lower:
-        return True
-    return st_lower == "artifact" and "artifact" in ct_lower
-
-
-def pre_filter_for_slot(
-    pool: list[ReprintCandidate],
-    slot: ReprintSlot,
-) -> list[ReprintCandidate]:
-    """Filter pool to candidates compatible with a slot (color, rarity, type).
-
-    Returns candidates sorted by EDHREC rank (most popular first), capped at
-    _MAX_CANDIDATES_PER_SLOT.
-    """
-    filtered = [
-        c
-        for c in pool
-        if _color_matches(c.colors, slot.color)
-        and c.rarity == slot.rarity
-        and _type_matches(c.type_line, slot.card_type)
-    ]
-    filtered.sort(key=lambda c: c.edhrec_rank if c.edhrec_rank is not None else 999999)
-    return filtered[:_MAX_CANDIDATES_PER_SLOT]
-
-
-# ---------------------------------------------------------------------------
-# LLM-based selection
-# ---------------------------------------------------------------------------
-
-
 def format_candidate_tldr(c: ReprintCandidate) -> str:
-    """Format a candidate as a compact one-liner for the LLM prompt.
+    """Format a candidate as a one-liner for the LLM prompt.
 
-    Examples:
-        "Murder ({1}{B}{B} — Destroy target creature.)"
-        "Firebrand Archer ({1}{R} 2/1 — Whenever you cast a noncreature spell, ...)"
+    Full oracle text (newlines flattened) — the pool is sent once now, so there's
+    no need to clip. Examples:
+        "Murder (common · {1}{B}{B} — Destroy target creature.)"
+        "Firebrand Archer (common · {1}{R} 2/1 — Whenever you cast a noncreature spell, ...)"
     """
-    parts = [c.name, " ("]
+    parts = [c.name, " (", c.rarity, " · "]
     if c.mana_cost:
         parts.append(c.mana_cost)
     else:
@@ -367,189 +166,376 @@ def format_candidate_tldr(c: ReprintCandidate) -> str:
     if c.power is not None and c.toughness is not None:
         parts.append(f" {c.power}/{c.toughness}")
     oracle = c.oracle_text.replace("\n", " / ")
-    if len(oracle) > 120:
-        oracle = oracle[:117] + "..."
     if oracle:
         parts.append(f" — {oracle}")
     parts.append(")")
     return "".join(parts)
 
 
-def _build_selection_prompt(
-    slot_candidates: dict[str, tuple[ReprintSlot, list[ReprintCandidate]]],
-    set_config: dict,
-    count: int,
-) -> tuple[str, str]:
-    """Build system and user prompts for the LLM reprint selection call."""
-    system_prompt = (
-        "You are an expert Magic: The Gathering set designer selecting reprints "
-        "for a new set. You know all existing MTG cards and understand Limited "
-        "format design, draft archetypes, and reprint selection strategy."
-    )
-
-    color_names = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green"}
-    lines = [
-        f"# Reprint Selection for {set_config.get('name', 'Unknown')}",
-        f"**Theme**: {set_config.get('theme', 'Unknown')}",
-        f"**Setting**: {set_config.get('flavor_description', 'No description')}",
-    ]
-    constraints = set_config.get("special_constraints", [])
-    if constraints:
-        lines.append(f"**Special**: {', '.join(constraints)}")
-    lines.append("")
-    lines.append(f"Select exactly **{count}** reprints from the candidates below.")
-    lines.append("Each reprint fills one skeleton slot. Pick (slot, card) pairs that:")
-    lines.append("1. Fill essential Limited roles (removal and mana fixing first)")
-    lines.append("2. Synergize with the set's themes and mechanics")
-    lines.append("3. Are well-known staples that players enjoy seeing reprinted")
-    lines.append("4. Have setting-agnostic names that fit any world")
-    lines.append("")
-    lines.append("## Eligible Slots and Candidates")
-    lines.append("")
-
-    for slot_id in sorted(slot_candidates):
-        slot, candidates = slot_candidates[slot_id]
-        color_name = color_names.get(slot.color, slot.color)
-        cmc_note = f", CMC ~{slot.cmc_target}" if slot.cmc_target else ""
-        lines.append(
-            f"### {slot.slot_id} ({color_name} {slot.rarity} {slot.card_type}"
-            f"{cmc_note}, role: {slot.role_needed})"
-        )
-        for c in candidates:
-            lines.append(f"- {format_candidate_tldr(c)}")
-        lines.append("")
-
-    return system_prompt, "\n".join(lines)
+# ---------------------------------------------------------------------------
+# Set context + slots
+# ---------------------------------------------------------------------------
 
 
-def _llm_select_reprints(
-    slots: list[ReprintSlot],
-    pool: list[ReprintCandidate],
-    set_config: dict,
-    count: int,
-) -> list[SelectionPair]:
-    """Use Haiku to select the best reprints from pre-filtered candidates.
+def _read_json(path: Path, default: Any) -> Any:
+    if not path.exists():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.warning("Unreadable JSON at %s; using default", path)
+        return default
 
-    Pre-filters the pool per slot, builds a compact prompt with TLDRs, and
-    calls Haiku with tool use. Cost: ~$0.002.
+
+def extract_set_config(skeleton_path: Path) -> dict:
+    """Read ``skeleton.json``'s config block (name / code / set_size / flavor)."""
+    skeleton = _read_json(skeleton_path, {})
+    config = skeleton.get("config", {}) if isinstance(skeleton, dict) else {}
+    return {
+        "name": config.get("name", ""),
+        "code": config.get("code", "???"),
+        "theme": config.get("theme", ""),
+        "flavor_description": config.get("flavor_description", ""),
+        "special_constraints": config.get("special_constraints", []),
+        "set_size": config.get("set_size", 60),
+    }
+
+
+def _load_set_context(asset: Path, cfg: dict) -> dict[str, str]:
+    """Format the set-context blocks (setting / mechanics / archetypes / constraints).
+
+    Reads ``theme.json`` + ``mechanics/approved.json`` + ``archetypes.json`` from
+    *asset*; falls back to the skeleton config's flavor when there is no
+    ``theme.json``. Reuses the shared skeleton block formatters so the reprint
+    selection sees the same set framing as the relabel/tuner.
     """
+    theme = _read_json(asset / "theme.json", {})
+    if not isinstance(theme, dict) or not theme:
+        theme = {
+            "theme": cfg.get("theme", ""),
+            "flavor_description": cfg.get("flavor_description", ""),
+        }
+    approved = _read_json(asset / "mechanics" / "approved.json", [])
+    archetypes = _read_json(asset / "archetypes.json", [])
+    constraints = theme.get("constraints") or cfg.get("special_constraints") or []
+    return {
+        "setting": format_setting_block(theme),
+        "mechanics": format_mechanics_block(approved if isinstance(approved, list) else []),
+        "archetypes": format_archetypes_block(archetypes if isinstance(archetypes, list) else []),
+        "constraints": format_constraints_block(
+            constraints if isinstance(constraints, list) else []
+        ),
+    }
+
+
+def _load_slot_texts(skeleton_path: Path) -> list[dict[str, str]]:
+    """Each unfilled slot as ``{slot_id, text}`` — its relabeled ``tweaked_text``
+    (the slot's plain-text spec), or the default descriptor as a fallback."""
+    from mtgai.skeleton.generator import render_slot_string
+
+    skeleton = _read_json(skeleton_path, {})
+    out: list[dict[str, str]] = []
+    for slot in skeleton.get("slots", []) if isinstance(skeleton, dict) else []:
+        if not isinstance(slot, dict) or slot.get("card_id") is not None:
+            continue
+        sid = str(slot.get("slot_id") or "").strip()
+        if not sid:
+            continue
+        text = (slot.get("tweaked_text") or "").strip() or render_slot_string(slot)
+        out.append({"slot_id": sid, "text": text})
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Prompts (built inline — pool TLDRs carry `{mana}` braces that break str.format)
+# ---------------------------------------------------------------------------
+
+_SELECT_SYSTEM = (
+    "You are an expert Magic: The Gathering set designer choosing REPRINTS for a "
+    "new set.\n\n"
+    "You are given the set's theme, mechanics, and draft archetypes, plus a pool "
+    "of well-known, setting-agnostic staple cards. Choose exactly the requested "
+    "number of cards from the pool to reprint.\n\n"
+    "## What makes a good reprint here\n"
+    "- Fills an essential Limited role the set needs (removal and mana fixing "
+    "first, then combat tricks / card advantage).\n"
+    "- Synergizes with the set's mechanics and archetypes where it can.\n"
+    "- Is a recognizable staple with a setting-agnostic name that fits this world.\n\n"
+    "## Rules\n"
+    "- Choose all picks from the pool below, using each card's exact name. No "
+    "duplicates.\n"
+    "- Aim for the requested per-rarity mix (the pool one-liners show each card's "
+    "rarity). Get as close as you can; a near miss is fine if the right-rarity "
+    "staples don't fit the set.\n"
+    "- Return your picks through the tool only — no preamble."
+)
+
+_PLACE_SYSTEM = (
+    "You are a Magic: The Gathering set designer slotting a set's chosen REPRINTS "
+    "into its card skeleton.\n\n"
+    "You are given a list of already-chosen reprint cards and the set's slot list "
+    "— each slot is a one-line plain-text descriptor addressed by `slot_id`. "
+    "Assign each reprint to the single best-fitting slot; that slot then becomes "
+    "the reprint.\n\n"
+    "## Rules\n"
+    "- Each reprint goes to exactly one slot_id; place every reprint; no two "
+    "reprints share a slot.\n"
+    "- ONLY replace ordinary, generic slots. A reprint is an existing filler/"
+    "staple, so it must land on a plain slot (a vanilla creature, a basic "
+    "removal/trick). NEVER place a reprint on a slot that describes:\n"
+    "    - a named character or legend,\n"
+    "    - a signature / build-around / signpost card (often tagged `signpost:` "
+    "or dense with mechanic text),\n"
+    "    - a member of a card cycle (often tagged `cycle:`),\n"
+    "    - or anything that reads like a bespoke, high-text design.\n"
+    "  Replacing such a slot would delete a designed card — do not. When unsure, "
+    "pick the plainest slot whose colour and role the reprint matches.\n"
+    "- Return your assignments through the tool only — no preamble."
+)
+
+
+def _build_select_user(
+    context: dict[str, str],
+    pool: list[ReprintCandidate],
+    count: int,
+    per_rarity: dict[str, int] | None = None,
+) -> str:
+    if per_rarity and any(v > 0 for v in per_rarity.values()):
+        mix = ", ".join(f"{per_rarity[r]} {r}" for r in RARITIES if per_rarity.get(r, 0) > 0)
+        head = (
+            f"Choose {count} reprints from the pool for this set, aiming for this "
+            f"rarity mix: {mix}."
+        )
+    else:
+        head = f"Choose exactly {count} reprints from the pool for this set."
+    lines = [
+        head,
+        "",
+        "## Set theme",
+        context["setting"],
+        "",
+        "## Mechanics",
+        context["mechanics"],
+        "",
+        "## Draft archetypes",
+        context["archetypes"],
+        "",
+        "## Constraints",
+        context["constraints"],
+        "",
+        f"## Reprint pool ({len(pool)} cards)",
+    ]
+    lines += [f"- {format_candidate_tldr(c)}" for c in pool]
+    return "\n".join(lines)
+
+
+def _build_place_user(
+    selected: list[tuple[ReprintCandidate, str]], slot_texts: list[dict[str, str]]
+) -> str:
+    lines = [
+        f"Place each chosen reprint below onto the single best-fitting ordinary "
+        f"slot. Return all {len(selected)} assignments through the tool.",
+        "",
+        f"## Chosen reprints ({len(selected)})",
+    ]
+    lines += [f"- {format_candidate_tldr(c)}" for c, _ in selected]
+    lines += ["", f"## Skeleton slots ({len(slot_texts)})"]
+    lines += [f"{s['slot_id']}: {s['text']}" for s in slot_texts]
+    return "\n".join(lines)
+
+
+_SELECT_TOOL = {
+    "name": "select_reprints",
+    "description": "Choose which pool cards to reprint in this set",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "selections": {
+                "type": "array",
+                "description": "The chosen reprints (exactly the requested count)",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "card_name": {"type": "string", "description": "Exact name from the pool"},
+                        "reason": {"type": "string", "description": "Why it fits this set"},
+                    },
+                    "required": ["card_name", "reason"],
+                },
+            }
+        },
+        "required": ["selections"],
+    },
+}
+
+_PLACE_TOOL = {
+    "name": "place_reprints",
+    "description": "Assign each chosen reprint to the slot it best fits",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "assignments": {
+                "type": "array",
+                "description": "One entry per reprint: the card and the slot_id it fills",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "card_name": {"type": "string", "description": "Exact chosen card name"},
+                        "slot_id": {"type": "string", "description": "The slot_id to fill"},
+                        "reason": {"type": "string", "description": "Why this slot fits"},
+                    },
+                    "required": ["card_name", "slot_id"],
+                },
+            }
+        },
+        "required": ["assignments"],
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# Pass 1: select reprints from the pool (set-fit)
+# ---------------------------------------------------------------------------
+
+
+def _select_from_pool(
+    context: dict[str, str],
+    pool: list[ReprintCandidate],
+    count: int,
+    model: str,
+    log_dir: Path | None,
+    temperature: float,
+    per_rarity: dict[str, int] | None = None,
+) -> list[tuple[ReprintCandidate, str]]:
+    """Pick ``count`` pool cards that fit the set (aiming for the per-rarity mix
+    when given). Returns (candidate, reason). The mix is soft — capped at the
+    total, not per rarity."""
     from mtgai.generation.llm_client import generate_with_tool
 
-    # Pre-filter candidates per slot
-    slot_candidates: dict[str, tuple[ReprintSlot, list[ReprintCandidate]]] = {}
-    for slot in slots:
-        filtered = pre_filter_for_slot(pool, slot)
-        if filtered:
-            slot_candidates[slot.slot_id] = (slot, filtered)
-
-    if not slot_candidates:
-        logger.warning("No candidates match any eligible slot after pre-filtering")
+    if count <= 0 or not pool:
         return []
-
-    logger.info(
-        "Pre-filtered candidates for %d slots (of %d eligible)",
-        len(slot_candidates),
-        len(slots),
-    )
-    for slot_id, (slot, cands) in sorted(slot_candidates.items()):
-        logger.info("  %s (%s %s): %d candidates", slot_id, slot.color, slot.card_type, len(cands))
-
-    system_prompt, user_prompt = _build_selection_prompt(slot_candidates, set_config, count)
-
-    tool_schema = {
-        "name": "assign_reprints",
-        "description": "Assign reprint cards to skeleton slots",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "selections": {
-                    "type": "array",
-                    "description": f"Exactly {count} (slot, card) assignments",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "slot_id": {
-                                "type": "string",
-                                "description": "The slot ID (e.g. 'B-C-03')",
-                            },
-                            "card_name": {
-                                "type": "string",
-                                "description": "Exact card name from the candidates list",
-                            },
-                            "reason": {
-                                "type": "string",
-                                "description": "Brief reason this card is a good reprint here",
-                            },
-                        },
-                        "required": ["slot_id", "card_name", "reason"],
-                    },
-                }
-            },
-            "required": ["selections"],
-        },
-    }
-
-    logger.info(
-        "Calling Haiku for reprint selection (%d slots, need %d)",
-        len(slot_candidates),
-        count,
-    )
-
+    by_name = {c.name.lower(): c for c in pool}
     try:
-        from mtgai.runtime.active_project import require_active_project
-
         response = generate_with_tool(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            tool_schema=tool_schema,
-            model=require_active_project().settings.get_llm_model_id("reprints"),
-            temperature=0.0,
+            system_prompt=_SELECT_SYSTEM,
+            user_prompt=_build_select_user(context, pool, count, per_rarity),
+            tool_schema=_SELECT_TOOL,
+            model=model,
+            temperature=temperature,
             max_tokens=2048,
+            log_dir=log_dir,
         )
     except Exception:
-        logger.error("LLM reprint selection failed", exc_info=True)
+        logger.error("Reprint selection (pick) failed", exc_info=True)
         return []
 
-    raw_selections = response.get("result", {}).get("selections", [])
-
-    # Build lookups for matching
-    name_to_candidate: dict[str, ReprintCandidate] = {}
-    for pair in slot_candidates.values():
-        for c in pair[1]:
-            name_to_candidate[c.name.lower()] = c
-
-    slot_by_id: dict[str, ReprintSlot] = {
-        slot_id: slot for slot_id, (slot, _) in slot_candidates.items()
-    }
-
-    # Parse response
-    selections: list[SelectionPair] = []
-    for raw in raw_selections:
-        slot_id = raw.get("slot_id", "")
-        card_name = raw.get("card_name", "")
-        reason = raw.get("reason", "")
-
-        slot = slot_by_id.get(slot_id)
-        if slot is None:
-            logger.warning("LLM returned unknown slot_id: %s", slot_id)
+    chosen: list[tuple[ReprintCandidate, str]] = []
+    seen: set[str] = set()
+    for raw in response.get("result", {}).get("selections") or []:
+        if not isinstance(raw, dict):
             continue
-
-        candidate = name_to_candidate.get(card_name.lower())
-        if candidate is None:
-            logger.warning("LLM returned unknown card name: %s", card_name)
+        name = str(raw.get("card_name") or "").strip().lower()
+        cand = by_name.get(name)
+        if cand is None:
+            logger.warning("Select returned unknown card name: %s", raw.get("card_name"))
             continue
+        if name in seen:
+            continue
+        chosen.append((cand, str(raw.get("reason") or "").strip()))
+        seen.add(name)
+        if len(chosen) >= count:
+            break
+    if len(chosen) != count:
+        logger.warning("Selected %d reprints, expected %d", len(chosen), count)
+    return chosen
 
-        selections.append(SelectionPair(slot=slot, candidate=candidate, reason=reason))
-        logger.info("  Selected: %s -> %s (%s)", candidate.name, slot.slot_id, reason)
 
-    if len(selections) != count:
+# ---------------------------------------------------------------------------
+# Pass 2: place chosen reprints onto slots (avoid special slots via the prompt)
+# ---------------------------------------------------------------------------
+
+
+def _place_reprints(
+    selected: list[tuple[ReprintCandidate, str]],
+    slot_texts: list[dict[str, str]],
+    model: str,
+    log_dir: Path | None,
+    temperature: float,
+) -> list[SelectionPair]:
+    """Assign each chosen reprint to a slot. Retries, dedups by card + slot."""
+    from mtgai.generation.llm_client import generate_with_tool
+
+    if not selected or not slot_texts:
+        return []
+    by_name = {c.name.lower(): (c, reason) for c, reason in selected}
+    text_by_id = {s["slot_id"]: s["text"] for s in slot_texts}
+    valid = set(text_by_id)
+
+    system_prompt = _PLACE_SYSTEM
+    user_prompt = _build_place_user(selected, slot_texts)
+
+    pairs: list[SelectionPair] = []
+    placed: set[str] = set()  # card names (lower) already placed
+    used: set[str] = set()  # slot_ids already taken
+
+    for attempt in range(1, _PLACE_MAX_ATTEMPTS + 1):
+        if len(placed) >= len(selected):
+            break
+        try:
+            response = generate_with_tool(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                tool_schema=_PLACE_TOOL,
+                model=model,
+                temperature=temperature,
+                max_tokens=2048,
+                log_dir=log_dir,
+            )
+        except Exception:
+            logger.error("Reprint placement attempt %d failed", attempt, exc_info=True)
+            continue
+        for raw in response.get("result", {}).get("assignments") or []:
+            if not isinstance(raw, dict):
+                continue
+            name = str(raw.get("card_name") or "").strip().lower()
+            sid = str(raw.get("slot_id") or "").strip()
+            entry = by_name.get(name)
+            if entry is None or name in placed:
+                continue
+            if sid not in valid or sid in used:
+                logger.warning("Placement skipped (bad/taken slot=%r for %r)", sid, name)
+                continue
+            cand, sel_reason = entry
+            place_reason = str(raw.get("reason") or "").strip()
+            pairs.append(
+                SelectionPair(
+                    slot=ReprintSlot(slot_id=sid, descriptor=text_by_id.get(sid, "")),
+                    candidate=cand,
+                    reason=sel_reason or place_reason,
+                )
+            )
+            placed.add(name)
+            used.add(sid)
+            logger.info("  Placed %s -> %s", cand.name, sid)
+
+    if len(pairs) < len(selected):
         logger.warning(
-            "LLM returned %d valid selections, expected %d",
-            len(selections),
-            count,
+            "Placed %d/%d reprints after %d attempts",
+            len(pairs),
+            len(selected),
+            _PLACE_MAX_ATTEMPTS,
         )
+    return pairs
 
-    return selections
+
+# ---------------------------------------------------------------------------
+# Knobs persistence
+# ---------------------------------------------------------------------------
+
+
+def load_reprint_knobs(asset_dir: Path) -> ReprintKnobs:
+    """Read ``<asset>/reprints/knobs.json`` (defaults when absent/unreadable)."""
+    raw = _read_json(asset_dir / "reprints" / "knobs.json", None)
+    return from_payload(raw) if raw is not None else default_knobs()
 
 
 # ---------------------------------------------------------------------------
@@ -559,65 +545,87 @@ def _llm_select_reprints(
 
 def select_reprints(
     skeleton_path: Path,
+    *,
     set_config: dict | None = None,
     count: int | None = None,
     pool_path: Path | None = None,
+    log_dir: Path | None = None,
+    knobs: ReprintKnobs | None = None,
+    temperature: float = 0.0,
 ) -> ReprintSelection:
-    """Select reprints for a set — main entry point.
+    """Select + place reprints for a set — main entry point.
 
-    If count is not specified, computes from set size: round(set_size * 0.028).
-    Uses an LLM (Haiku) to pick the best reprints from the curated pool.
+    Two LLM passes (select-from-pool, then place-on-slots). The count is decided
+    per rarity from :class:`ReprintKnobs` (auto from the lean per-rarity rates x
+    the set's estimated rarity counts + jitter, or pinned), summed to a total and
+    stated to the select pass as a soft rarity mix. An explicit ``count`` bypasses
+    the knobs (flat total — scripts/tests). The model is the active project's
+    ``reprints`` assignment (local Gemma by default). ``temperature`` defaults to
+    0.0 (reproducible); a manual Refresh passes a higher value. Files
+    (theme/knobs/logs) resolve relative to ``skeleton_path``'s directory; the LLM
+    transcript lands in ``<asset>/reprints/logs``.
     """
-    if set_config is None:
-        set_config = extract_set_config(skeleton_path)
+    asset = skeleton_path.parent
+    cfg = set_config or extract_set_config(skeleton_path)
+    set_size = int(cfg.get("set_size", 60))
+    set_code = cfg.get("code", "???")
 
-    set_size = set_config.get("set_size", 60)
-    set_code = set_config.get("code", "???")
+    slot_texts = _load_slot_texts(skeleton_path)
+    full_pool = load_reprint_pool(pool_path)
+    pool = [c for c in full_pool if c.setting_agnostic is not False]
 
+    per_rarity: dict[str, int] | None = None
     if count is None:
-        count = max(1, round(set_size * 0.028))
+        if knobs is None:
+            knobs = load_reprint_knobs(asset)
+        resolved = resolve_targets(knobs, set_size)
+        per_rarity = resolved
+        total: int = sum(resolved.values())
+    else:
+        total = count
+
+    if log_dir is None:
+        log_dir = asset / "reprints" / "logs"
 
     logger.info(
-        "Selecting %d reprints for %s (%d-card set)",
-        count,
+        "Selecting %d reprints for %s (%d-card set); per-rarity=%s",
+        total,
         set_code,
         set_size,
+        per_rarity,
     )
 
-    # Load and filter pool
-    pool = load_reprint_pool(pool_path)
-    total_pool = len(pool)
-    pool = [c for c in pool if c.setting_agnostic is not False]
-    filtered_out = total_pool - len(pool)
-    if filtered_out > 0:
-        logger.info(
-            "Filtered out %d setting-specific candidates (%d remaining)",
-            filtered_out,
-            len(pool),
-        )
+    selections: list[SelectionPair] = []
+    if total > 0:
+        try:
+            from mtgai.runtime.active_project import require_active_project
 
-    # Identify eligible slots
-    slots = identify_reprint_slots(skeleton_path)
-
-    # LLM selection
-    selections = _llm_select_reprints(slots, pool, set_config, count)
+            model = require_active_project().settings.get_llm_model_id("reprints")
+        except Exception:
+            logger.error("Cannot resolve reprints model (no active project?)", exc_info=True)
+            model = None
+        if model is not None:
+            context = _load_set_context(asset, cfg)
+            chosen = _select_from_pool(
+                context, pool, total, model, log_dir, temperature, per_rarity=per_rarity
+            )
+            selections = _place_reprints(chosen, slot_texts, model, log_dir, temperature)
 
     result = ReprintSelection(
         set_code=set_code,
         set_size=set_size,
-        target_reprint_count=count,
+        target_reprint_count=total,
+        per_rarity_targets=per_rarity,
         selections=selections,
-        all_candidates_considered=total_pool,
+        all_candidates_considered=len(full_pool),
         selection_timestamp=datetime.now(UTC).isoformat(),
     )
-
     logger.info(
-        "Reprint selection complete: %d selected (target %d, considered %d candidates)",
+        "Reprint selection complete: %d placed (target %d, pool %d)",
         len(selections),
-        count,
-        total_pool,
+        total,
+        len(full_pool),
     )
-
     return result
 
 
@@ -654,8 +662,8 @@ def _parse_card_types(type_line: str) -> tuple[list[str], list[str], list[str]]:
         "Land",
     }
 
-    if " \u2014 " in type_line:
-        main_part, sub_part = type_line.split(" \u2014 ", 1)
+    if " — " in type_line:
+        main_part, sub_part = type_line.split(" — ", 1)
     elif " -- " in type_line:
         main_part, sub_part = type_line.split(" -- ", 1)
     else:

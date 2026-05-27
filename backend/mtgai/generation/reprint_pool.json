@@ -660,6 +660,416 @@
       "setting_agnostic": true
     },
     {
+      "name": "Tranquil Cove",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Tranquil Cove enters tapped.\nWhen Tranquil Cove enters, you gain 1 life.\n{T}: Add {W} or {U}.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "tapland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Dismal Backwater",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Dismal Backwater enters tapped.\nWhen Dismal Backwater enters, you gain 1 life.\n{T}: Add {U} or {B}.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "tapland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Bloodfell Caves",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Bloodfell Caves enters tapped.\nWhen Bloodfell Caves enters, you gain 1 life.\n{T}: Add {B} or {R}.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "tapland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Rugged Highlands",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Rugged Highlands enters tapped.\nWhen Rugged Highlands enters, you gain 1 life.\n{T}: Add {R} or {G}.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "tapland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Blossoming Sands",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Blossoming Sands enters tapped.\nWhen Blossoming Sands enters, you gain 1 life.\n{T}: Add {G} or {W}.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "tapland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Scoured Barrens",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Scoured Barrens enters tapped.\nWhen Scoured Barrens enters, you gain 1 life.\n{T}: Add {W} or {B}.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "tapland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Swiftwater Cliffs",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Swiftwater Cliffs enters tapped.\nWhen Swiftwater Cliffs enters, you gain 1 life.\n{T}: Add {U} or {R}.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "tapland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Jungle Hollow",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Jungle Hollow enters tapped.\nWhen Jungle Hollow enters, you gain 1 life.\n{T}: Add {B} or {G}.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "tapland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Wind-Scarred Crag",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Wind-Scarred Crag enters tapped.\nWhen Wind-Scarred Crag enters, you gain 1 life.\n{T}: Add {R} or {W}.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "tapland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Thornwood Falls",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Thornwood Falls enters tapped.\nWhen Thornwood Falls enters, you gain 1 life.\n{T}: Add {G} or {U}.",
+      "colors": [],
+      "rarity": "common",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 4000,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "tapland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Flooded Strand",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Pay 1 life, Sacrifice Flooded Strand: Search your library for a Plains or Island card, put it onto the battlefield, then shuffle.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "fetchland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Polluted Delta",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Pay 1 life, Sacrifice Polluted Delta: Search your library for an Island or Swamp card, put it onto the battlefield, then shuffle.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "fetchland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Bloodstained Mire",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Pay 1 life, Sacrifice Bloodstained Mire: Search your library for a Swamp or Mountain card, put it onto the battlefield, then shuffle.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "fetchland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Wooded Foothills",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Pay 1 life, Sacrifice Wooded Foothills: Search your library for a Mountain or Forest card, put it onto the battlefield, then shuffle.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "fetchland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Windswept Heath",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Pay 1 life, Sacrifice Windswept Heath: Search your library for a Forest or Plains card, put it onto the battlefield, then shuffle.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "fetchland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Marsh Flats",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Pay 1 life, Sacrifice Marsh Flats: Search your library for a Plains or Swamp card, put it onto the battlefield, then shuffle.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "fetchland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Scalding Tarn",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Pay 1 life, Sacrifice Scalding Tarn: Search your library for an Island or Mountain card, put it onto the battlefield, then shuffle.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "fetchland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Verdant Catacombs",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Pay 1 life, Sacrifice Verdant Catacombs: Search your library for a Swamp or Forest card, put it onto the battlefield, then shuffle.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "fetchland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Arid Mesa",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Pay 1 life, Sacrifice Arid Mesa: Search your library for a Mountain or Plains card, put it onto the battlefield, then shuffle.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "fetchland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Misty Rainforest",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Pay 1 life, Sacrifice Misty Rainforest: Search your library for a Forest or Island card, put it onto the battlefield, then shuffle.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 200,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "fetchland"
+      ],
+      "setting_agnostic": true
+    },
+    {
       "name": "Evolving Wilds",
       "mana_cost": "",
       "cmc": 0,
@@ -732,26 +1142,6 @@
         "mana_fixing",
         "land",
         "gate"
-      ],
-      "setting_agnostic": true
-    },
-    {
-      "name": "Command Tower",
-      "mana_cost": "",
-      "cmc": 0,
-      "type_line": "Land",
-      "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
-      "colors": [],
-      "rarity": "common",
-      "role": "mana_fixing",
-      "keywords": [],
-      "subtypes": [],
-      "edhrec_rank_approx": 50,
-      "tags": [
-        "staple",
-        "mana_fixing",
-        "land",
-        "commander"
       ],
       "setting_agnostic": true
     },
@@ -3835,6 +4225,885 @@
       "tags": [
         "artifact_removal",
         "cheap"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Hallowed Fountain",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land — Plains Island",
+      "oracle_text": "As Hallowed Fountain enters, you may pay 2 life. If you don't, it enters tapped.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [
+        "Plains",
+        "Island"
+      ],
+      "edhrec_rank_approx": 250,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "shockland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Watery Grave",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land — Island Swamp",
+      "oracle_text": "As Watery Grave enters, you may pay 2 life. If you don't, it enters tapped.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [
+        "Island",
+        "Swamp"
+      ],
+      "edhrec_rank_approx": 250,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "shockland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Blood Crypt",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land — Swamp Mountain",
+      "oracle_text": "As Blood Crypt enters, you may pay 2 life. If you don't, it enters tapped.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [
+        "Swamp",
+        "Mountain"
+      ],
+      "edhrec_rank_approx": 250,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "shockland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Stomping Ground",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land — Mountain Forest",
+      "oracle_text": "As Stomping Ground enters, you may pay 2 life. If you don't, it enters tapped.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [
+        "Mountain",
+        "Forest"
+      ],
+      "edhrec_rank_approx": 250,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "shockland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Temple Garden",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land — Forest Plains",
+      "oracle_text": "As Temple Garden enters, you may pay 2 life. If you don't, it enters tapped.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [
+        "Forest",
+        "Plains"
+      ],
+      "edhrec_rank_approx": 250,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "shockland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Godless Shrine",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land — Plains Swamp",
+      "oracle_text": "As Godless Shrine enters, you may pay 2 life. If you don't, it enters tapped.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [
+        "Plains",
+        "Swamp"
+      ],
+      "edhrec_rank_approx": 250,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "shockland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Steam Vents",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land — Island Mountain",
+      "oracle_text": "As Steam Vents enters, you may pay 2 life. If you don't, it enters tapped.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [
+        "Island",
+        "Mountain"
+      ],
+      "edhrec_rank_approx": 250,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "shockland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Overgrown Tomb",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land — Swamp Forest",
+      "oracle_text": "As Overgrown Tomb enters, you may pay 2 life. If you don't, it enters tapped.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [
+        "Swamp",
+        "Forest"
+      ],
+      "edhrec_rank_approx": 250,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "shockland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Sacred Foundry",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land — Mountain Plains",
+      "oracle_text": "As Sacred Foundry enters, you may pay 2 life. If you don't, it enters tapped.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [
+        "Mountain",
+        "Plains"
+      ],
+      "edhrec_rank_approx": 250,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "shockland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Breeding Pool",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land — Forest Island",
+      "oracle_text": "As Breeding Pool enters, you may pay 2 life. If you don't, it enters tapped.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [
+        "Forest",
+        "Island"
+      ],
+      "edhrec_rank_approx": 250,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "dual",
+        "shockland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Glacial Fortress",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Glacial Fortress enters tapped unless you control a Plains or an Island.\n{T}: Add {W} or {U}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 900,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "checkland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Drowned Catacomb",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Drowned Catacomb enters tapped unless you control an Island or a Swamp.\n{T}: Add {U} or {B}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 900,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "checkland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Dragonskull Summit",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Dragonskull Summit enters tapped unless you control a Swamp or a Mountain.\n{T}: Add {B} or {R}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 900,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "checkland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Rootbound Crag",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Rootbound Crag enters tapped unless you control a Mountain or a Forest.\n{T}: Add {R} or {G}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 900,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "checkland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Sunpetal Grove",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Sunpetal Grove enters tapped unless you control a Forest or a Plains.\n{T}: Add {G} or {W}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 900,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "checkland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Isolated Chapel",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Isolated Chapel enters tapped unless you control a Plains or a Swamp.\n{T}: Add {W} or {B}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 900,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "checkland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Sulfur Falls",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Sulfur Falls enters tapped unless you control an Island or a Mountain.\n{T}: Add {U} or {R}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 900,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "checkland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Woodland Cemetery",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Woodland Cemetery enters tapped unless you control a Swamp or a Forest.\n{T}: Add {B} or {G}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 900,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "checkland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Clifftop Retreat",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Clifftop Retreat enters tapped unless you control a Mountain or a Plains.\n{T}: Add {R} or {W}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 900,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "checkland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Hinterland Harbor",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Hinterland Harbor enters tapped unless you control a Forest or an Island.\n{T}: Add {G} or {U}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 900,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "checkland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Seachrome Coast",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Seachrome Coast enters tapped unless you control two or fewer other lands.\n{T}: Add {W} or {U}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "fastland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Darkslick Shores",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Darkslick Shores enters tapped unless you control two or fewer other lands.\n{T}: Add {U} or {B}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "fastland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Blackcleave Cliffs",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Blackcleave Cliffs enters tapped unless you control two or fewer other lands.\n{T}: Add {B} or {R}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "fastland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Copperline Gorge",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Copperline Gorge enters tapped unless you control two or fewer other lands.\n{T}: Add {R} or {G}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "fastland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Razorverge Thicket",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Razorverge Thicket enters tapped unless you control two or fewer other lands.\n{T}: Add {G} or {W}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "fastland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Concealed Courtyard",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Concealed Courtyard enters tapped unless you control two or fewer other lands.\n{T}: Add {W} or {B}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "fastland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Spirebluff Canal",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Spirebluff Canal enters tapped unless you control two or fewer other lands.\n{T}: Add {U} or {R}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "fastland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Blooming Marsh",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Blooming Marsh enters tapped unless you control two or fewer other lands.\n{T}: Add {B} or {G}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "fastland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Inspiring Vantage",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Inspiring Vantage enters tapped unless you control two or fewer other lands.\n{T}: Add {R} or {W}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "fastland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Botanical Sanctum",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Botanical Sanctum enters tapped unless you control two or fewer other lands.\n{T}: Add {G} or {U}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 400,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "fastland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Temple of Enlightenment",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Temple of Enlightenment enters tapped.\nWhen Temple of Enlightenment enters, scry 1.\n{T}: Add {W} or {U}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 700,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "scryland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Temple of Deceit",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Temple of Deceit enters tapped.\nWhen Temple of Deceit enters, scry 1.\n{T}: Add {U} or {B}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 700,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "scryland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Temple of Malice",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Temple of Malice enters tapped.\nWhen Temple of Malice enters, scry 1.\n{T}: Add {B} or {R}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 700,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "scryland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Temple of Abandon",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Temple of Abandon enters tapped.\nWhen Temple of Abandon enters, scry 1.\n{T}: Add {R} or {G}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 700,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "scryland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Temple of Plenty",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Temple of Plenty enters tapped.\nWhen Temple of Plenty enters, scry 1.\n{T}: Add {G} or {W}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 700,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "scryland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Temple of Silence",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Temple of Silence enters tapped.\nWhen Temple of Silence enters, scry 1.\n{T}: Add {W} or {B}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 700,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "scryland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Temple of Epiphany",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Temple of Epiphany enters tapped.\nWhen Temple of Epiphany enters, scry 1.\n{T}: Add {U} or {R}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 700,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "scryland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Temple of Malady",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Temple of Malady enters tapped.\nWhen Temple of Malady enters, scry 1.\n{T}: Add {B} or {G}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 700,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "scryland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Temple of Triumph",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Temple of Triumph enters tapped.\nWhen Temple of Triumph enters, scry 1.\n{T}: Add {R} or {W}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 700,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "scryland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Temple of Mystery",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "Temple of Mystery enters tapped.\nWhen Temple of Mystery enters, scry 1.\n{T}: Add {G} or {U}.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 700,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "dual",
+        "scryland"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Mana Confluence",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}, Pay 1 life: Add one mana of any color.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 300,
+      "tags": [
+        "staple",
+        "mana_fixing",
+        "land",
+        "rainbow"
+      ],
+      "setting_agnostic": true
+    },
+    {
+      "name": "Reflecting Pool",
+      "mana_cost": "",
+      "cmc": 0,
+      "type_line": "Land",
+      "oracle_text": "{T}: Add one mana of any type that a land you control could produce.",
+      "colors": [],
+      "rarity": "rare",
+      "role": "mana_fixing",
+      "keywords": [],
+      "subtypes": [],
+      "edhrec_rank_approx": 600,
+      "tags": [
+        "mana_fixing",
+        "land",
+        "rainbow"
       ],
       "setting_agnostic": true
     }

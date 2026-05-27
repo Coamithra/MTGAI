@@ -3271,6 +3271,196 @@ def _skeleton_knobs_payload(skeleton: dict) -> dict:
     }
 
 
+def _reprint_slot_count(asset: Path) -> int | None:
+    """Count of unfilled skeleton slots a reprint could fill (None if no skeleton)."""
+    from mtgai.generation.reprint_selector import _load_slot_texts
+
+    skeleton_path = asset / "skeleton.json"
+    if not skeleton_path.exists():
+        return None
+    return len(_load_slot_texts(skeleton_path))
+
+
+def _reprint_knobs_payload(asset: Path) -> dict:
+    """Knob state for the Reprints tab: per-rarity targets, jitter, provenance,
+    rates, and the un-jittered preview.
+
+    ``preview_targets`` is the *un-jittered* resolution of the current knobs — the
+    central per-rarity mix the run targets (the live run adds ``jitter_pct`` of
+    random +/- on top). ``slot_count`` is how many slots a reprint could land on.
+    """
+    from mtgai.generation.reprint_knobs import RARITIES, REPRINT_RARITY_RATES, resolve_targets
+    from mtgai.generation.reprint_selector import extract_set_config, load_reprint_knobs
+
+    knobs = load_reprint_knobs(asset)
+    slot_count = _reprint_slot_count(asset)
+    skeleton_path = asset / "skeleton.json"
+    set_size = (
+        int(extract_set_config(skeleton_path).get("set_size", 0)) if skeleton_path.exists() else 0
+    )
+    preview = resolve_targets(knobs.model_copy(update={"jitter_pct": 0.0}), set_size)
+    return {
+        "knobs": {r: getattr(knobs, r) for r in RARITIES} | {"jitter_pct": knobs.jitter_pct},
+        "provenance": knobs.provenance(),
+        "rates": REPRINT_RARITY_RATES,
+        "set_size": set_size,
+        "slot_count": slot_count,
+        "preview_targets": preview,
+        "preview_count": sum(preview.values()),
+    }
+
+
+@router.get("/api/wizard/reprints/state")
+async def wizard_reprints_state() -> JSONResponse:
+    """First-paint state for the Reprints tab.
+
+    Reads ``<asset>/reprint_selection.json`` (the LLM's picks + per-pick
+    reasoning + the target count it was asked for), the count knob, and recomputes
+    the pool / slot counts so the tab shows what was decided and why, surviving
+    reloads. The reprints stage emits live tiles over SSE while it runs, but those
+    are ephemeral — this endpoint is the durable source the tab bootstraps from.
+    """
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    selection = _read_json(asset / "reprint_selection.json", {})
+    selection = selection if isinstance(selection, dict) else {}
+    selections = selection.get("selections") or []
+    if not isinstance(selections, list):
+        selections = []
+
+    pool_size: int | None = None
+    knobs_payload: dict = {}
+    try:
+        from mtgai.generation.reprint_selector import load_reprint_pool
+
+        pool = load_reprint_pool()
+        pool_size = sum(1 for c in pool if c.setting_agnostic is not False)
+        knobs_payload = _reprint_knobs_payload(asset)
+    except Exception:
+        logger.warning("Failed to compute reprint pool/knob state", exc_info=True)
+
+    return JSONResponse(
+        {
+            "selections": selections,
+            "has_content": bool(selections),
+            "pool_size": pool_size,
+            "eligible_slots": knobs_payload.get("slot_count"),
+            "target_count": selection.get("target_reprint_count"),
+            "per_rarity_targets": selection.get("per_rarity_targets"),
+            "stage_status": _stage_status_in_state("reprints"),
+            **knobs_payload,
+        }
+    )
+
+
+def _write_reprint_knobs(asset: Path, body: dict) -> None:
+    """Validate + persist the tab's knob edits to ``<asset>/reprints/knobs.json``."""
+    from mtgai.generation.reprint_knobs import RARITIES, from_payload
+
+    knobs = from_payload(body.get("knobs") if isinstance(body.get("knobs"), dict) else body)
+    out = {r: getattr(knobs, r) for r in RARITIES} | {"jitter_pct": knobs.jitter_pct}
+    (asset / "reprints").mkdir(parents=True, exist_ok=True)
+    atomic_write_text(
+        asset / "reprints" / "knobs.json", json.dumps(out, indent=2, ensure_ascii=False)
+    )
+
+
+@router.post("/api/wizard/reprints/knobs")
+async def wizard_reprints_knobs(request: Request) -> JSONResponse:
+    """Validate + persist the per-rarity reprint knobs. No AI — a pure disk write.
+
+    Body: ``{knobs: {common, uncommon, rare, mythic, jitter_pct}}`` (a ``null``
+    rarity = auto). Returns the clamped knobs + the un-jittered preview targets.
+    The user then hits Refresh to re-run selection with these knobs.
+    """
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    _write_reprint_knobs(asset, body)
+    return JSONResponse({"success": True, **_reprint_knobs_payload(asset)})
+
+
+@router.post("/api/wizard/reprints/refresh")
+async def wizard_reprints_refresh(request: Request) -> JSONResponse:
+    """Persist any supplied knobs, then re-run reprint selection under the AI lock.
+
+    Body (optional): ``{knobs: {...}}`` — persisted first so the run uses the
+    tab's current targets. Runs at a non-zero temperature so a manual re-roll
+    surfaces alternative picks (the engine stage stays deterministic at temp 0).
+    Writes ``reprint_selection.json`` and returns the same shape as ``/state``.
+    """
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    skeleton_path = asset / "skeleton.json"
+    if not skeleton_path.exists():
+        return JSONResponse(
+            {"error": "No skeleton.json yet — run Skeleton Generation first."}, status_code=400
+        )
+    if isinstance(body, dict) and isinstance(body.get("knobs"), dict):
+        _write_reprint_knobs(asset, body)
+
+    from mtgai.generation.reprint_selector import select_reprints
+
+    with ai_lock.hold("Reprint selection") as acquired:
+        if not acquired:
+            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+        try:
+            result = await asyncio.to_thread(
+                select_reprints, skeleton_path=skeleton_path, temperature=0.7
+            )
+        except Exception as exc:
+            logger.exception("Reprint refresh failed")
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    atomic_write_text(
+        asset / "reprint_selection.json",
+        json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
+    )
+
+    selections = result.model_dump(mode="json")["selections"]
+    knobs_payload = _reprint_knobs_payload(asset)
+    return JSONResponse(
+        {
+            "success": True,
+            "selections": selections,
+            "has_content": bool(selections),
+            "target_count": result.target_reprint_count,
+            "per_rarity_targets": result.per_rarity_targets,
+            "eligible_slots": knobs_payload.get("slot_count"),
+            "stage_status": _stage_status_in_state("reprints"),
+            **knobs_payload,
+        }
+    )
+
+
 @router.get("/api/wizard/skeleton/state")
 async def wizard_skeleton_state() -> JSONResponse:
     """First-paint state for the Skeleton tab.

@@ -645,7 +645,7 @@ def run_reprints(
 ) -> StageResult:
     """Select reprints from curated pool."""
     from mtgai.generation.reprint_selector import (
-        identify_reprint_slots,
+        _load_slot_texts,
         load_reprint_pool,
         select_reprints,
     )
@@ -676,14 +676,14 @@ def run_reprints(
 
     pool = load_reprint_pool()
     eligible_pool = [c for c in pool if c.setting_agnostic is not False]
-    slots = identify_reprint_slots(skeleton_path)
+    slots = _load_slot_texts(skeleton_path)
     emitter.update(
         "pool",
         status="done",
         content={
             "Pool size": str(len(pool)),
             "Setting-agnostic": str(len(eligible_pool)),
-            "Eligible slots": str(len(slots)),
+            "Open slots": str(len(slots)),
         },
     )
 
@@ -1210,7 +1210,14 @@ def clear_skeleton() -> None:
 
 
 def clear_reprints() -> None:
+    """Wipe the reprint selection + its LLM transcripts.
+
+    Owns ``reprint_selection.json`` and the ``reprints/`` log directory (the
+    ``assign_reprints`` LLM transcripts). Cascading from a Skeleton / upstream
+    edit drops both so the next run re-selects from a clean slate.
+    """
     _remove_path(_set_dir() / "reprint_selection.json")
+    _remove_path(_set_dir() / "reprints")
 
 
 def clear_card_gen() -> None:
