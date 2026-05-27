@@ -1064,6 +1064,26 @@
   gap: 0.5rem;
 }
 
+/* Stage-failure modal (§14) — error accent + scrollable error detail. */
+.wiz-modal--error h2 {
+  color: #ff7a7a;
+}
+
+.wiz-modal-error-detail {
+  margin: 0.75rem 0 0.25rem;
+  padding: 0.6rem 0.7rem;
+  background: #0f1830;
+  border: 1px solid #3a1f2a;
+  border-radius: 6px;
+  color: #ffb3b3;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
 .wiz-toast {
   position: fixed;
   bottom: 1.5rem;

@@ -515,7 +515,13 @@ def run_skeleton(
                 error_message="Another AI action holds the lock; try again later.",
             )
         try:
-            relabel = relabel_skeleton(slots=[s.model_dump() for s in result.slots])
+            relabel = relabel_skeleton(
+                slots=[s.model_dump() for s in result.slots],
+                # Surface each relabel/assign attempt on the progress strip's
+                # activity line — the relabel retries silently and can take a
+                # while, so "attempt 2/3" is the feedback the user needs.
+                on_progress=lambda msg: emitter.phase("running", msg),
+            )
         except Exception as exc:
             logger.exception("Skeleton relabel failed")
             return StageResult(

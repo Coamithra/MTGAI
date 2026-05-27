@@ -176,7 +176,7 @@
       <div class="${cls}" data-slot-id="${escAttr(s.slot_id)}">
         <div class="wiz-skel-row-head">
           <span class="wiz-skel-slotid">${escHtml(s.slot_id)}</span>
-          ${reserved ? `<span class="wiz-skel-reqbadge" title="Requested card placed here">★ ${escHtml(reserved)}</span>` : ''}
+          ${reserved ? `<span class="wiz-skel-reqbadge" title="${escAttr(reserved)}">★ specially requested card</span>` : ''}
         </div>
         <div class="wiz-skel-diff" data-role="diff">${diffHtml(s.default_text, s.tweaked_text)}</div>
         <textarea class="wiz-skel-tweak" data-role="tweak" rows="2" ${ro}>${escHtml(s.tweaked_text || '')}</textarea>

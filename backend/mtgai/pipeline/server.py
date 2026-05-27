@@ -3314,10 +3314,21 @@ async def wizard_skeleton_refresh() -> JSONResponse:
         if not acquired:
             return JSONResponse(ai_lock.busy_payload(), status_code=409)
         try:
-            relabel = await asyncio.to_thread(relabel_skeleton, slots=skeleton["slots"])
+            relabel = await asyncio.to_thread(
+                relabel_skeleton,
+                slots=skeleton["slots"],
+                # Drive the progress strip's activity line ("attempt N/M") from
+                # the relabel's retry loop. Runs in the worker thread; the bus
+                # is thread-safe.
+                on_progress=lambda msg: event_bus.stage_phase("skeleton", "running", msg),
+            )
         except Exception as exc:
             logger.exception("Skeleton relabel refresh failed")
             return JSONResponse({"error": str(exc)}, status_code=500)
+        finally:
+            # Terminal phase so the strip clears even on SSE replay — this path
+            # emits no pipeline_status terminal event of its own.
+            event_bus.stage_phase("skeleton", "done", "")
         updates = relabel["updates"]
         for slot in skeleton["slots"]:
             upd = updates.get(slot.get("slot_id"))

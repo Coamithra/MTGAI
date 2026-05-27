@@ -75,6 +75,23 @@ def _approved() -> list[dict]:
     return [{"name": "Salvage", "colors": ["U", "G"], "reminder_text": "(do salvage)"}]
 
 
+def _blocks(pairs: list[tuple[str, str]]) -> str:
+    """Render (slot_id, descriptor) pairs as the free-text `--CARD <id>--` format
+    the relabel parser consumes."""
+    return "\n".join(f"--CARD {sid}--\n{desc}" for sid, desc in pairs)
+
+
+def _text_resp(text: str, *, input_tokens: int = 1, output_tokens: int = 1) -> dict:
+    """A stub generate_text response."""
+    return {
+        "text": text,
+        "model": "m",
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "stop_reason": "end_turn",
+    }
+
+
 @pytest.fixture
 def _project(isolated_output):
     """Pin a minimal active project with skeleton/theme/mechanics/archetypes on disk."""
@@ -121,12 +138,12 @@ def test_relabel_reconciles_missing_and_drops_unknown(_project, monkeypatch) -> 
     seed = _seed_slots()
 
     def stub(*_a, **_k):
-        # Rewrites for all but the last seed slot, plus a bogus slot_id.
-        slots = [{"slot_id": s["slot_id"], "text": f"themed {s['slot_id']}"} for s in seed[:-1]]
-        slots.append({"slot_id": "BOGUS-99", "text": "ignore me"})
-        return {"result": {"slots": slots}, "model": "m", "input_tokens": 1, "output_tokens": 2}
+        # Block-format rewrites for all but the last seed slot, plus a bogus id.
+        pairs = [(s["slot_id"], f"themed {s['slot_id']}") for s in seed[:-1]]
+        pairs.append(("BOGUS-99", "ignore me"))
+        return _text_resp(_blocks(pairs), output_tokens=2)
 
-    monkeypatch.setattr(sr, "generate_with_tool", stub)
+    monkeypatch.setattr(sr, "generate_text", stub)
     tweaked, _resp = sr.relabel_slots(
         slots=seed,
         theme=_theme(),
@@ -152,19 +169,16 @@ def test_relabel_resends_whole_prompt_until_complete(monkeypatch) -> None:
     def stub(*_a, **_k):
         calls["n"] += 1
         if calls["n"] == 1:
-            # First attempt comes back empty (partial / garbage) → resend.
-            return {"result": {"slots": []}, "model": "m", "input_tokens": 3, "output_tokens": 4}
+            # First attempt comes back empty (truncated / garbage) → resend.
+            return _text_resp("", input_tokens=3, output_tokens=4)
         # The resend covers the whole set.
-        return {
-            "result": {
-                "slots": [{"slot_id": s["slot_id"], "text": f"themed {s['slot_id']}"} for s in seed]
-            },
-            "model": "m",
-            "input_tokens": 3,
-            "output_tokens": 4,
-        }
+        return _text_resp(
+            _blocks([(s["slot_id"], f"themed {s['slot_id']}") for s in seed]),
+            input_tokens=3,
+            output_tokens=4,
+        )
 
-    monkeypatch.setattr(sr, "generate_with_tool", stub)
+    monkeypatch.setattr(sr, "generate_text", stub)
     tweaked, resp = sr.relabel_slots(
         slots=seed,
         theme=_theme(),
@@ -187,9 +201,9 @@ def test_relabel_raises_when_persistently_partial(monkeypatch) -> None:
     seed = _seed_slots()  # 4 slots; tolerance is max(3, 10%) = 3, so all-missing fails.
 
     def stub(*_a, **_k):
-        return {"result": {"slots": []}, "model": "m", "input_tokens": 1, "output_tokens": 1}
+        return _text_resp("")  # unparseable / empty every time
 
-    monkeypatch.setattr(sr, "generate_with_tool", stub)
+    monkeypatch.setattr(sr, "generate_text", stub)
     with pytest.raises(sr.RelabelIncompleteError):
         sr.relabel_slots(
             slots=seed,
@@ -209,7 +223,7 @@ def test_relabel_raises_when_every_attempt_errors(monkeypatch) -> None:
     def stub(*_a, **_k):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(sr, "generate_with_tool", stub)
+    monkeypatch.setattr(sr, "generate_text", stub)
     with pytest.raises(sr.RelabelIncompleteError):
         sr.relabel_slots(
             slots=seed,
@@ -222,21 +236,67 @@ def test_relabel_raises_when_every_attempt_errors(monkeypatch) -> None:
         )
 
 
+def test_relabel_reports_progress_and_disables_repeat_penalty(monkeypatch) -> None:
+    """Each attempt announces itself via on_progress, and the free-text relabel
+    runs with the repeat penalty OFF (the line format is intentionally repetitive)."""
+    seed = _seed_slots()
+    seen_kwargs: list[dict] = []
+
+    def stub(*_a, **k):
+        seen_kwargs.append(k)
+        return _text_resp("")  # always empty → forces all attempts to run
+
+    monkeypatch.setattr(sr, "generate_text", stub)
+    seen: list[str] = []
+    with pytest.raises(sr.RelabelIncompleteError):
+        sr.relabel_slots(
+            slots=seed,
+            theme=_theme(),
+            approved=_approved(),
+            archetypes=[],
+            set_name="T",
+            set_size=4,
+            model="m",
+            on_progress=seen.append,
+        )
+    assert len(seen) == sr.RELABEL_MAX_ATTEMPTS
+    assert all("attempt" in s.lower() for s in seen)
+    assert seen_kwargs and all(
+        k.get("repeat_penalty") == sr.RELABEL_TEXT_REPEAT_PENALTY for k in seen_kwargs
+    )
+
+
+def test_parse_relabel_text_blocks_and_fallback() -> None:
+    """The parser reads --CARD <id>-- blocks (int-normalized ids) and falls back
+    to bare `<id>: descriptor` lines when no markers are present."""
+    valid = {"001", "002", "003"}
+    # Block format, with preamble, an int-shorthand id (2 → 002), and a bogus id.
+    by_id: dict[str, str] = {}
+    sr._parse_relabel_text(
+        "blah blah\n--CARD 001--\nWhite vanilla\n--CARD 2--\nBlue draw\n--CARD 999--\nnope",
+        valid,
+        by_id,
+    )
+    assert by_id == {"001": "White vanilla", "002": "Blue draw"}
+    # Fallback: no markers → `<id>: descriptor` lines.
+    fb: dict[str, str] = {}
+    sr._parse_relabel_text("001: White vanilla\n003: Green ramp", valid, fb)
+    assert fb == {"001": "White vanilla", "003": "Green ramp"}
+
+
 # ---------------------------------------------------------------------------
 # Pass 2 — request assignment
 # ---------------------------------------------------------------------------
 
 
-def test_assign_requests_places_and_rewrites(monkeypatch) -> None:
+def test_assign_requests_places_request_as_descriptor(monkeypatch) -> None:
+    """A placed request becomes the slot's descriptor verbatim (the request text
+    is the spec — we don't keep a separate model-rewritten line)."""
     tweaked = {"A": "x", "B": "y"}
 
     def stub(*_a, **_k):
         return {
-            "result": {
-                "assignments": [
-                    {"request": "Cogwarden", "slot_id": "B", "text": "Cogwarden, legendary"},
-                ]
-            },
+            "result": {"assignments": [{"request": "Cogwarden", "slot_id": "B"}]},
             "model": "m",
             "input_tokens": 1,
             "output_tokens": 1,
@@ -250,7 +310,8 @@ def test_assign_requests_places_and_rewrites(monkeypatch) -> None:
         model="m",
     )
     assert reserved == {"B": "Cogwarden"}
-    assert out["B"] == "Cogwarden, legendary"
+    assert out["B"] == "Cogwarden"  # descriptor replaced by the request text
+    assert out["A"] == "x"  # untouched
     assert resp is not None
 
 
@@ -275,9 +336,9 @@ def test_assign_requests_skips_duplicate_and_unknown(monkeypatch) -> None:
         return {
             "result": {
                 "assignments": [
-                    {"request": "First", "slot_id": "A", "text": "first"},
-                    {"request": "Second", "slot_id": "A", "text": "second"},  # dup slot, skipped
-                    {"request": "Third", "slot_id": "ZZ", "text": "nope"},  # unknown slot, skipped
+                    {"request": "First", "slot_id": "A"},
+                    {"request": "Second", "slot_id": "A"},  # dup slot, skipped
+                    {"request": "Third", "slot_id": "ZZ"},  # unknown slot, skipped
                 ]
             },
             "model": "m",
@@ -287,10 +348,102 @@ def test_assign_requests_skips_duplicate_and_unknown(monkeypatch) -> None:
 
     monkeypatch.setattr(sr, "generate_with_tool", stub)
     out, reserved, _resp = sr.assign_requests(
-        slots=[{"slot_id": "A"}], tweaked={"A": "x"}, card_requests=[{"text": "x"}], model="m"
+        slots=[{"slot_id": "A"}],
+        tweaked={"A": "x"},
+        card_requests=[{"text": "First"}, {"text": "Second"}, {"text": "Third"}],
+        model="m",
     )
+    # Only the first valid (slot free + known request) placement is kept; the
+    # taken-slot and unknown-slot assignments are dropped.
     assert reserved == {"A": "First"}
-    assert out["A"] == "first"
+    assert out["A"] == "First"
+
+
+def test_assign_requests_dedups_same_request_across_slots(monkeypatch) -> None:
+    """The duplicate-card bug: a single request placed on several slots must be
+    accepted exactly once, not once per slot."""
+
+    def stub(*_a, **_k):
+        return {
+            "result": {
+                "assignments": [
+                    {"request": "Dragon", "slot_id": "A"},
+                    {"request": "Dragon", "slot_id": "B"},  # dup request
+                    {"request": "Dragon", "slot_id": "C"},  # dup request
+                ]
+            },
+            "model": "m",
+            "input_tokens": 1,
+            "output_tokens": 1,
+        }
+
+    monkeypatch.setattr(sr, "generate_with_tool", stub)
+    out, reserved, _resp = sr.assign_requests(
+        slots=[{"slot_id": "A"}, {"slot_id": "B"}, {"slot_id": "C"}],
+        tweaked={"A": "x", "B": "y", "C": "z"},
+        card_requests=[{"text": "Dragon"}],
+        model="m",
+    )
+    assert reserved == {"A": "Dragon"}  # placed once, on the first slot
+    assert out["A"] == "Dragon"  # descriptor replaced by the request
+    assert out["B"] == "y"  # untouched
+    assert out["C"] == "z"
+
+
+def test_assign_requests_retries_until_placed(monkeypatch) -> None:
+    """A first attempt that places nothing triggers a resend; the next attempt
+    places the request. Token usage is summed across attempts."""
+    calls = {"n": 0}
+
+    def stub(*_a, **_k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return {
+                "result": {"assignments": []},
+                "model": "m",
+                "input_tokens": 2,
+                "output_tokens": 3,
+            }
+        return {
+            "result": {"assignments": [{"request": "Sphinx", "slot_id": "A"}]},
+            "model": "m",
+            "input_tokens": 2,
+            "output_tokens": 3,
+        }
+
+    monkeypatch.setattr(sr, "generate_with_tool", stub)
+    out, reserved, resp = sr.assign_requests(
+        slots=[{"slot_id": "A"}],
+        tweaked={"A": "x"},
+        card_requests=[{"text": "Sphinx"}],
+        model="m",
+    )
+    assert calls["n"] == 2
+    assert reserved == {"A": "Sphinx"}
+    assert out["A"] == "Sphinx"
+    assert resp is not None
+    assert resp["input_tokens"] == 4  # summed across both attempts
+    assert resp["output_tokens"] == 6
+
+
+def test_assign_requests_reports_progress(monkeypatch) -> None:
+    """on_progress fires once per attempt with an 'attempt N/M' string."""
+
+    def stub(*_a, **_k):
+        return {"result": {"assignments": []}, "model": "m", "input_tokens": 1, "output_tokens": 1}
+
+    monkeypatch.setattr(sr, "generate_with_tool", stub)
+    seen: list[str] = []
+    sr.assign_requests(
+        slots=[{"slot_id": "A"}],
+        tweaked={"A": "x"},
+        card_requests=[{"text": "Never placed"}],
+        model="m",
+        on_progress=seen.append,
+    )
+    # Never placed → all attempts run, each announces itself.
+    assert len(seen) == sr.ASSIGN_MAX_ATTEMPTS
+    assert all("attempt" in s.lower() for s in seen)
 
 
 # ---------------------------------------------------------------------------
@@ -299,45 +452,40 @@ def test_assign_requests_skips_duplicate_and_unknown(monkeypatch) -> None:
 
 
 def test_relabel_skeleton_round_trip(_project, monkeypatch) -> None:
-    def stub(*_a, **k):
-        name = k["tool_schema"]["name"]
-        if name == "submit_relabeled_slots":
-            slots = [
-                {"slot_id": s["slot_id"], "text": f"themed {s['slot_id']}"} for s in _seed_slots()
-            ]
-            return {
-                "result": {"slots": slots},
-                "model": "m",
-                "input_tokens": 10,
-                "output_tokens": 20,
-            }
-        if name == "submit_request_assignments":
-            return {
-                "result": {
-                    "assignments": [
-                        {
-                            "request": "Cogwarden, legendary artifact guardian",
-                            "slot_id": "R-R-04",
-                            "text": "Cogwarden — legendary artifact guardian",
-                        },
-                    ]
-                },
-                "model": "m",
-                "input_tokens": 5,
-                "output_tokens": 5,
-            }
-        raise AssertionError(f"unexpected tool {name}")
+    # Pass 1 is free text (generate_text); Pass 2 is the JSON tool (generate_with_tool).
+    def text_stub(*_a, **_k):
+        return _text_resp(
+            _blocks([(s["slot_id"], f"themed {s['slot_id']}") for s in _seed_slots()]),
+            input_tokens=10,
+            output_tokens=20,
+        )
 
-    monkeypatch.setattr(sr, "generate_with_tool", stub)
+    def tool_stub(*_a, **_k):
+        return {
+            "result": {
+                "assignments": [
+                    {
+                        "request": "Cogwarden, legendary artifact guardian",
+                        "slot_id": "R-R-04",
+                    },
+                ]
+            },
+            "model": "m",
+            "input_tokens": 5,
+            "output_tokens": 5,
+        }
+
+    monkeypatch.setattr(sr, "generate_text", text_stub)
+    monkeypatch.setattr(sr, "generate_with_tool", tool_stub)
     monkeypatch.setattr(sr, "cost_from_result", lambda _r: 0.01)
 
     out = sr.relabel_skeleton(slots=_seed_slots())
     updates = out["updates"]
     assert set(updates) == {s["slot_id"] for s in _seed_slots()}
     assert updates["W-C-01"]["tweaked_text"] == "themed W-C-01"
-    # The placed request rewrites its slot + sets reserved_card.
+    # The placed request becomes the slot's descriptor AND its reserved_card.
     assert updates["R-R-04"]["reserved_card"] == "Cogwarden, legendary artifact guardian"
-    assert updates["R-R-04"]["tweaked_text"] == "Cogwarden — legendary artifact guardian"
+    assert updates["R-R-04"]["tweaked_text"] == "Cogwarden, legendary artifact guardian"
     assert out["input_tokens"] == 15
     assert out["output_tokens"] == 25
     assert out["cost_usd"] == pytest.approx(0.02)

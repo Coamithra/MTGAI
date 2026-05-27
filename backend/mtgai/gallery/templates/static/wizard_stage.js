@@ -332,7 +332,7 @@
     }
 
     if (stage.status === 'failed') {
-      return `<span class="wiz-footer-note">Retry support lands in a follow-up card.</span>`;
+      return `<span class="wiz-footer-note">Stage failed — see the error above. Retry or edit this stage's result, then continue.</span>`;
     }
     return '<span class="wiz-footer-note"></span>';
   }

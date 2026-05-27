@@ -546,12 +546,14 @@ class TestSkeletonGeneration:
             assert isinstance(slot.cmc_target, int)
 
     def test_slot_id_format(self):
-        """Slot IDs follow <COLOR>-<RARITY_LETTER>-<NN> pattern."""
+        """Slot IDs are plain zero-padded collector numbers, and unique."""
         result = _generate(60)
-        # Pattern: 1-2 letter color code (or X), dash, single capital letter, dash, 2 digits
-        pattern = re.compile(r"^[A-Z]{1,2}-[CURM]-\d{2}$")
+        pattern = re.compile(r"^\d{3,}$")  # zero-padded to >= 3 digits, digits only
+        seen: set[str] = set()
         for slot in result.slots:
             assert pattern.match(slot.slot_id), f"Bad slot_id: {slot.slot_id}"
+            assert slot.slot_id not in seen, f"Duplicate slot_id: {slot.slot_id}"
+            seen.add(slot.slot_id)
 
     def test_cmc_targets_in_range(self):
         result = _generate(100)

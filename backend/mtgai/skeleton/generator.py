@@ -522,22 +522,6 @@ def _archetype_tags_for_color(color: str, color_pair: str | None) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _slot_id(color: str, rarity: str, index: int, color_pair: str | None = None) -> str:
-    """Generate a human-readable slot identifier.
-
-    Format: <COLOR>-<RARITY_LETTER>-<NN>
-    Examples: W-C-01, UB-U-03, X-R-02 (X = colorless)
-    """
-    rarity_letter = rarity[0].upper()  # C, U, R, M
-    if color == "multicolor" and color_pair:
-        color_code = color_pair
-    elif color == "colorless":
-        color_code = "X"
-    else:
-        color_code = color
-    return f"{color_code}-{rarity_letter}-{index:02d}"
-
-
 # ---------------------------------------------------------------------------
 # Constraint validation
 # ---------------------------------------------------------------------------
@@ -1048,6 +1032,10 @@ def generate_skeleton(
 
     all_slots: list[SkeletonSlot] = []
     archetype_index: dict[str, list[str]] = {pair: [] for pair in COLOR_PAIRS}
+    # Slot ids are plain zero-padded collector numbers (001, 002, …) assigned in
+    # build order. They're an opaque join key + label — nothing parses them — so
+    # they deliberately encode no color/rarity that could steer the LLM relabel.
+    id_width = max(3, len(str(config.set_size)))
 
     for rarity, count in rarity_counts.items():
         color_assignments = _distribute_colors(rarity, count, config.set_size)
@@ -1112,16 +1100,8 @@ def generate_skeleton(
             color = item["color"]
             color_pair = item["color_pair"]
 
-            existing = [
-                s
-                for s in all_slots
-                if s.color == color
-                and s.rarity == rarity
-                and (color != "multicolor" or s.color_pair == color_pair)
-            ]
-            idx = len(existing) + 1
-
-            sid = _slot_id(color, rarity, idx, color_pair)
+            # Plain global sequential collector number in build order.
+            sid = f"{len(all_slots) + 1:0{id_width}d}"
             slot = SkeletonSlot(
                 slot_id=sid,
                 color=color,

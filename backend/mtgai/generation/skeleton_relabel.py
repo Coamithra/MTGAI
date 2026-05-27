@@ -17,7 +17,8 @@ is a cheaper matching problem over the relabeled set):
   by construction (N in, N out, reconciled by ``slot_id``); a dropped slot
   keeps its default descriptor.
 * **Pass 2 (assign)** — place each ``theme.json`` ``card_request`` onto the
-  best-fitting slot and fold it into that slot's descriptor + ``reserved_card``.
+  best-fitting slot; that slot's ``tweaked_text`` becomes the request verbatim
+  (the request is the card's spec) and its ``reserved_card`` is stamped.
 
 The structured slot fields stay the deterministic default (so ``reprints`` /
 ``lands`` read them unchanged); only ``tweaked_text`` + ``reserved_card`` carry
@@ -29,28 +30,69 @@ from __future__ import annotations
 
 import logging
 import math
+import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from mtgai.generation.llm_client import cost_from_result, generate_with_tool
+from mtgai.generation.llm_client import cost_from_result, generate_text, generate_with_tool
 from mtgai.skeleton.generator import render_slot_string
 
 logger = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "pipeline" / "prompts"
 
-# Relabel robustness. Local models routinely stop partway through the slot
-# array — returning a parseable but PARTIAL tool call (occasionally with
-# malformed trailing JSON the parser drops) — without tripping the max_tokens
-# truncation guard. So a single call can't be trusted: we resend the whole
-# prompt and retry up to RELABEL_MAX_ATTEMPTS, keeping the most-complete
-# response, and treat a result still missing too many slots as a hard error so
-# the caller surfaces it instead of shipping a near-default skeleton.
+# Relabel robustness. Pass 1 emits FREE TEXT, not a JSON tool call: a giant
+# structured array is exactly what local models break on (truncation mangles the
+# whole array; the repeated `{"slot_id":` scaffolding fights the sampler). Plain
+# `--CARD <id>--` blocks degrade gracefully instead — a truncated reply still
+# parses line-by-line. We still can't trust one call, so we resend the whole
+# prompt and retry up to RELABEL_MAX_ATTEMPTS, keep the most-complete parse, and
+# raise past the straggler tolerance rather than ship a near-default skeleton.
 RELABEL_MAX_ATTEMPTS = 3
 RELABEL_MIN_COVERAGE = 0.9
 # A few dropped slots are fine — they keep their default descriptor. The hard
 # error only fires past this many, so it scales: max(this, 10% of the set).
 RELABEL_MAX_STRAGGLERS = 3
+# Pass 1's free-text output is hundreds of near-identical lines (every line
+# repeats `·`, a colour word, a rarity word…). A repeat penalty accumulates over
+# those mandatory repetitions and corrupts the format, so it's OFF (1.0).
+RELABEL_TEXT_REPEAT_PENALTY = 1.0
+
+# Pass 2 is just as flaky as Pass 1: a single call routinely places only some
+# requests, or places the same request on several slots. So we retry up to this
+# many times, accumulating placements across attempts (dedup by request + slot),
+# and stop early once every request is placed.
+ASSIGN_MAX_ATTEMPTS = 3
+
+# Per-attempt repeat penalty for the assign pass (still a JSON tool call),
+# indexed by (attempt - 1) and clamped to the tail. Starts at the prose default
+# (1.1) for a little loop protection, then backs OFF on retry since the failure
+# that triggers a retry is usually malformed JSON the penalty made worse.
+ASSIGN_REPEAT_PENALTIES = [1.1, 1.05, 1.0]
+
+
+def _repeat_penalty_for(attempt: int) -> float:
+    """Assign-pass repeat penalty for a 1-based attempt (clamped to the tail)."""
+    i = min(max(attempt, 1), len(ASSIGN_REPEAT_PENALTIES)) - 1
+    return ASSIGN_REPEAT_PENALTIES[i]
+
+# A progress hook: called with a short human-readable activity string before
+# each attempt so callers can surface "attempt N/M" on the wizard progress
+# strip. Engine path wires it to StageEmitter.phase; the refresh endpoint wires
+# it to the SSE event bus.
+ProgressHook = Callable[[str], None]
+
+
+def _note(on_progress: ProgressHook | None, message: str) -> None:
+    """Fire the progress hook, swallowing any error (progress must never break
+    the relabel)."""
+    if on_progress is None:
+        return
+    try:
+        on_progress(message)
+    except Exception:  # pragma: no cover - progress is best-effort
+        logger.debug("relabel progress hook raised", exc_info=True)
 
 
 class RelabelIncompleteError(RuntimeError):
@@ -58,50 +100,14 @@ class RelabelIncompleteError(RuntimeError):
 
 
 # ---------------------------------------------------------------------------
-# Tool schemas
+# Tool schema (Pass 2 only — Pass 1 is free text, parsed by hand)
 # ---------------------------------------------------------------------------
-
-RELABEL_TOOL_SCHEMA: dict = {
-    "name": "submit_relabeled_slots",
-    "description": (
-        "Submit the relabeled skeleton — exactly one entry per slot, addressed "
-        "by its slot_id, each a rewritten one-line descriptor."
-    ),
-    "input_schema": {
-        "type": "object",
-        "required": ["slots"],
-        "properties": {
-            "slots": {
-                "type": "array",
-                "description": "One relabeled slot per input slot, same slot_ids.",
-                "items": {
-                    "type": "object",
-                    "required": ["slot_id", "text"],
-                    "properties": {
-                        "slot_id": {
-                            "type": "string",
-                            "description": "The slot's id, unchanged (e.g. 'U-C-04').",
-                        },
-                        "text": {
-                            "type": "string",
-                            "description": (
-                                "The rewritten one-line descriptor — color, rarity, type, "
-                                "rough CMC, mechanic, and any short role note. Keep it a "
-                                "single line; no ability text or stats."
-                            ),
-                        },
-                    },
-                },
-            },
-        },
-    },
-}
 
 ASSIGN_TOOL_SCHEMA: dict = {
     "name": "submit_request_assignments",
     "description": (
         "Submit the placement of each requested card onto a slot — one entry "
-        "per request, naming the chosen slot_id and its rewritten descriptor."
+        "per request, naming the requested card and the chosen slot_id."
     ),
     "input_schema": {
         "type": "object",
@@ -112,16 +118,12 @@ ASSIGN_TOOL_SCHEMA: dict = {
                 "description": "One entry per requested card.",
                 "items": {
                     "type": "object",
-                    "required": ["request", "slot_id", "text"],
+                    "required": ["request", "slot_id"],
                     "properties": {
                         "request": {"type": "string", "description": "The request text, verbatim."},
                         "slot_id": {
                             "type": "string",
                             "description": "The slot this request is placed in.",
-                        },
-                        "text": {
-                            "type": "string",
-                            "description": "The slot's descriptor, rewritten to be this card.",
                         },
                     },
                 },
@@ -217,34 +219,75 @@ def _format_assign_listing(slots: list[dict], tweaked: dict[str, str]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _collect_relabeled(response: dict, valid_ids: set[str], by_id: dict[str, str]) -> int:
-    """Fold a relabel response's slots into ``by_id`` in place.
+# A relabel block: a `--CARD <id>--` marker (2+ dashes either side, case-
+# insensitive). The id is captured; the descriptor is whatever follows up to the
+# next marker. A bare `<id>: descriptor` line is the fallback when the model
+# mirrors the input format instead of emitting markers.
+_CARD_MARKER = re.compile(r"-{2,}\s*CARD\s+(\S+?)\s*-{2,}", re.IGNORECASE)
+_ID_LINE = re.compile(r"^\s*(\d+)\s*[:.)\-]\s+(.+?)\s*$")
 
-    Accepts only entries whose ``slot_id`` is a real, not-yet-filled slot with
-    non-empty text — so a partial response, a hallucinated id, or a duplicate is
-    ignored rather than trusted. Returns how many NEW descriptors were added.
+
+def _resolve_slot_id(tok: str, valid_ids: set[str], by_int: dict[int, str]) -> str | None:
+    """Reconcile a returned id token to a real slot id — exact, then int-
+    normalized so a dropped leading zero (``42`` → ``0042``) still lands."""
+    tok = tok.strip()
+    if tok in valid_ids:
+        return tok
+    if tok.isdigit() and int(tok) in by_int:
+        return by_int[int(tok)]
+    return None
+
+
+def _parse_relabel_text(text: str, valid_ids: set[str], by_id: dict[str, str]) -> int:
+    """Parse a free-text relabel reply into ``by_id`` in place.
+
+    The model returns blocks::
+
+        --CARD 0042--
+        White · common · creature · CMC2 · vanilla (notes…)
+
+    We split on the ``--CARD <id>--`` markers and take the first non-empty line
+    after each as the descriptor. If the model emitted no markers at all we fall
+    back to bare ``<id>: descriptor`` lines (the input format it may mirror).
+    Only real, not-yet-filled ids with non-empty text are accepted, so preamble
+    / garbage / duplicates are ignored. Returns how many NEW descriptors landed.
     """
+    text = text or ""
+    by_int = {int(s): s for s in valid_ids if s.isdigit()}
     added = 0
-    for item in response.get("result", {}).get("slots") or []:
-        if not isinstance(item, dict):
+
+    markers = list(_CARD_MARKER.finditer(text))
+    if markers:
+        for i, m in enumerate(markers):
+            end = markers[i + 1].start() if i + 1 < len(markers) else len(text)
+            block = text[m.end() : end]
+            desc = next((ln.strip() for ln in block.splitlines() if ln.strip()), "")
+            sid = _resolve_slot_id(m.group(1), valid_ids, by_int)
+            if sid and desc and sid not in by_id:
+                by_id[sid] = desc
+                added += 1
+        return added
+
+    # Fallback: no markers — accept bare `<id>: descriptor` lines.
+    for line in text.splitlines():
+        mm = _ID_LINE.match(line)
+        if not mm:
             continue
-        sid = str(item.get("slot_id") or "").strip()
-        text = str(item.get("text") or "").strip()
-        if sid in valid_ids and text and sid not in by_id:
-            by_id[sid] = text
+        sid = _resolve_slot_id(mm.group(1), valid_ids, by_int)
+        desc = mm.group(2).strip()
+        if sid and desc and sid not in by_id:
+            by_id[sid] = desc
             added += 1
     return added
 
 
-def _merge_relabel_responses(responses: list[dict], by_id: dict[str, str], model: str) -> dict:
-    """Collapse per-attempt responses into one, summing token usage.
+def _merge_text_responses(responses: list[dict], model: str) -> dict:
+    """Collapse per-attempt text responses into one, summing token usage.
 
     ``relabel_skeleton`` reads token counts + ``cost_from_result`` off the
-    returned dict, so the merged dict must carry summed ``input_tokens`` /
-    ``output_tokens`` and the model id.
-    """
+    returned dict, so it must carry summed ``input_tokens`` / ``output_tokens``
+    and the model id (the parsed descriptors live in ``tweaked``, not here)."""
     return {
-        "result": {"slots": [{"slot_id": sid, "text": text} for sid, text in by_id.items()]},
         "input_tokens": sum(r.get("input_tokens", 0) for r in responses),
         "output_tokens": sum(r.get("output_tokens", 0) for r in responses),
         "cache_creation_input_tokens": 0,
@@ -264,15 +307,21 @@ def relabel_slots(
     set_size: int,
     model: str,
     log_dir: Path | None = None,
+    on_progress: ProgressHook | None = None,
 ) -> tuple[dict[str, str], dict]:
     """Run Pass 1. Returns (tweaked, response) where tweaked maps every
     slot_id to its rewritten descriptor.
 
-    Robust to partial responses: each attempt resends the whole prompt; if it
-    comes back missing more than the straggler tolerance, we retry from scratch
-    up to ``RELABEL_MAX_ATTEMPTS`` and keep the most-complete attempt. If even
-    the best is still too incomplete we raise ``RelabelIncompleteError`` so the
-    caller surfaces it rather than silently shipping mostly-default slots.
+    The model emits FREE TEXT — ``--CARD <id>--`` blocks, not a JSON tool call —
+    which we parse ourselves; a malformed/truncated reply degrades to "fewer
+    parsed blocks" instead of "unparseable array". Robust to partial responses:
+    each attempt resends the whole prompt; if it parses to fewer than the
+    straggler tolerance allows, we retry up to ``RELABEL_MAX_ATTEMPTS`` and keep
+    the most-complete attempt. If even the best is too incomplete we raise
+    ``RelabelIncompleteError`` rather than silently shipping mostly-default slots.
+
+    ``on_progress`` (optional) is called with an "attempt N/M" string before
+    each attempt so the wizard progress strip can show which try is running.
     """
     system_prompt = _read_template("skeleton_relabel_system.txt").format(
         set_name=set_name or "(unnamed set)",
@@ -296,17 +345,23 @@ def relabel_slots(
     last_error: Exception | None = None
 
     for attempt in range(1, RELABEL_MAX_ATTEMPTS + 1):
+        suffix = "" if attempt == 1 else " (retrying — last response was incomplete)"
+        _note(
+            on_progress,
+            f"Relabeling skeleton — attempt {attempt}/{RELABEL_MAX_ATTEMPTS}{suffix}",
+        )
         try:
-            response = generate_with_tool(
+            response = generate_text(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                tool_schema=RELABEL_TOOL_SCHEMA,
                 model=model,
                 temperature=1.0,
                 max_tokens=16384,
                 log_dir=log_dir,
+                repeat_penalty=RELABEL_TEXT_REPEAT_PENALTY,
+                name="relabel_skeleton",
             )
-        except Exception as exc:  # transport / truncation / no-valid-tool-output
+        except Exception as exc:  # transport / context overflow
             last_error = exc
             logger.warning(
                 "Relabel attempt %d/%d failed: %s", attempt, RELABEL_MAX_ATTEMPTS, exc
@@ -314,13 +369,14 @@ def relabel_slots(
             continue
         responses.append(response)
         by_id: dict[str, str] = {}
-        _collect_relabeled(response, valid_ids, by_id)
+        _parse_relabel_text(response.get("text", ""), valid_ids, by_id)
         logger.info(
-            "Relabel attempt %d/%d: %d/%d slots covered",
+            "Relabel attempt %d/%d: parsed %d/%d slots (stop=%s)",
             attempt,
             RELABEL_MAX_ATTEMPTS,
             len(by_id),
             len(slots),
+            response.get("stop_reason"),
         )
         if len(by_id) > len(best):
             best = by_id
@@ -345,12 +401,53 @@ def relabel_slots(
 
     tweaked = {str(s.get("slot_id")): best.get(str(s.get("slot_id"))) or render_slot_string(s)
                for s in slots}
-    return tweaked, _merge_relabel_responses(responses, best, model)
+    return tweaked, _merge_text_responses(responses, model)
 
 
 # ---------------------------------------------------------------------------
 # Pass 2: assign card requests to slots
 # ---------------------------------------------------------------------------
+
+
+def _normalize_request(text: str) -> str:
+    """Canonical form for matching a returned ``request`` against the known
+    requests — lowercased, whitespace-collapsed."""
+    return " ".join(str(text or "").lower().split())
+
+
+def _match_request(req: str, expected: dict[str, str], placed: set[str]) -> str | None:
+    """Resolve a returned request string to an *unplaced* known request key.
+
+    ``expected`` maps normalized-text → original-text. Returns the matching
+    normalized key (still unplaced), or None if the model named a request we
+    don't recognise or one already placed. Exact normalized match first, then a
+    lenient substring match (the model sometimes echoes a prefix/paraphrase).
+    """
+    norm = _normalize_request(req)
+    if not norm:
+        return None
+    if norm in expected and norm not in placed:
+        return norm
+    for key in expected:
+        if key in placed:
+            continue
+        if key in norm or norm in key:
+            return key
+    return None
+
+
+def _merge_assign_responses(responses: list[dict], assignments: list[dict], model: str) -> dict:
+    """Collapse per-attempt assign responses into one, summing token usage so
+    ``relabel_skeleton`` can read counts + ``cost_from_result`` off it."""
+    return {
+        "result": {"assignments": assignments},
+        "input_tokens": sum(r.get("input_tokens", 0) for r in responses),
+        "output_tokens": sum(r.get("output_tokens", 0) for r in responses),
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "stop_reason": responses[-1].get("stop_reason", "") if responses else "",
+        "model": responses[-1].get("model", model) if responses else model,
+    }
 
 
 def assign_requests(
@@ -360,14 +457,33 @@ def assign_requests(
     card_requests: list[Any],
     model: str,
     log_dir: Path | None = None,
+    on_progress: ProgressHook | None = None,
 ) -> tuple[dict[str, str], dict[str, str], dict | None]:
     """Run Pass 2. Returns (tweaked, reserved, response): the (possibly updated)
-    per-slot descriptors, a slot_id→request map for placed cards, and the raw
-    response (None when there are no requests, so no LLM call)."""
+    per-slot descriptors, a slot_id→request map for placed cards, and the merged
+    response (None when there are no requests, so no LLM call).
+
+    Each placement is validated and deduplicated so the same request can't land
+    on multiple slots (the duplicate-card bug) and no slot takes two requests:
+    a returned assignment is kept only if its slot is real + still free and its
+    request matches a known, not-yet-placed request. Like Pass 1 this is flaky,
+    so we retry up to ``ASSIGN_MAX_ATTEMPTS``, accumulating placements across
+    attempts and stopping once every request is placed.
+
+    ``on_progress`` (optional) surfaces "attempt N/M" on the progress strip.
+    """
     reqs = [r for r in (card_requests or []) if (r.get("text") if isinstance(r, dict) else r)]
     reserved: dict[str, str] = {}
     if not reqs:
         return tweaked, reserved, None
+
+    # Map each request's normalized form → its original text (the reserved
+    # value). A normalized collision (two requests that canonicalize the same)
+    # collapses to one entry — harmless, they'd be indistinguishable anyway.
+    expected: dict[str, str] = {}
+    for r in reqs:
+        original = (r.get("text") if isinstance(r, dict) else r) or ""
+        expected.setdefault(_normalize_request(original), str(original).strip())
 
     system_prompt = _read_template("skeleton_assign_system.txt")
     user_prompt = _read_template("skeleton_assign_user.txt").format(
@@ -377,36 +493,66 @@ def assign_requests(
         slot_listing=_format_assign_listing(slots, tweaked),
     )
 
-    response = generate_with_tool(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        tool_schema=ASSIGN_TOOL_SCHEMA,
-        model=model,
-        temperature=1.0,
-        max_tokens=8192,
-        log_dir=log_dir,
-    )
     valid = set(tweaked)
-    for a in response["result"].get("assignments") or []:
-        if not isinstance(a, dict):
-            continue
-        sid = str(a.get("slot_id") or "").strip()
-        req = str(a.get("request") or "").strip()
-        text = str(a.get("text") or "").strip()
-        if sid not in valid or sid in reserved or not req:
-            logger.warning("Request assignment skipped (slot=%r, request=%r)", sid, req[:40])
-            continue
-        reserved[sid] = req
-        if text:
-            tweaked[sid] = text
-    if len(reserved) < len(reqs):
-        logger.warning(
-            "Placed %d/%d card requests; %d unplaced",
-            len(reserved),
-            len(reqs),
-            len(reqs) - len(reserved),
+    placed: set[str] = set()  # normalized request keys already placed
+    kept: list[dict] = []  # accepted assignments across all attempts (for logging/merge)
+    responses: list[dict] = []
+
+    for attempt in range(1, ASSIGN_MAX_ATTEMPTS + 1):
+        if len(placed) >= len(expected):
+            break
+        suffix = "" if attempt == 1 else " (retrying — requests still unplaced)"
+        _note(
+            on_progress,
+            f"Placing requested cards — attempt {attempt}/{ASSIGN_MAX_ATTEMPTS}{suffix}",
         )
-    return tweaked, reserved, response
+        try:
+            response = generate_with_tool(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                tool_schema=ASSIGN_TOOL_SCHEMA,
+                model=model,
+                temperature=1.0,
+                max_tokens=8192,
+                log_dir=log_dir,
+                repeat_penalty=_repeat_penalty_for(attempt),
+            )
+        except Exception as exc:
+            logger.warning("Assign attempt %d/%d failed: %s", attempt, ASSIGN_MAX_ATTEMPTS, exc)
+            continue
+        responses.append(response)
+        for a in response.get("result", {}).get("assignments") or []:
+            if not isinstance(a, dict):
+                continue
+            sid = str(a.get("slot_id") or "").strip()
+            req = str(a.get("request") or "").strip()
+            if sid not in valid or sid in reserved:
+                logger.warning("Assignment skipped (bad/taken slot=%r, request=%r)", sid, req[:40])
+                continue
+            key = _match_request(req, expected, placed)
+            if key is None:
+                logger.warning("Assignment skipped (unknown/duplicate request=%r)", req[:60])
+                continue
+            # The request text IS the slot's spec — it's the richest description
+            # of the card we have. The card generator designs from it; we don't
+            # distill it to a one-line descriptor (that only lost information).
+            reserved[sid] = expected[key]
+            tweaked[sid] = expected[key]
+            placed.add(key)
+            kept.append({"request": expected[key], "slot_id": sid})
+
+    if not responses:
+        logger.warning("Assign produced no usable output after %d attempts", ASSIGN_MAX_ATTEMPTS)
+        return tweaked, reserved, None
+    if len(placed) < len(expected):
+        logger.warning(
+            "Placed %d/%d card requests; %d unplaced after %d attempts",
+            len(placed),
+            len(expected),
+            len(expected) - len(placed),
+            ASSIGN_MAX_ATTEMPTS,
+        )
+    return tweaked, reserved, _merge_assign_responses(responses, kept, model)
 
 
 # ---------------------------------------------------------------------------
@@ -420,6 +566,7 @@ def relabel_skeleton(
     theme: dict | None = None,
     approved: list[dict] | None = None,
     archetypes: list[dict] | None = None,
+    on_progress: ProgressHook | None = None,
 ) -> dict:
     """Relabel a (structured) default skeleton to fit the active project's set.
 
@@ -485,6 +632,7 @@ def relabel_skeleton(
         set_size=sp.set_size or len(slots),
         model=model_id,
         log_dir=log_dir,
+        on_progress=on_progress,
     )
     tweaked, reserved, assign_resp = assign_requests(
         slots=slots,
@@ -492,6 +640,7 @@ def relabel_skeleton(
         card_requests=theme.get("card_requests") or [],
         model=model_id,
         log_dir=log_dir,
+        on_progress=on_progress,
     )
 
     input_tokens = relabel_resp.get("input_tokens", 0)

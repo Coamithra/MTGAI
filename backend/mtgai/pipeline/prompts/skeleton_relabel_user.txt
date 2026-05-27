@@ -1,5 +1,7 @@
 Here is the NORMAL set — {slot_count} slots, one per line, as `slot_id: Color · rarity · type · CMCn · mechanic`.
 
-Tweak it into this set: bend the counts until the set-wide amounts are true — the constraints, plus enough of each mechanic to draft around (and none on too many) and enough cards per color pair to support its archetype. Add a tag or note to a line only where a constraint requires it, and leave any slot nothing set-wide touches exactly as it is. Return all {slot_count} slots through the tool — same `slot_id` each, with the rewritten one-line `text`.
+Tweak it into this set: bend the counts until the set-wide amounts are true — the constraints, plus enough of each mechanic to draft around (and none on too many) and enough cards per color pair to support its archetype. Rewrite any field of a line (colour, rarity, type, CMC, mechanic) where the set calls for it, and add a free-text `(notes: …)` wherever a thought would help the card designer; leave any slot nothing set-wide touches exactly as it is.
+
+Output all {slot_count} slots as `--CARD <slot_id>--` blocks (header line with the slot's number copied exactly, then its rewritten descriptor line) — plain text, no JSON, no commentary. Every slot appears exactly once.
 
 {default_listing}

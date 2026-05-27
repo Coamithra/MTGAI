@@ -400,6 +400,7 @@ def _generate_llamacpp(
     temperature: float,
     max_tokens: int,
     log_dir: Any = True,
+    repeat_penalty: float | None = None,
 ) -> dict:
     """Call a local model through llmfacade's llamacpp provider.
 
@@ -409,6 +410,11 @@ def _generate_llamacpp(
     on our own retry + JSON-extraction fallback because local models often
     return tool args inline as text instead of as a structured tool call.
     Tiktoken-based pre-call budget check + post-call truncation guard remain.
+
+    ``repeat_penalty`` overrides the provider-default ``LLAMACPP_REPEAT_PENALTY``
+    for this call. Structured tool-use callers pass a low value (≈1.0) because
+    JSON output *must* repeat its scaffolding (``{"slot_id":``, ``"text":`` …)
+    and a prose-tuned penalty corrupts it. ``None`` keeps the provider default.
     """
     from mtgai.generation.token_utils import (
         check_post_call_response,
@@ -444,14 +450,19 @@ def _generate_llamacpp(
 
     provider = _get_provider("llamacpp")
     facade_model = _llamacpp_new_model(provider, model)
-    convo = facade_model.new_conversation(
-        name=_convo_name(tool_schema),
-        system_blocks=[SystemBlock(text=system_prompt)],
-        tools=[_make_tool(tool_schema)],
-        max_tokens=max_tokens,
-        temperature=temperature,
-        log_dir=log_dir,
-    )
+    convo_kwargs: dict[str, Any] = {
+        "name": _convo_name(tool_schema),
+        "system_blocks": [SystemBlock(text=system_prompt)],
+        "tools": [_make_tool(tool_schema)],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "log_dir": log_dir,
+    }
+    if repeat_penalty is not None:
+        # Per-call override of the provider-default repeat_penalty, forwarded by
+        # llmfacade through OpenAI-compat extra_body to llama-server.
+        convo_kwargs["repeat_penalty"] = repeat_penalty
+    convo = facade_model.new_conversation(**convo_kwargs)
 
     next_user: str | None = user_prompt
     for attempt in range(MAX_RETRIES):
@@ -564,6 +575,7 @@ def generate_with_tool(
     effort: str | None = None,
     cache: bool = True,
     log_dir: Any | None = None,
+    repeat_penalty: float | None = None,
 ) -> dict:
     """Call an LLM with tool_use for structured JSON output.
 
@@ -588,6 +600,9 @@ def generate_with_tool(
           (0 for llamacpp)
         - stop_reason: the stop reason
         - model: effective model used
+
+    ``repeat_penalty`` (llamacpp only; ignored on Anthropic) overrides the
+    provider-default repeat penalty for this call — see :func:`_generate_llamacpp`.
     """
     provider = _resolve_provider(model)
     # None → True keeps llmfacade's default-on logging (session dirs under cwd);
@@ -603,6 +618,7 @@ def generate_with_tool(
             temperature=temperature,
             max_tokens=max_tokens,
             log_dir=effective_log_dir,
+            repeat_penalty=repeat_penalty,
         )
 
     model, effort = cap_model(model, effort)
@@ -616,4 +632,156 @@ def generate_with_tool(
         effort=effort,
         cache=cache,
         log_dir=effective_log_dir,
+    )
+
+
+# ── Free-text generation (no tool_use) ───────────────────────────────
+
+
+def _text_convo_name(label: str) -> str:
+    """Unique, human-readable conversation name for a free-text call."""
+    return f"{label}-{uuid.uuid4().hex[:8]}"
+
+
+def _generate_text_llamacpp(
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    log_dir: Any,
+    repeat_penalty: float | None,
+    name: str,
+) -> dict:
+    """Plain (no-tool) local generation. Returns the raw text + usage.
+
+    Unlike :func:`_generate_llamacpp` there is no tool/JSON-extraction loop and
+    **no raise on truncation** — a truncated free-text reply is still useful
+    (the caller parses what arrived and retries for the rest), so we hand back
+    whatever came out plus the stop reason. The pre-call budget check stays.
+    """
+    from mtgai.generation.token_utils import check_pre_call
+
+    legacy_messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+    check_pre_call(model, legacy_messages, tools=None, output_reserve=max_tokens)
+
+    provider = _get_provider("llamacpp")
+    facade_model = _llamacpp_new_model(provider, model)
+    convo_kwargs: dict[str, Any] = {
+        "name": _text_convo_name(name),
+        "system_blocks": [SystemBlock(text=system_prompt)],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "log_dir": log_dir,
+    }
+    if repeat_penalty is not None:
+        convo_kwargs["repeat_penalty"] = repeat_penalty
+    convo = facade_model.new_conversation(**convo_kwargs)
+
+    try:
+        resp = convo.send(user_prompt)
+    except LLMError as e:
+        raise ValueError(f"llamacpp [{model}] error: {e}") from e
+
+    usage = resp.usage
+    return {
+        "text": resp.text or "",
+        "input_tokens": usage.prompt_tokens if usage else 0,
+        "output_tokens": usage.completion_tokens if usage else 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "stop_reason": resp.finish_reason,
+        "model": model,
+    }
+
+
+def _generate_text_anthropic(
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    effort: str | None,
+    cache: bool,
+    log_dir: Any,
+    name: str,
+) -> dict:
+    """Plain (no-tool) Anthropic generation. Returns the raw text + usage."""
+    provider = _get_provider("anthropic")
+    facade_model = provider.new_model(model)
+    convo = facade_model.new_conversation(
+        name=_text_convo_name(name),
+        system_blocks=[SystemBlock(text=system_prompt, cache=cache)],
+        log_dir=log_dir,
+    )
+    send_kwargs: dict[str, Any] = {"max_tokens": max_tokens, "temperature": temperature}
+    if effort:
+        send_kwargs["effort"] = effort
+    resp = convo.send(user_prompt, **send_kwargs)
+
+    usage = resp.usage
+    return {
+        "text": resp.text or "",
+        "input_tokens": usage.prompt_tokens if usage else 0,
+        "output_tokens": usage.completion_tokens if usage else 0,
+        "cache_creation_input_tokens": usage.cache_creation_tokens if usage else 0,
+        "cache_read_input_tokens": usage.cache_read_tokens if usage else 0,
+        "stop_reason": resp.finish_reason,
+        "model": model,
+    }
+
+
+def generate_text(
+    system_prompt: str,
+    user_prompt: str,
+    model: str = "claude-sonnet-4-6",
+    temperature: float = 1.0,
+    max_tokens: int = 8192,
+    effort: str | None = None,
+    cache: bool = True,
+    log_dir: Any | None = None,
+    repeat_penalty: float | None = None,
+    name: str = "generate_text",
+) -> dict:
+    """Free-text generation — the no-tool counterpart to :func:`generate_with_tool`.
+
+    Use this when a local model handles a delimited free-text template far more
+    reliably than a long structured tool-call (the skeleton relabel): the caller
+    owns parsing + validation + retry. Returns a dict with ``text`` plus the same
+    token/usage/model keys ``generate_with_tool`` returns (no ``result``).
+
+    ``repeat_penalty`` (llamacpp only) overrides the provider default — for
+    highly repetitive templated output, pass ~1.0 so the penalty doesn't fight
+    the format. ``name`` labels the llmfacade transcript. Provider is resolved
+    from the registry exactly as in :func:`generate_with_tool`.
+    """
+    provider = _resolve_provider(model)
+    effective_log_dir = True if log_dir is None else log_dir
+
+    if provider == "llamacpp":
+        return _generate_text_llamacpp(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            log_dir=effective_log_dir,
+            repeat_penalty=repeat_penalty,
+            name=name,
+        )
+
+    model, effort = cap_model(model, effort)
+    return _generate_text_anthropic(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        effort=effort,
+        cache=cache,
+        log_dir=effective_log_dir,
+        name=name,
     )

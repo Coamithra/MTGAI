@@ -406,6 +406,9 @@
       ) {
         hideProgressStrip();
       }
+      // A fresh run clears the dedup latch so a later (re-)failure re-surfaces.
+      if (data.overall_status === 'running') _failureShownSig = null;
+      if (data.overall_status === 'failed') maybeShowFailureModal(data.current_stage);
       rerenderActiveStageBody();
     });
 
@@ -772,6 +775,74 @@
   function cssEsc(s) {
     if (window.CSS && CSS.escape) return CSS.escape(s);
     return String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+  }
+
+  // ------------------------------------------------------------------
+  // Stage-failure modal (design §14)
+  // ------------------------------------------------------------------
+
+  // Dedup latch: the `pipeline_status: failed` event is replayed to every new
+  // SSE subscriber (fresh load, EventSource reconnect), so without this the
+  // modal would re-pop on reconnect. Keyed by stage+error; reset on the next
+  // `running`. The modal is purely informational — recovery lives on the
+  // stage's own tab (its Refresh button + editable result), per design §14.
+  let _failureShownSig = null;
+
+  function maybeShowFailureModal(stageId) {
+    if (!state.pipeline || !state.pipeline.stages) return;
+    let stage = stageId
+      ? state.pipeline.stages.find(s => s.stage_id === stageId)
+      : null;
+    if (!stage || stage.status !== 'failed') {
+      stage = state.pipeline.stages.find(s => s.status === 'failed');
+    }
+    if (!stage) return;
+    const err = (stage.progress && stage.progress.error_message)
+      || 'The stage failed without a specific error message.';
+    const sig = stage.stage_id + ' ' + err;
+    if (sig === _failureShownSig) return;
+    _failureShownSig = sig;
+    showStageFailureModal(stage.display_name || stage.stage_id, err);
+  }
+
+  /**
+   * Informational modal shown when a pipeline stage fails (the engine halts
+   * the run). Dismiss-only: it names the stage + the error and points the user
+   * back to the stage's own tab to retry or edit by hand. No recovery buttons
+   * here on purpose — those affordances already live on the stage tab.
+   */
+  function showStageFailureModal(stageName, errorMessage) {
+    // Never stack: drop any prior failure overlay first.
+    document.querySelectorAll('.wiz-modal-overlay[data-modal="stage-failure"]')
+      .forEach(el => el.remove());
+    const overlay = document.createElement('div');
+    overlay.className = 'wiz-modal-overlay';
+    overlay.dataset.modal = 'stage-failure';
+    overlay.innerHTML = `
+      <div class="wiz-modal wiz-modal--error" role="alertdialog" aria-modal="true" aria-labelledby="wiz-fail-title">
+        <h2 id="wiz-fail-title">${escHtml(stageName)} failed</h2>
+        <p>The pipeline stopped on this stage — nothing after it has run.</p>
+        <pre class="wiz-modal-error-detail">${escHtml(errorMessage)}</pre>
+        <p class="wiz-modal-foot">Open the ${escHtml(stageName)} tab to retry it (its Refresh button) or edit the result by hand, then continue.</p>
+        <div class="wiz-modal-actions">
+          <button type="button" class="wiz-btn-primary" data-modal-action="close">Got it</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    function close() {
+      overlay.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') { e.stopPropagation(); close(); }
+    }
+    overlay.addEventListener('keydown', onKey, true);
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-modal-action="close"]').addEventListener('click', close);
+    const btn = overlay.querySelector('[data-modal-action="close"]');
+    if (btn) btn.focus();
   }
 
   // ------------------------------------------------------------------

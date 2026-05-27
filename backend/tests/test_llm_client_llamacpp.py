@@ -9,6 +9,7 @@ from mtgai.generation.llm_client import (
     _llamacpp_extract_json,
     _llamacpp_new_model,
     calc_cost,
+    generate_text,
     generate_with_tool,
 )
 
@@ -331,6 +332,43 @@ class TestLlamaCppGenerateWithTool:
         assert result["cache_creation_input_tokens"] == 0
         assert result["cache_read_input_tokens"] == 0
 
+    def test_repeat_penalty_forwarded_to_conversation(self):
+        """A per-call repeat_penalty must reach new_conversation(); omitting it
+        leaves the provider default untouched (no kwarg passed)."""
+        resp = _make_response(
+            tool_calls=[_make_tool_call("generate_card", SAMPLE_CARD)],
+            usage=_make_usage(),
+        )
+        provider, _ = _build_facade_provider_mock(resp)
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+                model="qwen2.5-14b",
+                repeat_penalty=1.0,
+            )
+        assert model.new_conversation.call_args.kwargs.get("repeat_penalty") == 1.0
+
+        # Default path: no repeat_penalty kwarg (provider default stays in force).
+        provider2, _ = _build_facade_provider_mock(resp)
+        model2 = provider2.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider2),
+        ):
+            generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+                model="qwen2.5-14b",
+            )
+        assert "repeat_penalty" not in model2.new_conversation.call_args.kwargs
+
     def test_text_extraction_fallback(self):
         """Model outputs JSON as text instead of using function calling."""
         text = f"Here is the card:\n```json\n{json.dumps(SAMPLE_CARD)}\n```"
@@ -413,3 +451,60 @@ class TestLlamaCppGenerateWithTool:
                     tool_schema=SAMPLE_TOOL,
                     model="qwen2.5-14b",
                 )
+
+
+# ── Free-text generation (generate_text) ─────────────────────────────
+
+
+class TestGenerateText:
+    """Cover the no-tool free-text path for both providers."""
+
+    def test_llamacpp_returns_text_and_usage(self):
+        resp = _make_response(text="line one\nline two", usage=_make_usage(100, 50))
+        provider, _ = _build_facade_provider_mock(resp)
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            result = generate_text(
+                system_prompt="Sys",
+                user_prompt="User",
+                model="qwen2.5-14b",
+                repeat_penalty=1.0,
+            )
+        assert result["text"] == "line one\nline two"
+        assert result["input_tokens"] == 100
+        assert result["output_tokens"] == 50
+        assert "result" not in result  # free-text path returns text, not a tool result
+        # No tools are attached, and the repeat_penalty is forwarded.
+        kwargs = model.new_conversation.call_args.kwargs
+        assert "tools" not in kwargs
+        assert kwargs.get("repeat_penalty") == 1.0
+
+    def test_llamacpp_does_not_raise_on_truncation(self):
+        """A truncated free-text reply is still useful — return it, don't raise."""
+        resp = _make_response(text="partial output", finish_reason="length")
+        provider, _ = _build_facade_provider_mock(resp)
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            result = generate_text(system_prompt="Sys", user_prompt="User", model="qwen2.5-14b")
+        assert result["text"] == "partial output"
+        assert result["stop_reason"] == "length"
+
+    def test_anthropic_returns_text(self, monkeypatch):
+        monkeypatch.delenv("MTGAI_MAX_MODEL", raising=False)
+        resp = _make_response(text="hello", finish_reason="end_turn", usage=_make_usage(10, 5))
+        provider, convo = _build_facade_provider_mock(resp)
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="anthropic"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            result = generate_text(
+                system_prompt="Sys", user_prompt="User", model="claude-sonnet-4-6"
+            )
+        assert result["text"] == "hello"
+        assert result["input_tokens"] == 10
+        convo.send.assert_called_once()

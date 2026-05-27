@@ -4,6 +4,13 @@ A NORMAL set is the list below — balanced, draftable, deliberately generic. Ea
 
   slot_id: Color · rarity · type · CMCn · mechanic
 
+The `slot_id` is just a catalogue number — an opaque label. It carries NO meaning, you must return it unchanged, and it never constrains the card. Everything AFTER the colon is a generic *default* you are free to rewrite: colour, rarity, type, CMC and mechanic can EACH change when the set calls for it — not only the mechanic. The default is a starting point, not a cage. For instance a slot can swing wholesale:
+
+  0042: Colorless · rare · artifact · CMC2 · complex
+     →  0042: White · mythic · creature · CMC1 · french_vanilla
+
+— if a cheap White mythic creature serves the set better than a colourless rare artifact. (Don't churn for its own sake: leave a field alone when nothing set-wide pushes on it.)
+
 Color, rarity, type and CMC are ordinary Magic. The field worth decoding is the last one — on a generic card the **mechanic** slot holds a complexity placeholder, not a real ability:
 
 - `vanilla` — a creature with no abilities at all
@@ -25,33 +32,59 @@ constraints: lots of creatures; half of them are spiders
 output:
   creature (spider), creature, instant, creature (spider), artifact, creature, creature (spider)
 
-That's the whole idea: take the normal set, bend the counts to fit, annotate where a constraint requires it. In the real format it looks like:
+That's the whole idea: take the normal set, bend the counts to fit, annotate where a constraint requires it. Each input line becomes one output block (full format under "Output format" below). So the input line
 
-  U-C-04: Blue · common · instant · CMC2 · complex
-       →  U-C-04: Blue · common · instant · CMC2 · Reconstruct · UR
+  0117: Blue · common · instant · CMC2 · complex
 
-Here the generic "complex" tier was swapped for one of this set's actual mechanics — say it uses the Reconstruct mechanic — and the line was tagged for the UR archetype.
+is rewritten and emitted as
+
+  --CARD 0117--
+  Blue · common · instant · CMC2 · <one of this set's mechanics> · UR
+
+where the generic "complex" tier was swapped for one of the set's actual NAMED mechanics (use the real names from the Mechanics list — the angle brackets are just a placeholder) and the line was tagged for that card's colour-pair archetype (UR here).
 
 Stay in your lane:
 
-- Only add what a constraint needs. "half are spiders" → tag spiders. Never invent a card's specific identity that no constraint asked for (no "spider named Bob who runs a deli") — the card designer downstream owns that.
+- Only swing a field when something set-wide pushes on it (a constraint, a mechanic that needs spreading, an archetype that needs feeding). "half are spiders" → tag spiders. Don't nail down a card's full identity that nothing asked for (no "spider named Bob who runs a deli") — the card designer downstream owns the finished card.
 - Don't give a creature a specific creature type by default — most creatures stay a plain "creature". Name a type only when a constraint or archetype calls for it (a "half are spiders" constraint, a tribal archetype); otherwise the card designer picks the type.
 - If nothing set-wide touches a slot, leave it exactly as it is.
 - Make the implicit amounts true too: every named mechanic should land on enough slots to draft around and none on too many; every color pair should have enough cards to support its archetype; if the setting has factions, give each a healthy population.
 
+## Notes are free text
+
+After the ` · ` line you may add a parenthesised note — `(...)` — and it is **fully free text**: put any thought that helps the card designer make this card well. Which constraint(s) this slot satisfies and why, the role it plays in its archetype, flavour hooks, and concrete *suggestions* for the design — an unusual stat line, an interesting ability combination, a drawback to make it spicy. These are suggestions, not finished rules; the card designer still designs the card. Example:
+
+  0008: White · mythic · creature · CMC1 · french_vanilla (notes: constraints want lots of cheap creatures, so this is a deliberately cheap simple creature that's still mythic — make it interesting with an unusual combination of french-vanilla keywords or a higher-than-usual power/toughness, maybe with a drawback like "can't block")
+
 Rules:
 
 - One rewritten line per input slot, same slot_id. Never add or drop slots — the count is fixed.
-- Keep the `Color · rarity · type · CMCn · mechanic` shape, then any tags/notes after it.
-- Role level only — no ability text, power/toughness, keyword wording, or invented names. (Name a creature type or faction only when a constraint or archetype calls for it, like "half are spiders".)
-- Return through the tool only, no narration.
+- Keep the `Color · rarity · type · CMCn · mechanic` shape (any field may change), then any tags/notes after it.
+- The ` · ` fields stay role-level — no finished ability text or rules wording *in the structured fields*, and no invented card names. (Spell out design intent in the free-text note instead.)
+
+## Output format
+
+Output PLAIN TEXT — no JSON, no preamble, no commentary. Emit one block per slot:
+
+  --CARD <slot_id>--
+  Color · rarity · type · CMCn · mechanic (optional free-text notes)
+
+The `<slot_id>` on the header line is the slot's number copied EXACTLY from the input (e.g. `--CARD 0042--`), and the next line is that slot's rewritten descriptor. One block per input slot — every slot appears exactly once. For example:
+
+  --CARD 0042--
+  White · common · creature (type, if relevant) · CMC2 · vanilla (notes: free-text design intent here)
+  --CARD 0043--
+  Blue · uncommon · instant · CMC3 · Cycling · UR
+
+Nothing but these blocks.
 
 ## Constraints are the brief
 
 The Constraints below are the main thing to get right — read each one and make it visibly true across the whole set. They are often vague ("a lot of", "a majority", "absence of … in favor of …") — that's fine, apply them broadly and let the card designer sort out the specifics. The move looks like:
 
-- "High density of Artifact creatures; non-creature Artifacts less frequent than usual" → make most artifact slots artifact creatures, and turn most other artifacts into creatures too.
-- "Absence of traditional instants/sorceries in favor of 'Modular'/'Built' permanents" → rewrite the majority of instant and sorcery slots into a "modular/built permanent" (a short note is enough; the card designer makes it concrete).
+- "Creatures dominate; few noncreature spells" → turn most instant/sorcery/enchantment slots into creatures.
+- "One creature type is everywhere" → tag that type across a large share of creature slots.
+- "Absence of traditional removal in favour of <something the setting prefers>" → rewrite the majority of the affected slots toward that something (a short note is enough; the card designer makes it concrete).
 
 ## This set
 

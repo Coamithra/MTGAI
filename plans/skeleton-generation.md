@@ -26,12 +26,28 @@ any card existed, and fixing them post-hoc cost ~$3.44/run in wasted regeneratio
    rendered to a one-line descriptor — `render_slot_string`, e.g.
    `"White · common · creature · CMC1 · vanilla"` — and the LLM rewrites it to fit
    the set:
-   - **Pass 1 (relabel):** rewrite every descriptor. Name the mechanics (kill the
-     monoculture — floors/caps in the prompt), swing color/type/rarity where the
-     setting demands, add legendaries/lands by writing the words in. Count-invariant
-     (N in, N out, reconciled by `slot_id`; a dropped slot keeps its default).
+   - **Pass 1 (relabel):** rewrite every descriptor. **Any field is fair game** —
+     colour, rarity, type, CMC, mechanic — when the set calls for it (the prompt says
+     so explicitly); name the mechanics (kill the monoculture — floors/caps in the
+     prompt), add legendaries/lands by writing the words in, and append a free-text
+     `(notes: …)` carrying design intent/suggestions for the card designer.
+     **Emitted as FREE TEXT, not a JSON tool call** (`generate_text`): the model
+     returns `--CARD <slot_id>--` blocks which `_parse_relabel_text` parses by hand —
+     a giant structured array is exactly what local models truncate/mangle, whereas a
+     truncated block list still parses line-by-line. Reconciled by `slot_id`
+     (int-normalized, so `42` still matches `0042`); count-invariant (a dropped slot
+     keeps its default). Retried up to 3× keeping the most-complete parse; raises past
+     the straggler tolerance. Repeat penalty is OFF (`RELABEL_TEXT_REPEAT_PENALTY`
+     = 1.0) — the output is hundreds of near-identical lines, so any penalty corrupts
+     the format.
    - **Pass 2 (assign):** place each `theme.json` `card_request` onto the best-fit
-     slot and rewrite that slot's descriptor + set `reserved_card`.
+     slot; that slot's `tweaked_text` **becomes the request verbatim** (the request is
+     the card's spec — no separate rewrite) and `reserved_card` is stamped. Dedup'd by
+     request *and* slot, retried up to 3× until every request lands.
+
+`slot_id` is a plain zero-padded collector number (`001`, `002`, …) — an opaque join
+key + label, nothing parses it — so it encodes no colour/rarity that could steer the
+relabel away from swinging those fields.
 
 The rewrite is stored per slot as `SkeletonSlot.tweaked_text`. **The structured
 fields stay the deterministic default** — only `tweaked_text` + `reserved_card`

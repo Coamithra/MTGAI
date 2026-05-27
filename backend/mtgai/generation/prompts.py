@@ -197,8 +197,14 @@ def format_slot_specs(
         if tweaked:
             spec = f"Card {i}: {tweaked}"
             reserved = (slot.get("reserved_card") or "").strip()
-            if reserved:
+            if reserved and reserved != tweaked:
+                # Descriptor and request differ (legacy / deterministic-reserved
+                # path) — spell the request out so it isn't lost.
                 spec += f"\n   REQUESTED CARD — design this slot as: {reserved}"
+            elif reserved:
+                # The descriptor already IS the request (Skeleton assign pass) —
+                # flag it as fixed instead of repeating the same text.
+                spec += "\n   REQUESTED CARD — this slot is a specifically requested card."
             # The structural flags survive the relabel untouched, so keep their
             # deterministic instructions rather than trusting the blob's prose.
             if slot.get("is_reprint_slot"):

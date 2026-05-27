@@ -433,3 +433,31 @@ and partial-refresh) on the same URL; it inspects the request body
 (empty `indices` + empty content list → initial; non-empty `indices` →
 partial). One endpoint, one URL, two payload shapes — see
 `/api/wizard/mechanics/refresh-all` for the pattern.
+
+## 14. Stage-failure modal
+
+When a pipeline stage fails the engine halts the run (`stage.status =
+failed`, `overall_status = failed`) and stops walking the stage list.
+That state is surfaced two ways, and **both are owned by the shell** — a
+tab doesn't wire its own failure popup:
+
+* **The modal** — `wizard.js` shows a single shared, informational
+  `<dialog>`-style overlay (`showStageFailureModal`) on the
+  `pipeline_status` SSE event whenever `overall_status === 'failed'`.
+  It names the failed stage + shows its `progress.error_message` in a
+  scrollable detail block (`.wiz-modal--error` / `.wiz-modal-error-detail`
+  in `wizard.css`). It is **dismiss-only** (Got it / Esc / backdrop) —
+  it deliberately offers **no** recovery buttons, because the recovery
+  affordances already live on the failed stage's own tab (its §13
+  Refresh button to retry, and its editable result to fix by hand). Don't
+  duplicate those into the modal.
+* **The inline error** — `wizard_stage.js` still renders the
+  `error_message` in the stage body (`.wiz-stage-error`) for the user
+  who's already on that tab; per-tab footers may add a short note.
+
+Dedup: the engine's `pipeline_status: failed` event is replayed to
+every new SSE subscriber (fresh page load, EventSource reconnect), so
+the modal latches on a `stage_id + error` signature (`_failureShownSig`)
+and only re-shows after the next `running`. A new tab adding AI gen gets
+this for free — fail the stage (return `StageResult(success=False, …)`
+or raise) and the shell handles the modal; don't roll your own.
