@@ -253,6 +253,8 @@ def identify_reprint_slots(skeleton_path: Path) -> list[ReprintSlot]:
     - mechanic_tag is in {vanilla, french_vanilla, evergreen}
     - card_type is a commonly reprinted type
     - NOT already assigned (card_id is null)
+    - NOT a cycle member (cycles are bespoke families designed together, never
+      filled by an existing reprint)
     """
     with open(skeleton_path, encoding="utf-8") as f:
         skeleton = json.load(f)
@@ -264,6 +266,8 @@ def identify_reprint_slots(skeleton_path: Path) -> list[ReprintSlot]:
         card_id = slot_data.get("card_id")
 
         if card_id is not None:
+            continue
+        if slot_data.get("cycle_id"):
             continue
         if mechanic_tag not in _REPRINT_ELIGIBLE_MECHANIC_TAGS:
             continue

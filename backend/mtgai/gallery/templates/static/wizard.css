@@ -1572,3 +1572,86 @@
   border-radius: 5px;
 }
 .wiz-skel-incomplete strong { color: #f1d98a; }
+
+/* --- Structural knobs panel (Phase 0) --- */
+.wiz-skel-knobs { margin: 0 0 0.8rem; }
+.wiz-skel-knobs-box {
+  border: 1px solid #333;
+  border-radius: 6px;
+  background: #1c1c1e;
+  padding: 0.5rem 0.7rem;
+}
+.wiz-skel-knobs-box > summary {
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+}
+.wiz-skel-knobs-box > summary::-webkit-details-marker { display: none; }
+.wiz-skel-knob-prov {
+  font-size: 0.74rem;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 8px;
+}
+.wiz-skel-knob-prov.ai { color: #8fd3c4; background: #173029; }
+.wiz-skel-knob-prov.default { color: #999; background: #2a2a2c; }
+.wiz-skel-knob-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.5rem;
+  margin: 0.4rem 0;
+}
+.wiz-skel-knob-group {
+  border: 1px solid #2c2c2e;
+  border-radius: 5px;
+  padding: 0.3rem 0.55rem 0.5rem;
+  margin: 0;
+}
+.wiz-skel-knob-group legend {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #bbb;
+  padding: 0 0.3rem;
+}
+.wiz-skel-knob {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  padding: 0.12rem 0;
+}
+.wiz-skel-knob > label:first-child { flex: 1 1 auto; color: #ccc; }
+.wiz-skel-knob input[type="number"] {
+  width: 4.2rem;
+  background: #111;
+  color: #eee;
+  border: 1px solid #3a3a3c;
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.8rem;
+}
+.wiz-skel-knob-range { color: #777; font-size: 0.7rem; min-width: 3.4rem; text-align: right; }
+.wiz-skel-knob-pin { color: #888; font-size: 0.72rem; display: flex; align-items: center; gap: 0.2rem; }
+.wiz-skel-userbadge {
+  font-size: 0.66rem;
+  color: #d3b48f;
+  background: #302417;
+  border-radius: 7px;
+  padding: 0.02rem 0.32rem;
+}
+.wiz-skel-knob-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.wiz-skel-cycles { font-size: 0.82rem; color: #bbb; margin: 0.3rem 0; line-height: 1.6; }
+.wiz-skel-cycle-chip {
+  display: inline-block;
+  background: #173029;
+  color: #8fd3c4;
+  border-radius: 9px;
+  padding: 0.08rem 0.5rem;
+  font-size: 0.74rem;
+  margin-right: 0.2rem;
+}
