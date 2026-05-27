@@ -59,27 +59,20 @@ Return valid JSON matching this schema:
 
 {
   "name": "string — original name, not an existing MTG card",
-  "mana_cost": "string — e.g., '{2}{W}{U}'",
-  "cmc": "number — converted mana cost total (X counts as 0)",
-  "colors": ["W", "U", "B", "R", "G"] — subset matching mana_cost colors,
-  "color_identity": ["W", "U", "B", "R", "G"] — colors from mana_cost AND oracle_text mana symbols,
+  "mana_cost": "string — e.g., '{2}{W}{U}'. Empty string for lands.",
   "type_line": "string — e.g., 'Creature — Human Wizard' or 'Legendary Enchantment'",
-  "oracle_text": "string — rules text using ~ for self-reference. Separate abilities with \\n",
+  "oracle_text": "string — rules text using ~ for self-reference. Separate abilities with a real newline",
   "flavor_text": "string or null — evocative in-world flavor",
   "power": "string or null — required for creatures, e.g., '3' or '*'",
   "toughness": "string or null — required for creatures",
   "loyalty": "string or null — required for planeswalkers",
   "rarity": "common | uncommon | rare | mythic",
-  "layout": "normal",
   "design_notes": "string — explain your design intent, color pie reasoning, and power level choices"
 }
 
 ### Field Rules
 - power and toughness are strings (to support */*, X/X, etc.).
-- cmc must equal the total mana value of mana_cost (each {W},{U},{B},{R},{G},{C} = 1, each {N} = N, {X} = 0).
-- colors must exactly match the colored mana symbols in mana_cost. A card with mana_cost "{2}{R}" has colors ["R"].
-- color_identity includes colors from both mana_cost and any mana symbols in oracle_text.
-- Separate multiple abilities in oracle_text with \n (newline).
+- Separate multiple abilities in oracle_text with a real newline character, not the literal characters backslash-n.
 - Include flavor_text for most cards. Omit it only if rules text is very long.
 
 ## Constraints

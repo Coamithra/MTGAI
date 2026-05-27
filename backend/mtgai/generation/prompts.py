@@ -39,34 +39,35 @@ def load_system_prompt() -> str:
 # rewritten as directives instead of questions.
 # ---------------------------------------------------------------------------
 
-PREVENTIVE_GUIDANCE = """\
-## Preventive Design Checklist (read before designing each card)
+def format_preventive_guidance(mechanics: list[dict] | None = None) -> str:
+    """Build the preventive-design checklist for the current set.
 
-1. **No keyword nonbos.** Do NOT give a creature haste if it enters tapped \
-(e.g. via Malfunction). Do NOT give flying to a creature with defender \
-unless the card explicitly cares about it.
-2. **No reminder text.** Do NOT include reminder text in parentheses for any \
-keyword (custom or evergreen). Reminder text is added programmatically later. \
-Just write the keyword and any parameters, e.g. "Salvage 3" not \
-"Salvage 3 (Look at the top three cards...)".
-3. **Meaningful conditionals only.** If an effect says "if you [did X] this \
-turn" but X is a mandatory cost of the same spell, the condition is always \
-true and therefore pointless. Remove the conditional or make the trigger \
-come from a separate source.
-4. **Respect rarity power budgets.** Common creatures: P+T <= CMC+3. Commons \
-get one keyword OR one short text ability, not both. Unconditional removal \
-starts at uncommon. Card draw at common is 1 card with a condition.
-5. **Single purpose, not kitchen sink.** Each card should do ONE thing well. \
-Do not pile unrelated effects onto a single card.
-6. **Real variability only.** If damage/effect scales with a count, the count \
-must actually vary in normal gameplay. "Deal damage equal to cards exiled" \
-where the exile count is always fixed = fake variability.
-7. **No keyword name collisions.** Do NOT use "Scavenge" (existing RTR \
-keyword) or "Overload" (existing RTR keyword). Our mechanics are Salvage, \
-Malfunction, and Overclock.
-8. **Relevant enters-tapped only.** "Enters tapped" is irrelevant on a \
-noncreature, non-vehicle permanent with no tap abilities. Only add it where \
-it creates a real tempo cost."""
+    Set-agnostic: the custom-keyword line is derived from the set's actual
+    ``mechanics`` (``approved.json``) rather than hardcoded, so the rules never
+    reference mechanics that don't belong to the set being generated. Trimmed to
+    the few high-value, simple directives the LLM most often breaks.
+    """
+    names = [m.get("name", "") for m in (mechanics or []) if m.get("name")]
+    mech_line = ", ".join(names) if names else "none — use only standard evergreen keywords"
+    return f"""\
+## Preventive Design Checklist (read before designing the card)
+
+1. **Use only this set's keywords.** The custom keywords for this set are: \
+{mech_line}. Do NOT invent other named keywords, and do NOT reuse a named \
+keyword from a real MTG set. Standard evergreen keywords (Flying, Trample, \
+Vigilance, Deathtouch, …) are always fine.
+2. **No reminder text.** Never write the parenthetical reminder for a keyword — \
+give just the keyword and any number (e.g. the keyword and its value, not the \
+"(Look at the top ...)" explanation). Reminder text is added automatically later.
+3. **One idea per card.** Each card does ONE thing well — don't staple unrelated \
+effects together. At common that means a single keyword OR one short ability, \
+not both.
+4. **No pointless conditionals.** Don't gate an effect on something that is \
+always true (e.g. a condition the spell's own mandatory cost already satisfies). \
+The condition must be able to fail in normal play.
+5. **No anti-synergy keywords.** Don't combine keywords that fight each other \
+(e.g. haste on a creature that enters tapped, or flying on a defender that never \
+uses it)."""
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +148,11 @@ def format_set_context(existing_cards: list[dict]) -> str:
             last_pipe = cut.rfind(" | ")
             break_at = max(last_period + 1, last_pipe) if max(last_period, last_pipe) > 40 else 120
             summary = cut[:break_at].rstrip() + "..."
-        lines.append(f"- {name} ({cost}) — {tl} — {summary}")
+        # Include P/T for creatures so the model can gauge stat lines already in
+        # the set (helps avoid duplicating bodies / mis-curving).
+        power, toughness = c.get("power"), c.get("toughness")
+        pt = f" {power}/{toughness}" if power is not None and toughness is not None else ""
+        lines.append(f"- {name} ({cost}) — {tl}{pt} — {summary}")
 
         for clr in c.get("colors", []):
             if clr in color_counts:
@@ -219,6 +224,14 @@ def format_slot_specs(
                     f"\n   SIGNPOST UNCOMMON for the {signpost_for} archetype{arch_note}. "
                     "Design the gold uncommon that defines and enables this archetype."
                 )
+            else:
+                # Ordinary gold slot: point at the archetype it serves so the
+                # relabeled descriptor is anchored to a strategy (signpost slots
+                # already state their archetype above). Full descriptions live in
+                # the Draft Archetypes section.
+                color_pair = slot.get("color_pair")
+                if color_pair and color_pair in archetype_map:
+                    spec += f"\n   Archetype — {archetype_map[color_pair]}"
             spec += _cycle_note(slot)
             lines.append(spec)
             continue
@@ -340,6 +353,42 @@ def format_setting_prose(theme: dict | None) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Draft archetypes — the set's two-color strategic map, shown as set context
+# ---------------------------------------------------------------------------
+
+
+def format_archetypes_section(
+    archetypes: list[dict] | None = None,
+    theme: dict | None = None,
+) -> str:
+    """Build the Draft Archetypes context block (one line per color pair).
+
+    Surfaces the set's draft strategies up front so the model has the strategic
+    map when designing any card — not just the signpost uncommons. ``archetypes``
+    (TC-3 ``archetypes.json``) overrides the theme's ``draft_archetypes`` when
+    provided, mirroring :func:`format_slot_specs`. Returns "" when there are none.
+    """
+    arch_source = (
+        archetypes if archetypes is not None else (theme or {}).get("draft_archetypes", [])
+    )
+    rows: list[str] = []
+    for arch in arch_source:
+        pair = arch.get("color_pair")
+        if not pair:
+            continue
+        name = arch.get("name", "")
+        desc = arch.get("description", "")
+        rows.append(f"- {pair} — {name}: {desc}" if desc else f"- {pair} — {name}")
+    if not rows:
+        return ""
+    return (
+        "## Draft Archetypes\n\n"
+        "The set's two-color draft strategies. Design each card to reinforce the "
+        "archetype(s) that match its colors:\n" + "\n".join(rows)
+    )
+
+
+# ---------------------------------------------------------------------------
 # Full user prompt assembly
 # ---------------------------------------------------------------------------
 
@@ -366,21 +415,22 @@ def build_user_prompt(
         if prose_block:
             sections.append(prose_block)
 
-    # Relevant mechanics
-    relevant_colors: set[str] = set()
-    for slot in slots:
-        c = slot["color"]
-        if c == "multicolor" and slot.get("color_pair"):
-            relevant_colors.update(slot["color_pair"])
-        elif c != "colorless":
-            relevant_colors.add(c)
-
-    mech_block = format_mechanic_block(mechanics, relevant_colors)
+    # Custom mechanics — include ALL of the set's mechanics, not just those whose
+    # colors match the batch. There are only a handful, and the skeleton relabel
+    # can assign any mechanic to a slot regardless of the slot's default color, so
+    # color-filtering would drop the very definition the card needs. (An empty
+    # color set means "include all" in format_mechanic_block.)
+    mech_block = format_mechanic_block(mechanics, set())
     if mech_block.strip():
         sections.append(f"## Custom Mechanics for This Set\n\n{mech_block}")
 
-    # Preventive guidance
-    sections.append(PREVENTIVE_GUIDANCE)
+    # Draft archetypes — the set's strategic map (shown whenever available).
+    arch_block = format_archetypes_section(archetypes, theme)
+    if arch_block:
+        sections.append(arch_block)
+
+    # Preventive guidance — set-agnostic; names this set's own mechanics.
+    sections.append(format_preventive_guidance(mechanics))
 
     # Existing card context
     ctx = format_set_context(existing_cards)

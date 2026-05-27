@@ -31,6 +31,7 @@ from mtgai.models.card import Card, GenerationAttempt
 from mtgai.models.enums import CardStatus
 from mtgai.validation import ValidationError as VError
 from mtgai.validation import validate_card_from_raw
+from mtgai.validation.mana import derive_mana_fields
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +44,28 @@ logger = logging.getLogger(__name__)
 
 # LLM settings — model + effort come from per-set model_settings at runtime.
 TEMPERATURE = 1.0
-BATCH_SIZE = 5
+# One card per LLM call (was 5). A single-card request uses the simpler
+# CARD_TOOL_SCHEMA (one object, not an array), so the model has far less to
+# track per call and breaks the design rules less often. Trades more API calls
+# for higher per-card reliability — bump back up once the prompt is simplified
+# and the output holds together at larger batches.
+BATCH_SIZE = 1
 MAX_RETRIES = 3  # Only for schema parse failures
 
+# TEMPORARY (testing): cap how many cards a single run will generate so the
+# stage can be exercised end-to-end without producing a full ~277-card set.
+# This counts *total* card-gen cards (already-filled + about-to-generate), so
+# resuming a capped run tops up to the cap instead of adding another fresh
+# batch. Set to ``None`` to generate the whole skeleton again.
+TEMP_CARD_LIMIT: int | None = 15
+
 # Tool schemas for Anthropic tool_use
+# NOTE: cmc, colors, and color_identity are intentionally NOT requested — they're
+# fully implied by mana_cost (cmc, colors) and oracle mana symbols (color_identity),
+# and asking for them alongside mana_cost made the model fill the derived fields
+# and leave mana_cost null. We derive all three from mana_cost in
+# ``_process_batch_result`` via ``derive_mana_fields``. ``layout`` likewise isn't
+# asked (always "normal" for this pipeline; injected programmatically).
 CARD_TOOL_SCHEMA = {
     "name": "generate_card",
     "description": "Generate a single MTG card",
@@ -58,24 +77,15 @@ CARD_TOOL_SCHEMA = {
             "type_line",
             "oracle_text",
             "rarity",
-            "colors",
-            "color_identity",
-            "cmc",
         ],
         "properties": {
             "name": {"type": "string"},
             "mana_cost": {
                 "type": "string",
-                "description": "Mana cost like {2}{W}{U}. Empty string for lands.",
-            },
-            "cmc": {"type": "number"},
-            "colors": {
-                "type": "array",
-                "items": {"type": "string", "enum": ["W", "U", "B", "R", "G"]},
-            },
-            "color_identity": {
-                "type": "array",
-                "items": {"type": "string", "enum": ["W", "U", "B", "R", "G"]},
+                "description": (
+                    "Mana cost in WUBRG order, e.g. {2}{W}{U}. Empty string for lands. "
+                    "This is the only mana field — color and CMC are derived from it."
+                ),
             },
             "type_line": {"type": "string"},
             "oracle_text": {
@@ -109,6 +119,22 @@ CARDS_BATCH_TOOL_SCHEMA = {
         },
     },
 }
+
+
+def _card_gen_log_dir() -> Path:
+    """Dedicated log folder for card generation, under the active asset folder.
+
+    Follows the ``<asset>/<stage>/logs`` convention the other stages use
+    (mechanics → ``mechanics/logs``, archetypes → ``archetypes/logs``). Both
+    llmfacade's HTML/JSONL transcript (routed via ``generate_with_tool(log_dir=...)``)
+    and the bespoke per-card / per-batch JSON sidecars — which capture the
+    post-generation validation errors, applied auto-fixes, and cost that
+    llmfacade's transcript can't see — land here. Single source of truth, so
+    moving the folder is a one-line change.
+    """
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    return set_artifact_dir() / "card_gen" / "logs"
 
 
 # ---------------------------------------------------------------------------
@@ -261,8 +287,6 @@ def _retry_single_card(
     # Route llmfacade's transcript alongside the bespoke per-card logs. The
     # bespoke log still owns the post-generation validation/fix/cost detail
     # llmfacade can't see; this just co-locates the raw conversation HTML.
-    from mtgai.io.asset_paths import set_artifact_dir
-
     try:
         t0 = time.time()
         result = generate_with_tool(
@@ -273,7 +297,7 @@ def _retry_single_card(
             temperature=TEMPERATURE,
             max_tokens=4096,
             effort=effort,
-            log_dir=set_artifact_dir() / "generation_logs",
+            log_dir=_card_gen_log_dir(),
         )
         latency = time.time() - t0
         cost = cost_from_result(result)
@@ -320,9 +344,7 @@ def _save_generation_log(
     stop_reason: str = "",
 ) -> None:
     """Save a per-card generation log for debugging and prompt iteration."""
-    from mtgai.io.asset_paths import set_artifact_dir
-
-    log_dir = set_artifact_dir() / "generation_logs"
+    log_dir = _card_gen_log_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"{slot_id}_attempt{attempt}.json"
     log_data = {
@@ -374,9 +396,7 @@ def _save_batch_log(
     effort: str | None = None,
 ) -> None:
     """Save a batch-level log with the full prompt and all raw card data."""
-    from mtgai.io.asset_paths import set_artifact_dir
-
-    log_dir = set_artifact_dir() / "generation_logs"
+    log_dir = _card_gen_log_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
     slot_ids = [s["slot_id"] for s in slots]
     log_path = log_dir / f"batch_{batch_idx:03d}.json"
@@ -484,10 +504,15 @@ def _process_batch_result(
         # Log the raw card as received from LLM
         logger.info("  [%s] Raw LLM output: %s", slot_id, _card_one_liner(raw))
 
-        # Inject pipeline metadata before validation
+        # Inject pipeline metadata before validation. ``layout`` isn't set here —
+        # the Card model defaults it to "normal" (the only layout this pipeline
+        # produces), so it's neither asked of the LLM nor injected.
         raw.setdefault("set_code", set_code)
         raw.setdefault("collector_number", slot_id)
-        raw.setdefault("layout", "normal")
+        # cmc / colors / color_identity are no longer requested from the LLM —
+        # derive them from mana_cost (+ oracle symbols) so the validators (color
+        # pie etc.) see correct values rather than the model's omissions.
+        raw.update(derive_mana_fields(raw.get("mana_cost"), raw.get("oracle_text")))
 
         # Validate + auto-fix
         logger.info("  [%s] Running validation (8 validators)...", slot_id)
@@ -662,7 +687,9 @@ def _retry_parse_failure(
         retry_raw = result["result"]
         retry_raw.setdefault("set_code", set_code)
         retry_raw.setdefault("collector_number", slot["slot_id"])
-        retry_raw.setdefault("layout", "normal")
+        retry_raw.update(
+            derive_mana_fields(retry_raw.get("mana_cost"), retry_raw.get("oracle_text"))
+        )
 
         logger.info(
             "    Retry %d raw output: %s",
@@ -745,6 +772,7 @@ def generate_set(
     )
 
     from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.runtime import ai_lock
     from mtgai.runtime.active_project import require_active_project
 
     project = require_active_project()
@@ -754,7 +782,7 @@ def generate_set(
     mechanics_path = set_dir / "mechanics" / "approved.json"
     theme_path = set_dir / "theme.json"
     progress_path = set_dir / "generation_progress.json"
-    log_dir = set_dir / "generation_logs"
+    log_dir = _card_gen_log_dir()
 
     logger.info("=" * 70)
     logger.info("MTGAI Card Generation Pipeline — Phase 1C")
@@ -832,6 +860,23 @@ def generate_set(
     else:
         unfilled = [s for s in all_slots if s.get("card_id") is None]
 
+    # TEMPORARY testing cap — see TEMP_CARD_LIMIT. Trim to at most this many
+    # *total* card-gen cards (already-filled + about-to-generate) so resuming a
+    # capped run tops up to the cap rather than adding another fresh batch.
+    # Remove this block (or set TEMP_CARD_LIMIT=None) to generate the full set.
+    if TEMP_CARD_LIMIT is not None:
+        remaining = max(0, TEMP_CARD_LIMIT - len(progress.filled_slots))
+        if len(unfilled) > remaining:
+            logger.warning(
+                "TEMP_CARD_LIMIT=%d active — generating %d of %d unfilled slots "
+                "(%d already filled). Set TEMP_CARD_LIMIT=None for the full set.",
+                TEMP_CARD_LIMIT,
+                remaining,
+                len(unfilled),
+                len(progress.filled_slots),
+            )
+            unfilled = unfilled[:remaining]
+
     logger.info(
         "Slots: %d total, %d filled, %d failed, %d to generate",
         len(all_slots),
@@ -842,7 +887,14 @@ def generate_set(
 
     if not unfilled:
         logger.info("Nothing to generate — all slots filled or failed.")
-        return
+        return {
+            "total_slots": len(all_slots),
+            "filled": len(progress.filled_slots),
+            "failed": len(progress.failed_slots),
+            "cost_usd": progress.total_cost_usd,
+            "summary": "Nothing to generate — all slots already filled or failed.",
+            "cancelled": False,
+        }
 
     # Load existing cards for set context + uniqueness checks
     cards_dir = set_dir / "cards"
@@ -882,9 +934,24 @@ def generate_set(
     system_prompt = load_system_prompt()
     logger.info("System prompt loaded: %d chars", len(system_prompt))
     total_saved = 0
+    cancelled = False
     start_time = time.time()
 
     for batch_idx, batch in enumerate(batches, 1):
+        # Honor a Cancel from the progress strip (→ ai_lock.request_cancel()).
+        # An in-flight LLM call can't be interrupted, so we stop at the next
+        # batch boundary; cards already saved persist in
+        # generation_progress.json, so a Retry resumes from here.
+        if ai_lock.is_cancelled():
+            logger.warning(
+                "Card generation CANCELLED by user after batch %d/%d (%d cards saved).",
+                batch_idx - 1,
+                len(batches),
+                total_saved,
+            )
+            cancelled = True
+            break
+
         slot_ids = [s["slot_id"] for s in batch]
         batch_start = time.time()
 
@@ -1077,7 +1144,7 @@ def generate_set(
 
     elapsed = time.time() - start_time
     logger.info("=" * 70)
-    logger.info("GENERATION COMPLETE")
+    logger.info("GENERATION CANCELLED" if cancelled else "GENERATION COMPLETE")
     logger.info("=" * 70)
     logger.info("Cards saved:    %d", total_saved)
     logger.info("Cards failed:   %d", len(progress.failed_slots))
@@ -1098,13 +1165,19 @@ def generate_set(
     logger.info("Logs saved:     %s", log_dir)
     logger.info("Cards saved:    %s", cards_dir)
 
+    summary = (
+        f"Cancelled after {total_saved} cards ({elapsed:.0f}s, "
+        f"${progress.total_cost_usd:.4f}) — Retry to resume"
+        if cancelled
+        else f"Generated {total_saved} cards in {elapsed:.0f}s (${progress.total_cost_usd:.4f})"
+    )
     return {
         "total_slots": len(all_slots),
         "filled": total_saved,
         "failed": len(progress.failed_slots),
         "cost_usd": progress.total_cost_usd,
-        "summary": f"Generated {total_saved} cards in {elapsed:.0f}s ($"
-        f"{progress.total_cost_usd:.4f})",
+        "summary": summary,
+        "cancelled": cancelled,
     }
 
 

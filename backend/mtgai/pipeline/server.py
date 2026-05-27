@@ -3563,6 +3563,168 @@ async def wizard_lands_refresh() -> JSONResponse:
     return await wizard_lands_state()
 
 
+def _is_land_stage_card(card: dict) -> bool:
+    """True for a lands-stage basic/dual (collector number ``L-*``).
+
+    Card-gen owns everything else in ``cards/`` (ordinary slots + land *cycles*,
+    whose collector numbers are slot ids, not ``L-*``). Mirrors the convention
+    the Lands tab uses to scope its own view.
+    """
+    return str(card.get("collector_number") or "").upper().startswith("L-")
+
+
+def _heal_failed_card_gen_stage() -> None:
+    """Clear a stuck FAILED ``card_gen`` stage after a successful manual refresh.
+
+    A cancel (the stage returns ``success=False``) or a server-restart interrupt
+    leaves ``card_gen`` FAILED — and overall_status FAILED — in
+    ``pipeline-state.json``, which re-fires the wizard's failure modal on every
+    reload with nothing to clear it. A successful from-scratch regen means the
+    stage is healthy again, so demote the failure to a clean
+    ``paused_for_review`` (the natural "cards ready, awaiting the human" state)
+    and flip a FAILED overall_status back to ``paused``. No-op when nothing was
+    failed. Persists + emits SSE so open tabs update without a reload.
+    """
+    from datetime import UTC, datetime
+
+    state = _get_current_state()
+    if state is None:
+        return
+    cg = next((s for s in state.stages if s.stage_id == "card_gen"), None)
+    changed = False
+    if cg is not None and cg.status == StageStatus.FAILED:
+        cg.status = StageStatus.PAUSED_FOR_REVIEW
+        cg.progress.error_message = None
+        cg.progress.finished_at = datetime.now(UTC)
+        changed = True
+    if state.overall_status == PipelineStatus.FAILED:
+        state.overall_status = PipelineStatus.PAUSED
+        changed = True
+    if not changed:
+        return
+    save_state(state)
+    if cg is not None:
+        event_bus.stage_update("card_gen", cg.status.value, cg.progress.model_dump(mode="json"))
+    event_bus.pipeline_status(state.overall_status.value, state.current_stage_id)
+
+
+@router.get("/api/wizard/card_gen/state")
+async def wizard_card_gen_state() -> JSONResponse:
+    """First-paint state for the Card Generation tab.
+
+    Reads the card-gen-owned JSONs from ``<asset>/cards/`` (everything except the
+    Lands tab's ``L-*`` basics/dual) into the tile shape the grid renders, plus
+    set params and the persisted stage status. The stage emits live progress over
+    SSE while running; this endpoint is the durable source the tab bootstraps from
+    on reload and re-reads after a manual refresh.
+    """
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    settings = project.settings
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    cards_dir = asset / "cards"
+    cards: list[dict] = []
+    if cards_dir.exists():
+        for path in sorted(cards_dir.glob("*.json")):
+            card = _read_json(path, None)
+            if not isinstance(card, dict) or _is_land_stage_card(card):
+                continue
+            cards.append(
+                {
+                    "name": card.get("name") or "",
+                    "mana_cost": card.get("mana_cost") or "",
+                    "type_line": card.get("type_line") or "",
+                    "oracle_text": card.get("oracle_text") or "",
+                    "flavor_text": card.get("flavor_text") or "",
+                    "rarity": card.get("rarity") or "common",
+                    "power": card.get("power"),
+                    "toughness": card.get("toughness"),
+                    "loyalty": card.get("loyalty"),
+                    "colors": card.get("colors") or [],
+                    "collector_number": card.get("collector_number") or "",
+                    "status": card.get("status") or "",
+                }
+            )
+
+    return JSONResponse(
+        {
+            "cards": cards,
+            "has_content": bool(cards),
+            "set_params": settings.set_params.model_dump(),
+            "stage_status": _stage_status_in_state("card_gen"),
+        }
+    )
+
+
+@router.post("/api/wizard/card_gen/refresh")
+async def wizard_card_gen_refresh() -> JSONResponse:
+    """Regenerate the set's cards from scratch under the AI lock.
+
+    The engine runs ``card_gen`` automatically; this is the tab's manual re-roll.
+    Wipes the card-gen-owned card JSONs + ``generation_progress.json`` (the Lands
+    tab's ``L-*`` cards are preserved), then regenerates every unfilled slot — a
+    true from-scratch run (subject to the temporary ``TEMP_CARD_LIMIT`` cap).
+    Per-batch progress streams over SSE (``item_progress``) so the tab's bar moves;
+    returns the same shape as ``/state`` so the grid repaints. Requires
+    ``skeleton.json``. A cancel from the progress strip stops it at the next batch
+    boundary (``generate_set`` polls ``ai_lock.is_cancelled()``).
+    """
+    try:
+        _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    try:
+        asset = set_artifact_dir()
+    except NoAssetFolderError as exc:
+        return _no_asset_folder_response(exc)
+
+    skeleton_path = asset / "skeleton.json"
+    if not skeleton_path.exists():
+        return JSONResponse(
+            {"error": "No skeleton.json yet — run Skeleton Generation first."}, status_code=400
+        )
+
+    from mtgai.generation.card_generator import generate_set
+
+    with ai_lock.hold("Card generation") as acquired:
+        if not acquired:
+            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+
+        # From-scratch: drop the prior card-gen cards + progress so every slot
+        # regenerates. Keep the Lands tab's L-* basics/dual — a card-gen re-roll
+        # shouldn't cost the user their separately-generated lands.
+        cards_dir = asset / "cards"
+        if cards_dir.exists():
+            for path in cards_dir.glob("*.json"):
+                card = _read_json(path, None)
+                if isinstance(card, dict) and _is_land_stage_card(card):
+                    continue
+                path.unlink(missing_ok=True)
+        (asset / "generation_progress.json").unlink(missing_ok=True)
+
+        def _on_progress(item: str, completed: int, total: int, detail: str, cost: float) -> None:
+            event_bus.item_progress("card_gen", item, completed, total, detail)
+
+        try:
+            result = await asyncio.to_thread(generate_set, progress_callback=_on_progress)
+        except Exception as exc:
+            logger.exception("Card-gen refresh failed")
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+        # A successful (non-cancelled) regen means card_gen is healthy again —
+        # clear any stuck FAILED stage state so the failure modal stops firing.
+        if not (isinstance(result, dict) and result.get("cancelled")):
+            _heal_failed_card_gen_stage()
+
+    return await wizard_card_gen_state()
+
+
 @router.get("/api/wizard/skeleton/state")
 async def wizard_skeleton_state() -> JSONResponse:
     """First-paint state for the Skeleton tab.
@@ -4092,7 +4254,7 @@ async def get_stage_logs(stage_id: str):
     # Map stage_id to likely log locations
     log_paths: dict[str, list[Path]] = {
         "mechanics": [set_dir / "mechanics" / "logs"],
-        "card_gen": [set_dir / "generation_logs"],
+        "card_gen": [set_dir / "card_gen" / "logs"],
         "ai_review": [set_dir / "reviews"],
         "skeleton_rev": [set_dir / "revision_logs"],
         "art_prompts": [set_dir / "art-direction" / "prompt-logs"],

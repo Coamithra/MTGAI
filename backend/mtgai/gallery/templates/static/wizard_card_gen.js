@@ -20,13 +20,12 @@
  * The tab's job is to surface live progress, show the generated cards once
  * they arrive, and let the user advance when paused_for_review.
  *
- * TODO: load cards from ``GET /api/wizard/card_gen/state`` (follow-up).
- *   The endpoint should return:
- *     { cards: Card[], stage_status, set_params, cost_usd, total_items,
- *       completed_items, failed_items, current_item, detail, error_message }
- *   Card shape mirrors mtgai/models/card.py:
- *     name, mana_cost, type_line, oracle_text, rarity, power, toughness,
- *     colors, collector_number, flavor_text, status
+ * Cards load from ``GET /api/wizard/card_gen/state`` → { cards: Card[],
+ * has_content, set_params, stage_status }. The "Refresh AI…" button hits
+ * ``POST /api/wizard/card_gen/refresh`` (§13), which regenerates the whole set
+ * from scratch and returns the same /state shape. Card shape mirrors
+ * mtgai/models/card.py: name, mana_cost, type_line, oracle_text, rarity, power,
+ * toughness, loyalty, colors, collector_number, flavor_text, status.
  */
 
 (function () {
@@ -314,7 +313,7 @@
           <h3 style="margin:0">Generation progress</h3>
           <button type="button" class="wiz-btn-secondary wiz-refresh-btn"
                   data-role="cg-refresh-btn"
-                  title="Re-run card generation for any slots that failed or are missing.">
+                  title="Regenerate all cards from scratch (deletes current cards; lands are kept).">
             Refresh AI…
           </button>
         </div>
@@ -341,11 +340,9 @@
   }
 
   // --------------------------------------------------------------------
-  // Bootstrap — fetch card data from server (gracefully degrades)
-  // TODO: implement GET /api/wizard/card_gen/state on the backend.
-  //   Should return:
-  //     { cards: Card[], stage_status, set_params, cost_usd, total_items,
-  //       completed_items, failed_items, current_item, detail, error_message }
+  // Bootstrap — fetch card data from GET /api/wizard/card_gen/state
+  // ({ cards, has_content, set_params, stage_status }). Degrades gracefully
+  // if the call fails (shows the empty placeholder rather than erroring out).
   // --------------------------------------------------------------------
 
   async function bootstrap(root, state) {
@@ -486,8 +483,8 @@
         <div class="wiz-cardgen-empty">
           ${running
             ? 'Cards are generating — they will appear here as each slot completes.'
-            : 'No cards yet. Cards generate after the Skeleton, Reprints, and Lands stages complete.<br>'
-              + '<em style="font-size:0.75rem">// TODO: load cards/*.json via GET /api/wizard/card_gen/state</em>'
+            : 'No cards yet. Cards generate after the Skeleton, Reprints, and Lands stages complete '
+              + '— or use “Refresh AI…” above to regenerate them from scratch.'
           }
         </div>
       `;
@@ -581,31 +578,40 @@
   }
 
   // --------------------------------------------------------------------
-  // Refresh AI — §13 recovery path for failed/missing slots
-  // TODO: implement POST /api/wizard/card_gen/refresh on the backend.
+  // Refresh AI — §13. POST /api/wizard/card_gen/refresh regenerates the whole
+  // set from scratch (wipes cards/ + progress, keeps lands) and returns the
+  // /state shape, which we repaint from directly.
   // --------------------------------------------------------------------
 
   async function onRefreshCards() {
     if (local.locked) return;
     if (local.hasContent) {
-      if (!confirm('Re-run card generation for failed or missing slots? Completed cards are not regenerated.')) return;
+      if (!confirm('Regenerate all cards from scratch? This deletes the current cards and generates them again. (Lands are kept.)')) return;
     }
     setLocked(true);
-    if (W.showBusy) W.showBusy('Re-running card generation…');
+    if (W.showBusy) W.showBusy('Regenerating cards…');
     try {
       const resp = await W.postJSON('/api/wizard/card_gen/refresh', {});
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
         if (resp.status === 409 && data.running_action) {
           W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
-        } else if (resp.status === 404) {
-          W.toast('Card gen refresh endpoint not yet implemented.', 'warn');
         } else {
           W.toast(data.error || `Refresh failed (${resp.status})`, 'error');
         }
         return;
       }
-      W.toast('Card generation re-started.', 'success');
+      // The refresh response is the same shape as /state — repaint the grid
+      // directly from it (no second round-trip).
+      if (Array.isArray(data.cards)) {
+        local.cards = data.cards;
+        local.hasContent = local.cards.length > 0;
+        local.setParams = data.set_params || local.setParams;
+        local.stageStatus = data.stage_status || local.stageStatus;
+        const root = bodyRoot();
+        if (root) { rebuildFilterOptions(root); paintGrid(root); }
+      }
+      W.toast('Cards regenerated.', 'success');
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
     } finally {

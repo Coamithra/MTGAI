@@ -81,6 +81,34 @@ def _parse_mana_cost(mana_cost: str) -> tuple[float, set[str], int, list[str]]:
     return cmc, colors, x_count, color_sequence
 
 
+def derive_mana_fields(mana_cost: str | None, oracle_text: str | None = None) -> dict:
+    """Derive ``cmc``, ``colors``, and ``color_identity`` from a card's mana.
+
+    These three fields are fully implied by ``mana_cost`` (cmc + colors) and the
+    mana symbols in ``oracle_text`` (color_identity), so card generation no longer
+    asks the LLM for them — it computes them here instead, from the single source
+    of truth. Returns a dict with ``cmc`` (float), ``colors`` and
+    ``color_identity`` (WUBRG-ordered lists of color letters). With an empty /
+    missing ``mana_cost`` (e.g. lands), cmc is 0 and colors is empty, but
+    color_identity still picks up any colored mana symbols in the oracle text.
+    """
+    cmc, colors, _x_count, _seq = _parse_mana_cost(mana_cost or "")
+    identity: set[str] = set(colors)
+    for match in MANA_SYMBOL_ANY.finditer(oracle_text or ""):
+        for char in match.group(0)[1:-1]:  # strip { }
+            if char in COLOR_SYMBOLS:
+                identity.add(char)
+
+    def _order(c: str) -> int:
+        return WUBRG_ORDER.get(c, 99)
+
+    return {
+        "cmc": cmc,
+        "colors": sorted(colors, key=_order),
+        "color_identity": sorted(identity, key=_order),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Validator
 # ---------------------------------------------------------------------------

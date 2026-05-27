@@ -701,11 +701,9 @@ def regenerate_slots(
 
         logger.info("Cards returned: %d (expected %d)", len(raw_cards), len(batch))
 
-        # Save batch log to standard generation_logs
-        from mtgai.io.asset_paths import set_artifact_dir
-
-        log_dir = set_artifact_dir() / "generation_logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
+        # Save batch log to the standard card-gen log folder (card_gen/logs);
+        # _save_batch_log resolves + creates that dir itself. A fuller copy with
+        # revision-specific detail also lands in revision_logs below.
         _save_batch_log(
             batch_idx=900 + batch_idx,  # Use high batch numbers to avoid collision
             slots=batch,

@@ -104,6 +104,58 @@ class TestSchemaValidation:
 # ===========================================================================
 
 
+class TestDeriveManaFields:
+    """``derive_mana_fields`` — card-gen derives cmc/colors/color_identity from
+    mana_cost (+ oracle symbols) instead of asking the LLM for them."""
+
+    def test_basic_cost(self):
+        from mtgai.validation.mana import derive_mana_fields
+
+        out = derive_mana_fields("{1}{W}{W}", None)
+        assert out == {"cmc": 3.0, "colors": ["W"], "color_identity": ["W"]}
+
+    def test_x_counts_as_zero_and_wubrg_order(self):
+        from mtgai.validation.mana import derive_mana_fields
+
+        out = derive_mana_fields("{X}{G}{W}", None)
+        assert out["cmc"] == 2.0  # X = 0, two colored pips
+        assert out["colors"] == ["W", "G"]  # WUBRG order, not input order
+
+    def test_color_identity_picks_up_oracle_symbols(self):
+        from mtgai.validation.mana import derive_mana_fields
+
+        out = derive_mana_fields("{2}{R}", "{G}: ~ gains trample.")
+        assert out["colors"] == ["R"]  # cost colors only
+        assert out["color_identity"] == ["R", "G"]  # cost + oracle
+
+    def test_empty_cost_land_with_oracle_mana(self):
+        from mtgai.validation.mana import derive_mana_fields
+
+        out = derive_mana_fields("", "{T}: Add {U} or {B}.")
+        assert out["cmc"] == 0.0
+        assert out["colors"] == []
+        assert out["color_identity"] == ["U", "B"]
+
+    def test_slim_model_output_validates_clean(self):
+        """A card with only the fields the new schema asks for, once derived,
+        passes the mana validator with no mismatch errors."""
+        from mtgai.validation.mana import derive_mana_fields
+
+        raw = {
+            "name": "Autobot Precision Strike",
+            "mana_cost": "{1}{W}{W}",
+            "type_line": "Instant",
+            "oracle_text": "Exile target creature unless its controller pays {2}.",
+            "rarity": "common",
+        }
+        raw.update(derive_mana_fields(raw["mana_cost"], raw["oracle_text"]))
+        card, _errors, fixes = validate_card_from_raw(raw, existing_cards=[], auto_fix=True)
+        assert card is not None
+        assert card.cmc == 3.0
+        assert [c.value for c in card.colors] == ["W"]
+        assert not [f for f in fixes if "mana." in f]  # no mana auto-fix churn
+
+
 class TestManaConsistency:
     def test_valid_mana_cost(self):
         card = _make_card(mana_cost="{2}{G}", cmc=3.0, colors=[Color.GREEN])

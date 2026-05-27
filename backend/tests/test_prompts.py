@@ -288,3 +288,157 @@ def test_build_user_prompt_proseless_theme_omits_flavor() -> None:
     assert "## Set:" not in prompt
     assert "## Setting" not in prompt
     assert "Generate exactly 1 card(s)" in prompt
+
+
+# ---------------------------------------------------------------------------
+# format_set_context — existing-card summaries (P/T for creatures)
+# ---------------------------------------------------------------------------
+
+
+def test_format_set_context_includes_pt_for_creatures() -> None:
+    cards = [
+        {
+            "name": "Brass Sentinel",
+            "mana_cost": "{2}{W}",
+            "type_line": "Creature — Construct",
+            "oracle_text": "Vigilance",
+            "colors": ["W"],
+            "power": "2",
+            "toughness": "4",
+        },
+        {
+            "name": "Precision Strike",
+            "mana_cost": "{1}{W}{W}",
+            "type_line": "Instant",
+            "oracle_text": "Exile target creature.",
+            "colors": ["W"],
+        },
+    ]
+    ctx = prompts.format_set_context(cards)
+    assert "Creature — Construct 2/4 —" in ctx  # P/T shown for the creature
+    assert "Instant — Exile" in ctx  # no P/T for the noncreature
+    assert "2/4" not in ctx.split("Precision Strike")[1]  # ...and not bleeding onto it
+
+
+def test_format_set_context_handles_star_power_toughness() -> None:
+    cards = [
+        {
+            "name": "Star Saber",
+            "mana_cost": "{X}{R}",
+            "type_line": "Creature — Transformer",
+            "oracle_text": "Haste",
+            "colors": ["R"],
+            "power": "*",
+            "toughness": "*",
+        },
+    ]
+    assert "Creature — Transformer */* —" in prompts.format_set_context(cards)
+
+
+# ---------------------------------------------------------------------------
+# format_preventive_guidance — set-agnostic, derived from the set's mechanics
+# ---------------------------------------------------------------------------
+
+
+def test_preventive_guidance_names_the_sets_mechanics() -> None:
+    guidance = prompts.format_preventive_guidance(_mechanics())  # one mechanic: Salvage
+    assert "Preventive Design Checklist" in guidance
+    assert "Salvage" in guidance  # derived from approved.json, not hardcoded
+    # The old static block hardcoded ASD mechanics — none of those may leak in.
+    assert "Malfunction" not in guidance
+    assert "Overclock" not in guidance
+    assert "Scavenge" not in guidance
+
+
+def test_preventive_guidance_handles_no_mechanics() -> None:
+    guidance = prompts.format_preventive_guidance([])
+    assert "Preventive Design Checklist" in guidance
+    assert "none" in guidance.lower()  # graceful when the set has no custom keywords
+
+
+# ---------------------------------------------------------------------------
+# Context injection — all mechanics included; archetypes surfaced as a section
+# ---------------------------------------------------------------------------
+
+
+def test_build_user_prompt_includes_off_color_mechanics() -> None:
+    # A Black/Red mechanic must still appear in an all-White batch — the color
+    # filter that used to drop it (the "Seize Control" bug) is gone.
+    mechanics = [
+        {
+            "name": "Seize Control",
+            "keyword_type": "keyword",
+            "reminder_text": "(reminder)",
+            "colors": ["B", "R"],
+            "complexity": 2,
+            "rarity_range": ["rare"],
+            "design_notes": "Take control of target permanent.",
+        }
+    ]
+    white_slot = {
+        "slot_id": "001",
+        "color": "W",
+        "rarity": "common",
+        "card_type": "creature",
+        "cmc_target": 2,
+        "mechanic_tag": "evergreen",
+    }
+    prompt = prompts.build_user_prompt([white_slot], mechanics, existing_cards=[], theme=None)
+    # design_notes only appears in the mechanic block, so this proves the block
+    # (not just the preventive-guidance name list) included the off-color mechanic.
+    assert "Take control of target permanent." in prompt
+
+
+def test_build_user_prompt_has_archetypes_section() -> None:
+    archetypes = [
+        {"color_pair": "WU", "name": "Sky Patrol", "description": "win in the air"},
+        {"color_pair": "BR", "name": "Aggro Sac", "description": "throw bodies at them"},
+    ]
+    prompt = prompts.build_user_prompt(
+        [_wu_slot()], _mechanics(), existing_cards=[], theme=None, archetypes=archetypes
+    )
+    assert "## Draft Archetypes" in prompt
+    assert "WU — Sky Patrol: win in the air" in prompt
+    assert "BR — Aggro Sac: throw bodies at them" in prompt
+
+
+def test_format_archetypes_section_empty_when_none() -> None:
+    assert prompts.format_archetypes_section(None, None) == ""
+    assert prompts.format_archetypes_section([], None) == ""
+
+
+def test_format_slot_specs_tweaked_gold_gets_archetype() -> None:
+    # Relabeled (tweaked_text) gold slot must point at its archetype — the gap
+    # where the tweaked path only annotated signpost slots.
+    slot = {
+        "slot_id": "001",
+        "color": "multicolor",
+        "color_pair": "WU",
+        "rarity": "uncommon",
+        "card_type": "creature",
+        "cmc_target": 3,
+        "tweaked_text": "White-Blue flier that draws a card when it attacks",
+    }
+    archetypes = [{"color_pair": "WU", "name": "Sky Patrol", "description": "win in the air"}]
+    spec = prompts.format_slot_specs([slot], None, archetypes)
+    assert "White-Blue flier" in spec  # tweaked descriptor emitted verbatim
+    assert "Archetype — Sky Patrol: win in the air" in spec
+
+
+def test_format_slot_specs_tweaked_signpost_not_double_annotated() -> None:
+    # A signpost gold slot states its archetype via the SIGNPOST line and must
+    # NOT also get the generic "Archetype —" pointer.
+    slot = {
+        "slot_id": "001",
+        "color": "multicolor",
+        "color_pair": "WU",
+        "rarity": "uncommon",
+        "card_type": "creature",
+        "cmc_target": 3,
+        "signpost_for": "WU",
+        "tweaked_text": "The WU signpost uncommon",
+    }
+    archetypes = [{"color_pair": "WU", "name": "Sky Patrol", "description": "win in the air"}]
+    spec = prompts.format_slot_specs([slot], None, archetypes)
+    assert "SIGNPOST UNCOMMON for the WU archetype" in spec
+    assert spec.count("Sky Patrol") == 1  # only via the signpost line

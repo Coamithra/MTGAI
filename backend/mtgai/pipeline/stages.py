@@ -890,10 +890,38 @@ def run_lands(
 
 
 def run_card_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Generate cards from skeleton slots."""
-    from mtgai.generation.card_generator import generate_set
+    """Generate cards from skeleton slots.
 
-    result = generate_set(progress_callback=progress_cb)
+    Holds the app-wide AI lock for the whole run (one AI action at a time),
+    which is also what makes the progress strip's Cancel button work: it hits
+    ``/api/ai/cancel`` → ``ai_lock.request_cancel()``, and ``generate_set``'s
+    batch loop polls ``ai_lock.is_cancelled()`` to stop at the next batch
+    boundary. A user cancel surfaces as a failed stage so the engine halts
+    instead of marching on to balance/review on a partial set;
+    ``generation_progress.json`` keeps the cards saved so far, so Retry resumes.
+    """
+    from mtgai.generation.card_generator import generate_set
+    from mtgai.runtime import ai_lock
+
+    emitter.phase("running", "Generating cards from skeleton slots")
+    with ai_lock.hold("Card generation") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+        result = generate_set(progress_callback=progress_cb)
+
+    if result.get("cancelled"):
+        return StageResult(
+            success=False,
+            total_items=result.get("total_slots", 0),
+            completed_items=result.get("filled", 0),
+            failed_items=result.get("failed", 0),
+            cost_usd=result.get("cost_usd", 0.0),
+            error_message=result.get("summary", "Card generation cancelled by user"),
+        )
+
     return StageResult(
         total_items=result.get("total_slots", 0),
         completed_items=result.get("filled", 0),
