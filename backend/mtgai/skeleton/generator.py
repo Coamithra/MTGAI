@@ -41,12 +41,9 @@ COLORS = ["W", "U", "B", "R", "G"]
 
 COLOR_PAIRS = ["WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"]
 
-BASE_RARITY_COUNTS: dict[str, int] = {
-    "common": 95,
-    "uncommon": 98,
-    "rare": 63,
-    "mythic": 20,
-}
+# The research-derived rarity weights (per ~277-card premier set) now live as the
+# ``rarity_*`` defaults on ``SkeletonKnobs`` — the single source of truth that also
+# drives clamping + the UI. ``_scale_rarity`` reads them off the knobs.
 
 
 class MechanicTag(StrEnum):
@@ -280,8 +277,8 @@ def _scale_rarity(set_size: int, knobs: SkeletonKnobs | None = None) -> dict[str
 
     Returns a dict like {"common": 21, "uncommon": 21, "rare": 14, "mythic": 4}.
     Adjusts the largest bucket so the total equals *set_size*. With default knobs
-    the weights are the historical ``BASE_RARITY_COUNTS`` (95/98/63/20), so this
-    reproduces the old scaling exactly.
+    the weights are the historical 95/98/63/20, so this reproduces the old scaling
+    exactly.
     """
     knobs = knobs or default_knobs()
     ratio = set_size / BASE_SET_SIZE
@@ -681,7 +678,9 @@ def _check_signpost_uncommons(
     """
     multi_unc = [s for s in slots if s.rarity == "uncommon" and s.color == "multicolor"]
     required = 5 if set_size <= 100 else 10
-    requested = max(required, 10 * max(1, signposts_per_pair) if set_size > 100 else required)
+    # The hard floor stays one-per-pair; signposts_per_pair only raises the
+    # *requested* count (shown for context), and only for full-size sets.
+    requested = 10 * max(1, signposts_per_pair) if set_size > 100 else required
     note = f", requested {requested}" if requested != required else ""
     return ConstraintResult(
         name="signpost_uncommons",
@@ -1060,7 +1059,11 @@ def _mark_signpost_slots(slots: list[SkeletonSlot], signposts_per_pair: int = 1)
     ``card-gen`` reads the flag (via the archetype lookup) to design the gold
     uncommon that defines that pair's archetype. This is the deterministic
     default matrix; a later LLM skeleton-revision pass may reassign it. Returns
-    the number of slots flagged.
+    the number of slots flagged. **Cycle members are skipped** — a cycle is a
+    coherent family designed from its own template, so stamping the free-form
+    "design the archetype signpost" brief on top would be a competing
+    instruction; the cycle's pair archetype context still reaches card-gen via
+    the multicolor slot's ``color_pair``.
     """
     per_pair = max(1, signposts_per_pair)
     marked = 0
@@ -1074,6 +1077,7 @@ def _mark_signpost_slots(slots: list[SkeletonSlot], signposts_per_pair: int = 1)
                 and slot.color == "multicolor"
                 and slot.color_pair == pair
                 and slot.signpost_for is None
+                and not slot.cycle_id
             ):
                 slot.signpost_for = pair
                 marked += 1

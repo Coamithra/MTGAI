@@ -448,8 +448,10 @@ class SkeletonKnobs(BaseModel):
     def _round_int_knobs(cls, data: Any) -> Any:
         # An int knob may arrive as a float (LLM tool call, hand-edited JSON);
         # Pydantic rejects a fractional float for an int field before the
-        # after-clamp runs, so round it here first.
+        # after-clamp runs, so round it here first. Copy first — never mutate the
+        # caller's dict (it may be a reused theme/config fragment).
         if isinstance(data, dict):
+            data = dict(data)
             for spec in KNOB_SPECS:
                 if spec.kind == KnobKind.INT and spec.key in data:
                     try:

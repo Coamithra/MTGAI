@@ -3252,10 +3252,19 @@ def _skeleton_knobs_payload(skeleton: dict) -> dict:
 
     raw = skeleton.get("knobs")
     knobs = SkeletonKnobs.model_validate(raw) if isinstance(raw, dict) else SkeletonKnobs()
+    # The cycles the build actually KEPT live at the top level of the result
+    # (cycles too big for their rarity budget are dropped from there but remain in
+    # ``knobs.cycles`` as proposed); show the kept ones so the UI never lists a
+    # cycle that isn't in the matrix. Fall back to the proposed list for a
+    # pre-knobs skeleton with no top-level ``cycles``.
+    kept_cycles = skeleton.get("cycles")
+    cycles = (
+        kept_cycles if isinstance(kept_cycles, list) else [c.model_dump() for c in knobs.cycles]
+    )
     return {
         "knobs": knobs.model_dump(),
         "knob_specs": knob_specs_payload(),
-        "cycles": [c.model_dump() for c in knobs.cycles],
+        "cycles": cycles,
         "knobs_defaulted": bool(skeleton.get("knobs_defaulted")),
         "knob_warnings": skeleton.get("knob_warnings", []),
     }

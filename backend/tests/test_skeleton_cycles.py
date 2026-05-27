@@ -218,6 +218,18 @@ class TestCycleReservation:
         # Lands are excluded from creature density, so it still holds.
         assert r.balance_report.creature_pct >= 50.0
 
+    def test_uncommon_cycle_members_not_flagged_as_signposts(self):
+        # A pairs10 uncommon creature cycle fills the multicolor-uncommon slots;
+        # cycle members must NOT also get the signpost brief (competing prompt).
+        k = SkeletonKnobs(
+            cycles=[Cycle(id="mentors", name="Mentors", span=CycleSpan.PAIRS10, rarity="uncommon")]
+        )
+        r = generate_skeleton(_cfg(277), knobs=k)
+        assert r.balance_report.all_hard_passed is True
+        cycle_members = [s for s in r.slots if s.cycle_id == "mentors"]
+        assert cycle_members  # the cycle landed
+        assert all(s.signpost_for is None for s in cycle_members)
+
     def test_cycles_kept_recorded_on_result(self):
         k = SkeletonKnobs(
             cycles=[Cycle(id="t", name="Titans", span=CycleSpan.MONO5, rarity="rare")]

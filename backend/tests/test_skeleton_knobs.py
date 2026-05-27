@@ -136,6 +136,12 @@ class TestFromPayload:
         knobs, _ = SkeletonKnobs.from_payload({"pinned": ["multicolor_rare", "bogus"]})
         assert knobs.pinned == ["multicolor_rare"]
 
+    def test_does_not_mutate_input(self):
+        raw = {"signposts_per_pair": 1.7, "multicolor_rare": 0.40}
+        SkeletonKnobs.from_payload(raw)
+        # The int-knob rounding must not write back into the caller's dict.
+        assert raw == {"signposts_per_pair": 1.7, "multicolor_rare": 0.40}
+
     def test_empty_payload_is_all_defaults(self):
         knobs, warnings = SkeletonKnobs.from_payload({})
         assert warnings == []

@@ -325,6 +325,13 @@ def generate_land_cycles(
             continue
         cost += cost_from_result(response)
         lands_data = (response.get("result") or {}).get("lands") or []
+        if len(lands_data) < len(members):
+            logger.warning(
+                "Land cycle '%s': model returned %d/%d members; the rest stay unfilled",
+                cycle_id,
+                len(lands_data),
+                len(members),
+            )
         for slot, data in zip(members, lands_data, strict=False):
             if not isinstance(data, dict) or not data.get("name"):
                 continue
