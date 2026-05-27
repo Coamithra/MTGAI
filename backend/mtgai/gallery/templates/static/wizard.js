@@ -451,6 +451,17 @@
       });
     });
 
+    // Skeleton relabel streaming events: each relabeled/placed slot as it
+    // lands (skeleton_slot), and a per-attempt reset that drops the prior
+    // attempt's provisional rows (skeleton_relabel_reset). The Skeleton tab
+    // listens via the W.onSkeletonStream bridge.
+    ['skeleton_slot', 'skeleton_relabel_reset', 'skeleton_relabel_done'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onSkeletonStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     state.eventSource.onerror = () => {
       // EventSource auto-reconnects.
     };

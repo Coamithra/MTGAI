@@ -35,7 +35,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from mtgai.generation.llm_client import cost_from_result, generate_text, generate_with_tool
+from mtgai.generation.llm_client import cost_from_result, generate_with_tool, stream_text
 from mtgai.skeleton.generator import render_slot_string
 
 logger = logging.getLogger(__name__)
@@ -46,18 +46,28 @@ _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "pipeline" / "prompts"
 # structured array is exactly what local models break on (truncation mangles the
 # whole array; the repeated `{"slot_id":` scaffolding fights the sampler). Plain
 # `--CARD <id>--` blocks degrade gracefully instead — a truncated reply still
-# parses line-by-line. We still can't trust one call, so we resend the whole
-# prompt and retry up to RELABEL_MAX_ATTEMPTS, keep the most-complete parse, and
-# raise past the straggler tolerance rather than ship a near-default skeleton.
+# parses line-by-line. We still can't trust one call, so we re-stream the whole
+# prompt and retry up to RELABEL_MAX_ATTEMPTS, keeping the most-complete parse.
+# A run that covers fewer than the straggler tolerance is KEPT (the missing
+# slots fall back to their default descriptor) and flagged `incomplete` so the
+# caller can persist + warn; only a run that produced nothing usable at all is a
+# hard error (RelabelIncompleteError).
 RELABEL_MAX_ATTEMPTS = 3
 RELABEL_MIN_COVERAGE = 0.9
-# A few dropped slots are fine — they keep their default descriptor. The hard
-# error only fires past this many, so it scales: max(this, 10% of the set).
+# A few dropped slots are fine — they keep their default descriptor without any
+# warning. Past this many the run is flagged incomplete (not errored), so it
+# scales: max(this, 10% of the set).
 RELABEL_MAX_STRAGGLERS = 3
 # Pass 1's free-text output is hundreds of near-identical lines (every line
 # repeats `·`, a colour word, a rarity word…). A repeat penalty accumulates over
 # those mandatory repetitions and corrupts the format, so it's OFF (1.0).
 RELABEL_TEXT_REPEAT_PENALTY = 1.0
+
+# Pass 1 streams its reply. We re-scan the buffer for newly-closed `--CARD`
+# blocks every this-many new chars (not on every token) so the per-slot UI
+# push stays O(slots) rather than O(stream²). A descriptor line is ~50 chars,
+# so 80 lands roughly one scan per slot without thrashing.
+_LIVE_SCAN_STRIDE = 80
 
 # Pass 2 is just as flaky as Pass 1: a single call routinely places only some
 # requests, or places the same request on several slots. So we retry up to this
@@ -77,11 +87,24 @@ def _repeat_penalty_for(attempt: int) -> float:
     i = min(max(attempt, 1), len(ASSIGN_REPEAT_PENALTIES)) - 1
     return ASSIGN_REPEAT_PENALTIES[i]
 
+
 # A progress hook: called with a short human-readable activity string before
 # each attempt so callers can surface "attempt N/M" on the wizard progress
 # strip. Engine path wires it to StageEmitter.phase; the refresh endpoint wires
 # it to the SSE event bus.
 ProgressHook = Callable[[str], None]
+
+# A per-slot hook: called ``(slot_id, descriptor, reserved)`` the moment a
+# slot's relabel is final, so callers can stream the card into the UI one at a
+# time. ``reserved`` is None for a Pass-1 relabel and the request text for a
+# Pass-2 placement (where the slot becomes a reserved card). Both call sites
+# wire it to a ``skeleton_slot`` SSE event.
+SlotHook = Callable[..., None]
+
+# A reset hook: called once at the start of each relabel attempt so the UI can
+# drop the previous (failed/incomplete) attempt's provisional rows before the
+# fresh stream starts — the visible half of the "elegant rollback".
+ResetHook = Callable[[], None]
 
 
 def _note(on_progress: ProgressHook | None, message: str) -> None:
@@ -95,8 +118,33 @@ def _note(on_progress: ProgressHook | None, message: str) -> None:
         logger.debug("relabel progress hook raised", exc_info=True)
 
 
+def _fire_reset(on_reset: ResetHook | None) -> None:
+    """Fire the reset hook, swallowing any error."""
+    if on_reset is None:
+        return
+    try:
+        on_reset()
+    except Exception:  # pragma: no cover - best-effort
+        logger.debug("relabel reset hook raised", exc_info=True)
+
+
+def _fire_slot(
+    on_slot: SlotHook | None, slot_id: str, descriptor: str, reserved: str | None
+) -> None:
+    """Fire the per-slot hook, swallowing any error (UI streaming must never
+    break the relabel)."""
+    if on_slot is None:
+        return
+    try:
+        on_slot(slot_id, descriptor, reserved)
+    except Exception:  # pragma: no cover - best-effort
+        logger.debug("relabel slot hook raised", exc_info=True)
+
+
 class RelabelIncompleteError(RuntimeError):
-    """Relabel returned descriptors for too few slots, even after retries."""
+    """Relabel produced nothing usable at all (every attempt errored before any
+    block parsed). A merely-partial parse is kept + flagged incomplete, not
+    raised — only a total failure raises this."""
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +329,35 @@ def _parse_relabel_text(text: str, valid_ids: set[str], by_id: dict[str, str]) -
     return added
 
 
+def _emit_new_blocks(
+    text: str,
+    valid_ids: set[str],
+    by_int: dict[int, str],
+    emitted: set[str],
+    on_slot: SlotHook | None,
+) -> None:
+    """Push every *closed* ``--CARD`` block in ``text`` to ``on_slot`` once.
+
+    A block has closed (its descriptor is final) only once a later marker
+    appears, so the trailing block is always skipped here — the end-of-stream
+    flush in :func:`relabel_slots` handles it. ``emitted`` tracks which slot ids
+    have already been pushed so a re-scan of the growing buffer never
+    double-fires. No-op when ``on_slot`` is None."""
+    if on_slot is None:
+        return
+    markers = list(_CARD_MARKER.finditer(text))
+    for i in range(len(markers) - 1):  # skip the last (still-open) block
+        m = markers[i]
+        sid = _resolve_slot_id(m.group(1), valid_ids, by_int)
+        if not sid or sid in emitted:
+            continue
+        block = text[m.end() : markers[i + 1].start()]
+        desc = next((ln.strip() for ln in block.splitlines() if ln.strip()), "")
+        if desc:
+            emitted.add(sid)
+            _fire_slot(on_slot, sid, desc, None)
+
+
 def _merge_text_responses(responses: list[dict], model: str) -> dict:
     """Collapse per-attempt text responses into one, summing token usage.
 
@@ -308,20 +385,33 @@ def relabel_slots(
     model: str,
     log_dir: Path | None = None,
     on_progress: ProgressHook | None = None,
+    on_slot: SlotHook | None = None,
+    on_reset: ResetHook | None = None,
 ) -> tuple[dict[str, str], dict]:
     """Run Pass 1. Returns (tweaked, response) where tweaked maps every
-    slot_id to its rewritten descriptor.
+    slot_id to its rewritten descriptor, and ``response`` carries summed token
+    usage plus ``relabeled_count`` and an ``incomplete`` flag.
 
     The model emits FREE TEXT — ``--CARD <id>--`` blocks, not a JSON tool call —
-    which we parse ourselves; a malformed/truncated reply degrades to "fewer
-    parsed blocks" instead of "unparseable array". Robust to partial responses:
-    each attempt resends the whole prompt; if it parses to fewer than the
-    straggler tolerance allows, we retry up to ``RELABEL_MAX_ATTEMPTS`` and keep
-    the most-complete attempt. If even the best is too incomplete we raise
-    ``RelabelIncompleteError`` rather than silently shipping mostly-default slots.
+    streamed back token-by-token. We parse each block the moment it closes and
+    push it to ``on_slot`` so the wizard fills in cards one at a time; a
+    malformed/truncated reply degrades to "fewer parsed blocks" instead of
+    "unparseable array". Robust to partial responses: each attempt re-streams the
+    whole prompt (firing ``on_reset`` first so the UI drops the prior attempt's
+    provisional rows), and we keep the most-complete attempt across
+    ``RELABEL_MAX_ATTEMPTS``.
 
-    ``on_progress`` (optional) is called with an "attempt N/M" string before
-    each attempt so the wizard progress strip can show which try is running.
+    Failure handling (the "keep partial, mark incomplete" contract): a hard
+    error is raised **only** when nothing usable came back at all (every attempt
+    errored before producing any parseable block). Otherwise the best partial
+    parse is kept — slots the model never covered fall back to their default
+    descriptor — and ``response["incomplete"]`` is set True when coverage fell
+    below the straggler tolerance, so the caller can persist progress and flag
+    it rather than discard it.
+
+    ``on_progress`` surfaces "attempt N/M" on the progress strip; ``on_slot`` /
+    ``on_reset`` drive the live per-slot streaming. All three are optional and
+    best-effort (a raising hook never breaks the relabel).
     """
     system_prompt = _read_template("skeleton_relabel_system.txt").format(
         set_name=set_name or "(unnamed set)",
@@ -339,6 +429,7 @@ def relabel_slots(
     )
 
     valid_ids = {str(s.get("slot_id")) for s in slots}
+    by_int = {int(s): s for s in valid_ids if s.isdigit()}
     tolerable = max(RELABEL_MAX_STRAGGLERS, math.ceil(len(slots) * (1.0 - RELABEL_MIN_COVERAGE)))
     best: dict[str, str] = {}
     responses: list[dict] = []
@@ -350,8 +441,16 @@ def relabel_slots(
             on_progress,
             f"Relabeling skeleton — attempt {attempt}/{RELABEL_MAX_ATTEMPTS}{suffix}",
         )
+        # Each attempt re-streams the whole prompt — tell the UI to drop the
+        # previous attempt's provisional rows before fresh slots arrive.
+        _fire_reset(on_reset)
+
+        buf = ""
+        response: dict | None = None
+        emitted: set[str] = set()  # slot ids already pushed to the UI this attempt
+        scanned_len = 0
         try:
-            response = generate_text(
+            for ev in stream_text(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 model=model,
@@ -360,48 +459,71 @@ def relabel_slots(
                 log_dir=log_dir,
                 repeat_penalty=RELABEL_TEXT_REPEAT_PENALTY,
                 name="relabel_skeleton",
-            )
-        except Exception as exc:  # transport / context overflow
+            ):
+                if ev.get("type") == "text_delta":
+                    buf += ev.get("text", "")
+                    if on_slot is not None and len(buf) - scanned_len >= _LIVE_SCAN_STRIDE:
+                        scanned_len = len(buf)
+                        _emit_new_blocks(buf, valid_ids, by_int, emitted, on_slot)
+                elif ev.get("type") == "complete":
+                    response = ev
+        except Exception as exc:  # transport / context overflow (possibly mid-stream)
             last_error = exc
-            logger.warning(
-                "Relabel attempt %d/%d failed: %s", attempt, RELABEL_MAX_ATTEMPTS, exc
-            )
-            continue
-        responses.append(response)
+            logger.warning("Relabel attempt %d/%d failed: %s", attempt, RELABEL_MAX_ATTEMPTS, exc)
+            # Fall through: salvage whatever streamed in before the failure.
+
+        # Authoritative parse of the full buffer (covers the trailing block the
+        # live scan deliberately leaves open, and anything the stride skipped).
         by_id: dict[str, str] = {}
-        _parse_relabel_text(response.get("text", ""), valid_ids, by_id)
+        _parse_relabel_text(buf, valid_ids, by_id)
+        for sid, desc in by_id.items():
+            if sid not in emitted:
+                emitted.add(sid)
+                _fire_slot(on_slot, sid, desc, None)
+        if response is not None:
+            responses.append(response)
         logger.info(
             "Relabel attempt %d/%d: parsed %d/%d slots (stop=%s)",
             attempt,
             RELABEL_MAX_ATTEMPTS,
             len(by_id),
             len(slots),
-            response.get("stop_reason"),
+            response.get("stop_reason") if response else "error",
         )
         if len(by_id) > len(best):
             best = by_id
         if len(slots) - len(best) <= tolerable:
             break  # complete enough — stop retrying
 
-    if not responses and last_error is not None:
-        # Every attempt raised — nothing usable came back at all.
+    if not best and not responses:
+        # Nothing usable came back at all (every attempt raised before producing
+        # any parseable block). This is the only hard failure.
         raise RelabelIncompleteError(
-            f"Relabel produced no usable output after {RELABEL_MAX_ATTEMPTS} attempts: {last_error}"
+            f"Relabel produced no usable output after {RELABEL_MAX_ATTEMPTS} attempts"
+            + (f": {last_error}" if last_error is not None else "")
         ) from last_error
 
     missing = len(slots) - len(best)
-    if missing > tolerable:
-        raise RelabelIncompleteError(
-            f"Relabel only covered {len(best)}/{len(slots)} slots after "
-            f"{RELABEL_MAX_ATTEMPTS} attempts — the model kept returning a partial set. "
-            "Re-roll from the Skeleton tab."
+    incomplete = missing > tolerable
+    if incomplete:
+        logger.warning(
+            "Relabel covered only %d/%d slots after %d attempts — keeping partial, "
+            "flagged incomplete (caller persists + warns)",
+            len(best),
+            len(slots),
+            RELABEL_MAX_ATTEMPTS,
         )
-    if missing:
+    elif missing:
         logger.warning("Relabel kept %d/%d slots on their defaults", missing, len(slots))
 
-    tweaked = {str(s.get("slot_id")): best.get(str(s.get("slot_id"))) or render_slot_string(s)
-               for s in slots}
-    return tweaked, _merge_text_responses(responses, model)
+    tweaked = {
+        str(s.get("slot_id")): best.get(str(s.get("slot_id"))) or render_slot_string(s)
+        for s in slots
+    }
+    response_out = _merge_text_responses(responses, model)
+    response_out["relabeled_count"] = len(best)
+    response_out["incomplete"] = incomplete
+    return tweaked, response_out
 
 
 # ---------------------------------------------------------------------------
@@ -458,6 +580,7 @@ def assign_requests(
     model: str,
     log_dir: Path | None = None,
     on_progress: ProgressHook | None = None,
+    on_slot: SlotHook | None = None,
 ) -> tuple[dict[str, str], dict[str, str], dict | None]:
     """Run Pass 2. Returns (tweaked, reserved, response): the (possibly updated)
     per-slot descriptors, a slot_id→request map for placed cards, and the merged
@@ -470,7 +593,10 @@ def assign_requests(
     so we retry up to ``ASSIGN_MAX_ATTEMPTS``, accumulating placements across
     attempts and stopping once every request is placed.
 
-    ``on_progress`` (optional) surfaces "attempt N/M" on the progress strip.
+    ``on_progress`` (optional) surfaces "attempt N/M" on the progress strip;
+    ``on_slot`` (optional) fires ``(slot_id, request_text, request_text)`` as
+    each request is placed, so the wizard repaints that slot as a gold reserved
+    card live (the relabel stream already drew its Pass-1 descriptor).
     """
     reqs = [r for r in (card_requests or []) if (r.get("text") if isinstance(r, dict) else r)]
     reserved: dict[str, str] = {}
@@ -540,6 +666,7 @@ def assign_requests(
             tweaked[sid] = expected[key]
             placed.add(key)
             kept.append({"request": expected[key], "slot_id": sid})
+            _fire_slot(on_slot, sid, expected[key], expected[key])
 
     if not responses:
         logger.warning("Assign produced no usable output after %d attempts", ASSIGN_MAX_ATTEMPTS)
@@ -567,6 +694,8 @@ def relabel_skeleton(
     approved: list[dict] | None = None,
     archetypes: list[dict] | None = None,
     on_progress: ProgressHook | None = None,
+    on_slot: SlotHook | None = None,
+    on_reset: ResetHook | None = None,
 ) -> dict:
     """Relabel a (structured) default skeleton to fit the active project's set.
 
@@ -577,11 +706,18 @@ def relabel_skeleton(
             "updates": { slot_id: {"tweaked_text": str, "reserved_card": str|None} },
             "model_id": str,
             "input_tokens": int, "output_tokens": int, "cost_usd": float,
+            "incomplete": bool, "relabeled": int,
         }
 
     The caller applies the updates onto its skeleton slots. ``updates`` covers
     every input slot (``tweaked_text`` always set, ``reserved_card`` only for
-    placed requests).
+    placed requests). ``incomplete`` is True when Pass 1 fell below coverage
+    tolerance — the caller still persists the (partial) updates but flags the
+    skeleton so the tab can warn.
+
+    ``on_slot`` / ``on_reset`` (optional) drive live per-slot streaming into the
+    wizard; ``on_progress`` drives the "attempt N/M" progress line. All are
+    threaded into both passes.
     """
     import json
 
@@ -633,6 +769,8 @@ def relabel_skeleton(
         model=model_id,
         log_dir=log_dir,
         on_progress=on_progress,
+        on_slot=on_slot,
+        on_reset=on_reset,
     )
     tweaked, reserved, assign_resp = assign_requests(
         slots=slots,
@@ -641,6 +779,7 @@ def relabel_skeleton(
         model=model_id,
         log_dir=log_dir,
         on_progress=on_progress,
+        on_slot=on_slot,
     )
 
     input_tokens = relabel_resp.get("input_tokens", 0)
@@ -670,4 +809,6 @@ def relabel_skeleton(
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "cost_usd": cost,
+        "incomplete": bool(relabel_resp.get("incomplete")),
+        "relabeled": relabel_resp.get("relabeled_count", 0),
     }

@@ -224,6 +224,17 @@ class StageEmitter:
         extra.setdefault("elapsed_s", self._elapsed())
         self._bus.stage_phase(self._stage_id, phase, activity, **extra)
 
+    def event(self, event_type: str, **data: Any) -> None:
+        """Publish a raw stage-scoped SSE event of an arbitrary type.
+
+        For bespoke per-stage streams that don't fit the section/phase shapes —
+        the skeleton relabel uses it for ``skeleton_slot`` /
+        ``skeleton_relabel_reset`` so the Skeleton tab can fill in cards live.
+        ``stage_id`` is folded into the payload so the consumer can scope it."""
+        if self._bus is None:
+            return
+        self._bus.publish(event_type, {"stage_id": self._stage_id, **data})
+
 
 def format_sse(event: dict[str, Any]) -> str:
     """Format an event dict as an SSE message string."""

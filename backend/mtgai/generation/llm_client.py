@@ -27,6 +27,7 @@ import os
 import re
 import threading
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -781,6 +782,177 @@ def generate_text(
         temperature=temperature,
         max_tokens=max_tokens,
         effort=effort,
+        cache=cache,
+        log_dir=effective_log_dir,
+        name=name,
+    )
+
+
+# ── Streaming free-text generation (no tool_use) ─────────────────────
+
+
+def _stream_text_llamacpp(
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    log_dir: Any,
+    repeat_penalty: float | None,
+    name: str,
+) -> Iterator[dict]:
+    """Streaming local generation. Yields ``text_delta`` events, then one
+    ``complete`` event carrying the full text + usage.
+
+    Mirrors :func:`_generate_text_llamacpp` but consumes ``convo.stream`` so the
+    caller can react to partial output (e.g. the skeleton relabel parses each
+    ``--CARD`` block as it closes and pushes it to the UI). Like the non-stream
+    text path there is **no raise on truncation** — a partial reply is still
+    useful — but transport errors propagate so the caller's retry loop can fire.
+    The pre-call budget check stays.
+    """
+    from mtgai.generation.token_utils import check_pre_call
+
+    legacy_messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+    check_pre_call(model, legacy_messages, tools=None, output_reserve=max_tokens)
+
+    provider = _get_provider("llamacpp")
+    facade_model = _llamacpp_new_model(provider, model)
+    convo_kwargs: dict[str, Any] = {
+        "name": _text_convo_name(name),
+        "system_blocks": [SystemBlock(text=system_prompt)],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "log_dir": log_dir,
+    }
+    if repeat_penalty is not None:
+        convo_kwargs["repeat_penalty"] = repeat_penalty
+    convo = facade_model.new_conversation(**convo_kwargs)
+
+    yield from _consume_text_stream(convo, user_prompt, model)
+
+
+def _stream_text_anthropic(
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    cache: bool,
+    log_dir: Any,
+    name: str,
+) -> Iterator[dict]:
+    """Streaming Anthropic generation. Yields ``text_delta`` events, then one
+    ``complete`` event with the full text + usage (incl. cache stats)."""
+    provider = _get_provider("anthropic")
+    facade_model = provider.new_model(model)
+    convo = facade_model.new_conversation(
+        name=_text_convo_name(name),
+        system_blocks=[SystemBlock(text=system_prompt, cache=cache)],
+        max_tokens=max_tokens,
+        temperature=temperature,
+        log_dir=log_dir,
+    )
+    yield from _consume_text_stream(convo, user_prompt, model)
+
+
+def _consume_text_stream(convo: Any, user_prompt: str, model: str) -> Iterator[dict]:
+    """Drive ``convo.stream`` and re-shape its frames into MTGAI text events.
+
+    Yields ``{"type": "text_delta", "text": str}`` per content frame, then a
+    single ``{"type": "complete", ...}`` carrying the accumulated text and the
+    last usage frame. The stream generator is closed eagerly on any early exit
+    so the underlying HTTP connection is released."""
+    text = ""
+    last_usage = None
+    last_finish: str | None = None
+    stream_iter = convo.stream(user_prompt)
+    try:
+        for ev in stream_iter:
+            if ev.text_delta:
+                text += ev.text_delta
+                yield {"type": "text_delta", "text": ev.text_delta}
+            if ev.usage is not None:
+                last_usage = ev.usage
+            if ev.finish_reason is not None:
+                last_finish = ev.finish_reason
+    finally:
+        close = getattr(stream_iter, "close", None)
+        if close is not None:
+            try:
+                close()
+            except Exception:
+                pass
+
+    yield {
+        "type": "complete",
+        "text": text,
+        "input_tokens": last_usage.prompt_tokens if last_usage else 0,
+        "output_tokens": last_usage.completion_tokens if last_usage else 0,
+        "cache_creation_input_tokens": (
+            getattr(last_usage, "cache_creation_tokens", 0) if last_usage else 0
+        ),
+        "cache_read_input_tokens": (
+            getattr(last_usage, "cache_read_tokens", 0) if last_usage else 0
+        ),
+        "stop_reason": last_finish or "",
+        "model": model,
+    }
+
+
+def stream_text(
+    system_prompt: str,
+    user_prompt: str,
+    model: str = "claude-sonnet-4-6",
+    temperature: float = 1.0,
+    max_tokens: int = 8192,
+    cache: bool = True,
+    log_dir: Any | None = None,
+    repeat_penalty: float | None = None,
+    name: str = "stream_text",
+) -> Iterator[dict]:
+    """Streaming free-text generation — the streaming counterpart to
+    :func:`generate_text`.
+
+    Use this when the caller wants to react to partial output as it arrives —
+    the skeleton relabel streams ``--CARD`` blocks to the wizard one slot at a
+    time. Yields::
+
+        {"type": "text_delta", "text": str}      # zero or more, in order
+        {"type": "complete", "text": <full>, ...} # exactly one, at the end
+
+    The ``complete`` event carries the same token/usage/model keys
+    :func:`generate_text` returns (plus the full accumulated ``text``). Transport
+    errors are raised, not yielded, so a caller's retry loop can ``except`` them
+    exactly as it does around :func:`generate_text`. Provider + ``repeat_penalty``
+    semantics match :func:`generate_text`.
+    """
+    provider = _resolve_provider(model)
+    effective_log_dir = True if log_dir is None else log_dir
+
+    if provider == "llamacpp":
+        yield from _stream_text_llamacpp(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            log_dir=effective_log_dir,
+            repeat_penalty=repeat_penalty,
+            name=name,
+        )
+        return
+
+    model, _ = cap_model(model, None)
+    yield from _stream_text_anthropic(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
         cache=cache,
         log_dir=effective_log_dir,
         name=name,

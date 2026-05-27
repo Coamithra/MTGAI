@@ -3124,9 +3124,7 @@ async def wizard_archetypes_refresh_all(request: Request) -> JSONResponse:
     )
     initial_generate = not refresh_pairs and not has_working
     if not refresh_pairs and not initial_generate:
-        return JSONResponse(
-            {"error": "Nothing to refresh — no AI-flagged pairs"}, status_code=400
-        )
+        return JSONResponse({"error": "Nothing to refresh — no AI-flagged pairs"}, status_code=400)
 
     try:
         asset = set_artifact_dir()
@@ -3279,6 +3277,14 @@ async def wizard_skeleton_state() -> JSONResponse:
             "theme_summary": _theme_summary(theme),
             "model_id": settings.get_llm_model_id("skeleton"),
             "stage_status": _stage_status_in_state("skeleton"),
+            # Surfaced so the tab can warn after a reload that the last relabel
+            # was kept partial. Persisted on skeleton.json by the stage/refresh.
+            "incomplete": bool(skeleton.get("relabel_incomplete"))
+            if isinstance(skeleton, dict)
+            else False,
+            "relabeled": int(skeleton.get("relabeled_slots", 0))
+            if isinstance(skeleton, dict)
+            else 0,
         }
     )
 
@@ -3290,8 +3296,10 @@ async def wizard_skeleton_refresh() -> JSONResponse:
     Reads ``skeleton.json``'s structured slots (the deterministic default),
     re-runs ``relabel_skeleton`` (Pass 1 relabel + Pass 2 request placement),
     writes the fresh ``tweaked_text`` + ``reserved_card`` back, and returns the
-    updated slot views. Holds the AI lock; the §13 recovery path when the stage
-    produced no tweaks.
+    updated slot views. The relabel streams each slot live via ``skeleton_slot``
+    / ``skeleton_relabel_reset`` SSE events while it runs; this response is the
+    authoritative final state the tab reconciles to. Holds the AI lock; the §13
+    recovery path when the stage produced no tweaks.
     """
     from mtgai.generation.skeleton_relabel import relabel_skeleton
 
@@ -3321,6 +3329,21 @@ async def wizard_skeleton_refresh() -> JSONResponse:
                 # the relabel's retry loop. Runs in the worker thread; the bus
                 # is thread-safe.
                 on_progress=lambda msg: event_bus.stage_phase("skeleton", "running", msg),
+                # Stream relabeled/placed slots into the tab as they land, and
+                # clear the tab's provisional rows at the start of every attempt
+                # (same event shape the engine path emits via StageEmitter.event).
+                on_slot=lambda sid, text, reserved=None: event_bus.publish(
+                    "skeleton_slot",
+                    {
+                        "stage_id": "skeleton",
+                        "slot_id": sid,
+                        "tweaked_text": text,
+                        "reserved_card": reserved,
+                    },
+                ),
+                on_reset=lambda: event_bus.publish(
+                    "skeleton_relabel_reset", {"stage_id": "skeleton"}
+                ),
             )
         except Exception as exc:
             logger.exception("Skeleton relabel refresh failed")
@@ -3335,9 +3358,27 @@ async def wizard_skeleton_refresh() -> JSONResponse:
             if not upd:
                 continue
             slot["tweaked_text"] = upd.get("tweaked_text")
-            slot["reserved_card"] = upd.get("reserved_card") or slot.get("reserved_card")
+            # Replace (don't union) — a re-roll fully recomputes request
+            # placements, so a slot the new run didn't place must lose its prior
+            # "specially requested card" tag. reserved_card is only ever set by
+            # the relabel's Pass 2 (the deterministic skeleton never stamps it),
+            # so there's no generator-anchor value to preserve here.
+            slot["reserved_card"] = upd.get("reserved_card")
+        # Persist the relabel outcome so a reload still shows the incomplete warning.
+        skeleton["relabel_incomplete"] = bool(relabel.get("incomplete"))
+        skeleton["relabeled_slots"] = int(relabel.get("relabeled", 0))
         atomic_write_text(
             asset / "skeleton.json", json.dumps(skeleton, indent=2, ensure_ascii=False)
+        )
+        # Terminal stream event (mirrors the engine path) so the live view
+        # settles even if these events are later replayed from the bus buffer.
+        event_bus.publish(
+            "skeleton_relabel_done",
+            {
+                "stage_id": "skeleton",
+                "incomplete": bool(relabel.get("incomplete")),
+                "relabeled": int(relabel.get("relabeled", 0)),
+            },
         )
 
     return JSONResponse(
@@ -3345,6 +3386,8 @@ async def wizard_skeleton_refresh() -> JSONResponse:
             "success": True,
             "slots": [_skeleton_slot_view(s) for s in skeleton["slots"]],
             "model_id": relabel.get("model_id"),
+            "incomplete": bool(relabel.get("incomplete")),
+            "relabeled": int(relabel.get("relabeled", 0)),
         }
     )
 

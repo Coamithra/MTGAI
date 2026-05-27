@@ -1534,3 +1534,41 @@
 .wiz-skel-locked { opacity: 0.85; }
 .wiz-skel-locked .wiz-skel-tweak:disabled,
 .wiz-skel-locked button:disabled { cursor: not-allowed; }
+
+/* Live relabel streaming. The grid dims while a relabel streams in; each slot
+   un-dims + pulses the moment its descriptor arrives, so cards fill in one at
+   a time. */
+.wiz-skel-livepill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #4a9eff;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  animation: wiz-skel-livepulse 1.4s ease-in-out infinite;
+}
+@keyframes wiz-skel-livepulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+
+.wiz-skel-grid--streaming .wiz-skel-row {
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+.wiz-skel-grid--streaming .wiz-skel-row--arrived { opacity: 1; }
+/* One-shot highlight as a slot lands (replays whenever the class is re-added
+   to a fresh row). */
+.wiz-skel-row--arrived { animation: wiz-skel-arrive 0.9s ease-out; }
+@keyframes wiz-skel-arrive {
+  0% { background: #4a9eff33; }
+  100% { background: #15151f; }
+}
+
+.wiz-skel-incomplete {
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #e8c87a;
+  background: #3a2f12;
+  border: 1px solid #6b5520;
+  border-radius: 5px;
+}
+.wiz-skel-incomplete strong { color: #f1d98a; }

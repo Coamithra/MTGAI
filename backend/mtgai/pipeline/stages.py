@@ -521,6 +521,14 @@ def run_skeleton(
                 # activity line — the relabel retries silently and can take a
                 # while, so "attempt 2/3" is the feedback the user needs.
                 on_progress=lambda msg: emitter.phase("running", msg),
+                # Stream each relabeled slot into the Skeleton tab as it lands,
+                # and clear the tab's provisional rows at the start of every
+                # attempt (the visible half of the rollback). Raw SSE events the
+                # tab's onSkeletonStream handler consumes.
+                on_slot=lambda sid, text, reserved=None: emitter.event(
+                    "skeleton_slot", slot_id=sid, tweaked_text=text, reserved_card=reserved
+                ),
+                on_reset=lambda: emitter.event("skeleton_relabel_reset"),
             )
         except Exception as exc:
             logger.exception("Skeleton relabel failed")
@@ -540,9 +548,21 @@ def run_skeleton(
             slot.tweaked_text = upd.get("tweaked_text")
             if upd.get("reserved_card"):
                 slot.reserved_card = upd["reserved_card"]
+        # Persist the relabel outcome so the tab can flag a partial (incomplete)
+        # relabel after a reload — kept, not discarded (see relabel_skeleton).
+        result.relabeled_slots = int(relabel.get("relabeled", 0))
+        result.relabel_incomplete = bool(relabel.get("incomplete"))
         atomic_write_text(
             skeleton_path,
             json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
+        )
+        # Terminal stream event so the Skeleton tab settles its live view (drops
+        # the streaming dim, shows the incomplete warning if any) without waiting
+        # for the stage to fully complete.
+        emitter.event(
+            "skeleton_relabel_done",
+            incomplete=result.relabel_incomplete,
+            relabeled=result.relabeled_slots,
         )
 
     # Default → Tweaked table (the diff the Skeleton tab renders richly).
@@ -575,15 +595,26 @@ def run_skeleton(
             "Cost": f"${relabel.get('cost_usd', 0.0):.4f}",
         },
     )
-    emitter.phase("done", f"Skeleton ready — {slot_count} slots, {changed} relabeled")
+    incomplete = bool(relabel.get("incomplete"))
+    incomplete_note = " (relabel incomplete — re-roll to finish)" if incomplete else ""
+    emitter.phase(
+        "done", f"Skeleton ready — {slot_count} slots, {changed} relabeled{incomplete_note}"
+    )
     logger.info(
-        "Skeleton: %d slots, %d relabeled, %s requests placed", slot_count, changed, placed_str
+        "Skeleton: %d slots, %d relabeled, %s requests placed%s",
+        slot_count,
+        changed,
+        placed_str,
+        " [INCOMPLETE]" if incomplete else "",
     )
     return StageResult(
         total_items=slot_count,
         completed_items=slot_count,
         cost_usd=relabel.get("cost_usd", 0.0),
-        detail=f"Skeleton: {slot_count} slots, {changed} relabeled, {placed_str} requests placed",
+        detail=(
+            f"Skeleton: {slot_count} slots, {changed} relabeled, "
+            f"{placed_str} requests placed{incomplete_note}"
+        ),
     )
 
 

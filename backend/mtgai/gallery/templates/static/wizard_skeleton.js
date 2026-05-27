@@ -33,9 +33,19 @@
     stageStatus: 'pending',
     locked: false,
     bootstrapping: false,
+    // Live relabel streaming state. `streaming` is true between a reset and the
+    // matching done; `streamUpdates` accumulates slot updates by id so a tab
+    // mounted mid-relabel can merge them over the (still-default) /state slots.
+    // `incomplete` is the durable "relabel kept partial" flag from the server.
+    streaming: false,
+    incomplete: false,
+    streamUpdates: {},
   };
 
   W.registerStageRenderer(STAGE_ID, render);
+  // Registered at module load (not in render) so live relabel events are caught
+  // even when the engine runs the skeleton stage while another tab is active.
+  W.onSkeletonStream = onSkeletonStream;
 
   // ----------------------------------------------------------------------
 
@@ -93,11 +103,21 @@
     }
     const data = await resp.json();
     local.slots = Array.isArray(data.slots) ? data.slots : [];
-    local.hasTweaked = !!data.has_tweaked;
     local.setParams = data.set_params || local.setParams;
     local.themeSummary = data.theme_summary || '';
     local.modelId = data.model_id || '';
     local.stageStatus = data.stage_status || local.stageStatus;
+    local.incomplete = !!data.incomplete;
+    // Re-apply any provisional slots that streamed in before this fetch landed
+    // (a tab mounted mid-relabel: /state returns the pre-relabel default skeleton
+    // while the live stream is already overwriting individual slots).
+    local.slots.forEach(s => {
+      const upd = local.streamUpdates[s.slot_id];
+      if (!upd) return;
+      s.tweaked_text = upd.tweaked_text;
+      s.reserved_card = upd.reserved_card;  // replace (empty clears a stale tag)
+    });
+    local.hasTweaked = !!data.has_tweaked || local.slots.some(s => isChanged(s));
 
     paintSummary(root, state);
     paintGrid(root, state);
@@ -122,18 +142,34 @@
         : 'Run the LLM relabel + request placement now.');
     const changed = local.slots.filter(s => isChanged(s)).length;
     const placed = local.slots.filter(s => s.reserved_card).length;
+    // While streaming, "Relabeled" tracks slots that have arrived this run so
+    // the count visibly climbs; otherwise it's the diff count.
+    const arrived = Object.keys(local.streamUpdates).length;
+    const relabeledCell = local.streaming
+      ? `${arrived} / ${local.slots.length}…`
+      : String(changed);
+    const pill = local.streaming
+      ? '<span class="wiz-skel-livepill">● Relabeling live…</span>'
+      : '';
+    const banner = (local.incomplete && !local.streaming)
+      ? `<div class="wiz-skel-incomplete">⚠ The relabel finished incomplete — some slots kept their
+         default descriptor. The partial result is saved; edit them inline or
+         <strong>${escHtml(local.hasTweaked ? 'Re-relabel AI…' : 'Relabel with AI')}</strong>
+         to try filling the rest.</div>`
+      : '';
     slot.innerHTML = `
       <div class="wiz-theme-section-header-row">
-        <h3 style="margin:0">Default → tweaked skeleton</h3>
+        <h3 style="margin:0">Default → tweaked skeleton ${pill}</h3>
         <button type="button" class="wiz-btn-secondary wiz-refresh-btn"
                 data-role="skel-refresh"
                 title="${escAttr(title)}" ${isPast || aiBusy() ? 'disabled' : ''}>${escHtml(label)}</button>
       </div>
       <p class="wiz-skel-blurb">The deterministic default skeleton, each slot rewritten by the LLM to fit the set. Changed parts are highlighted; edit any tweaked line, then continue.</p>
+      ${banner}
       <dl class="wiz-skel-context">
         <dt>Set</dt><dd>${escHtml(sp.set_name || '(unnamed)')}</dd>
         <dt>Slots</dt><dd>${escHtml(String(local.slots.length))}</dd>
-        <dt>Relabeled</dt><dd>${changed}</dd>
+        <dt>Relabeled</dt><dd>${relabeledCell}</dd>
         <dt>Requests placed</dt><dd>${placed}</dd>
         <dt>Model</dt><dd>${escHtml(local.modelId || '?')}</dd>
       </dl>
@@ -164,6 +200,15 @@
     // repaint doesn't hand the user editable fields mid-run (§3).
     const ro = (isPast || aiBusy()) ? 'disabled' : '';
     slot.innerHTML = local.slots.map(s => rowHtml(s, ro)).join('');
+    slot.classList.toggle('wiz-skel-grid--streaming', local.streaming);
+    // Re-flag rows that already arrived this run so a mid-stream repaint doesn't
+    // re-dim them.
+    if (local.streaming) {
+      Object.keys(local.streamUpdates).forEach(sid => {
+        const row = slot.querySelector(`.wiz-skel-row[data-slot-id="${cssEsc(sid)}"]`);
+        if (row) row.classList.add('wiz-skel-row--arrived');
+      });
+    }
     if (!isPast) bindGrid(slot);
   }
 
@@ -207,6 +252,121 @@
     if (!Array.isArray(list)) return;
     local.slots = list;
     local.hasTweaked = list.some(s => isChanged(s));
+  }
+
+  // ----------------------------------------------------------------------
+  // Live relabel streaming (SSE bridged from wizard.js via W.onSkeletonStream)
+  // ----------------------------------------------------------------------
+  //
+  // Three events, fired for BOTH the engine auto-run and the manual Refresh
+  // (and replayed from the bus buffer when a tab attaches mid-run):
+  //   skeleton_relabel_reset — a fresh attempt is (re)starting
+  //   skeleton_slot          — one slot's relabel/placement landed
+  //   skeleton_relabel_done  — the relabel finished (success or kept-partial)
+
+  function onSkeletonStream(name, data) {
+    if (name === 'skeleton_relabel_reset') return onRelabelReset();
+    if (name === 'skeleton_slot') return onRelabelSlot(data || {});
+    if (name === 'skeleton_relabel_done') return onRelabelDone(data || {});
+  }
+
+  // A fresh attempt begins. Drop the prior attempt's accumulated updates and
+  // per-row "arrived" highlights and dim the grid so the user watches it
+  // re-stream — the visible half of the rollback. Slot text is left in place
+  // (we keep partial); arriving slots overwrite it row by row. Request
+  // placements, though, are fully recomputed each roll, so the prior run's
+  // "specially requested card" tags are cleared up front — Pass 2 re-adds the
+  // new ones as they stream in.
+  function onRelabelReset() {
+    local.streaming = true;
+    local.incomplete = false;
+    local.streamUpdates = {};
+    local.slots.forEach(s => { s.reserved_card = ''; });
+    const root = bodyRoot();
+    if (!root) return;
+    // Repaint so the cleared tags actually leave the DOM; paintGrid re-applies
+    // the streaming dim and (with streamUpdates now empty) drops all
+    // arrived/req highlights.
+    paintGrid(root, W.getState());
+    paintSummary(root, W.getState());
+    applyFormLock();
+  }
+
+  // One slot's relabel (Pass 1) or request placement (Pass 2) arrived. Record
+  // it, update the model + the row's diff/textarea live, and mark it arrived.
+  function onRelabelSlot(data) {
+    const sid = data.slot_id;
+    if (!sid) return;
+    local.streamUpdates[sid] = {
+      tweaked_text: data.tweaked_text == null ? '' : String(data.tweaked_text),
+      reserved_card: data.reserved_card || '',
+    };
+    local.streaming = true;
+    const s = local.slots.find(x => x.slot_id === sid);
+    if (!s) {
+      // Tab opened mid-run before the default skeleton loaded — pull it so the
+      // streamed slots have rows to land in (bootstrap merges streamUpdates).
+      if (local.slots.length === 0 && !local.bootstrapping && bodyRoot()) {
+        local.bootstrapping = true;
+        bootstrap(bodyRoot(), W.getState())
+          .catch(() => {})
+          .finally(() => { local.bootstrapping = false; });
+      }
+      return;
+    }
+    s.tweaked_text = local.streamUpdates[sid].tweaked_text;
+    // Replace, don't merge: a Pass-1 event (reserved empty) clears any stale tag
+    // on this slot; a Pass-2 placement sets the new one.
+    s.reserved_card = local.streamUpdates[sid].reserved_card;
+    local.hasTweaked = true;
+    applyLiveSlot(s);
+  }
+
+  // The relabel finished (success or kept-partial). Settle the live view: drop
+  // the dim, record the durable incomplete flag, and repaint so the summary
+  // banner + counts + footer reflect the final state. The streamed slots are
+  // already authoritative (the server persisted the same updates).
+  function onRelabelDone(data) {
+    local.streaming = false;
+    local.incomplete = !!data.incomplete;
+    const root = bodyRoot();
+    if (!root) return;
+    paintSummary(root, W.getState());
+    paintGrid(root, W.getState());
+    paintFooter(getFooter(root), W.getState());
+    applyFormLock();
+  }
+
+  // Update one already-rendered row in place to match its slot model and flag
+  // it just-arrived (un-dim + pulse). No-op if the row isn't in the DOM.
+  function applyLiveSlot(s) {
+    const root = bodyRoot();
+    if (!root) return;
+    const row = root.querySelector(`.wiz-skel-row[data-slot-id="${cssEsc(s.slot_id)}"]`);
+    if (!row) return;
+    const reserved = (s.reserved_card || '').trim();
+    row.classList.toggle('wiz-skel-row--changed', isChanged(s));
+    row.classList.toggle('wiz-skel-row--req', !!reserved);
+    row.classList.add('wiz-skel-row--arrived');
+    const diff = row.querySelector('[data-role="diff"]');
+    if (diff) diff.innerHTML = diffHtml(s.default_text, s.tweaked_text);
+    const ta = row.querySelector('[data-role="tweak"]');
+    if (ta && ta.value !== (s.tweaked_text || '')) ta.value = s.tweaked_text || '';
+    const head = row.querySelector('.wiz-skel-row-head');
+    if (head) {
+      let badge = head.querySelector('.wiz-skel-reqbadge');
+      if (reserved) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'wiz-skel-reqbadge';
+          badge.textContent = '★ specially requested card';
+          head.appendChild(badge);
+        }
+        badge.title = reserved;
+      } else if (badge) {
+        badge.remove();  // placement gone this roll — strip the stale tag
+      }
+    }
   }
 
   // ----------------------------------------------------------------------
@@ -267,14 +427,31 @@
     try {
       const resp = await W.postJSON('/api/wizard/skeleton/refresh', {});
       const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) return reportError(resp, data, 'Relabel failed');
+      if (!resp.ok) {
+        // The live stream (if any started) never reached done — settle it here
+        // so the grid doesn't stay dimmed, then surface the error.
+        local.streaming = false;
+        paintSummary(root, W.getState());
+        paintGrid(root, W.getState());
+        return reportError(resp, data, 'Relabel failed');
+      }
+      // Authoritative final state. The skeleton_relabel_done SSE event also
+      // settled the live view; applying the response slots reconciles any drift.
+      local.streaming = false;
+      local.incomplete = !!data.incomplete;
       applySlots(data.slots);
       if (data.model_id) local.modelId = data.model_id;
       paintSummary(root, W.getState());
       paintGrid(root, W.getState());
       paintFooter(getFooter(root), W.getState());
-      W.toast('Skeleton relabeled.', 'success');
+      W.toast(
+        data.incomplete
+          ? 'Skeleton relabeled (incomplete — some slots kept their default).'
+          : 'Skeleton relabeled.',
+        data.incomplete ? 'warn' : 'success',
+      );
     } catch (err) {
+      local.streaming = false;
       W.toast('Network error: ' + err.message, 'error');
     } finally {
       if (W.clearBusy) W.clearBusy();
@@ -368,11 +545,13 @@
   // Form lock (§3)
   // ----------------------------------------------------------------------
 
-  // AI is "active" on this tab when this tab kicked off an op (local.locked)
-  // OR the engine is running the skeleton stage (relabel in flight). Either
-  // way every editable surface must be disabled.
+  // AI is "active" on this tab when this tab kicked off an op (local.locked),
+  // the engine is running the skeleton stage (local.stageStatus running), or a
+  // relabel is streaming in (local.streaming — covers the live engine run even
+  // before this tab's stageStatus has caught up). Any of these disables every
+  // editable surface.
   function aiBusy() {
-    return local.locked || local.stageStatus === 'running';
+    return local.locked || local.streaming || local.stageStatus === 'running';
   }
 
   function setLocked(locked) {
@@ -421,5 +600,13 @@
 
   function escAttr(text) {
     return escHtml(text).replace(/"/g, '&quot;');
+  }
+
+  // Escape a slot id for use inside a `[data-slot-id="…"]` CSS selector. Slot
+  // ids are alphanumeric+hyphen today, but CSS.escape keeps the live-update
+  // selector safe if that ever changes.
+  function cssEsc(text) {
+    const s = String(text == null ? '' : text);
+    return (window.CSS && CSS.escape) ? CSS.escape(s) : s.replace(/["\\]/g, '\\$&');
   }
 })();

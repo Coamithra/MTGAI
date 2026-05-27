@@ -81,15 +81,35 @@ def _blocks(pairs: list[tuple[str, str]]) -> str:
     return "\n".join(f"--CARD {sid}--\n{desc}" for sid, desc in pairs)
 
 
-def _text_resp(text: str, *, input_tokens: int = 1, output_tokens: int = 1) -> dict:
-    """A stub generate_text response."""
+def _complete(text: str, *, input_tokens: int, output_tokens: int) -> dict:
+    """A stub ``stream_text`` terminal 'complete' event."""
     return {
+        "type": "complete",
         "text": text,
         "model": "m",
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
         "stop_reason": "end_turn",
     }
+
+
+def _stream_stub(text: str, *, input_tokens: int = 1, output_tokens: int = 1):
+    """Build a stand-in for ``stream_text``: yields the whole reply as one
+    text_delta (when non-empty) then a single 'complete' event with usage —
+    the event contract ``relabel_slots`` consumes. Returns a callable that
+    produces a fresh generator per attempt."""
+
+    def _factory(*_a, **_k):
+        def _gen():
+            if text:
+                yield {"type": "text_delta", "text": text}
+            yield _complete(text, input_tokens=input_tokens, output_tokens=output_tokens)
+
+        return _gen()
+
+    return _factory
 
 
 @pytest.fixture
@@ -136,14 +156,11 @@ def test_render_slot_string_format() -> None:
 
 def test_relabel_reconciles_missing_and_drops_unknown(_project, monkeypatch) -> None:
     seed = _seed_slots()
+    # Block-format rewrites for all but the last seed slot, plus a bogus id.
+    pairs = [(s["slot_id"], f"themed {s['slot_id']}") for s in seed[:-1]]
+    pairs.append(("BOGUS-99", "ignore me"))
 
-    def stub(*_a, **_k):
-        # Block-format rewrites for all but the last seed slot, plus a bogus id.
-        pairs = [(s["slot_id"], f"themed {s['slot_id']}") for s in seed[:-1]]
-        pairs.append(("BOGUS-99", "ignore me"))
-        return _text_resp(_blocks(pairs), output_tokens=2)
-
-    monkeypatch.setattr(sr, "generate_text", stub)
+    monkeypatch.setattr(sr, "stream_text", _stream_stub(_blocks(pairs), output_tokens=2))
     tweaked, _resp = sr.relabel_slots(
         slots=seed,
         theme=_theme(),
@@ -165,20 +182,22 @@ def test_relabel_resends_whole_prompt_until_complete(monkeypatch) -> None:
     wins, and token usage is summed across both calls."""
     seed = _seed_slots()
     calls = {"n": 0}
+    full = _blocks([(s["slot_id"], f"themed {s['slot_id']}") for s in seed])
 
     def stub(*_a, **_k):
         calls["n"] += 1
-        if calls["n"] == 1:
-            # First attempt comes back empty (truncated / garbage) → resend.
-            return _text_resp("", input_tokens=3, output_tokens=4)
-        # The resend covers the whole set.
-        return _text_resp(
-            _blocks([(s["slot_id"], f"themed {s['slot_id']}") for s in seed]),
-            input_tokens=3,
-            output_tokens=4,
-        )
+        # First attempt comes back empty (truncated / garbage) → resend; the
+        # second covers the whole set.
+        text = "" if calls["n"] == 1 else full
 
-    monkeypatch.setattr(sr, "generate_text", stub)
+        def _gen():
+            if text:
+                yield {"type": "text_delta", "text": text}
+            yield _complete(text, input_tokens=3, output_tokens=4)
+
+        return _gen()
+
+    monkeypatch.setattr(sr, "stream_text", stub)
     tweaked, resp = sr.relabel_slots(
         slots=seed,
         theme=_theme(),
@@ -193,37 +212,45 @@ def test_relabel_resends_whole_prompt_until_complete(monkeypatch) -> None:
     assert all(v.startswith("themed ") for v in tweaked.values())
     assert resp["input_tokens"] == 6
     assert resp["output_tokens"] == 8
+    assert resp["incomplete"] is False
 
 
-def test_relabel_raises_when_persistently_partial(monkeypatch) -> None:
-    """If the model never returns enough slots, relabel raises instead of
-    silently shipping mostly-default descriptors."""
-    seed = _seed_slots()  # 4 slots; tolerance is max(3, 10%) = 3, so all-missing fails.
+def test_relabel_keeps_partial_when_persistently_incomplete(monkeypatch) -> None:
+    """If the model never covers enough slots, the best partial is KEPT and
+    flagged incomplete (the 'keep partial, mark incomplete' contract) rather
+    than raised away — the missing slots fall back to their default descriptor."""
+    # 20 slots → tolerance is max(3, ceil(20*0.1)=2) = 3. Cover 16, leave 4
+    # missing (> 3) so the run is genuinely incomplete while keeping real work.
+    base = _seed_slots()[0]
+    seed = [dict(base, slot_id=f"X-{i:02d}") for i in range(20)]
+    covered = _blocks([(f"X-{i:02d}", f"themed {i}") for i in range(16)])
 
-    def stub(*_a, **_k):
-        return _text_resp("")  # unparseable / empty every time
-
-    monkeypatch.setattr(sr, "generate_text", stub)
-    with pytest.raises(sr.RelabelIncompleteError):
-        sr.relabel_slots(
-            slots=seed,
-            theme=_theme(),
-            approved=_approved(),
-            archetypes=[],
-            set_name="T",
-            set_size=4,
-            model="m",
-        )
+    monkeypatch.setattr(sr, "stream_text", _stream_stub(covered))
+    tweaked, resp = sr.relabel_slots(
+        slots=seed,
+        theme=_theme(),
+        approved=_approved(),
+        archetypes=[],
+        set_name="T",
+        set_size=20,
+        model="m",
+    )
+    assert tweaked["X-00"] == "themed 0"
+    # The four unreached slots keep their default descriptor (not discarded).
+    assert tweaked["X-19"] == render_slot_string(seed[-1])
+    assert resp["relabeled_count"] == 16
+    assert resp["incomplete"] is True
 
 
 def test_relabel_raises_when_every_attempt_errors(monkeypatch) -> None:
-    """Transport errors on every attempt surface as RelabelIncompleteError."""
+    """Transport errors on every attempt (no usable output at all) is the only
+    hard failure — it surfaces as RelabelIncompleteError."""
     seed = _seed_slots()
 
     def stub(*_a, **_k):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(sr, "generate_text", stub)
+    monkeypatch.setattr(sr, "stream_text", stub)
     with pytest.raises(sr.RelabelIncompleteError):
         sr.relabel_slots(
             slots=seed,
@@ -238,32 +265,76 @@ def test_relabel_raises_when_every_attempt_errors(monkeypatch) -> None:
 
 def test_relabel_reports_progress_and_disables_repeat_penalty(monkeypatch) -> None:
     """Each attempt announces itself via on_progress, and the free-text relabel
-    runs with the repeat penalty OFF (the line format is intentionally repetitive)."""
+    streams with the repeat penalty OFF (the line format is intentionally
+    repetitive). A persistently-empty reply keeps a partial (incomplete), not
+    a raise."""
     seed = _seed_slots()
     seen_kwargs: list[dict] = []
 
     def stub(*_a, **k):
         seen_kwargs.append(k)
-        return _text_resp("")  # always empty → forces all attempts to run
 
-    monkeypatch.setattr(sr, "generate_text", stub)
+        def _gen():  # always empty → forces all attempts to run
+            yield _complete("", input_tokens=1, output_tokens=1)
+
+        return _gen()
+
+    monkeypatch.setattr(sr, "stream_text", stub)
     seen: list[str] = []
-    with pytest.raises(sr.RelabelIncompleteError):
-        sr.relabel_slots(
-            slots=seed,
-            theme=_theme(),
-            approved=_approved(),
-            archetypes=[],
-            set_name="T",
-            set_size=4,
-            model="m",
-            on_progress=seen.append,
-        )
+    _tweaked, resp = sr.relabel_slots(
+        slots=seed,
+        theme=_theme(),
+        approved=_approved(),
+        archetypes=[],
+        set_name="T",
+        set_size=4,
+        model="m",
+        on_progress=seen.append,
+    )
     assert len(seen) == sr.RELABEL_MAX_ATTEMPTS
     assert all("attempt" in s.lower() for s in seen)
     assert seen_kwargs and all(
         k.get("repeat_penalty") == sr.RELABEL_TEXT_REPEAT_PENALTY for k in seen_kwargs
     )
+    assert resp["incomplete"] is True
+
+
+def test_relabel_streams_slots_and_fires_reset(monkeypatch) -> None:
+    """on_reset fires once per attempt; on_slot fires once per parsed slot with
+    reserved=None for a Pass-1 relabel. Each slot is pushed exactly once even
+    though the live scan and the end-of-stream flush both run."""
+    seed = _seed_slots()
+    text = _blocks([(s["slot_id"], f"themed {s['slot_id']}") for s in seed])
+
+    def stub(*_a, **_k):
+        def _gen():
+            # Stream line-by-line so blocks close mid-stream (exercises the live
+            # per-slot push, not just the end-of-stream flush).
+            for line in text.splitlines(keepends=True):
+                yield {"type": "text_delta", "text": line}
+            yield _complete(text, input_tokens=1, output_tokens=1)
+
+        return _gen()
+
+    monkeypatch.setattr(sr, "stream_text", stub)
+    seen: list[tuple[str, str, str | None]] = []
+    resets: list[int] = []
+    _tweaked, resp = sr.relabel_slots(
+        slots=seed,
+        theme=_theme(),
+        approved=_approved(),
+        archetypes=[],
+        set_name="T",
+        set_size=4,
+        model="m",
+        on_slot=lambda sid, desc, reserved=None: seen.append((sid, desc, reserved)),
+        on_reset=lambda: resets.append(1),
+    )
+    assert resets == [1]  # one attempt (it covered everything)
+    assert len(seen) == len(seed)  # each slot pushed exactly once (deduped)
+    assert {sid for sid, _d, _r in seen} == {s["slot_id"] for s in seed}
+    assert all(reserved is None for _s, _d, reserved in seen)
+    assert resp["incomplete"] is False
 
 
 def test_parse_relabel_text_blocks_and_fallback() -> None:
@@ -452,13 +523,12 @@ def test_assign_requests_reports_progress(monkeypatch) -> None:
 
 
 def test_relabel_skeleton_round_trip(_project, monkeypatch) -> None:
-    # Pass 1 is free text (generate_text); Pass 2 is the JSON tool (generate_with_tool).
-    def text_stub(*_a, **_k):
-        return _text_resp(
-            _blocks([(s["slot_id"], f"themed {s['slot_id']}") for s in _seed_slots()]),
-            input_tokens=10,
-            output_tokens=20,
-        )
+    # Pass 1 streams free text (stream_text); Pass 2 is the JSON tool (generate_with_tool).
+    text_stub = _stream_stub(
+        _blocks([(s["slot_id"], f"themed {s['slot_id']}") for s in _seed_slots()]),
+        input_tokens=10,
+        output_tokens=20,
+    )
 
     def tool_stub(*_a, **_k):
         return {
@@ -475,7 +545,7 @@ def test_relabel_skeleton_round_trip(_project, monkeypatch) -> None:
             "output_tokens": 5,
         }
 
-    monkeypatch.setattr(sr, "generate_text", text_stub)
+    monkeypatch.setattr(sr, "stream_text", text_stub)
     monkeypatch.setattr(sr, "generate_with_tool", tool_stub)
     monkeypatch.setattr(sr, "cost_from_result", lambda _r: 0.01)
 
@@ -490,6 +560,9 @@ def test_relabel_skeleton_round_trip(_project, monkeypatch) -> None:
     assert out["output_tokens"] == 25
     assert out["cost_usd"] == pytest.approx(0.02)
     assert out["model_id"]  # resolved from settings
+    # All four slots relabeled — a complete, non-incomplete round trip.
+    assert out["incomplete"] is False
+    assert out["relabeled"] == 4
 
 
 # ---------------------------------------------------------------------------

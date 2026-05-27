@@ -220,6 +220,15 @@ class SkeletonResult(BaseModel):
     archetype_slots: dict[str, list[str]] = Field(default_factory=dict)
     balance_report: BalanceReport = Field(default_factory=BalanceReport)
     total_slots: int = 0
+    # Relabel outcome (set by the skeleton stage / refresh after Pass 1). The
+    # deterministic generator leaves these at their defaults; ``relabeled_slots``
+    # is how many descriptors the LLM rewrote, and ``relabel_incomplete`` is True
+    # when the relabel finished below coverage tolerance (partial kept, not
+    # discarded). The Skeleton tab reads them to show an "incomplete" warning
+    # that survives a page reload (it can't be derived from the slots alone — a
+    # slot left on its default is indistinguishable from one the model echoed).
+    relabeled_slots: int = 0
+    relabel_incomplete: bool = False
 
 
 # ---------------------------------------------------------------------------
