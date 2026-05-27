@@ -20,6 +20,8 @@ Color, rarity, type and CMC are ordinary Magic. The field worth decoding is the 
 
 A trailing `signpost:XY` (e.g. `signpost:UR`) marks the gold uncommon that defines the XY color pair's draft archetype — the card a drafter sees and instantly knows what deck to build. Keep those as the pair's signpost.
 
+A trailing `cycle:<name> (colors)` (e.g. `cycle:Energon Sources (WG)`) marks a slot in a named cycle — a small family of cards built to share a structure, spread one per colour / colour-pair / three-colour trio. The `(colors)` is THIS member's slot in the family (its colour, pair, or trio), so you can see which sibling each card is. Keep each such slot in its cycle, keep the `cycle:<name> (colors)` tag on the line, and relabel the members as a coherent family so they read as siblings; the family's shared template is applied downstream when the cards are generated.
+
 You are the only step that sees the whole set at once, so your job is the whole-set stuff: the properties that are about AMOUNTS — "a lot of X", "half are Y", "at least N Z", "no mechanic on more than ~a fifth". You can see every slot, so count them and tag the right number to make those amounts come true. Add a tag or short note to a line only when a constraint needs it.
 
 Toy example —

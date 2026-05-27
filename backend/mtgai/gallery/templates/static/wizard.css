@@ -1573,20 +1573,12 @@
 }
 .wiz-skel-incomplete strong { color: #f1d98a; }
 
-/* --- Structural knobs panel (Phase 0) --- */
-.wiz-skel-knobs { margin: 0 0 0.8rem; }
-.wiz-skel-knobs-box {
-  border: 1px solid #333;
-  border-radius: 6px;
-  background: #1c1c1e;
-  padding: 0.5rem 0.7rem;
+/* --- Structural knobs panel (Phase 0) — Step 1 of the tab --- */
+.wiz-skel-knob-pending {
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: #d3b48f;
 }
-.wiz-skel-knobs-box > summary {
-  cursor: pointer;
-  list-style: none;
-  align-items: center;
-}
-.wiz-skel-knobs-box > summary::-webkit-details-marker { display: none; }
 .wiz-skel-knob-prov {
   font-size: 0.74rem;
   margin-left: 0.4rem;
@@ -1639,19 +1631,40 @@
   border-radius: 7px;
   padding: 0.02rem 0.32rem;
 }
-.wiz-skel-knob-actions {
+/* Cycle editor (Step 1) — add/edit/remove card-family cycles. */
+.wiz-skel-cycle-box {
+  border: 1px solid #2c2c2e;
+  border-radius: 5px;
+  padding: 0.3rem 0.55rem 0.6rem;
+  margin: 0.5rem 0 0;
+}
+.wiz-skel-cycle-box > legend { font-size: 0.76rem; font-weight: 600; color: #bbb; padding: 0 0.3rem; }
+.wiz-skel-cycle-blurb { color: #999; font-size: 0.78rem; margin: 0.1rem 0 0.5rem; line-height: 1.4; }
+.wiz-skel-cycle-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
+.wiz-skel-cycle-item {
   display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.4rem 0.5rem;
+  background: #15151f;
+  border: 1px solid #2a2a3e;
+  border-left: 3px solid #5fb3a3;
+  border-radius: 5px;
 }
-.wiz-skel-cycles { font-size: 0.82rem; color: #bbb; margin: 0.3rem 0; line-height: 1.6; }
-.wiz-skel-cycle-chip {
-  display: inline-block;
-  background: #173029;
-  color: #8fd3c4;
-  border-radius: 9px;
-  padding: 0.08rem 0.5rem;
-  font-size: 0.74rem;
-  margin-right: 0.2rem;
+.wiz-skel-cycle-row1 { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.wiz-skel-cycle-item input,
+.wiz-skel-cycle-item select {
+  background: #0d0d18;
+  color: #e8e8f0;
+  border: 1px solid #2a2a3e;
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.8rem;
+  font-family: inherit;
 }
+.wiz-skel-cycle-item input:focus,
+.wiz-skel-cycle-item select:focus { outline: none; border-color: #4a9eff; }
+.wiz-skel-cycle-name { flex: 1 1 9rem; min-width: 7rem; }
+.wiz-skel-cycle-item [data-role="cyc-cmc"] { width: 3.4rem; }
+.wiz-skel-cycle-item .wiz-btn-remove { margin-left: auto; }
+.wiz-skel-cycle-template { width: 100%; box-sizing: border-box; }

@@ -225,7 +225,7 @@ class TestCycle:
     def test_size_property(self):
         assert Cycle(id="c", name="X", span=CycleSpan.PAIRS10).size == 10
         assert Cycle(id="c", name="X", span=CycleSpan.MONO5).size == 5
-        assert Cycle(id="c", name="X", span=CycleSpan.COLORLESS1).size == 1
+        assert Cycle(id="c", name="X", span=CycleSpan.ALLIED5).size == 5
 
 
 def test_default_knobs_provenance_all_default():

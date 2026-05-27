@@ -169,9 +169,17 @@ class TestCycleExpansion:
         assert allied.isdisjoint(enemy)
         assert allied | enemy == {"WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"}
 
-    def test_colorless_member(self):
-        members = _expand_cycle(Cycle(id="c", name="X", span=CycleSpan.COLORLESS1))
-        assert len(members) == 1 and members[0]["color"] == "colorless"
+    def test_cycle_member_labels(self):
+        # Each member is stamped with its colour slot in the family: single colour
+        # (mono5), pair (pairs10/allied/enemy), or trio (shards/wedges).
+        mono = _expand_cycle(Cycle(id="m", name="M", span=CycleSpan.MONO5))
+        assert {m["cycle_member"] for m in mono} == {"W", "U", "B", "R", "G"}
+        pairs = _expand_cycle(Cycle(id="p", name="P", span=CycleSpan.PAIRS10))
+        assert {m["cycle_member"] for m in pairs} == {
+            "WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"
+        }
+        shards = _expand_cycle(Cycle(id="s", name="S", span=CycleSpan.SHARDS5))
+        assert {m["cycle_member"] for m in shards} == {"WUB", "UBR", "BRG", "RGW", "GWU"}
 
     def test_land_cycle_members_are_lands(self):
         members = _expand_cycle(

@@ -389,6 +389,27 @@ class TestSignpostMarking:
         assert len(pairs) == len(set(pairs))
         assert all(s.signpost_for == s.color_pair for s in flagged)
 
+    def test_signposts_per_pair_zero_flags_none(self):
+        # spp=0 opts the set out of gold signposts: none flagged, and the hard
+        # multicolor-uncommon floor is lifted so the skeleton still validates.
+        from mtgai.skeleton.knobs import SkeletonKnobs
+
+        result = generate_skeleton(_make_config(277), knobs=SkeletonKnobs(signposts_per_pair=0))
+        assert [s for s in result.slots if s.signpost_for] == []
+        sp = next(c for c in result.balance_report.constraints if c.name == "signpost_uncommons")
+        assert sp.passed is True
+
+    def test_signposts_per_pair_two_flags_two_per_pair(self):
+        # spp=2 flags two signposts per pair (20 at full size).
+        from collections import Counter
+
+        from mtgai.skeleton.knobs import SkeletonKnobs
+
+        result = generate_skeleton(_make_config(277), knobs=SkeletonKnobs(signposts_per_pair=2))
+        per_pair = Counter(s.signpost_for for s in result.slots if s.signpost_for)
+        assert sum(per_pair.values()) == 20
+        assert all(n == 2 for n in per_pair.values())
+
 
 class TestRarityTotalsConstraint:
     """_check_rarity_totals: len(slots) == set_size."""

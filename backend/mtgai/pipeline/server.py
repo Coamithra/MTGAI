@@ -3248,7 +3248,7 @@ def _skeleton_knobs_payload(skeleton: dict) -> dict:
     controls from. Kept separate so both ``/state`` and the knob endpoints return
     the same shape.
     """
-    from mtgai.skeleton.knobs import SkeletonKnobs, knob_specs_payload
+    from mtgai.skeleton.knobs import SkeletonKnobs, cycle_options_payload, knob_specs_payload
 
     raw = skeleton.get("knobs")
     knobs = SkeletonKnobs.model_validate(raw) if isinstance(raw, dict) else SkeletonKnobs()
@@ -3265,6 +3265,7 @@ def _skeleton_knobs_payload(skeleton: dict) -> dict:
         "knobs": knobs.model_dump(),
         "knob_specs": knob_specs_payload(),
         "cycles": cycles,
+        "cycle_options": cycle_options_payload(),
         "knobs_defaulted": bool(skeleton.get("knobs_defaulted")),
         "knob_warnings": skeleton.get("knob_warnings", []),
     }
@@ -3397,13 +3398,15 @@ async def wizard_skeleton_knobs(request: Request) -> JSONResponse:
 
 
 @router.post("/api/wizard/skeleton/knobs/tune")
-async def wizard_skeleton_knobs_tune() -> JSONResponse:
+async def wizard_skeleton_knobs_tune(request: Request) -> JSONResponse:
     """Re-run the phase-0 LLM knob tuner, respecting pinned knobs, then rebuild.
 
-    Holds the AI lock (it is an LLM call). The current skeleton's knobs are passed
-    as the tuner's base so pinned values survive the re-roll. On any tuner failure
-    the defaults (or the pinned base) are used — never a hard error. Returns the
-    rebuilt slots + the freshly-tuned knobs.
+    Body (optional): ``{knobs, cycles, pinned, provenance}`` — the tab's current
+    knob values, used as the tuner's base so unsaved hand-edits + pins survive the
+    re-roll. When absent (or empty) the persisted ``skeleton.json`` knobs are the
+    base. Holds the AI lock (it is an LLM call). On any tuner failure the base (or
+    defaults) is used — never a hard error. Returns the rebuilt slots + the
+    freshly-tuned knobs; the client then cascades into the relabel.
     """
     from mtgai.generation.skeleton_knobs_tuner import tune_skeleton_knobs
     from mtgai.skeleton.knobs import SkeletonKnobs
@@ -3412,6 +3415,9 @@ async def wizard_skeleton_knobs_tune() -> JSONResponse:
         _require_active_project()
     except _NoActiveProject:
         return _no_active_project_response()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     try:
         asset = set_artifact_dir()
     except NoAssetFolderError as exc:
@@ -3422,8 +3428,18 @@ async def wizard_skeleton_knobs_tune() -> JSONResponse:
         return JSONResponse(
             {"error": "No skeleton.json yet — run Skeleton Generation first."}, status_code=400
         )
-    raw = skeleton.get("knobs")
-    base = SkeletonKnobs.model_validate(raw) if isinstance(raw, dict) else SkeletonKnobs()
+    # Tuner base: the tab's live knob values (so pins + hand-edits are honored)
+    # when supplied, else the persisted skeleton knobs.
+    knobs_body = body.get("knobs") if isinstance(body, dict) else None
+    if isinstance(knobs_body, dict) and knobs_body:
+        payload = dict(knobs_body)
+        payload["cycles"] = body.get("cycles", payload.get("cycles", []))
+        payload["pinned"] = body.get("pinned", [])
+        payload["provenance"] = body.get("provenance", {})
+        base, _ = SkeletonKnobs.from_payload(payload)
+    else:
+        raw = skeleton.get("knobs")
+        base = SkeletonKnobs.model_validate(raw) if isinstance(raw, dict) else SkeletonKnobs()
 
     with ai_lock.hold("Skeleton knob tuning") as acquired:
         if not acquired:

@@ -113,8 +113,6 @@ def _cycle_span_listing() -> str:
         CycleSpan.ENEMY5: "one per enemy pair (5 members)",
         CycleSpan.SHARDS5: "one per allied three-color shard (5 members)",
         CycleSpan.WEDGES5: "one per enemy three-color wedge (5 members)",
-        CycleSpan.COLORLESS1: "a single colorless member",
-        CycleSpan.SINGLE: "a single one-off member (placed colorless)",
     }
     return "\n".join(
         f"- {span.value} ({CYCLE_SPAN_SIZE[span]}): {blurbs[span]}" for span in CycleSpan

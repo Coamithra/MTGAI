@@ -299,10 +299,11 @@ KNOB_SPECS: list[KnobSpec] = [
         group="special",
         kind=KnobKind.INT,
         default=1,
-        min=1,
+        min=0,
         max=2,
         step=1,
-        help="Multicolor uncommon signposts per color pair (BLB ran 1, DSK/OTJ/MKM 2).",
+        help="Multicolor uncommon signposts per color pair "
+        "(0 = no gold signposts, BLB ran 1, DSK/OTJ/MKM 2).",
     ),
 ]
 
@@ -317,10 +318,11 @@ KNOB_SPEC_BY_KEY: dict[str, KnobSpec] = {s.key: s for s in KNOB_SPECS}
 class CycleSpan(StrEnum):
     """How a cycle's members spread across colors.
 
-    The five-/ten-member spans are balance-preserving (they add slots evenly
-    across colors or pairs), which is *why* real design uses the cycle as the unit
-    for a bold structural statement. ``single`` is the escape hatch for a one-off
-    structural slot and is placed as colorless to stay balance-safe.
+    Every span is balance-preserving — it adds slots evenly across colors, pairs,
+    or three-color trios — which is *why* real design uses the cycle as the unit
+    for a bold structural statement. A cycle is always a family of several cards;
+    a one-off card is just a card (pin a specific one via a theme card_request),
+    so there is deliberately no single-member span.
     """
 
     MONO5 = "mono5"  # one per WUBRG
@@ -329,12 +331,10 @@ class CycleSpan(StrEnum):
     ENEMY5 = "enemy5"  # one per enemy pair
     WEDGES5 = "wedges5"  # one per enemy-based three-color wedge
     SHARDS5 = "shards5"  # one per allied-based three-color shard
-    COLORLESS1 = "colorless1"  # a single colorless member
-    SINGLE = "single"  # a one-off structural slot (placed colorless)
 
 
 # Member count for each span — used by the feasibility check + UI without
-# expanding the slots. SINGLE / COLORLESS1 are 1.
+# expanding the slots.
 CYCLE_SPAN_SIZE: dict[str, int] = {
     CycleSpan.MONO5: 5,
     CycleSpan.PAIRS10: 10,
@@ -342,9 +342,44 @@ CYCLE_SPAN_SIZE: dict[str, int] = {
     CycleSpan.ENEMY5: 5,
     CycleSpan.WEDGES5: 5,
     CycleSpan.SHARDS5: 5,
-    CycleSpan.COLORLESS1: 1,
-    CycleSpan.SINGLE: 1,
 }
+
+
+def cycle_options_payload() -> dict:
+    """Option lists for the wizard's cycle editor — the single source of truth for
+    the span / rarity / card-type dropdowns (mirrors ``knob_specs_payload``). Each
+    span label carries its member count so the picker reads "pairs — one per
+    colour-pair (10)".
+    """
+    span_labels = {
+        CycleSpan.MONO5: "mono — one per colour",
+        CycleSpan.PAIRS10: "pairs — one per colour-pair",
+        CycleSpan.ALLIED5: "allied — one per allied pair",
+        CycleSpan.ENEMY5: "enemy — one per enemy pair",
+        CycleSpan.WEDGES5: "wedges — one per enemy trio",
+        CycleSpan.SHARDS5: "shards — one per allied trio",
+    }
+    return {
+        "spans": [
+            {
+                "value": s.value,
+                "size": CYCLE_SPAN_SIZE[s],
+                "label": f"{span_labels.get(s, s.value)} ({CYCLE_SPAN_SIZE[s]})",
+            }
+            for s in CycleSpan
+        ],
+        "rarities": ["common", "uncommon", "rare", "mythic"],
+        # Canonical card-type order (matches the _CARD_TYPES set below, ordered).
+        "card_types": [
+            "creature",
+            "instant",
+            "sorcery",
+            "enchantment",
+            "artifact",
+            "planeswalker",
+            "land",
+        ],
+    }
 
 # Color-pair groupings (canonical COLOR_PAIRS ordering). Allied = neighbors on the
 # W-U-B-R-G wheel; enemy = the rest. Their union is all 10 pairs.

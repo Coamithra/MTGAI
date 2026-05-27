@@ -7,11 +7,20 @@
  *
  * Skeleton Generation is one stage that builds the deterministic default
  * skeleton, then rewrites each slot's one-line descriptor with the LLM to fit
- * the set (theme / constraints / mechanics / requests). Each slot here shows
- * its DEFAULT descriptor diffed against the LLM's TWEAKED descriptor — a proper
- * word-level diff highlights exactly what changed — with the tweaked text
- * editable. Refresh re-rolls the relabel; the stage auto-runs it, so there's no
- * manual "generate" gate on the happy path.
+ * the set (theme / constraints / mechanics / requests). The tab surfaces those
+ * two halves as two refreshable steps (mirroring the Theme tab's section
+ * pattern):
+ *   Step 1 — Structural knobs: the theme-tuned knob controls. "Refresh with AI"
+ *            re-tunes them (honoring pins) and CASCADES into a skeleton rebuild
+ *            + relabel — same as refreshing the top-level Theme also refreshes
+ *            its sub-sections.
+ *   Step 2 — Skeleton: each slot's DEFAULT descriptor diffed against the LLM's
+ *            TWEAKED descriptor (a word-level diff highlights changes), editable.
+ *            "Refresh" rebuilds the matrix from the CURRENT knob values, then
+ *            runs the LLM relabel over it.
+ * Both refreshes orchestrate the rebuild → relabel calls client-side so each
+ * streamed slot lands in the right row. The stage auto-runs both on the happy
+ * path, so there's no manual "generate" gate — these are the §13 re-roll surface.
  *
  * Conventions: §1 Save & Continue footer, §3 form lock, §6 past-tab edit
  * cascade (via wizard_stage.js), §8 status pill, §13 section Refresh button.
@@ -46,8 +55,14 @@
     knobs: {},
     knobSpecs: [],
     cycles: [],
+    // Dropdown option lists for the cycle editor (spans / rarities / card_types),
+    // from the backend (single source of truth); populated by bootstrap.
+    cycleOptions: null,
     knobsDefaulted: false,
     knobWarnings: [],
+    // True once a knob is hand-edited but not yet applied: knob edits only rebuild
+    // the skeleton on the next Refresh, so we flag the grid is stale meanwhile.
+    knobsDirty: false,
   };
 
   W.registerStageRenderer(STAGE_ID, render);
@@ -94,11 +109,15 @@
 
   function mountShellHtml() {
     return `
-      <div class="wiz-skel-summary" data-role="skel-summary">
-        <div class="wiz-skel-loading">Loading skeleton…</div>
-      </div>
-      <div class="wiz-skel-knobs" data-role="skel-knobs"></div>
-      <div class="wiz-skel-grid" data-role="skel-grid"></div>
+      <section class="wiz-theme-section wiz-skel-step" data-role="skel-knobs">
+        <div class="wiz-skel-loading">Loading knobs…</div>
+      </section>
+      <section class="wiz-theme-section wiz-skel-step" data-role="skel-skeleton">
+        <div data-role="skel-summary">
+          <div class="wiz-skel-loading">Loading skeleton…</div>
+        </div>
+        <div class="wiz-skel-grid" data-role="skel-grid"></div>
+      </section>
     `;
   }
 
@@ -120,6 +139,7 @@
     local.knobs = data.knobs || {};
     local.knobSpecs = Array.isArray(data.knob_specs) ? data.knob_specs : [];
     local.cycles = Array.isArray(data.cycles) ? data.cycles : [];
+    if (data.cycle_options) local.cycleOptions = data.cycle_options;
     local.knobsDefaulted = !!data.knobs_defaulted;
     local.knobWarnings = Array.isArray(data.knob_warnings) ? data.knob_warnings : [];
     // Re-apply any provisional slots that streamed in before this fetch landed
@@ -175,34 +195,142 @@
     const warnHtml = (local.knobWarnings || []).length
       ? `<div class="wiz-skel-incomplete">⚠ ${local.knobWarnings.map(escHtml).join('<br>')}</div>`
       : '';
-    const cyclesHtml = local.cycles.length
-      ? `<div class="wiz-skel-cycles"><strong>Cycles:</strong> ${local.cycles.map(cycleChip).join(' ')}</div>`
-      : '';
+    const title = isPast
+      ? 'Use Edit above to revise a past skeleton.'
+      : 'Re-tune the knobs with AI (pinned knobs survive), then rebuild + relabel the skeleton below.';
 
     slot.innerHTML = `
-      <details class="wiz-skel-knobs-box" ${tunedCount || local.cycles.length ? 'open' : ''}>
-        <summary class="wiz-theme-section-header-row">
-          <span><strong>Structural knobs</strong> ${provSummary}</span>
-        </summary>
-        <p class="wiz-skel-blurb">Theme-tuned structure for the skeleton — the AI proposes within research-derived ranges, you adjust. Pin a knob to keep it on a re-tune. Applying knobs rebuilds the default skeleton; Relabel to re-theme it.</p>
-        ${warnHtml}
-        ${cyclesHtml}
-        <div class="wiz-skel-knob-groups">
-          ${groups.map(g => groupHtml(g, byGroup[g], disabled)).join('')}
-        </div>
-        <div class="wiz-skel-knob-actions">
-          <button type="button" class="wiz-btn-secondary" data-role="knob-tune" ${disabled ? 'disabled' : ''}
-                  title="Re-run the AI tuner (keeps pinned knobs)">Tune with AI…</button>
-          <button type="button" class="wiz-btn-primary" data-role="knob-apply" ${disabled ? 'disabled' : ''}
-                  title="Rebuild the default skeleton from these knobs">Apply &amp; rebuild</button>
-        </div>
-      </details>`;
+      <div class="wiz-theme-section-header-row">
+        <h3 style="margin:0">Step 1 · Structural knobs ${provSummary}</h3>
+        <button type="button" class="wiz-btn-secondary wiz-refresh-btn" data-role="knob-refresh"
+                title="${escAttr(title)}" ${disabled ? 'disabled' : ''}>Refresh with AI…</button>
+      </div>
+      <p class="wiz-theme-section-desc">Theme-tuned structure for the skeleton — the AI proposes within research-derived ranges, you adjust. Pin a knob to keep it on a re-tune. Hand-edits take effect when you Refresh the skeleton (Step 2); "Refresh with AI" re-tunes them and rebuilds the skeleton for you.</p>
+      ${warnHtml}
+      <div class="wiz-skel-knob-groups">
+        ${groups.map(g => groupHtml(g, byGroup[g], disabled)).join('')}
+      </div>
+      <fieldset class="wiz-skel-cycle-box">
+        <legend>Cycles</legend>
+        <p class="wiz-skel-cycle-blurb">Balance-preserving card families — one member per colour, pair, or trio, sharing a template. They're carved out of the rarity budget first. Add or edit them here; changes apply on the next Refresh.</p>
+        <div class="wiz-skel-cycle-list" data-role="cycle-list"></div>
+        <button type="button" class="wiz-btn-add" data-role="cycle-add" ${disabled ? 'disabled' : ''}>+ Add cycle</button>
+      </fieldset>
+      <div class="wiz-skel-knob-pending" data-role="knob-pending" ${local.knobsDirty ? '' : 'hidden'}>
+        Knob/cycle edits pending — Refresh the skeleton (Step 2) to rebuild from them.
+      </div>`;
     bindKnobs(slot);
+    paintCycleList(slot, disabled);
+    const addBtn = slot.querySelector('[data-role="cycle-add"]');
+    if (addBtn) addBtn.onclick = onAddCycle;
   }
 
-  function cycleChip(c) {
-    const label = `${escHtml(c.name || c.id)} (${escHtml(c.span)} ${escHtml(c.rarity)} ${escHtml(c.card_type)})`;
-    return `<span class="wiz-skel-cycle-chip" title="${escAttr(c.template || '')}">${label}</span>`;
+  // ----------------------------------------------------------------------
+  // Cycle editor — add / edit / remove cycles (Theme-tab card-requests UX).
+  // The DOM rows are the source of truth while editing; collectCycles() reads
+  // them into the knobs payload on Refresh (so edits flow into the rebuild).
+  // ----------------------------------------------------------------------
+
+  function paintCycleList(slot, disabled) {
+    const list = slot.querySelector('[data-role="cycle-list"]');
+    if (!list) return;
+    list.innerHTML = '';
+    (local.cycles || []).forEach(c => list.appendChild(cycleRow(c, disabled)));
+  }
+
+  function cycleRow(c, disabled) {
+    const opts = local.cycleOptions || {};
+    const spans = opts.spans || [
+      { value: 'mono5', label: 'mono (5)' }, { value: 'pairs10', label: 'pairs (10)' },
+      { value: 'allied5', label: 'allied (5)' }, { value: 'enemy5', label: 'enemy (5)' },
+      { value: 'wedges5', label: 'wedges (5)' }, { value: 'shards5', label: 'shards (5)' },
+    ];
+    const rarities = opts.rarities || ['common', 'uncommon', 'rare', 'mythic'];
+    const types = opts.card_types
+      || ['creature', 'instant', 'sorcery', 'enchantment', 'artifact', 'planeswalker', 'land'];
+    const dis = disabled ? 'disabled' : '';
+    const sel = (v, want) => (v === want ? 'selected' : '');
+    const item = document.createElement('div');
+    item.className = 'wiz-skel-cycle-item';
+    item.dataset.cycleId = c.id || newCycleId();
+    item.innerHTML = `
+      <div class="wiz-skel-cycle-row1">
+        <input class="wiz-skel-cycle-name" data-role="cyc-name" placeholder="Cycle name (e.g. Energon Sources)"
+               value="${escAttr(c.name || '')}" ${dis}>
+        <select data-role="cyc-span" title="How the family spreads across colours" ${dis}>
+          ${spans.map(s => `<option value="${escAttr(s.value)}" ${sel(s.value, c.span)}>${escHtml(s.label || s.value)}</option>`).join('')}
+        </select>
+        <select data-role="cyc-rarity" title="Rarity" ${dis}>
+          ${rarities.map(r => `<option value="${escAttr(r)}" ${sel(r, c.rarity || 'uncommon')}>${escHtml(r)}</option>`).join('')}
+        </select>
+        <select data-role="cyc-type" title="Card type" ${dis}>
+          ${types.map(t => `<option value="${escAttr(t)}" ${sel(t, c.card_type || 'creature')}>${escHtml(t)}</option>`).join('')}
+        </select>
+        <input type="number" data-role="cyc-cmc" min="0" max="12" title="CMC target (ignored for lands)"
+               value="${c.cmc_target == null ? 3 : c.cmc_target}" ${dis}>
+        <button type="button" class="wiz-btn-remove" data-role="cyc-remove" title="Remove cycle" ${dis}>&times;</button>
+      </div>
+      <input class="wiz-skel-cycle-template" data-role="cyc-template"
+             placeholder="Template — the shared design brief every member follows (e.g. 'A dual land that taps for two colours and …')"
+             value="${escAttr(c.template || '')}" ${dis}>`;
+    item.querySelectorAll('input, select').forEach(el => {
+      el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => setKnobsDirty(true));
+    });
+    // Lands have no mana value — zero the CMC when the type flips to land.
+    const typeSel = item.querySelector('[data-role="cyc-type"]');
+    const cmcInput = item.querySelector('[data-role="cyc-cmc"]');
+    typeSel.addEventListener('change', () => {
+      if (typeSel.value === 'land') cmcInput.value = 0;
+    });
+    item.querySelector('[data-role="cyc-remove"]').addEventListener('click', () => {
+      item.remove();
+      setKnobsDirty(true);
+    });
+    return item;
+  }
+
+  function onAddCycle() {
+    const root = bodyRoot();
+    const list = root && root.querySelector('[data-role="cycle-list"]');
+    if (!list) return;
+    const firstSpan = (local.cycleOptions && local.cycleOptions.spans && local.cycleOptions.spans[0]
+      && local.cycleOptions.spans[0].value) || 'mono5';
+    const row = cycleRow(
+      { id: newCycleId(), name: '', span: firstSpan, rarity: 'uncommon', card_type: 'creature', cmc_target: 3, template: '' },
+      false,
+    );
+    list.appendChild(row);
+    setKnobsDirty(true);
+    const name = row.querySelector('[data-role="cyc-name"]');
+    if (name) name.focus();
+  }
+
+  // Read the cycle rows back into Cycle dicts for the knobs payload. The DOM is
+  // authoritative while editing; rows with no name are dropped (a stray Add).
+  // Falls back to the model when the editor isn't painted (past tab / pre-mount).
+  function collectCycles() {
+    const root = bodyRoot();
+    const list = root && root.querySelector('[data-role="cycle-list"]');
+    if (!list) return local.cycles || [];
+    const out = [];
+    list.querySelectorAll('.wiz-skel-cycle-item').forEach(item => {
+      const name = item.querySelector('[data-role="cyc-name"]').value.trim();
+      if (!name) return;
+      out.push({
+        id: item.dataset.cycleId,
+        name,
+        span: item.querySelector('[data-role="cyc-span"]').value,
+        rarity: item.querySelector('[data-role="cyc-rarity"]').value,
+        card_type: item.querySelector('[data-role="cyc-type"]').value,
+        cmc_target: Number(item.querySelector('[data-role="cyc-cmc"]').value) || 0,
+        template: item.querySelector('[data-role="cyc-template"]').value.trim(),
+      });
+    });
+    return out;
+  }
+
+  function newCycleId() {
+    return 'cyc-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
   }
 
   function groupHtml(group, specs, disabled) {
@@ -241,6 +369,7 @@
           local.knobs[key] = input.value === '' ? null : Number(input.value);
           local.knobs.provenance = local.knobs.provenance || {};
           local.knobs.provenance[key] = 'user';  // §5 provenance: hand edit
+          setKnobsDirty(true);
         });
       }
       if (pin) {
@@ -250,10 +379,18 @@
         });
       }
     });
-    const apply = slot.querySelector('[data-role="knob-apply"]');
-    if (apply) apply.onclick = onApplyKnobs;
-    const tune = slot.querySelector('[data-role="knob-tune"]');
-    if (tune) tune.onclick = onTuneKnobs;
+    const refresh = slot.querySelector('[data-role="knob-refresh"]');
+    if (refresh) refresh.onclick = onKnobsRefresh;
+  }
+
+  // Show/hide the "knob edits pending" hint. A hand-edited knob doesn't rebuild
+  // the skeleton until the next Refresh, so flag that the grid is now stale.
+  function setKnobsDirty(dirty) {
+    local.knobsDirty = !!dirty;
+    const root = bodyRoot();
+    if (!root) return;
+    const note = root.querySelector('[data-role="knob-pending"]');
+    if (note) note.hidden = !local.knobsDirty;
   }
 
   function knobValuesPayload() {
@@ -261,51 +398,41 @@
     local.knobSpecs.forEach(s => { values[s.key] = local.knobs[s.key]; });
     return {
       knobs: values,
-      cycles: local.cycles,
+      cycles: collectCycles(),
       pinned: local.knobs.pinned || [],
       provenance: local.knobs.provenance || {},
     };
   }
 
-  async function onApplyKnobs() {
+  // Step 1 refresh: re-tune the structural knobs with AI (honoring pins), then
+  // cascade into a skeleton rebuild + relabel — mirrors the Theme tab's "refresh
+  // the top level and the sub-levels refresh too" pattern.
+  async function onKnobsRefresh() {
     if (local.locked) return;
     if (local.hasTweaked && !confirm(
-        'Rebuilding the skeleton from these knobs discards the current relabel. Continue?')) {
+        'Re-tune the knobs with AI, then rebuild + relabel the skeleton? '
+        + 'Your inline edits will be replaced.')) {
       return;
     }
     setLocked(true);
-    if (W.showBusy) W.showBusy('Rebuilding skeleton from knobs…');
+    if (W.showBusy) W.showBusy('Tuning structural knobs with AI…');
+    const root = bodyRoot();
     try {
-      const resp = await W.postJSON('/api/wizard/skeleton/knobs', knobValuesPayload());
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) return reportError(resp, data, 'Apply knobs failed');
-      applyKnobsResponse(data);
-      W.toast((data.warnings || []).length
-        ? 'Skeleton rebuilt (some values clamped). Relabel to re-theme.'
-        : 'Skeleton rebuilt from knobs. Relabel to re-theme.',
-        (data.warnings || []).length ? 'warn' : 'success');
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      if (W.clearBusy) W.clearBusy();
-      setLocked(false);
-    }
-  }
-
-  async function onTuneKnobs() {
-    if (local.locked) return;
-    setLocked(true);
-    if (W.showBusy) W.showBusy('Tuning the skeleton to the set…');
-    try {
-      const resp = await W.postJSON('/api/wizard/skeleton/knobs/tune', {});
+      // Phase 0 — AI tune + deterministic rebuild. The tab's current knob values
+      // go up as the tuner base, so unsaved hand-edits + pins are respected.
+      const resp = await W.postJSON('/api/wizard/skeleton/knobs/tune', knobValuesPayload());
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) return reportError(resp, data, 'Tune failed');
       applyKnobsResponse(data);
       W.toast(data.defaulted
-        ? 'AI tuning unavailable — defaults kept.'
-        : 'Knobs re-tuned to the set. Relabel to re-theme.',
+        ? 'AI tuning unavailable — base knobs kept.'
+        : 'Knobs re-tuned to the set.',
         data.defaulted ? 'warn' : 'success');
+      // Phase 2 — cascade into the relabel over the freshly rebuilt skeleton.
+      if (W.showBusy) W.showBusy('Relabeling skeleton…');
+      await runRelabel(root);
     } catch (err) {
+      local.streaming = false;
       W.toast('Network error: ' + err.message, 'error');
     } finally {
       if (W.clearBusy) W.clearBusy();
@@ -320,9 +447,11 @@
     if (data.knobs) local.knobs = data.knobs;
     if (Array.isArray(data.knob_specs)) local.knobSpecs = data.knob_specs;
     if (Array.isArray(data.cycles)) local.cycles = data.cycles;
+    if (data.cycle_options) local.cycleOptions = data.cycle_options;
     local.knobsDefaulted = !!data.knobs_defaulted;
     local.knobWarnings = Array.isArray(data.warnings) ? data.warnings : [];
     local.hasTweaked = local.slots.some(s => isChanged(s));
+    local.knobsDirty = false;  // the rebuild consumed the current knob values
     const root = bodyRoot();
     if (!root) return;
     paintSummary(root, W.getState());
@@ -341,12 +470,10 @@
     if (!slot) return;
     const sp = local.setParams;
     const isPast = isPastTab(state);
-    const label = local.hasTweaked ? 'Re-relabel AI…' : 'Relabel with AI';
+    const label = 'Refresh…';
     const title = isPast
       ? 'Use Edit above to revise a past skeleton.'
-      : (local.hasTweaked
-        ? 'Re-run the LLM relabel + request placement. Your inline edits are replaced.'
-        : 'Run the LLM relabel + request placement now.');
+      : 'Rebuild the skeleton from the current knobs, then re-run the LLM relabel. Your inline edits are replaced.';
     const changed = local.slots.filter(s => isChanged(s)).length;
     const placed = local.slots.filter(s => s.reserved_card).length;
     // While streaming, "Relabeled" tracks slots that have arrived this run so
@@ -361,17 +488,16 @@
     const banner = (local.incomplete && !local.streaming)
       ? `<div class="wiz-skel-incomplete">⚠ The relabel finished incomplete — some slots kept their
          default descriptor. The partial result is saved; edit them inline or
-         <strong>${escHtml(local.hasTweaked ? 'Re-relabel AI…' : 'Relabel with AI')}</strong>
-         to try filling the rest.</div>`
+         <strong>Refresh…</strong> to try filling the rest.</div>`
       : '';
     slot.innerHTML = `
       <div class="wiz-theme-section-header-row">
-        <h3 style="margin:0">Default → tweaked skeleton ${pill}</h3>
+        <h3 style="margin:0">Step 2 · Skeleton ${pill}</h3>
         <button type="button" class="wiz-btn-secondary wiz-refresh-btn"
                 data-role="skel-refresh"
                 title="${escAttr(title)}" ${isPast || aiBusy() ? 'disabled' : ''}>${escHtml(label)}</button>
       </div>
-      <p class="wiz-skel-blurb">The deterministic default skeleton, each slot rewritten by the LLM to fit the set. Changed parts are highlighted; edit any tweaked line, then continue.</p>
+      <p class="wiz-theme-section-desc">The deterministic skeleton built from the knobs above, each slot rewritten by the LLM to fit the set. Refresh rebuilds it from the current knobs and re-themes it; changed parts are highlighted, and you can edit any tweaked line before continuing.</p>
       ${banner}
       <dl class="wiz-skel-context">
         <dt>Set</dt><dd>${escHtml(sp.set_name || '(unnamed)')}</dd>
@@ -383,7 +509,7 @@
       ${local.themeSummary ? `<details class="wiz-skel-theme-preview"><summary>Theme excerpt</summary><div class="wiz-skel-theme-text">${escHtml(local.themeSummary)}</div></details>` : ''}
     `;
     const btn = slot.querySelector('[data-role="skel-refresh"]');
-    if (btn) btn.onclick = () => onRefresh();
+    if (btn) btn.onclick = () => onSkeletonRefresh();
   }
 
   // ----------------------------------------------------------------------
@@ -618,45 +744,33 @@
   }
 
   // ----------------------------------------------------------------------
-  // Refresh — re-run the relabel
+  // Refresh — Step 2 (rebuild + relabel) + the shared relabel call
   // ----------------------------------------------------------------------
 
-  async function onRefresh() {
+  // Step 2 refresh: rebuild the deterministic skeleton from the CURRENT knob
+  // values, then run the LLM relabel over it. Two awaited calls (not one combined
+  // endpoint) so local.slots holds the rebuilt matrix before the relabel streams,
+  // letting each slot's live update land in the right row.
+  async function onSkeletonRefresh() {
     if (local.locked) return;
-    if (local.hasTweaked
-        && !confirm('Re-run the LLM relabel? Your inline edits will be replaced.')) {
+    if (local.hasTweaked && !confirm(
+        'Rebuild the skeleton from the current knobs and re-run the LLM relabel? '
+        + 'Your inline edits will be replaced.')) {
       return;
     }
     setLocked(true);
-    if (W.showBusy) W.showBusy(local.hasTweaked ? 'Re-relabeling skeleton…' : 'Relabeling skeleton…');
+    if (W.showBusy) W.showBusy('Rebuilding skeleton from knobs…');
     const root = bodyRoot();
-    paintGrid(root, W.getState());
     try {
-      const resp = await W.postJSON('/api/wizard/skeleton/refresh', {});
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        // The live stream (if any started) never reached done — settle it here
-        // so the grid doesn't stay dimmed, then surface the error.
-        local.streaming = false;
-        paintSummary(root, W.getState());
-        paintGrid(root, W.getState());
-        return reportError(resp, data, 'Relabel failed');
-      }
-      // Authoritative final state. The skeleton_relabel_done SSE event also
-      // settled the live view; applying the response slots reconciles any drift.
-      local.streaming = false;
-      local.incomplete = !!data.incomplete;
-      applySlots(data.slots);
-      if (data.model_id) local.modelId = data.model_id;
-      paintSummary(root, W.getState());
-      paintGrid(root, W.getState());
-      paintFooter(getFooter(root), W.getState());
-      W.toast(
-        data.incomplete
-          ? 'Skeleton relabeled (incomplete — some slots kept their default).'
-          : 'Skeleton relabeled.',
-        data.incomplete ? 'warn' : 'success',
-      );
+      // Phase 1 — deterministic rebuild from the current knobs (no AI lock).
+      const kResp = await W.postJSON('/api/wizard/skeleton/knobs', knobValuesPayload());
+      const kData = await kResp.json().catch(() => ({}));
+      if (!kResp.ok) return reportError(kResp, kData, 'Rebuild failed');
+      applyKnobsResponse(kData);
+      if ((kData.warnings || []).length) W.toast('Some knob values were clamped.', 'warn');
+      // Phase 2 — LLM relabel over the rebuilt skeleton (streams slots live).
+      if (W.showBusy) W.showBusy('Relabeling skeleton…');
+      await runRelabel(root);
     } catch (err) {
       local.streaming = false;
       W.toast('Network error: ' + err.message, 'error');
@@ -664,6 +778,38 @@
       if (W.clearBusy) W.clearBusy();
       setLocked(false);
     }
+  }
+
+  // POST the relabel and reconcile to its authoritative response. The SSE stream
+  // (skeleton_relabel_reset / _slot / _done) paints slots live meanwhile; this is
+  // the final state the tab settles to. Shared by Step 2 and the Step 1 cascade.
+  // The caller owns the AI lock (setLocked) + busy strip.
+  async function runRelabel(root) {
+    const resp = await W.postJSON('/api/wizard/skeleton/refresh', {});
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      // The live stream (if any started) never reached done — settle it here so
+      // the grid doesn't stay dimmed, then surface the error.
+      local.streaming = false;
+      paintSummary(root, W.getState());
+      paintGrid(root, W.getState());
+      return reportError(resp, data, 'Relabel failed');
+    }
+    // Authoritative final state. The skeleton_relabel_done SSE event also settled
+    // the live view; applying the response slots reconciles any drift.
+    local.streaming = false;
+    local.incomplete = !!data.incomplete;
+    applySlots(data.slots);
+    if (data.model_id) local.modelId = data.model_id;
+    paintSummary(root, W.getState());
+    paintGrid(root, W.getState());
+    paintFooter(getFooter(root), W.getState());
+    W.toast(
+      data.incomplete
+        ? 'Skeleton relabeled (incomplete — some slots kept their default).'
+        : 'Skeleton relabeled.',
+      data.incomplete ? 'warn' : 'success',
+    );
   }
 
   function reportError(resp, data, fallback) {
@@ -776,8 +922,9 @@
     const locked = aiBusy();
     root.classList.toggle('wiz-skel-locked', locked);
     root.querySelectorAll(
-      '.wiz-skel-tweak, [data-role="skel-refresh"], [data-role="knob-input"], '
-      + '[data-role="knob-pin"], [data-role="knob-apply"], [data-role="knob-tune"]'
+      '.wiz-skel-tweak, [data-role="skel-refresh"], [data-role="knob-refresh"], '
+      + '[data-role="knob-input"], [data-role="knob-pin"], [data-role="cycle-add"], '
+      + '.wiz-skel-cycle-item input, .wiz-skel-cycle-item select, .wiz-skel-cycle-item button'
     ).forEach(el => {
       el.disabled = locked;
     });
