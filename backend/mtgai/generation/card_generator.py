@@ -464,18 +464,26 @@ def _save_batch_log(
 
 
 def _card_one_liner(raw: dict) -> str:
-    """Format a card as a compact one-liner for console output."""
-    name = raw.get("name", "???")
-    cost = raw.get("mana_cost", "")
-    tl = raw.get("type_line", "")
+    """Format a card as a compact one-liner for console output.
+
+    Defensive on every field — this is a log helper called from retry paths
+    and must never raise. The LLM sometimes emits ``oracle_text: null``
+    (instead of an empty string) on a retry response, and an unguarded
+    ``oracle[:60]`` crashed the whole card_gen stage with
+    ``'NoneType' object is not subscriptable``. Coerce every value to a
+    string first.
+    """
+    name = raw.get("name") or "???"
+    cost = raw.get("mana_cost") or ""
+    tl = raw.get("type_line") or ""
     p = raw.get("power")
     t = raw.get("toughness")
-    oracle = raw.get("oracle_text", "")
+    oracle = raw.get("oracle_text") or ""
     # Truncate oracle to 60 chars
-    oracle_short = oracle[:60].replace("\n", " | ")
-    if len(oracle) > 60:
+    oracle_short = str(oracle)[:60].replace("\n", " | ")
+    if len(str(oracle)) > 60:
         oracle_short += "..."
-    pt = f" {p}/{t}" if p is not None else ""
+    pt = f" {p}/{t}" if p is not None and t is not None else ""
     return f"{name} {cost} — {tl}{pt} — {oracle_short}"
 
 

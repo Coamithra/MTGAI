@@ -13,7 +13,7 @@ helpers the cycle-sort redesign introduced:
 
 from __future__ import annotations
 
-from mtgai.generation.card_generator import group_slots_into_batches
+from mtgai.generation.card_generator import _card_one_liner, group_slots_into_batches
 from mtgai.generation.prompts import build_user_prompt, format_cycle_siblings
 
 
@@ -188,3 +188,36 @@ def test_build_user_prompt_threads_cycle_siblings_when_passed() -> None:
     assert "SIBLING CYCLE MEMBERS" in with_siblings
     assert "Azorius Gate enters the battlefield tapped." in with_siblings
     assert "SIBLING CYCLE MEMBERS" not in without
+
+
+# ---------------------------------------------------------------------------
+# _card_one_liner — log helper, must never raise
+# ---------------------------------------------------------------------------
+
+
+def test_card_one_liner_tolerates_none_oracle_text() -> None:
+    """An LLM retry once returned ``oracle_text: null`` and the unguarded
+    ``oracle[:60]`` crashed the whole card_gen stage with ``'NoneType' object
+    is not subscriptable``. This helper is just a log line — never raise."""
+    # The original crash repro: oracle_text is explicitly None.
+    out = _card_one_liner({"name": "Autobot Defender", "oracle_text": None})
+    assert "Autobot Defender" in out
+    # An entirely empty dict shouldn't raise either (missing every field).
+    assert _card_one_liner({}) is not None
+    # P/T defends against half-set fields (power without toughness, etc.).
+    assert "1/" not in _card_one_liner({"name": "X", "power": "1"})
+
+
+def test_card_one_liner_preserves_full_card_shape() -> None:
+    """Sanity check that the happy-path output didn't regress after the
+    defensive coercion (None → "" for every str field)."""
+    out = _card_one_liner({
+        "name": "Lightning Bolt",
+        "mana_cost": "{R}",
+        "type_line": "Instant",
+        "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+    })
+    assert "Lightning Bolt" in out
+    assert "{R}" in out
+    assert "Instant" in out
+    assert "deals 3 damage" in out
