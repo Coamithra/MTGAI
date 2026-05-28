@@ -96,8 +96,9 @@ def test_build_visual_reference_prompts_substitutes_fields() -> None:
     # Only setting-specific creature types are surfaced, not standard MTG ones.
     assert "Moktar" in sys_prompt and "Automaton" in sys_prompt
     assert "Human" not in sys_prompt.split("creature types")[-1].split("\n\n")[0]
-    # Constraints thread in.
-    assert "ceremonial insignia" in sys_prompt
+    # Constraints are intentionally NOT threaded into this prompt — visual
+    # refs care about appearance, not mechanical constraints.
+    assert "ceremonial insignia" not in sys_prompt
     # User prompt is the static template.
     assert "visual_motifs" in user_prompt
 
@@ -112,7 +113,6 @@ def test_build_visual_reference_prompts_handles_missing_blocks() -> None:
     # Optional blocks fall back to placeholders, not KeyError.
     assert "no named characters" in sys_prompt
     assert "no setting-specific creature types" in sys_prompt
-    assert "no special constraints" in sys_prompt
 
 
 def test_creature_types_block_accepts_flat_list() -> None:

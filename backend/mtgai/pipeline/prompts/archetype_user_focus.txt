@@ -3,7 +3,6 @@ Redesign {focus_count} of this set's two-color draft archetypes — specifically
 {existing_block}
 
 Rules:
-- Return ONE archetype for EACH requested pair, using the exact two-letter `color_pair` code. Do NOT return archetypes for any other pair.
-- Each new design must be DISTINCT from the already-designed archetypes shown above — a genuinely different gameplan, not a re-skin of a neighbouring guild and not a near-copy of the version being replaced.
-- For each, provide just: a flavorful `name` rooted in the setting, and a free-text `description` that leads with the WIN CONDITION (how a deck drafting this pair closes the game) then how it's built to get there. Weave in a mechanic leaning or a key enabler card only where it genuinely applies. Pace/speed is inherent in the gameplan — don't state it separately.
-- Each must be draftable in a {set_size}-card Limited environment — supported by enough commons and uncommons to be a real deck.
+- Return ONE archetype per requested pair (use the exact two-letter `color_pair`), and NONE for any other pair.
+- Each new design must be DISTINCT from the archetypes shown above — a genuinely different gameplan, not a re-skin of a neighbour and not a near-copy of the version being replaced.
+- Follow the system-prompt design rules for `name` and `description`.

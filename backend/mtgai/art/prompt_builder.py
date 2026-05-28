@@ -25,6 +25,7 @@ from pathlib import Path
 from mtgai.art.visual_reference import (
     detect_named_characters,
     get_flux_replacements,
+    get_refs,
     get_visual_references,
 )
 from mtgai.generation.llm_client import generate_with_tool
@@ -37,56 +38,79 @@ logger = logging.getLogger(__name__)
 OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
 
 # ---------------------------------------------------------------------------
-# Style lines — one concise line per color, appended after the subject
+# Style lines — composition + palette per color, plus a set-wide motif suffix
+# pulled from the active project's visual-references.json (``visual_motifs``).
+# The per-color half stays hardcoded (composition shape, lighting direction,
+# palette differentiate by card color regardless of setting); the set-wide
+# flavour half is data-driven so every project gets its own aesthetic.
 # ---------------------------------------------------------------------------
 
-STYLE_LINES: dict[str, str] = {
+COLOR_COMPOSITION: dict[str, str] = {
     "W": (
         "Stylized digital illustration, structured balanced composition, "
-        "warm sandstone and ivory tones, golden-hour lighting with long shadows, "
-        "post-apocalyptic science-fantasy setting"
+        "warm sandstone and ivory tones, golden-hour lighting with long shadows"
     ),
     "U": (
         "Stylized digital illustration, geometric composition, "
-        "cool steel-blue and teal palette, screen-glow lighting, "
-        "post-apocalyptic science-fantasy setting"
+        "cool steel-blue and teal palette, screen-glow lighting"
     ),
     "B": (
         "Stylized digital illustration, heavy shadows with minimal light, "
-        "organic textures and wet surfaces, unsettling asymmetry, "
-        "post-apocalyptic science-fantasy setting"
+        "organic textures and wet surfaces, unsettling asymmetry"
     ),
     "R": (
         "Stylized digital illustration, dynamic tilted composition, "
-        "warm fire-tones with high contrast, kinetic energy, "
-        "post-apocalyptic science-fantasy setting"
+        "warm fire-tones with high contrast, kinetic energy"
     ),
     "G": (
         "Stylized digital illustration, wide naturalist composition, "
-        "rich earth tones with dappled light, layered depth, "
-        "post-apocalyptic science-fantasy setting"
+        "rich earth tones with dappled light, layered depth"
     ),
     "COLORLESS": (
         "Stylized digital illustration, centered object-focused composition, "
-        "self-illuminated subject against dark background, "
-        "ancient technology aesthetic"
+        "self-illuminated subject against dark background"
     ),
     "LAND": (
         "Stylized digital illustration, panoramic landscape, "
-        "dramatic atmospheric perspective, concept-art establishing shot, "
-        "post-apocalyptic science-fantasy setting"
+        "dramatic atmospheric perspective, concept-art establishing shot"
     ),
 }
 
 
+def _motifs_suffix() -> str:
+    """Return a ", motif, motif, motif" suffix from the active project's
+    ``visual_motifs``, or "" if none are available.
+
+    Capped at 3 motifs to stay inside Flux's 30-80-word sweet spot once
+    concatenated with the per-color composition line and the subject
+    description.
+    """
+    try:
+        refs = get_refs()
+    except Exception:
+        # No active project or no refs file — fall back to the bare composition.
+        return ""
+    motifs = refs.get("visual_motifs") or []
+    motifs = [str(m).strip() for m in motifs if str(m).strip()]
+    if not motifs:
+        return ""
+    return ", " + ", ".join(motifs[:3])
+
+
 def get_style_line(card: Card) -> str:
-    """Select the one-line style directive based on card colors and type."""
+    """Select the one-line style directive based on card colors and type.
+
+    Combines a per-color composition base (palette, lighting, framing) with
+    the set's ``visual_motifs`` so the prompt carries the project's aesthetic
+    instead of a hardcoded one.
+    """
     if "Land" in card.type_line:
-        return STYLE_LINES["LAND"]
-    if not card.colors:
-        return STYLE_LINES["COLORLESS"]
-    primary = card.colors[0]
-    return STYLE_LINES.get(primary, STYLE_LINES["COLORLESS"])
+        base = COLOR_COMPOSITION["LAND"]
+    elif not card.colors:
+        base = COLOR_COMPOSITION["COLORLESS"]
+    else:
+        base = COLOR_COMPOSITION.get(card.colors[0], COLOR_COMPOSITION["COLORLESS"])
+    return base + _motifs_suffix()
 
 
 # ---------------------------------------------------------------------------

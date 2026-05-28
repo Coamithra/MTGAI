@@ -2,10 +2,4 @@ Review this mechanic:
 
 {mechanic_block}
 
-Use the `review_mechanic` tool. If the mechanic is sound and the examples are correct, submit it unchanged with `review_notes: ""`. Otherwise, submit the revised version with a one-or-two-sentence `review_notes` summary of what you fixed.
-
-Reminder of the constraints you must respect:
-- Do not rename the mechanic.
-- Do not change the rarity distribution or keyword_type.
-- Adjust colors only if the effect is outside the pie in every assigned color.
-- Examples must use the mechanic by name and follow valid MTG templating; rewrite any that don't.
+Use the `review_mechanic` tool — submit unchanged with `review_notes: ""` if it's sound, otherwise submit the revised version with a one-or-two-sentence `review_notes` summary of what you fixed. Respect the "What NOT to change" rules in the system prompt.

@@ -9,7 +9,8 @@ and the sidecar generators that the wizard's save handler invokes.
 Templates live next door:
 
 * ``mtgai/pipeline/prompts/mechanic_system.txt`` — system prompt
-* ``mtgai/pipeline/prompts/mechanic_user.txt``   — user prompt
+* ``mtgai/pipeline/prompts/mechanic_user_single.txt`` — per-call user prompt
+  (one mechanic at a time, threading the already-accepted ones)
 * ``mtgai/pipeline/templates/mtg_known_keywords.json`` — collision list
 * ``mtgai/pipeline/templates/evergreen_keywords.json`` — per-color defaults
 * ``mtgai/pipeline/templates/pointed_questions.json``  — review questions
@@ -403,19 +404,23 @@ def _format_excluded_keywords(known: dict) -> str:
     return ", ".join(out)
 
 
-def build_mechanic_prompts(
+def build_mechanic_system_prompt(
     theme: dict,
     set_name: str,
     set_size: int,
     mechanic_count: int,
-) -> tuple[str, str]:
-    """Render the mechanic-generation system + user prompts from theme + params."""
+) -> str:
+    """Render the mechanic-generation system prompt from theme + params.
+
+    The user prompt is built per-call by :func:`build_single_mechanic_user_prompt`
+    (one mechanic at a time, threading the already-accepted ones); only the
+    system prompt is shared across the loop and worth caching.
+    """
     sys_template = _read_template("mechanic_system.txt")
-    user_template = _read_template("mechanic_user.txt")
     known = load_known_keywords()
     expected_density = _expected_mechanic_density(set_size, mechanic_count)
 
-    system_prompt = sys_template.format(
+    return sys_template.format(
         set_name=set_name or "(unnamed set)",
         set_size=set_size,
         mechanic_count=mechanic_count,
@@ -427,12 +432,6 @@ def build_mechanic_prompts(
         excluded_keywords=_format_excluded_keywords(known),
         expected_mechanic_density=expected_density,
     )
-    user_prompt = user_template.format(
-        mechanic_count=mechanic_count,
-        set_size=set_size,
-        expected_mechanic_density=expected_density,
-    )
-    return system_prompt, user_prompt
 
 
 def _format_candidate_digest(candidates: list[dict]) -> str:
@@ -1061,9 +1060,8 @@ def generate_mechanic_candidates(
 
     # System prompt (theme/flavor/constraints) is stable across the whole
     # loop and prompt-cache-friendly; only the per-call user prompt varies,
-    # threading the already-accepted mechanics. We discard the batch user
-    # prompt build_mechanic_prompts returns and build a single-mechanic one.
-    system_prompt, _ = build_mechanic_prompts(
+    # threading the already-accepted mechanics.
+    system_prompt = build_mechanic_system_prompt(
         theme=theme,
         set_name=sp.set_name or project.set_code or "Custom Set",
         set_size=sp.set_size,

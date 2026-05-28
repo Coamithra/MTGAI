@@ -1,12 +1,1 @@
-Design the ten two-color draft archetypes for this set — one for each color pair, in WUBRG guild order (WU, WB, WR, WG, UB, UR, UG, BR, BG, RG).
-
-For each archetype provide just these fields:
-- `color_pair`: the exact two-letter pair code.
-- `name`: a flavorful archetype name rooted in the setting.
-- `description`: free-text intent. Lead with the WIN CONDITION — how a deck drafting this pair actually closes the game — then how it's built to get there. Where they genuinely apply, weave in: whether the deck leans heavily on one of the approved set mechanics, and whether it hinges on a particular key enabler card. Pace/speed is inherent in the gameplan you describe, so don't state it separately.
-
-Think about:
-1. How each pair's identity flows from the set's flavor and approved mechanics.
-2. Keeping the ten archetypes distinct in plan and pace.
-
-Return exactly ten archetypes, one per color pair.
+Design the ten two-color draft archetypes for this set — one per color pair, in WUBRG guild order (WU, WB, WR, WG, UB, UR, UG, BR, BG, RG). Follow the system-prompt design rules; keep the ten distinct in plan and pace.

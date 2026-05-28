@@ -194,17 +194,6 @@ def _format_creature_types_block(creature_types: Any) -> str:
     return ", ".join(names) if names else "(no setting-specific creature types called out)"
 
 
-def _format_constraints_block(constraints: Any) -> str:
-    if not constraints:
-        return "(no special constraints)"
-    lines: list[str] = []
-    for c in constraints:
-        text = c.get("text") if isinstance(c, dict) else c
-        if text:
-            lines.append(f"- {text}")
-    return "\n".join(lines) if lines else "(no special constraints)"
-
-
 def build_visual_reference_prompts(theme: dict, set_name: str) -> tuple[str, str]:
     """Render the visual-reference extraction system + user prompts."""
     sys_template = _read_template("visual_references_system.txt")
@@ -215,9 +204,6 @@ def build_visual_reference_prompts(theme: dict, set_name: str) -> tuple[str, str
         setting_block=_format_setting_block(theme),
         characters_block=_format_characters_block(theme),
         creature_types_block=_format_creature_types_block(theme.get("creature_types")),
-        constraints_block=_format_constraints_block(
-            theme.get("constraints") or theme.get("special_constraints") or []
-        ),
     )
     user_prompt = user_template
     return system_prompt, user_prompt

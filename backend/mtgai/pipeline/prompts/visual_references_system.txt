@@ -17,10 +17,6 @@ The downstream art pipeline injects your descriptions into Flux prompts whenever
 
 {creature_types_block}
 
-## Special constraints from the setting
-
-{constraints_block}
-
 ## What to produce
 
 For EACH setting-specific entity, write one entry with:

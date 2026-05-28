@@ -17,11 +17,11 @@ Your output MUST contain ALL SEVEN of these sections, in this exact order, using
 
 # Creature Types
 
-List creature types with DETAILED physical descriptions — enough for an artist to paint them.
+Non-sentient creatures, beasts, and monsters — the bestiary. A creature type goes here only if it is NOT also a sentient race entered under "Races" below (a Dragon, a Beast, a Construct fits here; an Elf or a custom humanoid race does NOT).
 
-Format: creature_name: Full physical description including body type, coloring, size, distinguishing features, clothing/equipment. Be specific about colors, textures, and proportions.
+Format: creature_name: Full physical description — body type, coloring, size, distinguishing features. Be specific about colors, textures, and proportions.
 
-Include both setting-specific creatures AND standard MTG types (Human, Wizard, Soldier, etc.) — describe how they look in THIS setting.
+Include standard MTG beast types (Beast, Wolf, Spirit, …) ONLY when this setting gives them a distinctive look worth painting differently from the generic version. Skip the rest.
 
 # Factions
 
@@ -43,7 +43,7 @@ Format: character_name: Full name and title. Physical appearance in detail (buil
 
 # Races
 
-List sentient races or species, especially non-human ones.
+Sentient peoples and cultures — the "who lives in this world" question. Any race here is automatically also a creature type for card-typing; do NOT also list it under "Creature Types".
 
 Format: race_name: Detailed physical description (skin color, proportions, facial features, height). Cultural notes (where they live, how they organize). How they differ from similar fantasy races.
 

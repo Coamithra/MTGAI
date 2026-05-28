@@ -46,9 +46,9 @@ def _theme_fixture() -> dict:
 # ---------------------------------------------------------------------------
 
 
-def test_build_mechanic_prompts_substitutes_theme_fields() -> None:
+def test_build_mechanic_system_prompt_substitutes_theme_fields() -> None:
     theme = _theme_fixture()
-    sys_prompt, user_prompt = mg.build_mechanic_prompts(
+    sys_prompt = mg.build_mechanic_system_prompt(
         theme=theme,
         set_name="Brass Sky",
         set_size=120,
@@ -62,13 +62,12 @@ def test_build_mechanic_prompts_substitutes_theme_fields() -> None:
     assert "At least 6 artifact creatures" in sys_prompt
     # Mechanic count threads through.
     assert "3" in sys_prompt
-    assert "3" in user_prompt
     # Excluded keywords block surfaces real printed keywords.
     assert "investigate" in sys_prompt.lower()
 
 
-def test_build_mechanic_prompts_handles_missing_optional_blocks() -> None:
-    sys_prompt, _user_prompt = mg.build_mechanic_prompts(
+def test_build_mechanic_system_prompt_handles_missing_optional_blocks() -> None:
+    sys_prompt = mg.build_mechanic_system_prompt(
         theme={"theme": "Bare bones theme."},
         set_name="",
         set_size=60,
@@ -85,26 +84,26 @@ def test_build_mechanic_prompts_handles_missing_optional_blocks() -> None:
     assert "no special constraints" in sys_prompt
 
 
-def test_expected_mechanic_density_lands_in_prompts() -> None:
-    """Density math threads into both prompts as a min-max range string."""
+def test_expected_mechanic_density_lands_in_system_prompt() -> None:
+    """Density math threads into the system prompt as a min-max range string."""
     # 60 cards / (3 * 2) = 10 → "10-20"
-    sys_p, user_p = mg.build_mechanic_prompts(
+    sys_p = mg.build_mechanic_system_prompt(
         theme={"theme": "x"}, set_name="X", set_size=60, mechanic_count=3
     )
-    assert "10-20" in sys_p and "10-20" in user_p
+    assert "10-20" in sys_p
 
     # 120 cards / (4 * 2) = 15 → "15-30"
-    sys_p, user_p = mg.build_mechanic_prompts(
+    sys_p = mg.build_mechanic_system_prompt(
         theme={"theme": "x"}, set_name="X", set_size=120, mechanic_count=4
     )
-    assert "15-30" in sys_p and "15-30" in user_p
+    assert "15-30" in sys_p
 
     # Zero mechanic_count falls back to a default range — divide-by-zero
-    # would otherwise crash the user prompt template.
-    sys_p, user_p = mg.build_mechanic_prompts(
+    # would otherwise crash the prompt template.
+    sys_p = mg.build_mechanic_system_prompt(
         theme={"theme": "x"}, set_name="X", set_size=60, mechanic_count=0
     )
-    assert "6-10" in sys_p and "6-10" in user_p
+    assert "6-10" in sys_p
 
 
 # ---------------------------------------------------------------------------

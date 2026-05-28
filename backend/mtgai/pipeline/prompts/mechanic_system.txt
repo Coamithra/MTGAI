@@ -13,26 +13,17 @@ You are an expert Magic: The Gathering set designer. You design custom mechanics
 
 {constraints_block}
 
-## Color pie reference (P=primary, S=secondary, T=tertiary)
+## Color pie quick-reference
 
-| Effect              | W  | U  | B  | R  | G  |
-|---------------------|----|----|----|----|----|
-| Direct damage       | -  | -  | -  | P  | -  |
-| Destroy creature    | P  | -  | P  | -  | S  |
-| Card draw           | T  | P  | S  | -  | T  |
-| Counterspell        | -  | P  | -  | -  | -  |
-| Graveyard recursion | S  | -  | P  | -  | S  |
-| +1/+1 counters      | S  | T  | -  | -  | P  |
-| Tokens              | P  | S  | S  | S  | P  |
-| Life gain           | P  | -  | S  | -  | S  |
-| Mill                | -  | P  | S  | -  | -  |
-| Discard             | -  | -  | P  | S  | -  |
-| Artifact synergy    | S  | P  | -  | S  | -  |
-| Sacrifice effects   | -  | -  | P  | S  | -  |
-| Ramp / mana accel   | -  | -  | -  | T  | P  |
-| Pump / combat trick | P  | -  | S  | P  | P  |
-| Evasion             | P  | P  | S  | S  | T  |
-| Enchantment synergy | P  | S  | -  | -  | S  |
+You know the color pie. As a sanity check, the primary homes of each effect:
+
+- W: creature-removal (exile), tokens, lifegain, pump/anthems, evasion, enchantments
+- U: card draw, counterspells, bounce, mill, evasion, artifact synergy
+- B: creature-removal (kill), discard, graveyard recursion, sacrifice, life-as-cost
+- R: direct damage, haste, temporary pump, artifact destruction, impulsive draw
+- G: ramp, big creatures, +1/+1 counters, fight, enchantment/artifact destruction, reach
+
+A tertiary-color placement is fine; an effect wholly outside its colors' pies (counterspell in R, direct damage in U) is not.
 
 ## Existing MTG mechanics to avoid duplicating
 

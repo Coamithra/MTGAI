@@ -24,26 +24,7 @@ A trailing `cycle:<name> (colors)` (e.g. `cycle:Energon Sources (WG)`) marks a s
 
 You are the only step that sees the whole set at once, so your job is the whole-set stuff: the properties that are about AMOUNTS — "a lot of X", "half are Y", "at least N Z", "no mechanic on more than ~a fifth". You can see every slot, so count them and tag the right number to make those amounts come true. Add a tag or short note to a line only when a constraint needs it.
 
-Toy example —
-
-normal:
-  creature, enchantment, instant, creature, artifact, creature, sorcery
-
-constraints: lots of creatures; half of them are spiders
-
-output:
-  creature (spider), creature, instant, creature (spider), artifact, creature, creature (spider)
-
-That's the whole idea: take the normal set, bend the counts to fit, annotate where a constraint requires it. Each input line becomes one output block (full format under "Output format" below). So the input line
-
-  0117: Blue · common · instant · CMC2 · complex
-
-is rewritten and emitted as
-
-  --CARD 0117--
-  Blue · common · instant · CMC2 · <one of this set's mechanics> · UR
-
-where the generic "complex" tier was swapped for one of the set's actual NAMED mechanics (use the real names from the Mechanics list — the angle brackets are just a placeholder) and the line was tagged for that card's colour-pair archetype (UR here).
+Toy example — normal: `creature, enchantment, instant, creature, artifact, creature, sorcery` with constraint "lots of creatures, half are spiders" becomes `creature (spider), creature, instant, creature (spider), artifact, creature, creature (spider)`. Take the normal set, bend the counts to fit, annotate where a constraint requires it.
 
 Stay in your lane:
 
@@ -60,18 +41,12 @@ After the ` · ` line you may add a parenthesised note — `(...)` — and it is
 
 Rules:
 
-- One rewritten line per input slot, same slot_id. Never add or drop slots — the count is fixed.
 - Keep the `Color · rarity · type · CMCn · mechanic` shape (any field may change), then any tags/notes after it.
 - The ` · ` fields stay role-level — no finished ability text or rules wording *in the structured fields*, and no invented card names. (Spell out design intent in the free-text note instead.)
 
 ## Output format
 
-Output PLAIN TEXT — no JSON, no preamble, no commentary. Emit one block per slot:
-
-  --CARD <slot_id>--
-  Color · rarity · type · CMCn · mechanic (optional free-text notes)
-
-The `<slot_id>` on the header line is the slot's number copied EXACTLY from the input (e.g. `--CARD 0042--`), and the next line is that slot's rewritten descriptor. One block per input slot — every slot appears exactly once. For example:
+Output PLAIN TEXT — no JSON, no preamble, no commentary. Emit one block per input slot, every slot appears exactly once, slot_id copied verbatim:
 
   --CARD 0042--
   White · common · creature (type, if relevant) · CMC2 · vanilla (notes: free-text design intent here)
