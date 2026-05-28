@@ -153,6 +153,7 @@ def run_mechanics(
         candidate_count,
         detect_keyword_collisions,
         generate_mechanic_candidates,
+        known_keyword_set,
         persist_mechanic_selection,
         pick_best_mechanics,
     )
@@ -203,6 +204,11 @@ def run_mechanics(
     emitter.init_sections(sections)
     emitter.phase("running", "Calling LLM for mechanic candidates")
 
+    # Per-candidate collision check runs in the ``on_finalized`` hook below so
+    # the wizard can render the warning the moment a finalized candidate
+    # arrives. Built once (loads a template file) and reused across the loop.
+    known_keywords = known_keyword_set()
+
     with ai_lock.hold("Mechanic generation") as acquired:
         if not acquired:
             return StageResult(
@@ -210,8 +216,78 @@ def run_mechanics(
                 error_message="Another AI action holds the lock; try again later.",
             )
 
+        # Pre-allocate the merged candidates list so each finalized mechanic
+        # can be written to candidates.json immediately — mirrors the
+        # refresh-endpoint pattern. Without this, a mid-engine-run F5 on the
+        # Mechanics tab reads an empty candidates.json (or stale) and shows
+        # nothing; with incremental persist the user sees partial progress
+        # on disk that survives reload.
+        merged_engine: list[dict] = [{} for _ in range(pool)]
+
+        # Stream candidates into the wizard as they're produced. Each accepted
+        # draft fires _drafted (pre-review) and then _finalized (post-review);
+        # the wizard replaces the "Reviewing…" placeholder with the final card.
+        # The pool size is the right ``target`` — the strip slots line up.
+        #
+        # Phase events drive the global progress strip in the engine path
+        # (the refresh-path equivalent is wizard_mechanics.js setBusyLabel).
+        # Without per-candidate phase events the strip would freeze on the
+        # initial "Calling LLM for mechanic candidates" / "Mechanic generation"
+        # label for the full ~5-minute Gemma run, looking dead.
+        def _on_reset() -> None:
+            emitter.event("mechanic_candidates_reset", target=pool)
+            emitter.phase("running", f"Generating candidate 1/{pool}")
+
+        def _on_draft(position: int, draft: dict) -> None:
+            # Tag provenance up front so the streamed mechanic carries the
+            # ``_ai_generated`` flag the wizard's edit-cascade contract relies
+            # on (matches the post-loop tagging below).
+            tagged = dict(draft)
+            tagged["_ai_generated"] = True
+            emitter.event(
+                "mechanic_candidate_drafted",
+                position=position,
+                target=pool,
+                candidate=tagged,
+            )
+            emitter.phase("running", f"Reviewing candidate {position}/{pool}")
+
+        def _on_finalized(position: int, mech: dict, review_notes: str) -> None:
+            name = (mech.get("name") or "").strip()
+            collision = name if name and name.lower() in known_keywords else None
+            tagged = dict(mech)
+            tagged["_ai_generated"] = True
+            # Persist incrementally before publishing the SSE event, so a
+            # mid-event F5 always reads a candidates.json that matches the
+            # event the client just received. On a partial-failure run
+            # (below the floor), whatever finalized survives on disk.
+            if 1 <= position <= pool:
+                merged_engine[position - 1] = tagged
+                atomic_write_text(
+                    candidates_path,
+                    json.dumps(merged_engine, indent=2, ensure_ascii=False),
+                )
+            emitter.event(
+                "mechanic_candidate_finalized",
+                position=position,
+                target=pool,
+                candidate=tagged,
+                review_notes=review_notes or "",
+                collision_with=collision,
+            )
+            # Mid-run: telegraph the next candidate's generation. Last slot:
+            # the picker call follows; the existing post-loop phase event
+            # below sets "Selecting the best mechanics" so leave that one
+            # to the existing code path.
+            if position < pool:
+                emitter.phase("running", f"Generating candidate {position + 1}/{pool}")
+
         try:
-            response = generate_mechanic_candidates()
+            response = generate_mechanic_candidates(
+                on_reset=_on_reset,
+                on_draft=_on_draft,
+                on_finalized=_on_finalized,
+            )
         except Exception as exc:
             logger.exception("Mechanic generation failed")
             return StageResult(success=False, error_message=str(exc))

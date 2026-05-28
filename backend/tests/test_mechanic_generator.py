@@ -321,12 +321,67 @@ def _valid_mech(i: int) -> dict:
     }
 
 
+def _tool_name(args, kwargs) -> str:
+    """Extract the ``tool_schema`` name from the call args/kwargs.
+
+    ``generate_with_tool`` is called positionally in some places and by
+    keyword in others; pick the schema out of wherever it lives so the
+    stubs can branch on tool name (generation vs review vs picker).
+    """
+    schema = kwargs.get("tool_schema")
+    # Positional fallback: the schema sits after system_prompt + user_prompt.
+    if schema is None and len(args) >= 3:
+        schema = args[2]
+    return (schema or {}).get("name", "")
+
+
+def _review_passthrough_response(args, kwargs) -> dict:
+    """Echo the mechanic from the review prompt back unchanged, no notes.
+
+    The user prompt's ``mechanic_block`` carries the draft's name on the
+    first line ("Name: <name>"), so we don't need to reconstruct the full
+    object — the generator only requires the review tool to return
+    *something dict-shaped under "mechanic"*. We return the bare minimum
+    that survives the generator's defensive checks: keep the original draft
+    intact by re-using ``_valid_mech`` keyed on the parsed name.
+    """
+    user_prompt = ""
+    if "user_prompt" in kwargs:
+        user_prompt = kwargs["user_prompt"]
+    elif len(args) >= 2:
+        user_prompt = args[1]
+    name = ""
+    for line in (user_prompt or "").splitlines():
+        if line.startswith("Name:"):
+            name = line.split(":", 1)[1].strip()
+            break
+    # The reviewer needs the mechanic in its original schema shape (so the
+    # name+metadata survives), but the loop doesn't care about anything
+    # beyond ``mechanic`` being a dict — _valid_mech(0) is enough to keep
+    # the structure valid.
+    mech = _valid_mech(0)
+    if name:
+        mech["name"] = name
+    return {
+        "result": {"mechanic": mech, "review_notes": ""},
+        "input_tokens": 0,
+        "output_tokens": 0,
+    }
+
+
 def _stub_n_per_call(n: int):
-    """Return ``n`` fresh, distinct mechanics per call (a counter keeps
-    names unique across calls so the dedup loop makes progress)."""
+    """Return ``n`` fresh, distinct mechanics per call to the generation tool.
+
+    Branches on tool name: generation tool returns mechanics; review tool
+    passes through unchanged (no notes). A counter keeps names unique across
+    generation calls so the dedup loop makes progress.
+    """
     counter = {"next": 0}
 
     def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "review_mechanic":
+            return _review_passthrough_response(args, kwargs)
         start = counter["next"]
         counter["next"] += n
         return {
@@ -339,11 +394,15 @@ def _stub_n_per_call(n: int):
 
 
 def _stub_distinct_then_dupes(distinct: int):
-    """Yield ``distinct`` unique mechanics, then keep returning a duplicate
-    so the loop can't make further progress (exercises the floor / cap)."""
+    """Yield ``distinct`` unique mechanics from the generation tool, then keep
+    returning a duplicate so the loop can't make further progress (exercises
+    the floor / cap). Review tool passes through unchanged."""
     counter = {"call": 0}
 
     def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "review_mechanic":
+            return _review_passthrough_response(args, kwargs)
         i = counter["call"]
         counter["call"] += 1
         idx = i if i < distinct else 0  # repeats Mechanic0 once exhausted
@@ -401,6 +460,8 @@ def test_generate_mechanic_candidates_drops_malformed_entries(_project, monkeypa
     # Debris (null name, or example-card-shaped objects lacking mechanic
     # metadata) is dropped; only the well-formed mechanic survives.
     def stub(*args, **kwargs):
+        if _tool_name(args, kwargs) == "review_mechanic":
+            return _review_passthrough_response(args, kwargs)
         return {
             "result": {
                 "mechanics": [
@@ -417,6 +478,164 @@ def test_generate_mechanic_candidates_drops_malformed_entries(_project, monkeypa
     result = mg.generate_mechanic_candidates(count=1)
     assert len(result["mechanics"]) == 1
     assert result["mechanics"][0]["name"] == "Mechanic0"
+
+
+# ---------------------------------------------------------------------------
+# Per-mechanic review pass
+# ---------------------------------------------------------------------------
+
+
+def test_review_mechanic_returns_revised_with_notes(monkeypatch) -> None:
+    """Happy path: reviewer tweaks the draft and returns notes; the helper
+    threads the revised mechanic + notes + token totals through."""
+    draft = _valid_mech(0)
+    revised = dict(draft)
+    revised["reminder_text"] = "(tighter rewrite under 100 chars.)"
+
+    def stub(*args, **kwargs):
+        assert _tool_name(args, kwargs) == "review_mechanic"
+        return {
+            "result": {
+                "mechanic": revised,
+                "review_notes": "Tightened reminder text from 110 → 30 chars.",
+            },
+            "input_tokens": 7,
+            "output_tokens": 12,
+        }
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.review_mechanic(draft, model_id="any-model")
+    assert out["mechanic"]["reminder_text"] == "(tighter rewrite under 100 chars.)"
+    assert "Tightened" in out["review_notes"]
+    assert out["input_tokens"] == 7
+    assert out["output_tokens"] == 12
+
+
+def test_review_mechanic_keeps_draft_on_llm_failure(monkeypatch) -> None:
+    """A bad review pass must never destroy a good draft."""
+    draft = _valid_mech(0)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(mg, "generate_with_tool", boom)
+    out = mg.review_mechanic(draft, model_id="any-model")
+    assert out["mechanic"] is draft  # exact same object — no copy
+    assert out["review_notes"] == ""
+    assert out["input_tokens"] == 0
+
+
+def test_review_mechanic_keeps_draft_on_malformed_response(monkeypatch) -> None:
+    """``mechanic`` missing → fall back to the draft so the loop can proceed."""
+    draft = _valid_mech(0)
+    monkeypatch.setattr(
+        mg,
+        "generate_with_tool",
+        lambda *a, **k: {"result": {"review_notes": "n/a"}, "input_tokens": 3, "output_tokens": 4},
+    )
+    out = mg.review_mechanic(draft, model_id="any-model")
+    assert out["mechanic"] is draft
+    # Tokens still roll up so the cost surfaces accurately even on fallback.
+    assert out["input_tokens"] == 3
+    assert out["output_tokens"] == 4
+
+
+def test_review_mechanic_reverts_rename(monkeypatch) -> None:
+    """The prompt forbids renames; enforce it in code too — a misbehaving local
+    model can't strand the user with a silently-renamed candidate."""
+    draft = _valid_mech(0)
+    renamed = dict(draft)
+    renamed["name"] = "Totally Different Name"
+    monkeypatch.setattr(
+        mg,
+        "generate_with_tool",
+        lambda *a, **k: {
+            "result": {"mechanic": renamed, "review_notes": "Renamed for clarity."},
+            "input_tokens": 1,
+            "output_tokens": 1,
+        },
+    )
+    out = mg.review_mechanic(draft, model_id="any-model")
+    assert out["mechanic"]["name"] == "Mechanic0"  # original wins
+
+
+# ---------------------------------------------------------------------------
+# Streaming hooks on generate_mechanic_candidates
+# ---------------------------------------------------------------------------
+
+
+def test_generate_mechanic_candidates_fires_streaming_hooks(_project, monkeypatch) -> None:
+    """Streaming contract: on_reset fires once at start; on_draft + on_finalized
+    fire in pairs per accepted candidate, in order, with the same position."""
+    monkeypatch.setattr(mg, "generate_with_tool", _stub_n_per_call(1))
+    events: list[tuple[str, int]] = []
+
+    def reset_hook() -> None:
+        events.append(("reset", 0))
+
+    def draft_hook(pos: int, mech: dict) -> None:
+        events.append(("draft", pos))
+
+    def finalized_hook(pos: int, mech: dict, notes: str) -> None:
+        events.append(("finalized", pos))
+
+    result = mg.generate_mechanic_candidates(
+        count=3,
+        on_reset=reset_hook,
+        on_draft=draft_hook,
+        on_finalized=finalized_hook,
+    )
+    assert len(result["mechanics"]) == 3
+    # One reset, then drafted/finalized in order for positions 1, 2, 3.
+    assert events == [
+        ("reset", 0),
+        ("draft", 1),
+        ("finalized", 1),
+        ("draft", 2),
+        ("finalized", 2),
+        ("draft", 3),
+        ("finalized", 3),
+    ]
+
+
+def test_generate_mechanic_candidates_stamps_review_notes(_project, monkeypatch) -> None:
+    """The reviewer's notes (or empty string on no-op) ride on the mechanic
+    so the wizard can surface what was fixed."""
+    counter = {"call": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "review_mechanic":
+            counter["call"] += 1
+            # First review tweaks; second is a no-op (empty notes).
+            notes = "Fixed example card 2." if counter["call"] == 1 else ""
+            user_prompt = kwargs.get("user_prompt", "")
+            name = ""
+            for line in user_prompt.splitlines():
+                if line.startswith("Name:"):
+                    name = line.split(":", 1)[1].strip()
+                    break
+            mech = _valid_mech(0)
+            if name:
+                mech["name"] = name
+            return {
+                "result": {"mechanic": mech, "review_notes": notes},
+                "input_tokens": 0,
+                "output_tokens": 0,
+            }
+        # Generation path: one fresh mechanic per call.
+        idx = counter["call"]  # any unique-enough seed; review counter is separate
+        return {
+            "result": {"mechanics": [_valid_mech(idx + 100)]},
+            "input_tokens": 1,
+            "output_tokens": 1,
+        }
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    result = mg.generate_mechanic_candidates(count=2)
+    assert len(result["mechanics"]) == 2
+    assert result["mechanics"][0]["_review_notes"] == "Fixed example card 2."
+    assert result["mechanics"][1]["_review_notes"] == ""
 
 
 # ---------------------------------------------------------------------------
@@ -512,6 +731,73 @@ def test_pick_best_mechanics_falls_back_on_error(_project, monkeypatch) -> None:
     # Degrades to the first N (mechanic_count=3 from the fixture).
     assert result["picks"] == [0, 1, 2]
     assert result["overall_rationale"] == ""
+
+
+def test_pick_best_mechanics_skips_empty_slots(_project, monkeypatch) -> None:
+    """Empty ``{}`` slots (left over from a failed refresh run) must never end
+    up in the picker's output — picking them lands ``(unnamed)`` in Final picks
+    and produces a junk approved.json. Both the LLM-pick path and the fallback
+    top-up must skip them."""
+    # Pool of 6 with empties at indices 1, 2, 4. Filled at 0, 3, 5.
+    candidates: list[dict] = [
+        _valid_mech(0),
+        {},
+        {},
+        _valid_mech(3),
+        {},
+        _valid_mech(5),
+    ]
+    candidates[0]["name"] = "Alpha"
+    candidates[3]["name"] = "Delta"
+    candidates[5]["name"] = "Foxtrot"
+
+    # LLM picks a mix including an empty (index 2 → candidate_number 3 in
+    # 1-based) — that pick must be dropped and topped up from filled-only.
+    def stub(*args, **kwargs):
+        return {
+            "result": {
+                "selections": [
+                    {"candidate_number": 1, "reason": "alpha"},
+                    {"candidate_number": 3, "reason": "empty pick — invalid"},
+                    {"candidate_number": 4, "reason": "delta"},
+                ],
+                "overall_rationale": "ok",
+            },
+            "input_tokens": 1,
+            "output_tokens": 1,
+        }
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    result = mg.pick_best_mechanics(candidates=candidates)
+    # mechanic_count=3 from fixture; the empty-slot pick was dropped and
+    # the top-up grabbed the next filled slot (index 5 / Foxtrot).
+    assert result["picks"] == [0, 3, 5]
+    assert [s["name"] for s in result["selections"]] == ["Alpha", "Delta", "Foxtrot"]
+
+
+def test_pick_best_mechanics_fallback_skips_empty_slots(_project, monkeypatch) -> None:
+    """When the LLM call itself fails, the fallback also picks only filled
+    candidates (not the first N regardless of content)."""
+    candidates: list[dict] = [
+        {},
+        _valid_mech(1),
+        {},
+        _valid_mech(3),
+        _valid_mech(5),
+        {},
+    ]
+    candidates[1]["name"] = "Bravo"
+    candidates[3]["name"] = "Delta"
+    candidates[4]["name"] = "Echo"
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(mg, "generate_with_tool", boom)
+    result = mg.pick_best_mechanics(candidates=candidates)
+    # Fallback picks the first 3 *filled* slots, skipping empties.
+    assert result["picks"] == [1, 3, 4]
+    assert [s["name"] for s in result["selections"]] == ["Bravo", "Delta", "Echo"]
 
 
 def test_pick_best_mechanics_falls_back_when_no_selections(_project, monkeypatch) -> None:

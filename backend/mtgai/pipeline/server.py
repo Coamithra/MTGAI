@@ -2585,13 +2585,66 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
     except NoAssetFolderError as exc:
         return _no_asset_folder_response(exc)
 
+    # Stream the regenerated candidate into the wizard via the same SSE events
+    # the engine path uses, but rebound to the *one* slot being refreshed:
+    # ``position`` is the slot's 0-based index + 1 so the wizard tab can map it
+    # back to the right row. No reset — a targeted refresh leaves the other
+    # rows alone. ``known_keywords`` is built once outside the LLM call.
+    from mtgai.generation.mechanic_generator import known_keyword_set
+
+    known_keywords = known_keyword_set()
+
+    # Build the merged list up front from the user's snapshot so the on_finalized
+    # callback can mutate + persist it incrementally. Without this, candidates.json
+    # only gets rewritten when the request returns — so a browser F5 mid-run reads
+    # the pre-refresh snapshot and looks like a regression.
+    merged = list(candidates)
+    while len(merged) < pool:
+        merged.append({})
+    merged = merged[:pool]
+
+    def _on_draft(_position: int, draft: dict) -> None:
+        tagged = dict(draft)
+        tagged["_ai_generated"] = True
+        event_bus.publish(
+            "mechanic_candidate_drafted",
+            {"stage_id": "mechanics", "position": idx + 1, "target": pool, "candidate": tagged},
+        )
+
+    def _on_finalized(_position: int, mech: dict, review_notes: str) -> None:
+        name = (mech.get("name") or "").strip()
+        collision = name if name and name.lower() in known_keywords else None
+        tagged = dict(mech)
+        tagged["_ai_generated"] = True
+        # Persist to disk BEFORE publishing the SSE event so a mid-event F5
+        # always sees a candidates.json that matches the event the client
+        # just received.
+        merged[idx] = tagged
+        _write_json(mech_dir / "candidates.json", merged)
+        event_bus.publish(
+            "mechanic_candidate_finalized",
+            {
+                "stage_id": "mechanics",
+                "position": idx + 1,
+                "target": pool,
+                "candidate": tagged,
+                "review_notes": review_notes or "",
+                "collision_with": collision,
+            },
+        )
+
     with ai_lock.hold("Mechanic candidate refresh") as acquired:
         if not acquired:
             return JSONResponse(ai_lock.busy_payload(), status_code=409)
         try:
             # Only the first result is used to replace the one slot — ask
             # for exactly one so we don't run the full top-up loop.
-            response = await asyncio.to_thread(generate_mechanic_candidates, count=1)
+            response = await asyncio.to_thread(
+                generate_mechanic_candidates,
+                count=1,
+                on_draft=_on_draft,
+                on_finalized=_on_finalized,
+            )
         except Exception as exc:
             logger.exception("Refresh-card LLM call failed")
             return JSONResponse({"error": str(exc)}, status_code=500)
@@ -2599,16 +2652,9 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
         new_mechanics = response["mechanics"]
         if not new_mechanics:
             return JSONResponse({"error": "LLM returned no candidates"}, status_code=500)
-
-        merged = list(candidates)
-        # Pad / trim to the candidate-pool size in case the client's snapshot was stale.
-        while len(merged) < pool:
-            merged.append({})
-        merged = merged[:pool]
-        new_mech = dict(new_mechanics[0])
-        new_mech["_ai_generated"] = True
-        merged[idx] = new_mech
-        _write_json(mech_dir / "candidates.json", merged)
+        # ``merged`` is already up to date via the on_finalized callback —
+        # the new mechanic landed in slot ``idx`` and was written to disk.
+        _heal_failed_stage("mechanics")
 
     return JSONResponse(
         {
@@ -2673,6 +2719,90 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
     except NoAssetFolderError as exc:
         return _no_asset_folder_response(exc)
 
+    # Stream candidates into the wizard via the same SSE events the engine
+    # path uses. Two modes:
+    #   * initial_generate — emit a full reset + position 1..pool as the loop
+    #     produces them.
+    #   * targeted refresh — no reset (preserve untouched rows); remap each
+    #     loop position (1..len(indices)) back to its real slot index so the
+    #     wizard updates the right card.
+    from mtgai.generation.mechanic_generator import known_keyword_set
+
+    known_keywords = known_keyword_set()
+
+    def _slot_for(position: int) -> int:
+        """0-based slot index for the loop's 1-based ``position``.
+
+        For initial generation the loop's position *is* the slot index + 1.
+        For a targeted refresh, position N maps to ``indices[N-1]`` because
+        the loop walks them in order; we cap defensively in case the model
+        somehow returns more candidates than we asked for.
+        """
+        if initial_generate:
+            return position - 1
+        i = position - 1
+        return indices[i] if 0 <= i < len(indices) else position - 1
+
+    # Build the merged list up front so the on_finalized callback can mutate
+    # + persist it incrementally. Each finalized mechanic lands on disk
+    # immediately, so a browser F5 mid-run sees the latest snapshot instead
+    # of the pre-refresh state. Initial-generate starts from a blank pool;
+    # targeted refresh starts from the user's snapshot (preserving untouched
+    # rows).
+    if initial_generate:
+        merged: list[dict] = [{} for _ in range(pool)]
+    else:
+        merged = list(candidates)
+        while len(merged) < pool:
+            merged.append({})
+        merged = merged[:pool]
+
+    def _on_reset() -> None:
+        # Only the full-pool path resets the strip — a targeted refresh leaves
+        # the other rows alone, so reset would be visually destructive.
+        if initial_generate:
+            event_bus.publish(
+                "mechanic_candidates_reset",
+                {"stage_id": "mechanics", "target": pool},
+            )
+
+    def _on_draft(position: int, draft: dict) -> None:
+        tagged = dict(draft)
+        tagged["_ai_generated"] = True
+        event_bus.publish(
+            "mechanic_candidate_drafted",
+            {
+                "stage_id": "mechanics",
+                "position": _slot_for(position) + 1,
+                "target": pool,
+                "candidate": tagged,
+            },
+        )
+
+    def _on_finalized(position: int, mech: dict, review_notes: str) -> None:
+        name = (mech.get("name") or "").strip()
+        collision = name if name and name.lower() in known_keywords else None
+        tagged = dict(mech)
+        tagged["_ai_generated"] = True
+        # Persist to disk BEFORE publishing the SSE event so a mid-event F5
+        # sees a candidates.json that matches the event the client just
+        # received. On a partial failure (loop errors below the floor), the
+        # mechanics that *did* finalize stay on disk — the user keeps what
+        # was generated instead of seeing the original snapshot restored.
+        merged[_slot_for(position)] = tagged
+        _write_json(mech_dir / "candidates.json", merged)
+        event_bus.publish(
+            "mechanic_candidate_finalized",
+            {
+                "stage_id": "mechanics",
+                "position": _slot_for(position) + 1,
+                "target": pool,
+                "candidate": tagged,
+                "review_notes": review_notes or "",
+                "collision_with": collision,
+            },
+        )
+
     with ai_lock.hold("Mechanic candidate refresh") as acquired:
         if not acquired:
             return JSONResponse(ai_lock.busy_payload(), status_code=409)
@@ -2680,46 +2810,44 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
         # needs as many fresh candidates as there are flagged rows.
         gen_count = pool if initial_generate else len(indices)
         try:
-            response = await asyncio.to_thread(generate_mechanic_candidates, count=gen_count)
+            response = await asyncio.to_thread(
+                generate_mechanic_candidates,
+                count=gen_count,
+                on_reset=_on_reset,
+                on_draft=_on_draft,
+                on_finalized=_on_finalized,
+            )
         except Exception as exc:
             logger.exception("Refresh-all LLM call failed")
             return JSONResponse({"error": str(exc)}, status_code=500)
 
-        new_mechanics = response["mechanics"]
-        pick: dict | None = None
-        if initial_generate:
-            merged = []
-            for new_mech in new_mechanics[:pool]:
-                tagged = dict(new_mech)
-                tagged["_ai_generated"] = True
-                merged.append(tagged)
-            # A from-scratch regeneration replaces the whole pool, so any
-            # prior approved.json points at stale rows — re-run the AI
-            # picker and rewrite the selection (mirrors the stage runner).
-            pick = await asyncio.to_thread(pick_best_mechanics, candidates=merged)
-            persist_mechanic_selection(
-                mech_dir,
-                merged,
-                pick["picks"],
-                source="ai",
-                overall_rationale=pick["overall_rationale"],
-                selections=pick["selections"],
-                model_id=pick["model_id"],
-            )
-        else:
-            merged = list(candidates)
-            while len(merged) < pool:
-                merged.append({})
-            merged = merged[:pool]
-            # Replace flagged indices in order with newly-generated
-            # candidates, tagging each freshly-LLM-generated row as AI
-            # again. A targeted refresh leaves the existing selection
-            # alone — the user can re-pick explicitly.
-            for replace_idx, new_mech in zip(indices, new_mechanics, strict=False):
-                tagged = dict(new_mech)
-                tagged["_ai_generated"] = True
-                merged[replace_idx] = tagged
-            _write_json(mech_dir / "candidates.json", merged)
+        # ``merged`` is already up to date via the on_finalized callback —
+        # each finalized mechanic landed in its slot and was written to disk.
+        # ``response["mechanics"]`` matches what's in merged; we don't need
+        # to redo the merge.
+        _ = response["mechanics"]
+
+        # Whenever we replaced anything, re-run the AI picker on the merged
+        # slate — the prior selection points at rows that may have been
+        # vanished or rewritten, so leaving it alone leaves a stale-looking
+        # Final Picks box on the tab. Same call the stage runner makes;
+        # ``persist_mechanic_selection`` writes candidates.json + approved.json
+        # + sidecars so disk + memory agree on the new selection.
+        pick = await asyncio.to_thread(pick_best_mechanics, candidates=merged)
+        persist_mechanic_selection(
+            mech_dir,
+            merged,
+            pick["picks"],
+            source="ai",
+            overall_rationale=pick["overall_rationale"],
+            selections=pick["selections"],
+            model_id=pick["model_id"],
+        )
+        # If the engine left the stage FAILED (e.g. initial generation ran
+        # below the floor), this manual recovery is the user's signal that
+        # the stage is healthy again — demote FAILED → PAUSED_FOR_REVIEW so
+        # the wizard's Save & Continue + /advance flow becomes available.
+        _heal_failed_stage("mechanics")
 
     collisions = detect_keyword_collisions(merged)
     return JSONResponse(
@@ -2728,9 +2856,9 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
             "candidates": merged,
             "collisions": {str(idx): name for idx, name in collisions.items()},
             "model_id": response.get("model_id"),
-            "picks": pick["picks"] if pick else None,
-            "selections": pick["selections"] if pick else None,
-            "overall_rationale": pick["overall_rationale"] if pick else None,
+            "picks": pick["picks"],
+            "selections": pick["selections"],
+            "overall_rationale": pick["overall_rationale"],
         }
     )
 
@@ -2811,6 +2939,7 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
         selections=[{"name": (candidates[i].get("name") or "?"), "reason": ""} for i in picks],
         model_id=settings.get_llm_model_id("mechanics"),
     )
+    _heal_failed_stage("mechanics")
 
     logger.info(
         "Mechanics save: %d picks → %s; sidecars written", len(picks), mech_dir / "approved.json"
@@ -2898,6 +3027,9 @@ async def wizard_mechanics_pick(request: Request) -> JSONResponse:
             selections=pick["selections"],
             model_id=pick["model_id"],
         )
+        # Recovery from a FAILED-stage initial run: a successful pick means
+        # the stage is healthy and the wizard's Save & Continue should appear.
+        _heal_failed_stage("mechanics")
 
     return JSONResponse(
         {
@@ -3108,6 +3240,7 @@ async def wizard_archetypes_refresh_card(request: Request) -> JSONResponse:
                 entry["_ai_generated"] = True
                 break
         _persist_archetypes_working(asset, ordered)
+        _heal_failed_stage("archetypes")
 
     return JSONResponse(
         {"success": True, "archetypes": ordered, "model_id": response.get("model_id")}
@@ -3189,6 +3322,7 @@ async def wizard_archetypes_refresh_all(request: Request) -> JSONResponse:
                 entry["description"] = fresh.get("description") or ""
                 entry["_ai_generated"] = True
         _persist_archetypes_working(asset, ordered)
+        _heal_failed_stage("archetypes")
 
     return JSONResponse(
         {"success": True, "archetypes": ordered, "model_id": response.get("model_id")}
@@ -3239,6 +3373,7 @@ async def wizard_archetypes_save(request: Request) -> JSONResponse:
 
     clean = _persist_archetypes_working(asset, ordered)
     logger.info("Archetypes save: %d archetypes → %s", len(clean), asset / "archetypes.json")
+    _heal_failed_stage("archetypes")
 
     arch_idx = next(
         (i for i, d in enumerate(STAGE_DEFINITIONS) if d["stage_id"] == "archetypes"),
@@ -3486,6 +3621,7 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
     # the lands investigation sees an accurate unfilled-slot view. A manual re-roll
     # replaces the prior stamps cleanly.
     apply_selection_to_skeleton(skeleton_path, result)
+    _heal_failed_stage("reprints")
 
     selections = result.model_dump(mode="json")["selections"]
     knobs_payload = _reprint_knobs_payload(asset)
@@ -3595,6 +3731,7 @@ async def wizard_lands_refresh() -> JSONResponse:
         except Exception as exc:
             logger.exception("Land refresh failed")
             return JSONResponse({"error": str(exc)}, status_code=500)
+        _heal_failed_stage("lands")
 
     # Re-read the freshly-written L-* cards into the tile shape (same source of
     # truth the tab bootstraps from), keeping the response shape DRY.
@@ -3611,29 +3748,40 @@ def _is_land_stage_card(card: dict) -> bool:
     return str(card.get("collector_number") or "").upper().startswith("L-")
 
 
-def _heal_failed_card_gen_stage() -> None:
-    """Clear a stuck FAILED ``card_gen`` stage after a successful manual refresh.
+def _heal_failed_stage(stage_id: str) -> None:
+    """Clear a stuck FAILED stage after a successful manual recovery.
 
-    A cancel (the stage returns ``success=False``) or a server-restart interrupt
-    leaves ``card_gen`` FAILED — and overall_status FAILED — in
-    ``pipeline-state.json``, which re-fires the wizard's failure modal on every
-    reload with nothing to clear it. A successful from-scratch regen means the
-    stage is healthy again, so demote the failure to a clean
-    ``paused_for_review`` (the natural "cards ready, awaiting the human" state)
-    and flip a FAILED overall_status back to ``paused``. No-op when nothing was
-    failed. Persists + emits SSE so open tabs update without a reload.
+    When a stage fails (the engine's initial run hit an exception, e.g. the
+    local model fixated on a printed-keyword name and exhausted its retry
+    budget; a cancel returned ``success=False``; a server-restart interrupt),
+    its status flips to FAILED and ``overall_status`` flips to FAILED. From
+    there ``engine.resume()`` (which ``/api/wizard/advance`` calls) refuses
+    to advance until the stage is PAUSED_FOR_REVIEW, so the Save & Continue
+    button never appears in the wizard's footer — even after the user has
+    hit Refresh AI / Re-pick / Save and populated valid output on disk.
+
+    A successful manual recovery (refresh, re-pick, knob retune, edit, save)
+    means the stage is healthy again: demote FAILED status → PAUSED_FOR_REVIEW
+    (its natural "output ready, awaiting human" state) and flip overall_status
+    FAILED → PAUSED. Persists + emits SSE so open tabs update without a reload.
+
+    No-op when the stage is not failed — idempotent and cheap to call from
+    every recovery-style endpoint. Every refresh / save / regenerate endpoint
+    on every stage should call this after its successful write; see
+    ``plans/wizard-tab-conventions.md`` § "Failed-stage recovery" for the
+    convention.
     """
     from datetime import UTC, datetime
 
     state = _get_current_state()
     if state is None:
         return
-    cg = next((s for s in state.stages if s.stage_id == "card_gen"), None)
+    stage = next((s for s in state.stages if s.stage_id == stage_id), None)
     changed = False
-    if cg is not None and cg.status == StageStatus.FAILED:
-        cg.status = StageStatus.PAUSED_FOR_REVIEW
-        cg.progress.error_message = None
-        cg.progress.finished_at = datetime.now(UTC)
+    if stage is not None and stage.status == StageStatus.FAILED:
+        stage.status = StageStatus.PAUSED_FOR_REVIEW
+        stage.progress.error_message = None
+        stage.progress.finished_at = datetime.now(UTC)
         changed = True
     if state.overall_status == PipelineStatus.FAILED:
         state.overall_status = PipelineStatus.PAUSED
@@ -3641,8 +3789,11 @@ def _heal_failed_card_gen_stage() -> None:
     if not changed:
         return
     save_state(state)
-    if cg is not None:
-        event_bus.stage_update("card_gen", cg.status.value, cg.progress.model_dump(mode="json"))
+    if stage is not None:
+        event_bus.stage_update(
+            stage_id, stage.status.value, stage.progress.model_dump(mode="json")
+        )
+    event_bus.pipeline_status(state.overall_status.value, state.current_stage_id)
     event_bus.pipeline_status(state.overall_status.value, state.current_stage_id)
 
 
@@ -3790,7 +3941,7 @@ async def wizard_card_gen_refresh() -> JSONResponse:
         # A successful (non-cancelled) regen means card_gen is healthy again —
         # clear any stuck FAILED stage state so the failure modal stops firing.
         if not (isinstance(result, dict) and result.get("cancelled")):
-            _heal_failed_card_gen_stage()
+            _heal_failed_stage("card_gen")
 
     return await wizard_card_gen_state()
 
@@ -3974,6 +4125,7 @@ async def wizard_skeleton_knobs_tune(request: Request) -> JSONResponse:
         except Exception as exc:
             logger.exception("Skeleton knob tuning failed")
             return JSONResponse({"error": str(exc)}, status_code=500)
+        _heal_failed_stage("skeleton")
 
     return JSONResponse(
         {
@@ -4078,6 +4230,7 @@ async def wizard_skeleton_refresh() -> JSONResponse:
                 "relabeled": int(relabel.get("relabeled", 0)),
             },
         )
+        _heal_failed_stage("skeleton")
 
     return JSONResponse(
         {
@@ -4141,6 +4294,7 @@ async def wizard_skeleton_save(request: Request) -> JSONResponse:
             slot["tweaked_text"] = text
     atomic_write_text(asset / "skeleton.json", json.dumps(skeleton, indent=2, ensure_ascii=False))
     logger.info("Skeleton save: %d edited descriptors → %s", len(edits), asset / "skeleton.json")
+    _heal_failed_stage("skeleton")
 
     s_idx = next((i for i, d in enumerate(STAGE_DEFINITIONS) if d["stage_id"] == "skeleton"), -1)
     next_id = (

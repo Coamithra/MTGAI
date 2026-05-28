@@ -19,12 +19,20 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from mtgai.generation.llm_client import generate_with_tool
 from mtgai.io.atomic import atomic_write_text
+
+# Per-mechanic streaming hook signatures. Engine path wires these to
+# ``StageEmitter.event`` (SSE), the wizard's refresh endpoints wire them to
+# ``event_bus.publish`` directly. All three are optional — None means no-op.
+ResetHook = Callable[[], None]
+DraftHook = Callable[[int, dict], None]
+FinalizedHook = Callable[[int, dict, str], None]  # (position, mechanic, review_notes)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +57,26 @@ def candidate_count(mechanic_count: int) -> int:
 # ---------------------------------------------------------------------------
 # Tool schema: defines the structured output the LLM must return
 # ---------------------------------------------------------------------------
+
+# A single mechanic object — extracted so the review tool can reuse the exact
+# same shape the generator emits. Keep ``MECHANIC_ITEM_SCHEMA`` and the
+# generator's array-item schema in lockstep; if either drifts the review pass
+# can produce mechanics card-gen can't read.
+MECHANIC_ITEM_SCHEMA: dict = {
+    "type": "object",
+    "required": [
+        "name",
+        "keyword_type",
+        "reminder_text",
+        "colors",
+        "complexity",
+        "design_rationale",
+        "distribution",
+        "example_cards",
+    ],
+    "properties": {},  # filled in below after we've defined the field shapes
+}
+
 
 MECHANIC_TOOL_SCHEMA: dict = {
     "name": "submit_mechanic_candidates",
@@ -196,6 +224,44 @@ MECHANIC_TOOL_SCHEMA: dict = {
                         },
                     },
                 },
+            },
+        },
+    },
+}
+
+
+# Populate the single-item schema from the generator's array-item shape so the
+# two stay locked together by construction. (Done lazily here so we don't have
+# to define every field twice.)
+MECHANIC_ITEM_SCHEMA["properties"] = MECHANIC_TOOL_SCHEMA["input_schema"]["properties"][
+    "mechanics"
+]["items"]["properties"]
+
+
+# Tool schema for the per-mechanic review/tweak pass. The reviewer always
+# submits a mechanic — unchanged if it's sound, revised if it isn't — plus a
+# short ``review_notes`` changelog. The mechanic shape is identical to one
+# entry from MECHANIC_TOOL_SCHEMA so the reviewed mechanic can drop into the
+# candidates list with no projection.
+MECHANIC_REVIEW_TOOL_SCHEMA: dict = {
+    "name": "review_mechanic",
+    "description": (
+        "Submit your review of one mechanic. Always include the mechanic "
+        "object — unchanged if it's already sound, or revised if you fixed "
+        "anything. Use review_notes to summarise what you changed (or "
+        "leave it empty if you made no changes)."
+    ),
+    "input_schema": {
+        "type": "object",
+        "required": ["mechanic", "review_notes"],
+        "properties": {
+            "mechanic": MECHANIC_ITEM_SCHEMA,
+            "review_notes": {
+                "type": "string",
+                "description": (
+                    "One or two short sentences naming what you fixed and why, "
+                    "or an empty string if no changes were made."
+                ),
             },
         },
     },
@@ -427,6 +493,156 @@ def build_pick_prompts(
         candidate_digest=_format_candidate_digest(candidates),
     )
     return system_prompt, user_prompt
+
+
+def _format_mechanic_for_review(mech: dict) -> str:
+    """Render one draft mechanic as a labelled prose block for the reviewer.
+
+    Deliberately verbose — the reviewer needs to *see* the mechanic the way a
+    player or designer would, including the example cards' full text — so the
+    block expands each field rather than dumping JSON. Example cards render
+    with their mana cost, type line, rarity, oracle text, and P/T so the
+    reviewer can judge whether each one actually uses the mechanic and is
+    well-templated.
+    """
+    m = mech or {}
+    colors = "".join(m.get("colors") or []) or "(colorless)"
+    cx = m.get("complexity", "?")
+    ktype = m.get("keyword_type") or "?"
+    reminder = (m.get("reminder_text") or "").strip() or "(no reminder text)"
+    rationale = (m.get("design_rationale") or "").strip() or "(no rationale)"
+    dist = m.get("distribution") or {}
+    dist_line = (
+        f"common {dist.get('common', 0)}, uncommon {dist.get('uncommon', 0)}, "
+        f"rare {dist.get('rare', 0)}, mythic {dist.get('mythic', 0)}"
+    )
+    examples = m.get("example_cards") or []
+    lines = [
+        f"Name: {m.get('name', '?')}",
+        f"Keyword type: {ktype}",
+        f"Colors: {colors}",
+        f"Complexity: {cx}",
+        f"Reminder text: {reminder}",
+        f"Rarity distribution: {dist_line}",
+        f"Design rationale: {rationale}",
+        "",
+        "Example cards:",
+    ]
+    if not examples:
+        lines.append("  (none provided — the schema requires exactly two)")
+    for i, ex in enumerate(examples, 1):
+        e = ex or {}
+        name = e.get("name") or "(unnamed)"
+        cost = e.get("mana_cost") or ""
+        type_line = e.get("type_line") or "?"
+        rarity = e.get("rarity") or "?"
+        oracle = (e.get("oracle_text") or "").strip() or "(empty)"
+        power = e.get("power")
+        toughness = e.get("toughness")
+        pt = (
+            f" {power}/{toughness}"
+            if power not in (None, "") and toughness not in (None, "")
+            else ""
+        )
+        head = f"  {i}. {name}"
+        if cost:
+            head += f" {cost}"
+        head += f"  —  {type_line}{pt}  ({rarity})"
+        lines.append(head)
+        # Indent oracle text so multi-line cards stay visually attached.
+        for line in oracle.splitlines() or [oracle]:
+            lines.append(f"     {line}")
+    return "\n".join(lines)
+
+
+def build_review_prompts(mech: dict) -> tuple[str, str]:
+    """Render the reviewer's system + user prompts for ONE draft mechanic.
+
+    Theme-free by design — the reviewer judges the mechanic on pure-MTG
+    soundness terms (reminder-text clarity, mechanical structure, color/pie
+    sanity, example-card correctness), so the system prompt carries the
+    review checklist + constraints and the user prompt is just the rendered
+    mechanic block. Keeps the prompt-cache hit rate high across calls and
+    keeps the reviewer out of "but it fits the theme!" rationalisation.
+    """
+    sys_template = _read_template("mechanic_review_system.txt")
+    user_template = _read_template("mechanic_review_user.txt")
+    system_prompt = sys_template  # no substitutions — fully static
+    user_prompt = user_template.format(mechanic_block=_format_mechanic_for_review(mech))
+    return system_prompt, user_prompt
+
+
+def review_mechanic(
+    draft: dict,
+    *,
+    model_id: str,
+    log_dir: Path | None = None,
+    temperature: float = 0.3,
+) -> dict:
+    """One-shot critical review of ``draft`` that returns the final mechanic + notes.
+
+    Calls the LLM once with the ``review_mechanic`` tool. The reviewer either
+    confirms the draft is sound (returns it unchanged with empty notes) or
+    submits a revised version with a short ``review_notes`` changelog. On any
+    LLM failure or malformed response we return the original draft with empty
+    notes — a bad review pass must never destroy a good draft.
+
+    Returns::
+
+        {
+            "mechanic": dict,       # final (possibly revised) mechanic
+            "review_notes": str,    # empty if no changes / on fallback
+            "input_tokens": int,
+            "output_tokens": int,
+        }
+    """
+    system_prompt, user_prompt = build_review_prompts(draft)
+    response: dict[str, Any] | None = None
+    try:
+        response = generate_with_tool(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            tool_schema=MECHANIC_REVIEW_TOOL_SCHEMA,
+            model=model_id,
+            temperature=temperature,
+            max_tokens=2048,
+            log_dir=log_dir,
+        )
+    except Exception as exc:
+        logger.warning("Mechanic review call failed: %s: %s", type(exc).__name__, exc)
+    if response is None:
+        return {"mechanic": draft, "review_notes": "", "input_tokens": 0, "output_tokens": 0}
+
+    result = response.get("result") or {}
+    reviewed = result.get("mechanic")
+    notes = result.get("review_notes")
+    if not isinstance(reviewed, dict):
+        logger.warning("Mechanic review returned no usable mechanic; keeping draft")
+        return {
+            "mechanic": draft,
+            "review_notes": "",
+            "input_tokens": response.get("input_tokens", 0) or 0,
+            "output_tokens": response.get("output_tokens", 0) or 0,
+        }
+    # Don't let the reviewer rename — the prompt forbids it, but enforce it
+    # in code too so a misbehaving local model can't strand the user with a
+    # silently-renamed candidate that the downstream pick rationale no longer
+    # matches by name.
+    original_name = (draft.get("name") or "").strip()
+    reviewed_name = (reviewed.get("name") or "").strip()
+    if original_name and reviewed_name and reviewed_name.lower() != original_name.lower():
+        logger.info(
+            "Mechanic review tried to rename %r → %r; reverting to the original name",
+            original_name,
+            reviewed_name,
+        )
+        reviewed["name"] = original_name
+    return {
+        "mechanic": reviewed,
+        "review_notes": (notes or "").strip() if isinstance(notes, str) else "",
+        "input_tokens": response.get("input_tokens", 0) or 0,
+        "output_tokens": response.get("output_tokens", 0) or 0,
+    }
 
 
 def _format_already_designed(accepted: list[dict]) -> str:
@@ -774,7 +990,14 @@ def candidate_to_approved(candidate: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def generate_mechanic_candidates(*, theme: dict | None = None, count: int | None = None) -> dict:
+def generate_mechanic_candidates(
+    *,
+    theme: dict | None = None,
+    count: int | None = None,
+    on_reset: ResetHook | None = None,
+    on_draft: DraftHook | None = None,
+    on_finalized: FinalizedHook | None = None,
+) -> dict:
     """Generate mechanic candidates for the active project via LLM.
 
     Reads ``theme.json`` and ``set_params`` from the active project,
@@ -796,6 +1019,22 @@ def generate_mechanic_candidates(*, theme: dict | None = None, count: int | None
     duplicate entries, feed the accepted names back so the model avoids
     repeats, and loop until the candidate pool (twice ``mechanic_count``)
     is reached or the attempt budget is spent.
+
+    Each accepted draft then goes through a per-mechanic **review pass**
+    (:func:`review_mechanic`) — a theme-free LLM call that critiques
+    soundness, reminder-text clarity, and example-card correctness, and
+    submits a revised version if anything is off. The review pass never
+    raises; on failure the original draft is kept. ``_review_notes`` is
+    stamped onto the mechanic (empty string if no changes) so the wizard
+    can surface what the reviewer fixed.
+
+    Streaming: ``on_reset`` fires once before the first attempt;
+    ``on_draft(position, draft)`` fires immediately after each draft passes
+    form validation (before the review call); ``on_finalized(position,
+    mechanic, review_notes)`` fires after the review pass returns. All three
+    are optional. The engine path wires them to ``StageEmitter.event`` so the
+    wizard streams candidates in live; the refresh endpoints wire them to
+    ``event_bus.publish`` for the same effect on manual re-runs.
 
     Succeeds as long as at least ``mechanic_count`` valid candidates are
     collected (that's all the user picks); raises ``RuntimeError`` only if
@@ -863,6 +1102,15 @@ def generate_mechanic_candidates(*, theme: dict | None = None, count: int | None
     consecutive_errors = 0
     last_error: str | None = None
 
+    # Reset hook fires once before any attempt — the UI uses this to clear the
+    # candidate strip when a from-scratch generation starts. Safe to fire even
+    # when ``on_reset`` is None.
+    if on_reset is not None:
+        try:
+            on_reset()
+        except Exception:
+            logger.exception("on_reset hook raised; continuing")
+
     while len(accepted) < target and attempt < max_attempts:
         if ai_lock.is_cancelled():
             logger.info("Mechanic generation cancelled after %d candidate(s)", len(accepted))
@@ -917,8 +1165,37 @@ def generate_mechanic_candidates(*, theme: dict | None = None, count: int | None
                         nm.strip(),
                     )
                 continue
-            accepted.append(m)
+            # 1-based position so the UI can render "Candidate N of target"
+            # without a +1. Reserve the name immediately so the review pass
+            # can't accidentally introduce a duplicate via rename (defensive —
+            # ``review_mechanic`` also reverts renames).
+            position = len(accepted) + 1
             seen_names.add(str(m["name"]).strip().lower())
+
+            # Draft hook fires before the review call so the UI sees the
+            # mechanic as soon as it exists, then watches it get tweaked.
+            if on_draft is not None:
+                try:
+                    on_draft(position, m)
+                except Exception:
+                    logger.exception("on_draft hook raised; continuing")
+
+            # Critical review pass — theme-free; one LLM call; safe fallback.
+            review = review_mechanic(m, model_id=model_id, log_dir=log_dir)
+            final_mech = review["mechanic"]
+            review_notes = review["review_notes"]
+            final_mech["_review_notes"] = review_notes
+            total_in += review.get("input_tokens", 0) or 0
+            total_out += review.get("output_tokens", 0) or 0
+
+            accepted.append(final_mech)
+
+            if on_finalized is not None:
+                try:
+                    on_finalized(position, final_mech, review_notes)
+                except Exception:
+                    logger.exception("on_finalized hook raised; continuing")
+
             if len(accepted) >= target:
                 break
         if len(accepted) == before:
@@ -950,10 +1227,24 @@ def generate_mechanic_candidates(*, theme: dict | None = None, count: int | None
     }
 
 
+def _is_filled_candidate(c: Any) -> bool:
+    """A candidate is "filled" if it has a non-blank name.
+
+    Empty ``{}`` slots show up in the candidates list whenever a refresh run
+    failed below the floor (the merged pool keeps unfilled slots as ``{}``
+    for the wizard to display as placeholder cards). The picker must skip
+    these — picking an empty slot lands ``(unnamed)`` in the Final picks box
+    and produces an obviously-broken approved.json. The "has a name" check
+    is cheap and matches what the wizard's placeholder renderer keys off.
+    """
+    return isinstance(c, dict) and bool((c.get("name") or "").strip())
+
+
 def _resolve_picks(
     selections: list[Any],
     candidate_count_total: int,
     target: int,
+    valid_indices: set[int] | None = None,
 ) -> tuple[list[int], dict[int, str]]:
     """Turn the LLM's raw ``selections`` into exactly ``target`` valid indices.
 
@@ -961,12 +1252,21 @@ def _resolve_picks(
     out of range, duplicated, too few, or too many. We map them to 0-based
     indices, drop anything invalid or repeated, then **top up** with the
     first unused candidates if we came up short and **truncate** if we got
-    too many — so the caller always receives a clean, deduplicated slate of
-    ``min(target, candidate_count_total)`` picks. Returns ``(picks, reasons)``
-    where ``reasons`` maps a picked index to the model's one-line reason
-    (topped-up picks have no reason).
+    too many. ``valid_indices`` (when given) restricts both the LLM picks
+    and the top-up to candidates that actually have content — empty ``{}``
+    slots get skipped instead of landing in approved.json as ``(unnamed)``.
+    Returns ``(picks, reasons)`` where ``reasons`` maps a picked index to
+    the model's one-line reason (topped-up picks have no reason).
     """
-    want = max(0, min(target, candidate_count_total))
+    # When valid_indices is None we accept everything (legacy behaviour for
+    # callers that haven't computed it — tests and any older caller).
+    def _ok(idx: int) -> bool:
+        return valid_indices is None or idx in valid_indices
+
+    valid_count = (
+        candidate_count_total if valid_indices is None else len(valid_indices)
+    )
+    want = max(0, min(target, valid_count))
     picks: list[int] = []
     reasons: dict[int, str] = {}
     seen: set[int] = set()
@@ -977,7 +1277,7 @@ def _resolve_picks(
         if not isinstance(num, int):
             continue
         idx = num - 1  # 1-based in the prompt/tool, 0-based on disk
-        if idx < 0 or idx >= candidate_count_total or idx in seen:
+        if idx < 0 or idx >= candidate_count_total or idx in seen or not _ok(idx):
             continue
         seen.add(idx)
         picks.append(idx)
@@ -986,10 +1286,11 @@ def _resolve_picks(
             reasons[idx] = reason.strip()
         if len(picks) >= want:
             break
-    # Top up from the front if the model under-selected (or returned junk).
+    # Top up from the front if the model under-selected (or returned junk),
+    # but only from filled slots — never include an empty placeholder.
     if len(picks) < want:
         for idx in range(candidate_count_total):
-            if idx not in seen:
+            if idx not in seen and _ok(idx):
                 picks.append(idx)
                 seen.add(idx)
                 if len(picks) >= want:
@@ -1040,11 +1341,23 @@ def pick_best_mechanics(
 
     target = sp.mechanic_count if count is None else max(1, count)
     total = len(candidates)
+    # Indices of candidates that actually carry a mechanic. Empty ``{}``
+    # placeholder slots (left over from a failed refresh) get excluded
+    # from both the LLM picks and the fallback top-up so the picker can
+    # never land on a slot whose name is "" → ``(unnamed)`` in Final picks.
+    valid_indices: set[int] = {i for i, c in enumerate(candidates) if _is_filled_candidate(c)}
 
     def _fallback(reason: str, model: str = model_id) -> dict:
-        picks = list(range(min(target, total)))
+        # Pick the first ``target`` *filled* candidates (skip empties).
+        # If fewer filled candidates exist than the target asks for, return
+        # what we have — the wizard's "Save & Continue" gate keeps the user
+        # from proceeding until they refresh more candidates manually.
+        ordered = sorted(valid_indices)
+        picks = ordered[:target]
         logger.warning(
-            "Mechanic picker falling back to first %d candidates: %s", len(picks), reason
+            "Mechanic picker falling back to first %d filled candidate(s): %s",
+            len(picks),
+            reason,
         )
         return {
             "picks": picks,
@@ -1057,8 +1370,8 @@ def pick_best_mechanics(
             "output_tokens": 0,
         }
 
-    if total == 0:
-        return _fallback("empty candidate pool")
+    if total == 0 or not valid_indices:
+        return _fallback("no filled candidates")
 
     system_prompt, user_prompt = build_pick_prompts(
         theme=theme,
@@ -1088,7 +1401,7 @@ def pick_best_mechanics(
 
     result = response.get("result") or {}
     selections_raw = result.get("selections") or []
-    picks, reasons = _resolve_picks(selections_raw, total, target)
+    picks, reasons = _resolve_picks(selections_raw, total, target, valid_indices)
     selections = [
         {"name": (candidates[i].get("name") or "?"), "reason": reasons.get(i, "")} for i in picks
     ]

@@ -474,6 +474,18 @@
       });
     });
 
+    // Mechanics generation streaming: each accepted draft pops onto the
+    // Mechanics tab (mechanic_candidate_drafted, pre-review) and is then
+    // replaced in-place once the review pass returns (mechanic_candidate_finalized).
+    // mechanic_candidates_reset fires at the start of a from-scratch generation.
+    // The Mechanics tab listens via the W.onMechanicsStream bridge.
+    ['mechanic_candidates_reset', 'mechanic_candidate_drafted', 'mechanic_candidate_finalized'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onMechanicsStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     state.eventSource.onerror = () => {
       // EventSource auto-reconnects.
     };

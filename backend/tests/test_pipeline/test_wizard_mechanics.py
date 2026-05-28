@@ -210,6 +210,67 @@ def test_refresh_all_replaces_only_listed_indices(client, isolated_output, monke
     assert new[5]["name"] == "User5"
 
 
+def test_refresh_all_reruns_picker_and_returns_picks(client, isolated_output, monkeypatch):
+    """Refresh-all replaces candidates AND re-runs the AI picker — the prior
+    selection points at rows that may have been vanished/rewritten, so leaving
+    it stale is a foot-gun. Targeted refresh-all (any non-empty indices) gets
+    the same treatment as initial-generate."""
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset, mechanic_count=3)
+
+    # Tool-aware stub: the generation tool returns the canned 6-mechanic
+    # array; the review tool passes through unchanged (no mechanic field →
+    # ``review_mechanic`` falls back to the draft); the picker tool returns
+    # a fixed 1-based selection that maps to 0-based picks [0, 2, 4].
+    def stub(*args, **kwargs):
+        schema = kwargs.get("tool_schema") or (args[2] if len(args) >= 3 else {})
+        name = (schema or {}).get("name", "")
+        if name == "select_best_mechanics":
+            return {
+                "result": {
+                    "selections": [
+                        {"candidate_number": 1, "reason": "a"},
+                        {"candidate_number": 3, "reason": "b"},
+                        {"candidate_number": 5, "reason": "c"},
+                    ],
+                    "overall_rationale": "balanced",
+                },
+                "input_tokens": 1,
+                "output_tokens": 1,
+            }
+        # generation tool (review tool also reaches here and falls back safely)
+        return {
+            "result": {"mechanics": [_make_candidate(f"M{i}") for i in range(6)]},
+            "input_tokens": 1,
+            "output_tokens": 2,
+        }
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+
+    candidates = [_make_candidate(f"User{i}") for i in range(6)]
+    resp = client.post(
+        "/api/wizard/mechanics/refresh-all",
+        json={"indices": [0, 3], "candidates": candidates},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    # Picker response surfaces; client uses these to pre-select.
+    assert data["picks"] == [0, 2, 4]
+    assert data["overall_rationale"] == "balanced"
+    assert [s["name"] for s in data["selections"]] == ["M0", "User2", "User4"]
+    # Refreshed slots are the new AI mechanics; untouched stays.
+    assert data["candidates"][0]["name"] == "M0"
+    assert data["candidates"][1]["name"] == "User1"
+    # approved.json + pick-rationale.json persisted (was a gap on targeted
+    # refresh — only initial-generate used to persist).
+    mech_dir = asset / "mechanics"
+    approved = json.loads((mech_dir / "approved.json").read_text(encoding="utf-8"))
+    assert [a["name"] for a in approved] == ["M0", "User2", "User4"]
+    rationale = json.loads((mech_dir / "pick-rationale.json").read_text(encoding="utf-8"))
+    assert rationale["source"] == "ai"
+    assert rationale["overall_rationale"] == "balanced"
+
+
 def test_refresh_all_400_when_indices_empty(client, isolated_output, monkeypatch):
     asset = isolated_output / "sets" / "TST"
     _seed_project(asset)

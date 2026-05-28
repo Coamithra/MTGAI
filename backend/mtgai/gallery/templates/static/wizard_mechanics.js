@@ -42,9 +42,20 @@
     pickRationale: null,
     locked: false,
     bootstrapping: false,
+    // Which kind of refresh is currently in flight, if any. Set in the
+    // refresh handlers, cleared in their ``finally``. Drives whether the
+    // streaming events update the global progress strip's label with the
+    // "Generating/Reviewing candidate X/N" sequence (refresh-all) or leave
+    // the original "Regenerating candidate…" label alone (refresh-card,
+    // where there's no meaningful "X of N" because it's a single shot).
+    streamingMode: null,
   };
 
   W.registerStageRenderer(STAGE_ID, render);
+  // SSE bridge from wizard.js — the mechanic generation stream pushes a draft
+  // (pre-review) then a finalized version (post-review) per candidate, plus a
+  // reset at the start of a from-scratch run.
+  W.onMechanicsStream = onMechanicsStream;
 
   // ----------------------------------------------------------------------
   // Top-level render
@@ -227,12 +238,54 @@
   }
 
   function candidateCardHtml(mech, idx) {
+    const m = mech || {};
+    // Two placeholder cases share the slim card shell:
+    //   _pending_generation — an AI run is actively filling this slot in.
+    //                         Pulsing "Generating…" badge, no Refresh button
+    //                         (the in-flight call owns the slot).
+    //   empty slot (no name)— left over from a previous failed run; the user
+    //                         can click Refresh AI inside the card to fill it.
+    //
+    // Rendering empty {} slots as full editable forms (the old default-fallback
+    // path) was confusing — defaults made it look like a real card waiting for
+    // input, when really it's "nothing here yet". This unified placeholder
+    // makes the slot's actual state legible.
+    const isPending = !!m._pending_generation;
+    const isEmpty = !isPending && !((m.name || '').trim());
+    if (isPending || isEmpty) {
+      const badge = isPending
+        ? '<span class="wiz-mech-reviewing" data-role="generating-badge">Generating…</span>'
+        : '<span class="wiz-mech-empty-badge">Empty slot</span>';
+      const body = isPending
+        ? 'Waiting for the next candidate…'
+        : 'No mechanic generated for this slot — click Refresh AI to fill it.';
+      // Empty slots get a Refresh button (user-initiated re-fill); in-flight
+      // slots don't (the active run already owns this slot).
+      const footer = isPending
+        ? ''
+        : `<footer class="wiz-mech-card-footer">
+             <button type="button" class="wiz-btn-secondary" data-role="refresh-card"
+                     title="Generate a mechanic for this empty slot.">
+               Refresh AI
+             </button>
+           </footer>`;
+      return `
+        <article class="wiz-mech-card wiz-mech-card--pending wiz-mech-card--placeholder"
+                 data-idx="${idx}"${isPending ? ' data-pending-generation="true"' : ' data-empty-slot="true"'}>
+          <header class="wiz-mech-card-header">
+            ${badge}
+            <span class="wiz-mech-placeholder-title">Slot ${idx + 1}</span>
+          </header>
+          <div class="wiz-mech-placeholder-body">${body}</div>
+          ${footer}
+        </article>
+      `;
+    }
     const collision = local.collisions[String(idx)];
     const collisionWarning = collision
       ? `<div class="wiz-mech-collision">⚠ Name collides with printed keyword: <strong>${escHtml(collision)}</strong>. Rename or pick a different candidate.</div>`
       : '';
     const picked = local.picks.has(idx);
-    const m = mech || {};
     const colors = Array.isArray(m.colors) ? m.colors : [];
     const complexity = Number(m.complexity || 1);
     const keywordType = String(m.keyword_type || 'keyword_ability');
@@ -246,10 +299,23 @@
     const aiBadge = aiGenerated
       ? '<span class="wiz-ai-badge" data-role="ai-badge">AI</span>'
       : '';
+    // Live-stream state: between the drafted event and the finalized event,
+    // ``_pending_review`` is true. We surface a "Reviewing…" badge and keep
+    // the form locked (the card is being rewritten any moment). After review,
+    // ``_review_notes`` carries what the reviewer fixed (empty = unchanged).
+    const pendingReview = !!m._pending_review;
+    const reviewingBadge = pendingReview
+      ? '<span class="wiz-mech-reviewing" data-role="reviewing-badge">Reviewing…</span>'
+      : '';
+    const reviewNotes = (m._review_notes || '').trim();
+    const reviewNotesLine = (!pendingReview && reviewNotes)
+      ? `<div class="wiz-mech-review-notes" title="The AI review pass tweaked this draft.">Reviewer tweak: ${escHtml(reviewNotes)}</div>`
+      : '';
     return `
-      <article class="wiz-mech-card${picked ? ' picked' : ''}" data-idx="${idx}"${aiGenerated ? ' data-ai-generated="true"' : ''}>
+      <article class="wiz-mech-card${picked ? ' picked' : ''}${pendingReview ? ' wiz-mech-card--pending' : ''}" data-idx="${idx}"${aiGenerated ? ' data-ai-generated="true"' : ''}${pendingReview ? ' data-pending-review="true"' : ''}>
         <header class="wiz-mech-card-header">
           ${aiBadge}
+          ${reviewingBadge}
           <input type="text" class="wiz-mech-name" data-role="mech-name"
                  placeholder="Mechanic name"
                  value="${escAttr(m.name || '')}">
@@ -302,6 +368,7 @@
           <summary>Design rationale</summary>
           <p>${escHtml(m.design_rationale || '(no rationale given)')}</p>
         </details>
+        ${reviewNotesLine}
         <footer class="wiz-mech-card-footer">
           <button type="button" class="wiz-btn-secondary" data-role="refresh-card"
                   title="Regenerate this candidate via AI (the others stay).">
@@ -511,7 +578,21 @@
     if (local.locked) return;
     if (!confirm('Regenerate this candidate? Other rows stay; this row will be overwritten.')) return;
     setLocked(true);
+    local.streamingMode = 'single';
     if (W.showBusy) W.showBusy('Regenerating candidate…');
+    // Clear the slot immediately so the stale card doesn't linger while the
+    // LLM works. The streamed drafted event will overwrite the placeholder.
+    const root = document.querySelector(`.wiz-tab-body[data-tab-id="${STAGE_ID}"]`);
+    if (local.candidates[idx]) {
+      local.candidates[idx] = { _pending_generation: true };
+      delete local.collisions[String(idx)];
+      // Drop the pick — the slot's identity is about to change.
+      local.picks.delete(idx);
+      if (root) {
+        paintStrip(root);
+        updateFinalPicks(root);
+      }
+    }
     try {
       const resp = await W.postJSON('/api/wizard/mechanics/refresh-card', {
         candidate_index: idx,
@@ -529,14 +610,17 @@
       local.candidates = data.candidates || local.candidates;
       // The freshly-generated row is AI again. Existing user-edited
       // rows' AI flag stays cleared (the strip rerender below is
-      // gated to the refreshed slot).
-      const root = document.querySelector('.wiz-tab-body[data-tab-id="mechanics"]');
-      paintStrip(root);
-      paintSelection(root);
+      // gated to the refreshed slot). ``root`` is the outer-scoped
+      // element grabbed before the optimistic clear above.
+      if (root) {
+        paintStrip(root);
+        paintSelection(root);
+      }
       W.toast('Candidate regenerated.', 'success');
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
     } finally {
+      local.streamingMode = null;
       if (W.clearBusy) W.clearBusy();
       setLocked(false);
     }
@@ -555,8 +639,12 @@
     const hasCandidates = local.candidates.length > 0;
     let aiIndices = [];
     if (hasCandidates) {
-      aiIndices = Array.from(root.querySelectorAll('.wiz-mech-card[data-ai-generated="true"]'))
-        .map(card => Number(card.dataset.idx));
+      // Refresh AI replaces both AI-flagged rows (last-AI-generated content
+      // still untouched) and empty slots (left over from a failed run). The
+      // user-edited rows have neither attribute and survive.
+      aiIndices = Array.from(
+        root.querySelectorAll('.wiz-mech-card[data-ai-generated="true"], .wiz-mech-card[data-empty-slot="true"]')
+      ).map(card => Number(card.dataset.idx));
       if (!aiIndices.length) {
         W.toast('No AI-flagged rows to refresh — every candidate has been edited.', 'warn');
         return;
@@ -570,13 +658,38 @@
       }
     }
     setLocked(true);
+    local.streamingMode = 'all';
     if (W.showBusy) {
       W.showBusy(hasCandidates ? 'Regenerating candidates…' : 'Generating candidates…');
     }
-    // Repaint so the empty-strip message reflects the in-flight call
-    // ("Generating candidates… they will stream in here." instead of
-    // the idle "No candidates yet" copy).
+    // Clear the slots about to be regenerated *immediately* so the stale
+    // cards don't hang around while the LLM works. The streamed drafted
+    // events refill these placeholders. Two cases:
+    //   * Initial generate (no candidates yet) — populate the whole strip
+    //     with ``pool``-many placeholders so the user sees the layout the
+    //     candidates will land into. The streaming reset event (server
+    //     fires it only for this path) is a no-op here since we've already
+    //     done the work, but stays as the canonical "wipe + repopulate"
+    //     signal for mid-run tab reattach.
+    //   * Targeted refresh — blank only the AI-flagged rows; user-edited
+    //     rows stay untouched. Drop any picks on the cleared rows since
+    //     their identity is about to change.
+    if (hasCandidates) {
+      aiIndices.forEach(i => {
+        local.candidates[i] = { _pending_generation: true };
+        delete local.collisions[String(i)];
+        local.picks.delete(i);
+      });
+    } else {
+      const target = (local.setParams.mechanic_count || 0) * 2;
+      const slots = target > 0 ? target : (local.candidates.length || 0);
+      local.candidates = new Array(slots).fill(null).map(() => ({ _pending_generation: true }));
+      local.collisions = {};
+      local.picks = new Set();
+    }
     paintStrip(root);
+    paintSelection(root);
+    updateFinalPicks(root);
     try {
       const resp = await W.postJSON('/api/wizard/mechanics/refresh-all', {
         indices: aiIndices,
@@ -611,6 +724,7 @@
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
     } finally {
+      local.streamingMode = null;
       if (W.clearBusy) W.clearBusy();
       setLocked(false);
     }
@@ -775,6 +889,125 @@
     root.querySelectorAll(sel).forEach(el => { el.disabled = !!locked; });
     const footerBtn = root.querySelector('[data-role="mech-save-advance"]');
     if (footerBtn) footerBtn.disabled = !!locked;
+  }
+
+  // ----------------------------------------------------------------------
+  // Live streaming (SSE bridged from wizard.js via W.onMechanicsStream)
+  //
+  // Three events:
+  //   mechanic_candidates_reset    — clear the strip (only fires on a from-
+  //                                  scratch generation; targeted refresh
+  //                                  preserves untouched rows)
+  //   mechanic_candidate_drafted   — draft accepted, pre-review. Shows a
+  //                                  "Reviewing…" badge on the card so the
+  //                                  user can see it's not yet final.
+  //   mechanic_candidate_finalized — review pass returned. Replaces the
+  //                                  draft with the final mechanic +
+  //                                  optional ``review_notes`` line.
+  //
+  // The handler is idempotent: a tab reattach mid-run sees the same events
+  // it would have if it never left, so repainting on each event is safe.
+  // We avoid clobbering picks: ``_review_notes`` lives on the candidate dict
+  // alongside ``_ai_generated``; picks are tracked by index in ``local.picks``.
+  // ----------------------------------------------------------------------
+
+  function onMechanicsStream(name, data) {
+    if (name === 'mechanic_candidates_reset') return onStreamReset(data || {});
+    if (name === 'mechanic_candidate_drafted') return onStreamDrafted(data || {});
+    if (name === 'mechanic_candidate_finalized') return onStreamFinalized(data || {});
+  }
+
+  function tabRoot() {
+    return document.querySelector(`.wiz-tab-body[data-tab-id="${STAGE_ID}"]`);
+  }
+
+  // Replace the global progress strip's label so the user sees per-candidate
+  // progress instead of a static "Regenerating candidates…" — Gemma can take
+  // 30-60s per call so a static label looks frozen. Only updates if the
+  // busy strip is already active AND we're in a refresh-all sequence (where
+  // the "X of N" label is meaningful); refresh-card is one shot, so we leave
+  // its label alone. showBusy is idempotent — calling it again rewrites the
+  // label without disturbing the indeterminate bar animation.
+  function setBusyLabel(label) {
+    if (!local.locked || !W.showBusy) return;
+    if (local.streamingMode !== 'all') return;
+    W.showBusy(label);
+  }
+
+  function onStreamReset(data) {
+    const root = tabRoot();
+    if (!root) return;
+    // Reset to a strip of "Generating…" placeholders — the events that follow
+    // will replace them. We also clear picks/rationale because a from-scratch
+    // reset implies a new pool; the AI picker will re-pick once the engine
+    // path's HTTP response lands (or the user can re-pick manually).
+    const target = Number(data && data.target) || local.candidates.length || 0;
+    local.candidates = target > 0
+      ? new Array(target).fill(null).map(() => ({ _pending_generation: true }))
+      : [];
+    local.collisions = {};
+    local.picks = new Set();
+    local.pickRationale = null;
+    paintSummary(root);
+    paintStrip(root);
+    paintSelection(root);
+    if (target > 0) setBusyLabel(`Generating candidate 1/${target}`);
+  }
+
+  function onStreamDrafted(data) {
+    const root = tabRoot();
+    if (!root) return;
+    const position = Number(data && data.position);
+    const target = Number(data && data.target) || local.candidates.length || 0;
+    const candidate = data && data.candidate;
+    if (!Number.isInteger(position) || position < 1 || !candidate) return;
+    const idx = position - 1;
+    // Pad ``local.candidates`` if a draft lands ahead of the slot (tab opened
+    // mid-run, missed the reset). Each empty slot is just {} so paintStrip
+    // renders a blank placeholder rather than crashing.
+    while (local.candidates.length <= idx) local.candidates.push({});
+    local.candidates[idx] = Object.assign({}, candidate, { _pending_review: true });
+    // A streamed draft means the row is fresh AI — invalidate any prior
+    // collision warning for this slot until the finalized event reasserts it.
+    delete local.collisions[String(idx)];
+    paintStrip(root);
+    paintSummary(root);
+    // The draft just landed; the review call is now in flight for the same
+    // candidate. Reflect that in the global progress strip.
+    if (target > 0) setBusyLabel(`Reviewing candidate ${position}/${target}`);
+  }
+
+  function onStreamFinalized(data) {
+    const root = tabRoot();
+    if (!root) return;
+    const position = Number(data && data.position);
+    const target = Number(data && data.target) || local.candidates.length || 0;
+    const candidate = data && data.candidate;
+    if (!Number.isInteger(position) || position < 1 || !candidate) return;
+    const idx = position - 1;
+    while (local.candidates.length <= idx) local.candidates.push({});
+    local.candidates[idx] = Object.assign({}, candidate, {
+      _pending_review: false,
+      _review_notes: (data.review_notes || '').toString(),
+    });
+    if (data.collision_with) {
+      local.collisions[String(idx)] = String(data.collision_with);
+    } else {
+      delete local.collisions[String(idx)];
+    }
+    paintStrip(root);
+    paintSummary(root);
+    // After the last finalized event the server runs the AI picker (a single
+    // LLM call) before the HTTP response lands — surface that as the label
+    // so the strip doesn't look frozen during the picker call. For mid-run
+    // events, point at the next slot being generated.
+    if (target > 0) {
+      if (position >= target) {
+        setBusyLabel('Picking best mechanics…');
+      } else {
+        setBusyLabel(`Generating candidate ${position + 1}/${target}`);
+      }
+    }
   }
 
   // ----------------------------------------------------------------------

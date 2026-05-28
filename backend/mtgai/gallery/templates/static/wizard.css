@@ -1290,6 +1290,72 @@
   font-size: 0.8rem;
   line-height: 1.4;
 }
+/* Per-mechanic streaming: ``--pending`` runs between drafted and finalized
+   events (or while a slot is waiting for its first draft after a Refresh);
+   the small "Reviewing…" / "Generating…" badge sits in the card header and
+   pulses to telegraph the in-flight call. ``--placeholder`` is the slimmer
+   shell used while waiting for the first draft (no real content yet). */
+.wiz-mech-card--pending {
+  opacity: 0.85;
+  border-color: #4a9eff66;
+}
+.wiz-mech-card--placeholder {
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.75rem 1rem;
+  background: #11111e88;
+  border-style: dashed;
+}
+.wiz-mech-placeholder-title {
+  font-size: 0.78rem;
+  color: #888;
+  letter-spacing: 0.04em;
+}
+.wiz-mech-placeholder-body {
+  font-size: 0.78rem;
+  color: #777;
+  font-style: italic;
+}
+/* Empty-slot badge — neutral gray (no pulse) to distinguish from the active
+   "Generating…" state, which uses the pulsing blue ``wiz-mech-reviewing`` */
+.wiz-mech-empty-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.7rem;
+  color: #888;
+  background: #88888822;
+  border: 1px solid #88888855;
+  border-radius: 999px;
+}
+.wiz-mech-reviewing {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.7rem;
+  color: #4a9eff;
+  background: #4a9eff22;
+  border: 1px solid #4a9eff66;
+  border-radius: 999px;
+  animation: wiz-mech-reviewing-pulse 1.6s ease-in-out infinite;
+}
+@keyframes wiz-mech-reviewing-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+/* "Reviewer tweak: …" line at the bottom of the card — surfaces what the
+   review pass changed (empty notes ⇒ line is suppressed in the renderer). */
+.wiz-mech-review-notes {
+  padding: 0.35rem 0.55rem;
+  margin-top: 0.4rem;
+  font-size: 0.74rem;
+  color: #a0c2ff;
+  background: #4a9eff14;
+  border-left: 2px solid #4a9eff66;
+  border-radius: 3px;
+  line-height: 1.4;
+}
 .wiz-mech-row {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;

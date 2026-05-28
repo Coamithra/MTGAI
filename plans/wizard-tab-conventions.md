@@ -462,7 +462,59 @@ and only re-shows after the next `running`. A new tab adding AI gen gets
 this for free — fail the stage (return `StageResult(success=False, …)`
 or raise) and the shell handles the modal; don't roll your own.
 
-## 15. Stage LLM transcripts → `<asset>/<stage>/logs`
+## 15. Failed-stage recovery: heal on every successful manual write
+
+When a stage's engine run fails (model exhausts its retry budget, a cancel
+returns `success=False`, the server is interrupted mid-run, etc.) it lands
+in `StageStatus.FAILED` and `PipelineStatus.FAILED`. From there the engine
+won't advance until the stage is back in `PAUSED_FOR_REVIEW` — the user's
+manual recovery (Refresh AI, Re-pick, edit + Save, knob retune, etc.) puts
+valid output back on disk but **doesn't on its own flip the status**, so
+the wizard footer's Save & Continue stays hidden forever. The stage looks
+stuck even though its content is good.
+
+The fix is one line at the end of every recovery-style endpoint:
+
+```python
+from mtgai.pipeline.server import _heal_failed_stage  # already imported in-module
+
+# After persisting the regenerated/saved output and before the JSONResponse:
+_heal_failed_stage("<stage_id>")
+```
+
+`_heal_failed_stage` (in `pipeline/server.py`) demotes the stage's status
+FAILED → PAUSED_FOR_REVIEW, flips `overall_status` FAILED → PAUSED, clears
+`progress.error_message`, persists `pipeline-state.json`, and publishes the
+matching `stage_update` + `pipeline_status` SSE events so open tabs update
+without a reload. It's **idempotent and a no-op when the stage isn't failed**
+— safe to call from any successful path without gating.
+
+When to call it:
+
+* **Refresh-style endpoints** (`*/refresh`, `*/refresh-all`, `*/refresh-card`,
+  `*/knobs/tune`, `*/pick`) — call after the regenerated output is written
+  to disk.
+* **Save endpoints** (`*/save`) — call after `atomic_write_text` /
+  `persist_*` so the subsequent `/api/wizard/advance` finds the stage in
+  PAUSED_FOR_REVIEW and resumes the engine.
+* **Pure-config endpoints** (e.g. `*/knobs` that only persist settings
+  without regenerating output) — skip; they don't change the stage's
+  "valid output exists" state and the next refresh will heal anyway.
+
+Every stage that can fail (mechanics, archetypes, skeleton, reprints,
+lands, card_gen, plus any future stage with a wizard tab) **must** call
+this from its recovery endpoints. The failure path itself stays in the
+engine — don't reinvent it per-stage. Reference call sites in
+`pipeline/server.py`: every `_heal_failed_stage(...)` line.
+
+This rule exists because the original card_gen and mechanics endpoints each
+shipped with their own `_heal_failed_<stage>_stage` helper as a one-off
+patch, and every new stage's refresh endpoint repeated the bug (Archetypes
+shipped with no heal; the user hit a FAILED stage, refreshed successfully,
+and had no way to advance). One generic helper called from every recovery
+endpoint is the convention now.
+
+## 16. Stage LLM transcripts → `<asset>/<stage>/logs`
 
 Every stage generator that makes an AI call **must** route its llmfacade
 transcript (JSONL **and HTML**) to the stage's own
