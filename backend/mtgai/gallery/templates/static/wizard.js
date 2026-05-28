@@ -103,6 +103,24 @@
     return stages.length ? stages[0] : null;
   };
 
+  // Set a tab's lifecycle status from a tab module. The engine drives stage
+  // tabs via `stage_update` SSE (-> updateStageStatus), but pre-pipeline tabs
+  // like Theme report completion through their own theme_* events; without a
+  // way to push that into state.tabs the strip badge stays frozen on whatever
+  // the bootstrap snapshot had ("running"). This repaints both the strip badge
+  // and the mounted body's header pill so the two surfaces never disagree.
+  window.MTGAIWizard.setTabStatus = (tabId, status) => {
+    const tab = state.tabs.find(t => t.id === tabId);
+    if (tab) tab.status = status;
+    renderTabStrip();
+    const body = document.querySelector(`.wiz-tab-body[data-tab-id="${cssEsc(tabId)}"]`);
+    const pill = body && body.querySelector('.wiz-tab-header .wiz-status-pill');
+    if (pill) {
+      pill.className = 'wiz-status-pill ' + status;
+      pill.textContent = status.replace(/_/g, ' ');
+    }
+  };
+
   // Edit flow (§9) — modal preview + draft state + cascade Accept.
   // Per-tab renderers call window.MTGAIWizard.editFlow.* to gate their
   // destructive edits behind the warning modal. Draft state is held in

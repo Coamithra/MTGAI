@@ -588,6 +588,11 @@ def _start_extraction_worker(
                     card_suggestions = list(event["suggestions"])
                 if etype == "done":
                     total_cost = theme_cost + event.get("cost_usd", 0.0)
+                    # Set when auto-advance kicked off the engine, so the
+                    # watching Theme tab can open the first stage's tab (the
+                    # engine runs in this worker thread with no client to
+                    # navigate it).
+                    navigate_to: str | None = None
                     if save_to_set:
                         _persist_extraction_to_theme_json(
                             full_theme, constraints_list, card_suggestions
@@ -607,8 +612,8 @@ def _start_extraction_worker(
                                 save_to_set,
                             )
                         else:
-                            _, kickoff_err = _kickoff_pipeline_engine(save_to_set)
-                            if kickoff_err is not None:
+                            kicked, kickoff_err = _kickoff_pipeline_engine(save_to_set)
+                            if kickoff_err is not None or kicked is None:
                                 # Warning, not info: the user expected
                                 # the wizard to flow into Skeleton and
                                 # it didn't — surfacing this at default
@@ -619,10 +624,16 @@ def _start_extraction_worker(
                                     save_to_set,
                                     kickoff_err,
                                 )
-                    done_event = {
+                            else:
+                                next_id = _first_pending_stage_id(kicked)
+                                if next_id:
+                                    navigate_to = f"/pipeline/{next_id}"
+                    done_event: dict[str, Any] = {
                         "type": "done",
                         "total_cost_usd": round(total_cost, 4),
                     }
+                    if navigate_to:
+                        done_event["navigate_to"] = navigate_to
                     extraction_run.append_event(done_event)
                     _bus_mirror(done_event)
                     continue

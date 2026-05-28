@@ -159,12 +159,11 @@
   }
 
   function setThemePillStatus(status) {
-    const root = document.querySelector('.wiz-tab-body[data-tab-id="theme"]');
-    if (!root) return;
-    const pill = root.querySelector('.wiz-tab-header .wiz-status-pill');
-    if (!pill) return;
-    pill.className = 'wiz-status-pill ' + status;
-    pill.textContent = status.replace(/_/g, ' ');
+    // Delegate to the shell: it owns state.tabs + the tab-strip badge and
+    // repaints the mounted body's header pill too, so both surfaces stay in
+    // sync. Updating only the header pill here (the old behaviour) left the
+    // strip badge stuck on "running" after extraction finished.
+    W.setTabStatus('theme', status);
   }
 
   function refreshThemeBanner(root, state) {
@@ -687,6 +686,15 @@
       renderSettingPreview();
       refreshState.fullActive = false;
       setFormLocked(false);
+      if (data && data.navigate_to) {
+        // Theme break-point was off: the worker already kicked off the
+        // engine. Re-bootstrap on the first pipeline stage so its tab opens
+        // (running) and the Theme tab reads "completed" — a full nav matches
+        // the manual Save-and-continue / advance paths.
+        W.toast('Theme complete — starting the pipeline…', 'success');
+        window.location.assign(data.navigate_to);
+        return;
+      }
       setThemePillStatus('paused_for_review');
       W.toast('Theme refresh complete.', 'success');
       return;
