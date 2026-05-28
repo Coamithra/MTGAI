@@ -134,16 +134,41 @@ def validate_card_from_raw(
 
     all_errors = schema_errors + validate_card(card, existing_cards)
 
-    def _is_overflow(e: ValidationError) -> bool:
-        return bool(e.error_code and e.error_code.startswith("text_overflow."))
-
     if auto_fix:
         result = auto_fix_card(card, all_errors)
-        regen = any(_is_overflow(e) for e in result.remaining_errors)
+        regen = any(_is_regen_trigger(e) for e in result.remaining_errors)
         return result.card, result.remaining_errors, result.applied_fixes, regen
 
-    regen = any(_is_overflow(e) for e in all_errors)
+    regen = any(_is_regen_trigger(e) for e in all_errors)
     return card, all_errors, [], regen
+
+
+# Error codes that kick the card-gen retry loop. Anything matching this
+# allowlist is structurally severe enough that we'd rather regenerate the
+# card than save it and let the council clean up. Pure error-code prefix
+# match — validators only need to know which code to emit, not how the
+# downstream pipeline treats it. Keep this list small: a regen costs an LLM
+# call, so a finding lands here only if the card is *uninterpretable* as a
+# Magic object (won't render, can't be cast, P/T is garbage).
+_REGEN_TRIGGER_CODES: tuple[str, ...] = (
+    "text_overflow.",  # field exceeds the printed-card char limit
+    "type_check.pt_slash",  # ``power="1/1"`` etc. (both stats in one field)
+    "type_check.pt_literal_null",  # ``"null"`` / ``"None"`` / ``"-"`` sentinels in stats
+    "type_check.pt_nonstandard",  # non-numeric, non-``*``/``X`` garbage in stats
+    "type_check.noncreature_has_pt",  # P/T on an artifact/equipment — invalid MTG
+    "type_check.nonland_missing_cost",  # non-land with no mana_cost — uncastable
+)
+
+
+def _is_regen_trigger(e: ValidationError) -> bool:
+    """True if ``e``'s error_code is on the regen allowlist (see _REGEN_TRIGGER_CODES).
+
+    Entries ending in ``.`` match any code beginning with the prefix
+    (``text_overflow.`` covers ``text_overflow.name`` / ``.oracle`` / etc.); bare
+    entries match that exact code (``type_check.pt_slash`` matches only itself).
+    """
+    code = e.error_code or ""
+    return any(code.startswith(prefix) for prefix in _REGEN_TRIGGER_CODES)
 
 
 def has_manual_errors(errors: list[ValidationError]) -> bool:

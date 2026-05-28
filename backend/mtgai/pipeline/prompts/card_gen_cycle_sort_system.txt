@@ -10,11 +10,10 @@ Identify the cycles. Usually they are explicitly marked in their descriptor text
 
 ## Rules
 
-- **Read each descriptor line. Group slots whose text reads as variants of the same template.** A cycle's members differ only in colour/pair/trio; everything else (rarity, type, CMC, the structural shape of the ability) is the same.
+- **Read each descriptor line. Group slots whose text reads as variants of the same template.** A cycle's members differ only in colour/pair/trio.
 - **A cycle has at least 2 members.** A solo card isn't a cycle, even if its descriptor mentions one — drop it.
 - **No invented slot_ids.** Only return slot_ids that appear in the input listing, exactly as written.
 - **Each slot_id appears in at most one cycle.** Cycles do not overlap.
-- **A descriptor's tag isn't enough on its own.** Some slots may carry leftover hints like `cycle:<name>` from an earlier pass — those are advisory at best. Judge from the structural shape of the line, not the tag. A slot whose text reads as a unique build-around is not in any cycle, even if a tag suggests it was once meant to be.
 - **It's fine to return no cycles.** Some skeletons have none. Returning an empty list is correct in that case.
 
 Return only the `cycles` JSON through the tool — no preamble, no narration.

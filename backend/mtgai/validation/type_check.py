@@ -69,6 +69,84 @@ def _manual(
     )
 
 
+# Power / toughness / loyalty values the validators accept as legal. Anything
+# else trips ``type_check.pt_nonstandard`` (a regen trigger). ``*`` is the
+# variable-stat marker (Tarmogoyf etc.); ``1+*``/``2+*``/``*+1`` cover the
+# rare expression forms; ``X`` shows up on a handful of mythic creatures.
+_VALID_PT_VALUES_RE = re.compile(r"^(?:-?\d+|\*|[12]\+\*|\*\+1|X)$")
+
+# Sentinel strings the LLM occasionally drops into power/toughness/loyalty when
+# it means "no value here". We have to catch them explicitly because the schema
+# accepts ``str | None`` and these all parse as strings. Case-insensitive.
+_PT_SENTINELS = frozenset({"null", "none", "n/a", "na", "-", "—", ""})
+
+
+# ---------------------------------------------------------------------------
+# Stat-shape helpers (used by validate_type_consistency below)
+# ---------------------------------------------------------------------------
+
+
+def _validate_stat_shape(field: str, value: str | None) -> list[ValidationError]:
+    """Catch malformed power/toughness/loyalty strings.
+
+    Produces at most one finding per field. All three findings are regen
+    triggers — the card can't be saved with garbage in the stat fields, and
+    the LLM needs to write a clean integer (or ``*`` / ``X``) on the next
+    attempt.
+
+    Check order matters because some inputs match multiple patterns:
+    1. **Sentinels first** so ``"N/A"`` (which also contains ``/``) is
+       classified as a "no value" sentinel rather than a slashed stat.
+    2. **Slash next** for the canonical ``power="1/1"`` mistake (both stats
+       stuffed into one field).
+    3. **Nonstandard last** for anything else outside the legal allowlist.
+    """
+    if value is None:
+        return []
+    stripped = value.strip()
+
+    # Sentinel strings the LLM uses to mean "no value". Schema accepts these
+    # as strings, but they aren't real stats — regen rather than try to coerce.
+    # Checked first because ``"N/A"`` etc. would otherwise match the slash rule.
+    if stripped.lower() in _PT_SENTINELS:
+        return [
+            _manual(
+                field,
+                f"{field}={value!r} is a sentinel string, not a real value — "
+                f"use null for absent stats, or a real number/'*' for present ones",
+                f"Set {field} to a real value (integer or '*'), or omit the field.",
+                error_code="type_check.pt_literal_null",
+            )
+        ]
+
+    # A slash means the model wrote both stats into one field, like
+    # ``power="1/1"``.
+    if "/" in value:
+        return [
+            _manual(
+                field,
+                f"{field}={value!r} contains '/' — looks like both stats were "
+                f"stuffed into one field (write power and toughness separately)",
+                f"Set {field} to a single value, e.g. '2'.",
+                error_code="type_check.pt_slash",
+            )
+        ]
+
+    # Everything else: must match the small allowlist of legal MTG stat values.
+    if not _VALID_PT_VALUES_RE.match(stripped):
+        return [
+            _manual(
+                field,
+                f"{field}={value!r} isn't a legal Magic stat value "
+                f"(expected an integer, '*', 'X', or one of '1+*'/'2+*'/'*+1')",
+                f"Set {field} to a legal value such as '2' or '*'.",
+                error_code="type_check.pt_nonstandard",
+            )
+        ]
+
+    return []
+
+
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -83,6 +161,33 @@ def validate_type_consistency(card: Card) -> list[ValidationError]:
         card = _parse_type_line(card)
 
     errors: list[ValidationError] = []
+
+    # 0. Structural shape of power / toughness / loyalty. These checks fire
+    #    BEFORE the "creature has P/T" semantics below so a garbage stat like
+    #    ``"1/1"`` or ``"null"`` triggers regen rather than silently passing
+    #    the "has power and toughness" gate downstream. All three findings
+    #    are regen triggers (see _is_regen_trigger in validation/__init__.py).
+    errors += _validate_stat_shape("power", card.power)
+    errors += _validate_stat_shape("toughness", card.toughness)
+    errors += _validate_stat_shape("loyalty", card.loyalty)
+
+    # 0b. Non-land card must have a mana cost. ``mana_cost`` is typed
+    #    ``str | None`` on the model (Land is the only zero-cost card type), so
+    #    a None / empty string on anything else slips past schema and produces
+    #    an uncastable card downstream — regen.
+    if (
+        card.type_line
+        and "land" not in card.type_line.lower()
+        and not (card.mana_cost and card.mana_cost.strip())
+    ):
+        errors.append(
+            _manual(
+                "mana_cost",
+                "Non-land card has no mana cost — card is uncastable",
+                "Set a mana cost. Only Land cards may have an empty cost.",
+                error_code="type_check.nonland_missing_cost",
+            )
+        )
 
     is_creature = "Creature" in card.card_types
     is_planeswalker = "Planeswalker" in card.card_types

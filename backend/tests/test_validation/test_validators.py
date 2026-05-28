@@ -318,6 +318,196 @@ class TestTypeConsistency:
 
 
 # ===========================================================================
+# Structural shape checks — power / toughness / loyalty garbage, missing cost.
+# All of these are regen triggers: a card can't be saved with garbage in its
+# stat fields or no way to be cast, so validate_card_from_raw returns
+# regen=True and the card-gen retry loop re-prompts the model.
+# ===========================================================================
+
+
+class TestStatShape:
+    def test_pt_slash_triggers_regen(self):
+        """LLM stuffs both stats in one field: power='1/1'. Regen."""
+        raw = {
+            "name": "Slash Stat",
+            "type_line": "Creature — Beast",
+            "mana_cost": "{2}{G}",
+            "oracle_text": "Trample",
+            "power": "1/1",
+            "toughness": "1",
+            "rarity": "common",
+            "card_types": ["Creature"],
+            "subtypes": ["Beast"],
+        }
+        _card, errors, _fixes, regen = validate_card_from_raw(raw)
+        assert regen is True
+        assert any(e.error_code == "type_check.pt_slash" for e in errors)
+
+    def test_pt_literal_null_triggers_regen(self):
+        """LLM writes the string 'null' into a stat field. Regen."""
+        raw = {
+            "name": "Literal Null Stat",
+            "type_line": "Creature — Beast",
+            "mana_cost": "{2}{G}",
+            "oracle_text": "Trample",
+            "power": "null",
+            "toughness": "null",
+            "rarity": "common",
+            "card_types": ["Creature"],
+            "subtypes": ["Beast"],
+        }
+        _card, errors, _fixes, regen = validate_card_from_raw(raw)
+        assert regen is True
+        assert any(e.error_code == "type_check.pt_literal_null" for e in errors)
+
+    def test_pt_sentinel_dash_triggers_regen(self):
+        """Sentinel '-' / '—' / 'N/A' all mean "no value"; regen instead of guessing."""
+        raw = {
+            "name": "Dash Stat",
+            "type_line": "Creature — Beast",
+            "mana_cost": "{2}{G}",
+            "oracle_text": "",
+            "power": "-",
+            "toughness": "N/A",
+            "rarity": "common",
+            "card_types": ["Creature"],
+            "subtypes": ["Beast"],
+        }
+        _card, errors, _fixes, regen = validate_card_from_raw(raw)
+        assert regen is True
+        assert sum(1 for e in errors if e.error_code == "type_check.pt_literal_null") >= 2
+
+    def test_pt_nonstandard_garbage_triggers_regen(self):
+        """A stat value that isn't an integer, '*', or a known special. Regen."""
+        raw = {
+            "name": "Garbage Stat",
+            "type_line": "Creature — Beast",
+            "mana_cost": "{2}{G}",
+            "oracle_text": "",
+            "power": "tall",
+            "toughness": "2",
+            "rarity": "common",
+            "card_types": ["Creature"],
+            "subtypes": ["Beast"],
+        }
+        _card, errors, _fixes, regen = validate_card_from_raw(raw)
+        assert regen is True
+        assert any(e.error_code == "type_check.pt_nonstandard" for e in errors)
+
+    def test_legal_star_and_x_stats_are_fine(self):
+        """``*`` and ``X`` are legal Magic stat values; no regen."""
+        for value in ("*", "X", "1+*", "2+*", "*+1"):
+            card = _make_card(power=value, toughness="2")
+            assert _errors_by_validator(validate_card(card), "type_check") == [] or all(
+                e.error_code
+                not in {
+                    "type_check.pt_slash",
+                    "type_check.pt_literal_null",
+                    "type_check.pt_nonstandard",
+                }
+                for e in _errors_by_validator(validate_card(card), "type_check")
+            ), f"{value!r} should be a legal stat"
+
+    def test_negative_pt_is_allowed_shape_wise(self):
+        """Negative stats are rare but a legal shape (power_level heuristic
+        flags them; the structural check just checks the format)."""
+        card = _make_card(power="-1", toughness="2")
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        assert not any(
+            e.error_code
+            in {
+                "type_check.pt_slash",
+                "type_check.pt_literal_null",
+                "type_check.pt_nonstandard",
+            }
+            for e in errors
+        )
+
+    def test_loyalty_slash_also_caught(self):
+        """The stat-shape checks apply to loyalty too — a slashed loyalty is
+        the same kind of busted stat as a slashed P/T."""
+        raw = {
+            "name": "Slashed Loyalty PW",
+            "type_line": "Planeswalker — Test",
+            "mana_cost": "{2}{W}{U}",
+            "oracle_text": "+1: Draw a card.\n-3: Target creature is exiled.",
+            "loyalty": "3/1",
+            "rarity": "mythic",
+            "card_types": ["Planeswalker"],
+            "subtypes": ["Test"],
+        }
+        _card, errors, _fixes, regen = validate_card_from_raw(raw)
+        assert regen is True
+        assert any(e.error_code == "type_check.pt_slash" for e in errors)
+
+
+class TestNonlandMissingCost:
+    def test_creature_with_no_cost_triggers_regen(self):
+        """Predacon Sky-Stalker case: creature with mana_cost=None. Regen."""
+        raw = {
+            "name": "Costless Beast",
+            "type_line": "Creature — Beast",
+            "mana_cost": None,
+            "oracle_text": "Trample",
+            "power": "2",
+            "toughness": "2",
+            "rarity": "common",
+            "card_types": ["Creature"],
+            "subtypes": ["Beast"],
+        }
+        _card, errors, _fixes, regen = validate_card_from_raw(raw)
+        assert regen is True
+        assert any(e.error_code == "type_check.nonland_missing_cost" for e in errors)
+
+    def test_artifact_with_empty_cost_triggers_regen(self):
+        """Empty-string mana_cost on an artifact is just as broken as None."""
+        raw = {
+            "name": "Costless Artifact",
+            "type_line": "Artifact",
+            "mana_cost": "",
+            "oracle_text": "{T}: Add {C}.",
+            "rarity": "common",
+            "card_types": ["Artifact"],
+        }
+        _card, errors, _fixes, regen = validate_card_from_raw(raw)
+        assert regen is True
+        assert any(e.error_code == "type_check.nonland_missing_cost" for e in errors)
+
+    def test_land_with_no_cost_is_fine(self):
+        """Lands are allowed (required) to have no mana cost."""
+        raw = {
+            "name": "Test Plains",
+            "type_line": "Basic Land — Plains",
+            "mana_cost": None,
+            "oracle_text": "({T}: Add {W}.)",
+            "rarity": "common",
+            "card_types": ["Land"],
+            "supertypes": ["Basic"],
+            "subtypes": ["Plains"],
+        }
+        _card, errors, _fixes, regen = validate_card_from_raw(raw)
+        assert regen is False
+        assert not any(e.error_code == "type_check.nonland_missing_cost" for e in errors)
+
+    def test_noncreature_pt_also_triggers_regen(self):
+        """The pre-existing noncreature_has_pt finding is now a regen
+        trigger — an artifact with P/T is structurally invalid MTG."""
+        raw = {
+            "name": "Stat Artifact",
+            "type_line": "Artifact",
+            "mana_cost": "{3}",
+            "oracle_text": "{T}: Add {C}.",
+            "power": "0",
+            "toughness": "5",
+            "rarity": "common",
+            "card_types": ["Artifact"],
+        }
+        _card, errors, _fixes, regen = validate_card_from_raw(raw)
+        assert regen is True
+        assert any(e.error_code == "type_check.noncreature_has_pt" for e in errors)
+
+
+# ===========================================================================
 # Rules text grammar
 # ===========================================================================
 
