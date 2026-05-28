@@ -1041,6 +1041,53 @@ class TestAutoFix:
         assert "cannot" not in result.card.oracle_text
         assert "can't" in result.card.oracle_text
 
+    def test_auto_fix_modal_asterisk_bullet(self):
+        """Markdown ``*`` bullets on modal lines get rewritten to ``•``."""
+        card = _make_card(
+            oracle_text=("Choose one —\n* Draw a card.\n* ~ deals 2 damage to any target."),
+        )
+        errors = validate_card(card)
+        result = auto_fix_card(card, errors)
+        assert "* Draw" not in result.card.oracle_text
+        assert "* ~ deals" not in result.card.oracle_text
+        assert "• Draw a card." in result.card.oracle_text
+        assert "• ~ deals 2 damage to any target." in result.card.oracle_text
+        assert any("modal_asterisk_bullet" in f for f in result.applied_fixes)
+
+    def test_modal_asterisk_fix_leaves_other_asterisks_alone(self):
+        """Mid-line ``*`` (e.g. inside a sentence) isn't a bullet, leave it."""
+        card = _make_card(oracle_text="Power and toughness are each equal to *.")
+        errors = validate_card(card)
+        result = auto_fix_card(card, errors)
+        assert "•" not in result.card.oracle_text
+        assert result.card.oracle_text == "Power and toughness are each equal to *."
+
+    def test_auto_fix_oracle_type_prefix(self):
+        """An "Artifact." / "Creature." header line gets stripped."""
+        card = _make_card(
+            card_types=["Artifact"],
+            type_line="Artifact",
+            subtypes=[],
+            power=None,
+            toughness=None,
+            oracle_text="Artifact.\n\n{T}: Add {C}.",
+        )
+        errors = validate_card(card)
+        result = auto_fix_card(card, errors)
+        assert not result.card.oracle_text.startswith("Artifact.")
+        assert result.card.oracle_text.startswith("{T}: Add {C}.")
+        assert any("oracle_type_prefix" in f for f in result.applied_fixes)
+
+    def test_oracle_type_prefix_fix_only_strips_first_line(self):
+        """A type word in the middle of oracle text isn't a prefix; don't strip."""
+        card = _make_card(
+            oracle_text="When ~ enters, destroy target Artifact you don't control.",
+        )
+        errors = validate_card(card)
+        result = auto_fix_card(card, errors)
+        # The middle "Artifact" is part of the rule; should be preserved.
+        assert "Artifact" in result.card.oracle_text
+
     def test_auto_fix_keyword_caps(self):
         """Second keyword in comma list gets lowercased."""
         card = _make_card(oracle_text="Flying, Trample")

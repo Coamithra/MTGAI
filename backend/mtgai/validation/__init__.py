@@ -203,6 +203,8 @@ def _register_auto_fixers() -> None:
         fix_keyword_capitalization,
         fix_keyword_commas,
         fix_line_periods,
+        fix_modal_asterisk_bullet,
+        fix_oracle_type_prefix,
         fix_tap_colon,
     )
     from mtgai.validation.type_check import fix_enchantment_artifact
@@ -226,6 +228,8 @@ def _register_auto_fixers() -> None:
             "rules_text.line_period": fix_line_periods,
             "rules_text.keyword_capitalization": fix_keyword_capitalization,
             "rules_text.cannot": fix_cannot,
+            "rules_text.modal_asterisk_bullet": fix_modal_asterisk_bullet,
+            "rules_text.oracle_type_prefix": fix_oracle_type_prefix,
             "uniqueness.collector_number_collision": fix_collector_number,
             "type_check.enchantment_artifact": fix_enchantment_artifact,
         }

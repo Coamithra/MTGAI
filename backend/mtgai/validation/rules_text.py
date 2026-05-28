@@ -77,6 +77,13 @@ CUSTOM_KEYWORDS = {"salvage", "malfunction", "overclock"}
 
 MANA_SYM_VALID = re.compile(r"\{(\d+|[WUBRGCXSTQ](?:/[WUBRGP])?)\}")
 MANA_SYM_ANY = re.compile(r"\{[^}]+\}")
+
+# Lines like "Artifact." / "Creature" at the start of oracle_text — the LLM
+# redundantly stating the type as a heading. The type already lives in
+# ``type_line``; the prefix is stripped by ``fix_oracle_type_prefix``.
+_TYPE_PREFIX_RE = re.compile(
+    r"^(?:Artifact|Creature|Enchantment|Instant|Sorcery|Land|Planeswalker|Battle|Tribal)\.?$"
+)
 SELF_REF_BAD = re.compile(
     r"\bthis (creature|card|permanent|enchantment|artifact|planeswalker"
     r"|instant|sorcery)\b",
@@ -409,6 +416,40 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
             )
         )
 
+    # ------------------------------------------------------------------
+    # 16. Modal bullets typed as ``*`` instead of ``•`` — AUTO
+    #     LLMs often default to markdown asterisks for bulleted lists. MTG
+    #     uses a bullet point (U+2022) for modal-spell choices. Substitute
+    #     the bullet character when ``*`` appears at the start of a line
+    #     followed by whitespace (the unambiguous modal-bullet pattern;
+    #     leaves mid-line ``**bold**`` and bare ``*`` alone).
+    # ------------------------------------------------------------------
+    if re.search(r"(?m)^\s*\*\s+\S", oracle):
+        errors.append(
+            _auto(
+                "oracle_text",
+                "Modal bullets use '*' instead of '•'",
+                "Replace leading '*' on bullet lines with '•'.",
+                error_code="rules_text.modal_asterisk_bullet",
+            )
+        )
+
+    # ------------------------------------------------------------------
+    # 17. Oracle starts with a redundant type word — AUTO
+    #     Some LLM outputs prefix the oracle with the card's type ("Artifact.",
+    #     "Creature.", "Land") as if it were a header. The type is already in
+    #     ``type_line``; the redundant prefix isn't MTG templating. Strip it.
+    # ------------------------------------------------------------------
+    if lines and _TYPE_PREFIX_RE.match(lines[0].strip()):
+        errors.append(
+            _auto(
+                "oracle_text",
+                f'Oracle text starts with redundant type prefix line "{lines[0]!r}"',
+                "Remove the type-only first line — the type is already in type_line.",
+                error_code="rules_text.oracle_type_prefix",
+            )
+        )
+
     return errors
 
 
@@ -531,3 +572,32 @@ def fix_cannot(card: Card, error: ValidationError) -> Card:
     new_oracle = re.sub(r"\bcannot\b", "can't", card.oracle_text, flags=re.IGNORECASE)
     new_oracle = re.sub(r"\bcan not\b", "can't", new_oracle, flags=re.IGNORECASE)
     return card.model_copy(update={"oracle_text": new_oracle})
+
+
+def fix_modal_asterisk_bullet(card: Card, error: ValidationError) -> Card:
+    """Replace leading ``*`` on bullet lines with ``•`` (the MTG bullet point).
+
+    Only fires on lines whose first non-whitespace character is ``*`` followed
+    by whitespace — so mid-line ``**bold**`` and bare ``*`` are left alone.
+    """
+    if not card.oracle_text:
+        return card
+    new_oracle = re.sub(r"(?m)^(\s*)\*(\s+)", r"\1•\2", card.oracle_text)
+    return card.model_copy(update={"oracle_text": new_oracle})
+
+
+def fix_oracle_type_prefix(card: Card, error: ValidationError) -> Card:
+    """Strip a leading "Artifact." / "Creature." / etc. line from oracle_text.
+
+    Also eats a single blank line immediately following it so the remaining
+    oracle text doesn't start with an empty line.
+    """
+    if not card.oracle_text:
+        return card
+    lines = card.oracle_text.split("\n")
+    if not lines or not _TYPE_PREFIX_RE.match(lines[0].strip()):
+        return card
+    rest = lines[1:]
+    if rest and not rest[0].strip():
+        rest = rest[1:]
+    return card.model_copy(update={"oracle_text": "\n".join(rest)})
