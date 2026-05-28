@@ -188,7 +188,14 @@ def test_in_place_mutator_clearers_are_no_ops(fake_output_root: Path) -> None:
     sentinel.write_text("{}", encoding="utf-8")
     _open_test_project("TST", set_dir)
 
-    for stage_id in ("ai_review", "finalize", "art_prompts", "art_select", "skeleton_rev"):
+    for stage_id in (
+        "conformance",
+        "balance",
+        "ai_review",
+        "finalize",
+        "art_prompts",
+        "art_select",
+    ):
         stages_mod.clear_stage_artifacts(stage_id)
 
     assert sentinel.exists(), "in-place mutator clearers must not touch cards/"

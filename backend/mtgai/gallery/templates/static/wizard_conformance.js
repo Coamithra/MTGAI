@@ -1,15 +1,14 @@
 /**
- * Wizard Interaction Check tab (stage_id ``balance``).
+ * Wizard Conformance tab (stage_id ``conformance``).
  *
- * The reworked balance stage is a whole-pool *gate* in the review→regen loop:
- * it scans for degenerate interactions and flags the enabler card of each for
- * regeneration. This tab renders that instance's findings (``stage.result`` —
- * the runner's artifacts, carried on the stage_update SSE), so it works for the
- * backbone instance *and* any inserted ``balance.2`` re-run identically.
+ * The first review→regen gate: each generated card vs. its slot spec. Flags any
+ * non-conforming card for regeneration. Renders this instance's findings
+ * (``stage.result`` — the runner's artifacts, carried on the stage_update SSE),
+ * so the backbone instance and any inserted ``conformance.2`` re-run render the
+ * same way.
  *
- * Conventions: instance-aware (keys off ``stage.instance_id`` / ``tab.id``, not
- * a hardcoded stage id, so a repeated instance renders its own tab); §1 paused
- * footer → Next-step button; §6 past-tab Edit owned by wizard_stage.js.
+ * Instance-aware (keys off ``stage.instance_id`` / ``tab.id``); shares the
+ * ``wiz-gate-*`` styles injected by wizard_balance.js.
  */
 
 (function () {
@@ -32,7 +31,7 @@
     document.head.appendChild(style);
   }
 
-  W.registerStageRenderer('balance', render);
+  W.registerStageRenderer('conformance', render);
 
   function render({ state, stage, content, footer }) {
     if (content) content.innerHTML = bodyHtml(stage);
@@ -42,18 +41,18 @@
   function bodyHtml(stage) {
     const status = stage ? stage.status : 'pending';
     if (status === 'pending') {
-      return '<div class="wiz-stage-empty">Interaction check has not run yet.</div>';
+      return '<div class="wiz-stage-empty">Conformance check has not run yet.</div>';
     }
     if (status === 'running') {
-      return '<div class="wiz-stage-empty">Scanning the pool for degenerate interactions…</div>';
+      return '<div class="wiz-stage-empty">Checking each card against its slot spec…</div>';
     }
     const result = (stage && stage.result) || {};
     const flagged = result.flagged || [];
     const analysis = result.analysis || '';
     const header = flagged.length === 0
-      ? '<div class="wiz-gate-ok">✓ No degenerate interactions found.</div>'
+      ? '<div class="wiz-gate-ok">✓ Every card matches its slot spec.</div>'
       : '<div class="wiz-gate-flagged">' + flagged.length
-        + ' enabler card(s) flagged for regeneration</div>';
+        + ' card(s) flagged for regeneration</div>';
     const analysisBlock = analysis
       ? '<p class="wiz-gate-analysis">' + escHtml(analysis) + '</p>' : '';
     const pausedNote = (status === 'paused_for_review' && flagged.length)
@@ -89,7 +88,7 @@
     } else if (status === 'running') {
       html = '<span class="wiz-footer-note">Checking…</span>';
     } else {
-      html = '<span class="wiz-footer-note">This gate runs automatically; a clean pool advances. '
+      html = '<span class="wiz-footer-note">This gate runs automatically; a clean pass advances. '
         + 'Flagged cards bounce back to Card Generation.</span>';
     }
     if (footer.dataset.lastFooter !== html) {

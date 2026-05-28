@@ -4487,10 +4487,10 @@ async def get_stage_logs(stage_id: str):
         "mechanics": [set_dir / "mechanics" / "logs"],
         "card_gen": [set_dir / "card_gen" / "logs"],
         "ai_review": [set_dir / "reviews"],
-        "skeleton_rev": [set_dir / "revision_logs"],
+        "conformance": [set_dir / "conformance" / "logs"],
         "art_prompts": [set_dir / "art-direction" / "prompt-logs"],
         "art_select": [set_dir / "art-direction" / "selections"],
-        "balance": [set_dir / "reports"],
+        "balance": [set_dir / "balance" / "logs"],
         "finalize": [set_dir / "reports"],
     }
 

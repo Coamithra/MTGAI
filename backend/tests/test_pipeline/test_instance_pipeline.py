@@ -73,7 +73,7 @@ def _state_with_inserted_dupes() -> PipelineState:
     bal2 = StageState(
         stage_id="balance",
         instance_id="balance.2",
-        display_name="Balance Analysis 2",
+        display_name="Interaction Check 2",
         status=StageStatus.PAUSED_FOR_REVIEW,
     )
     state.stages[idx + 1 : idx + 1] = [cg2, bal2]
@@ -114,7 +114,7 @@ def test_current_stage_resolves_instance():
     assert current is not None
     assert current.instance_id == "balance.2"
     assert current.stage_id == "balance"
-    assert current.display_name == "Balance Analysis 2"
+    assert current.display_name == "Interaction Check 2"
 
 
 def test_legacy_current_stage_id_alias_loads():
@@ -184,7 +184,7 @@ def test_inserted_instances_roundtrip_through_load_state(project_with_state):
     assert [s.instance_id for s in loaded.stages] == [s.instance_id for s in original.stages]
     by_inst = {s.instance_id: s for s in loaded.stages}
     assert by_inst["card_gen.2"].display_name == "Card Generation 2"
-    assert by_inst["balance.2"].display_name == "Balance Analysis 2"
+    assert by_inst["balance.2"].display_name == "Interaction Check 2"
     assert by_inst["balance.2"].stage_id == "balance"
 
 
@@ -205,7 +205,7 @@ def test_compute_visible_tabs_emits_distinct_tab_per_instance():
     ids = [t.id for t in tabs]
     assert "balance" in ids and "balance.2" in ids
     titles = {t.id: t.title for t in tabs}
-    assert titles["balance"] == "Balance Analysis"
-    assert titles["balance.2"] == "Balance Analysis 2"
+    assert titles["balance"] == "Interaction Check"  # display renamed; stage_id stays "balance"
+    assert titles["balance.2"] == "Interaction Check 2"
     # Distinct tabs, no collision.
     assert len(ids) == len(set(ids))

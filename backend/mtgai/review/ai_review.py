@@ -1426,14 +1426,31 @@ def review_all_cards(
     revised = sum(1 for r in reviews if r.card_was_changed)
     cost_usd = sum(r.total_cost_usd for r in reviews)
     ok_count = sum(1 for r in reviews if r.final_verdict == "OK")
+
+    # Hybrid escape hatch (plans/review-loop-stage-split.md): in-place council
+    # revision is the primary action (applied + saved above), but a card the
+    # council still rated REVISE after MAX_ITERATIONS is *unfixable in place* —
+    # surface it so the runner can flag it for a from-scratch regen via the loop.
+    # The best in-place attempt stays saved; the regen archives + replaces it.
+    unfixable: list[dict] = []
+    for r in reviews:
+        if r.final_verdict != "REVISE":
+            continue
+        problems = "; ".join(i.description for i in r.final_issues if i.description)
+        reason = "Design review could not fix this card after revising: " + (
+            problems or "still rated REVISE after the iteration budget."
+        )
+        unfixable.append({"slot_id": r.collector_number, "reason": reason})
+
     summary = (
         f"AI review complete: {reviewed} cards reviewed, {revised} revised, "
-        f"{ok_count} OK, ${cost_usd:.2f} total cost"
+        f"{ok_count} OK, {len(unfixable)} unfixable, ${cost_usd:.2f} total cost"
     )
     return {
         "reviewed": reviewed,
         "revised": revised,
         "cost_usd": cost_usd,
+        "unfixable": unfixable,
         "summary": summary,
     }
 

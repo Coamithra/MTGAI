@@ -99,13 +99,16 @@ class EventBus:
         status: str,
         progress: dict | None = None,
         instance_id: str | None = None,
+        result: dict | None = None,
     ) -> None:
         """Publish a stage status change.
 
         ``instance_id`` identifies which stage *instance* changed (a stage can
         appear more than once); it defaults to ``stage_id`` for backbone
         instances, so it's always present in the payload for the shell to route
-        on.
+        on. ``result`` carries the instance's runner output (e.g. a review
+        gate's flagged-card list) so its tab can render findings live without a
+        separate fetch.
         """
         payload: dict[str, Any] = {
             "stage_id": stage_id,
@@ -114,6 +117,8 @@ class EventBus:
         }
         if progress is not None:
             payload["progress"] = progress
+        if result is not None:
+            payload["result"] = result
         self.publish("stage_update", payload)
 
     def item_progress(

@@ -27,10 +27,16 @@ from mtgai.pipeline.models import (
     StageReviewMode,
     StageState,
     StageStatus,
+    make_instance_id,
 )
 from mtgai.pipeline.stages import STAGE_RUNNERS, StageResult
 
 logger = logging.getLogger(__name__)
+
+# Per-stage_id cap on review→regen cycles. When a gate's instance count reaches
+# this with cards still flagged, that instance pauses for human review (best
+# attempt kept, cards left flagged) instead of inserting yet another regen span.
+MAX_REVIEW_ROUNDS = 3
 
 
 def _state_path() -> Path:
@@ -349,8 +355,11 @@ class PipelineEngine:
 
             # A review runner that flagged cards bounces the pipeline: insert
             # fresh instances of the upstream span and walk forward into them.
-            if self._handle_rerun(result, i):
-                i += 1
+            rerun = self._handle_rerun(result, i)
+            if rerun == "exhausted":
+                return  # gate hit the round cap with flags remaining — human pause
+            if rerun == "inserted":
+                i += 1  # walk into the freshly-inserted regen span
                 continue
 
             # Check if human review is needed
@@ -363,6 +372,7 @@ class PipelineEngine:
                     stage.status,
                     stage.progress.model_dump(mode="json"),
                     instance_id=stage.instance_id,
+                    result=stage.result,
                 )
                 self.bus.pipeline_status(self.state.overall_status, stage.instance_id)
                 logger.info(
@@ -379,6 +389,7 @@ class PipelineEngine:
                 stage.status,
                 stage.progress.model_dump(mode="json"),
                 instance_id=stage.instance_id,
+                result=stage.result,
             )
             logger.info("Stage %s completed", stage.display_name)
             i += 1
@@ -394,17 +405,108 @@ class PipelineEngine:
             self.bus.pipeline_status(self.state.overall_status, None)
             logger.info("Pipeline completed! Total cost: $%.2f", self.state.total_cost_usd)
 
-    def _handle_rerun(self, result: StageResult, index: int) -> bool:
-        """Forward-only re-entrancy: handle a review runner's ``rerun_from``.
+    def _handle_rerun(self, result: StageResult, index: int) -> str | None:
+        """Forward-only re-entrancy for a gate that flagged cards.
 
-        Part 1 stub (behavior-neutral — no runner sets ``rerun_from`` yet). The
-        review→regen loop fills this in: when a review stage flags cards it sets
-        ``result.rerun_from`` to the upstream stage to bounce to; this inserts a
-        fresh instance span ``[rerun_from … this stage]`` right after ``index``
-        and returns True so the walk advances into them. Returns False when
-        there's nothing to re-run.
+        When a review gate sets ``result.rerun_from`` (the upstream stage to
+        bounce to — always ``card_gen``), one of two things happens:
+
+        * **Exhausted** — this gate's ``stage_id`` already has
+          ``MAX_REVIEW_ROUNDS`` instances. The gate pauses for human review
+          (best attempt kept, cards left flagged). Returns ``"exhausted"`` so
+          the loop yields control.
+        * **Inserted** — otherwise the flagging gate is marked COMPLETED and a
+          fresh PENDING instance span ``[rerun_from … this gate]`` (canonical
+          order, each at its next ordinal, AUTO so the loop flows) is inserted
+          right after ``index``. Returns ``"inserted"`` so the walk steps into
+          the regen span.
+
+        Returns ``None`` when there's nothing to re-run (a clean pass / non-gate
+        stage), leaving the normal review-pause / complete handling to run.
         """
-        return False
+        if not result.rerun_from:
+            return None
+
+        gate = self.state.stages[index]
+        gate_sid = gate.stage_id
+        rounds = sum(1 for s in self.state.stages if s.stage_id == gate_sid)
+
+        if rounds >= MAX_REVIEW_ROUNDS:
+            gate.status = StageStatus.PAUSED_FOR_REVIEW
+            gate.progress.detail = (
+                f"{gate.progress.detail} — review limit reached ({rounds} rounds); "
+                "flagged cards left for human review."
+            )
+            self.state.overall_status = PipelineStatus.PAUSED
+            save_state(self.state)
+            self.bus.stage_update(
+                gate.stage_id,
+                gate.status,
+                gate.progress.model_dump(mode="json"),
+                instance_id=gate.instance_id,
+                result=gate.result,
+            )
+            self.bus.pipeline_status(self.state.overall_status, gate.instance_id)
+            logger.info(
+                "Gate %s exhausted %d rounds with flags remaining — pausing for review",
+                gate.display_name,
+                rounds,
+            )
+            return "exhausted"
+
+        # Mark the flagging gate complete, then insert the regen span after it.
+        gate.status = StageStatus.COMPLETED
+        save_state(self.state)
+        self.bus.stage_update(
+            gate.stage_id,
+            gate.status,
+            gate.progress.model_dump(mode="json"),
+            instance_id=gate.instance_id,
+            result=gate.result,
+        )
+
+        span = self._build_rerun_span(result.rerun_from, gate_sid)
+        self.state.stages[index + 1 : index + 1] = span
+        save_state(self.state)
+        logger.info(
+            "Gate %s flagged cards — inserting regen span [%s]",
+            gate.display_name,
+            ", ".join(s.instance_id for s in span),
+        )
+        return "inserted"
+
+    def _build_rerun_span(self, rerun_from: str, gate_sid: str) -> list[StageState]:
+        """Fresh PENDING instances for the canonical stage span ``rerun_from..gate_sid``.
+
+        Each gets the next free ordinal for its stage_id and an AUTO review_mode
+        so the inserted span runs without pausing — only a re-flag bounces again
+        or, at the cap, pauses.
+        """
+        canonical = [d["stage_id"] for d in STAGE_DEFINITIONS]
+        defn_by_id = {d["stage_id"]: d for d in STAGE_DEFINITIONS}
+        try:
+            lo, hi = canonical.index(rerun_from), canonical.index(gate_sid)
+        except ValueError:
+            logger.error(
+                "Rerun span endpoints not in STAGE_DEFINITIONS: %s..%s", rerun_from, gate_sid
+            )
+            return []
+
+        span: list[StageState] = []
+        for sid in canonical[lo : hi + 1]:
+            defn = defn_by_id[sid]
+            ordinal = sum(1 for s in self.state.stages if s.stage_id == sid) + 1
+            span.append(
+                StageState(
+                    stage_id=sid,
+                    instance_id=make_instance_id(sid, ordinal),
+                    display_name=f"{defn['display_name']} {ordinal}",
+                    review_eligible=defn["review_eligible"],
+                    review_mode=StageReviewMode.AUTO,
+                    status=StageStatus.PENDING,
+                )
+            )
+        return span
 
     def resume(self) -> None:
         """Resume pipeline after human review.

@@ -324,6 +324,7 @@ def format_slot_specs(
             # its colour-pair (the relabel prompt instructs it to add ``·XY``), so the
             # model picks the right archetype from the descriptor's text alone.
             spec += _cycle_note(slot)
+            spec += _regen_note(slot)
             lines.append(spec)
             continue
 
@@ -378,6 +379,7 @@ def format_slot_specs(
             spec += f"\n   Notes: {notes}"
 
         spec += _cycle_note(slot)
+        spec += _regen_note(slot)
         lines.append(spec)
 
     return "\n".join(lines)
@@ -400,6 +402,23 @@ def _cycle_note(slot: dict) -> str:
     if template:
         note += f" Cycle template: {template}"
     return note
+
+
+def _regen_note(slot: dict) -> str:
+    """A REGENERATION instruction when a review gate flagged this slot's card.
+
+    ``card_generator`` stamps ``regen_reason`` onto the slot dict for any card a
+    gate (conformance / interactions / design review) couldn't accept; threading
+    it into the prompt is the "previous attempt was X — fix this" shape so the
+    new card targets the specific failure instead of re-rolling blind.
+    """
+    reason = (slot.get("regen_reason") or "").strip()
+    if not reason:
+        return ""
+    return (
+        f"\n   REGENERATION — the previous card for this slot was flagged: {reason} "
+        "Design a NEW card for this slot that resolves this while still fitting the spec."
+    )
 
 
 # ---------------------------------------------------------------------------

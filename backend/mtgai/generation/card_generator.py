@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -846,6 +847,63 @@ def _retry_card(
 # ---------------------------------------------------------------------------
 
 
+def _find_card_file(slot_id: str, cards_dir: Path) -> Path | None:
+    """Find the card JSON file for a given slot_id (collector_number)."""
+    for p in cards_dir.glob("*.json"):
+        if p.name.startswith(f"{slot_id}_"):
+            return p
+    # Fallback: load and check collector_number / slot_id.
+    for p in cards_dir.glob("*.json"):
+        try:
+            card = load_card(p)
+            if card.collector_number == slot_id or card.slot_id == slot_id:
+                return p
+        except Exception:
+            continue
+    return None
+
+
+def archive_card(slot_id: str, cards_dir: Path, archive_dir: Path) -> str | None:
+    """Move a slot's card file to ``archive_dir``. Returns the archived name or None.
+
+    Used by the review→regen loop: before regenerating a flagged slot, its prior
+    card is archived rather than overwritten, so every attempt is preserved.
+    """
+    card_file = _find_card_file(slot_id, cards_dir)
+    if card_file is None:
+        logger.warning("No card file found for slot %s — skipping archive", slot_id)
+        return None
+
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    dest = archive_dir / card_file.name
+    if dest.exists():
+        ts = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+        dest = archive_dir / f"{card_file.stem}_{ts}{card_file.suffix}"
+
+    shutil.move(str(card_file), str(dest))
+    logger.info("Archived: %s -> %s", card_file.name, dest.name)
+    return dest.name
+
+
+def _collect_flagged_slots(cards_dir: Path) -> dict[str, str]:
+    """Map slot_id -> regen_reason for every card a review gate flagged.
+
+    Scans the on-disk cards (the flag is persisted on the Card), so the loop
+    survives a restart between a gate flagging and card_gen re-running.
+    """
+    flagged: dict[str, str] = {}
+    if not cards_dir.exists():
+        return flagged
+    for p in sorted(cards_dir.glob("*.json")):
+        try:
+            card = load_card(p)
+        except Exception:
+            continue
+        if card.regen_reason and card.slot_id:
+            flagged[card.slot_id] = card.regen_reason
+    return flagged
+
+
 def generate_set(
     *,
     dry_run: bool = False,
@@ -940,6 +998,29 @@ def generate_set(
             len(progress.failed_slots),
             progress.total_api_calls,
             progress.total_cost_usd,
+        )
+
+    # --- Review→regen loop: regenerate cards a gate flagged ---
+    # A gate (conformance / interactions / design review) sets ``regen_reason`` on
+    # a card it can't accept. Treat those slots as needing regeneration: archive
+    # the prior card, drop it from the progress ledger so it re-enters ``unfilled``
+    # (the cap math self-adjusts — len(filled) drops, remaining rises), and stamp
+    # the reason onto its slot dict so ``format_slot_specs`` threads it into the
+    # prompt. The regenerated card is built fresh, so its flag clears naturally.
+    flagged_reasons = _collect_flagged_slots(set_dir / "cards")
+    if flagged_reasons:
+        archive_dir = set_dir / "cards" / "_regen_archive"
+        for sid in flagged_reasons:
+            archive_card(sid, set_dir / "cards", archive_dir)
+            progress.filled_slots.pop(sid, None)
+            progress.failed_slots.pop(sid, None)
+        for s in skeleton["slots"]:
+            if s.get("slot_id") in flagged_reasons:
+                s["regen_reason"] = flagged_reasons[s["slot_id"]]
+        logger.info(
+            "Review->regen: regenerating %d flagged slot(s): %s",
+            len(flagged_reasons),
+            ", ".join(sorted(flagged_reasons)),
         )
 
     # Filter to unfilled slots. Ordinary (non-land) slots plus any land slot that

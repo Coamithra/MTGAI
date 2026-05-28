@@ -1,17 +1,19 @@
 """Set-level interaction analysis — LLM-based degenerate combo detection.
 
-Feeds the full card pool to an LLM and asks it to identify dangerous 2-3 card
-interactions: infinite combos, degenerate loops, and unintended synergies that
-break the format.
+The whole-pool interaction gate (stage_id ``balance``, displayed "Interaction
+Check"). Feeds the generated pool — minus basic lands and reprints — to an LLM
+and asks it to identify dangerous 2-3 card interactions: infinite combos,
+degenerate loops, and unintended synergies that break the format.
 
-For each flagged interaction, the LLM identifies the "enabler" card — the one
-whose design is the root cause. This feeds into the skeleton reviser to replace
-enablers with fresh designs that avoid the problematic pattern.
+For each flagged interaction the LLM names the "enabler" card — the one whose
+design is the root cause — and a ``replacement_constraint``. The runner
+(:func:`mtgai.pipeline.stages.run_balance`) flags that enabler card for
+regeneration, threading the constraint into its ``regen_reason``.
 
 Usage:
     from mtgai.analysis.interactions import analyze_interactions
 
-    flags, issues = analyze_interactions(cards, mechanics, set_code)
+    flags, analysis_text, cost = analyze_interactions(cards, mechanics)
 """
 
 from __future__ import annotations
@@ -19,7 +21,8 @@ from __future__ import annotations
 import logging
 import re
 
-from mtgai.analysis.models import AnalysisIssue, AnalysisSeverity, InteractionFlag
+from mtgai.analysis.gate_common import filter_gate_cards
+from mtgai.analysis.models import InteractionFlag
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.models.card import Card
 
@@ -231,25 +234,35 @@ def _build_interaction_prompt(
 def analyze_interactions(
     cards: list[Card],
     mechanics: list[dict],
-) -> tuple[list[InteractionFlag], list[AnalysisIssue]]:
-    """Run LLM-based interaction analysis on the active project's card pool.
+) -> tuple[list[InteractionFlag], str, float]:
+    """Scan the pool for degenerate interactions.
 
-    Returns (interaction_flags, analysis_issues).
+    Skips basic lands + reprints. Returns ``(flags, analysis_text, cost_usd)``;
+    each flag names an enabler card (by ``enabler_slot_id``) the runner will
+    flag for regeneration. Flags missing an enabler slot id are dropped — they
+    can't drive a regen, and bare-tier local models sometimes omit fields the
+    schema marks required, so every field is read defensively.
     """
-    if not cards:
-        return [], []
+    gate_cards = filter_gate_cards(cards)
+    if not gate_cards:
+        return [], "", 0.0
 
-    user_prompt = _build_interaction_prompt(cards, mechanics)
+    user_prompt = _build_interaction_prompt(gate_cards, mechanics)
 
     logger.info(
         "Interaction analysis: %d cards, prompt %d chars",
-        len(cards),
+        len(gate_cards),
         len(user_prompt),
     )
 
+    from mtgai.io.asset_paths import set_artifact_dir
     from mtgai.runtime.active_project import require_active_project
 
     settings = require_active_project().settings
+    try:
+        log_dir = set_artifact_dir() / "balance" / "logs"
+    except Exception:
+        log_dir = None
     result = generate_with_tool(
         system_prompt=INTERACTION_SYSTEM_PROMPT,
         user_prompt=user_prompt,
@@ -258,6 +271,7 @@ def analyze_interactions(
         temperature=TEMPERATURE,
         max_tokens=MAX_TOKENS,
         effort=settings.get_effort("balance"),
+        log_dir=log_dir,
     )
 
     cost = cost_from_result(result)
@@ -268,51 +282,39 @@ def analyze_interactions(
         cost,
     )
 
-    raw = result["result"]
-    analysis_text = raw.get("analysis", "")
-    raw_flags = raw.get("flags", [])
+    raw = result["result"] if isinstance(result.get("result"), dict) else {}
+    analysis_text = raw.get("analysis") or ""
+    raw_flags = raw.get("flags") or []
 
     logger.info("Analysis: %s", analysis_text[:200])
     logger.info("Flags found: %d", len(raw_flags))
 
-    # Parse into structured models
     flags: list[InteractionFlag] = []
-    issues: list[AnalysisIssue] = []
-
     for rf in raw_flags:
+        if not isinstance(rf, dict):
+            continue
+        slot_id = (rf.get("enabler_slot_id") or "").strip()
+        if not slot_id:
+            logger.warning("Interaction flag missing enabler_slot_id — dropping: %r", rf)
+            continue
         flag = InteractionFlag(
-            cards_involved=rf["cards_involved"],
-            interaction_type=rf["interaction_type"],
-            description=rf["description"],
-            severity=rf["severity"],
-            enabler_card=rf["enabler_card"],
-            enabler_slot_id=rf["enabler_slot_id"],
-            why_enabler=rf["why_enabler"],
-            replacement_constraint=rf["replacement_constraint"],
+            cards_involved=rf.get("cards_involved") or [],
+            interaction_type=rf.get("interaction_type") or "degenerate_synergy",
+            description=rf.get("description") or "",
+            severity=rf.get("severity") or "WARN",
+            enabler_card=rf.get("enabler_card") or "",
+            enabler_slot_id=slot_id,
+            why_enabler=rf.get("why_enabler") or "",
+            replacement_constraint=rf.get("replacement_constraint") or "",
         )
         flags.append(flag)
-
-        severity = AnalysisSeverity.FAIL if rf["severity"] == "FAIL" else AnalysisSeverity.WARN
-
-        issue = AnalysisIssue(
-            check="interactions.degenerate_combo",
-            severity=severity,
-            slot_id=rf["enabler_slot_id"],
-            card_name=rf["enabler_card"],
-            message=(
-                f"{rf['interaction_type']}: {', '.join(rf['cards_involved'])} — "
-                f"{rf['description'][:120]}"
-            ),
-        )
-        issues.append(issue)
-
         logger.info(
             "  [%s] %s: %s (enabler: %s @ %s)",
-            rf["severity"],
-            rf["interaction_type"],
-            ", ".join(rf["cards_involved"]),
-            rf["enabler_card"],
-            rf["enabler_slot_id"],
+            flag.severity,
+            flag.interaction_type,
+            ", ".join(flag.cards_involved),
+            flag.enabler_card,
+            flag.enabler_slot_id,
         )
 
-    return flags, issues
+    return flags, analysis_text, cost

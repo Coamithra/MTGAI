@@ -1,34 +1,23 @@
-"""Set balance analysis -- skeleton conformance and gameplay coverage checks.
+"""Post-card_gen review gates — the LLM checks the review→regen loop runs.
 
-Two categories of analysis:
-    A. Skeleton conformance (per-slot) -- did the generated card match what was planned?
-    B. Set-wide coverage -- does the set provide enough removal, card advantage, mana curve, etc.?
+Two whole-set LLM gates flag cards for regeneration (the set-level
+balance/coverage/algorithmic-conformance machinery was removed when the balance
+stage became the loop — see ``plans/review-loop-stage-split.md``):
 
-Usage:
-    from mtgai.analysis import analyze_set
+* :mod:`mtgai.analysis.conformance` — each card vs. its slot spec.
+* :mod:`mtgai.analysis.interactions` — whole-pool degenerate-combo scan.
 
-    result = analyze_set("ASD")
-    print(result.summary)
+Per-card design-quality heuristics live in :mod:`mtgai.analysis.heuristic_checks`
+(consumed by AI review + render QA), independent of these gates.
 """
 
-from mtgai.analysis.balance import analyze_set
-from mtgai.analysis.models import (
-    AnalysisIssue,
-    AnalysisSeverity,
-    BalanceAnalysisResult,
-    ColorCoverageResult,
-    InteractionFlag,
-    MechanicDistribution,
-    SlotConformanceResult,
-)
+from mtgai.analysis.conformance import check_conformance
+from mtgai.analysis.interactions import analyze_interactions
+from mtgai.analysis.models import ConformanceFinding, InteractionFlag
 
 __all__ = [
-    "AnalysisIssue",
-    "AnalysisSeverity",
-    "BalanceAnalysisResult",
-    "ColorCoverageResult",
+    "ConformanceFinding",
     "InteractionFlag",
-    "MechanicDistribution",
-    "SlotConformanceResult",
-    "analyze_set",
+    "analyze_interactions",
+    "check_conformance",
 ]

@@ -380,7 +380,7 @@
 
     state.eventSource.addEventListener('stage_update', (e) => {
       const data = JSON.parse(e.data);
-      updateStageStatus(data.stage_id, data.status, data.progress, data.instance_id);
+      updateStageStatus(data.stage_id, data.status, data.progress, data.instance_id, data.result);
     });
 
     state.eventSource.addEventListener('item_progress', (e) => {
@@ -498,10 +498,11 @@
     };
   }
 
-  function updateStageStatus(stageId, status, progress, instanceId, retried) {
+  function updateStageStatus(stageId, status, progress, instanceId, result, retried) {
     // instanceId identifies the stage *instance* (a stage can appear more than
     // once); it == stageId for backbone stages. Tabs, lookups, and latestTabId
-    // are all keyed by instance_id.
+    // are all keyed by instance_id. ``result`` (optional) is the instance's
+    // runner output (e.g. a gate's flagged-card list) for its tab to render.
     instanceId = instanceId || stageId;
     if (!state.pipeline) {
       // The bootstrap snapshot was rendered before any pipeline-state
@@ -515,7 +516,7 @@
       hydratePipelineFromServer().then(() => {
         // Re-apply this very event so the eventually-hydrated state
         // reflects the status we just heard about.
-        if (state.pipeline) updateStageStatus(stageId, status, progress, instanceId, retried);
+        if (state.pipeline) updateStageStatus(stageId, status, progress, instanceId, result, retried);
       });
       return;
     }
@@ -527,7 +528,7 @@
         // instance_id + canonical order) and re-apply once so the tab spawns
         // in the right spot with its real display name.
         hydratePipelineFromServer().then(() => {
-          updateStageStatus(stageId, status, progress, instanceId, true);
+          updateStageStatus(stageId, status, progress, instanceId, result, true);
         });
         return;
       }
@@ -545,6 +546,7 @@
       stage.status = status;
       if (progress) stage.progress = progress;
     }
+    if (result !== undefined && result !== null) stage.result = result;
 
     const tabIdx = state.tabs.findIndex(t => t.id === instanceId);
     if (tabIdx >= 0) {

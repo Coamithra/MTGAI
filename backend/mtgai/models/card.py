@@ -110,6 +110,13 @@ class Card(BaseModel):
     generation_attempts: list[GenerationAttempt] = Field(default_factory=list)
     art_generation_attempts: list[GenerationAttempt] = Field(default_factory=list)
     render_attempts: list[GenerationAttempt] = Field(default_factory=list)
+    # Review→regen loop flags. A gate stage (conformance / interactions /
+    # design review) sets these on a card it can't accept; ``card_gen`` treats a
+    # slot whose card has ``regen_reason`` as needing regeneration, threads the
+    # reason into the retry prompt, then clears both on a successful new card.
+    # Persisted + gallery-visible so the flag survives restarts.
+    regen_reason: str | None = None
+    flagged_by: str | None = None  # which gate flagged it: conformance|balance|ai_review
 
     # === File Paths (relative to output/sets/<set-code>/) ===
     art_path: str | None = None
