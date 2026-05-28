@@ -230,6 +230,40 @@ def _get_provider(name: str) -> Provider:
         return prov
 
 
+def _active_cache_dir() -> Path | None:
+    """Return the per-project llmfacade response-cache dir, or ``None``.
+
+    Reads the active project's ``debug.response_cache`` toggle. When on,
+    cache files land under ``<asset_folder>/.llm-cache/`` (llmfacade
+    organises them further by ``<provider>/<model>/<sha256>.json``). The
+    fingerprint covers provider + model + system blocks + messages + tool
+    schemas + sampler settings, so two stages with identical inputs share
+    a hit while anything else (model swap, prompt tweak, temperature
+    bump) misses cleanly.
+
+    Returns ``None`` when no project is open / no asset folder is set /
+    the toggle is off — llmfacade then treats that as "no cache" and the
+    call proceeds normally. Any unexpected error degrades to ``None``
+    rather than breaking generation; debug toggles must never block
+    production runs.
+    """
+    try:
+        from mtgai.runtime.active_project import read_active_project
+
+        project = read_active_project()
+        if project is None:
+            return None
+        if not project.settings.debug.response_cache:
+            return None
+        folder = project.settings.asset_folder
+        if not folder:
+            return None
+        return Path(folder) / ".llm-cache"
+    except Exception:
+        logger.debug("Failed to resolve response cache dir", exc_info=True)
+        return None
+
+
 def _convo_name(tool_schema: dict) -> str:
     """Human-readable, unique name for an llmfacade conversation.
 
@@ -314,6 +348,7 @@ def _generate_anthropic(
         # when the caller passes cache=False so we honour the contract.
         auto_cache_tools=cache,
         log_dir=log_dir,
+        cache_dir=_active_cache_dir(),
     )
 
     send_kwargs: dict[str, Any] = {
@@ -458,6 +493,7 @@ def _generate_llamacpp(
         "max_tokens": max_tokens,
         "temperature": temperature,
         "log_dir": log_dir,
+        "cache_dir": _active_cache_dir(),
     }
     if repeat_penalty is not None:
         # Per-call override of the provider-default repeat_penalty, forwarded by
@@ -677,6 +713,7 @@ def _generate_text_llamacpp(
         "max_tokens": max_tokens,
         "temperature": temperature,
         "log_dir": log_dir,
+        "cache_dir": _active_cache_dir(),
     }
     if repeat_penalty is not None:
         convo_kwargs["repeat_penalty"] = repeat_penalty
@@ -717,6 +754,7 @@ def _generate_text_anthropic(
         name=_text_convo_name(name),
         system_blocks=[SystemBlock(text=system_prompt, cache=cache)],
         log_dir=log_dir,
+        cache_dir=_active_cache_dir(),
     )
     send_kwargs: dict[str, Any] = {"max_tokens": max_tokens, "temperature": temperature}
     if effort:
@@ -827,6 +865,7 @@ def _stream_text_llamacpp(
         "max_tokens": max_tokens,
         "temperature": temperature,
         "log_dir": log_dir,
+        "cache_dir": _active_cache_dir(),
     }
     if repeat_penalty is not None:
         convo_kwargs["repeat_penalty"] = repeat_penalty
@@ -855,6 +894,7 @@ def _stream_text_anthropic(
         max_tokens=max_tokens,
         temperature=temperature,
         log_dir=log_dir,
+        cache_dir=_active_cache_dir(),
     )
     yield from _consume_text_stream(convo, user_prompt, model)
 

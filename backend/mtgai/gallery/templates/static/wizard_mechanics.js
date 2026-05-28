@@ -297,6 +297,7 @@
             M: ${escHtml(String(dist.mythic || 0))}
           </div>
         </div>
+        ${exampleCardsHtml(m.example_cards)}
         <details class="wiz-mech-details">
           <summary>Design rationale</summary>
           <p>${escHtml(m.design_rationale || '(no rationale given)')}</p>
@@ -313,6 +314,40 @@
 
   function chipHtml(value, label, active) {
     return `<button type="button" class="wiz-mech-chip${active ? ' active' : ''}" data-value="${escAttr(value)}">${escHtml(label)}</button>`;
+  }
+
+  // Read-only "Example cards" preview — the two reference cards the mechanic
+  // generator produces alongside the keyword. They propagate to card-gen as
+  // concrete templating references, and we surface them visibly (not behind a
+  // <details>) so the user can sanity-check the LLM's output at a glance.
+  // Edits aren't possible inline — regenerate the candidate to change them.
+  function exampleCardsHtml(examples) {
+    if (!Array.isArray(examples) || !examples.length) return '';
+    const items = examples
+      .map(ex => {
+        const e = ex || {};
+        const name = e.name || '(unnamed)';
+        const cost = e.mana_cost || '';
+        const typeLine = e.type_line || '';
+        const rarity = e.rarity || '';
+        const oracle = e.oracle_text || '';
+        const power = e.power;
+        const toughness = e.toughness;
+        const pt = (power !== undefined && power !== '' && toughness !== undefined && toughness !== '')
+          ? ` ${power}/${toughness}` : '';
+        const head = `<strong>${escHtml(name)}</strong>${cost ? ' ' + escHtml(cost) : ''}`;
+        const meta = [escHtml(typeLine + pt), rarity ? `<span class="wiz-mech-rarity">${escHtml(rarity)}</span>` : '']
+          .filter(Boolean).join(' · ');
+        const oracleHtml = oracle ? `<p>${escHtml(oracle).replace(/\n/g, '<br>')}</p>` : '';
+        return `<div class="wiz-mech-example">${head}${meta ? ' — ' + meta : ''}${oracleHtml}</div>`;
+      })
+      .join('');
+    return `
+      <div class="wiz-mech-field">
+        <span class="wiz-mech-label">Example cards (card-gen reference)</span>
+        <div class="wiz-mech-examples">${items}</div>
+      </div>
+    `;
   }
 
   // ----------------------------------------------------------------------

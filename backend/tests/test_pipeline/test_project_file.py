@@ -233,6 +233,77 @@ def test_asset_folder_save_updates_active_project(client):
     assert active_project.require_active_project().settings.asset_folder == "G:/new/folder"
 
 
+def test_debug_endpoint_flips_response_cache(client):
+    """``POST /api/wizard/project/debug`` live-applies a debug toggle to
+    the active project's settings (no cascade-clear gate — debug flags
+    don't invalidate any artifact on disk)."""
+    client.post(
+        "/api/project/materialize",
+        json={
+            "set_code": "DBG",
+            "set_params": {"set_name": "D", "set_size": 60, "mechanic_count": 3},
+            "theme_input": {"kind": "none"},
+            "asset_folder": "",
+            "llm_assignments": {},
+            "image_assignments": {},
+            "effort_overrides": {},
+            "break_points": {},
+        },
+    )
+    # Default state — off.
+    assert active_project.require_active_project().settings.debug.response_cache is False
+
+    resp = client.post(
+        "/api/wizard/project/debug",
+        json={"flag": "response_cache", "value": True},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["debug"]["response_cache"] is True
+    assert active_project.require_active_project().settings.debug.response_cache is True
+
+
+def test_debug_endpoint_rejects_unknown_flag(client):
+    client.post(
+        "/api/project/materialize",
+        json={
+            "set_code": "DBG2",
+            "set_params": {"set_name": "D2", "set_size": 60, "mechanic_count": 3},
+            "theme_input": {"kind": "none"},
+            "asset_folder": "",
+            "llm_assignments": {},
+            "image_assignments": {},
+            "effort_overrides": {},
+            "break_points": {},
+        },
+    )
+    resp = client.post(
+        "/api/wizard/project/debug",
+        json={"flag": "not_a_real_flag", "value": True},
+    )
+    assert resp.status_code == 400
+
+
+def test_debug_endpoint_rejects_non_bool_value(client):
+    client.post(
+        "/api/project/materialize",
+        json={
+            "set_code": "DBG3",
+            "set_params": {"set_name": "D3", "set_size": 60, "mechanic_count": 3},
+            "theme_input": {"kind": "none"},
+            "asset_folder": "",
+            "llm_assignments": {},
+            "image_assignments": {},
+            "effort_overrides": {},
+            "break_points": {},
+        },
+    )
+    resp = client.post(
+        "/api/wizard/project/debug",
+        json={"flag": "response_cache", "value": "yes"},
+    )
+    assert resp.status_code == 400
+
+
 def test_asset_folder_rejects_non_string(client):
     client.post(
         "/api/project/materialize",

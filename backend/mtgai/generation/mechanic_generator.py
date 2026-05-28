@@ -73,6 +73,7 @@ MECHANIC_TOOL_SCHEMA: dict = {
                         "complexity",
                         "design_rationale",
                         "distribution",
+                        "example_cards",
                     ],
                     "properties": {
                         "name": {
@@ -122,6 +123,75 @@ MECHANIC_TOOL_SCHEMA: dict = {
                                 "uncommon": {"type": "integer", "minimum": 0},
                                 "rare": {"type": "integer", "minimum": 0},
                                 "mythic": {"type": "integer", "minimum": 0},
+                            },
+                        },
+                        "example_cards": {
+                            "type": "array",
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "description": (
+                                "EXACTLY TWO concrete example cards that use this mechanic, "
+                                "showcasing how it appears on real cards. Pick contrasting "
+                                "rarities (e.g. one common showing the simple version, and one "
+                                "rare/mythic showing a richer expression) so card generation "
+                                "has reference designs across the rarity range. Each example "
+                                "must have complete, valid MTG templating."
+                            ),
+                            "items": {
+                                "type": "object",
+                                "required": [
+                                    "name",
+                                    "mana_cost",
+                                    "type_line",
+                                    "rarity",
+                                    "oracle_text",
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Card name.",
+                                    },
+                                    "mana_cost": {
+                                        "type": "string",
+                                        "description": (
+                                            "MTG mana cost with braces, e.g. '{2}{G}' "
+                                            "or '' for lands."
+                                        ),
+                                    },
+                                    "type_line": {
+                                        "type": "string",
+                                        "description": (
+                                            "Full type line, e.g. 'Creature — Human Wizard' "
+                                            "or 'Instant'."
+                                        ),
+                                    },
+                                    "rarity": {
+                                        "type": "string",
+                                        "enum": [
+                                            "common",
+                                            "uncommon",
+                                            "rare",
+                                            "mythic",
+                                        ],
+                                    },
+                                    "oracle_text": {
+                                        "type": "string",
+                                        "description": (
+                                            "Complete oracle text with proper MTG templating. "
+                                            "Include the mechanic keyword and any other abilities. "
+                                            "Do NOT include reminder text in parentheses — it is "
+                                            "injected automatically downstream."
+                                        ),
+                                    },
+                                    "power": {
+                                        "type": "string",
+                                        "description": "Power, creatures only (e.g. '2', '*').",
+                                    },
+                                    "toughness": {
+                                        "type": "string",
+                                        "description": "Toughness, creatures only.",
+                                    },
+                                },
                             },
                         },
                     },
@@ -658,6 +728,11 @@ _APPROVED_FIELDS: tuple[str, ...] = (
     "colors",
     "complexity",
     "distribution",
+    # Two concrete reference cards per mechanic — the LLM generates them
+    # alongside the mechanic and they propagate through to card generation
+    # (rendered in ``format_mechanic_block``) as templating examples. Without
+    # them card-gen tends to mis-use custom mechanics.
+    "example_cards",
 )
 
 

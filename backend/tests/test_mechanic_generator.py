@@ -162,7 +162,7 @@ def test_known_keyword_set_is_lowercase_and_includes_evergreens() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_candidate_to_approved_renames_design_rationale_and_drops_examples() -> None:
+def test_candidate_to_approved_renames_design_rationale_and_keeps_examples() -> None:
     candidate = {
         "name": "Test",
         "keyword_type": "keyword_ability",
@@ -174,7 +174,26 @@ def test_candidate_to_approved_renames_design_rationale_and_drops_examples() -> 
         "common_patterns": ["pattern A"],
         "uncommon_patterns": [],
         "rare_patterns": [],
-        "example_cards": [{"name": "Example"}],
+        "example_cards": [
+            {
+                "name": "Wee Tinkerer",
+                "mana_cost": "{W}",
+                "type_line": "Creature — Human Artificer",
+                "rarity": "common",
+                "oracle_text": "Test 1.",
+                "power": "1",
+                "toughness": "1",
+            },
+            {
+                "name": "Grand Engineer",
+                "mana_cost": "{3}{W}",
+                "type_line": "Creature — Human Artificer",
+                "rarity": "rare",
+                "oracle_text": "Test 3.",
+                "power": "3",
+                "toughness": "3",
+            },
+        ],
         "distribution": {"common": 3, "uncommon": 2, "rare": 1, "mythic": 0},
     }
     approved = mg.candidate_to_approved(candidate)
@@ -182,13 +201,17 @@ def test_candidate_to_approved_renames_design_rationale_and_drops_examples() -> 
     assert "design_rationale" not in approved
     # Trimmed fields never reach approved.json (whitelist projection).
     for trimmed in (
-        "example_cards",
         "flavor_connection",
         "common_patterns",
         "uncommon_patterns",
         "rare_patterns",
     ):
         assert trimmed not in approved
+    # example_cards propagate so card-gen can use them as concrete reference
+    # designs (rendered by ``format_mechanic_block``).
+    assert len(approved["example_cards"]) == 2
+    assert approved["example_cards"][0]["name"] == "Wee Tinkerer"
+    assert approved["example_cards"][1]["rarity"] == "rare"
     # rarity_range derives from non-zero distribution rarities.
     assert approved["rarity_range"] == ["common", "uncommon", "rare"]
     # Distribution survives.

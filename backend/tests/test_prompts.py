@@ -407,9 +407,12 @@ def test_format_archetypes_section_empty_when_none() -> None:
     assert prompts.format_archetypes_section([], None) == ""
 
 
-def test_format_slot_specs_tweaked_gold_gets_archetype() -> None:
-    # Relabeled (tweaked_text) gold slot must point at its archetype — the gap
-    # where the tweaked path only annotated signpost slots.
+def test_format_slot_specs_tweaked_gold_does_not_inject_archetype_from_color_pair() -> None:
+    # ``color_pair`` is a swingable seed the relabel doesn't update — a slot
+    # recoloured from WU to something else would still carry the stale WU and
+    # get the wrong archetype injected. Card-gen now relies on the global Draft
+    # Archetypes section + the relabeled descriptor's own colour-pair signal
+    # to pick the archetype; no per-slot injection from ``color_pair``.
     slot = {
         "slot_id": "001",
         "color": "multicolor",
@@ -422,7 +425,7 @@ def test_format_slot_specs_tweaked_gold_gets_archetype() -> None:
     archetypes = [{"color_pair": "WU", "name": "Sky Patrol", "description": "win in the air"}]
     spec = prompts.format_slot_specs([slot], None, archetypes)
     assert "White-Blue flier" in spec  # tweaked descriptor emitted verbatim
-    assert "Archetype — Sky Patrol: win in the air" in spec
+    assert "Archetype — Sky Patrol" not in spec  # no per-slot color_pair injection
 
 
 def test_format_slot_specs_tweaked_signpost_not_double_annotated() -> None:
@@ -442,3 +445,72 @@ def test_format_slot_specs_tweaked_signpost_not_double_annotated() -> None:
     spec = prompts.format_slot_specs([slot], None, archetypes)
     assert "SIGNPOST UNCOMMON for the WU archetype" in spec
     assert spec.count("Sky Patrol") == 1  # only via the signpost line
+
+
+# ---------------------------------------------------------------------------
+# format_mechanic_block — propagates example_cards as reference designs
+# ---------------------------------------------------------------------------
+
+
+def test_format_mechanic_block_renders_example_cards() -> None:
+    """example_cards (carried through approved.json) appear in the prompt so
+    the card-gen LLM has concrete reference templating per custom mechanic."""
+    mechanics = [
+        {
+            "name": "Salvage",
+            "keyword_type": "keyword_action",
+            "reminder_text": "(reminder)",
+            "colors": ["W", "U"],
+            "complexity": 1,
+            "rarity_range": ["common", "uncommon"],
+            "design_notes": "Pulls from the discard pile.",
+            "example_cards": [
+                {
+                    "name": "Scrap Picker",
+                    "mana_cost": "{W}",
+                    "type_line": "Creature — Human Scavenger",
+                    "rarity": "common",
+                    "oracle_text": "When Scrap Picker enters, salvage 1.",
+                    "power": "1",
+                    "toughness": "1",
+                },
+                {
+                    "name": "Salvage Baron",
+                    "mana_cost": "{3}{U}",
+                    "type_line": "Creature — Human Artificer",
+                    "rarity": "rare",
+                    "oracle_text": "Whenever you salvage, draw a card.",
+                    "power": "2",
+                    "toughness": "4",
+                },
+            ],
+        }
+    ]
+    block = prompts.format_mechanic_block(mechanics, set())
+    assert "### Salvage" in block
+    assert "Example cards" in block
+    assert "Scrap Picker" in block
+    assert "{W}" in block
+    assert "Creature — Human Scavenger" in block
+    assert "common" in block and "rare" in block
+    assert "1/1" in block and "2/4" in block
+    assert "When Scrap Picker enters, salvage 1." in block
+    assert "Salvage Baron" in block
+
+
+def test_format_mechanic_block_handles_missing_examples() -> None:
+    """Legacy mechanics created before example_cards was required still render
+    cleanly — no header, no empty bullet, no KeyError."""
+    mechanics = [
+        {
+            "name": "Legacy",
+            "keyword_type": "keyword_ability",
+            "reminder_text": "(reminder)",
+            "colors": ["G"],
+            "complexity": 2,
+            "design_notes": "Old mechanic, no examples.",
+        }
+    ]
+    block = prompts.format_mechanic_block(mechanics, set())
+    assert "### Legacy" in block
+    assert "Example cards" not in block

@@ -257,6 +257,25 @@ class ThemeInputSource(BaseModel):
     uploaded_at: datetime | None = None
 
 
+class DebugSettings(BaseModel):
+    """Per-project debug toggles surfaced on the Project Settings tab.
+
+    The first entry is :attr:`response_cache` — when on, llmfacade's
+    fingerprint-keyed response cache is enabled for every LLM call in
+    this project (cache files land under ``<asset_folder>/.llm-cache/``;
+    see :func:`mtgai.generation.llm_client._active_cache_dir`). Subsequent
+    calls with an identical request fingerprint replay the cached response
+    instead of hitting the provider, which speeds up debugging dramatically.
+
+    Defaults are all-off so production runs are unaffected; the block is
+    omitted from saved profiles (``profile_only=True``) because debug
+    state is per-project, not template-able. Off by default keeps the
+    Anthropic-bill-vs-cache-hit semantics predictable.
+    """
+
+    response_cache: bool = False
+
+
 class ModelSettings(BaseModel):
     """Per-stage model assignments — the active configuration for one set."""
 
@@ -274,6 +293,9 @@ class ModelSettings(BaseModel):
     # single source of truth for everything Project Settings owns.
     set_params: SetParams = Field(default_factory=SetParams)
     theme_input: ThemeInputSource = Field(default_factory=ThemeInputSource)
+    # Per-project debug toggles (response caching, ...). Off by default
+    # and excluded from saved profiles — see :class:`DebugSettings`.
+    debug: DebugSettings = Field(default_factory=DebugSettings)
     # User-chosen folder for generated artifacts (cards/, theme.json,
     # pipeline-state.json, art, renders). Empty string until the user picks
     # one on Project Settings. In Phase 1 the field is captured + persisted
@@ -323,9 +345,11 @@ class ModelSettings(BaseModel):
         """Build a tomlkit document for this settings instance.
 
         ``profile_only`` strips per-set fields (``set_params``,
-        ``theme_input``) so the document is a portable template — used
-        when saving a profile to the global library. Break points stay
-        because they're a meaningful part of a workflow profile (§6.8).
+        ``theme_input``, ``debug``) so the document is a portable template
+        — used when saving a profile to the global library. Break points
+        stay because they're a meaningful part of a workflow profile
+        (§6.8); debug toggles stay out because they're per-project state
+        you flip while iterating, not a workflow template.
         """
         import tomlkit
 
@@ -345,6 +369,12 @@ class ModelSettings(BaseModel):
             if self.asset_folder:
                 doc.add(tomlkit.nl())
                 doc.add("asset_folder", self.asset_folder)
+            # Only emit ``[debug]`` when it diverges from defaults so a
+            # fresh project's .mtg stays lean (and diffs stay readable).
+            debug_dict = self.debug.model_dump()
+            if debug_dict != DebugSettings().model_dump():
+                doc.add(tomlkit.nl())
+                doc.add("debug", debug_dict)
             doc.add(tomlkit.nl())
             doc.add("set_params", self.set_params.model_dump())
             if self.theme_input.kind != "none":
@@ -399,6 +429,7 @@ class ModelSettings(BaseModel):
             break_points=data.get("break_points", {}),
             set_params=SetParams(**data.get("set_params", {})),
             theme_input=ThemeInputSource(**data.get("theme_input", {})),
+            debug=DebugSettings(**data.get("debug", {})),
             asset_folder=data.get("asset_folder", "") or "",
         )
 
@@ -469,6 +500,7 @@ class ModelSettings(BaseModel):
             "break_points": dict(self.break_points),
             "set_params": self.set_params.model_dump(),
             "theme_input": self.theme_input.model_dump(mode="json"),
+            "debug": self.debug.model_dump(),
             "asset_folder": self.asset_folder,
         }
 
@@ -707,6 +739,7 @@ def parse_project_toml(text: str) -> tuple[str, ModelSettings]:
         break_points=data.get("break_points", {}),
         set_params=SetParams(**data.get("set_params", {})),
         theme_input=ThemeInputSource(**data.get("theme_input", {})),
+        debug=DebugSettings(**data.get("debug", {})),
         asset_folder=data.get("asset_folder", "") or "",
     )
     return set_code, settings

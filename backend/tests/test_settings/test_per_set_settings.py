@@ -285,3 +285,60 @@ set_code = "ABC"
 """
     with pytest.raises(ValueError):
         ms.parse_project_toml(text)
+
+
+# ---------------------------------------------------------------------------
+# Debug settings
+# ---------------------------------------------------------------------------
+
+
+def test_debug_defaults_to_all_off():
+    """Brand-new project: every debug toggle is off so production-style
+    runs are unaffected unless the user opts in."""
+    s = ms.ModelSettings()
+    assert s.debug.response_cache is False
+
+
+def test_default_debug_omitted_from_toml(tmp_path):
+    """Default debug block stays out of the file so a fresh .mtg is lean."""
+    import tomllib
+
+    s = ms.ModelSettings()
+    path = tmp_path / "settings.toml"
+    s.write_toml(path)
+
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+    assert "debug" not in data
+
+
+def test_debug_round_trips_through_project_toml():
+    """When a flag is flipped on, dump → parse preserves it."""
+    s = ms.ModelSettings(
+        debug=ms.DebugSettings(response_cache=True),
+        asset_folder="D:/proj",
+    )
+    text = ms.dump_project_toml("DBG", s)
+    code, parsed = ms.parse_project_toml(text)
+
+    assert code == "DBG"
+    assert parsed.debug.response_cache is True
+
+
+def test_save_profile_strips_debug():
+    """Debug toggles are per-project (e.g. response cache lives under the
+    project's asset folder) — they must not leak into reusable presets."""
+    import tomllib
+
+    s = ms.ModelSettings(debug=ms.DebugSettings(response_cache=True))
+    path = s.save_profile("dbg-tmpl")
+
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+    assert "debug" not in data
+
+
+def test_to_ui_dict_includes_debug():
+    s = ms.ModelSettings(debug=ms.DebugSettings(response_cache=True))
+    ui = s.to_ui_dict()
+    assert ui["debug"] == {"response_cache": True}

@@ -4,6 +4,11 @@ Covers cycle-coherent batching in card-gen (ordinary *and* land cycles, which
 card-gen owns now — not the lands stage), the CYCLE MEMBER prompt instruction,
 and that the reprint stage offers every unfilled slot to placement (cycle
 avoidance is prompt-driven).
+
+After the cycle-sort redesign (plans/card-gen-free-text-redesign.md),
+``group_slots_into_batches`` is driven by the LLM-confirmed family dict, not
+the structural ``cycle_id`` alone — the tests below thread an explicit
+``confirmed_cycles`` to document the new contract.
 """
 
 from __future__ import annotations
@@ -42,7 +47,8 @@ class TestCycleBatching:
             _slot("6", "W"),
             _slot("7", "U"),
         ]
-        batches = group_slots_into_batches(slots, batch_size=10)
+        confirmed = {"titans": ["1", "2", "3", "4", "5"]}
+        batches = group_slots_into_batches(slots, confirmed_cycles=confirmed, batch_size=10)
         cycle_batch = next(b for b in batches if b[0].get("cycle_id") == "titans")
         assert len(cycle_batch) == 5
         assert {s["color"] for s in cycle_batch} == {"W", "U", "B", "R", "G"}
@@ -53,7 +59,8 @@ class TestCycleBatching:
 
     def test_large_cycle_split_by_batch_size(self):
         slots = [_slot(str(i), "multicolor", color_pair="WU", cycle_id="gates") for i in range(10)]
-        batches = group_slots_into_batches(slots, batch_size=4)
+        confirmed = {"gates": [s["slot_id"] for s in slots]}
+        batches = group_slots_into_batches(slots, confirmed_cycles=confirmed, batch_size=4)
         cycle_batches = [b for b in batches if b[0].get("cycle_id") == "gates"]
         assert [len(b) for b in cycle_batches] == [4, 4, 2]
 
@@ -66,7 +73,8 @@ class TestCycleBatching:
             _slot("g2", "multicolor", color_pair="UB", cycle_id="gates", card_type="land"),
             _slot("c1", "W", card_type="creature"),
         ]
-        batches = group_slots_into_batches(slots, batch_size=10)
+        confirmed = {"gates": ["g1", "g2"]}
+        batches = group_slots_into_batches(slots, confirmed_cycles=confirmed, batch_size=10)
         gate_batch = next(b for b in batches if b[0].get("cycle_id") == "gates")
         assert len(gate_batch) == 2
         assert all(s["card_type"] == "land" for s in gate_batch)

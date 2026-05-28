@@ -8,6 +8,7 @@ Requirements for THIS mechanic:
 - It MUST be DISTINCT from every mechanic already designed above — a genuinely different mechanical space, not a re-skin or minor variation.
 - DELIBERATELY VARY from the ones above: pick a different color identity and a different complexity than the cluster already designed (the set needs a spread, not six near-identical mechanics). If they are all simple, design a richer complexity-2 or complexity-3 one; if they all share colors, branch into the under-used colors.
 - Must fit the set's theme and flavor (see system prompt) and support 2+ of the set's draft archetypes.
+- Provide EXACTLY TWO example cards (`example_cards`) that use this mechanic. Pick contrasting rarities — typically one common showing the simple version and one rare/mythic showing a richer expression — so downstream card generation has concrete reference designs across the rarity range. Each example must have complete, valid MTG templating (mana cost in braces, full type line, oracle text using the mechanic keyword). Do NOT write parenthesized reminder text in the example's oracle text — it is injected automatically later.
 {needed_hint}
 
 Think carefully about:
@@ -15,5 +16,6 @@ Think carefully about:
 2. How it reinforces the set's themes and flavor.
 3. How it differs from the mechanics already designed in space, color, and complexity (avoid overlap).
 4. Whether it has design space for {expected_mechanic_density} cards in a {set_size}-card set.
+5. The two example cards: are they templated correctly, do they actually use the mechanic in flavorful ways, and do they show the LLM that will see them (during card generation) how to write this mechanic on a real card?
 
 Return exactly one mechanic in the tool call.

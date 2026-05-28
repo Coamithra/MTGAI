@@ -183,6 +183,79 @@ def test_refresh_regenerates_from_scratch(client, isolated_output, monkeypatch):
     assert land.exists()
 
 
+def test_refresh_streams_reset_then_card_events(client, isolated_output, monkeypatch):
+    """The /refresh endpoint must publish ``card_gen_reset`` *before* the run
+    starts (so the tab clears its prior local list) and a ``card_gen_card``
+    event per saved card (so each card pops in live). Engine path does not
+    emit reset — only the manual /refresh wipes prior cards on disk."""
+    from mtgai.models.card import Card
+    from mtgai.models.enums import CardStatus, Color, Rarity
+    from mtgai.pipeline import server as srv
+
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _write_skeleton(asset)
+
+    def _make_card(cn: str, name: str) -> Card:
+        return Card(
+            name=name,
+            mana_cost="{1}{W}",
+            cmc=2.0,
+            type_line="Creature — Robot",
+            oracle_text="Vigilance",
+            rarity=Rarity.COMMON,
+            colors=[Color.WHITE],
+            color_identity=[Color.WHITE],
+            collector_number=cn,
+            set_code="TST",
+            power="2",
+            toughness="2",
+            card_types=["Creature"],
+            subtypes=["Robot"],
+            status=CardStatus.DRAFT,
+        )
+
+    def stub_generate_set(*_args, **kwargs):
+        cb = kwargs.get("card_saved_callback")
+        if cb is not None:
+            cb(_make_card("001", "Sentinel Mk I"))
+            cb(_make_card("002", "Sentinel Mk II"))
+        return {"total_slots": 2, "filled": 2, "failed": 0, "cancelled": False, "summary": "ok"}
+
+    monkeypatch.setattr("mtgai.generation.card_generator.generate_set", stub_generate_set)
+
+    # Spy on event_bus.publish to capture the emitted SSE events in order.
+    published: list[tuple[str, dict]] = []
+    real_publish = srv.event_bus.publish
+
+    def spy_publish(event_type, data):
+        published.append((event_type, data))
+        return real_publish(event_type, data)
+
+    monkeypatch.setattr(srv.event_bus, "publish", spy_publish)
+
+    resp = client.post("/api/wizard/card_gen/refresh", json={})
+    assert resp.status_code == 200
+
+    # card_gen_reset must come BEFORE any card_gen_card event so the client
+    # wipes its local list before the new run starts streaming in.
+    by_type = [t for t, _ in published]
+    first_reset = by_type.index("card_gen_reset")
+    card_event_idxs = [i for i, t in enumerate(by_type) if t == "card_gen_card"]
+    assert card_event_idxs, "no card_gen_card events were published"
+    assert first_reset < card_event_idxs[0]
+
+    # One card_gen_card event per saved card, in save order, each carrying the
+    # tile shape the /state endpoint emits (so the merge by collector_number
+    # stays a no-op when /state's response repaints the grid).
+    card_payloads = [data["card"] for t, data in published if t == "card_gen_card"]
+    assert [c["collector_number"] for c in card_payloads] == ["001", "002"]
+    assert card_payloads[0]["name"] == "Sentinel Mk I"
+    assert card_payloads[0]["rarity"] == "common"
+    assert card_payloads[0]["colors"] == ["W"]
+    assert card_payloads[0]["power"] == "2"
+
+
 def test_refresh_400_when_no_skeleton(client, isolated_output):
     asset = isolated_output / "sets" / "TST"
     _seed_project(asset)  # no skeleton.json written

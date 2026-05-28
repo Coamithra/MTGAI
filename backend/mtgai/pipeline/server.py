@@ -36,6 +36,7 @@ from mtgai.pipeline.models import (
     StageStatus,
     create_pipeline_state,
 )
+from mtgai.pipeline.stages import card_tile_dict
 from mtgai.pipeline.wizard import build_wizard_state
 from mtgai.pipeline.wizard import serialize as serialize_wizard_state
 from mtgai.runtime import active_project, ai_lock, extraction_run
@@ -1033,6 +1034,7 @@ def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
         "llm_assignments": dict(settings.llm_assignments),
         "image_assignments": dict(settings.image_assignments),
         "effort_overrides": dict(settings.effort_overrides),
+        "debug": settings.debug.model_dump(),
         "llm_models": llm_models,
         "image_models": image_models,
         "builtin_presets": sorted(PRESETS),
@@ -1602,6 +1604,7 @@ async def project_new(request: Request) -> JSONResponse:
                 "llm_assignments": dict(seeded.llm_assignments),
                 "image_assignments": dict(seeded.image_assignments),
                 "effort_overrides": dict(seeded.effort_overrides),
+                "debug": seeded.debug.model_dump(),
                 "llm_models": [
                     {
                         "key": m.key,
@@ -1680,6 +1683,7 @@ async def project_materialize(request: Request) -> JSONResponse:
     """
     from mtgai.pipeline.engine import cleanup_orphan_running_stages
     from mtgai.settings.model_settings import (
+        DebugSettings,
         ModelSettings,
         SetParams,
         ThemeInputSource,
@@ -1704,6 +1708,7 @@ async def project_materialize(request: Request) -> JSONResponse:
             break_points=body.get("break_points", {}) or {},
             set_params=SetParams(**(body.get("set_params") or {})),
             theme_input=ThemeInputSource(**(body.get("theme_input") or {})),
+            debug=DebugSettings(**(body.get("debug") or {})),
             asset_folder=body.get("asset_folder", "") or "",
         )
     except Exception as e:  # pydantic validation, etc.
@@ -1821,6 +1826,39 @@ async def wizard_project_save_asset_folder(request: Request) -> JSONResponse:
     new = settings.model_copy(update={"asset_folder": folder})
     apply_settings(new)
     return JSONResponse({"success": True, "asset_folder": folder})
+
+
+@router.post("/api/wizard/project/debug")
+async def wizard_project_save_debug(request: Request) -> JSONResponse:
+    """Live-apply a single debug toggle (e.g. response_cache).
+
+    Body: ``{flag: str, value: bool}``. Per-project debug state — no
+    cascade-clear gate because debug flags don't invalidate any artifact
+    on disk (response caching just reroutes future calls). Unknown flag
+    names 400 so a typo can't silently no-op.
+    """
+    from mtgai.settings.model_settings import DebugSettings, apply_settings
+
+    try:
+        project = _require_active_project()
+    except _NoActiveProject:
+        return _no_active_project_response()
+    settings = project.settings
+    body = await request.json()
+
+    flag = body.get("flag")
+    value = body.get("value")
+    if not isinstance(flag, str):
+        return JSONResponse({"error": "flag (str) required"}, status_code=400)
+    if flag not in DebugSettings.model_fields:
+        return JSONResponse({"error": f"Unknown debug flag {flag!r}"}, status_code=400)
+    if not isinstance(value, bool):
+        return JSONResponse({"error": "value (bool) required"}, status_code=400)
+
+    new_debug = settings.debug.model_copy(update={flag: value})
+    new = settings.model_copy(update={"debug": new_debug})
+    apply_settings(new)
+    return JSONResponse({"success": True, "debug": new_debug.model_dump()})
 
 
 # ---------------------------------------------------------------------------
@@ -3628,6 +3666,19 @@ async def wizard_card_gen_state() -> JSONResponse:
     except NoAssetFolderError as exc:
         return _no_asset_folder_response(exc)
 
+    # Load the skeleton once so each card tile gets the final relabeled
+    # descriptor for its slot — the tab shows it under the card so you can
+    # eyeball "did the card design fulfil the slot's brief?". Reserved-card
+    # slots already land their request text in tweaked_text via the relabel's
+    # Pass 2, so this single resolver covers them too.
+    skeleton = _read_json(asset / "skeleton.json", {}) or {}
+    raw_slots = skeleton.get("slots") if isinstance(skeleton, dict) else None
+    slots_by_id: dict[str, dict] = {
+        s["slot_id"]: s
+        for s in (raw_slots or [])
+        if isinstance(s, dict) and s.get("slot_id")
+    }
+
     cards_dir = asset / "cards"
     cards: list[dict] = []
     if cards_dir.exists():
@@ -3635,22 +3686,11 @@ async def wizard_card_gen_state() -> JSONResponse:
             card = _read_json(path, None)
             if not isinstance(card, dict) or _is_land_stage_card(card):
                 continue
-            cards.append(
-                {
-                    "name": card.get("name") or "",
-                    "mana_cost": card.get("mana_cost") or "",
-                    "type_line": card.get("type_line") or "",
-                    "oracle_text": card.get("oracle_text") or "",
-                    "flavor_text": card.get("flavor_text") or "",
-                    "rarity": card.get("rarity") or "common",
-                    "power": card.get("power"),
-                    "toughness": card.get("toughness"),
-                    "loyalty": card.get("loyalty"),
-                    "colors": card.get("colors") or [],
-                    "collector_number": card.get("collector_number") or "",
-                    "status": card.get("status") or "",
-                }
-            )
+            # Use the shared tile helper so this endpoint and the per-card SSE
+            # stream emit byte-identical shapes — the tab merges streamed cards
+            # into a list eventually repainted from this response, so any drift
+            # would surface as layout flicker.
+            cards.append(card_tile_dict(card, slots_by_id))
 
     return JSONResponse(
         {
@@ -3711,8 +3751,38 @@ async def wizard_card_gen_refresh() -> JSONResponse:
         def _on_progress(item: str, completed: int, total: int, detail: str, cost: float) -> None:
             event_bus.item_progress("card_gen", item, completed, total, detail)
 
+        # Tell the tab to drop its local card list before the new run streams
+        # in (the cards/ dir was just wiped above — the SSE reset event is how
+        # the client learns about it without a separate /state poll). Engine
+        # path doesn't emit this: a first run already starts empty, a resume
+        # must keep existing cards visible.
+        event_bus.publish("card_gen_reset", {"stage_id": "card_gen"})
+
+        # Load the skeleton once so each streamed card tile gets the final
+        # relabeled descriptor for its slot, same shape /state emits.
+        skeleton = _read_json(skeleton_path, {}) or {}
+        raw_slots = skeleton.get("slots") if isinstance(skeleton, dict) else None
+        slots_by_id: dict[str, dict] = {
+            s["slot_id"]: s
+            for s in (raw_slots or [])
+            if isinstance(s, dict) and s.get("slot_id")
+        }
+
+        # Stream each saved card to the tab as it lands, so the grid pops in
+        # one card at a time during the run. Same payload as /state so client
+        # merge stays a no-op when the final repaint arrives.
+        def _on_card_saved(card) -> None:
+            event_bus.publish(
+                "card_gen_card",
+                {"stage_id": "card_gen", "card": card_tile_dict(card, slots_by_id)},
+            )
+
         try:
-            result = await asyncio.to_thread(generate_set, progress_callback=_on_progress)
+            result = await asyncio.to_thread(
+                generate_set,
+                progress_callback=_on_progress,
+                card_saved_callback=_on_card_saved,
+            )
         except Exception as exc:
             logger.exception("Card-gen refresh failed")
             return JSONResponse({"error": str(exc)}, status_code=500)

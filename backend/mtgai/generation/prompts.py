@@ -39,6 +39,7 @@ def load_system_prompt() -> str:
 # rewritten as directives instead of questions.
 # ---------------------------------------------------------------------------
 
+
 def format_preventive_guidance(mechanics: list[dict] | None = None) -> str:
     """Build the preventive-design checklist for the current set.
 
@@ -96,7 +97,15 @@ def _expand_color(code: str) -> str:
 
 
 def format_mechanic_block(mechanics: list[dict], relevant_colors: set[str]) -> str:
-    """Return mechanic definition text for mechanics that overlap with the given colors."""
+    """Return mechanic definition text for mechanics that overlap with the given colors.
+
+    Each mechanic ends with its ``example_cards`` (rendered by
+    :func:`_format_mechanic_examples`) — two concrete reference cards the
+    mechanic-generation stage produced alongside the keyword. They are the
+    most reliable way to teach the card-gen LLM how to write this mechanic
+    on a real card (reminder/design notes alone tend to drift); without
+    them custom mechanics often come back mis-templated.
+    """
     lines: list[str] = []
     for mech in mechanics:
         mech_colors = set(mech["colors"])
@@ -110,13 +119,97 @@ def format_mechanic_block(mechanics: list[dict], relevant_colors: set[str]) -> s
             if rarity_range:
                 lines.append(f"- Appears at: {', '.join(rarity_range)}")
             lines.append(f"- Design notes: {mech['design_notes']}")
+            examples_block = _format_mechanic_examples(mech.get("example_cards") or [])
+            if examples_block:
+                lines.append(examples_block)
             lines.append("")
     return "\n".join(lines)
+
+
+def _format_mechanic_examples(examples: list[dict]) -> str:
+    """Render a mechanic's reference cards as a compact, indented block.
+
+    Skips silently when ``examples`` is empty (legacy mechanics created before
+    the field was required have none) and tolerates partially-filled card
+    dicts — only the fields actually present are emitted. Designed to read
+    like an in-prompt mini card stat-block so the card-gen LLM can mirror the
+    templating directly.
+    """
+    rendered: list[str] = []
+    for ex in examples:
+        if not isinstance(ex, dict):
+            continue
+        name = (ex.get("name") or "").strip()
+        if not name:
+            continue
+        cost = (ex.get("mana_cost") or "").strip()
+        type_line = (ex.get("type_line") or "").strip()
+        rarity = (ex.get("rarity") or "").strip()
+        oracle = (ex.get("oracle_text") or "").strip()
+        power = ex.get("power")
+        toughness = ex.get("toughness")
+        pt = (
+            f" {str(power).strip()}/{str(toughness).strip()}"
+            if power not in (None, "") and toughness not in (None, "")
+            else ""
+        )
+        header_bits = [name]
+        if cost:
+            header_bits.append(cost)
+        head = " ".join(header_bits)
+        meta_bits = [b for b in (type_line + pt, rarity) if b]
+        meta = " — ".join(meta_bits)
+        line = f"  - **{head}**" + (f" — {meta}" if meta else "")
+        rendered.append(line)
+        if oracle:
+            for ln in oracle.splitlines():
+                rendered.append(f"      {ln}")
+    if not rendered:
+        return ""
+    header = "- Example cards (mirror this templating when designing cards with this mechanic):"
+    return header + "\n" + "\n".join(rendered)
 
 
 # ---------------------------------------------------------------------------
 # Set context — compressed summary of already-generated cards
 # ---------------------------------------------------------------------------
+
+
+def format_cycle_siblings(siblings: list[dict] | None) -> str:
+    """Render a "SIBLING CYCLE MEMBERS" block from prior members of the
+    current batch's cycle.
+
+    Card-gen splits oversized cycles into ordered sub-batches; later sub-batches
+    see the cycle's already-saved members here, with their full ``oracle_text``,
+    so the model can mirror the family's structure and wording rather than just
+    being told "don't duplicate" (the generic existing-cards context). Returns
+    "" when there are no siblings.
+    """
+    if not siblings:
+        return ""
+    lines: list[str] = [
+        "## SIBLING CYCLE MEMBERS — mirror their structure and wording",
+        "",
+        (
+            "The cards below are previously-generated members of THIS batch's "
+            "cycle. Each new card in this batch must be a sibling — same "
+            "structural shape, parallel wording — just the family's variant for "
+            "this slot's colour / pair / trio."
+        ),
+        "",
+    ]
+    for c in siblings:
+        name = c.get("name") or "?"
+        cost = c.get("mana_cost") or ""
+        tl = c.get("type_line") or ""
+        power, toughness = c.get("power"), c.get("toughness")
+        pt = f" {power}/{toughness}" if power is not None and toughness is not None else ""
+        oracle = (c.get("oracle_text") or "").strip()
+        lines.append(f"- **{name}** ({cost}) — {tl}{pt}")
+        if oracle:
+            for ln in oracle.splitlines():
+                lines.append(f"    {ln}")
+    return "\n".join(lines)
 
 
 def format_set_context(existing_cards: list[dict]) -> str:
@@ -224,14 +317,12 @@ def format_slot_specs(
                     f"\n   SIGNPOST UNCOMMON for the {signpost_for} archetype{arch_note}. "
                     "Design the gold uncommon that defines and enables this archetype."
                 )
-            else:
-                # Ordinary gold slot: point at the archetype it serves so the
-                # relabeled descriptor is anchored to a strategy (signpost slots
-                # already state their archetype above). Full descriptions live in
-                # the Draft Archetypes section.
-                color_pair = slot.get("color_pair")
-                if color_pair and color_pair in archetype_map:
-                    spec += f"\n   Archetype — {archetype_map[color_pair]}"
+            # Ordinary gold slots used to be annotated here from ``slot["color_pair"]``,
+            # but that's a swingable seed the relabel doesn't update — a slot recoloured
+            # from WG to UR would get the WG archetype injected. The Draft Archetypes
+            # section above carries the full map; the relabeled descriptor already names
+            # its colour-pair (the relabel prompt instructs it to add ``·XY``), so the
+            # model picks the right archetype from the descriptor's text alone.
             spec += _cycle_note(slot)
             lines.append(spec)
             continue
@@ -399,6 +490,8 @@ def build_user_prompt(
     existing_cards: list[dict],
     theme: dict | None = None,
     archetypes: list[dict] | None = None,
+    *,
+    cycle_siblings: list[dict] | None = None,
 ) -> str:
     """Assemble the complete user prompt for a batch generation call.
 
@@ -406,6 +499,13 @@ def build_user_prompt(
     mechanics, preventive guidance, existing card context, and slot
     specifications. ``archetypes`` (the TC-3 ``archetypes.json`` list)
     overrides the theme's ``draft_archetypes`` when provided.
+
+    ``cycle_siblings`` (optional, keyword-only) is the list of previously-saved
+    members of THIS batch's cycle — passed by the card-gen loop when an oversized
+    cycle has been split into ordered sub-batches. Rendered as a "SIBLING CYCLE
+    MEMBERS — mirror their structure and wording" block with full oracle_text,
+    so later sub-batches design parallel cards rather than just being told
+    "don't duplicate" by the generic existing-cards context.
     """
     sections: list[str] = []
 
@@ -436,6 +536,14 @@ def build_user_prompt(
     ctx = format_set_context(existing_cards)
     if ctx:
         sections.append(ctx)
+
+    # Cycle siblings — only present for an oversized-cycle sub-batch where prior
+    # members have already been generated this run. Stronger directive than the
+    # generic existing-cards "don't duplicate" framing, so it gets its own block
+    # placed right before the slot specs.
+    sib_block = format_cycle_siblings(cycle_siblings)
+    if sib_block:
+        sections.append(sib_block)
 
     # Slot specs
     sections.append(format_slot_specs(slots, theme, archetypes))

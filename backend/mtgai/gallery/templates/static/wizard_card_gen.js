@@ -61,9 +61,16 @@
     filterColor: 'all',
     locked: false,
     bootstrapping: false,
+    // The currently-mounted tab root, captured on each ``render`` call so the
+    // SSE-driven ``onCardGenStream`` handler can paintGrid without going
+    // through the wizard's render pipeline. Null when the tab isn't mounted;
+    // paintGrid is a safe no-op in that case (root is still consulted but the
+    // ``data-role="cg-grid"`` querySelector returns nothing).
+    liveRoot: null,
   };
 
   W.registerStageRenderer(STAGE_ID, render);
+  W.onCardGenStream = onCardGenStream;
 
   // Inject scoped styles once at module load.
   (function injectStyles() {
@@ -214,6 +221,19 @@
         text-align: right;
       }
       .wiz-cardgen-card-status.failed { color: #ff4757; font-style: normal; }
+      /* The skeleton slot's final relabeled descriptor, shown muted under the
+         rarity row. Lets the user eyeball "did the card design fulfil the
+         slot's brief?" without leaving the tab. */
+      .wiz-cardgen-card-slot-text {
+        font-size: 0.65rem;
+        color: #777;
+        font-style: italic;
+        margin-top: 0.4rem;
+        padding-top: 0.35rem;
+        border-top: 1px dashed #2a2f4a;
+        line-height: 1.3;
+        word-wrap: break-word;
+      }
       .wiz-cardgen-empty {
         color: #666;
         font-style: italic;
@@ -252,6 +272,10 @@
   // --------------------------------------------------------------------
 
   function render({ root, state, stage, content, footer }) {
+    // Cache the current root so onCardGenStream can paintGrid without going
+    // through the wizard's render pipeline. Updated every call so re-mounts
+    // (tab switch round-trips) point at the fresh DOM.
+    local.liveRoot = root;
     if (!local.initialized) {
       local.initialized = true;
       local.stageStatus = stage ? stage.status : 'pending';
@@ -344,6 +368,43 @@
   // ({ cards, has_content, set_params, stage_status }). Degrades gracefully
   // if the call fails (shows the empty placeholder rather than erroring out).
   // --------------------------------------------------------------------
+
+  // --------------------------------------------------------------------
+  // Live card streaming — SSE bridged from wizard.js via W.onCardGenStream.
+  //
+  // Two events drive this tab live:
+  //   card_gen_reset — a from-scratch refresh wiped cards/ on disk;
+  //                    drop the local list so the new run streams in
+  //                    against an empty grid.
+  //   card_gen_card  — one freshly-saved card; merge by collector_number
+  //                    (replace if present, else append) so duplicate
+  //                    deliveries from a /state refetch + SSE replay are
+  //                    idempotent.
+  // --------------------------------------------------------------------
+  function onCardGenStream(name, data) {
+    const root = local.liveRoot;
+    if (name === 'card_gen_reset') {
+      local.cards = [];
+      local.hasContent = false;
+      if (root) {
+        rebuildFilterOptions(root);
+        paintGrid(root);
+      }
+      return;
+    }
+    if (name === 'card_gen_card') {
+      const card = data && data.card;
+      if (!card || !card.collector_number) return;
+      const idx = local.cards.findIndex(c => c.collector_number === card.collector_number);
+      if (idx >= 0) local.cards[idx] = card;
+      else local.cards.push(card);
+      local.hasContent = true;
+      if (root) {
+        rebuildFilterOptions(root);
+        paintGrid(root);
+      }
+    }
+  }
 
   async function bootstrap(root, state) {
     const resp = await fetch('/api/wizard/card_gen/state');
@@ -549,6 +610,13 @@
     const hasLoyalty = card.loyalty != null;
     const cardStatus = card.status || '';
     const statusClass = cardStatus === 'failed' ? ' failed' : '';
+    // The skeleton slot's final relabeled descriptor (tweaked_text or, when
+    // the relabel didn't touch it, render_slot_string on the seeds). Shown
+    // muted under the rarity badge so you can eyeball "did the card design
+    // fulfil the slot's brief?". Falls back to "" gracefully when slots_by_id
+    // wasn't passed by the server (e.g. skeleton.json missing).
+    const slotText = card.slot_text || '';
+    const cn = card.collector_number || '';
 
     return `
       <article class="wiz-cardgen-card">
@@ -565,6 +633,7 @@
               : ''}
         </div>
         ${cardStatus && cardStatus !== 'draft' ? `<div class="wiz-cardgen-card-status${escAttr(statusClass)}">${escHtml(cardStatus)}</div>` : ''}
+        ${slotText ? `<div class="wiz-cardgen-card-slot-text" title="Skeleton slot ${escAttr(cn)}">${escHtml(cn)} — ${escHtml(slotText)}</div>` : ''}
       </article>
     `;
   }

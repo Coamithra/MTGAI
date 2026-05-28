@@ -462,6 +462,18 @@
       });
     });
 
+    // Card-gen streaming: each card pops onto the Card Generation tab as it
+    // lands (card_gen_card), with a reset event before a from-scratch refresh
+    // so the tab drops its prior local list (card_gen_reset). Mirrors the
+    // skeleton stream above; the Card Generation tab listens via the
+    // W.onCardGenStream bridge.
+    ['card_gen_card', 'card_gen_reset'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onCardGenStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     state.eventSource.onerror = () => {
       // EventSource auto-reconnects.
     };

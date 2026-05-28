@@ -250,7 +250,9 @@ def test_save_writes_approved_and_sidecars(client, isolated_output):
     assert approved[0]["name"] == "M0"
     assert "design_notes" in approved[0]
     assert "design_rationale" not in approved[0]
-    assert "example_cards" not in approved[0]
+    # example_cards now propagate so card-gen can use them as concrete
+    # reference designs (fixture sets it to []; the field rides through).
+    assert "example_cards" in approved[0]
     assert "rarity_range" in approved[0]
     pq = json.loads((mech_dir / "pointed-questions.json").read_text(encoding="utf-8"))
     by_id = {q["id"]: q for q in pq}

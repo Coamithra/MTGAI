@@ -193,6 +193,7 @@
       ${renderThemeInputSection(data)}
       ${renderBreakPointsSection(data)}
       ${renderModelAssignmentsSection(data)}
+      ${renderDebugSection(data)}
       ${renderExtractionStrip(data)}
     `;
 
@@ -212,6 +213,7 @@
     bindBreakPointHandlers(state);
     bindModelHandlers(state);
     bindPresetHandlers(state);
+    bindDebugHandlers(state);
     bindProjectEditHandlers(state);
     if (footer) {
       footer.querySelector('#wiz-start-project').addEventListener('click', () => onSaveAndStart(state));
@@ -436,6 +438,7 @@
       // break_points payload from /new is the rendered list — convert to
       // the dict shape settings.toml stores.
       break_points: breakPointsListToDict(draft.break_points, draft.default_breaks || {}),
+      debug: draft.debug || {},
     };
     const resp = await postProjectAction('/api/project/materialize', body);
     if (resp === null) return null; // user declined to cancel running action
@@ -1300,6 +1303,72 @@
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
     }
+  }
+
+  // ------------------------------------------------------------------
+  // Debug settings (per-project toggles for iteration speed)
+  // ------------------------------------------------------------------
+
+  // Each entry: { flag: matches DebugSettings field, label, desc }.
+  // Keep this list aligned with backend/mtgai/settings/model_settings.py
+  // DebugSettings — adding a flag there means adding a row here.
+  const DEBUG_FLAGS = [
+    {
+      flag: 'response_cache',
+      label: 'Response caching',
+      desc: 'Reuse cached LLM responses for identical prompts. Speeds up debugging '
+          + 'iteration when re-running stages with unchanged inputs. Cache lives '
+          + 'under <code>&lt;asset folder&gt;/.llm-cache/</code>.',
+    },
+  ];
+
+  function renderDebugSection(data) {
+    const debug = data.debug || {};
+    const rows = DEBUG_FLAGS.map(f => {
+      const checked = !!debug[f.flag];
+      return `
+        <li class="wiz-debug-row${checked ? ' wiz-debug-row--checked' : ''}">
+          <label>
+            <input type="checkbox" data-debug-flag="${escAttr(f.flag)}" ${checked ? 'checked' : ''}>
+            <span class="wiz-debug-label">${escHtml(f.label)}</span>
+          </label>
+          <div class="wiz-debug-desc">${f.desc}</div>
+        </li>
+      `;
+    }).join('');
+    return `
+      <section class="wiz-proj-section">
+        <h3>Debug</h3>
+        <p class="wiz-proj-desc">Per-project debug toggles. Off by default; not saved to presets.</p>
+        <ul class="wiz-debug-list">${rows}</ul>
+      </section>
+    `;
+  }
+
+  function bindDebugHandlers(state) {
+    document.querySelectorAll('input[data-debug-flag]').forEach(cb => {
+      cb.addEventListener('change', async () => {
+        const flag = cb.dataset.debugFlag;
+        const value = cb.checked;
+        try {
+          const resp = await postJSON('/api/wizard/project/debug', { flag, value });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) {
+            W.toast(data.error || 'Save failed', 'error');
+            cb.checked = !value;
+            return;
+          }
+          if (!local.data.debug) local.data.debug = {};
+          local.data.debug[flag] = value;
+          const row = cb.closest('.wiz-debug-row');
+          if (row) row.classList.toggle('wiz-debug-row--checked', value);
+          markDirty();
+        } catch (err) {
+          W.toast('Network error: ' + err.message, 'error');
+          cb.checked = !value;
+        }
+      });
+    });
   }
 
   // ------------------------------------------------------------------
