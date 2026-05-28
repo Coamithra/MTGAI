@@ -88,39 +88,64 @@ def load_state() -> PipelineState | None:
 def _sync_stages_with_definitions(state: PipelineState) -> bool:
     """Reconcile ``state.stages`` with STAGE_DEFINITIONS — order *and* membership.
 
-    Mutates ``state`` in place. Rebuilds the stage list in canonical
-    STAGE_DEFINITIONS order, looking up each existing stage by id so its
-    persisted progress / review_mode is preserved (never clobbered) and
-    inserting a fresh PENDING ``StageState`` for any that are missing.
-    Stages no longer present in STAGE_DEFINITIONS are dropped. This keeps
-    the open path a graceful upgrade for projects whose
-    ``pipeline-state.json`` predates either a newly-added stage *or* a
-    stage *reorder* (e.g. ``visual_refs`` moving from pre-skeleton to
-    pre-art) — no bespoke per-change migration logic.
+    Mutates ``state`` in place. Reconciles the **backbone** (the one
+    ``instance_id == stage_id`` instance of each definition) into canonical
+    STAGE_DEFINITIONS order, preserving each existing backbone's persisted
+    progress / review_mode and inserting a fresh PENDING ``StageState`` for any
+    missing one; backbone stages no longer in STAGE_DEFINITIONS are dropped.
 
-    Returns True if anything changed (a stage was added, dropped, or
-    moved), False if the loaded state already matched canonically —
-    callers (e.g. ``cleanup_orphan_running_stages``) use this to decide
-    whether to persist the synced shape, so a clean state's bytes stay
-    untouched.
+    **Dynamically-inserted instances are preserved.** The review→regen loop
+    appends repeated instances (e.g. ``card_gen.2``/``balance.2``) right after
+    the backbone stage that flagged them. Those non-backbone instances are kept
+    in place relative to the nearest preceding backbone they trail, so a state
+    with duplicates round-trips through ``load_state()`` unchanged. (The old
+    implementation rebuilt from a ``{stage_id: stage}`` dict, which silently
+    destroyed every duplicate on reload.)
+
+    Returns True if anything changed (a stage was added, dropped, or moved),
+    False if the loaded state already matched canonically — callers (e.g.
+    ``cleanup_orphan_running_stages``) use this to decide whether to persist the
+    synced shape, so a clean state's bytes stay untouched.
     """
-    have = {s.stage_id: s for s in state.stages}
-    new_stages: list[StageState] = []
+    canonical_set = {d["stage_id"] for d in STAGE_DEFINITIONS}
+
+    # Existing backbone instances, by stage_id (preserves progress/review_mode).
+    existing_backbone = {s.stage_id: s for s in state.stages if s.instance_id == s.stage_id}
+
+    # Group inserted (non-backbone) instances under the stage_id of the nearest
+    # preceding backbone in the existing order, preserving their relative order.
+    # Inserts whose stage_id is no longer canonical are dropped along with their
+    # vanished backbone.
+    inserts_after: dict[str, list[StageState]] = {}
+    leading_inserts: list[StageState] = []
+    anchor: str | None = None
+    for s in state.stages:
+        if s.instance_id == s.stage_id:
+            anchor = s.stage_id
+        elif s.stage_id in canonical_set:
+            if anchor is None:
+                leading_inserts.append(s)
+            else:
+                inserts_after.setdefault(anchor, []).append(s)
+
+    new_stages: list[StageState] = list(leading_inserts)
     for defn in STAGE_DEFINITIONS:
         sid = defn["stage_id"]
-        existing = have.get(sid)
-        if existing is not None:
-            new_stages.append(existing)
-            continue
-        new_stages.append(
-            StageState(
-                stage_id=sid,
-                display_name=defn["display_name"],
-                review_eligible=defn["review_eligible"],
-                status=StageStatus.PENDING,
+        backbone = existing_backbone.get(sid)
+        if backbone is not None:
+            new_stages.append(backbone)
+        else:
+            new_stages.append(
+                StageState(
+                    stage_id=sid,
+                    display_name=defn["display_name"],
+                    review_eligible=defn["review_eligible"],
+                    status=StageStatus.PENDING,
+                )
             )
-        )
-    if [s.stage_id for s in new_stages] == [s.stage_id for s in state.stages]:
+        new_stages.extend(inserts_after.get(sid, []))
+
+    if [s.instance_id for s in new_stages] == [s.instance_id for s in state.stages]:
         return False
     state.stages = new_stages
     return True
@@ -219,7 +244,7 @@ class PipelineEngine:
         self._running = True
         self.state.overall_status = PipelineStatus.RUNNING
         save_state(self.state)
-        self.bus.pipeline_status(self.state.overall_status, self.state.current_stage_id)
+        self.bus.pipeline_status(self.state.overall_status, self.state.current_instance_id)
 
         try:
             self._run_loop()
@@ -227,26 +252,33 @@ class PipelineEngine:
             logger.exception("Pipeline engine crashed")
             self.state.overall_status = PipelineStatus.FAILED
             save_state(self.state)
-            self.bus.pipeline_status(self.state.overall_status, self.state.current_stage_id)
+            self.bus.pipeline_status(self.state.overall_status, self.state.current_instance_id)
         finally:
             self._running = False
 
     def _run_loop(self) -> None:
-        for stage in self.state.stages:
+        # Index-driven walk (not ``for stage in …``) so the review→regen loop
+        # can *insert* repeated stage instances after the current index and have
+        # them picked up on the next iteration. ``len()`` is re-read each pass.
+        i = 0
+        while i < len(self.state.stages):
+            stage = self.state.stages[i]
+
             # Check cancellation
             if self._cancel_event.is_set():
                 self.state.overall_status = PipelineStatus.CANCELLED
                 save_state(self.state)
-                self.bus.pipeline_status(self.state.overall_status, self.state.current_stage_id)
+                self.bus.pipeline_status(self.state.overall_status, self.state.current_instance_id)
                 logger.info("Pipeline cancelled")
                 return
 
             # Skip completed/skipped stages
             if stage.status in (StageStatus.COMPLETED, StageStatus.SKIPPED):
+                i += 1
                 continue
 
             # Run the stage
-            self.state.current_stage_id = stage.stage_id
+            self.state.current_instance_id = stage.instance_id
             stage.status = StageStatus.RUNNING
             stage.progress = StageProgress(started_at=datetime.now(UTC))
             save_state(self.state)
@@ -254,12 +286,15 @@ class PipelineEngine:
                 stage.stage_id,
                 stage.status,
                 stage.progress.model_dump(mode="json"),
+                instance_id=stage.instance_id,
             )
             logger.info("Starting stage: %s", stage.display_name)
 
             # Build progress callback + section emitter for this stage
             progress_cb = self._make_progress_callback(stage)
-            emitter = StageEmitter(self.bus, stage.stage_id, _time.monotonic())
+            emitter = StageEmitter(
+                self.bus, stage.stage_id, _time.monotonic(), instance_id=stage.instance_id
+            )
             emitter.phase(
                 "starting",
                 f"Starting {stage.display_name}",
@@ -283,6 +318,9 @@ class PipelineEngine:
                 stage.progress.cost_usd = result.cost_usd
                 stage.progress.detail = result.detail
                 stage.progress.finished_at = datetime.now(UTC)
+                # Persist this instance's runner output so its tab can render
+                # what it found even after a later card_gen clears card flags.
+                stage.result = result.artifacts or {}
 
                 # Accumulate cost
                 self.state.total_cost_usd += result.cost_usd
@@ -298,8 +336,9 @@ class PipelineEngine:
                     stage.stage_id,
                     stage.status,
                     stage.progress.model_dump(mode="json"),
+                    instance_id=stage.instance_id,
                 )
-                self.bus.pipeline_status(self.state.overall_status, stage.stage_id)
+                self.bus.pipeline_status(self.state.overall_status, stage.instance_id)
                 logger.error(
                     "Stage %s failed: %s\n%s",
                     stage.display_name,
@@ -307,6 +346,12 @@ class PipelineEngine:
                     traceback.format_exc(),
                 )
                 return
+
+            # A review runner that flagged cards bounces the pipeline: insert
+            # fresh instances of the upstream span and walk forward into them.
+            if self._handle_rerun(result, i):
+                i += 1
+                continue
 
             # Check if human review is needed
             if stage.review_mode == StageReviewMode.REVIEW:
@@ -317,8 +362,9 @@ class PipelineEngine:
                     stage.stage_id,
                     stage.status,
                     stage.progress.model_dump(mode="json"),
+                    instance_id=stage.instance_id,
                 )
-                self.bus.pipeline_status(self.state.overall_status, stage.stage_id)
+                self.bus.pipeline_status(self.state.overall_status, stage.instance_id)
                 logger.info(
                     "Stage %s complete — paused for human review",
                     stage.display_name,
@@ -332,8 +378,10 @@ class PipelineEngine:
                 stage.stage_id,
                 stage.status,
                 stage.progress.model_dump(mode="json"),
+                instance_id=stage.instance_id,
             )
             logger.info("Stage %s completed", stage.display_name)
+            i += 1
 
         # All stages done
         all_done = all(
@@ -341,10 +389,22 @@ class PipelineEngine:
         )
         if all_done:
             self.state.overall_status = PipelineStatus.COMPLETED
-            self.state.current_stage_id = None
+            self.state.current_instance_id = None
             save_state(self.state)
             self.bus.pipeline_status(self.state.overall_status, None)
             logger.info("Pipeline completed! Total cost: $%.2f", self.state.total_cost_usd)
+
+    def _handle_rerun(self, result: StageResult, index: int) -> bool:
+        """Forward-only re-entrancy: handle a review runner's ``rerun_from``.
+
+        Part 1 stub (behavior-neutral — no runner sets ``rerun_from`` yet). The
+        review→regen loop fills this in: when a review stage flags cards it sets
+        ``result.rerun_from`` to the upstream stage to bounce to; this inserts a
+        fresh instance span ``[rerun_from … this stage]`` right after ``index``
+        and returns True so the walk advances into them. Returns False when
+        there's nothing to re-run.
+        """
+        return False
 
     def resume(self) -> None:
         """Resume pipeline after human review.
@@ -437,7 +497,9 @@ class PipelineEngine:
             save_state(self.state)
 
             # Publish SSE events
-            self.bus.item_progress(stage.stage_id, item, completed, total, detail)
+            self.bus.item_progress(
+                stage.stage_id, item, completed, total, detail, instance_id=stage.instance_id
+            )
             if cost > 0:
                 self.bus.cost_update(stage.progress.cost_usd, self.state.total_cost_usd)
 

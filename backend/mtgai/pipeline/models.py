@@ -13,7 +13,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -82,15 +82,57 @@ class StageProgress(BaseModel):
     error_message: str | None = None
 
 
+# Separator between a stage_id and its instance ordinal for repeated stage
+# instances (e.g. ``balance.2``). URL-safe (RFC 3986 unreserved) so instance
+# ids can flow straight into ``/pipeline/<tab_id>`` without encoding. The
+# plan's original ``#`` is the URL fragment delimiter and would truncate.
+INSTANCE_SEP = "."
+
+
+def make_instance_id(stage_id: str, ordinal: int) -> str:
+    """Instance id for the ``ordinal``-th copy of a stage.
+
+    ``ordinal <= 1`` is the backbone instance and keeps ``instance_id ==
+    stage_id`` (so existing URLs, break-point keys, model assignments,
+    runner/clearer lookups, and old persisted state all keep working).
+    Inserted copies (ordinal >= 2) get ``f"{stage_id}{INSTANCE_SEP}{ordinal}"``.
+    """
+    return stage_id if ordinal <= 1 else f"{stage_id}{INSTANCE_SEP}{ordinal}"
+
+
 class StageState(BaseModel):
-    """State of a single pipeline stage."""
+    """State of a single pipeline stage.
+
+    A stage can appear more than once in a pipeline run (repeated instances
+    inserted by the review→regen loop). ``stage_id`` stays the **template
+    key** — shared across instances for runner/clearer/model/break-point
+    resolution — while ``instance_id`` is the per-instance identity used for
+    tab routing. The backbone instance of each stage keeps ``instance_id ==
+    stage_id``; inserted copies get ``f"{stage_id}.{n}"`` (see
+    :func:`make_instance_id`) with ``display_name`` suffixed ("Balance
+    Analysis 2").
+    """
 
     stage_id: str
+    # Backfilled to stage_id when absent so projects whose pipeline-state.json
+    # predates instance ids load as all-backbone (see _default_instance).
+    instance_id: str = ""
     display_name: str
     status: StageStatus = StageStatus.PENDING
     review_mode: StageReviewMode = StageReviewMode.AUTO
     review_eligible: bool = True  # Can be set to review mode?
     progress: StageProgress = Field(default_factory=StageProgress)
+    # Per-instance runner output (from StageResult.artifacts). Persisted in
+    # pipeline-state.json so a review instance's findings survive reload and
+    # later card_gen runs that clear the per-card flags — the /state endpoints
+    # read this to show "the cards THIS instance flagged".
+    result: dict = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _default_instance(self) -> StageState:
+        if not self.instance_id:
+            self.instance_id = self.stage_id
+        return self
 
 
 class PipelineConfig(BaseModel):
@@ -115,7 +157,14 @@ class PipelineState(BaseModel):
 
     config: PipelineConfig
     stages: list[StageState]
-    current_stage_id: str | None = None
+    # The currently-running/paused/failed stage *instance*. ``validation_alias``
+    # accepts the legacy ``current_stage_id`` key from pre-instance
+    # pipeline-state.json (a backbone stage_id is a valid instance_id), so old
+    # projects load unchanged; new state serializes under the new name.
+    current_instance_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("current_instance_id", "current_stage_id"),
+    )
     overall_status: PipelineStatus = PipelineStatus.NOT_STARTED
     total_cost_usd: float = 0.0
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -123,11 +172,11 @@ class PipelineState(BaseModel):
     run_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
     def current_stage(self) -> StageState | None:
-        """Return the current stage, or None if not set."""
-        if self.current_stage_id is None:
+        """Return the current stage instance, or None if not set."""
+        if self.current_instance_id is None:
             return None
         for stage in self.stages:
-            if stage.stage_id == self.current_stage_id:
+            if stage.instance_id == self.current_instance_id:
                 return stage
         return None
 

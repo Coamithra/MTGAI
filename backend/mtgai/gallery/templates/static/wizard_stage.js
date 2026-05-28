@@ -119,12 +119,14 @@
   function shouldShowEditButton(stage) {
     if (!W.editFlow) return false;
     if (W.editFlow.isPipelineRunning()) return false;
-    return W.editFlow.isPastTab(stage.stage_id);
+    // Past-ness + drafts are keyed by tab id == instance_id (a stage can
+    // appear more than once); break-points stay keyed by stage_id elsewhere.
+    return W.editFlow.isPastTab(stage.instance_id);
   }
 
   function editButtonHtml(stage) {
     if (!shouldShowEditButton(stage)) return '';
-    const editing = !!W.editFlow.getDraft(stage.stage_id);
+    const editing = !!W.editFlow.getDraft(stage.instance_id);
     if (editing) return '';
     return `<button type="button" class="wiz-btn-secondary" data-role="stage-edit">Edit</button>`;
   }
@@ -306,17 +308,18 @@
     `;
   }
 
-  function isFinalStage(state, stageId) {
+  function isFinalStage(state, instanceId) {
     if (!state.pipeline || !state.pipeline.stages) return false;
     const stages = state.pipeline.stages;
-    return stages.length > 0 && stages[stages.length - 1].stage_id === stageId;
+    return stages.length > 0 && stages[stages.length - 1].instance_id === instanceId;
   }
 
   function stageFooterHtml(stage, state) {
-    const isLatest = state.latestTabId === stage.stage_id;
+    // latestTabId is an instance id, so compare against this instance.
+    const isLatest = state.latestTabId === stage.instance_id;
 
     // Final tab + completed = "Set complete" terminal state (§8.4).
-    if (isLatest && isFinalStage(state, stage.stage_id) && stage.status === 'completed') {
+    if (isLatest && isFinalStage(state, stage.instance_id) && stage.status === 'completed') {
       return `<span class="wiz-footer-complete" role="status">✓ Set complete</span>`;
     }
 
@@ -326,7 +329,7 @@
     // (the engine just walks to the next stage), so we only render
     // Next-step on PAUSED_FOR_REVIEW.
     if (isLatest && stage.status === 'paused_for_review') {
-      const next = window.MTGAIWizard.nextStageEntryAfter(stage.stage_id);
+      const next = window.MTGAIWizard.nextStageEntryAfter(stage.instance_id);
       const label = next ? `Next step: ${next.name}` : 'Next step';
       return `<button type="button" class="wiz-btn-primary" data-role="next-step">${escHtml(label)}</button>`;
     }
@@ -371,9 +374,12 @@
   // Helpers
   // ------------------------------------------------------------------
 
-  function findStage(state, stageId) {
+  function findStage(state, instanceId) {
     if (!state.pipeline) return null;
-    return state.pipeline.stages.find(s => s.stage_id === stageId) || null;
+    // tab.id is an instance_id (== stage_id for backbone stages), so resolve
+    // the exact instance — this is what lets a duplicated stage (balance,
+    // balance.2) render two distinct tabs from one registered renderer.
+    return state.pipeline.stages.find(s => s.instance_id === instanceId) || null;
   }
 
   function formatElapsed(startedAt, finishedAt) {

@@ -1894,10 +1894,16 @@ def _build_pipeline_config_from_settings(set_code: str) -> PipelineConfig:
 
 
 def _first_pending_stage_id(state: PipelineState) -> str | None:
-    """Return the stage_id of the first non-completed, non-skipped stage."""
+    """Return the *instance id* (tab id) of the first non-completed stage.
+
+    Walks the runtime ``state.stages`` (which may contain dynamically-inserted
+    instances), so the value is the tab to navigate to — ``instance_id``, not
+    the template ``stage_id`` (identical for backbone stages, differs for an
+    inserted ``card_gen.2`` etc.).
+    """
     for stage in state.stages:
         if stage.status not in (StageStatus.COMPLETED, StageStatus.SKIPPED):
-            return stage.stage_id
+            return stage.instance_id
     return None
 
 
@@ -2040,8 +2046,11 @@ def _resolve_edit_point(from_stage: str, state: PipelineState | None) -> int:
         return 0
     if state is None:
         raise ValueError(f"Cannot resolve {from_stage!r}: no pipeline state on disk")
+    # ``from_stage`` is a wizard tab id == an ``instance_id`` (the client sends
+    # ``tab.id``), so match on instance_id to land on the exact instance the
+    # user edited from; the cascade then clears that index onward.
     for idx, stage in enumerate(state.stages):
-        if stage.stage_id == from_stage:
+        if stage.instance_id == from_stage:
             return idx
     raise ValueError(f"Unknown stage id {from_stage!r}")
 
@@ -2161,10 +2170,10 @@ def _apply_cascade_clear(state: PipelineState, start_idx: int) -> None:
                 }
             )
 
-        if state.current_stage_id is not None:
-            cleared_ids = {s.stage_id for s in state.stages[start_idx:]}
-            if state.current_stage_id in cleared_ids:
-                state.current_stage_id = None
+        if state.current_instance_id is not None:
+            cleared_ids = {s.instance_id for s in state.stages[start_idx:]}
+            if state.current_instance_id in cleared_ids:
+                state.current_instance_id = None
 
         # After cascade, overall_status is one of:
         #   - NOT_STARTED — at least one stage left non-completed
@@ -3791,10 +3800,12 @@ def _heal_failed_stage(stage_id: str) -> None:
     save_state(state)
     if stage is not None:
         event_bus.stage_update(
-            stage_id, stage.status.value, stage.progress.model_dump(mode="json")
+            stage_id,
+            stage.status.value,
+            stage.progress.model_dump(mode="json"),
+            instance_id=stage.instance_id,
         )
-    event_bus.pipeline_status(state.overall_status.value, state.current_stage_id)
-    event_bus.pipeline_status(state.overall_status.value, state.current_stage_id)
+    event_bus.pipeline_status(state.overall_status.value, state.current_instance_id)
 
 
 @router.get("/api/wizard/card_gen/state")
@@ -3825,9 +3836,7 @@ async def wizard_card_gen_state() -> JSONResponse:
     skeleton = _read_json(asset / "skeleton.json", {}) or {}
     raw_slots = skeleton.get("slots") if isinstance(skeleton, dict) else None
     slots_by_id: dict[str, dict] = {
-        s["slot_id"]: s
-        for s in (raw_slots or [])
-        if isinstance(s, dict) and s.get("slot_id")
+        s["slot_id"]: s for s in (raw_slots or []) if isinstance(s, dict) and s.get("slot_id")
     }
 
     cards_dir = asset / "cards"
@@ -3914,9 +3923,7 @@ async def wizard_card_gen_refresh() -> JSONResponse:
         skeleton = _read_json(skeleton_path, {}) or {}
         raw_slots = skeleton.get("slots") if isinstance(skeleton, dict) else None
         slots_by_id: dict[str, dict] = {
-            s["slot_id"]: s
-            for s in (raw_slots or [])
-            if isinstance(s, dict) and s.get("slot_id")
+            s["slot_id"]: s for s in (raw_slots or []) if isinstance(s, dict) and s.get("slot_id")
         }
 
         # Stream each saved card to the tab as it lands, so the grid pops in
@@ -4558,7 +4565,9 @@ def get_pipeline_banner_context() -> dict[str, Any] | None:
     return {
         "overall_status": state.overall_status,
         "current_stage": current.display_name if current else None,
-        "current_stage_id": current.stage_id if current else None,
+        # The instance/tab id of the live stage (== stage_id for backbone), so
+        # the client can highlight the right tab even for an inserted instance.
+        "current_stage_id": current.instance_id if current else None,
         "total_cost_usd": state.total_cost_usd,
         "run_id": state.run_id,
     }

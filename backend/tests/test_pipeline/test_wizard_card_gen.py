@@ -303,7 +303,7 @@ def test_refresh_heals_stuck_failed_card_gen(client, isolated_output, monkeypatc
     cg.status = StageStatus.FAILED
     cg.progress.error_message = "Interrupted — server restart"
     state.overall_status = PipelineStatus.FAILED
-    state.current_stage_id = "card_gen"
+    state.current_instance_id = "card_gen"
     (asset / "pipeline-state.json").write_text(
         json.dumps(state.model_dump(mode="json"), indent=2, default=str), encoding="utf-8"
     )

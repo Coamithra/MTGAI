@@ -96,7 +96,8 @@ def _load_pipeline_summary() -> dict | None:
         "set_code": state.config.set_code,
         "set_name": state.config.set_name,
         "overall_status": state.overall_status,
-        "current_stage_id": state.current_stage_id,
+        # The live stage's instance/tab id (== stage_id for backbone stages).
+        "current_stage_id": state.current_instance_id,
         "current_stage": current.display_name if current else None,
         "total_cost_usd": state.total_cost_usd,
         "run_id": state.run_id,

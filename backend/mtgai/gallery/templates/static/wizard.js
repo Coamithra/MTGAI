@@ -81,7 +81,11 @@
   function orderedStages() {
     const live = state.pipeline && state.pipeline.stages;
     if (live && live.length) {
-      return live.map(s => ({ id: s.stage_id, name: s.display_name }));
+      // Key by instance_id so next-step lookups resolve the right *instance*
+      // when a stage repeats (e.g. an inserted ``balance.2``). For backbone
+      // stages instance_id == stage_id, so callers passing a stage_id still
+      // match. Pre-kickoff falls back to stageDefs (no instances yet).
+      return live.map(s => ({ id: s.instance_id, name: s.display_name }));
     }
     return state.stageDefs || [];
   }
@@ -376,13 +380,13 @@
 
     state.eventSource.addEventListener('stage_update', (e) => {
       const data = JSON.parse(e.data);
-      updateStageStatus(data.stage_id, data.status, data.progress);
+      updateStageStatus(data.stage_id, data.status, data.progress, data.instance_id);
     });
 
     state.eventSource.addEventListener('item_progress', (e) => {
       const data = JSON.parse(e.data);
       updateStageProgress(
-        data.stage_id, data.item, data.completed, data.total, data.detail,
+        data.stage_id, data.item, data.completed, data.total, data.detail, data.instance_id,
       );
     });
 
@@ -398,7 +402,10 @@
       const data = JSON.parse(e.data);
       if (!state.pipeline) return;
       state.pipeline.overall_status = data.overall_status;
-      state.pipeline.current_stage_id = data.current_stage;
+      // ``data.current_stage`` is the live stage's instance_id (== stage_id
+      // for backbone). Mirror the model field name so a hydrate + an SSE
+      // tick agree on one key.
+      state.pipeline.current_instance_id = data.current_stage;
       if (
         data.overall_status === 'completed'
         || data.overall_status === 'cancelled'
@@ -491,7 +498,11 @@
     };
   }
 
-  function updateStageStatus(stageId, status, progress) {
+  function updateStageStatus(stageId, status, progress, instanceId, retried) {
+    // instanceId identifies the stage *instance* (a stage can appear more than
+    // once); it == stageId for backbone stages. Tabs, lookups, and latestTabId
+    // are all keyed by instance_id.
+    instanceId = instanceId || stageId;
     if (!state.pipeline) {
       // The bootstrap snapshot was rendered before any pipeline-state
       // existed (e.g. user is on Theme and the post-extraction
@@ -504,30 +515,52 @@
       hydratePipelineFromServer().then(() => {
         // Re-apply this very event so the eventually-hydrated state
         // reflects the status we just heard about.
-        if (state.pipeline) updateStageStatus(stageId, status, progress);
+        if (state.pipeline) updateStageStatus(stageId, status, progress, instanceId, retried);
       });
       return;
     }
-    const stage = state.pipeline.stages.find(s => s.stage_id === stageId);
-    if (!stage) return;
-    stage.status = status;
-    if (progress) stage.progress = progress;
+    let stage = state.pipeline.stages.find(s => s.instance_id === instanceId);
+    if (!stage) {
+      if (!retried) {
+        // Likely a newly-inserted instance from the review→regen loop that the
+        // bootstrap snapshot predates. Refetch the full state (it carries
+        // instance_id + canonical order) and re-apply once so the tab spawns
+        // in the right spot with its real display name.
+        hydratePipelineFromServer().then(() => {
+          updateStageStatus(stageId, status, progress, instanceId, true);
+        });
+        return;
+      }
+      // Refetch still didn't surface it — synthesize from the event so we
+      // never silently drop an update (should not happen in practice).
+      stage = {
+        stage_id: stageId,
+        instance_id: instanceId,
+        display_name: instanceId,
+        status,
+        progress: progress || {},
+      };
+      state.pipeline.stages.push(stage);
+    } else {
+      stage.status = status;
+      if (progress) stage.progress = progress;
+    }
 
-    const tabIdx = state.tabs.findIndex(t => t.id === stageId);
+    const tabIdx = state.tabs.findIndex(t => t.id === instanceId);
     if (tabIdx >= 0) {
       state.tabs[tabIdx].status = status;
     } else if (status !== 'pending') {
-      // Stage just left PENDING during this session — the bootstrap
+      // Instance just left PENDING during this session — the bootstrap
       // snapshot didn't include it but the visibility rule (compute_visible_tabs
       // in wizard.py) now would. Append the tab so the strip surfaces
       // it without forcing the user to refresh.
       state.tabs.push({
-        id: stageId,
+        id: instanceId,
         title: stage.display_name,
         kind: 'stage',
         status,
       });
-      state.latestTabId = stageId;
+      state.latestTabId = instanceId;
     }
     renderTabStrip();
     rerenderActiveStageBody();
@@ -553,9 +586,10 @@
     return _hydrateInFlight;
   }
 
-  function updateStageProgress(stageId, item, completed, total, detail) {
+  function updateStageProgress(stageId, item, completed, total, detail, instanceId) {
     if (!state.pipeline) return;
-    const stage = state.pipeline.stages.find(s => s.stage_id === stageId);
+    instanceId = instanceId || stageId;
+    const stage = state.pipeline.stages.find(s => s.instance_id === instanceId);
     if (!stage) return;
     stage.progress.current_item = item;
     stage.progress.completed_items = completed;
@@ -655,11 +689,11 @@
     const fillEl = document.getElementById('wiz-progress-bar-fill');
     if (!stageEl || !activityEl || !fillEl) return;
 
-    const stageId = data.stage_id || '';
+    const instanceId = data.instance_id || data.stage_id || '';
     const stageObj = state.pipeline
-      ? state.pipeline.stages.find(s => s.stage_id === stageId)
+      ? state.pipeline.stages.find(s => s.instance_id === instanceId)
       : null;
-    stageEl.textContent = stageObj ? stageObj.display_name : (stageId || phaseDisplayLabel(phase));
+    stageEl.textContent = stageObj ? stageObj.display_name : (instanceId || phaseDisplayLabel(phase));
     activityEl.textContent = data.activity || '';
 
     // Seed the elapsed clock from this event and paint now; the interval
@@ -823,10 +857,10 @@
   // stage's own tab (its Refresh button + editable result), per design §14.
   let _failureShownSig = null;
 
-  function maybeShowFailureModal(stageId) {
+  function maybeShowFailureModal(instanceId) {
     if (!state.pipeline || !state.pipeline.stages) return;
-    let stage = stageId
-      ? state.pipeline.stages.find(s => s.stage_id === stageId)
+    let stage = instanceId
+      ? state.pipeline.stages.find(s => s.instance_id === instanceId)
       : null;
     if (!stage || stage.status !== 'failed') {
       stage = state.pipeline.stages.find(s => s.status === 'failed');
@@ -834,7 +868,7 @@
     if (!stage) return;
     const err = (stage.progress && stage.progress.error_message)
       || 'The stage failed without a specific error message.';
-    const sig = stage.stage_id + ' ' + err;
+    const sig = stage.instance_id +' ' + err;
     if (sig === _failureShownSig) return;
     _failureShownSig = sig;
     showStageFailureModal(stage.display_name || stage.stage_id, err);

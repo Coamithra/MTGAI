@@ -56,7 +56,7 @@ def _state_with_running_stage(set_code: str, stage_id: str) -> PipelineState:
             stage.status = StageStatus.RUNNING
             break
     state.overall_status = PipelineStatus.RUNNING
-    state.current_stage_id = stage_id
+    state.current_instance_id = stage_id
     return state
 
 

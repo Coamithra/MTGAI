@@ -261,7 +261,7 @@ def test_advance_resumes_when_paused(client, no_thread_start, monkeypatch):
     state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
     state.stages[0].status = StageStatus.COMPLETED
     state.stages[1].status = StageStatus.PAUSED_FOR_REVIEW
-    state.current_stage_id = state.stages[1].stage_id
+    state.current_instance_id = state.stages[1].instance_id
     save_state(state)
 
     # Capture which engine method gets scheduled (resume vs run vs

@@ -203,7 +203,7 @@ def test_accept_cascades_artifacts_and_resets_stages(client, no_thread_start):
     state.stages[2].status = StageStatus.COMPLETED  # skeleton
     state.stages[3].status = StageStatus.COMPLETED  # reprints
     state.stages[5].status = StageStatus.PAUSED_FOR_REVIEW  # card_gen
-    state.current_stage_id = state.stages[5].stage_id
+    state.current_instance_id = state.stages[5].instance_id
     save_state(state)
 
     resp = client.post(
@@ -231,7 +231,7 @@ def test_accept_cascades_artifacts_and_resets_stages(client, no_thread_start):
     assert by_id["archetypes"].status == StageStatus.COMPLETED
     for sid in ("skeleton", "reprints", "lands", "card_gen"):
         assert by_id[sid].status == StageStatus.PENDING
-    assert reloaded.current_stage_id is None
+    assert reloaded.current_instance_id is None
 
 
 def test_accept_from_theme_resets_all_pipeline_stages(client, no_thread_start):

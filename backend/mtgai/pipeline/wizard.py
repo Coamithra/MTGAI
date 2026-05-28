@@ -162,7 +162,11 @@ def compute_visible_tabs(
                 stage = state.stages[idx]
                 tabs.append(
                     WizardTab(
-                        id=stage.stage_id,
+                        # One tab per stage *instance*, keyed by instance_id so
+                        # repeated instances (``balance``, ``balance.2``) get
+                        # distinct tabs. ``display_name`` already carries the
+                        # "2" ordinal suffix for inserted instances.
+                        id=stage.instance_id,
                         title=stage.display_name,
                         kind="stage",
                         status=stage.status.value,

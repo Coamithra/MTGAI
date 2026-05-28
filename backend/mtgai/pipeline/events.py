@@ -93,9 +93,25 @@ class EventBus:
 
     # -- Convenience publishers for common event types --
 
-    def stage_update(self, stage_id: str, status: str, progress: dict | None = None) -> None:
-        """Publish a stage status change."""
-        payload: dict[str, Any] = {"stage_id": stage_id, "status": status}
+    def stage_update(
+        self,
+        stage_id: str,
+        status: str,
+        progress: dict | None = None,
+        instance_id: str | None = None,
+    ) -> None:
+        """Publish a stage status change.
+
+        ``instance_id`` identifies which stage *instance* changed (a stage can
+        appear more than once); it defaults to ``stage_id`` for backbone
+        instances, so it's always present in the payload for the shell to route
+        on.
+        """
+        payload: dict[str, Any] = {
+            "stage_id": stage_id,
+            "instance_id": instance_id or stage_id,
+            "status": status,
+        }
         if progress is not None:
             payload["progress"] = progress
         self.publish("stage_update", payload)
@@ -107,12 +123,14 @@ class EventBus:
         completed: int,
         total: int,
         detail: str = "",
+        instance_id: str | None = None,
     ) -> None:
         """Publish per-item progress within a stage."""
         self.publish(
             "item_progress",
             {
                 "stage_id": stage_id,
+                "instance_id": instance_id or stage_id,
                 "item": item,
                 "completed": completed,
                 "total": total,
@@ -138,7 +156,9 @@ class EventBus:
             {"stage_id": stage_id, "level": level, "message": message},
         )
 
-    def stage_sections_init(self, stage_id: str, sections: list[dict[str, Any]]) -> None:
+    def stage_sections_init(
+        self, stage_id: str, sections: list[dict[str, Any]], instance_id: str | None = None
+    ) -> None:
         """Declare the sections a stage will populate.
 
         Each section dict has at least ``section_id``, ``title``, and
@@ -147,10 +167,12 @@ class EventBus:
         """
         self.publish(
             "stage_section_init",
-            {"stage_id": stage_id, "sections": sections},
+            {"stage_id": stage_id, "instance_id": instance_id or stage_id, "sections": sections},
         )
 
-    def stage_section_update(self, stage_id: str, section_id: str, **fields: Any) -> None:
+    def stage_section_update(
+        self, stage_id: str, section_id: str, instance_id: str | None = None, **fields: Any
+    ) -> None:
         """Patch a previously-declared section.
 
         Recognised optional fields: ``status``, ``content`` (replaces),
@@ -158,11 +180,22 @@ class EventBus:
         append), ``detail`` (sub-line). Unknown fields are forwarded so
         the frontend can opt-in to new shapes.
         """
-        payload: dict[str, Any] = {"stage_id": stage_id, "section_id": section_id}
+        payload: dict[str, Any] = {
+            "stage_id": stage_id,
+            "instance_id": instance_id or stage_id,
+            "section_id": section_id,
+        }
         payload.update(fields)
         self.publish("stage_section_update", payload)
 
-    def stage_phase(self, stage_id: str, phase: str, activity: str, **extra: Any) -> None:
+    def stage_phase(
+        self,
+        stage_id: str,
+        phase: str,
+        activity: str,
+        instance_id: str | None = None,
+        **extra: Any,
+    ) -> None:
         """Publish a stage-scoped phase tick (drives the activity banner).
 
         Mirrors the theme-extractor phase event shape so the same UI
@@ -171,6 +204,7 @@ class EventBus:
         """
         payload: dict[str, Any] = {
             "stage_id": stage_id,
+            "instance_id": instance_id or stage_id,
             "phase": phase,
             "activity": activity,
         }
@@ -191,9 +225,18 @@ class StageEmitter:
     pipeline don't need to pass anything.
     """
 
-    def __init__(self, bus: EventBus | None, stage_id: str, started_at: float) -> None:
+    def __init__(
+        self,
+        bus: EventBus | None,
+        stage_id: str,
+        started_at: float,
+        instance_id: str | None = None,
+    ) -> None:
         self._bus = bus
         self._stage_id = stage_id
+        # Backbone instances pass nothing → instance_id == stage_id. Inserted
+        # instances pass their own id so events route to the right tab.
+        self._instance_id = instance_id or stage_id
         self._started_at = started_at
 
     @classmethod
@@ -211,18 +254,22 @@ class StageEmitter:
     def init_sections(self, sections: list[dict[str, Any]]) -> None:
         if self._bus is None:
             return
-        self._bus.stage_sections_init(self._stage_id, sections)
+        self._bus.stage_sections_init(self._stage_id, sections, instance_id=self._instance_id)
 
     def update(self, section_id: str, **fields: Any) -> None:
         if self._bus is None:
             return
-        self._bus.stage_section_update(self._stage_id, section_id, **fields)
+        self._bus.stage_section_update(
+            self._stage_id, section_id, instance_id=self._instance_id, **fields
+        )
 
     def phase(self, phase: str, activity: str, **extra: Any) -> None:
         if self._bus is None:
             return
         extra.setdefault("elapsed_s", self._elapsed())
-        self._bus.stage_phase(self._stage_id, phase, activity, **extra)
+        self._bus.stage_phase(
+            self._stage_id, phase, activity, instance_id=self._instance_id, **extra
+        )
 
     def event(self, event_type: str, **data: Any) -> None:
         """Publish a raw stage-scoped SSE event of an arbitrary type.
@@ -230,10 +277,14 @@ class StageEmitter:
         For bespoke per-stage streams that don't fit the section/phase shapes —
         the skeleton relabel uses it for ``skeleton_slot`` /
         ``skeleton_relabel_reset`` so the Skeleton tab can fill in cards live.
-        ``stage_id`` is folded into the payload so the consumer can scope it."""
+        ``stage_id`` + ``instance_id`` are folded into the payload so the
+        consumer can scope it to the right tab."""
         if self._bus is None:
             return
-        self._bus.publish(event_type, {"stage_id": self._stage_id, **data})
+        self._bus.publish(
+            event_type,
+            {"stage_id": self._stage_id, "instance_id": self._instance_id, **data},
+        )
 
 
 def format_sse(event: dict[str, Any]) -> str:
