@@ -1135,6 +1135,10 @@ def _flag_cards_for_regen(flags: list[tuple[str, str]], flagged_by: str) -> list
 
     set_dir = _set_dir()
     cards_dir = set_dir / "cards"
+    # Index by slot_id *and* collector_number: gates flag by slot_id, but
+    # ai_review reports by collector_number (CardReviewResult has no slot_id).
+    # They're equal for generated cards, but indexing both means a flag is never
+    # silently lost if a future scheme diverges them.
     by_slot: dict[str, Card] = {}
     if cards_dir.exists():
         for p in sorted(cards_dir.glob("*.json")):
@@ -1144,6 +1148,8 @@ def _flag_cards_for_regen(flags: list[tuple[str, str]], flagged_by: str) -> list
                 continue
             if c.slot_id:
                 by_slot[c.slot_id] = c
+            if c.collector_number:
+                by_slot.setdefault(c.collector_number, c)
 
     flagged: list[dict] = []
     for slot_id, reason in flags:
@@ -1521,9 +1527,9 @@ STAGE_RUNNERS = {
 # - Clearers read the active project's artifact dir and run synchronously.
 # - File-not-found is fine (clear is idempotent); permission / I/O
 #   errors propagate so the caller can surface them.
-# - Stages that mutate cards in place (``ai_review``, ``finalize``,
-#   ``art_prompts``, ``art_select``, ``skeleton_rev``) intentionally
-#   no-op — their effects are erased by re-running ``card_gen``'s
+# - Stages that mutate cards in place or only flag them (``conformance``,
+#   ``balance``, ``ai_review``, ``finalize``, ``art_prompts``, ``art_select``)
+#   intentionally no-op — their effects are erased by re-running ``card_gen``'s
 #   clearer further upstream in the cascade.
 
 StageClearer = Callable[[], None]
