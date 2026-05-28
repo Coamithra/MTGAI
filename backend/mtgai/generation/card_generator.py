@@ -1,11 +1,21 @@
 """Card generation pipeline for Phase 1C.
 
-Generates cards from skeleton slots via LLM, validates, auto-fixes, and saves.
-MANUAL validation warnings ride along as metadata — no LLM retry on design
-issues (that's deferred to the council review in Phase 4A+4B).
+Generates cards from skeleton slots via LLM, runs format-hygiene validation,
+auto-fixes what it can, and saves. Design-judgment heuristics (power-level,
+color-pie, mechanical similarity) live in
+:mod:`mtgai.analysis.heuristic_checks` and are run fresh at council-review /
+final-QA time — they don't ride along on the saved card.
 
-Only schema-level parse failures trigger a retry (max 3 attempts), since a
-card that can't parse at all can't be saved.
+Two things trigger an LLM retry (capped at ``MAX_RETRIES``):
+
+* Schema parse failure — the card can't be parsed as a ``Card`` at all.
+* Text overflow — oracle text / type line / flavor / name exceeds the
+  character limits. Overflow usually means the LLM lost the plot; regenerate
+  rather than ship a card that won't fit on the frame.
+
+Validation surfaces these as a single ``regen_required`` flag from
+:func:`mtgai.validation.validate_card_from_raw`, so this module reacts to one
+signal regardless of which check tripped.
 
 Usage:
     python -m mtgai.generation.card_generator          # generate all unfilled slots
@@ -30,7 +40,7 @@ from mtgai.io.card_io import load_card, save_card
 from mtgai.models.card import Card, GenerationAttempt
 from mtgai.models.enums import CardStatus
 from mtgai.validation import ValidationError as VError
-from mtgai.validation import validate_card_from_raw
+from mtgai.validation import format_validation_feedback, validate_card_from_raw
 from mtgai.validation.mana import derive_mana_fields
 
 logger = logging.getLogger(__name__)
@@ -57,7 +67,7 @@ MAX_RETRIES = 3  # Only for schema parse failures
 # This counts *total* card-gen cards (already-filled + about-to-generate), so
 # resuming a capped run tops up to the cap instead of adding another fresh
 # batch. Set to ``None`` to generate the whole skeleton again.
-TEMP_CARD_LIMIT: int | None = 15
+TEMP_CARD_LIMIT: int | None = None
 
 # Tool schemas for Anthropic tool_use
 # NOTE: cmc, colors, and color_identity are intentionally NOT requested — they're
@@ -212,38 +222,61 @@ class GenerationProgress:
 
 def group_slots_into_batches(
     slots: list[dict],
+    confirmed_cycles: dict[str, list[str]] | None = None,
     batch_size: int = BATCH_SIZE,
 ) -> list[list[dict]]:
     """Group unfilled skeleton slots into batches for generation.
 
-    **Cycle members** (slots carrying a ``cycle_id``) are pulled out first and
-    each cycle becomes its own batch (split if it exceeds ``batch_size``), so the
-    family is designed together with parallel structure and its shared template.
-    The rest group by color (mono-color batches, then multicolor pairs, then
-    colorless), each at most ``batch_size`` slots.
+    Driven by the LLM cycle-sort pass (:mod:`mtgai.generation.slot_grouper`)
+    rather than the slot's swingable structured fields, since the skeleton
+    relabel can have textually pulled a card out of its cycle while the seed
+    ``cycle_id`` stayed put.
+
+    ``confirmed_cycles`` is a mapping ``{cycle_id -> [slot_id, ...]}`` of
+    families the cycle-sort pass confirmed by reading each member's
+    ``tweaked_text``. Each confirmed family becomes its own batch (split into
+    ordered sub-batches when oversized, so the card-gen loop can thread already-
+    generated members into later sub-batches as siblings). Slots not in any
+    confirmed family — including those whose seed ``cycle_id`` lost membership
+    in the audit — are batched in deterministic ``slot_id`` order, chunked at
+    ``batch_size``. No colour batching: the relabel can swing colour, so the
+    seed colour groups by the *seed*, not the card's actual colour.
+
+    ``confirmed_cycles=None`` means "skip cycle batching" — used by dry runs
+    and unit tests that don't make the LLM call. An empty dict means "the LLM
+    audit ran and confirmed nothing" → every slot batches as ordinary.
     """
-    cycle_groups: dict[str, list[dict]] = {}
-    ordinary: list[dict] = []
-    for slot in slots:
-        cid = slot.get("cycle_id")
-        if cid:
-            cycle_groups.setdefault(cid, []).append(slot)
-        else:
-            ordinary.append(slot)
+    confirmed_cycles = confirmed_cycles or {}
+    by_id: dict[str, dict] = {s["slot_id"]: s for s in slots}
 
     batches: list[list[dict]] = []
-    # Cycle batches first (deterministic by cycle_id) so the family lands as a unit.
-    for _, members in sorted(cycle_groups.items()):
+    placed: set[str] = set()
+
+    # Confirmed cycle families first, deterministically by cycle_id, each split
+    # into ordered sub-batches when oversized. The slot's ``cycle_id`` stamp
+    # carries through to the card-gen loop, which uses it to thread siblings
+    # from prior sub-batches into the prompt.
+    for cid in sorted(confirmed_cycles):
+        members: list[dict] = []
+        for sid in confirmed_cycles[cid]:
+            slot = by_id.get(sid)
+            if slot is None or sid in placed:
+                continue
+            members.append(slot)
+            placed.add(sid)
         for i in range(0, len(members), batch_size):
             batches.append(members[i : i + batch_size])
 
-    by_color: dict[str, list[dict]] = {}
-    for slot in ordinary:
-        key = slot.get("color_pair") or slot["color"]
-        by_color.setdefault(key, []).append(slot)
-    for group in (v for _, v in sorted(by_color.items())):
-        for i in range(0, len(group), batch_size):
-            batches.append(group[i : i + batch_size])
+    # All remaining slots — including ones the audit dropped from their cycle —
+    # in deterministic slot_id order. No colour key (the relabel may have
+    # swung the slot's colour; batching by the seed colour groups by stale data
+    # and adds no caching win: only the system prompt + tool schema cache).
+    remaining = sorted(
+        (s for s in slots if s["slot_id"] not in placed),
+        key=lambda s: s["slot_id"],
+    )
+    for i in range(0, len(remaining), batch_size):
+        batches.append(remaining[i : i + batch_size])
     return batches
 
 
@@ -484,6 +517,7 @@ def _process_batch_result(
     effort: str | None = None,
     set_dir: Path | None = None,
     archetypes: list[dict] | None = None,
+    card_saved_callback: Callable[[Card], None] | None = None,
 ) -> list[Card]:
     """Validate, auto-fix, and save each card from a batch result.
 
@@ -514,9 +548,10 @@ def _process_batch_result(
         # pie etc.) see correct values rather than the model's omissions.
         raw.update(derive_mana_fields(raw.get("mana_cost"), raw.get("oracle_text")))
 
-        # Validate + auto-fix
-        logger.info("  [%s] Running validation (8 validators)...", slot_id)
-        card, errors, applied_fixes = validate_card_from_raw(
+        # Validate + auto-fix (format hygiene only — design-judgment heuristics
+        # run later, fresh, against the card the council is about to review).
+        logger.info("  [%s] Running format-hygiene validation...", slot_id)
+        card, errors, applied_fixes, regen_required = validate_card_from_raw(
             raw,
             existing_cards=existing_cards,
             auto_fix=True,
@@ -535,13 +570,14 @@ def _process_batch_result(
                 logger.info("    AUTO-FIX: %s", fix)
         if errors:
             logger.info(
-                "  [%s] %d MANUAL warning(s) (will ride along as metadata):",
+                "  [%s] %d remaining issue(s):",
                 slot_id,
                 len(errors),
             )
             for err in errors:
                 logger.info(
-                    "    MANUAL: [%s] %s.%s: %s",
+                    "    %s: [%s] %s.%s: %s",
+                    err.severity.value,
                     err.error_code or "?",
                     err.validator,
                     err.field,
@@ -570,16 +606,38 @@ def _process_batch_result(
             stop_reason=stop_reason,
         )
 
-        # Schema failure — card couldn't parse at all.  Retry individually.
-        if card is None:
-            logger.warning(
-                "  [%s] SCHEMA PARSE FAILURE — card couldn't be created. Errors: %s",
-                slot_id,
-                "; ".join(e.message for e in errors),
-            )
-            card = _retry_parse_failure(
+        # Regen-trigger — schema parse failure (card is None) or text overflow.
+        # Both signal "this card can't ship as-is; regenerate." We use the same
+        # retry loop and the same per-attempt cap regardless of which tripped.
+        if regen_required:
+            if card is None:
+                logger.warning(
+                    "  [%s] SCHEMA PARSE FAILURE — card couldn't be created. Errors: %s",
+                    slot_id,
+                    "; ".join(e.message for e in errors),
+                )
+                # No parsed card means we don't have a name for the feedback
+                # header; the errors list is already the LLM-friendly summary.
+                feedback = str(errors)
+            else:
+                overflow_errors = [
+                    e for e in errors if e.error_code and e.error_code.startswith("text_overflow.")
+                ]
+                logger.warning(
+                    "  [%s] TEXT OVERFLOW — %d field(s) over limit, regenerating",
+                    slot_id,
+                    len(overflow_errors),
+                )
+                feedback = format_validation_feedback(
+                    card_name,
+                    overflow_errors,
+                    slot_color=slot.get("color", ""),
+                    slot_rarity=slot.get("rarity", ""),
+                    slot_type=slot.get("card_type", ""),
+                )
+            card = _retry_card(
                 slot,
-                str(errors),
+                feedback,
                 mechanics,
                 existing_cards,
                 theme,
@@ -595,7 +653,7 @@ def _process_batch_result(
                     slot_id,
                     MAX_RETRIES,
                 )
-                progress.failed_slots[slot_id] = f"Schema parse failure after {MAX_RETRIES} retries"
+                progress.failed_slots[slot_id] = f"Regen failed after {MAX_RETRIES} retries"
                 progress.save()
                 continue
 
@@ -620,13 +678,13 @@ def _process_batch_result(
             ],
         }
 
-        # Propagate skeleton metadata to card model
-        mechanic_tag = slot.get("mechanic_tag", "")
-        if mechanic_tag and mechanic_tag not in ("vanilla", "french_vanilla", "evergreen"):
-            update_fields["mechanic_tags"] = [mechanic_tag]
-        archetype_tags = slot.get("archetype_tags", [])
-        if archetype_tags:
-            update_fields["draft_archetype"] = archetype_tags[0]
+        # Skeleton-seed metadata (``mechanic_tag`` / ``archetype_tags``) is NOT
+        # stamped onto the card. Those fields are swingable seeds the relabel
+        # doesn't update, so stamping them risks mislabeling the card with
+        # data the descriptor (and therefore the actual card) no longer matches.
+        # The generated card's own ``type_line`` / ``oracle_text`` / ``colors``
+        # are authoritative; if mechanic_tags / draft_archetype are needed
+        # downstream, derive them from the actual card later.
 
         card = card.model_copy(update=update_fields)
 
@@ -644,10 +702,20 @@ def _process_batch_result(
             path.name,
         )
 
+        # Live-stream hook: caller (engine emitter or /refresh endpoint) gets
+        # one notification per successful save so the Card Generation tab can
+        # pop each card in as it lands. Wrapped so a buggy callback never
+        # kills the run — the canonical state is on disk regardless.
+        if card_saved_callback is not None:
+            try:
+                card_saved_callback(card)
+            except Exception:
+                logger.exception("card_saved_callback raised for %s", slot_id)
+
     return saved
 
 
-def _retry_parse_failure(
+def _retry_card(
     slot: dict,
     error_msg: str,
     mechanics: list[dict],
@@ -660,7 +728,12 @@ def _retry_parse_failure(
     effort: str | None = None,
     archetypes: list[dict] | None = None,
 ) -> Card | None:
-    """Retry a card that completely failed schema validation (couldn't parse)."""
+    """Retry a card that hit a regen trigger (schema parse failure or text overflow).
+
+    ``error_msg`` is the LLM-facing feedback for the retry — typically the
+    output of :func:`format_validation_feedback` for overflow, or a stringified
+    error list for a parse failure (where no parsed card exists yet).
+    """
     for attempt in range(2, MAX_RETRIES + 1):
         result = _retry_single_card(
             slot,
@@ -697,7 +770,7 @@ def _retry_parse_failure(
             _card_one_liner(retry_raw),
         )
 
-        card, errors, applied_fixes = validate_card_from_raw(
+        card, errors, applied_fixes, regen_required = validate_card_from_raw(
             retry_raw,
             existing_cards=existing_cards,
             auto_fix=True,
@@ -710,7 +783,8 @@ def _retry_parse_failure(
         if errors:
             for err in errors:
                 logger.info(
-                    "    Retry MANUAL: [%s] %s",
+                    "    Retry %s: [%s] %s",
+                    err.severity.value,
                     err.error_code or "?",
                     err.message,
                 )
@@ -728,18 +802,33 @@ def _retry_parse_failure(
             cost_usd=cost_from_result(result),
         )
 
-        if card is not None:
+        if card is not None and not regen_required:
             logger.info(
                 "    Retry %d SUCCEEDED: %s",
                 attempt,
                 card.name,
             )
             return card
+        # Either schema still failed (card is None) or text overflow still
+        # trips the regen flag — rebuild the feedback for the next attempt.
         logger.warning(
-            "    Retry %d FAILED: still can't parse",
+            "    Retry %d FAILED: %s",
             attempt,
+            "still can't parse" if card is None else "text still overflows",
         )
-        error_msg = str(errors)
+        if card is None:
+            error_msg = str(errors)
+        else:
+            overflow_errors = [
+                e for e in errors if e.error_code and e.error_code.startswith("text_overflow.")
+            ]
+            error_msg = format_validation_feedback(
+                card.name,
+                overflow_errors,
+                slot_color=slot.get("color", ""),
+                slot_rarity=slot.get("rarity", ""),
+                slot_type=slot.get("card_type", ""),
+            )
 
     return None
 
@@ -754,6 +843,7 @@ def generate_set(
     dry_run: bool = False,
     resume: bool = True,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
+    card_saved_callback: Callable[[Card], None] | None = None,
 ) -> dict:
     """Generate all unfilled slots in the active project's skeleton.
 
@@ -761,6 +851,12 @@ def generate_set(
         dry_run: If True, print batches and exit without calling the LLM.
         resume: If True, skip slots already in generation_progress.json.
         progress_callback: Optional (item, completed, total, detail, cost) callback.
+        card_saved_callback: Optional ``(Card) -> None`` invoked once per card
+            after it lands on disk — used by the engine emitter and the manual
+            ``/refresh`` endpoint to stream each card to the Card Generation
+            tab as it's generated. Exceptions are swallowed and logged so a
+            broken callback can never kill a run (the canonical state is on
+            disk regardless).
 
     Returns:
         Summary dict with total_slots, filled, failed, cost_usd, summary.
@@ -907,11 +1003,29 @@ def generate_set(
                 logger.warning("Could not load existing card: %s", p)
     logger.info("Loaded %d existing cards for set context", len(existing_cards))
 
-    # Group into batches by color/pair. Slots carry the LLM-relabeled
-    # ``tweaked_text`` (Skeleton Generation) which format_slot_specs uses as the
-    # per-slot spec; the structured color stays the seed's, so the programmatic
-    # color-keyed batcher still groups siblings correctly.
-    batches = group_slots_into_batches(unfilled)
+    # Cycle-sort LLM pass: show the model the full relabeled slot listing and
+    # let it identify cycles purely from the descriptor text (see slot_grouper).
+    # The batcher then groups identified cycles together — the per-slot
+    # ``cycle_template`` stamped from the structural seed flows through when
+    # the identified cycle's members all share that seed, so the prompt's cycle
+    # note still fires for the canonical case. Dry runs skip the LLM call.
+    if dry_run:
+        confirmed_cycles: dict[str, list[str]] = {}
+    else:
+        from mtgai.generation.slot_grouper import find_cycle_families
+
+        logger.info("Running cycle-sort on %d unfilled slots...", len(unfilled))
+        confirmed_cycles = find_cycle_families(
+            slots=unfilled,
+            model=active_model,
+            log_dir=log_dir,
+        )
+        logger.info(
+            "Cycle-sort identified %d cycle(s) covering %d slot_ids",
+            len(confirmed_cycles),
+            sum(len(v) for v in confirmed_cycles.values()),
+        )
+    batches = group_slots_into_batches(unfilled, confirmed_cycles=confirmed_cycles)
 
     logger.info("")
     logger.info("Planned: %d batches (%d cards)", len(batches), len(unfilled))
@@ -936,6 +1050,13 @@ def generate_set(
     total_saved = 0
     cancelled = False
     start_time = time.time()
+
+    # Per-cycle siblings collected during THIS run. When an oversized cycle is
+    # split into ordered sub-batches, each later sub-batch's prompt gets the
+    # prior members so the family is designed with parallel structure — stronger
+    # than the generic existing-cards "don't duplicate" framing. Keyed by the
+    # confirmed cycle's id; only confirmed cycles populate it.
+    cycle_siblings_by_id: dict[str, list[dict]] = {cid: [] for cid in confirmed_cycles}
 
     for batch_idx, batch in enumerate(batches, 1):
         # Honor a Cancel from the progress strip (→ ai_lock.request_cancel()).
@@ -980,7 +1101,24 @@ def generate_set(
             )
 
         existing_dicts = [c.model_dump() for c in existing_cards]
-        user_prompt = build_user_prompt(batch, mechanics, existing_dicts, theme, archetypes)
+        # Cycle siblings: when all batch slots share a confirmed cycle_id AND the
+        # cycle already has saved members this run, thread them in. (With
+        # BATCH_SIZE=1 every cycle batch after the first hits this; with larger
+        # batches an oversized cycle's sub-batches 2+ hit this.)
+        batch_cycle_ids = {s.get("cycle_id") for s in batch}
+        siblings_for_batch: list[dict] | None = None
+        if len(batch_cycle_ids) == 1:
+            cid = next(iter(batch_cycle_ids))
+            if cid and cycle_siblings_by_id.get(cid):
+                siblings_for_batch = list(cycle_siblings_by_id[cid])
+        user_prompt = build_user_prompt(
+            batch,
+            mechanics,
+            existing_dicts,
+            theme,
+            archetypes,
+            cycle_siblings=siblings_for_batch,
+        )
         logger.info(
             "Prompt built: %d chars (system) + %d chars (user) = %d total",
             len(system_prompt),
@@ -1108,9 +1246,21 @@ def generate_set(
             effort=active_effort,
             set_dir=set_dir,
             archetypes=archetypes,
+            card_saved_callback=card_saved_callback,
         )
         total_saved += len(saved)
         progress.save()
+
+        # Push newly-saved cards into the per-cycle sibling list so later sub-
+        # batches of the same confirmed cycle see them. We re-check the batch's
+        # shared cycle_id here (set above) rather than recomputing from `saved`,
+        # since the generated card's own ``slot_id`` may not survive an auto-fix.
+        if siblings_for_batch is not None or (
+            len(batch_cycle_ids) == 1 and next(iter(batch_cycle_ids)) in cycle_siblings_by_id
+        ):
+            cid = next(iter(batch_cycle_ids))
+            if cid:
+                cycle_siblings_by_id.setdefault(cid, []).extend(c.model_dump() for c in saved)
 
         # Report progress via callback
         if progress_callback is not None:

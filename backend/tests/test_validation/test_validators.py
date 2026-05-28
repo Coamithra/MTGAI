@@ -1,7 +1,14 @@
 """Comprehensive tests for the validation library.
 
-Tests cover all 9 validators across happy paths and common LLM failure modes,
-plus the auto-fix system that deterministically corrects AUTO errors.
+Tests cover the format-hygiene validators that run at gen time (schema, mana,
+type_check, rules_text, text_overflow, uniqueness.collector_number) plus the
+auto-fix system that deterministically corrects AUTO errors.
+
+Design-judgment heuristics (power_level, color_pie, mechanical similarity)
+live in :mod:`mtgai.analysis.heuristic_checks` now and are covered by
+``tests/test_analysis/test_heuristic_checks.py``. Tests that exercise those
+individual validator functions still live here (under TestPowerLevel etc.)
+but call the validator directly rather than going through ``validate_card``.
 """
 
 from __future__ import annotations
@@ -16,6 +23,12 @@ from mtgai.validation import (
     has_manual_errors,
     validate_card,
     validate_card_from_raw,
+)
+from mtgai.validation.color_pie import validate_color_pie
+from mtgai.validation.power_level import validate_power_level
+from mtgai.validation.uniqueness import (
+    validate_collector_number,
+    validate_mechanical_similarity,
 )
 
 # ---------------------------------------------------------------------------
@@ -76,15 +89,17 @@ class TestSchemaValidation:
             "card_types": ["Creature"],
             "subtypes": ["Bear"],
         }
-        card, errors, _fixes = validate_card_from_raw(raw)
+        card, errors, _fixes, regen = validate_card_from_raw(raw)
         assert card is not None
+        assert regen is False  # clean card needs no regen
         schema_errors = _errors_by_validator(errors, "schema")
         assert len(schema_errors) == 0
 
     def test_missing_name_is_manual(self):
         raw = {"type_line": "Creature — Bear"}
-        card, errors, _fixes = validate_card_from_raw(raw)
+        card, errors, _fixes, regen = validate_card_from_raw(raw)
         assert card is None
+        assert regen is True  # schema parse failure is a regen trigger
         assert len(errors) > 0
         assert all(e.severity == ValidationSeverity.MANUAL for e in errors)
 
@@ -94,7 +109,7 @@ class TestSchemaValidation:
             "type_line": "Creature",
             "cmc": "not a number",  # should be float
         }
-        card, errors, _fixes = validate_card_from_raw(raw)
+        card, errors, _fixes, _regen = validate_card_from_raw(raw)
         # Should get at least one error about the float type
         assert card is None or any("cmc" in e.field for e in errors)
 
@@ -149,7 +164,7 @@ class TestDeriveManaFields:
             "rarity": "common",
         }
         raw.update(derive_mana_fields(raw["mana_cost"], raw["oracle_text"]))
-        card, _errors, fixes = validate_card_from_raw(raw, existing_cards=[], auto_fix=True)
+        card, _errors, fixes, _regen = validate_card_from_raw(raw, existing_cards=[], auto_fix=True)
         assert card is not None
         assert card.cmc == 3.0
         assert [c.value for c in card.colors] == ["W"]
@@ -416,6 +431,10 @@ class TestRulesText:
 
 
 class TestPowerLevel:
+    """``validate_power_level`` is a design-judgment validator; it's called
+    directly here (not through ``validate_card``, which now only runs format
+    hygiene) and aggregated by ``analysis.heuristic_checks`` in production."""
+
     def test_common_overstatted(self):
         # 4/4 for 2 mana common with abilities -> P+T=8, CMC+2=4, way over
         card = _make_card(
@@ -426,7 +445,7 @@ class TestPowerLevel:
             rarity=Rarity.COMMON,
             oracle_text="Trample",
         )
-        errors = _errors_by_validator(validate_card(card), "power_level")
+        errors = validate_power_level(card)
         assert _has_error(errors, validator="power_level", severity="MANUAL")
 
     def test_common_vanilla_fine(self):
@@ -436,12 +455,12 @@ class TestPowerLevel:
             power="3",
             toughness="3",
         )
-        errors = _errors_by_validator(validate_card(card), "power_level")
+        errors = validate_power_level(card)
         assert not any("P+T" in e.message or "Power" in e.message for e in errors)
 
     def test_nwo_modal_at_common(self):
         card = _make_card(oracle_text="Choose one —\n• Draw a card.\n• ~ deals 2 damage.")
-        errors = _errors_by_validator(validate_card(card), "power_level")
+        errors = validate_power_level(card)
         assert any("Modal" in e.message for e in errors)
 
     def test_nwo_ok_at_uncommon(self):
@@ -449,7 +468,7 @@ class TestPowerLevel:
             rarity=Rarity.UNCOMMON,
             oracle_text="Choose one —\n• Draw a card.\n• ~ deals 2 damage.",
         )
-        errors = _errors_by_validator(validate_card(card), "power_level")
+        errors = validate_power_level(card)
         assert not any("Modal" in e.message for e in errors)
 
     def test_zero_cmc_nonland_flagged(self):
@@ -464,8 +483,21 @@ class TestPowerLevel:
             toughness=None,
             subtypes=[],
         )
-        errors = _errors_by_validator(validate_card(card), "power_level")
+        errors = validate_power_level(card)
         assert any("Zero" in e.message or "zero" in e.message.lower() for e in errors)
+
+    def test_not_run_through_validate_card(self):
+        """The format-hygiene runner no longer surfaces power_level findings —
+        those go through ``analysis.heuristic_checks`` now."""
+        card = _make_card(
+            mana_cost="{1}{G}",
+            cmc=2.0,
+            power="4",
+            toughness="4",
+            rarity=Rarity.COMMON,
+            oracle_text="Trample",
+        )
+        assert _errors_by_validator(validate_card(card), "power_level") == []
 
 
 # ===========================================================================
@@ -474,6 +506,9 @@ class TestPowerLevel:
 
 
 class TestColorPie:
+    """``validate_color_pie`` is a design-judgment validator; same shape as
+    TestPowerLevel — called directly, aggregated by heuristic_checks."""
+
     def test_counterspell_in_blue_ok(self):
         card = _make_card(
             card_types=["Instant"],
@@ -487,8 +522,7 @@ class TestColorPie:
             power=None,
             toughness=None,
         )
-        errors = _errors_by_validator(validate_card(card), "color_pie")
-        assert len(errors) == 0
+        assert validate_color_pie(card) == []
 
     def test_counterspell_in_red_flagged(self):
         card = _make_card(
@@ -503,7 +537,7 @@ class TestColorPie:
             power=None,
             toughness=None,
         )
-        errors = _errors_by_validator(validate_card(card), "color_pie")
+        errors = validate_color_pie(card)
         assert _has_error(errors, validator="color_pie", severity="MANUAL")
 
     def test_colorless_artifact_gets_pass(self):
@@ -519,12 +553,11 @@ class TestColorPie:
             power=None,
             toughness=None,
         )
-        errors = _errors_by_validator(validate_card(card), "color_pie")
-        assert len(errors) == 0
+        assert validate_color_pie(card) == []
 
     def test_trample_in_green_ok(self):
         card = _make_card(oracle_text="Trample")
-        errors = _errors_by_validator(validate_card(card), "color_pie")
+        errors = validate_color_pie(card)
         assert not any("trample" in e.message.lower() for e in errors)
 
     def test_trample_in_blue_flagged(self):
@@ -534,8 +567,18 @@ class TestColorPie:
             mana_cost="{2}{U}",
             oracle_text="Trample",
         )
-        errors = _errors_by_validator(validate_card(card), "color_pie")
+        errors = validate_color_pie(card)
         assert _has_error(errors, validator="color_pie", severity="MANUAL")
+
+    def test_not_run_through_validate_card(self):
+        """Format-hygiene runner doesn't surface color_pie findings."""
+        card = _make_card(
+            colors=[Color.BLUE],
+            color_identity=[Color.BLUE],
+            mana_cost="{2}{U}",
+            oracle_text="Trample",
+        )
+        assert _errors_by_validator(validate_card(card), "color_pie") == []
 
 
 # ===========================================================================
@@ -572,6 +615,25 @@ class TestTextOverflow:
         # 350 < 400 limit for noncreature, so no error
         assert not any("oracle" in e.field for e in errors)
 
+    def test_overflow_triggers_regen_required(self):
+        """Text overflow is a regen trigger from validate_card_from_raw —
+        the card-gen retry loop reacts to ``regen_required`` to re-prompt."""
+        raw = {
+            "name": "Verbose Beast",
+            "type_line": "Creature — Beast",
+            "mana_cost": "{2}{G}",
+            "oracle_text": "x" * 350,  # over the 300-char creature limit
+            "power": "3",
+            "toughness": "3",
+            "rarity": "common",
+            "card_types": ["Creature"],
+            "subtypes": ["Beast"],
+        }
+        card, errors, _fixes, regen = validate_card_from_raw(raw)
+        assert card is not None  # schema still parsed
+        assert regen is True
+        assert any(e.error_code and e.error_code.startswith("text_overflow.") for e in errors)
+
 
 # ===========================================================================
 # Uniqueness
@@ -579,24 +641,36 @@ class TestTextOverflow:
 
 
 class TestUniqueness:
+    """Two surfaces:
+
+    * ``validate_collector_number`` — AUTO collision fix, runs at gen time via
+      ``validate_card``.
+    * ``validate_mechanical_similarity`` — MANUAL design findings, lives in
+      ``analysis.heuristic_checks`` and runs at council-review / final-QA time.
+    """
+
     def test_duplicate_name_manual(self):
         card = _make_card(name="Fire Bolt", collector_number="002")
         existing = [_make_card(name="Fire Bolt", collector_number="001")]
-        errors = _errors_by_validator(validate_card(card, existing), "uniqueness")
+        errors = validate_mechanical_similarity(card, existing)
         assert _has_error(errors, validator="uniqueness", severity="MANUAL")
 
     def test_near_duplicate_name_manual(self):
         card = _make_card(name="Fire Bolt", collector_number="002")
         existing = [_make_card(name="Fire Blt", collector_number="001")]
-        errors = _errors_by_validator(validate_card(card, existing), "uniqueness")
+        errors = validate_mechanical_similarity(card, existing)
         assert _has_error(errors, validator="uniqueness", severity="MANUAL")
 
     def test_collector_number_collision_auto(self):
+        """Collector-number collision stays at gen time as an AUTO fix —
+        accessible both directly and through the format-hygiene runner."""
         card = _make_card(name="Card A", collector_number="001")
         existing = [_make_card(name="Card B", collector_number="001")]
-        errors = _errors_by_validator(validate_card(card, existing), "uniqueness")
-        assert _has_error(errors, validator="uniqueness", severity="AUTO")
-        assert any("collector" in e.message.lower() for e in errors)
+        direct = validate_collector_number(card, existing)
+        assert _has_error(direct, validator="uniqueness", severity="AUTO")
+        # Also surfaces via validate_card (format-hygiene runner).
+        runner_errors = _errors_by_validator(validate_card(card, existing), "uniqueness")
+        assert _has_error(runner_errors, validator="uniqueness", severity="AUTO")
 
     def test_mechanical_similarity_manual(self):
         card = _make_card(
@@ -611,7 +685,7 @@ class TestUniqueness:
                 collector_number="001",
             )
         ]
-        errors = _errors_by_validator(validate_card(card, existing), "uniqueness")
+        errors = validate_mechanical_similarity(card, existing)
         assert any("similar" in e.message.lower() for e in errors)
 
     def test_unique_cards_no_errors(self):
@@ -627,8 +701,16 @@ class TestUniqueness:
                 oracle_text="Haste",
             )
         ]
-        errors = _errors_by_validator(validate_card(card, existing), "uniqueness")
-        assert len(errors) == 0
+        assert validate_collector_number(card, existing) == []
+        assert validate_mechanical_similarity(card, existing) == []
+
+    def test_mechanical_similarity_not_run_through_validate_card(self):
+        """Format-hygiene runner doesn't surface mechanical-similarity findings."""
+        card = _make_card(name="Fire Bolt", collector_number="002")
+        existing = [_make_card(name="Fire Bolt", collector_number="001")]
+        # validate_card returns format-hygiene errors only — no duplicate-name MANUAL.
+        runner_errors = _errors_by_validator(validate_card(card, existing), "uniqueness")
+        assert not any(e.severity == ValidationSeverity.MANUAL for e in runner_errors)
 
 
 # ===========================================================================
@@ -830,10 +912,11 @@ class TestAutoFix:
             "card_types": ["Creature"],
             "subtypes": ["Beast"],
         }
-        card, _errors, fixes = validate_card_from_raw(raw)
+        card, _errors, fixes, regen = validate_card_from_raw(raw)
         assert card is not None
         assert card.cmc == 3.0  # auto-fixed
         assert len(fixes) > 0
+        assert regen is False  # auto-fixable issues don't trigger regen
 
     def test_color_identity_from_oracle_auto_fixed(self):
         """Oracle text color references get added to color_identity."""
@@ -855,7 +938,7 @@ class TestAutoFix:
 
 class TestIntegration:
     def test_card_with_multiple_issues(self):
-        """A card that should trigger errors from multiple validators."""
+        """A card that should trigger errors from multiple format-hygiene validators."""
         card = _make_card(
             name="Flame Serpent",
             mana_cost="{2}{R}",
@@ -876,13 +959,17 @@ class TestIntegration:
         )
         errors = validate_card(card)
 
-        # Should have errors from multiple validators
+        # Format-hygiene runner: mana + rules_text validators trip.
         validators_hit = {e.validator for e in errors}
         assert "mana" in validators_hit, "CMC mismatch should be caught"
         assert "rules_text" in validators_hit, "ETB/self-ref should be caught"
 
-        # Must have manual errors (requiring retry)
-        assert has_manual_errors(errors)
+        # The design-tier MANUAL (overstatted 5/5 common at CMC 3) now lives
+        # in heuristic_checks, not validate_card — verify it's findable there.
+        from mtgai.analysis.heuristic_checks import check_card_heuristics
+
+        heuristic_findings = check_card_heuristics(card)
+        assert any(f.validator == "power_level" for f in heuristic_findings)
 
     def test_auto_fix_then_only_manual_remain(self):
         """After auto-fixing, only MANUAL errors should remain."""

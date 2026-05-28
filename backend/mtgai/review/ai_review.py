@@ -309,7 +309,16 @@ Do NOT flag:
 
 
 def _format_card_for_review(card: dict) -> str:
-    """Format a card dict into a readable text block."""
+    """Format a card dict into a readable text block.
+
+    Heuristic design-judgment warnings (power level, color pie) are computed
+    **fresh** against the supplied card via
+    :func:`mtgai.analysis.heuristic_checks.check_card_heuristics` rather than
+    read from ``generation_attempts[].validation_errors`` — so a revision
+    produced mid-review sees warnings about its own current state, not the
+    original gen-time draft. Mechanical similarity (cross-set) is intentionally
+    skipped here; it's a set-level concern surfaced by render_qa.
+    """
     lines = [
         f"Name: {card['name']}",
         f"Mana Cost: {card.get('mana_cost', '')}",
@@ -329,15 +338,35 @@ def _format_card_for_review(card: dict) -> str:
     notes = card.get("design_notes")
     if notes:
         lines.append(f"Design Notes: {notes}")
-    # Include heuristic validation warnings from generation (MANUAL errors)
-    val_errors: list[str] = []
-    for attempt in card.get("generation_attempts", []):
-        val_errors.extend(attempt.get("validation_errors", []))
-    if val_errors:
-        lines.append("Validation Warnings (from auto-validator):")
-        for err in dict.fromkeys(val_errors):  # dedupe, preserve order
-            lines.append(f"  - {err}")
+
+    # Fresh heuristic checks — power level, color pie. Wrapped so a card dict
+    # that can't be parsed (e.g. a malformed mid-review revision) doesn't
+    # crash the prompt builder; the warnings are advisory.
+    heuristic_block = _heuristic_warnings_for_card_dict(card)
+    if heuristic_block:
+        lines.append(heuristic_block)
     return "\n".join(lines)
+
+
+def _heuristic_warnings_for_card_dict(card: dict) -> str:
+    """Run check_card_heuristics against ``card`` and format findings for the prompt.
+
+    Returns an empty string if the card can't be parsed or has no findings.
+    """
+    from mtgai.analysis.heuristic_checks import check_card_heuristics, format_findings_for_prompt
+    from mtgai.models.card import Card
+    from mtgai.validation.mana import derive_mana_fields
+
+    try:
+        # Saved cards have derived mana fields; in-flight revisions might not.
+        # Re-derive defensively so the validators see consistent input.
+        enriched = {**card}
+        enriched.update(derive_mana_fields(enriched.get("mana_cost"), enriched.get("oracle_text")))
+        parsed = Card.model_validate(enriched)
+    except Exception:
+        return ""
+    findings = check_card_heuristics(parsed, existing_cards=None)
+    return format_findings_for_prompt(findings)
 
 
 def _build_review_prompt(

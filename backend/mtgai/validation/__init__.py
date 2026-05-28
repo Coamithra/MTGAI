@@ -1,18 +1,30 @@
-"""Card validation library — heuristic first-pass gates for LLM-generated cards.
+"""Card validation library — format-hygiene checks for generated cards.
 
-Validators run in a fixed sequence (cheapest first), collecting all errors before
-deciding ACCEPT or RETRY. AUTO errors are deterministically fixed post-validation;
-MANUAL errors force a retry.
+This module owns the **format-hygiene** validators that run at gen time: the
+checks whose findings either auto-fix the card (AUTO) or signal that the card
+needs to be regenerated (regen-trigger). The design-judgment heuristics
+(power-level, color-pie, mechanical similarity) used to ride along here as
+MANUAL warnings stamped on the card; they've moved to
+:mod:`mtgai.analysis.heuristic_checks` so they're computed fresh against the
+card's current state at council-review / final-QA time.
 
-Validators:
-    1. schema       — Pydantic parse, required fields, correct types
-    2. mana         — CMC / color / color_identity consistency
-    3. type_check   — Creature P/T, planeswalker loyalty, aura/equipment structure
-    4. rules_text   — Self-reference, keyword capitalization, mana symbols, ability format
-    5. power_level  — P+T vs CMC, NWO complexity, removal efficiency
-    6. color_pie    — Ability-to-color lookup table
-    7. text_overflow — Character count limits per field
-    8. uniqueness   — Name/collector-number collision, mechanical similarity
+Validators run in a fixed sequence (cheapest first). AUTO findings are
+deterministically fixed by ``auto_fix_card``. Schema parse failures and any
+remaining text-overflow findings are returned to the caller as a single
+``regen_required`` boolean so the card-gen retry loop has one signal to react to.
+
+Validators owned by this module:
+    1. schema         — Pydantic parse, required fields, correct types
+    2. mana           — CMC / color / color_identity consistency (AUTO-fixable)
+    3. type_check     — Creature P/T, planeswalker loyalty, aura/equipment
+    4. rules_text     — Self-reference, keyword caps, mana symbols (AUTO-fixable)
+    5. text_overflow  — Character count limits (REGEN trigger)
+    6. uniqueness     — Collector-number collision (AUTO-fixable)
+
+Design-judgment validators (consumed by analysis.heuristic_checks):
+    - power_level
+    - color_pie
+    - uniqueness.validate_mechanical_similarity
 """
 
 from __future__ import annotations
@@ -57,7 +69,7 @@ AutoFixer = Callable[..., object]
 
 
 # ---------------------------------------------------------------------------
-# Runner
+# Runner — format hygiene only
 # ---------------------------------------------------------------------------
 
 
@@ -65,31 +77,32 @@ def validate_card(
     card,
     existing_cards: list | None = None,
 ) -> list[ValidationError]:
-    """Run all validators in sequence and collect all errors.
+    """Run all **format-hygiene** validators in sequence and collect all errors.
 
     ``card`` must be a parsed ``Card`` instance (schema validation already passed).
-    ``existing_cards`` is the list of previously-accepted cards in the set (for
-    uniqueness checks).
+    ``existing_cards`` is the list of previously-accepted cards in the set
+    (needed for collector-number collision detection).
+
+    Design-judgment checks (power-level, color-pie, mechanical similarity) are
+    deliberately **not** run here — they live in
+    :func:`mtgai.analysis.heuristic_checks.check_card_heuristics` and are called
+    by the council reviewer / final QA, not the gen pipeline.
     """
-    from mtgai.validation.color_pie import validate_color_pie
     from mtgai.validation.mana import validate_mana_consistency
-    from mtgai.validation.power_level import validate_power_level
     from mtgai.validation.rules_text import validate_rules_text
     from mtgai.validation.text_overflow import validate_text_overflow
     from mtgai.validation.type_check import validate_type_consistency
-    from mtgai.validation.uniqueness import validate_uniqueness
+    from mtgai.validation.uniqueness import validate_collector_number
 
-    errors: list[ValidationError] = []
+    errors: list = []
 
     errors += validate_mana_consistency(card)
     errors += validate_type_consistency(card)
     errors += validate_rules_text(card)
-    errors += validate_power_level(card)
-    errors += validate_color_pie(card)
     errors += validate_text_overflow(card)
 
     if existing_cards is not None:
-        errors += validate_uniqueness(card, existing_cards)
+        errors += validate_collector_number(card, existing_cards)
 
     return errors
 
@@ -102,25 +115,35 @@ def validate_card_from_raw(
 ) -> tuple:
     """Top-level entry point for raw LLM output.
 
-    Returns ``(card, errors, applied_fixes)`` where ``card`` is ``None`` if the
-    JSON couldn't be parsed into a ``Card`` at all.
+    Returns ``(card, errors, applied_fixes, regen_required)`` where:
 
-    When ``auto_fix=True`` (default), AUTO errors are deterministically corrected
-    and only MANUAL errors remain in the returned list.
+    * ``card`` is ``None`` if the JSON couldn't be parsed into a ``Card`` at all.
+    * ``errors`` holds remaining MANUAL findings after auto-fix (when
+      ``auto_fix=True``) or all errors (when ``auto_fix=False``).
+    * ``applied_fixes`` describes the AUTO fixes that were applied.
+    * ``regen_required`` is ``True`` when the card cannot be saved as-is and
+      the caller should regenerate it — set on schema parse failure (``card``
+      is ``None``) or when text-overflow findings remain. The card-gen retry
+      loop uses this single boolean as its regen signal.
     """
     from mtgai.validation.schema import validate_schema
 
     card, schema_errors = validate_schema(raw)
     if card is None:
-        return None, schema_errors, []
+        return None, schema_errors, [], True
 
     all_errors = schema_errors + validate_card(card, existing_cards)
 
+    def _is_overflow(e: ValidationError) -> bool:
+        return bool(e.error_code and e.error_code.startswith("text_overflow."))
+
     if auto_fix:
         result = auto_fix_card(card, all_errors)
-        return result.card, result.remaining_errors, result.applied_fixes
+        regen = any(_is_overflow(e) for e in result.remaining_errors)
+        return result.card, result.remaining_errors, result.applied_fixes, regen
 
-    return card, all_errors, []
+    regen = any(_is_overflow(e) for e in all_errors)
+    return card, all_errors, [], regen
 
 
 def has_manual_errors(errors: list[ValidationError]) -> bool:

@@ -33,6 +33,17 @@ Destroy, Exile, Sacrifice, Scry N, Mill N, Fight, Create token, Counter, Draw.
 ### Mana Cost Format
 Generic mana first, then WUBRG order: {2}{W}{U} is correct, {W}{2}{U} is wrong. X costs come first: {X}{R}{R}.
 
+## Slot Brief Vocabulary
+
+Each card you design comes with a one-line **slot brief** — Colour · rarity · type · CMCn · mechanic. The last field, *mechanic*, tells you how complex the abilities should be (not what they should be):
+
+- `vanilla` — a creature with no abilities at all. Stats and a creature type, nothing else.
+- `french_vanilla` — abilities are evergreen keywords only (Flying, Trample, Lifelink, …), no rules text beyond the keywords.
+- `evergreen` — built on a single evergreen keyword or one simple ability.
+- `complex` — carries a real, non-trivial ability. This is the prime slot for one of the **set's named mechanics** from the Mechanics block in the user prompt — prefer that over inventing a one-off ability.
+
+These are *targets*, not cages: the relabel pass that produced your slot brief may have already swapped the placeholder for a specific named mechanic ("Cycling", "Malfunction", …) — when it has, design to that name. A trailing parenthesised note on the brief is free-text design intent from the relabel; treat it as guidance, not as rules text to transcribe verbatim.
+
 ## Color Pie
 
 - **White (W)**: Lifegain, small creatures, tokens, exile-based removal, enchantments, vigilance, flying (small). Cannot draw cards without restriction.

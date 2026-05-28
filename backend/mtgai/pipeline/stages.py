@@ -52,6 +52,60 @@ def _set_dir() -> Path:
     return set_artifact_dir()
 
 
+def card_tile_dict(card: object, slots_by_id: dict[str, dict] | None = None) -> dict:
+    """Render a Card (or its disk-JSON dict) into the Card-Generation tab's
+    tile shape — the same payload :func:`server.wizard_card_gen_state` emits.
+
+    Single source of the tile shape so the engine's per-card SSE stream and
+    the manual ``/refresh`` endpoint stay byte-identical to the canonical
+    ``/state`` response — the tab merges streamed cards into a list that
+    eventually gets repainted from ``/state``, so any drift would surface as
+    layout flicker.
+
+    Accepts either a ``Card`` model instance (calls ``model_dump(mode="json")``
+    so enums become strings) or a plain dict already loaded from disk.
+
+    ``slots_by_id`` (optional) is a ``{slot_id: slot_dict}`` map from the
+    project's ``skeleton.json``. When provided, the tile gains a ``slot_text``
+    field carrying the final relabeled descriptor for the card's slot — the
+    same string :func:`mtgai.generation.prompts.format_slot_specs` uses
+    (``tweaked_text`` when present, else :func:`render_slot_string` on the
+    default seeds). Reserved-card slots already land their request text into
+    ``tweaked_text`` via the relabel's Pass 2, so this covers them too.
+    Reprint slots don't appear on the card-gen tab, so they're a no-op here.
+    """
+    if hasattr(card, "model_dump"):
+        c: dict = card.model_dump(mode="json")  # type: ignore[attr-defined]
+    elif isinstance(card, dict):
+        c = card
+    else:
+        raise TypeError(f"card_tile_dict expects Card or dict, got {type(card).__name__}")
+
+    slot_text = ""
+    if slots_by_id:
+        slot = slots_by_id.get(c.get("collector_number") or "")
+        if slot:
+            from mtgai.skeleton.generator import render_slot_string
+
+            slot_text = (slot.get("tweaked_text") or "").strip() or render_slot_string(slot)
+
+    return {
+        "name": c.get("name") or "",
+        "mana_cost": c.get("mana_cost") or "",
+        "type_line": c.get("type_line") or "",
+        "oracle_text": c.get("oracle_text") or "",
+        "flavor_text": c.get("flavor_text") or "",
+        "rarity": c.get("rarity") or "common",
+        "power": c.get("power"),
+        "toughness": c.get("toughness"),
+        "loyalty": c.get("loyalty"),
+        "colors": c.get("colors") or [],
+        "collector_number": c.get("collector_number") or "",
+        "status": c.get("status") or "",
+        "slot_text": slot_text,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Stage result
 # ---------------------------------------------------------------------------
@@ -901,16 +955,56 @@ def run_card_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) ->
     ``generation_progress.json`` keeps the cards saved so far, so Retry resumes.
     """
     from mtgai.generation.card_generator import generate_set
+    from mtgai.models.card import Card
     from mtgai.runtime import ai_lock
 
     emitter.phase("running", "Generating cards from skeleton slots")
+
+    # Load the skeleton once so each streamed card tile gets the final
+    # relabeled descriptor for its slot — same map shape /state and /refresh
+    # build. Empty-on-missing is fine: the tile's ``slot_text`` just stays "".
+    # Wrapped wide because ``_set_dir()`` raises ``NoAssetFolderError`` when
+    # no project is open, and we want this lookup to be a strict enhancement
+    # never a blocker (tests + edge runs without a skeleton still work).
+    slots_by_id: dict[str, dict] = {}
+    try:
+        skeleton_path = _set_dir() / "skeleton.json"
+        if skeleton_path.exists():
+            sk = json.loads(skeleton_path.read_text(encoding="utf-8"))
+            raw = sk.get("slots") if isinstance(sk, dict) else None
+            slots_by_id = {
+                s["slot_id"]: s for s in (raw or []) if isinstance(s, dict) and s.get("slot_id")
+            }
+    except Exception:
+        logger.warning("Failed to read skeleton.json for slot_text lookup", exc_info=True)
+
+    # Stream each saved card to the Card Generation tab as it lands so the
+    # grid fills in live (mirrors the skeleton relabel's per-slot streaming).
+    # No reset event from the engine path: the first run starts on an empty
+    # cards/ dir and a resume must keep existing cards on screen.
+    def _on_card_saved(card: Card) -> None:
+        emitter.event("card_gen_card", card=card_tile_dict(card, slots_by_id))
+
     with ai_lock.hold("Card generation") as acquired:
         if not acquired:
             return StageResult(
                 success=False,
                 error_message="Another AI action holds the lock; try again later.",
             )
-        result = generate_set(progress_callback=progress_cb)
+        result = generate_set(
+            progress_callback=progress_cb,
+            card_saved_callback=_on_card_saved,
+        )
+
+    # Terminal phase emission: every other runner (archetypes, visual_refs,
+    # reprints, lands) emits ``phase("done", …)`` when it finishes; without it
+    # the global progress strip stays stuck on the last ``"running"`` phase
+    # because the replay buffer has no terminal event to feed late subscribers.
+    # (``pipeline_status: paused`` doesn't clear the strip either — that path
+    # only fires for ``completed``/``cancelled``/``failed``.) Emitted on both
+    # the cancelled and success exits so the strip clears in either case.
+    summary = result.get("summary", "Card generation complete")
+    emitter.phase("done", summary)
 
     if result.get("cancelled"):
         return StageResult(
@@ -919,7 +1013,7 @@ def run_card_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) ->
             completed_items=result.get("filled", 0),
             failed_items=result.get("failed", 0),
             cost_usd=result.get("cost_usd", 0.0),
-            error_message=result.get("summary", "Card generation cancelled by user"),
+            error_message=summary,
         )
 
     return StageResult(
@@ -927,7 +1021,7 @@ def run_card_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) ->
         completed_items=result.get("filled", 0),
         failed_items=result.get("failed", 0),
         cost_usd=result.get("cost_usd", 0.0),
-        detail=result.get("summary", "Card generation complete"),
+        detail=summary,
     )
 
 
@@ -1092,7 +1186,16 @@ def run_rendering(progress_cb: ProgressCallback | None, emitter: StageEmitter) -
 
 
 def run_render_qa(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Re-run validators on rendered cards for final QA."""
+    """Re-run validators on rendered cards for final QA.
+
+    Runs format-hygiene validation (any residuals would point at a pipeline
+    bug — gen-time auto-fix should have caught them) **and** the design-tier
+    heuristic checks (power level, color pie, mechanical similarity across the
+    finished set). The combined count surfaces both kinds of issue in the
+    final stage report.
+    """
+    from mtgai.analysis.heuristic_checks import check_card_heuristics
+    from mtgai.io.card_io import load_card
     from mtgai.validation import validate_card_from_raw
 
     set_dir = _set_dir()
@@ -1102,15 +1205,33 @@ def run_render_qa(progress_cb: ProgressCallback | None, emitter: StageEmitter) -
         return StageResult(success=False, error_message="cards/ directory not found")
 
     card_files = sorted(cards_dir.glob("*.json"))
+    # Load the parsed Card list once so heuristic checks (which need the full
+    # set for mechanical-similarity) don't re-parse per-card.
+    parsed_cards = []
+    for card_file in card_files:
+        try:
+            parsed_cards.append(load_card(card_file))
+        except Exception:
+            parsed_cards.append(None)
+
     errors_found = 0
     cards_clean = 0
 
-    for card_file in card_files:
+    for card_file, parsed in zip(card_files, parsed_cards, strict=True):
         data = json.loads(card_file.read_text(encoding="utf-8"))
-        _card, errors, _fixes = validate_card_from_raw(data)
+        _card, errors, _fixes, _regen = validate_card_from_raw(data)
         manual_errors = [e for e in errors if e.severity.value == "MANUAL"]
-        if manual_errors:
-            errors_found += len(manual_errors)
+
+        # Cross-set heuristic findings: power level, color pie, and mechanical
+        # similarity against every *other* card in the set.
+        heuristic_findings = []
+        if parsed is not None:
+            others = [c for c in parsed_cards if c is not None and c is not parsed]
+            heuristic_findings = check_card_heuristics(parsed, existing_cards=others)
+
+        total_issues = len(manual_errors) + len(heuristic_findings)
+        if total_issues:
+            errors_found += total_issues
         else:
             cards_clean += 1
 

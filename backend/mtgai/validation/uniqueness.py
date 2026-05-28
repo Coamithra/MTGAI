@@ -1,7 +1,14 @@
-"""Validator 9: Uniqueness — name/collector-number collision, mechanical similarity.
+"""Validator 8: Uniqueness — collector-number collision (format), name/mechanic similarity (design).
 
-Checks for duplicate or near-duplicate cards within the set to prevent
-accidental clones, name collisions, and collector number conflicts.
+Split into two functions so the format-hygiene half (``validate_collector_number``,
+AUTO-fixable) and the design-judgment half (``validate_mechanical_similarity``,
+MANUAL findings) can be called from different stages:
+
+* ``validate_collector_number`` runs at gen time as part of ``validate_card``,
+  with its AUTO collision fix wired into the registry.
+* ``validate_mechanical_similarity`` is aggregated by
+  :mod:`mtgai.analysis.heuristic_checks` and surfaced to the council
+  reviewer + the final QA report, not stamped on the card at gen time.
 """
 
 from __future__ import annotations
@@ -68,15 +75,55 @@ def _text_similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
-def validate_uniqueness(card: Card, existing_cards: list[Card]) -> list[ValidationError]:
-    """Check for duplicate names, collector numbers, and mechanical similarity."""
+# ---------------------------------------------------------------------------
+# Format hygiene — runs at gen time via validate_card.
+# ---------------------------------------------------------------------------
+
+
+def validate_collector_number(card: Card, existing_cards: list[Card]) -> list[ValidationError]:
+    """Flag collector-number collisions for AUTO reassignment to the next free slot."""
+    errors: list[ValidationError] = []
+    if not card.collector_number:
+        return errors
+
+    taken = {e.collector_number for e in existing_cards if e.collector_number}
+    if card.collector_number in taken:
+        max_num = 0
+        for cn in taken | {card.collector_number}:
+            with contextlib.suppress(ValueError):
+                max_num = max(max_num, int(cn))
+        next_num = str(max_num + 1).zfill(len(card.collector_number))
+        errors.append(
+            _auto(
+                "collector_number",
+                f'Collector number "{card.collector_number}" is '
+                f'already assigned — reassigning to "{next_num}"',
+                f"Reassign to {next_num}.",
+                error_code="uniqueness.collector_number_collision",
+            )
+        )
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Design judgment — runs at council review / final QA via heuristic_checks.
+# ---------------------------------------------------------------------------
+
+
+def validate_mechanical_similarity(card: Card, existing_cards: list[Card]) -> list[ValidationError]:
+    """Flag duplicate names and mechanically-similar cards as MANUAL findings.
+
+    Findings are advisory: they ride in the council reviewer's prompt as priors
+    and surface in the final QA report. They do not block generation, since the
+    council is better positioned to judge whether a near-clone is intentional.
+    """
     errors: list[ValidationError] = []
     card_name_lower = card.name.lower()
 
     for existing in existing_cards:
         existing_name_lower = existing.name.lower()
 
-        # 1. Exact name match (case-insensitive) -> MANUAL
+        # Exact name match (case-insensitive)
         if card_name_lower == existing_name_lower:
             errors.append(
                 _manual(
@@ -89,7 +136,7 @@ def validate_uniqueness(card: Card, existing_cards: list[Card]) -> list[Validati
             )
             continue
 
-        # 2. Near-duplicate name (Levenshtein distance <= 2) -> MANUAL
+        # Near-duplicate name (Levenshtein distance <= 2)
         if _levenshtein(card_name_lower, existing_name_lower) <= 2:
             errors.append(
                 _manual(
@@ -101,27 +148,7 @@ def validate_uniqueness(card: Card, existing_cards: list[Card]) -> list[Validati
                 )
             )
 
-    # 3. Collector number collision -> AUTO (assign next available)
-    if card.collector_number:
-        taken = {e.collector_number for e in existing_cards if e.collector_number}
-        if card.collector_number in taken:
-            # Find next available collector number
-            max_num = 0
-            for cn in taken | {card.collector_number}:
-                with contextlib.suppress(ValueError):
-                    max_num = max(max_num, int(cn))
-            next_num = str(max_num + 1).zfill(len(card.collector_number))
-            errors.append(
-                _auto(
-                    "collector_number",
-                    f'Collector number "{card.collector_number}" is '
-                    f'already assigned — reassigning to "{next_num}"',
-                    f"Reassign to {next_num}.",
-                    error_code="uniqueness.collector_number_collision",
-                )
-            )
-
-    # 4. Mechanical similarity -> MANUAL
+    # Mechanical similarity (same color + CMC + types, >80% oracle text match)
     card_colors_set = set(card.colors)
     card_types_set = set(card.card_types)
 

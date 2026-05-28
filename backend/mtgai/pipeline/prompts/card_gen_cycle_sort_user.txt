@@ -1,0 +1,5 @@
+Identify the cycles in the skeleton below. Return each cycle as a list of `slot_id`s through the tool. Skip slots that aren't part of any cycle. Drop cycles with fewer than two members.
+
+## Skeleton ({slot_count} slots)
+
+{slot_listing}
