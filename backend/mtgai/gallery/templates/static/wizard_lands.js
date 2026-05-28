@@ -424,7 +424,11 @@
 
     let html;
     if (!isLatest) {
-      html = `${nextBtn}<span class="wiz-footer-note">Past tab — use Edit above to revise land cards.</span>`;
+      // Engine has advanced past lands — this is now a past tab. No "Next"
+      // button here (it would just re-resolve to the latest tab anyway, and
+      // it reads as a stale control); the user follows the engine via the tab
+      // strip. Matches the Reprints / Card Gen past-tab footer.
+      html = `<span class="wiz-footer-note">Past tab — use Edit above to revise land cards.</span>`;
     } else if (isPaused) {
       html = `${nextBtn}<span class="wiz-footer-note">Paused after lands — continue when ready.</span>`;
     } else if (isCompleted) {

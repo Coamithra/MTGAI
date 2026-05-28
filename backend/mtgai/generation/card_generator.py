@@ -1081,6 +1081,22 @@ def generate_set(
             "cancelled": False,
         }
 
+    # Surface the work total *before* the (LLM-bearing) cycle-sort pass and the
+    # first batch. Without this, the engine only learns the total from the
+    # first per-batch callback below — so the Card Generation tab sits on
+    # "0/?" with no progress bar through cycle-sort and the whole first batch
+    # (one LLM call, minutes on a local model), making a running stage look
+    # stuck. completed=0 matches the first batch tick, which counts cards saved
+    # this run (so the count never jumps backwards).
+    if progress_callback is not None:
+        progress_callback(
+            "preparing",
+            0,
+            len(all_slots),
+            f"Preparing to generate {len(unfilled)} cards…",
+            0.0,
+        )
+
     # Load existing cards for set context + uniqueness checks
     cards_dir = set_dir / "cards"
     existing_cards: list[Card] = []
