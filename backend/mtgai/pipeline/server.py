@@ -13,7 +13,7 @@ import logging
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import (
@@ -50,6 +50,9 @@ from mtgai.pipeline.wizard import build_wizard_state
 from mtgai.pipeline.wizard import serialize as serialize_wizard_state
 from mtgai.runtime import active_project, ai_lock, extraction_run
 from mtgai.runtime.runtime_state import compute_runtime_state
+
+if TYPE_CHECKING:
+    from mtgai.skeleton.knobs import SkeletonKnobs
 
 logger = logging.getLogger(__name__)
 
@@ -3975,6 +3978,23 @@ def _rebuild_skeleton_from_knobs(asset, skeleton: dict, knobs) -> dict:
     return new_skeleton
 
 
+def _skeleton_knobs_from_body(body: dict) -> tuple[SkeletonKnobs, list[str]]:
+    """Overlay the Skeleton tab's knob-edit payload onto :class:`SkeletonKnobs`.
+
+    The tab POSTs ``{knobs: {...}, cycles, pinned, provenance}``; both the
+    deterministic rebuild (``/skeleton/knobs``) and the AI re-tune base
+    (``/skeleton/knobs/tune``) read the same overlay shape. Returns the
+    validated/clamped knobs + any clamp warnings (``SkeletonKnobs.from_payload``).
+    """
+    from mtgai.skeleton.knobs import SkeletonKnobs
+
+    payload = dict(body.get("knobs") or {})
+    payload["cycles"] = body.get("cycles", payload.get("cycles", []))
+    payload["pinned"] = body.get("pinned", [])
+    payload["provenance"] = body.get("provenance", {})
+    return SkeletonKnobs.from_payload(payload)
+
+
 @router.post("/api/wizard/skeleton/knobs")
 async def wizard_skeleton_knobs(request: Request) -> JSONResponse:
     """Validate edited knobs and rebuild the default skeleton deterministically.
@@ -3986,8 +4006,6 @@ async def wizard_skeleton_knobs(request: Request) -> JSONResponse:
     the client then hits Refresh to re-theme. Returns the new slots + knobs +
     any clamp warnings.
     """
-    from mtgai.skeleton.knobs import SkeletonKnobs
-
     _require_active_project()
     body, err = await _read_request_json(request)
     if err is not None:
@@ -4002,11 +4020,7 @@ async def wizard_skeleton_knobs(request: Request) -> JSONResponse:
             {"error": "No skeleton.json yet — run Skeleton Generation first."}, status_code=400
         )
 
-    payload = dict(body.get("knobs") or {})
-    payload["cycles"] = body.get("cycles", payload.get("cycles", []))
-    payload["pinned"] = body.get("pinned", [])
-    payload["provenance"] = body.get("provenance", {})
-    knobs, warnings = SkeletonKnobs.from_payload(payload)
+    knobs, warnings = _skeleton_knobs_from_body(body)
     try:
         new_skeleton = _rebuild_skeleton_from_knobs(asset, skeleton, knobs)
     except ValueError as exc:
@@ -4052,11 +4066,7 @@ async def wizard_skeleton_knobs_tune(request: Request) -> JSONResponse:
     # when supplied, else the persisted skeleton knobs.
     knobs_body = body.get("knobs") if isinstance(body, dict) else None
     if isinstance(knobs_body, dict) and knobs_body:
-        payload = dict(knobs_body)
-        payload["cycles"] = body.get("cycles", payload.get("cycles", []))
-        payload["pinned"] = body.get("pinned", [])
-        payload["provenance"] = body.get("provenance", {})
-        base, _ = SkeletonKnobs.from_payload(payload)
+        base, _ = _skeleton_knobs_from_body(body)
     else:
         raw = skeleton.get("knobs")
         base = SkeletonKnobs.model_validate(raw) if isinstance(raw, dict) else SkeletonKnobs()
