@@ -1,6 +1,6 @@
 """Conformance gate — LLM per-card adherence to its slot spec.
 
-The first post-card_gen review gate (``plans/review-loop-stage-split.md``). One
+The first post-card_gen review gate. One
 whole-set LLM call pairs each generated card with its slot's relabeled spec
 (``tweaked_text``, falling back to the default ``render_slot_string``) and asks
 the model to judge adherence **holistically — no descriptor parser**. Per card:

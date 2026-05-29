@@ -1427,7 +1427,7 @@ def review_all_cards(
     cost_usd = sum(r.total_cost_usd for r in reviews)
     ok_count = sum(1 for r in reviews if r.final_verdict == "OK")
 
-    # Hybrid escape hatch (plans/review-loop-stage-split.md): in-place council
+    # Hybrid escape hatch: in-place council
     # revision is the primary action (applied + saved above), but a card the
     # council still rated REVISE after MAX_ITERATIONS is *unfixable in place* —
     # surface it so the runner can flag it for a from-scratch regen via the loop.

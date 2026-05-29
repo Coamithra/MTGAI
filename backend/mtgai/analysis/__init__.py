@@ -2,7 +2,7 @@
 
 Two whole-set LLM gates flag cards for regeneration (the set-level
 balance/coverage/algorithmic-conformance machinery was removed when the balance
-stage became the loop — see ``plans/review-loop-stage-split.md``):
+stage became the loop):
 
 * :mod:`mtgai.analysis.conformance` — each card vs. its slot spec.
 * :mod:`mtgai.analysis.interactions` — whole-pool degenerate-combo scan.

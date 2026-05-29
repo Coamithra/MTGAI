@@ -2,7 +2,7 @@
 
 The set-level balance / coverage / algorithmic-conformance machinery (and its
 ``BalanceAnalysisResult`` aggregate) was removed when the balance stage became
-the review→regen loop (see ``plans/review-loop-stage-split.md``). What remains
+the review→regen loop. What remains
 are the structured findings the two LLM gates produce: ``InteractionFlag`` (the
 whole-pool degenerate-combo scan) and ``ConformanceFinding`` (per-card adherence
 to its slot spec).

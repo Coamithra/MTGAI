@@ -201,7 +201,7 @@ STAGE_DEFINITIONS: list[dict] = [
     {"stage_id": "reprints", "display_name": "Reprint Selection", "review_eligible": True},
     {"stage_id": "lands", "display_name": "Land Generation", "review_eligible": False},
     {"stage_id": "card_gen", "display_name": "Card Generation", "review_eligible": True},
-    # Post-card_gen review gates run cheap→expensive (plans/review-loop-stage-split.md):
+    # Post-card_gen review gates run cheap→expensive:
     # conformance (per-card vs slot spec) first — most objective, most likely to
     # flag a fresh set, and a bounce re-inserts only [card_gen, conformance].
     {"stage_id": "conformance", "display_name": "Conformance", "review_eligible": True},
