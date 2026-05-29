@@ -348,8 +348,7 @@
     const val = local.knobs[spec.key];
     const prov = (local.knobs.provenance || {})[spec.key] || 'default';
     const pinned = (local.knobs.pinned || []).includes(spec.key);
-    const badge = prov === 'ai' ? '<span class="wiz-ai-badge">AI</span>'
-      : prov === 'user' ? '<span class="wiz-skel-userbadge">edited</span>' : '';
+    const badge = W.provenanceBadge(prov);
     return `
       <div class="wiz-skel-knob" data-knob="${escAttr(spec.key)}">
         <label title="${escAttr(spec.help || '')}">${escHtml(spec.label)} ${badge}</label>

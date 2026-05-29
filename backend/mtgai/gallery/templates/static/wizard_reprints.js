@@ -207,15 +207,6 @@
         font-size: 0.8rem;
       }
       .wiz-reprints-knob input:disabled { opacity: 0.5; }
-      .wiz-reprints-knob-badge {
-        font-size: 0.62rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        padding: 1px 5px;
-        border-radius: 3px;
-      }
-      .wiz-reprints-knob-badge.is-auto { background: #2a2a2a; color: #999; }
-      .wiz-reprints-knob-badge.is-user { background: #4a9eff22; color: #7db8ff; }
       .wiz-reprints-knob-hint { color: #666; font-size: 0.7rem; }
       .wiz-reprints-knob-jitter {
         display: flex;
@@ -449,7 +440,7 @@
           <input type="number" min="0" step="1" data-knob="${r}"
                  value="${v != null ? escAttr(String(v)) : ''}"
                  placeholder="auto (${escAttr(String(previewN))})" ${disabled ? 'disabled' : ''}>
-          <span class="wiz-reprints-knob-badge is-${prov === 'user' ? 'user' : 'auto'}">${escHtml(prov)}</span>
+          ${W.provenanceBadge(prov)}
         </div>`;
     }).join('');
 

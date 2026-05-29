@@ -296,9 +296,7 @@
     // overwrite. Default to true for legacy candidates that pre-date
     // the field.
     const aiGenerated = m._ai_generated !== false;
-    const aiBadge = aiGenerated
-      ? '<span class="wiz-ai-badge" data-role="ai-badge">AI</span>'
-      : '';
+    const aiBadge = W.provenanceBadge(aiGenerated, { role: 'ai-badge' });
     // Live-stream state: between the drafted event and the finalized event,
     // ``_pending_review`` is true. We surface a "Reviewing…" badge and keep
     // the form locked (the card is being rewritten any moment). After review,

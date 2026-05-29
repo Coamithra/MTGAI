@@ -198,9 +198,7 @@
     const pair = arch.color_pair;
     const guild = GUILD[pair] || '';
     const aiGenerated = arch._ai_generated !== false;
-    const aiBadge = aiGenerated
-      ? '<span class="wiz-ai-badge" data-role="ai-badge">AI</span>'
-      : '';
+    const aiBadge = W.provenanceBadge(aiGenerated, { role: 'ai-badge' });
     const ro = isPast ? 'disabled' : '';
     return `
       <article class="wiz-arch-card" data-pair="${escAttr(pair)}"${aiGenerated ? ' data-ai-generated="true"' : ''}>

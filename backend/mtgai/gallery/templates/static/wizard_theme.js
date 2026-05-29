@@ -565,7 +565,7 @@
     const item = document.createElement('div');
     item.className = 'wiz-list-item';
     if (aiGenerated) item.dataset.aiGenerated = 'true';
-    const badge = aiGenerated ? '<span class="wiz-ai-badge">AI</span>' : '';
+    const badge = W.provenanceBadge(aiGenerated);
     item.innerHTML = `
       <input type="text" placeholder="e.g. Artifact subtheme — at least 6 artifact creatures"
              value="${escAttr(value || '')}">
@@ -583,7 +583,7 @@
     const item = document.createElement('div');
     item.className = 'wiz-list-item';
     if (aiGenerated) item.dataset.aiGenerated = 'true';
-    const badge = aiGenerated ? '<span class="wiz-ai-badge">AI</span>' : '';
+    const badge = W.provenanceBadge(aiGenerated);
     item.innerHTML = `
       <textarea rows="2"
         placeholder="e.g. Feretha's Throne — a legendary artifact that gains control of creatures">${escHtml(value || '')}</textarea>

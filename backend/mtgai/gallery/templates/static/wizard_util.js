@@ -68,6 +68,31 @@
     }
   };
 
+  // --- AI provenance badge (conventions §5) --------------------------------
+  // One badge component, one canonical vocab (ai / user / auto), display-only.
+  // The three tabs that show provenance had each grown their own markup + vocab
+  // (skeleton: wiz-ai-badge "AI" / wiz-skel-userbadge "edited" / nothing for
+  // 'default'; reprints: wiz-reprints-knob-badge "auto"/"user"; theme/mechanics/
+  // archetypes: a boolean _ai_generated → wiz-ai-badge "AI" / nothing). This maps
+  // every synonym onto one rendering so they can't drift again:
+  //   true  / 'ai'                     → the established .wiz-ai-badge "AI"
+  //   'user'                           → .wiz-prov-badge.wiz-prov-user "edited"
+  //   'auto' / 'default'               → .wiz-prov-badge.wiz-prov-auto "auto"
+  //   false / null / undefined / ''    → '' (a hand-authored row carries no badge)
+  // So provenanceBadge('default') and provenanceBadge('auto') render identically,
+  // as do provenanceBadge(true) and provenanceBadge('ai').
+  //   opts.role — emit data-role="<role>" so a clear-on-edit listener can find +
+  //               remove the badge (the list-item badges use 'ai-badge').
+  W.provenanceBadge = function (prov, opts) {
+    const role = opts && opts.role ? ` data-role="${W.escAttr(opts.role)}"` : '';
+    if (prov === true || prov === 'ai') return `<span class="wiz-ai-badge"${role}>AI</span>`;
+    if (prov === 'user') return `<span class="wiz-prov-badge wiz-prov-user"${role}>edited</span>`;
+    if (prov === 'auto' || prov === 'default') {
+      return `<span class="wiz-prov-badge wiz-prov-auto"${role}>auto</span>`;
+    }
+    return '';
+  };
+
   // --- AI-tab action lifecycle (conventions §7) ----------------------------
   // The universal "Refresh AI / Generate / Re-pick" lifecycle every stage tab
   // copied by hand: own-lock guard → optional confirm → setLocked(true) →

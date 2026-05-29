@@ -936,6 +936,32 @@
   flex-shrink: 0;
 }
 
+/* Provenance badge — the user/auto siblings of .wiz-ai-badge, rendered by
+   W.provenanceBadge (the 'ai' case reuses .wiz-ai-badge above). */
+.wiz-prov-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: 4px;
+  vertical-align: middle;
+  align-self: center;
+  flex-shrink: 0;
+}
+.wiz-prov-badge.wiz-prov-user {
+  background: #4a9eff22;
+  color: #7db8ff;
+  border: 1px solid #4a9eff40;
+}
+.wiz-prov-badge.wiz-prov-auto {
+  background: #2a2a2a;
+  color: #999;
+  border: 1px solid #3a3a3a;
+}
+
 .wiz-theme-actions {
   display: flex;
   justify-content: flex-end;
@@ -1725,13 +1751,6 @@
 }
 .wiz-skel-knob-range { color: #777; font-size: 0.7rem; min-width: 3.4rem; text-align: right; }
 .wiz-skel-knob-pin { color: #888; font-size: 0.72rem; display: flex; align-items: center; gap: 0.2rem; }
-.wiz-skel-userbadge {
-  font-size: 0.66rem;
-  color: #d3b48f;
-  background: #302417;
-  border-radius: 7px;
-  padding: 0.02rem 0.32rem;
-}
 /* Cycle editor (Step 1) — add/edit/remove card-family cycles. */
 .wiz-skel-cycle-box {
   border: 1px solid #2c2c2e;
