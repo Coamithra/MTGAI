@@ -111,33 +111,49 @@ goes `disabled`:
 * All Refresh-AI buttons
 * The footer Save & Continue button
 
-Each tab module defines its own `setFormLocked(locked)`:
+**Call `W.setTabLocked`, don't hand-roll the DOM sweep.** The shared
+helper (`wizard_util.js`) owns the dim-class toggle + the `disabled`
+sweep + the footer button; the tab supplies only its selector set. Each
+tab keeps a thin `setLocked(locked)` that records `local.locked` and
+delegates the DOM to the helper, computing the lock truth from an
+`aiBusy()` composite:
 
 ```js
-function setFormLocked(locked) {
-  const root = document.querySelector('.wiz-tab-body[data-tab-id="<id>"]');
-  if (!root) return;
-  root.classList.toggle('wiz-<id>-locked', !!locked);
-  const sel = [/* every interactive selector */].join(',');
-  root.querySelectorAll(sel).forEach(el => { el.disabled = !!locked; });
-  // Footer button lives outside the tab body — query separately:
-  const footerBtn = document.querySelector('button[data-role="<id>-advance"]');
-  if (footerBtn) footerBtn.disabled = !!locked;
+// The standardized lock truth source: own-lock OR (where the tab streams)
+// a streaming flag OR the engine running this stage. Lock when ANY holds.
+function aiBusy() {
+  return local.locked || local.stageStatus === 'running'; // + local.streaming if you stream
+}
+
+function setLocked(locked) {
+  local.locked = !!locked;
+  W.setTabLocked(tabRoot(), aiBusy(), {
+    lockClass: 'wiz-<id>-locked',
+    selectors: ['<every interactive selector>'],
+    footerSelector: '[data-role="<id>-advance"]', // omit if the footer is plain nav
+  });
 }
 ```
 
-Call `setFormLocked(true)` when:
+`aiBusy()` (not a bare `local.locked`) is the truth source so an
+engine-driven run — which sets `stage.status === 'running'` without the
+tab ever calling `setLocked(true)` — still disables the form. The
+re-render path calls `setLocked(local.locked)` after refreshing
+`local.stageStatus`, so a stage flipping to `running` over SSE re-locks
+an already-painted body.
 
-* Mounting and the bootstrap says AI gen is in flight (e.g.
-  `state.extractionActive`).
-* The user kicks off an AI op from this tab.
+`setLocked` runs (directly or via `W.runAiAction`, §7) when:
+
+* Mounting and the bootstrap says AI gen is in flight.
+* The user kicks off an AI op from this tab (`runAiAction` owns this).
 * AFTER any `replaceListWithAi`-style call that adds new rows during
   streaming — the fresh DOM nodes need disabling too. Idempotent.
 
-Call `setFormLocked(false)` when:
+`setLocked(false)` runs:
 
-* The AI op's terminal event fires (`*_done`, `*_error`, `*_cancelled`).
-* The kickoff request fails before the worker started.
+* When the AI op's terminal event / request chain finishes
+  (`runAiAction`'s `finally` owns this).
+* When the kickoff request fails before the worker started.
 
 Visual cue: the `.wiz-<tab>-locked` class adds a faint dim + a
 `not-allowed` cursor on disabled controls so the user reads the locked
@@ -257,13 +273,44 @@ with ai_lock.hold("Action name") as acquired:
     ...
 ```
 
-Client side: any `409` with `data.running_action` becomes a toast:
+Client side, **route every AI-tab action through `W.runAiAction`**
+(`wizard_util.js`) instead of hand-rolling the lifecycle. It owns the
+whole recipe a tab used to copy: own-lock guard → optional `confirm` →
+`setLocked(true)` → `showBusy(label)` → POST → parse-or-`{}` → the
+`409 running_action` / generic error toast (via `W.reportError`) →
+network catch → `finally` `clearBusy()` + `setLocked(false)`. A tab
+supplies only the variable bits:
 
 ```js
-if (resp.status === 409 && data.running_action) {
-  W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
-}
+// Single-POST form (most refresh / generate / re-pick buttons):
+W.runAiAction({
+  isLocked: () => local.locked,
+  setLocked,
+  confirm: () => (local.hasContent ? 'Regenerate? Current output is replaced.' : ''),
+  busyLabel: 'Regenerating…',
+  url: '/api/wizard/<tab>/refresh', body: () => ({ ... }), fallback: 'Refresh failed',
+  onResult: (data) => { /* apply + repaint here */ },
+});
+
+// Multi-step form (e.g. skeleton's knobs → relabel cascade): pass `run`
+// instead of url/onResult. `post(url, body, fallback)` returns the parsed
+// data on 2xx or null (already toasted); `showBusy(label)` relabels mid-run.
+W.runAiAction({
+  isLocked: () => local.locked, setLocked, busyLabel: 'Step one…',
+  onSettle: () => { /* teardown that must run on success + error alike */ },
+  run: async ({ post, showBusy }) => {
+    const a = await post('/api/.../one', body1, 'Step one failed'); if (!a) return;
+    showBusy('Step two…');
+    const b = await post('/api/.../two', body2, 'Step two failed'); if (!b) return;
+    repaint();
+  },
+});
 ```
+
+The empty-string `confirm` thunk skips the native prompt (initial
+generates have nothing to overwrite). DOM-gather pre-flight that must run
+*before* locking (e.g. collecting AI-flagged rows, the pick-aware confirm)
+stays outside `runAiAction`; everything from the lock onward goes in.
 
 Long-running workers must poll `ai_lock.is_cancelled()` so the user
 can hit the cancel button on the progress strip.

@@ -295,7 +295,7 @@
     if (!slot) return;
 
     if (!local.hasContent) {
-      const generating = local.stageStatus === 'running' || local.locked;
+      const generating = aiBusy();
       slot.innerHTML = `
         <div class="wiz-stage-empty">
           ${generating
@@ -367,39 +367,27 @@
 
   async function onRefreshAll() {
     if (local.locked) return;
-    if (local.hasContent) {
-      if (!confirm('Regenerate all land cards? Existing land JSONs will be replaced.')) return;
-    }
     const root = bodyRoot();
     const state = local.state;
-    setLocked(true);
-    if (W.showBusy) W.showBusy(local.hasContent ? 'Regenerating land cards…' : 'Generating land cards…');
-    try {
-      const resp = await W.postJSON('/api/wizard/lands/refresh', {});
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        if (resp.status === 409 && data.running_action) {
-          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
-        } else {
-          W.toast(data.error || `Refresh failed (${resp.status})`, 'error');
+    await W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked,
+      confirm: () => (local.hasContent ? 'Regenerate all land cards? Existing land JSONs will be replaced.' : ''),
+      busyLabel: local.hasContent ? 'Regenerating land cards…' : 'Generating land cards…',
+      run: async ({ post }) => {
+        const data = await post('/api/wizard/lands/refresh', {}, 'Refresh failed');
+        if (!data) return;
+        local.lands = Array.isArray(data.lands) ? data.lands : [];
+        local.hasContent = !!data.has_content || local.lands.length > 0;
+        if (data.stage_status) local.stageStatus = data.stage_status;
+        if (root) {
+          paintSummary(root, state);
+          paintGrid(root, state);
+          paintFooter(getFooter(root), state);
         }
-        return;
-      }
-      local.lands = Array.isArray(data.lands) ? data.lands : [];
-      local.hasContent = !!data.has_content || local.lands.length > 0;
-      if (data.stage_status) local.stageStatus = data.stage_status;
-      if (root) {
-        paintSummary(root, state);
-        paintGrid(root, state);
-        paintFooter(getFooter(root), state);
-      }
-      W.toast('Land cards regenerated.', 'success');
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      if (W.clearBusy) W.clearBusy();
-      setLocked(false);
-    }
+        W.toast('Land cards regenerated.', 'success');
+      },
+    });
   }
 
   // ── Footer: note only — lands never pause for review (§1) ────────────────
@@ -479,12 +467,19 @@
 
   // ── Form lock (§3) ────────────────────────────────────────────────────────
 
+  // AI is "active" on this tab when this tab kicked off an op (local.locked) or
+  // the engine is running the lands stage (stageStatus). The composite is the
+  // standardized lock truth source across stage tabs (§3).
+  function aiBusy() {
+    return local.locked || local.stageStatus === 'running';
+  }
+
   function setLocked(locked) {
     local.locked = !!locked;
-    const root = bodyRoot();
-    if (!root) return;
-    root.classList.toggle('wiz-lands-locked', !!locked);
-    root.querySelectorAll('[data-role="lands-refresh-all"]').forEach(el => { el.disabled = !!locked; });
+    W.setTabLocked(bodyRoot(), aiBusy(), {
+      lockClass: 'wiz-lands-locked',
+      selectors: ['[data-role="lands-refresh-all"]'],
+    });
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

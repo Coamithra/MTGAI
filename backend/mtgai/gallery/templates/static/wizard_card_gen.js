@@ -539,7 +539,7 @@
     if (!slot) return;
 
     if (!local.hasContent) {
-      const running = local.stageStatus === 'running' || local.locked;
+      const running = aiBusy();
       slot.innerHTML = `
         <div class="wiz-cardgen-empty">
           ${running
@@ -653,40 +653,29 @@
   // --------------------------------------------------------------------
 
   async function onRefreshCards() {
-    if (local.locked) return;
-    if (local.hasContent) {
-      if (!confirm('Regenerate all cards from scratch? This deletes the current cards and generates them again. (Lands are kept.)')) return;
-    }
-    setLocked(true);
-    if (W.showBusy) W.showBusy('Regenerating cards…');
-    try {
-      const resp = await W.postJSON('/api/wizard/card_gen/refresh', {});
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        if (resp.status === 409 && data.running_action) {
-          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
-        } else {
-          W.toast(data.error || `Refresh failed (${resp.status})`, 'error');
+    await W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked,
+      confirm: () => (local.hasContent
+        ? 'Regenerate all cards from scratch? This deletes the current cards and generates them again. (Lands are kept.)'
+        : ''),
+      busyLabel: 'Regenerating cards…',
+      run: async ({ post }) => {
+        const data = await post('/api/wizard/card_gen/refresh', {}, 'Refresh failed');
+        if (!data) return;
+        // The refresh response is the same shape as /state — repaint the grid
+        // directly from it (no second round-trip).
+        if (Array.isArray(data.cards)) {
+          local.cards = data.cards;
+          local.hasContent = local.cards.length > 0;
+          local.setParams = data.set_params || local.setParams;
+          local.stageStatus = data.stage_status || local.stageStatus;
+          const root = bodyRoot();
+          if (root) { rebuildFilterOptions(root); paintGrid(root); }
         }
-        return;
-      }
-      // The refresh response is the same shape as /state — repaint the grid
-      // directly from it (no second round-trip).
-      if (Array.isArray(data.cards)) {
-        local.cards = data.cards;
-        local.hasContent = local.cards.length > 0;
-        local.setParams = data.set_params || local.setParams;
-        local.stageStatus = data.stage_status || local.stageStatus;
-        const root = bodyRoot();
-        if (root) { rebuildFilterOptions(root); paintGrid(root); }
-      }
-      W.toast('Cards regenerated.', 'success');
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      if (W.clearBusy) W.clearBusy();
-      setLocked(false);
-    }
+        W.toast('Cards regenerated.', 'success');
+      },
+    });
   }
 
   // --------------------------------------------------------------------
@@ -756,19 +745,24 @@
   // Form lock — §3
   // --------------------------------------------------------------------
 
+  // AI is "active" on this tab when this tab kicked off an op (local.locked) or
+  // the engine is running the card_gen stage (stageStatus). The composite is
+  // the standardized lock truth source across stage tabs (§3).
+  function aiBusy() {
+    return local.locked || local.stageStatus === 'running';
+  }
+
   function setLocked(locked) {
     local.locked = !!locked;
-    const root = bodyRoot();
-    if (!root) return;
-    root.classList.toggle('wiz-cardgen-locked', !!locked);
-    const sel = [
-      '[data-role="cg-refresh-btn"]',
-      '[data-role="cg-group-by"]',
-      '[data-role="cg-filter"]',
-    ].join(',');
-    root.querySelectorAll(sel).forEach(el => { el.disabled = !!locked; });
-    const footerBtn = root.querySelector('[data-role="cg-advance"]');
-    if (footerBtn) footerBtn.disabled = !!locked;
+    W.setTabLocked(bodyRoot(), aiBusy(), {
+      lockClass: 'wiz-cardgen-locked',
+      selectors: [
+        '[data-role="cg-refresh-btn"]',
+        '[data-role="cg-group-by"]',
+        '[data-role="cg-filter"]',
+      ],
+      footerSelector: '[data-role="cg-advance"]',
+    });
   }
 
   // --------------------------------------------------------------------

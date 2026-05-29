@@ -408,36 +408,33 @@
   // cascade into a skeleton rebuild + relabel — mirrors the Theme tab's "refresh
   // the top level and the sub-levels refresh too" pattern.
   async function onKnobsRefresh() {
-    if (local.locked) return;
-    if (local.hasTweaked && !confirm(
-        'Re-tune the knobs with AI, then rebuild + relabel the skeleton? '
-        + 'Your inline edits will be replaced.')) {
-      return;
-    }
-    setLocked(true);
-    if (W.showBusy) W.showBusy('Tuning structural knobs with AI…');
-    const root = bodyRoot();
-    try {
-      // Phase 0 — AI tune + deterministic rebuild. The tab's current knob values
-      // go up as the tuner base, so unsaved hand-edits + pins are respected.
-      const resp = await W.postJSON('/api/wizard/skeleton/knobs/tune', knobValuesPayload());
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) return reportError(resp, data, 'Tune failed');
-      applyKnobsResponse(data);
-      W.toast(data.defaulted
-        ? 'AI tuning unavailable — base knobs kept.'
-        : 'Knobs re-tuned to the set.',
-        data.defaulted ? 'warn' : 'success');
-      // Phase 2 — cascade into the relabel over the freshly rebuilt skeleton.
-      if (W.showBusy) W.showBusy('Relabeling skeleton…');
-      await runRelabel(root);
-    } catch (err) {
-      local.streaming = false;
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      if (W.clearBusy) W.clearBusy();
-      setLocked(false);
-    }
+    await W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked,
+      confirm: () => (local.hasTweaked
+        ? 'Re-tune the knobs with AI, then rebuild + relabel the skeleton? '
+          + 'Your inline edits will be replaced.'
+        : ''),
+      busyLabel: 'Tuning structural knobs with AI…',
+      // runRelabel already settles local.streaming on both paths; this is the
+      // safety net for an early return / throw before it runs.
+      onSettle: () => { local.streaming = false; },
+      run: async ({ post, showBusy }) => {
+        const root = bodyRoot();
+        // Phase 0 — AI tune + deterministic rebuild. The tab's current knob values
+        // go up as the tuner base, so unsaved hand-edits + pins are respected.
+        const data = await post('/api/wizard/skeleton/knobs/tune', knobValuesPayload(), 'Tune failed');
+        if (!data) return;
+        applyKnobsResponse(data);
+        W.toast(data.defaulted
+          ? 'AI tuning unavailable — base knobs kept.'
+          : 'Knobs re-tuned to the set.',
+          data.defaulted ? 'warn' : 'success');
+        // Phase 2 — cascade into the relabel over the freshly rebuilt skeleton.
+        showBusy('Relabeling skeleton…');
+        await runRelabel(root);
+      },
+    });
   }
 
   // A knobs endpoint rebuilt the default skeleton: adopt the new slots + knobs and
@@ -520,7 +517,7 @@
     const slot = root.querySelector('[data-role="skel-grid"]');
     if (!slot) return;
     if (!local.slots.length) {
-      const generating = local.stageStatus === 'running' || local.locked;
+      const generating = aiBusy();
       slot.innerHTML = `
         <div class="wiz-skel-empty">
           ${generating ? 'Generating the skeleton…' : 'No skeleton yet — advance from Archetypes.'}
@@ -752,32 +749,27 @@
   // endpoint) so local.slots holds the rebuilt matrix before the relabel streams,
   // letting each slot's live update land in the right row.
   async function onSkeletonRefresh() {
-    if (local.locked) return;
-    if (local.hasTweaked && !confirm(
-        'Rebuild the skeleton from the current knobs and re-run the LLM relabel? '
-        + 'Your inline edits will be replaced.')) {
-      return;
-    }
-    setLocked(true);
-    if (W.showBusy) W.showBusy('Rebuilding skeleton from knobs…');
-    const root = bodyRoot();
-    try {
-      // Phase 1 — deterministic rebuild from the current knobs (no AI lock).
-      const kResp = await W.postJSON('/api/wizard/skeleton/knobs', knobValuesPayload());
-      const kData = await kResp.json().catch(() => ({}));
-      if (!kResp.ok) return reportError(kResp, kData, 'Rebuild failed');
-      applyKnobsResponse(kData);
-      if ((kData.warnings || []).length) W.toast('Some knob values were clamped.', 'warn');
-      // Phase 2 — LLM relabel over the rebuilt skeleton (streams slots live).
-      if (W.showBusy) W.showBusy('Relabeling skeleton…');
-      await runRelabel(root);
-    } catch (err) {
-      local.streaming = false;
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      if (W.clearBusy) W.clearBusy();
-      setLocked(false);
-    }
+    await W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked,
+      confirm: () => (local.hasTweaked
+        ? 'Rebuild the skeleton from the current knobs and re-run the LLM relabel? '
+          + 'Your inline edits will be replaced.'
+        : ''),
+      busyLabel: 'Rebuilding skeleton from knobs…',
+      onSettle: () => { local.streaming = false; },
+      run: async ({ post, showBusy }) => {
+        const root = bodyRoot();
+        // Phase 1 — deterministic rebuild from the current knobs (no AI lock).
+        const kData = await post('/api/wizard/skeleton/knobs', knobValuesPayload(), 'Rebuild failed');
+        if (!kData) return;
+        applyKnobsResponse(kData);
+        if ((kData.warnings || []).length) W.toast('Some knob values were clamped.', 'warn');
+        // Phase 2 — LLM relabel over the rebuilt skeleton (streams slots live).
+        showBusy('Relabeling skeleton…');
+        await runRelabel(root);
+      },
+    });
   }
 
   // POST the relabel and reconcile to its authoritative response. The SSE stream
@@ -911,19 +903,15 @@
   // container class still need syncing, and SSE-driven re-renders call this
   // directly so a stage flipping to `running` locks an already-painted grid.
   function applyFormLock() {
-    const root = bodyRoot();
-    if (!root) return;
-    const locked = aiBusy();
-    root.classList.toggle('wiz-skel-locked', locked);
-    root.querySelectorAll(
-      '.wiz-skel-tweak, [data-role="skel-refresh"], [data-role="knob-refresh"], '
-      + '[data-role="knob-input"], [data-role="knob-pin"], [data-role="cycle-add"], '
-      + '.wiz-skel-cycle-item input, .wiz-skel-cycle-item select, .wiz-skel-cycle-item button'
-    ).forEach(el => {
-      el.disabled = locked;
+    W.setTabLocked(bodyRoot(), aiBusy(), {
+      lockClass: 'wiz-skel-locked',
+      selectors: [
+        '.wiz-skel-tweak', '[data-role="skel-refresh"]', '[data-role="knob-refresh"]',
+        '[data-role="knob-input"]', '[data-role="knob-pin"]', '[data-role="cycle-add"]',
+        '.wiz-skel-cycle-item input', '.wiz-skel-cycle-item select', '.wiz-skel-cycle-item button',
+      ],
+      footerSelector: '[data-role="skel-save-advance"]',
     });
-    const footerBtn = root.querySelector('[data-role="skel-save-advance"]');
-    if (footerBtn) footerBtn.disabled = locked;
   }
 
   // ----------------------------------------------------------------------

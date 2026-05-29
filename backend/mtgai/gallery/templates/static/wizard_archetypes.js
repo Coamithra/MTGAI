@@ -173,7 +173,7 @@
     const slot = root.querySelector('[data-role="arch-grid"]');
     if (!slot) return;
     if (!local.hasContent) {
-      const generating = local.stageStatus === 'running' || local.locked;
+      const generating = aiBusy();
       slot.innerHTML = `
         <div class="wiz-arch-empty">
           ${generating
@@ -289,28 +289,24 @@
   // ----------------------------------------------------------------------
 
   async function onRefreshCard(pair) {
-    if (local.locked) return;
-    if (!confirm(`Regenerate the ${pair} archetype? Other pairs stay; this one will be overwritten.`)) return;
-    setLocked(true);
-    if (W.showBusy) W.showBusy(`Regenerating ${pair} archetype…`);
-    try {
-      const resp = await W.postJSON('/api/wizard/archetypes/refresh-card', {
-        color_pair: pair,
-        archetypes: local.archetypes,
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) return reportError(resp, data, 'Refresh failed');
-      applyArchetypes(data.archetypes);
-      const root = bodyRoot();
-      paintSummary(root, W.getState());
-      paintGrid(root, W.getState());
-      W.toast(`${pair} archetype regenerated.`, 'success');
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      if (W.clearBusy) W.clearBusy();
-      setLocked(false);
-    }
+    await W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked,
+      confirm: `Regenerate the ${pair} archetype? Other pairs stay; this one will be overwritten.`,
+      busyLabel: `Regenerating ${pair} archetype…`,
+      run: async ({ post }) => {
+        const data = await post('/api/wizard/archetypes/refresh-card', {
+          color_pair: pair,
+          archetypes: local.archetypes,
+        }, 'Refresh failed');
+        if (!data) return;
+        applyArchetypes(data.archetypes);
+        const root = bodyRoot();
+        paintSummary(root, W.getState());
+        paintGrid(root, W.getState());
+        W.toast(`${pair} archetype regenerated.`, 'success');
+      },
+    });
   }
 
   async function onRefreshAll() {
@@ -318,6 +314,8 @@
     const root = bodyRoot();
     if (!root) return;
 
+    // The AI-flagged-pair gather + confirm run before locking, so they stay
+    // out of runAiAction (the empty path skips both — nothing to overwrite).
     let pairs = [];
     if (local.hasContent) {
       pairs = Array.from(root.querySelectorAll('.wiz-arch-card[data-ai-generated="true"]'))
@@ -330,29 +328,26 @@
         return;
       }
     }
-    setLocked(true);
-    if (W.showBusy) W.showBusy(local.hasContent ? 'Regenerating archetypes…' : 'Generating archetypes…');
-    // Repaint so the empty grid reflects the in-flight call.
-    paintGrid(root, W.getState());
-    try {
-      // Empty arrays = initial full generation; non-empty pairs = partial refresh.
-      const resp = await W.postJSON('/api/wizard/archetypes/refresh-all', {
-        pairs: local.hasContent ? pairs : [],
-        archetypes: local.hasContent ? local.archetypes : [],
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) return reportError(resp, data, 'Refresh failed');
-      applyArchetypes(data.archetypes);
-      paintSummary(root, W.getState());
-      paintGrid(root, W.getState());
-      paintFooter(getFooter(root), W.getState());
-      W.toast(local.hasContent ? 'Archetypes regenerated.' : 'Archetypes generated.', 'success');
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      if (W.clearBusy) W.clearBusy();
-      setLocked(false);
-    }
+    await W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked,
+      busyLabel: local.hasContent ? 'Regenerating archetypes…' : 'Generating archetypes…',
+      run: async ({ post }) => {
+        // Repaint so the empty grid reflects the in-flight call.
+        paintGrid(root, W.getState());
+        // Empty arrays = initial full generation; non-empty pairs = partial refresh.
+        const data = await post('/api/wizard/archetypes/refresh-all', {
+          pairs: local.hasContent ? pairs : [],
+          archetypes: local.hasContent ? local.archetypes : [],
+        }, 'Refresh failed');
+        if (!data) return;
+        applyArchetypes(data.archetypes);
+        paintSummary(root, W.getState());
+        paintGrid(root, W.getState());
+        paintFooter(getFooter(root), W.getState());
+        W.toast(local.hasContent ? 'Archetypes regenerated.' : 'Archetypes generated.', 'success');
+      },
+    });
   }
 
   function applyArchetypes(list) {
@@ -360,8 +355,6 @@
     local.archetypes = list;
     local.hasContent = list.some(a => a.name || a.description);
   }
-
-  const reportError = (resp, data, fallback) => W.reportError(resp, data, fallback);
 
   // ----------------------------------------------------------------------
   // Footer: Save & Continue (latest tab + paused_for_review)
@@ -447,20 +440,25 @@
   // Form lock (§3)
   // ----------------------------------------------------------------------
 
+  // AI is "active" on this tab when this tab kicked off an op (local.locked) or
+  // the engine is running the archetypes stage (stageStatus). The composite is
+  // the standardized lock truth source across stage tabs (§3).
+  function aiBusy() {
+    return local.locked || local.stageStatus === 'running';
+  }
+
   function setLocked(locked) {
     local.locked = !!locked;
-    const root = bodyRoot();
-    if (!root) return;
-    root.classList.toggle('wiz-arch-locked', !!locked);
-    const sel = [
-      '.wiz-arch-card input',
-      '.wiz-arch-card textarea',
-      '[data-role="arch-refresh-card"]',
-      '[data-role="arch-refresh-all"]',
-    ].join(',');
-    root.querySelectorAll(sel).forEach(el => { el.disabled = !!locked; });
-    const footerBtn = root.querySelector('[data-role="arch-save-advance"]');
-    if (footerBtn) footerBtn.disabled = !!locked;
+    W.setTabLocked(bodyRoot(), aiBusy(), {
+      lockClass: 'wiz-arch-locked',
+      selectors: [
+        '.wiz-arch-card input',
+        '.wiz-arch-card textarea',
+        '[data-role="arch-refresh-card"]',
+        '[data-role="arch-refresh-all"]',
+      ],
+      footerSelector: '[data-role="arch-save-advance"]',
+    });
   }
 
   // ----------------------------------------------------------------------

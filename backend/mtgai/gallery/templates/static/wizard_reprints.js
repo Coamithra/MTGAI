@@ -395,7 +395,7 @@
     if (!slot) return;
 
     if (!local.hasContent) {
-      const generating = local.stageStatus === 'running' || local.locked;
+      const generating = aiBusy();
       slot.innerHTML = `
         <div class="wiz-stage-empty">
           ${generating
@@ -532,45 +532,33 @@
 
   async function onRefreshAll() {
     if (local.locked) return;
-    if (local.hasContent) {
-      if (!confirm('Re-run reprint selection? Current picks will be replaced.')) return;
-    }
     const root = bodyRoot();
     const state = local.state;
     const knobs = root ? readKnobInputs(root) : null;
-    setLocked(true);
-    if (W.showBusy) W.showBusy('Selecting reprints…');
-    try {
-      const resp = await W.postJSON('/api/wizard/reprints/refresh', knobs ? { knobs } : {});
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        if (resp.status === 409 && data.running_action) {
-          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
-        } else {
-          W.toast(data.error || `Refresh failed (${resp.status})`, 'error');
+    await W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked,
+      confirm: () => (local.hasContent ? 'Re-run reprint selection? Current picks will be replaced.' : ''),
+      busyLabel: 'Selecting reprints…',
+      run: async ({ post }) => {
+        const data = await post('/api/wizard/reprints/refresh', knobs ? { knobs } : {}, 'Refresh failed');
+        if (!data) return;
+        local.selections = Array.isArray(data.selections) ? data.selections : [];
+        local.hasContent = !!data.has_content || local.selections.length > 0;
+        local.targetCount = data.target_count != null ? data.target_count : local.targetCount;
+        if (data.eligible_slots != null) local.eligibleSlots = data.eligible_slots;
+        if (data.knobs) local.knobs = data.knobs;
+        if (data.provenance) local.provenance = data.provenance;
+        if (data.preview_targets) local.previewTargets = data.preview_targets;
+        local.knobsDirty = false;
+        if (root) {
+          paintSummary(root, state);
+          paintKnobs(root, state);
+          paintGrid(root, state);
+          paintFooter(getFooter(root), state);
         }
-        return;
-      }
-      local.selections = Array.isArray(data.selections) ? data.selections : [];
-      local.hasContent = !!data.has_content || local.selections.length > 0;
-      local.targetCount = data.target_count != null ? data.target_count : local.targetCount;
-      if (data.eligible_slots != null) local.eligibleSlots = data.eligible_slots;
-      if (data.knobs) local.knobs = data.knobs;
-      if (data.provenance) local.provenance = data.provenance;
-      if (data.preview_targets) local.previewTargets = data.preview_targets;
-      local.knobsDirty = false;
-      if (root) {
-        paintSummary(root, state);
-        paintKnobs(root, state);
-        paintGrid(root, state);
-        paintFooter(getFooter(root), state);
-      }
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      if (W.clearBusy) W.clearBusy();
-      setLocked(false);
-    }
+      },
+    });
   }
 
   // ── Footer: advance button when paused_for_review (§1) ───────────────────
@@ -640,18 +628,20 @@
 
   // ── Form lock (§3) ────────────────────────────────────────────────────────
 
+  // AI is "active" on this tab when this tab kicked off an op (local.locked) or
+  // the engine is running the reprints stage (stageStatus). The composite is
+  // the standardized lock truth source across stage tabs (§3).
+  function aiBusy() {
+    return local.locked || local.stageStatus === 'running';
+  }
+
   function setLocked(locked) {
     local.locked = !!locked;
-    const root = bodyRoot();
-    if (!root) return;
-    root.classList.toggle('wiz-reprints-locked', !!locked);
-    root.querySelectorAll('[data-role="reprints-refresh-all"]').forEach(el => { el.disabled = !!locked; });
-    root.querySelectorAll('input[data-knob]').forEach(el => { el.disabled = !!locked; });
-    const footerBtn = getFooter(root);
-    if (footerBtn) {
-      const btn = footerBtn.querySelector('[data-role="reprints-advance"]');
-      if (btn) btn.disabled = !!locked;
-    }
+    W.setTabLocked(bodyRoot(), aiBusy(), {
+      lockClass: 'wiz-reprints-locked',
+      selectors: ['[data-role="reprints-refresh-all"]', 'input[data-knob]'],
+      footerSelector: '[data-role="reprints-advance"]',
+    });
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

@@ -221,7 +221,7 @@
     const slot = root.querySelector('[data-role="mech-strip"]');
     if (!slot) return;
     if (!local.candidates.length) {
-      const generating = local.stageStatus === 'running' || local.locked;
+      const generating = aiBusy();
       slot.innerHTML = `
         <div class="wiz-mech-empty">
           ${generating
@@ -575,67 +575,56 @@
   // ----------------------------------------------------------------------
 
   async function onRefreshCard(idx) {
-    if (local.locked) return;
-    if (!confirm('Regenerate this candidate? Other rows stay; this row will be overwritten.')) return;
-    setLocked(true);
-    local.streamingMode = 'single';
-    if (W.showBusy) W.showBusy('Regenerating candidate…');
-    // Clear the slot immediately so the stale card doesn't linger while the
-    // LLM works. The streamed drafted event will overwrite the placeholder.
-    const root = document.querySelector(`.wiz-tab-body[data-tab-id="${STAGE_ID}"]`);
-    if (local.candidates[idx]) {
-      local.candidates[idx] = { _pending_generation: true };
-      delete local.collisions[String(idx)];
-      // Drop the pick — the slot's identity is about to change.
-      local.picks.delete(idx);
-      if (root) {
-        paintStrip(root);
-        updateFinalPicks(root);
-      }
-    }
-    try {
-      const resp = await W.postJSON('/api/wizard/mechanics/refresh-card', {
-        candidate_index: idx,
-        candidates: local.candidates,
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        if (resp.status === 409 && data.running_action) {
-          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
-        } else {
-          W.toast(data.error || `Refresh failed (${resp.status})`, 'error');
+    await W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked,
+      confirm: 'Regenerate this candidate? Other rows stay; this row will be overwritten.',
+      busyLabel: 'Regenerating candidate…',
+      onSettle: () => { local.streamingMode = null; },
+      run: async ({ post }) => {
+        local.streamingMode = 'single';
+        // Clear the slot immediately so the stale card doesn't linger while the
+        // LLM works. The streamed drafted event will overwrite the placeholder.
+        const root = tabRoot();
+        if (local.candidates[idx]) {
+          local.candidates[idx] = { _pending_generation: true };
+          delete local.collisions[String(idx)];
+          // Drop the pick — the slot's identity is about to change.
+          local.picks.delete(idx);
+          if (root) {
+            paintStrip(root);
+            updateFinalPicks(root);
+          }
         }
-        return;
-      }
-      local.candidates = data.candidates || local.candidates;
-      // The freshly-generated row is AI again. Existing user-edited
-      // rows' AI flag stays cleared (the strip rerender below is
-      // gated to the refreshed slot). ``root`` is the outer-scoped
-      // element grabbed before the optimistic clear above.
-      if (root) {
-        paintStrip(root);
-        paintSelection(root);
-      }
-      W.toast('Candidate regenerated.', 'success');
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      local.streamingMode = null;
-      if (W.clearBusy) W.clearBusy();
-      setLocked(false);
-    }
+        const data = await post('/api/wizard/mechanics/refresh-card', {
+          candidate_index: idx,
+          candidates: local.candidates,
+        }, 'Refresh failed');
+        if (!data) return;
+        local.candidates = data.candidates || local.candidates;
+        // The freshly-generated row is AI again. Existing user-edited rows' AI
+        // flag stays cleared (the strip rerender below is gated to the refreshed
+        // slot). ``root`` is grabbed before the optimistic clear above.
+        if (root) {
+          paintStrip(root);
+          paintSelection(root);
+        }
+        W.toast('Candidate regenerated.', 'success');
+      },
+    });
   }
 
   async function onRefreshAll() {
     if (local.locked) return;
-    const root = document.querySelector('.wiz-tab-body[data-tab-id="mechanics"]');
+    const root = tabRoot();
     if (!root) return;
 
     // Empty-strip path: no candidates on disk yet (initial generation
     // failed, or the user navigated here before the engine produced
     // anything). The button label flips to "Generate AI candidates" in
     // that state, so skip the AI-flagged-row gate and ask the server
-    // to run a fresh generation.
+    // to run a fresh generation. The aiIndices computation + the
+    // pick-aware confirm run before locking, so they stay out of runAiAction.
     const hasCandidates = local.candidates.length > 0;
     let aiIndices = [];
     if (hasCandidates) {
@@ -657,77 +646,65 @@
         return;
       }
     }
-    setLocked(true);
-    local.streamingMode = 'all';
-    if (W.showBusy) {
-      W.showBusy(hasCandidates ? 'Regenerating candidates…' : 'Generating candidates…');
-    }
-    // Clear the slots about to be regenerated *immediately* so the stale
-    // cards don't hang around while the LLM works. The streamed drafted
-    // events refill these placeholders. Two cases:
-    //   * Initial generate (no candidates yet) — populate the whole strip
-    //     with ``pool``-many placeholders so the user sees the layout the
-    //     candidates will land into. The streaming reset event (server
-    //     fires it only for this path) is a no-op here since we've already
-    //     done the work, but stays as the canonical "wipe + repopulate"
-    //     signal for mid-run tab reattach.
-    //   * Targeted refresh — blank only the AI-flagged rows; user-edited
-    //     rows stay untouched. Drop any picks on the cleared rows since
-    //     their identity is about to change.
-    if (hasCandidates) {
-      aiIndices.forEach(i => {
-        local.candidates[i] = { _pending_generation: true };
-        delete local.collisions[String(i)];
-        local.picks.delete(i);
-      });
-    } else {
-      const target = (local.setParams.mechanic_count || 0) * 2;
-      const slots = target > 0 ? target : (local.candidates.length || 0);
-      local.candidates = new Array(slots).fill(null).map(() => ({ _pending_generation: true }));
-      local.collisions = {};
-      local.picks = new Set();
-    }
-    paintStrip(root);
-    paintSelection(root);
-    updateFinalPicks(root);
-    try {
-      const resp = await W.postJSON('/api/wizard/mechanics/refresh-all', {
-        indices: aiIndices,
-        candidates: local.candidates,
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        if (resp.status === 409 && data.running_action) {
-          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
+    await W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked,
+      busyLabel: hasCandidates ? 'Regenerating candidates…' : 'Generating candidates…',
+      onSettle: () => { local.streamingMode = null; },
+      run: async ({ post }) => {
+        local.streamingMode = 'all';
+        // Clear the slots about to be regenerated *immediately* so the stale
+        // cards don't hang around while the LLM works. The streamed drafted
+        // events refill these placeholders. Two cases:
+        //   * Initial generate (no candidates yet) — populate the whole strip
+        //     with ``pool``-many placeholders so the user sees the layout the
+        //     candidates will land into. The streaming reset event (server
+        //     fires it only for this path) is a no-op here since we've already
+        //     done the work, but stays as the canonical "wipe + repopulate"
+        //     signal for mid-run tab reattach.
+        //   * Targeted refresh — blank only the AI-flagged rows; user-edited
+        //     rows stay untouched. Drop any picks on the cleared rows since
+        //     their identity is about to change.
+        if (hasCandidates) {
+          aiIndices.forEach(i => {
+            local.candidates[i] = { _pending_generation: true };
+            delete local.collisions[String(i)];
+            local.picks.delete(i);
+          });
         } else {
-          W.toast(data.error || `Refresh failed (${resp.status})`, 'error');
+          const target = (local.setParams.mechanic_count || 0) * 2;
+          const slots = target > 0 ? target : (local.candidates.length || 0);
+          local.candidates = new Array(slots).fill(null).map(() => ({ _pending_generation: true }));
+          local.collisions = {};
+          local.picks = new Set();
         }
-        return;
-      }
-      local.candidates = data.candidates || local.candidates;
-      local.collisions = data.collisions || local.collisions;
-      // Initial (from-scratch) generation re-runs the AI picker server-side
-      // and returns its picks; apply them so the strip pre-selects.
-      if (Array.isArray(data.picks)) {
-        applyPicks(data.picks, {
-          source: 'ai',
-          overall_rationale: data.overall_rationale,
-          selections: data.selections,
-          model_id: data.model_id,
-        });
-      }
-      paintSummary(root);
-      paintStrip(root);
-      paintSelection(root);
-      paintFooter(getFooter(root), W.getState());
-      W.toast(hasCandidates ? 'Candidates regenerated.' : 'Candidates generated.', 'success');
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      local.streamingMode = null;
-      if (W.clearBusy) W.clearBusy();
-      setLocked(false);
-    }
+        paintStrip(root);
+        paintSelection(root);
+        updateFinalPicks(root);
+        const data = await post('/api/wizard/mechanics/refresh-all', {
+          indices: aiIndices,
+          candidates: local.candidates,
+        }, 'Refresh failed');
+        if (!data) return;
+        local.candidates = data.candidates || local.candidates;
+        local.collisions = data.collisions || local.collisions;
+        // Initial (from-scratch) generation re-runs the AI picker server-side
+        // and returns its picks; apply them so the strip pre-selects.
+        if (Array.isArray(data.picks)) {
+          applyPicks(data.picks, {
+            source: 'ai',
+            overall_rationale: data.overall_rationale,
+            selections: data.selections,
+            model_id: data.model_id,
+          });
+        }
+        paintSummary(root);
+        paintStrip(root);
+        paintSelection(root);
+        paintFooter(getFooter(root), W.getState());
+        W.toast(hasCandidates ? 'Candidates regenerated.' : 'Candidates generated.', 'success');
+      },
+    });
   }
 
   // Apply an AI selection: replace the picks set + store the rationale.
@@ -740,46 +717,33 @@
 
   async function onRePick() {
     if (local.locked) return;
-    const root = document.querySelector('.wiz-tab-body[data-tab-id="mechanics"]');
+    const root = tabRoot();
     if (!root) return;
-    if (
-      local.picks.size > 0
-      && !confirm('Let the AI choose the picks? This replaces your current selection.')
-    ) {
-      return;
-    }
-    setLocked(true);
-    if (W.showBusy) W.showBusy('Selecting the best mechanics…');
-    try {
-      const resp = await W.postJSON('/api/wizard/mechanics/pick', {
-        candidates: local.candidates,
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        if (resp.status === 409 && data.running_action) {
-          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
-        } else {
-          W.toast(data.error || `AI pick failed (${resp.status})`, 'error');
-        }
-        return;
-      }
-      applyPicks(data.picks, {
-        source: 'ai',
-        overall_rationale: data.overall_rationale,
-        selections: data.selections,
-        model_id: data.model_id,
-      });
-      paintSummary(root);
-      paintStrip(root);
-      paintSelection(root);
-      paintFooter(getFooter(root), W.getState());
-      W.toast('AI picked the mechanics.', 'success');
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      if (W.clearBusy) W.clearBusy();
-      setLocked(false);
-    }
+    await W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked,
+      confirm: () => (local.picks.size > 0
+        ? 'Let the AI choose the picks? This replaces your current selection.'
+        : ''),
+      busyLabel: 'Selecting the best mechanics…',
+      run: async ({ post }) => {
+        const data = await post('/api/wizard/mechanics/pick', {
+          candidates: local.candidates,
+        }, 'AI pick failed');
+        if (!data) return;
+        applyPicks(data.picks, {
+          source: 'ai',
+          overall_rationale: data.overall_rationale,
+          selections: data.selections,
+          model_id: data.model_id,
+        });
+        paintSummary(root);
+        paintStrip(root);
+        paintSelection(root);
+        paintFooter(getFooter(root), W.getState());
+        W.toast('AI picked the mechanics.', 'success');
+      },
+    });
   }
 
   // ----------------------------------------------------------------------
@@ -872,22 +836,28 @@
   // Form lock (§3)
   // ----------------------------------------------------------------------
 
+  // AI is "active" on this tab when this tab kicked off an op (local.locked) or
+  // the engine is running the mechanics stage (stageStatus). Either disables
+  // every editable surface (§3) — the composite is the standardized lock truth
+  // source across stage tabs.
+  function aiBusy() {
+    return local.locked || local.stageStatus === 'running';
+  }
+
   function setLocked(locked) {
     local.locked = !!locked;
-    const root = document.querySelector(`.wiz-tab-body[data-tab-id="${STAGE_ID}"]`);
-    if (!root) return;
-    root.classList.toggle('wiz-mech-locked', !!locked);
-    const sel = [
-      '.wiz-mech-card input',
-      '.wiz-mech-card textarea',
-      '.wiz-mech-card .wiz-mech-chip',
-      '[data-role="refresh-card"]',
-      '[data-role="mech-refresh-summary"]',
-      '[data-role="mech-repick"]',
-    ].join(',');
-    root.querySelectorAll(sel).forEach(el => { el.disabled = !!locked; });
-    const footerBtn = root.querySelector('[data-role="mech-save-advance"]');
-    if (footerBtn) footerBtn.disabled = !!locked;
+    W.setTabLocked(tabRoot(), aiBusy(), {
+      lockClass: 'wiz-mech-locked',
+      selectors: [
+        '.wiz-mech-card input',
+        '.wiz-mech-card textarea',
+        '.wiz-mech-card .wiz-mech-chip',
+        '[data-role="refresh-card"]',
+        '[data-role="mech-refresh-summary"]',
+        '[data-role="mech-repick"]',
+      ],
+      footerSelector: '[data-role="mech-save-advance"]',
+    });
   }
 
   // ----------------------------------------------------------------------
