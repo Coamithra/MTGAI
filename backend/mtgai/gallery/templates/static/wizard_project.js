@@ -101,10 +101,7 @@
     }
   };
 
-  function cssEsc(s) {
-    if (window.CSS && CSS.escape) return CSS.escape(s);
-    return String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
-  }
+  const cssEsc = W.cssEsc;
 
   // Tiny red asterisk used after labels/headings of fields the
   // generation pipeline can't run without.
@@ -1443,13 +1440,7 @@
   // Helpers
   // ------------------------------------------------------------------
 
-  async function postJSON(url, body) {
-    return await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-  }
+  const postJSON = W.postJSON;
 
   // Wraps the project-switch endpoints with the 409 -> confirm -> retry
   // lifecycle. Returns the final fetch response, or null when the user
@@ -1468,14 +1459,7 @@
     return resp;
   }
 
-  function escHtml(text) {
-    if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  }
+  const escHtml = W.escHtml;
 
-  function escAttr(text) {
-    return escHtml(text).replace(/"/g, '&quot;');
-  }
+  const escAttr = W.escAttr;
 })();

@@ -882,7 +882,6 @@
       '.wiz-mech-card textarea',
       '.wiz-mech-card .wiz-mech-chip',
       '[data-role="refresh-card"]',
-      '[data-role="refresh-all"]',
       '[data-role="mech-refresh-summary"]',
       '[data-role="mech-repick"]',
     ].join(',');
@@ -917,9 +916,7 @@
     if (name === 'mechanic_candidate_finalized') return onStreamFinalized(data || {});
   }
 
-  function tabRoot() {
-    return document.querySelector(`.wiz-tab-body[data-tab-id="${STAGE_ID}"]`);
-  }
+  const tabRoot = () => W.tabRoot(STAGE_ID);
 
   // Replace the global progress strip's label so the user sees per-candidate
   // progress instead of a static "Regenerating candidates…" — Gemma can take
@@ -1014,18 +1011,9 @@
   // Helpers
   // ----------------------------------------------------------------------
 
-  function getFooter(root) {
-    return root && root.querySelector('[data-role="footer"]');
-  }
+  const getFooter = (root) => W.tabFooter(root);
 
-  function escHtml(text) {
-    if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  }
+  const escHtml = W.escHtml;
 
-  function escAttr(text) {
-    return escHtml(text).replace(/"/g, '&quot;');
-  }
+  const escAttr = W.escAttr;
 })();

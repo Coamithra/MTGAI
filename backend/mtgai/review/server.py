@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from mtgai.pipeline.server import api_router as pipeline_api_router
-from mtgai.pipeline.server import get_pipeline_banner_context
+from mtgai.pipeline.server import get_pipeline_banner_context, register_exception_handlers
 from mtgai.pipeline.server import router as pipeline_router
 
 if TYPE_CHECKING:
@@ -115,6 +115,11 @@ templates = Jinja2Templates(directory=str(_templates_dir()))
 # Mount pipeline routes
 app.include_router(pipeline_router)
 app.include_router(pipeline_api_router)
+
+# Translate the wizard's guard exceptions (no project open / no asset folder)
+# into their 409 payloads once, app-wide, so endpoints can let them propagate
+# instead of each wrapping the guard in a try/except.
+register_exception_handlers(app)
 
 # Inject pipeline banner context into all Jinja2 templates
 templates.env.globals["pipeline_banner"] = None  # default

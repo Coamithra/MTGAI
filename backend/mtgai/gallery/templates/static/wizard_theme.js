@@ -974,16 +974,9 @@
   // Helpers
   // ------------------------------------------------------------------
 
-  function escHtml(text) {
-    if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  }
+  const escHtml = W.escHtml;
 
-  function escAttr(text) {
-    return escHtml(text).replace(/"/g, '&quot;');
-  }
+  const escAttr = W.escAttr;
 
   // ------------------------------------------------------------------
   // Footer — Next-step (Theme → Skeleton)

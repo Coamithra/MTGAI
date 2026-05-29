@@ -207,10 +207,7 @@
     }
   }
 
-  function cssEsc(s) {
-    if (window.CSS && CSS.escape) return CSS.escape(s);
-    return String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
-  }
+  const cssEsc = W.cssEsc;
 
   // ------------------------------------------------------------------
   // Break-point toggle (per design §6.7 / §8.2)
@@ -394,10 +391,5 @@
     return hours + 'h ' + mins + 'm';
   }
 
-  function escHtml(text) {
-    if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  }
+  const escHtml = W.escHtml;
 })();

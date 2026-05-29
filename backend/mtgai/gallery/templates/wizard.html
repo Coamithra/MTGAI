@@ -20,8 +20,12 @@
 {% endblock %}
 
 {% block scripts %}
-{# wizard.js's IIFE installs window.MTGAIWizard.registerTabRenderer; the
-   per-tab modules call it at parse time, so they must load after the shell. #}
+{# wizard_util.js installs the shared leaf helpers (W.escHtml/escAttr/cssEsc,
+   the stage-tab DOM lookups, W.reportError) used by the shell and every tab, so
+   it loads before everything. wizard.js's IIFE then installs
+   window.MTGAIWizard.registerTabRenderer; the per-tab modules call it at parse
+   time, so they must load after the shell. #}
+<script src="/static/wizard_util.js"></script>
 <script src="/static/wizard.js"></script>
 <script src="/static/wizard_project.js"></script>
 <script src="/static/wizard_theme.js"></script>

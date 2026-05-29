@@ -706,7 +706,7 @@
     } else if (status === 'completed') {
       const isFinal = !next;
       if (isFinal) {
-        html = `<span class="wiz-footer-complete" role="status">&#10003; Set complete</span>`;
+        html = `<span class="wiz-footer-complete" role="status">✓ Set complete</span>`;
       } else {
         html = `<span class="wiz-footer-note">Cards generated. Engine is on ${escHtml(nextName)} — switch tabs to follow.</span>`;
       }
@@ -775,22 +775,11 @@
   // Helpers
   // --------------------------------------------------------------------
 
-  function bodyRoot() {
-    return document.querySelector(`.wiz-tab-body[data-tab-id="${STAGE_ID}"]`);
-  }
+  const bodyRoot = () => W.tabRoot(STAGE_ID);
 
-  function getFooter(root) {
-    return root && root.querySelector('[data-role="footer"]');
-  }
+  const getFooter = (root) => W.tabFooter(root);
 
-  function escHtml(text) {
-    if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  }
+  const escHtml = W.escHtml;
 
-  function escAttr(text) {
-    return escHtml(text).replace(/"/g, '&quot;');
-  }
+  const escAttr = W.escAttr;
 })();

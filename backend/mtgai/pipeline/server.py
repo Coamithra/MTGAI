@@ -14,7 +14,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import (
     HTMLResponse,
     JSONResponse,
@@ -97,6 +97,41 @@ def _require_active_project() -> active_project.ProjectState:
     if project is None:
         raise _NoActiveProject
     return project
+
+
+def read_theme_or_none() -> Any:
+    """Return the active project's parsed ``theme.json``, or ``None`` if unavailable.
+
+    Names the "swallow :class:`NoAssetFolderError` → None" intent shared by the
+    mechanics / archetypes / skeleton ``state`` endpoints: no project open (or no
+    asset folder picked yet) isn't an error for first-paint state — the tab just
+    renders without the theme excerpt.
+    """
+    try:
+        return _read_json(_theme_path(), None)
+    except NoAssetFolderError:
+        return None
+
+
+def register_exception_handlers(app: FastAPI) -> None:
+    """Register the wizard's 409 guard handlers on the FastAPI ``app``.
+
+    Endpoints let :class:`_NoActiveProject` / :class:`NoAssetFolderError`
+    propagate instead of each wrapping the guard in a ``try/except`` — these
+    handlers centralize the translation, so the duplicated guard prologue
+    collapses to a single inline ``_require_active_project()`` /
+    ``set_artifact_dir()`` call. The flat ``{error, code}`` payload (which the
+    wizard client + tests rely on) is preserved; a bare ``HTTPException`` would
+    nest it under ``detail``.
+    """
+
+    @app.exception_handler(_NoActiveProject)
+    async def _handle_no_active_project(request: Request, exc: _NoActiveProject) -> JSONResponse:
+        return _no_active_project_response()
+
+    @app.exception_handler(NoAssetFolderError)
+    async def _handle_no_asset_folder(request: Request, exc: NoAssetFolderError) -> JSONResponse:
+        return _no_asset_folder_response(exc)
 
 
 # ---------------------------------------------------------------------------
@@ -235,15 +270,11 @@ async def save_theme(request: Request):
     The body is the assembled theme payload. Returns 409 if no project
     is open (the wizard sends the user to Project Settings to fix it).
     """
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
-    body = await request.json()
-    try:
-        theme_path = _theme_path()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    project = _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    theme_path = _theme_path()
 
     theme_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(
@@ -264,14 +295,8 @@ async def save_theme(request: Request):
 @api_router.get("/theme/load")
 async def load_theme():
     """Return the saved theme.json for the active project, or 404 if absent."""
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
-    try:
-        theme_path = _theme_path()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    _require_active_project()
+    theme_path = _theme_path()
     if not theme_path.exists():
         return JSONResponse({"error": "No theme.json for set"}, status_code=404)
 
@@ -384,7 +409,9 @@ def _theme_extract_model_key() -> str:
 @api_router.post("/theme/analyze")
 async def analyze_extraction_endpoint(request: Request):
     """Analyze uploaded content: count tokens, estimate cost."""
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     upload_id = body.get("upload_id", "")
     model_key = body.get("model_key") or _theme_extract_model_key()
 
@@ -915,7 +942,9 @@ async def extract_section_endpoint(request: Request):
     - ``done`` — terminal event with ``cost_usd``
     - ``error`` — fatal worker exception or busy-lock rejection
     """
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     theme_text = body.get("theme_text", "")
     kind = body.get("kind", "constraints")
     model_key = body.get("model_key") or _theme_extract_model_key()
@@ -1063,10 +1092,7 @@ async def wizard_project_payload() -> JSONResponse:
     Returns 409 ``no_active_project`` when nothing is open so the
     client can prompt the user to New / Open.
     """
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     return JSONResponse(_project_payload(project))
 
 
@@ -1078,11 +1104,10 @@ async def wizard_project_save_set_code(request: Request) -> JSONResponse:
     so it gets its own tiny endpoint instead of riding /params. Empty
     is allowed (the label is purely cosmetic).
     """
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
-    body = await request.json()
+    project = _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     raw = body.get("set_code", "")
     if not isinstance(raw, str):
         return JSONResponse({"error": "set_code must be a string"}, status_code=400)
@@ -1103,12 +1128,11 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
     """
     from mtgai.settings.model_settings import SetParams, apply_settings
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
 
     current = settings.set_params
     name = body.get("set_name", current.set_name)
@@ -1175,12 +1199,11 @@ async def wizard_project_save_theme_input(request: Request) -> JSONResponse:
     """
     from mtgai.settings.model_settings import ThemeInputSource, apply_settings
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
 
     kind = body.get("kind")
     if kind not in ("none", "pdf", "text", "existing"):
@@ -1233,12 +1256,11 @@ async def wizard_project_save_break(request: Request) -> JSONResponse:
     from mtgai.pipeline.models import STAGE_DEFINITIONS
     from mtgai.settings.model_settings import apply_settings
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
 
     stage_id = body.get("stage_id")
     review = body.get("review")
@@ -1302,12 +1324,11 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
     """
     from mtgai.settings.model_settings import apply_settings
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
 
     kind = body.get("kind")
     stage_id = body.get("stage_id")
@@ -1350,12 +1371,11 @@ async def wizard_project_apply_preset(request: Request) -> JSONResponse:
     """
     from mtgai.settings.model_settings import ModelSettings, apply_settings
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     current = project.settings
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     name = body.get("name")
     if not isinstance(name, str) or not name.strip():
         return JSONResponse({"error": "Preset name required"}, status_code=400)
@@ -1380,12 +1400,11 @@ async def wizard_project_apply_preset(request: Request) -> JSONResponse:
 @router.post("/api/wizard/project/preset/save")
 async def wizard_project_save_preset(request: Request) -> JSONResponse:
     """Save the active project's model assignments + break points as a profile."""
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     name = body.get("name")
     if not isinstance(name, str) or not name.strip():
         return JSONResponse({"error": "Profile name required"}, status_code=400)
@@ -1411,10 +1430,7 @@ async def wizard_project_start(request: Request) -> JSONResponse:
     * ``"none"`` — refuse with 400; the Start button should not have
       been enabled.
     """
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
 
     if not settings.asset_folder:
@@ -1656,7 +1672,9 @@ async def project_open(request: Request) -> JSONResponse:
     from mtgai.pipeline.engine import cleanup_orphan_running_stages
     from mtgai.settings.model_settings import parse_project_toml
 
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     if (resp := await _project_switch_guard(body)) is not None:
         return resp
     if not isinstance(body, dict):
@@ -1701,7 +1719,9 @@ async def project_materialize(request: Request) -> JSONResponse:
         dump_project_toml,
     )
 
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     if (resp := await _project_switch_guard(body)) is not None:
         return resp
     if not isinstance(body, dict):
@@ -1749,10 +1769,7 @@ async def project_serialize() -> JSONResponse:
     """
     from mtgai.settings.model_settings import dump_project_toml
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     return JSONResponse(
         {
             "success": True,
@@ -1810,12 +1827,11 @@ async def wizard_project_save_asset_folder(request: Request) -> JSONResponse:
     """
     from mtgai.settings.model_settings import apply_settings
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     folder = body.get("asset_folder", "")
     if not isinstance(folder, str):
         return JSONResponse({"error": "asset_folder must be a string"}, status_code=400)
@@ -1850,12 +1866,11 @@ async def wizard_project_save_debug(request: Request) -> JSONResponse:
     """
     from mtgai.settings.model_settings import DebugSettings, apply_settings
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
 
     flag = body.get("flag")
     value = body.get("value")
@@ -1990,10 +2005,7 @@ async def wizard_advance() -> JSONResponse:
     client can update the URL on the explicit click path. Auto-advance
     paths don't need this — SSE handles tab spawning in place.
     """
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
 
     existing = load_state()
     if existing is None:
@@ -2123,11 +2135,10 @@ async def wizard_edit_preview(request: Request) -> JSONResponse:
     is set when the user is editing the theme-input field on Project Settings
     (the cascade also wipes theme.json so the next Start re-extracts).
     """
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
-    body = await request.json()
+    _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     from_stage = body.get("from_stage")
     if not isinstance(from_stage, str) or not from_stage:
         return JSONResponse({"error": "from_stage required"}, status_code=400)
@@ -2229,11 +2240,10 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
         apply_settings,
     )
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
-    body = await request.json()
+    project = _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     from_stage = body.get("from_stage")
     if not isinstance(from_stage, str) or not from_stage:
         return JSONResponse({"error": "from_stage required"}, status_code=400)
@@ -2267,10 +2277,7 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
             status_code=409,
         )
 
-    try:
-        state = load_state()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    state = load_state()
     try:
         start_idx = _resolve_edit_point(from_stage, state)
     except ValueError as e:
@@ -2346,10 +2353,7 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
             update["theme_input"] = new_ti
         apply_settings(settings.model_copy(update=update))
 
-    try:
-        artifact_dir = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    artifact_dir = set_artifact_dir()
 
     if theme_payload is not None:
         if not isinstance(theme_payload, dict):
@@ -2475,24 +2479,15 @@ async def wizard_mechanics_state() -> JSONResponse:
     """
     from mtgai.generation.mechanic_generator import detect_keyword_collisions
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
 
-    try:
-        mech_dir = _mechanics_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    mech_dir = _mechanics_dir()
 
     candidates = _read_json(mech_dir / "candidates.json", [])
     approved = _read_json(mech_dir / "approved.json", None)
     pick_rationale = _read_json(mech_dir / "pick-rationale.json", None)
-    try:
-        theme = _read_json(_theme_path(), None)
-    except NoAssetFolderError:
-        theme = None
+    theme = read_theme_or_none()
     if not isinstance(candidates, list):
         candidates = []
 
@@ -2581,10 +2576,7 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
         generate_mechanic_candidates,
     )
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     pool = candidate_count(project.settings.set_params.mechanic_count)
     body, err = await _read_request_json(request)
     if err is not None:
@@ -2600,10 +2592,7 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
             {"error": (f"candidate_index must be an int in [0, {pool})")},
             status_code=400,
         )
-    try:
-        mech_dir = _mechanics_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    mech_dir = _mechanics_dir()
 
     # Stream the regenerated candidate into the wizard via the same SSE events
     # the engine path uses, but rebound to the *one* slot being refreshed:
@@ -2709,10 +2698,7 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
         pick_best_mechanics,
     )
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     pool = candidate_count(project.settings.set_params.mechanic_count)
     body, err = await _read_request_json(request)
     if err is not None:
@@ -2734,10 +2720,7 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
     initial_generate = not indices and not candidates
     if not indices and not initial_generate:
         return JSONResponse({"error": "Nothing to refresh — no AI-flagged rows"}, status_code=400)
-    try:
-        mech_dir = _mechanics_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    mech_dir = _mechanics_dir()
 
     # Stream candidates into the wizard via the same SSE events the engine
     # path uses. Two modes:
@@ -2913,10 +2896,7 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
     """
     from mtgai.generation.mechanic_generator import persist_mechanic_selection
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
     body, err = await _read_request_json(request)
     if err is not None:
@@ -2946,10 +2926,7 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
     if len(set(picks)) != len(picks):
         return JSONResponse({"error": "picks must be unique"}, status_code=400)
 
-    try:
-        mech_dir = _mechanics_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    mech_dir = _mechanics_dir()
 
     approved = persist_mechanic_selection(
         mech_dir,
@@ -3011,10 +2988,7 @@ async def wizard_mechanics_pick(request: Request) -> JSONResponse:
         pick_best_mechanics,
     )
 
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    _require_active_project()
     body, err = await _read_request_json(request)
     if err is not None:
         return err
@@ -3025,10 +2999,7 @@ async def wizard_mechanics_pick(request: Request) -> JSONResponse:
         return JSONResponse({"error": "candidates must be a list of dicts"}, status_code=400)
     if not candidates:
         return JSONResponse({"error": "No candidates to pick from"}, status_code=400)
-    try:
-        mech_dir = _mechanics_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    mech_dir = _mechanics_dir()
 
     with ai_lock.hold("Mechanic AI pick") as acquired:
         if not acquired:
@@ -3148,16 +3119,10 @@ async def wizard_archetypes_state() -> JSONResponse:
         pair_label,
     )
 
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
 
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    asset = set_artifact_dir()
 
     archetypes = _read_json(asset / "archetypes.json", [])
     if not isinstance(archetypes, list):
@@ -3176,10 +3141,7 @@ async def wizard_archetypes_state() -> JSONResponse:
     working = _order_working_archetypes(flagged)
     has_content = any((a["name"] or a["description"]) for a in working)
 
-    try:
-        theme = _read_json(_theme_path(), None)
-    except NoAssetFolderError:
-        theme = None
+    theme = read_theme_or_none()
 
     return JSONResponse(
         {
@@ -3210,10 +3172,7 @@ async def wizard_archetypes_refresh_card(request: Request) -> JSONResponse:
     """
     from mtgai.generation.archetype_generator import generate_archetypes, normalize_color_pair
 
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    _require_active_project()
     body, err = await _read_request_json(request)
     if err is not None:
         return err
@@ -3229,10 +3188,7 @@ async def wizard_archetypes_refresh_card(request: Request) -> JSONResponse:
     if working is None:
         return JSONResponse({"error": "archetypes must be a list of dicts"}, status_code=400)
 
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    asset = set_artifact_dir()
 
     ordered = _order_working_archetypes(working)
     with ai_lock.hold("Archetype refresh") as acquired:
@@ -3283,10 +3239,7 @@ async def wizard_archetypes_refresh_all(request: Request) -> JSONResponse:
     """
     from mtgai.generation.archetype_generator import generate_archetypes, normalize_color_pair
 
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    _require_active_project()
     body, err = await _read_request_json(request)
     if err is not None:
         return err
@@ -3317,10 +3270,7 @@ async def wizard_archetypes_refresh_all(request: Request) -> JSONResponse:
     if not refresh_pairs and not initial_generate:
         return JSONResponse({"error": "Nothing to refresh — no AI-flagged pairs"}, status_code=400)
 
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    asset = set_artifact_dir()
 
     ordered = _order_working_archetypes(working)
     with ai_lock.hold("Archetype refresh") as acquired:
@@ -3365,10 +3315,7 @@ async def wizard_archetypes_save(request: Request) -> JSONResponse:
     """
     from mtgai.generation.archetype_generator import pair_label
 
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    _require_active_project()
     body, err = await _read_request_json(request)
     if err is not None:
         return err
@@ -3386,10 +3333,7 @@ async def wizard_archetypes_save(request: Request) -> JSONResponse:
                 status_code=400,
             )
 
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    asset = set_artifact_dir()
 
     clean = _persist_archetypes_working(asset, ordered)
     logger.info("Archetypes save: %d archetypes → %s", len(clean), asset / "archetypes.json")
@@ -3513,14 +3457,8 @@ async def wizard_reprints_state() -> JSONResponse:
     reloads. The reprints stage emits live tiles over SSE while it runs, but those
     are ephemeral — this endpoint is the durable source the tab bootstraps from.
     """
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    _require_active_project()
+    asset = set_artifact_dir()
 
     selection = _read_json(asset / "reprint_selection.json", {})
     selection = selection if isinstance(selection, dict) else {}
@@ -3573,19 +3511,13 @@ async def wizard_reprints_knobs(request: Request) -> JSONResponse:
     rarity = auto). Returns the clamped knobs + the un-jittered preview targets.
     The user then hits Refresh to re-run selection with these knobs.
     """
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    _require_active_project()
     body, err = await _read_request_json(request)
     if err is not None:
         return err
     if not isinstance(body, dict):
         return JSONResponse({"error": "JSON body required"}, status_code=400)
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    asset = set_artifact_dir()
 
     _write_reprint_knobs(asset, body)
     return JSONResponse({"success": True, **_reprint_knobs_payload(asset)})
@@ -3600,17 +3532,11 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
     surfaces alternative picks (the engine stage stays deterministic at temp 0).
     Writes ``reprint_selection.json`` and returns the same shape as ``/state``.
     """
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    _require_active_project()
     body, err = await _read_request_json(request)
     if err is not None:
         return err
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    asset = set_artifact_dir()
 
     skeleton_path = asset / "skeleton.json"
     if not skeleton_path.exists():
@@ -3671,14 +3597,8 @@ async def wizard_lands_state() -> JSONResponse:
     tiles over SSE while running; this endpoint is the durable source the tab
     bootstraps from on reload.
     """
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    _require_active_project()
+    asset = set_artifact_dir()
 
     cards_dir = asset / "cards"
     lands: list[dict] = []
@@ -3726,14 +3646,8 @@ async def wizard_lands_refresh() -> JSONResponse:
     the freshly-written cards. Requires ``skeleton.json`` — lands read the set's
     fixing context from the skeleton's slots.
     """
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    _require_active_project()
+    asset = set_artifact_dir()
 
     skeleton_path = asset / "skeleton.json"
     if not skeleton_path.exists():
@@ -3829,15 +3743,9 @@ async def wizard_card_gen_state() -> JSONResponse:
     SSE while running; this endpoint is the durable source the tab bootstraps from
     on reload and re-reads after a manual refresh.
     """
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    asset = set_artifact_dir()
 
     # Load the skeleton once so each card tile gets the final relabeled
     # descriptor for its slot — the tab shows it under the card so you can
@@ -3886,14 +3794,8 @@ async def wizard_card_gen_refresh() -> JSONResponse:
     ``skeleton.json``. A cancel from the progress strip stops it at the next batch
     boundary (``generate_set`` polls ``ai_lock.is_cancelled()``).
     """
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    _require_active_project()
+    asset = set_artifact_dir()
 
     skeleton_path = asset / "skeleton.json"
     if not skeleton_path.exists():
@@ -3972,15 +3874,9 @@ async def wizard_skeleton_state() -> JSONResponse:
     ``tweaked_text`` (the tab diffs the two), plus whether the relabel has run,
     set params, theme excerpt, model id, and the skeleton stage status.
     """
-    try:
-        project = _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    project = _require_active_project()
     settings = project.settings
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    asset = set_artifact_dir()
 
     skeleton = _read_json(asset / "skeleton.json", {})
     raw = skeleton.get("slots") if isinstance(skeleton, dict) else None
@@ -3989,10 +3885,7 @@ async def wizard_skeleton_state() -> JSONResponse:
         isinstance(s, dict) and (s.get("tweaked_text") or "").strip() for s in (raw or [])
     )
 
-    try:
-        theme = _read_json(_theme_path(), None)
-    except NoAssetFolderError:
-        theme = None
+    theme = read_theme_or_none()
 
     return JSONResponse(
         {
@@ -4049,19 +3942,13 @@ async def wizard_skeleton_knobs(request: Request) -> JSONResponse:
     """
     from mtgai.skeleton.knobs import SkeletonKnobs
 
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    _require_active_project()
     body, err = await _read_request_json(request)
     if err is not None:
         return err
     if not isinstance(body, dict):
         return JSONResponse({"error": "JSON body required"}, status_code=400)
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    asset = set_artifact_dir()
 
     skeleton = _read_json(asset / "skeleton.json", {})
     if not isinstance(skeleton, dict) or not skeleton.get("slots"):
@@ -4104,17 +3991,11 @@ async def wizard_skeleton_knobs_tune(request: Request) -> JSONResponse:
     from mtgai.generation.skeleton_knobs_tuner import tune_skeleton_knobs
     from mtgai.skeleton.knobs import SkeletonKnobs
 
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    _require_active_project()
     body, err = await _read_request_json(request)
     if err is not None:
         return err
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    asset = set_artifact_dir()
 
     skeleton = _read_json(asset / "skeleton.json", {})
     if not isinstance(skeleton, dict) or not skeleton.get("slots"):
@@ -4171,14 +4052,8 @@ async def wizard_skeleton_refresh() -> JSONResponse:
     """
     from mtgai.generation.skeleton_relabel import relabel_skeleton
 
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    _require_active_project()
+    asset = set_artifact_dir()
 
     skeleton = _read_json(asset / "skeleton.json", {})
     if not isinstance(skeleton, dict) or not skeleton.get("slots"):
@@ -4272,10 +4147,7 @@ async def wizard_skeleton_save(request: Request) -> JSONResponse:
     (``reprints``). The client follows up with ``POST /api/wizard/advance``.
     No AI lock — a pure disk write.
     """
-    try:
-        _require_active_project()
-    except _NoActiveProject:
-        return _no_active_project_response()
+    _require_active_project()
     body, err = await _read_request_json(request)
     if err is not None:
         return err
@@ -4298,10 +4170,7 @@ async def wizard_skeleton_save(request: Request) -> JSONResponse:
             )
         edits[sid] = text
 
-    try:
-        asset = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    asset = set_artifact_dir()
 
     skeleton = _read_json(asset / "skeleton.json", {})
     if not isinstance(skeleton, dict) or not skeleton.get("slots"):
@@ -4347,7 +4216,9 @@ async def start_pipeline(request: Request):
     if _engine is not None and _engine.is_running:
         return JSONResponse({"error": "A pipeline is already running"}, status_code=409)
 
-    body = await request.json()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
     config = PipelineConfig(**body)
 
     # Check for existing state — allow resume from previous run
@@ -4488,10 +4359,7 @@ async def get_stage_logs(stage_id: str):
     if state is None:
         return JSONResponse({"error": "No pipeline state"}, status_code=404)
 
-    try:
-        set_dir = set_artifact_dir()
-    except NoAssetFolderError as exc:
-        return _no_asset_folder_response(exc)
+    set_dir = set_artifact_dir()
 
     # Map stage_id to likely log locations
     log_paths: dict[str, list[Path]] = {

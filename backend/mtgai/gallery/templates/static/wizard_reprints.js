@@ -656,27 +656,14 @@
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  function bodyRoot() {
-    return document.querySelector(`.wiz-tab-body[data-tab-id="${STAGE_ID}"]`);
-  }
+  const bodyRoot = () => W.tabRoot(STAGE_ID);
 
-  function getFooter(root) {
-    return root && root.querySelector('[data-role="footer"]');
-  }
+  const getFooter = (root) => W.tabFooter(root);
 
-  function isPastTab(state) {
-    return !!state && state.latestTabId !== STAGE_ID;
-  }
+  const isPastTab = (state) => W.isPastTab(STAGE_ID, state);
 
-  function escHtml(text) {
-    if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  }
+  const escHtml = W.escHtml;
 
-  function escAttr(text) {
-    return escHtml(text).replace(/"/g, '&quot;');
-  }
+  const escAttr = W.escAttr;
 
 })();

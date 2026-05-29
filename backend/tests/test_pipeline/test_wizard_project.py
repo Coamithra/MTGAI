@@ -406,3 +406,24 @@ def test_start_with_pdf_needs_live_upload(client):
     )
     resp = client.post("/api/wizard/project/start", json={"set_code": "ASD"})
     assert resp.status_code == 410
+
+
+def test_malformed_body_returns_400_not_500(client):
+    """A non-JSON body is a clean 400 via the shared ``_read_request_json`` gate.
+
+    Pins the B1 contract: the guard prologue (active-project check) runs first,
+    then the body parse — a malformed payload short-circuits with 400 instead of
+    bubbling up as a 500.
+    """
+    _open_project("ASD")
+    resp = client.post("/api/wizard/project/breaks", content=b"this is not json")
+    assert resp.status_code == 400
+    assert "valid JSON" in resp.json()["error"]
+
+
+def test_malformed_body_still_409s_when_no_project_open(client):
+    """The active-project guard precedes the body parse: no project -> 409, not 400."""
+    active_project.clear_active_project()
+    resp = client.post("/api/wizard/project/breaks", content=b"this is not json")
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "no_active_project"

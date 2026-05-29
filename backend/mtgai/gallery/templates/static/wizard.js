@@ -60,6 +60,12 @@
   // Public surface — tab modules attach to this object so they can be
   // loaded independently of wizard.js's internal scope.
   window.MTGAIWizard = window.MTGAIWizard || {};
+  // Alias the shared global + leaf helpers installed by wizard_util.js (loaded
+  // first) so the shell uses the same W.* helpers as the per-tab modules.
+  const W = window.MTGAIWizard;
+  const escHtml = W.escHtml;
+  const escAttr = W.escAttr;
+  const cssEsc = W.cssEsc;
   window.MTGAIWizard.registerTabRenderer = function (kind, fn) {
     renderers[kind] = fn;
   };
@@ -848,22 +854,6 @@
     showToast._timer = setTimeout(() => {
       toast.classList.remove('show');
     }, 2500);
-  }
-
-  function escHtml(text) {
-    if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  }
-
-  function escAttr(text) {
-    return escHtml(text).replace(/"/g, '&quot;');
-  }
-
-  function cssEsc(s) {
-    if (window.CSS && CSS.escape) return CSS.escape(s);
-    return String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
   }
 
   // ------------------------------------------------------------------
