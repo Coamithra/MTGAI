@@ -384,20 +384,6 @@
     if (!local.knobs) { slot.innerHTML = ''; return; }
     const disabled = isPastTab(state) || local.locked;
 
-    const rows = RARITIES.map(r => {
-      const v = local.knobs[r];
-      const prov = local.provenance[r] || 'auto';
-      const previewN = local.previewTargets[r] != null ? local.previewTargets[r] : 0;
-      return `
-        <div class="wiz-reprints-knob">
-          <label>${escHtml(cap(r))}</label>
-          <input type="number" min="0" step="1" data-knob="${r}"
-                 value="${v != null ? escAttr(String(v)) : ''}"
-                 placeholder="auto (${escAttr(String(previewN))})" ${disabled ? 'disabled' : ''}>
-          ${W.provenanceBadge(prov)}
-        </div>`;
-    }).join('');
-
     const total = RARITIES.reduce((a, r) => a + (local.previewTargets[r] || 0), 0);
     const jitter = local.knobs.jitter_pct != null ? local.knobs.jitter_pct : 0.25;
     const pending = local.knobsDirty
@@ -414,7 +400,7 @@
           exact. The mix is told to the model as soft guidance — a near miss is
           fine — and it places the picks on the plainest slots.
         </p>
-        <div class="wiz-reprints-knob-grid">${rows}</div>
+        <div class="wiz-reprints-knob-grid" data-role="reprints-knob-grid"></div>
         <div class="wiz-reprints-knob-jitter">
           <label>Jitter</label>
           <input type="number" min="0" max="1" step="0.05" data-knob="jitter_pct"
@@ -425,11 +411,27 @@
       </details>
     `;
 
-    if (!disabled) {
-      slot.querySelectorAll('input[data-knob]').forEach(inp => {
-        inp.onchange = () => onKnobChange(root, state);
-      });
-    }
+    // Per-rarity targets via the shared W.KnobPanel: flat, nullable (blank = auto
+    // with an "auto (N)" placeholder), badge after the input (the fixed-width
+    // label can't hold it). Any change re-reads + persists via onKnobChange.
+    W.KnobPanel(slot.querySelector('[data-role="reprints-knob-grid"]'), {
+      specs: RARITIES.map(r => ({ key: r, label: cap(r), min: 0, step: 1 })),
+      values: local.knobs,
+      provenance: local.provenance,
+      defaultProvenance: 'auto',
+      disabled,
+      nullable: true,
+      badgeAfterInput: true,
+      placeholder: (spec) =>
+        `auto (${local.previewTargets[spec.key] != null ? local.previewTargets[spec.key] : 0})`,
+      event: 'change',
+      classes: { row: 'wiz-reprints-knob' },
+      onChange: () => onKnobChange(root, state),
+    });
+
+    // Jitter lives outside the rarity grid (own row + hint); bind it like a knob.
+    const j = slot.querySelector('input[data-knob="jitter_pct"]');
+    if (j) j.onchange = () => onKnobChange(root, state);
   }
 
   function readKnobInputs(root) {

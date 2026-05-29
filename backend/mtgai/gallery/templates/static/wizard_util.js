@@ -75,6 +75,116 @@
     return `<span class="wiz-rarity wiz-rarity-${W.escAttr(key)}">${W.escHtml(word || '?')}</span>`;
   };
 
+  // --- KnobPanel: spec-driven bounded-control grid -------------------------
+  // Skeleton and Reprints both render a grid of bounded numeric "knob" controls
+  // (label + provenance badge + number input + optional range hint / pin) and wire
+  // the same input/pin bookkeeping — they had grown divergent copies of that
+  // render+bind logic. W.KnobPanel renders the rows (grouped or flat) into a
+  // container and binds the events, delegating the *reaction* to onChange/onPin so
+  // each tab keeps its own state model + extras (skeleton's cycles, reprints'
+  // jitter + preview). Each tab passes its own CSS class names, so sharing the
+  // logic doesn't force a shared look. The provenance badge is W.provenanceBadge.
+  //
+  //   container — rendered into (innerHTML replaced); its own class is the grid.
+  //   opts:
+  //     specs      [{key,label,min,max?,step,default?,help?,group?}] (normalized).
+  //     values     {key: number|null}.
+  //     provenance {key: 'ai'|'user'|'auto'|'default'}.
+  //     defaultProvenance — badge value for a key absent from `provenance`
+  //                  (skeleton 'default', reprints 'auto'); omit → no badge.
+  //     disabled   bool — render every input/pin disabled.
+  //     groups     {groupKey: legend}; present → one fieldset per group (specs
+  //                grouped by spec.group, first-seen order); absent → flat rows.
+  //     nullable   bool — a null value renders a blank input (reprints' "auto");
+  //                else it falls back to spec.default.
+  //     placeholder(spec) → input placeholder string (reprints' "auto (N)").
+  //     rangeHint  bool — append a "min–max" span after the input (skeleton).
+  //     badgeAfterInput — bool; render the provenance badge as a sibling after
+  //                  the input (reprints, whose fixed-width label can't hold it)
+  //                  instead of inside the label (skeleton's flexible label).
+  //     pinned     array of pinned keys — presence enables the pin checkbox.
+  //     event      'input' | 'change' (default 'input') — which fires onChange.
+  //     onChange(key, value, spec) — value is Number, or null on an empty input.
+  //     onPin(key, checked)        — only wired when `pinned` is supplied.
+  //     classes    { group, legend, row, label, input, range, pin } overrides.
+  W.KnobPanel = function (container, opts) {
+    if (!container) return;
+    opts = opts || {};
+    const cls = opts.classes || {};
+    const ca = (c) => (c ? ` class="${c}"` : '');
+    const specs = opts.specs || [];
+    const values = opts.values || {};
+    const provenance = opts.provenance || {};
+    const pinnable = Array.isArray(opts.pinned);
+    const pinned = opts.pinned || [];
+    const ev = opts.event === 'change' ? 'change' : 'input';
+    const dis = opts.disabled ? ' disabled' : '';
+
+    const rowHtml = (spec) => {
+      const key = spec.key;
+      const prov = provenance[key] != null ? provenance[key] : opts.defaultProvenance;
+      const badge = W.provenanceBadge(prov);
+      const val = values[key];
+      let valueAttr;
+      if (val != null) valueAttr = W.escAttr(String(val));
+      else valueAttr = opts.nullable ? '' : W.escAttr(String(spec.default != null ? spec.default : ''));
+      const ph = opts.placeholder ? ` placeholder="${W.escAttr(opts.placeholder(spec))}"` : '';
+      const maxAttr = spec.max != null ? ` max="${W.escAttr(String(spec.max))}"` : '';
+      const title = spec.help ? ` title="${W.escAttr(spec.help)}"` : '';
+      const range = opts.rangeHint
+        ? `<span${ca(cls.range)}>${W.escHtml(String(spec.min))}–${W.escHtml(String(spec.max))}</span>`
+        : '';
+      const pin = pinnable
+        ? `<label${ca(cls.pin)} title="Keep this value on a re-tune">`
+          + `<input type="checkbox" data-knob-pin="${W.escAttr(key)}"`
+          + `${pinned.includes(key) ? ' checked' : ''}${dis}> pin</label>`
+        : '';
+      const labelBadge = opts.badgeAfterInput ? '' : ` ${badge}`;
+      const inputBadge = opts.badgeAfterInput ? ` ${badge}` : '';
+      return `<div${ca(cls.row)} data-knob-row="${W.escAttr(key)}">`
+        + `<label${ca(cls.label)}${title}>${W.escHtml(spec.label)}${labelBadge}</label>`
+        + `<input type="number"${ca(cls.input)} data-knob="${W.escAttr(key)}"`
+        + ` min="${W.escAttr(String(spec.min))}"${maxAttr} step="${W.escAttr(String(spec.step))}"`
+        + ` value="${valueAttr}"${ph}${dis}>`
+        + `${inputBadge}${range}${pin}</div>`;
+    };
+
+    let html;
+    if (opts.groups) {
+      const order = [];
+      const byGroup = {};
+      specs.forEach((s) => {
+        if (!byGroup[s.group]) { byGroup[s.group] = []; order.push(s.group); }
+        byGroup[s.group].push(s);
+      });
+      html = order.map((g) =>
+        `<fieldset${ca(cls.group)}><legend${ca(cls.legend)}>${W.escHtml(opts.groups[g] || g)}</legend>`
+        + `${byGroup[g].map(rowHtml).join('')}</fieldset>`
+      ).join('');
+    } else {
+      html = specs.map(rowHtml).join('');
+    }
+    container.innerHTML = html;
+
+    // Bind. Disabled inputs don't emit user events, so binding unconditionally is
+    // safe (and a tab re-renders on lock changes anyway).
+    const onChange = opts.onChange || (() => {});
+    container.querySelectorAll('input[data-knob]').forEach((inp) => {
+      const key = inp.getAttribute('data-knob');
+      const spec = specs.find((s) => s.key === key);
+      inp.addEventListener(ev, () => {
+        const raw = inp.value;
+        onChange(key, raw === '' ? null : Number(raw), spec);
+      });
+    });
+    if (pinnable && opts.onPin) {
+      container.querySelectorAll('input[data-knob-pin]').forEach((pin) => {
+        const key = pin.getAttribute('data-knob-pin');
+        pin.addEventListener('change', () => opts.onPin(key, pin.checked));
+      });
+    }
+  };
+
   // --- AI-action error reporting -------------------------------------------
   // Standard toast for a failed AI-tab action: the 409 "AI busy" branch plus a
   // generic fallback. Lifted verbatim from the archetypes/skeleton copies.

@@ -183,14 +183,6 @@
     const isPast = isPastTab(state);
     const disabled = isPast || aiBusy();
 
-    // Group specs by their `group`, preserving first-seen order.
-    const groups = [];
-    const byGroup = {};
-    local.knobSpecs.forEach(spec => {
-      if (!byGroup[spec.group]) { byGroup[spec.group] = []; groups.push(spec.group); }
-      byGroup[spec.group].push(spec);
-    });
-
     const tunedCount = local.knobSpecs.filter(s => Number(local.knobs[s.key]) !== Number(s.default)).length;
     const provSummary = local.knobsDefaulted
       ? '<span class="wiz-skel-knob-prov default">defaults (AI tuning unavailable)</span>'
@@ -210,9 +202,7 @@
       </div>
       <p class="wiz-theme-section-desc">Theme-tuned structure for the skeleton — the AI proposes within research-derived ranges, you adjust. Pin a knob to keep it on a re-tune. Hand-edits take effect when you Refresh the skeleton (Step 2); "Refresh with AI" re-tunes them and rebuilds the skeleton for you.</p>
       ${warnHtml}
-      <div class="wiz-skel-knob-groups">
-        ${groups.map(g => groupHtml(g, byGroup[g], disabled)).join('')}
-      </div>
+      <div class="wiz-skel-knob-groups" data-role="skel-knob-grid"></div>
       <fieldset class="wiz-skel-cycle-box">
         <legend>Cycles</legend>
         <p class="wiz-skel-cycle-blurb">Balance-preserving card families — one member per colour, pair, or trio, sharing a template. They're carved out of the rarity budget first. Add or edit them here; changes apply on the next Refresh.</p>
@@ -222,10 +212,45 @@
       <div class="wiz-skel-knob-pending" data-role="knob-pending" ${local.knobsDirty ? '' : 'hidden'}>
         Knob/cycle edits pending — Refresh the skeleton (Step 2) to rebuild from them.
       </div>`;
-    bindKnobs(slot);
+    renderKnobGrid(slot, disabled);
+    const refresh = slot.querySelector('[data-role="knob-refresh"]');
+    if (refresh) refresh.onclick = onKnobsRefresh;
     paintCycleList(slot, disabled);
     const addBtn = slot.querySelector('[data-role="cycle-add"]');
     if (addBtn) addBtn.onclick = onAddCycle;
+  }
+
+  // Render Step-1's knob grid via the shared W.KnobPanel: grouped fieldsets,
+  // pinnable, range hints. A hand edit stamps 'user' provenance + flags the
+  // grid dirty (it doesn't rebuild until a Refresh); a pin toggles the keep-list.
+  function renderKnobGrid(slot, disabled) {
+    W.KnobPanel(slot.querySelector('[data-role="skel-knob-grid"]'), {
+      specs: local.knobSpecs,
+      values: local.knobs,
+      provenance: local.knobs.provenance || {},
+      defaultProvenance: 'default',
+      disabled,
+      groups: GROUP_LABELS,
+      rangeHint: true,
+      pinned: local.knobs.pinned || [],
+      event: 'input',
+      classes: {
+        group: 'wiz-skel-knob-group',
+        row: 'wiz-skel-knob',
+        range: 'wiz-skel-knob-range',
+        pin: 'wiz-skel-knob-pin',
+      },
+      onChange: (key, value) => {
+        local.knobs[key] = value;
+        local.knobs.provenance = local.knobs.provenance || {};
+        local.knobs.provenance[key] = 'user'; // §5 provenance: hand edit
+        setKnobsDirty(true);
+      },
+      onPin: (key, checked) => {
+        local.knobs.pinned = (local.knobs.pinned || []).filter(k => k !== key);
+        if (checked) local.knobs.pinned.push(key);
+      },
+    });
   }
 
   // ----------------------------------------------------------------------
@@ -334,55 +359,6 @@
 
   function newCycleId() {
     return 'cyc-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
-  }
-
-  function groupHtml(group, specs, disabled) {
-    return `
-      <fieldset class="wiz-skel-knob-group">
-        <legend>${escHtml(GROUP_LABELS[group] || group)}</legend>
-        ${specs.map(s => knobRowHtml(s, disabled)).join('')}
-      </fieldset>`;
-  }
-
-  function knobRowHtml(spec, disabled) {
-    const val = local.knobs[spec.key];
-    const prov = (local.knobs.provenance || {})[spec.key] || 'default';
-    const pinned = (local.knobs.pinned || []).includes(spec.key);
-    const badge = W.provenanceBadge(prov);
-    return `
-      <div class="wiz-skel-knob" data-knob="${escAttr(spec.key)}">
-        <label title="${escAttr(spec.help || '')}">${escHtml(spec.label)} ${badge}</label>
-        <input type="number" data-role="knob-input" min="${spec.min}" max="${spec.max}"
-               step="${spec.step}" value="${val == null ? spec.default : val}" ${disabled ? 'disabled' : ''}>
-        <span class="wiz-skel-knob-range">${spec.min}–${spec.max}</span>
-        <label class="wiz-skel-knob-pin" title="Keep this value on a re-tune">
-          <input type="checkbox" data-role="knob-pin" ${pinned ? 'checked' : ''} ${disabled ? 'disabled' : ''}> pin
-        </label>
-      </div>`;
-  }
-
-  function bindKnobs(slot) {
-    slot.querySelectorAll('.wiz-skel-knob').forEach(row => {
-      const key = row.dataset.knob;
-      const input = row.querySelector('[data-role="knob-input"]');
-      const pin = row.querySelector('[data-role="knob-pin"]');
-      if (input) {
-        input.addEventListener('input', () => {
-          local.knobs[key] = input.value === '' ? null : Number(input.value);
-          local.knobs.provenance = local.knobs.provenance || {};
-          local.knobs.provenance[key] = 'user';  // §5 provenance: hand edit
-          setKnobsDirty(true);
-        });
-      }
-      if (pin) {
-        pin.addEventListener('change', () => {
-          local.knobs.pinned = (local.knobs.pinned || []).filter(k => k !== key);
-          if (pin.checked) local.knobs.pinned.push(key);
-        });
-      }
-    });
-    const refresh = slot.querySelector('[data-role="knob-refresh"]');
-    if (refresh) refresh.onclick = onKnobsRefresh;
   }
 
   // Show/hide the "knob edits pending" hint. A hand-edited knob doesn't rebuild
@@ -877,7 +853,7 @@
       lockClass: 'wiz-skel-locked',
       selectors: [
         '.wiz-skel-tweak', '[data-role="skel-refresh"]', '[data-role="knob-refresh"]',
-        '[data-role="knob-input"]', '[data-role="knob-pin"]', '[data-role="cycle-add"]',
+        'input[data-knob]', 'input[data-knob-pin]', '[data-role="cycle-add"]',
         '.wiz-skel-cycle-item input', '.wiz-skel-cycle-item select', '.wiz-skel-cycle-item button',
       ],
       footerSelector: '[data-role="skel-save-advance"]',
