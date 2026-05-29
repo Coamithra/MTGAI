@@ -76,9 +76,18 @@ def _make_candidate(name: str) -> dict:
 
 
 def _stub_llm(monkeypatch) -> None:
-    """Make ``generate_with_tool`` a no-LLM stub returning 6 candidates."""
+    """Make ``generate_with_tool`` a no-LLM stub: generation returns 6 candidates;
+    every council reviewer passes OK (so no synth runs and drafts are accepted
+    unchanged — the cheap path)."""
 
     def stub(*args, **kwargs):
+        schema = kwargs.get("tool_schema") or (args[2] if len(args) >= 3 else {})
+        if (schema or {}).get("name") == "submit_mechanic_review":
+            return {
+                "result": {"verdict": "OK", "issues": []},
+                "input_tokens": 0,
+                "output_tokens": 0,
+            }
         return {
             "result": {"mechanics": [_make_candidate(f"M{i}") for i in range(6)]},
             "input_tokens": 1,
@@ -238,13 +247,19 @@ def test_refresh_all_reruns_picker_and_returns_picks(client, isolated_output, mo
     asset = isolated_output / "sets" / "TST"
     _seed_project(asset, mechanic_count=3)
 
-    # Tool-aware stub: the generation tool returns the canned 6-mechanic
-    # array; the review tool passes through unchanged (no mechanic field →
-    # ``review_mechanic`` falls back to the draft); the picker tool returns
-    # a fixed 1-based selection that maps to 0-based picks [0, 2, 4].
+    # Tool-aware stub: generation returns the canned 6-mechanic array; every
+    # council reviewer passes OK (so no synth runs and drafts are accepted
+    # unchanged); the picker returns a fixed 1-based selection mapping to
+    # 0-based picks [0, 2, 4].
     def stub(*args, **kwargs):
         schema = kwargs.get("tool_schema") or (args[2] if len(args) >= 3 else {})
         name = (schema or {}).get("name", "")
+        if name == "submit_mechanic_review":
+            return {
+                "result": {"verdict": "OK", "issues": []},
+                "input_tokens": 0,
+                "output_tokens": 0,
+            }
         if name == "select_best_mechanics":
             return {
                 "result": {
@@ -258,7 +273,7 @@ def test_refresh_all_reruns_picker_and_returns_picks(client, isolated_output, mo
                 "input_tokens": 1,
                 "output_tokens": 1,
             }
-        # generation tool (review tool also reaches here and falls back safely)
+        # generation tool
         return {
             "result": {"mechanics": [_make_candidate(f"M{i}") for i in range(6)]},
             "input_tokens": 1,

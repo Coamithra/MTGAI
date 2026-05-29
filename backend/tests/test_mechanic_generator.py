@@ -699,9 +699,20 @@ def test_generate_mechanic_candidates_regen_fallback_accepts_best_effort(
         }
 
     monkeypatch.setattr(mg, "generate_with_tool", stub)
-    result = mg.generate_mechanic_candidates(count=2)
+    drafts: list[int] = []
+    finalized: list[int] = []
+    result = mg.generate_mechanic_candidates(
+        count=2,
+        on_draft=lambda pos, mech: drafts.append(pos),
+        on_finalized=lambda pos, mech, notes: finalized.append(pos),
+    )
     assert len(result["mechanics"]) == 2
     assert all(m["_review_verdict"] == "REVISE" for m in result["mechanics"])
+    # Each slot regenerates once (MAX_MECHANIC_REGEN_ATTEMPTS=1) — on_draft fires
+    # for both the initial draft and the regen, at the same position; on_finalized
+    # fires exactly once per slot when the best-effort mechanic is accepted.
+    assert drafts == [1, 1, 2, 2]
+    assert finalized == [1, 2]
 
 
 # ---------------------------------------------------------------------------

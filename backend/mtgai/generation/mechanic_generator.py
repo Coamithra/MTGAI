@@ -23,7 +23,7 @@ import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 
 from mtgai.generation.llm_client import generate_with_tool
 from mtgai.generation.token_budgets import HEAVY, STANDARD
@@ -788,6 +788,27 @@ def _call_synth(
     return resp
 
 
+def _is_well_formed_revision(m: Any) -> TypeGuard[dict]:
+    """Is a synth-revised mechanic usable, or did the re-emit drop/blank fields?
+
+    The synth re-emits the whole mechanic in one heavy call, and a flaky local
+    model (or JSON repair) can return a dict that parses but lost what matters.
+    Require a non-blank ``name`` and a non-blank ``reminder_text`` — the keyword's
+    definition, which ``reminder_injector`` stamps onto cards downstream, so a
+    blank one is a hard regression. (Same name + definition bar the generator's
+    ``_is_valid_candidate`` holds new drafts to.) A revision that fails is
+    discarded so the prior mechanic is kept — a bad synth never degrades a draft
+    below what the council already had.
+    """
+    if not isinstance(m, dict):
+        return False
+    name = m.get("name")
+    reminder = m.get("reminder_text")
+    if not isinstance(name, str) or not name.strip():
+        return False
+    return isinstance(reminder, str) and bool(reminder.strip())
+
+
 def council_review(
     draft: dict,
     *,
@@ -800,8 +821,11 @@ def council_review(
 ) -> dict:
     """Council + revise-in-place loop for one draft mechanic (theme-free).
 
-    Mirrors the card council (``review.ai_review._review_council``) and the
-    validated ``mtg-mech-lab`` ``review_one``:
+    Modelled on the card council (``review.ai_review._review_council``) and the
+    validated ``mtg-mech-lab`` ``review_one`` (with one deliberate divergence: a
+    failed reviewer is skipped rather than fatal, so the verdict is decided by the
+    *surviving* reviewers — local models drop calls often enough that a strict
+    all-N-succeed gate would stall):
 
       1. ``council_size`` independent reviewers critique the current mechanic.
       2. All OK → done; the mechanic stands (the cheap, common path).
@@ -869,7 +893,10 @@ def council_review(
             total_out += out_t
 
         # Open issues from this round, in case it ends still-REVISE and the
-        # caller regenerates from scratch.
+        # caller regenerates from scratch. These critique the mechanic as it
+        # entered this round; if the round's synth then revises it without a
+        # re-review (the budget-exhausted case), the reasons may be slightly
+        # stale relative to the returned mechanic — fine as regen guidance.
         reasons = _open_issue_reasons(reviews)
 
         all_ok = bool(reviews) and all(r["verdict"] == "OK" for r in reviews)
@@ -894,11 +921,18 @@ def council_review(
         total_out += out_t
         s = sresp.get("result") or {}
         revised = s.get("revised_mechanic")
-        if isinstance(revised, dict) and revised:
+        # Only take the revision if it's well-formed — a synth that dropped/blanked
+        # fields must not degrade the draft below what the council already had.
+        if _is_well_formed_revision(revised):
             rev_name = (revised.get("name") or "").strip()
             if original_name and rev_name and rev_name.lower() != original_name.lower():
                 revised["name"] = original_name  # anti-rename guard
             mechanic = revised
+        elif revised is not None:
+            logger.warning(
+                "Council synth revision was malformed (blank name or reminder_text); "
+                "keeping the prior mechanic"
+            )
         note = (s.get("review_notes") or "").strip()
         if note:
             notes.append(note)
