@@ -1,11 +1,16 @@
 # Wizard tab conventions
 
 The wizard is a linear sequence of tabs, each one a stage of the
-pipeline. Project Settings (`pipeline/project`) and Theme
-(`pipeline/theme`) are the two reference implementations — every new
-tab should follow the same patterns. Stage tabs (`wizard_stage.js`)
-inherit most of these too, but stick to the two reference tabs when in
-doubt.
+pipeline. **Build a new tab by *calling* the shared helpers (§17), not by
+copying an existing tab.** Copy-as-bootstrap is what these tabs were grown
+from, and it is exactly what made them drift — byte-identical helpers diverging
+in ways that hid bugs. The shared `window.MTGAIWizard` (`W.*`) surface plus the
+backend helpers catalogued in §17 now own every cross-tab concern; a tab
+supplies only its own content, per-status copy, and reactions. Project Settings
+(`pipeline/project`) and Theme (`pipeline/theme`) remain useful worked examples
+of the patterns below, but they are illustrations, **not templates to fork**.
+§1–§16 document each convention; §17 is a build-a-new-tab recipe + the helper
+index — start there.
 
 Server-side state lives under `backend/mtgai/pipeline/wizard.py` +
 `backend/mtgai/pipeline/server.py`; client logic per tab in
@@ -657,7 +662,55 @@ Reprints badged the same state with different words; Lands' grid CSS literally
 commented "same column sizing as reprints"). The shared surface below replaces
 "copy this block" with "call this helper", so a new tab inherits §1–§16
 behaviour by construction instead of re-deriving it and silently diverging.
-The sections above cite the relevant entries inline; this is the index.
+Below: a build-a-new-tab recipe, then the frontend + backend helper index (the
+sections above cite individual entries inline).
+
+### Building a new tab
+
+A new stage / content tab is assembled, in order, from:
+
+1. **Alias `W`** at the top of the IIFE (`const W = window.MTGAIWizard`), then
+   the leaf helpers it uses (`const escHtml = W.escHtml`, …). Never re-implement
+   them — that is how `escHtml`/`escAttr` ended up byte-identical in ~22 files.
+2. **Mount + first paint** — register with `W.registerStageRenderer(id, render)`
+   (stage tab) or `W.registerTabRenderer` (content tab); fetch state with
+   `W.fetchStageState(id)` (graceful 404 → `null`); show `W.emptyStatePanel(...)`
+   while there's no content.
+3. **Footer** — build the per-status copy, paint it with `W.paintFooter`, and
+   drive the primary button with `W.saveAndAdvance` (review-gated) or
+   `W.advanceStage` (auto-run). The next-stage label/nav comes from
+   `W.nextStageEntryAfter(id)` — never hardcode it (§1).
+4. **AI actions** — route every Refresh / Generate / Re-pick through
+   `W.runAiAction` (§7); never hand-roll the lock → busy → POST → 409 → unlock
+   lifecycle.
+5. **Form lock** — a thin `setLocked` that records `local.locked` and delegates
+   the DOM to `W.setTabLocked`, with the truth source the `aiBusy()` composite
+   (§3).
+6. **Provenance** — render any AI / edited badge with `W.provenanceBadge` (§5)
+   and keep the clear-on-edit contract.
+7. **Bounded controls** — knob / numeric panels via `W.KnobPanel`; read-only
+   card tiles via the shared `.wiz-tile*` grid + `W.rarityPill`.
+8. **Live streaming** — wire SSE-driven live tiles with `W.registerStream` +
+   `W.streamUpsert`; per-event semantics stay in the tab's handlers.
+9. **Status pill (§8) + "Stop after this step" toggle (§9)** — the shell renders
+   both; the tab only emits the SSE events / the toggle markup.
+10. **Backend endpoints** — `*/state` merges `_stage_state_base`; `*/save` navs
+    via `_next_stage_nav`; AI endpoints wrap their work in `guarded_ai` and lean
+    on the success-only `_heal_failed_stage` (§7, §15); parse bodies with
+    `_read_request_json`; route the LLM transcript to `<asset>/<stage>/logs`
+    (§16).
+
+If a concern isn't covered by a helper yet, **add it to `wizard_util.js` /
+`server.py` and document it here** — don't copy a block from a sibling tab.
+
+**The art / render / review tabs are the next adopters.** They were scoped out
+of the shared-components pass (`plans/wizard-tab-shared-components.md`) but ride
+the *same* primitives — build them from this recipe, not by forking a stage
+tab. The review-loop instances (conformance / interactions / design-review,
+which appear more than once per run) especially reuse the stage shell, the
+footer/advance helpers, `W.runAiAction`, and `guarded_ai` verbatim; if one of
+those falls short for a review tab, extend the helper rather than re-deriving it
+locally.
 
 ### Frontend — `window.MTGAIWizard`, installed by `wizard_util.js`
 
