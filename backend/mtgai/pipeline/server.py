@@ -2591,7 +2591,7 @@ def _stage_status_in_state(stage_id: str) -> str:
     return "pending"
 
 
-def stage_state_base(stage_id: str, settings: Any) -> dict:
+def _stage_state_base(stage_id: str, settings: Any) -> dict:
     """The common tail every stage tab's ``/state`` payload shares.
 
     The mechanics / archetypes / skeleton ``state`` endpoints all surface the
@@ -2651,7 +2651,7 @@ async def wizard_mechanics_state() -> JSONResponse:
             "approved": approved,
             "pick_rationale": pick_rationale,
             "collisions": {str(idx): name for idx, name in collisions.items()},
-            **stage_state_base("mechanics", settings),
+            **_stage_state_base("mechanics", settings),
         }
     )
 
@@ -3266,7 +3266,7 @@ async def wizard_archetypes_state() -> JSONResponse:
             "archetypes": working,
             "has_content": has_content,
             "pairs": [{"pair": p, "label": pair_label(p)} for p in COLOR_PAIRS],
-            **stage_state_base("archetypes", settings),
+            **_stage_state_base("archetypes", settings),
         }
     )
 
@@ -3983,7 +3983,7 @@ async def wizard_skeleton_state() -> JSONResponse:
         {
             "slots": slots,
             "has_tweaked": has_tweaked,
-            **stage_state_base("skeleton", settings),
+            **_stage_state_base("skeleton", settings),
             # Surfaced so the tab can warn after a reload that the last relabel
             # was kept partial. Persisted on skeleton.json by the stage/refresh.
             "incomplete": bool(skeleton.get("relabel_incomplete"))

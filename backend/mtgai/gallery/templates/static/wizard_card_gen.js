@@ -704,9 +704,8 @@
     W.paintFooter(footer, html, { role: 'cg-advance', onClick: onAdvance });
   }
 
-  // No navigate: card_gen is the last user-facing review gate before the engine
-  // continues, so on success the button stays disabled and SSE drives the status
-  // forward (a navigate would race the engine's own advance).
+  // No navigate: on success the button stays disabled and SSE drives the status
+  // forward — a navigate would race the engine's own advance.
   function onAdvance() {
     return W.advanceStage({ stageId: STAGE_ID, btnRole: 'cg-advance', navigate: false });
   }

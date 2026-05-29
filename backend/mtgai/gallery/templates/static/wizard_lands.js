@@ -175,6 +175,11 @@
       content.innerHTML = mountShellHtml();
       bootstrap(root, state).catch(err => {
         W.toast('Failed to load lands state: ' + err.message, 'error');
+        // Hard fetch error (network / non-404): paint the empty UI so the tab
+        // doesn't sit stuck on the "Loading…" placeholder (mirrors card_gen).
+        paintSummary(root, state);
+        paintGrid(root, state);
+        paintFooter(getFooter(root), state);
       });
       paintFooter(footer, state);
       return;

@@ -100,7 +100,7 @@ footer *copy* and its body shape:
   `navigate: false` (card_gen) to leave the button disabled and let SSE drive
   the status forward instead of navigating.
 
-The matching backend tail is `stage_state_base(stage_id, settings)`
+The matching backend tail is `_stage_state_base(stage_id, settings)`
 (`pipeline/server.py`), which returns the `{set_params, theme_summary,
 model_id, stage_status}` quad every `*/state` endpoint merges its
 tab-specific keys onto.
