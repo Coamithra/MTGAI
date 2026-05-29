@@ -6,10 +6,14 @@
  * copying byte-identical blocks. This is the "call this, not copy this" leaf
  * layer of the shared-components pass (plans/wizard-tab-shared-components.md).
  *
- * Pure, dependency-free helpers only: HTML/attr/CSS escaping, the stage-tab DOM
- * lookups that were forked under three different names (bodyRoot/tabRoot,
- * getFooter, isPastTab), and the standard AI-action error toast. Anything that
- * owns the AI-lock / fetch lifecycle lives in wizard.js, not here.
+ * Holds the shared stage-tab surface every per-tab module calls instead of
+ * copying: the leaf helpers (HTML/attr/CSS escaping, the stage-tab DOM lookups
+ * that were forked under three names — bodyRoot/tabRoot, getFooter, isPastTab —
+ * and the standard AI-action error toast), the AI-action lifecycle (runAiAction
+ * / setTabLocked), and the stage-tab shell helpers (fetchStageState,
+ * emptyStatePanel, paintFooter, saveAndAdvance, advanceStage). These call into
+ * wizard.js's ``W.*`` surface (postJSON / toast / showBusy / nextStageEntryAfter)
+ * at runtime, so load order doesn't matter even though this file loads first.
  */
 (function () {
   'use strict';
@@ -146,6 +150,142 @@
     if (opts.footerSelector) {
       const btn = root.querySelector(opts.footerSelector);
       if (btn) btn.disabled = on;
+    }
+  };
+
+  // --- Stage-tab shell helpers (conventions §1, §8) ------------------------
+  // The footer / save-advance / first-paint-fetch / empty-state family every
+  // stage tab hand-rolled (mechanics / archetypes / skeleton / reprints / lands
+  // / card_gen). The per-status footer COPY and the per-tab body shape stay in
+  // the tab; the lifecycle boilerplate (fetch+unwrap, the dataset.lastFooter
+  // diff-guard, the save→advance→navigate / advance→navigate sequences with the
+  // button text-spinner) lives here.
+
+  // First-paint state fetch for a stage tab. Returns the parsed
+  // ``GET /api/wizard/<stageId>/state`` body on 2xx, ``null`` on 404 (the route
+  // is missing — caller degrades to its empty state), and throws a normalized
+  // ``Error`` (``data.error`` or ``HTTP <n>``) on any other non-OK so the tab's
+  // bootstrap ``.catch`` toasts it. Network rejections propagate the same way.
+  // Standardizes the graceful-404 path that skeleton/mechanics/archetypes used
+  // to throw on while reprints/lands swallowed.
+  W.fetchStageState = async function (stageId) {
+    const resp = await fetch(`/api/wizard/${stageId}/state`);
+    if (resp.ok) return resp.json();
+    if (resp.status === 404) return null;
+    const data = await resp.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP ${resp.status}`);
+  };
+
+  // The empty / loading placeholder a stage tab paints when it has no content:
+  // the generating message while an AI run fills it, the idle message otherwise.
+  // ``className`` defaults to the shared ``wiz-stage-empty``; tabs with their own
+  // empty-state CSS pass their class to keep the styling.
+  W.emptyStatePanel = function (opts) {
+    opts = opts || {};
+    const cls = opts.className || 'wiz-stage-empty';
+    const msg = opts.generating ? opts.generatingMsg : opts.emptyMsg;
+    return `<div class="${cls}">${W.escHtml(msg || '')}</div>`;
+  };
+
+  // Paint a stage-tab footer: the ``dataset.lastFooter`` diff-guard (skip the
+  // DOM write when the markup is unchanged, so SSE-driven repaints don't thrash
+  // a footer the user may be interacting with) plus the single-primary-button
+  // bind. The tab builds ``html`` (its per-status copy) and names its primary
+  // control via ``primary = { role, onClick }``.
+  W.paintFooter = function (footer, html, primary) {
+    if (!footer) return;
+    if (footer.dataset.lastFooter !== html) {
+      footer.innerHTML = html;
+      footer.dataset.lastFooter = html;
+    }
+    if (primary && primary.role) {
+      const btn = footer.querySelector(`[data-role="${primary.role}"]`);
+      if (btn && primary.onClick) btn.onclick = primary.onClick;
+    }
+  };
+
+  // Resolve a stage tab's footer primary button by data-role (re-grabbed each
+  // call, since paintFooter may have rebuilt the footer since).
+  function footerBtn(stageId, role) {
+    const footer = W.tabFooter(W.tabRoot(stageId));
+    return role && footer ? footer.querySelector(`[data-role="${role}"]`) : null;
+  }
+
+  // Save & Continue: validate → POST the save → POST /api/wizard/advance →
+  // navigate, with the footer button's text-spinner (Saving… → Starting…) and a
+  // restore-on-failure. Used by the review-gated tabs (mechanics / archetypes /
+  // skeleton). opts:
+  //   stageId               — for the navigate fallback (next stage's URL).
+  //   saveUrl, payload      — the save POST; payload may be an object or a thunk
+  //                           read at call time (captures live edits).
+  //   validate              — optional () => string|null; a non-empty string is
+  //                           toasted as an error and aborts before locking.
+  //   isLocked, setLocked   — the tab's re-entrancy guard + form-lock toggle.
+  //   btnRole               — the footer primary button's data-role.
+  W.saveAndAdvance = async function (opts) {
+    if (opts.isLocked && opts.isLocked()) return;
+    if (opts.validate) {
+      const msg = opts.validate();
+      if (msg) { W.toast(msg, 'error'); return; }
+    }
+    if (opts.setLocked) opts.setLocked(true);
+    const btn = footerBtn(opts.stageId, opts.btnRole);
+    const original = btn ? btn.textContent : '';
+    const restore = () => { if (btn) btn.textContent = original; };
+    try {
+      if (btn) btn.textContent = 'Saving…';
+      const payload = typeof opts.payload === 'function' ? opts.payload() : (opts.payload || {});
+      const saveResp = await W.postJSON(opts.saveUrl, payload);
+      const saveData = await saveResp.json().catch(() => ({}));
+      if (!saveResp.ok) { W.reportError(saveResp, saveData, 'Save failed'); restore(); return; }
+      if (btn) btn.textContent = 'Starting…';
+      const advResp = await W.postJSON('/api/wizard/advance', {});
+      const advData = await advResp.json().catch(() => ({}));
+      if (!advResp.ok) { W.reportError(advResp, advData, 'Advance failed'); restore(); return; }
+      const next = W.nextStageEntryAfter(opts.stageId);
+      const nextHref = next ? `/pipeline/${next.id}` : '/pipeline';
+      window.location.assign(advData.navigate_to || saveData.navigate_to || nextHref);
+    } catch (err) {
+      W.toast('Network error: ' + (err && err.message ? err.message : err), 'error');
+      restore();
+    } finally {
+      if (opts.setLocked) opts.setLocked(false);
+    }
+  };
+
+  // Resume the engine (POST /api/wizard/advance) from a paused stage, with the
+  // footer button's text-spinner. Used by the auto-run tabs (reprints / lands
+  // resume / card_gen). opts:
+  //   stageId               — for the navigate fallback.
+  //   isLocked, setLocked   — optional re-entrancy guard + form-lock toggle.
+  //   btnRole               — the footer primary button's data-role.
+  //   navigate              — true (default): on success, navigate to the next
+  //                           tab. false (card_gen): leave the button disabled
+  //                           and let SSE drive the status forward — no nav.
+  W.advanceStage = async function (opts) {
+    if (opts.isLocked && opts.isLocked()) return;
+    const navigate = opts.navigate !== false;
+    const btn = footerBtn(opts.stageId, opts.btnRole);
+    const original = btn ? btn.textContent : '';
+    const restore = () => {
+      if (btn) { btn.disabled = false; btn.textContent = original; }
+      if (opts.setLocked) opts.setLocked(false);
+    };
+    if (opts.setLocked) opts.setLocked(true);
+    if (btn) { btn.disabled = true; btn.textContent = 'Advancing…'; }
+    try {
+      const resp = await W.postJSON('/api/wizard/advance', {});
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) { W.reportError(resp, data, 'Advance failed'); restore(); return; }
+      if (navigate) {
+        const next = W.nextStageEntryAfter(opts.stageId);
+        const nextHref = next ? `/pipeline/${next.id}` : '/pipeline';
+        window.location.assign(data.navigate_to || nextHref);
+      }
+      // navigate:false → button stays disabled; SSE moves the stage forward.
+    } catch (err) {
+      W.toast('Network error: ' + (err && err.message ? err.message : err), 'error');
+      restore();
     }
   };
 })();

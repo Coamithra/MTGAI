@@ -2591,6 +2591,37 @@ def _stage_status_in_state(stage_id: str) -> str:
     return "pending"
 
 
+def stage_state_base(stage_id: str, settings: Any) -> dict:
+    """The common tail every stage tab's ``/state`` payload shares.
+
+    The mechanics / archetypes / skeleton ``state`` endpoints all surface the
+    same four fields — set params, the theme excerpt, the stage's assigned LLM,
+    and its current status (the model assignment is keyed by ``stage_id``). Each
+    endpoint merges its tab-specific keys on top of this base.
+    """
+    return {
+        "set_params": settings.set_params.model_dump(),
+        "theme_summary": _theme_summary(read_theme_or_none()),
+        "model_id": settings.get_llm_model_id(stage_id),
+        "stage_status": _stage_status_in_state(stage_id),
+    }
+
+
+def _next_stage_nav(stage_id: str) -> str:
+    """``navigate_to`` for the stage after ``stage_id`` in ``STAGE_DEFINITIONS``.
+
+    The ``save`` endpoints return this so the client redirects to whatever stage
+    actually follows (rather than a hardcoded target), keeping the footer label
+    and this redirect in lockstep when stages are inserted between. ``/pipeline``
+    when ``stage_id`` is last or unknown.
+    """
+    idx = next((i for i, d in enumerate(STAGE_DEFINITIONS) if d["stage_id"] == stage_id), -1)
+    next_id = (
+        STAGE_DEFINITIONS[idx + 1]["stage_id"] if 0 <= idx < len(STAGE_DEFINITIONS) - 1 else None
+    )
+    return f"/pipeline/{next_id}" if next_id else "/pipeline"
+
+
 @router.get("/api/wizard/mechanics/state")
 async def wizard_mechanics_state() -> JSONResponse:
     """First-paint state for the Mechanics tab.
@@ -2610,7 +2641,6 @@ async def wizard_mechanics_state() -> JSONResponse:
     candidates = _read_json(mech_dir / "candidates.json", [])
     approved = _read_json(mech_dir / "approved.json", None)
     pick_rationale = _read_json(mech_dir / "pick-rationale.json", None)
-    theme = read_theme_or_none()
     if not isinstance(candidates, list):
         candidates = []
 
@@ -2620,11 +2650,8 @@ async def wizard_mechanics_state() -> JSONResponse:
             "candidates": candidates,
             "approved": approved,
             "pick_rationale": pick_rationale,
-            "set_params": settings.set_params.model_dump(),
-            "theme_summary": _theme_summary(theme),
-            "model_id": settings.get_llm_model_id("mechanics"),
             "collisions": {str(idx): name for idx, name in collisions.items()},
-            "stage_status": _stage_status_in_state("mechanics"),
+            **stage_state_base("mechanics", settings),
         }
     )
 
@@ -3052,24 +3079,11 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
     logger.info(
         "Mechanics save: %d picks → %s; sidecars written", len(picks), mech_dir / "approved.json"
     )
-    # Navigate to whatever stage actually follows mechanics in
-    # STAGE_DEFINITIONS (archetypes today) rather than a hardcoded
-    # target — keeps the client's footer label + this redirect in lockstep
-    # when stages are inserted between mechanics and skeleton.
-    mech_idx = next(
-        (i for i, d in enumerate(STAGE_DEFINITIONS) if d["stage_id"] == "mechanics"),
-        -1,
-    )
-    next_id = (
-        STAGE_DEFINITIONS[mech_idx + 1]["stage_id"]
-        if 0 <= mech_idx < len(STAGE_DEFINITIONS) - 1
-        else None
-    )
     return JSONResponse(
         {
             "success": True,
             "approved": approved,
-            "navigate_to": f"/pipeline/{next_id}" if next_id else "/pipeline",
+            "navigate_to": _next_stage_nav("mechanics"),
         }
     )
 
@@ -3247,17 +3261,12 @@ async def wizard_archetypes_state() -> JSONResponse:
     working = _order_working_archetypes(flagged)
     has_content = any((a["name"] or a["description"]) for a in working)
 
-    theme = read_theme_or_none()
-
     return JSONResponse(
         {
             "archetypes": working,
             "has_content": has_content,
             "pairs": [{"pair": p, "label": pair_label(p)} for p in COLOR_PAIRS],
-            "set_params": settings.set_params.model_dump(),
-            "theme_summary": _theme_summary(theme),
-            "model_id": settings.get_llm_model_id("archetypes"),
-            "stage_status": _stage_status_in_state("archetypes"),
+            **stage_state_base("archetypes", settings),
         }
     )
 
@@ -3430,20 +3439,11 @@ async def wizard_archetypes_save(request: Request) -> JSONResponse:
     logger.info("Archetypes save: %d archetypes → %s", len(clean), asset / "archetypes.json")
     _heal_failed_stage("archetypes")
 
-    arch_idx = next(
-        (i for i, d in enumerate(STAGE_DEFINITIONS) if d["stage_id"] == "archetypes"),
-        -1,
-    )
-    next_id = (
-        STAGE_DEFINITIONS[arch_idx + 1]["stage_id"]
-        if 0 <= arch_idx < len(STAGE_DEFINITIONS) - 1
-        else None
-    )
     return JSONResponse(
         {
             "success": True,
             "archetypes": clean,
-            "navigate_to": f"/pipeline/{next_id}" if next_id else "/pipeline",
+            "navigate_to": _next_stage_nav("archetypes"),
         }
     )
 
@@ -3979,16 +3979,11 @@ async def wizard_skeleton_state() -> JSONResponse:
         isinstance(s, dict) and (s.get("tweaked_text") or "").strip() for s in (raw or [])
     )
 
-    theme = read_theme_or_none()
-
     return JSONResponse(
         {
             "slots": slots,
             "has_tweaked": has_tweaked,
-            "set_params": settings.set_params.model_dump(),
-            "theme_summary": _theme_summary(theme),
-            "model_id": settings.get_llm_model_id("skeleton"),
-            "stage_status": _stage_status_in_state("skeleton"),
+            **stage_state_base("skeleton", settings),
             # Surfaced so the tab can warn after a reload that the last relabel
             # was kept partial. Persisted on skeleton.json by the stage/refresh.
             "incomplete": bool(skeleton.get("relabel_incomplete"))
@@ -4282,15 +4277,7 @@ async def wizard_skeleton_save(request: Request) -> JSONResponse:
     logger.info("Skeleton save: %d edited descriptors → %s", len(edits), asset / "skeleton.json")
     _heal_failed_stage("skeleton")
 
-    s_idx = next((i for i, d in enumerate(STAGE_DEFINITIONS) if d["stage_id"] == "skeleton"), -1)
-    next_id = (
-        STAGE_DEFINITIONS[s_idx + 1]["stage_id"]
-        if 0 <= s_idx < len(STAGE_DEFINITIONS) - 1
-        else None
-    )
-    return JSONResponse(
-        {"success": True, "navigate_to": f"/pipeline/{next_id}" if next_id else "/pipeline"}
-    )
+    return JSONResponse({"success": True, "navigate_to": _next_stage_nav("skeleton")})
 
 
 # ---------------------------------------------------------------------------

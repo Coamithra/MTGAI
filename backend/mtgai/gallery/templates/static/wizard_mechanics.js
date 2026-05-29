@@ -119,25 +119,21 @@
   // ----------------------------------------------------------------------
 
   async function bootstrap(root, state) {
-    const resp = await fetch('/api/wizard/mechanics/state');
-    if (!resp.ok) {
-      const data = await resp.json().catch(() => ({}));
-      throw new Error(data.error || `HTTP ${resp.status}`);
+    const data = await W.fetchStageState(STAGE_ID);
+    if (data) {
+      local.candidates = Array.isArray(data.candidates) ? data.candidates : [];
+      local.approved = data.approved || null;
+      local.pickRationale = data.pick_rationale || null;
+      local.setParams = data.set_params || local.setParams;
+      local.themeSummary = data.theme_summary || '';
+      local.modelId = data.model_id || '';
+      local.collisions = data.collisions || {};
+      local.stageStatus = data.stage_status || local.stageStatus;
+      // Pre-seed picks from approved.json if it exists — the user has
+      // already saved once and may be re-opening the tab. Match by name
+      // since indices may have shifted between sessions.
+      local.picks = preselectPicksFromApproved(local.candidates, local.approved);
     }
-    const data = await resp.json();
-    local.candidates = Array.isArray(data.candidates) ? data.candidates : [];
-    local.approved = data.approved || null;
-    local.pickRationale = data.pick_rationale || null;
-    local.setParams = data.set_params || local.setParams;
-    local.themeSummary = data.theme_summary || '';
-    local.modelId = data.model_id || '';
-    local.collisions = data.collisions || {};
-    local.stageStatus = data.stage_status || local.stageStatus;
-    // Pre-seed picks from approved.json if it exists — the user has
-    // already saved once and may be re-opening the tab. Match by name
-    // since indices may have shifted between sessions.
-    local.picks = preselectPicksFromApproved(local.candidates, local.approved);
-
     paintSummary(root);
     paintStrip(root);
     paintSelection(root);
@@ -221,14 +217,12 @@
     const slot = root.querySelector('[data-role="mech-strip"]');
     if (!slot) return;
     if (!local.candidates.length) {
-      const generating = aiBusy();
-      slot.innerHTML = `
-        <div class="wiz-mech-empty">
-          ${generating
-            ? 'Generating candidates… they will stream in here.'
-            : 'No candidates yet. Click "Generate AI candidates" above, or advance from Theme.'}
-        </div>
-      `;
+      slot.innerHTML = W.emptyStatePanel({
+        generating: aiBusy(),
+        generatingMsg: 'Generating candidates… they will stream in here.',
+        emptyMsg: 'No candidates yet. Click "Generate AI candidates" above, or advance from Theme.',
+        className: 'wiz-mech-empty',
+      });
       return;
     }
     slot.innerHTML = local.candidates
@@ -779,57 +773,25 @@
         <span class="wiz-footer-note">${have}/${want} picks selected.</span>
       `;
     }
-    if (footer.dataset.lastFooter !== html) {
-      footer.innerHTML = html;
-      footer.dataset.lastFooter = html;
-    }
-    const btn = footer.querySelector('[data-role="mech-save-advance"]');
-    if (btn) btn.onclick = onSaveAndAdvance;
+    W.paintFooter(footer, html, { role: 'mech-save-advance', onClick: onSaveAndAdvance });
   }
 
-  async function onSaveAndAdvance() {
-    if (local.locked) return;
+  function onSaveAndAdvance() {
     const want = local.setParams.mechanic_count || 0;
-    if (local.picks.size !== want) {
-      W.toast(`Pick exactly ${want} candidate${want === 1 ? '' : 's'} before continuing.`, 'error');
-      return;
-    }
-    setLocked(true);
-    const root = document.querySelector(`.wiz-tab-body[data-tab-id="${STAGE_ID}"]`);
-    const footer = getFooter(root);
-    const btn = footer && footer.querySelector('[data-role="mech-save-advance"]');
-    const original = btn ? btn.textContent : '';
-    if (btn) btn.textContent = 'Saving…';
-    try {
-      const picksSorted = Array.from(local.picks).sort((a, b) => a - b);
-      const saveResp = await W.postJSON('/api/wizard/mechanics/save', {
-        picks: picksSorted,
+    return W.saveAndAdvance({
+      stageId: STAGE_ID,
+      isLocked: () => local.locked,
+      setLocked,
+      btnRole: 'mech-save-advance',
+      validate: () => (local.picks.size === want
+        ? null
+        : `Pick exactly ${want} candidate${want === 1 ? '' : 's'} before continuing.`),
+      saveUrl: '/api/wizard/mechanics/save',
+      payload: () => ({
+        picks: Array.from(local.picks).sort((a, b) => a - b),
         candidates: local.candidates,
-      });
-      const saveData = await saveResp.json().catch(() => ({}));
-      if (!saveResp.ok) {
-        W.toast(saveData.error || `Save failed (${saveResp.status})`, 'error');
-        if (btn) btn.textContent = original;
-        return;
-      }
-
-      if (btn) btn.textContent = 'Starting…';
-      const advResp = await W.postJSON('/api/wizard/advance', {});
-      const advData = await advResp.json().catch(() => ({}));
-      if (!advResp.ok) {
-        W.toast(advData.error || `Advance failed (${advResp.status})`, 'error');
-        if (btn) btn.textContent = original;
-        return;
-      }
-      const next = W.nextStageEntryAfter(STAGE_ID);
-      const nextHref = next ? `/pipeline/${next.id}` : '/pipeline';
-      window.location.assign(advData.navigate_to || saveData.navigate_to || nextHref);
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-      if (btn) btn.textContent = original;
-    } finally {
-      setLocked(false);
-    }
+      }),
+    });
   }
 
   // ----------------------------------------------------------------------

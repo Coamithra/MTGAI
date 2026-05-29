@@ -222,21 +222,9 @@
     //   { lands: [{name, type_line, rarity, oracle_text, flavor_text,
     //              collector_number, design_notes}],
     //     has_content: bool, stage_status: str }
-    let data = null;
-    try {
-      const resp = await fetch('/api/wizard/lands/state');
-      if (resp.ok) {
-        data = await resp.json();
-      } else if (resp.status === 404) {
-        data = null; // endpoint not yet implemented — graceful empty
-      } else {
-        const j = await resp.json().catch(() => ({}));
-        throw new Error(j.error || `HTTP ${resp.status}`);
-      }
-    } catch (err) {
-      if (err.message && err.message.startsWith('HTTP ')) throw err;
-      data = null;
-    }
+    // null = 404 (graceful empty); other non-OK / network errors throw to the
+    // render .catch.
+    const data = await W.fetchStageState(STAGE_ID);
 
     if (data) {
       local.lands = Array.isArray(data.lands) ? data.lands : [];
@@ -295,14 +283,11 @@
     if (!slot) return;
 
     if (!local.hasContent) {
-      const generating = aiBusy();
-      slot.innerHTML = `
-        <div class="wiz-stage-empty">
-          ${generating
-            ? 'Generating land cards…'
-            : 'No land cards yet — this stage runs automatically after Reprints.'}
-        </div>
-      `;
+      slot.innerHTML = W.emptyStatePanel({
+        generating: aiBusy(),
+        generatingMsg: 'Generating land cards…',
+        emptyMsg: 'No land cards yet — this stage runs automatically after Reprints.',
+      });
       return;
     }
 
@@ -427,42 +412,24 @@
       html = `<span class="wiz-footer-note">Runs automatically; no review step.</span>`;
     }
 
-    if (footer.dataset.lastFooter !== html) {
-      footer.innerHTML = html;
-      footer.dataset.lastFooter = html;
-    }
-    const btn = footer.querySelector('[data-role="lands-next"]');
-    if (btn) btn.onclick = () => onGoNext(next, isPaused);
+    W.paintFooter(footer, html, { role: 'lands-next', onClick: () => onGoNext(next, isPaused) });
   }
 
-  async function onGoNext(next, resumeEngine) {
+  function onGoNext(next, resumeEngine) {
     if (local.locked) return;
-    const nextHref = next ? `/pipeline/${next.id}` : '/pipeline';
     // Not paused — the engine already moved on, so this is a plain tab change.
     if (!resumeEngine) {
-      window.location.assign(nextHref);
+      window.location.assign(next ? `/pipeline/${next.id}` : '/pipeline');
       return;
     }
     // Paused at a break point: resume the engine (mirrors the Reprints advance),
     // then navigate to the next tab.
-    setLocked(true);
-    try {
-      const resp = await W.postJSON('/api/wizard/advance', {});
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        if (resp.status === 409 && data.running_action) {
-          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
-        } else {
-          W.toast(data.error || `Advance failed (${resp.status})`, 'error');
-        }
-        return;
-      }
-      window.location.assign(data.navigate_to || nextHref);
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      setLocked(false);
-    }
+    return W.advanceStage({
+      stageId: STAGE_ID,
+      isLocked: () => local.locked,
+      setLocked,
+      btnRole: 'lands-next',
+    });
   }
 
   // ── Form lock (§3) ────────────────────────────────────────────────────────

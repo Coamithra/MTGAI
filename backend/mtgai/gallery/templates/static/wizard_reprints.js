@@ -316,22 +316,9 @@
     // recomputes pool/slot counts:
     //   { selections: SelectionPair[], has_content, pool_size, eligible_slots,
     //     target_count, stage_status }
-    let data = null;
-    try {
-      const resp = await fetch('/api/wizard/reprints/state');
-      if (resp.ok) {
-        data = await resp.json();
-      } else if (resp.status === 404) {
-        data = null; // route missing (shouldn't happen) — graceful empty
-      } else {
-        const j = await resp.json().catch(() => ({}));
-        throw new Error(j.error || `HTTP ${resp.status}`);
-      }
-    } catch (err) {
-      if (err.message && err.message.startsWith('HTTP ')) throw err;
-      // Network error — degrade gracefully to empty state.
-      data = null;
-    }
+    // null = 404 (route missing — graceful empty); other non-OK / network
+    // errors throw to the render .catch.
+    const data = await W.fetchStageState(STAGE_ID);
 
     if (data) {
       local.selections = Array.isArray(data.selections) ? data.selections : [];
@@ -395,14 +382,11 @@
     if (!slot) return;
 
     if (!local.hasContent) {
-      const generating = aiBusy();
-      slot.innerHTML = `
-        <div class="wiz-stage-empty">
-          ${generating
-            ? 'Selecting reprints from the curated pool…'
-            : 'No reprints selected yet — runs after Skeleton.'}
-        </div>
-      `;
+      slot.innerHTML = W.emptyStatePanel({
+        generating: aiBusy(),
+        generatingMsg: 'Selecting reprints from the curated pool…',
+        emptyMsg: 'No reprints selected yet — runs after Skeleton.',
+      });
       return;
     }
 
@@ -588,42 +572,16 @@
       `;
     }
 
-    if (footer.dataset.lastFooter !== html) {
-      footer.innerHTML = html;
-      footer.dataset.lastFooter = html;
-    }
-    const btn = footer.querySelector('[data-role="reprints-advance"]');
-    if (btn) btn.onclick = () => onAdvance();
+    W.paintFooter(footer, html, { role: 'reprints-advance', onClick: onAdvance });
   }
 
-  async function onAdvance() {
-    if (local.locked) return;
-    setLocked(true);
-    const footer = getFooter(bodyRoot());
-    const btn = footer && footer.querySelector('[data-role="reprints-advance"]');
-    const orig = btn ? btn.textContent : '';
-    if (btn) btn.textContent = 'Advancing…';
-    try {
-      const resp = await W.postJSON('/api/wizard/advance', {});
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        if (resp.status === 409 && data.running_action) {
-          W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
-        } else {
-          W.toast(data.error || `Advance failed (${resp.status})`, 'error');
-        }
-        if (btn) btn.textContent = orig;
-        return;
-      }
-      const next = W.nextStageEntryAfter(STAGE_ID);
-      const nextHref = next ? `/pipeline/${next.id}` : '/pipeline';
-      window.location.assign(data.navigate_to || nextHref);
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-      if (btn) btn.textContent = orig;
-    } finally {
-      setLocked(false);
-    }
+  function onAdvance() {
+    return W.advanceStage({
+      stageId: STAGE_ID,
+      isLocked: () => local.locked,
+      setLocked,
+      btnRole: 'reprints-advance',
+    });
   }
 
   // ── Form lock (§3) ────────────────────────────────────────────────────────

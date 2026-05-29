@@ -51,8 +51,10 @@ engine is running, else the `stage_definitions` bootstrap key (added by
 a stage before `pipeline_state` exists). Insert or reorder a stage
 server-side in `STAGE_DEFINITIONS` and every footer follows automatically
 — no client-side stage list to keep in sync. The server side matches:
-`/api/wizard/mechanics/save` computes its `navigate_to` from
-`STAGE_DEFINITIONS` rather than returning a literal path.
+each `*/save` endpoint computes its `navigate_to` via the shared
+`_next_stage_nav(stage_id)` helper (`pipeline/server.py`) — "the stage after
+`stage_id` in `STAGE_DEFINITIONS`, else `/pipeline`" — rather than re-deriving
+the index inline or returning a literal path.
 
 This rule exists because the Mechanics and Theme footers once hardcoded
 `"Skeleton"` / `"Mechanic Generation"` and silently lied the moment the
@@ -66,6 +68,42 @@ References: Project Settings `onSaveAndStart` in
 `wizard_project.js:1313`, Theme `onSaveAndAdvance` and `themeFooterHtml`
 in `wizard_theme.js`, the shared next-step helpers in `wizard.js`, and
 the generic stage footer in `wizard_stage.js` (`stageFooterHtml`).
+
+**Call the shared footer / save-advance helpers, don't hand-roll them.**
+The lifecycle boilerplate every stage tab used to copy lives on
+`window.MTGAIWizard` (`wizard_util.js`); the tab keeps only its per-status
+footer *copy* and its body shape:
+
+* `W.fetchStageState(stageId)` — first-paint fetch of
+  `GET /api/wizard/<stageId>/state`. Returns the parsed body on 2xx, `null`
+  on 404 (route missing → tab degrades to its empty state), and throws a
+  normalized `Error` on any other failure (the bootstrap `.catch` toasts it).
+  Standardizes the graceful-404 path. Bootstrap shape: `const data = await
+  W.fetchStageState(STAGE_ID); if (data) { …hydrate local… } …paint…`.
+* `W.emptyStatePanel({ generating, generatingMsg, emptyMsg, className })` —
+  the empty/loading placeholder a tab paints when it has no content yet
+  (`generating` = `aiBusy()`). `className` defaults to the shared
+  `wiz-stage-empty`.
+* `W.paintFooter(footer, html, { role, onClick })` — owns the
+  `dataset.lastFooter` diff-guard (skip the DOM write when the markup is
+  unchanged so SSE repaints don't thrash a footer mid-interaction) plus the
+  single-primary-button bind. The tab builds `html` from its own
+  branch-per-status copy.
+* `W.saveAndAdvance({ stageId, saveUrl, payload, validate, isLocked,
+  setLocked, btnRole })` — the review-gated tabs' Save & Continue: `validate`
+  → POST save → POST `/api/wizard/advance` → `window.location.assign`, with
+  the button's Saving…→Starting… text-spinner and restore-on-failure.
+  `payload` may be a thunk (read at call time so it captures live edits);
+  `validate` returns an error string (toasted, aborts) or `null`.
+* `W.advanceStage({ stageId, isLocked, setLocked, btnRole, navigate })` — the
+  auto-run tabs' resume: POST `/api/wizard/advance` then navigate. Pass
+  `navigate: false` (card_gen) to leave the button disabled and let SSE drive
+  the status forward instead of navigating.
+
+The matching backend tail is `stage_state_base(stage_id, settings)`
+(`pipeline/server.py`), which returns the `{set_params, theme_summary,
+model_id, stage_status}` quad every `*/state` endpoint merges its
+tab-specific keys onto.
 
 ## 2. Required fields → red asterisk + canStart()
 

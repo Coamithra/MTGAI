@@ -107,20 +107,16 @@
   // ----------------------------------------------------------------------
 
   async function bootstrap(root, state) {
-    const resp = await fetch('/api/wizard/archetypes/state');
-    if (!resp.ok) {
-      const data = await resp.json().catch(() => ({}));
-      throw new Error(data.error || `HTTP ${resp.status}`);
+    const data = await W.fetchStageState(STAGE_ID);
+    if (data) {
+      local.archetypes = Array.isArray(data.archetypes) ? data.archetypes : [];
+      local.pairs = Array.isArray(data.pairs) ? data.pairs : [];
+      local.hasContent = !!data.has_content;
+      local.setParams = data.set_params || local.setParams;
+      local.themeSummary = data.theme_summary || '';
+      local.modelId = data.model_id || '';
+      local.stageStatus = data.stage_status || local.stageStatus;
     }
-    const data = await resp.json();
-    local.archetypes = Array.isArray(data.archetypes) ? data.archetypes : [];
-    local.pairs = Array.isArray(data.pairs) ? data.pairs : [];
-    local.hasContent = !!data.has_content;
-    local.setParams = data.set_params || local.setParams;
-    local.themeSummary = data.theme_summary || '';
-    local.modelId = data.model_id || '';
-    local.stageStatus = data.stage_status || local.stageStatus;
-
     paintSummary(root, state);
     paintGrid(root, state);
     paintFooter(getFooter(root), state);
@@ -173,14 +169,12 @@
     const slot = root.querySelector('[data-role="arch-grid"]');
     if (!slot) return;
     if (!local.hasContent) {
-      const generating = aiBusy();
-      slot.innerHTML = `
-        <div class="wiz-arch-empty">
-          ${generating
-            ? 'Generating the ten draft archetypes…'
-            : 'No archetypes yet. Click "Generate" above, or advance from Mechanics.'}
-        </div>
-      `;
+      slot.innerHTML = W.emptyStatePanel({
+        generating: aiBusy(),
+        generatingMsg: 'Generating the ten draft archetypes…',
+        emptyMsg: 'No archetypes yet. Click "Generate" above, or advance from Mechanics.',
+        className: 'wiz-arch-empty',
+      });
       return;
     }
     const isPast = isPastTab(state);
@@ -386,54 +380,23 @@
         <span class="wiz-footer-note">${filled}/10 archetypes filled.</span>
       `;
     }
-    if (footer.dataset.lastFooter !== html) {
-      footer.innerHTML = html;
-      footer.dataset.lastFooter = html;
-    }
-    const btn = footer.querySelector('[data-role="arch-save-advance"]');
-    if (btn) btn.onclick = onSaveAndAdvance;
+    W.paintFooter(footer, html, { role: 'arch-save-advance', onClick: onSaveAndAdvance });
   }
 
-  async function onSaveAndAdvance() {
-    if (local.locked) return;
-    const filled = local.archetypes.filter(a => (a.name || '').trim() && (a.description || '').trim()).length;
-    if (filled !== 10) {
-      W.toast('Every pair needs a name and an intent before continuing.', 'error');
-      return;
-    }
-    setLocked(true);
-    const root = bodyRoot();
-    const footer = getFooter(root);
-    const btn = footer && footer.querySelector('[data-role="arch-save-advance"]');
-    const original = btn ? btn.textContent : '';
-    if (btn) btn.textContent = 'Saving…';
-    try {
-      const saveResp = await W.postJSON('/api/wizard/archetypes/save', {
-        archetypes: local.archetypes,
-      });
-      const saveData = await saveResp.json().catch(() => ({}));
-      if (!saveResp.ok) {
-        W.toast(saveData.error || `Save failed (${saveResp.status})`, 'error');
-        if (btn) btn.textContent = original;
-        return;
-      }
-      if (btn) btn.textContent = 'Starting…';
-      const advResp = await W.postJSON('/api/wizard/advance', {});
-      const advData = await advResp.json().catch(() => ({}));
-      if (!advResp.ok) {
-        W.toast(advData.error || `Advance failed (${advResp.status})`, 'error');
-        if (btn) btn.textContent = original;
-        return;
-      }
-      const next = W.nextStageEntryAfter(STAGE_ID);
-      const nextHref = next ? `/pipeline/${next.id}` : '/pipeline';
-      window.location.assign(advData.navigate_to || saveData.navigate_to || nextHref);
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-      if (btn) btn.textContent = original;
-    } finally {
-      setLocked(false);
-    }
+  function onSaveAndAdvance() {
+    return W.saveAndAdvance({
+      stageId: STAGE_ID,
+      isLocked: () => local.locked,
+      setLocked,
+      btnRole: 'arch-save-advance',
+      validate: () => {
+        const filled = local.archetypes
+          .filter(a => (a.name || '').trim() && (a.description || '').trim()).length;
+        return filled === 10 ? null : 'Every pair needs a name and an intent before continuing.';
+      },
+      saveUrl: '/api/wizard/archetypes/save',
+      payload: () => ({ archetypes: local.archetypes }),
+    });
   }
 
   // ----------------------------------------------------------------------

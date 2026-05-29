@@ -124,34 +124,31 @@
   // ----------------------------------------------------------------------
 
   async function bootstrap(root, state) {
-    const resp = await fetch('/api/wizard/skeleton/state');
-    if (!resp.ok) {
-      const data = await resp.json().catch(() => ({}));
-      throw new Error(data.error || `HTTP ${resp.status}`);
+    const data = await W.fetchStageState(STAGE_ID);
+    if (data) {
+      local.slots = Array.isArray(data.slots) ? data.slots : [];
+      local.setParams = data.set_params || local.setParams;
+      local.themeSummary = data.theme_summary || '';
+      local.modelId = data.model_id || '';
+      local.stageStatus = data.stage_status || local.stageStatus;
+      local.incomplete = !!data.incomplete;
+      local.knobs = data.knobs || {};
+      local.knobSpecs = Array.isArray(data.knob_specs) ? data.knob_specs : [];
+      local.cycles = Array.isArray(data.cycles) ? data.cycles : [];
+      if (data.cycle_options) local.cycleOptions = data.cycle_options;
+      local.knobsDefaulted = !!data.knobs_defaulted;
+      local.knobWarnings = Array.isArray(data.knob_warnings) ? data.knob_warnings : [];
+      // Re-apply any provisional slots that streamed in before this fetch landed
+      // (a tab mounted mid-relabel: /state returns the pre-relabel default skeleton
+      // while the live stream is already overwriting individual slots).
+      local.slots.forEach(s => {
+        const upd = local.streamUpdates[s.slot_id];
+        if (!upd) return;
+        s.tweaked_text = upd.tweaked_text;
+        s.reserved_card = upd.reserved_card;  // replace (empty clears a stale tag)
+      });
+      local.hasTweaked = !!data.has_tweaked || local.slots.some(s => isChanged(s));
     }
-    const data = await resp.json();
-    local.slots = Array.isArray(data.slots) ? data.slots : [];
-    local.setParams = data.set_params || local.setParams;
-    local.themeSummary = data.theme_summary || '';
-    local.modelId = data.model_id || '';
-    local.stageStatus = data.stage_status || local.stageStatus;
-    local.incomplete = !!data.incomplete;
-    local.knobs = data.knobs || {};
-    local.knobSpecs = Array.isArray(data.knob_specs) ? data.knob_specs : [];
-    local.cycles = Array.isArray(data.cycles) ? data.cycles : [];
-    if (data.cycle_options) local.cycleOptions = data.cycle_options;
-    local.knobsDefaulted = !!data.knobs_defaulted;
-    local.knobWarnings = Array.isArray(data.knob_warnings) ? data.knob_warnings : [];
-    // Re-apply any provisional slots that streamed in before this fetch landed
-    // (a tab mounted mid-relabel: /state returns the pre-relabel default skeleton
-    // while the live stream is already overwriting individual slots).
-    local.slots.forEach(s => {
-      const upd = local.streamUpdates[s.slot_id];
-      if (!upd) return;
-      s.tweaked_text = upd.tweaked_text;
-      s.reserved_card = upd.reserved_card;  // replace (empty clears a stale tag)
-    });
-    local.hasTweaked = !!data.has_tweaked || local.slots.some(s => isChanged(s));
 
     paintSummary(root, state);
     paintKnobs(root, state);
@@ -517,11 +514,12 @@
     const slot = root.querySelector('[data-role="skel-grid"]');
     if (!slot) return;
     if (!local.slots.length) {
-      const generating = aiBusy();
-      slot.innerHTML = `
-        <div class="wiz-skel-empty">
-          ${generating ? 'Generating the skeleton…' : 'No skeleton yet — advance from Archetypes.'}
-        </div>`;
+      slot.innerHTML = W.emptyStatePanel({
+        generating: aiBusy(),
+        generatingMsg: 'Generating the skeleton…',
+        emptyMsg: 'No skeleton yet — advance from Archetypes.',
+        className: 'wiz-skel-empty',
+      });
       return;
     }
     const isPast = isPastTab(state);
@@ -834,50 +832,23 @@
         </button>
         <span class="wiz-footer-note">${local.slots.length} slots.</span>`;
     }
-    if (footer.dataset.lastFooter !== html) {
-      footer.innerHTML = html;
-      footer.dataset.lastFooter = html;
-    }
-    const btn = footer.querySelector('[data-role="skel-save-advance"]');
-    if (btn) btn.onclick = onSaveAndAdvance;
+    W.paintFooter(footer, html, { role: 'skel-save-advance', onClick: onSaveAndAdvance });
   }
 
-  async function onSaveAndAdvance() {
-    if (local.locked) return;
-    if (!local.slots.length || !local.slots.every(s => (s.tweaked_text || '').trim())) {
-      W.toast('Every slot needs a tweaked descriptor before continuing.', 'error');
-      return;
-    }
-    setLocked(true);
-    const root = bodyRoot();
-    const footer = getFooter(root);
-    const btn = footer && footer.querySelector('[data-role="skel-save-advance"]');
-    const original = btn ? btn.textContent : '';
-    if (btn) btn.textContent = 'Saving…';
-    try {
-      const payload = local.slots.map(s => ({ slot_id: s.slot_id, tweaked_text: s.tweaked_text }));
-      const saveResp = await W.postJSON('/api/wizard/skeleton/save', { slots: payload });
-      const saveData = await saveResp.json().catch(() => ({}));
-      if (!saveResp.ok) {
-        W.toast(saveData.error || `Save failed (${saveResp.status})`, 'error');
-        if (btn) btn.textContent = original;
-        return;
-      }
-      if (btn) btn.textContent = 'Starting…';
-      const advResp = await W.postJSON('/api/wizard/advance', {});
-      const advData = await advResp.json().catch(() => ({}));
-      if (!advResp.ok) {
-        W.toast(advData.error || `Advance failed (${advResp.status})`, 'error');
-        if (btn) btn.textContent = original;
-        return;
-      }
-      window.location.assign(advData.navigate_to || saveData.navigate_to || '/pipeline');
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-      if (btn) btn.textContent = original;
-    } finally {
-      setLocked(false);
-    }
+  function onSaveAndAdvance() {
+    return W.saveAndAdvance({
+      stageId: STAGE_ID,
+      isLocked: () => local.locked,
+      setLocked,
+      btnRole: 'skel-save-advance',
+      validate: () => (local.slots.length && local.slots.every(s => (s.tweaked_text || '').trim())
+        ? null
+        : 'Every slot needs a tweaked descriptor before continuing.'),
+      saveUrl: '/api/wizard/skeleton/save',
+      payload: () => ({
+        slots: local.slots.map(s => ({ slot_id: s.slot_id, tweaked_text: s.tweaked_text })),
+      }),
+    });
   }
 
   // ----------------------------------------------------------------------

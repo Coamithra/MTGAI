@@ -281,14 +281,11 @@
       local.stageStatus = stage ? stage.status : 'pending';
       content.innerHTML = mountShellHtml();
       bindControls(root);
-      // Attempt to load card data from the backend; degrade gracefully if
-      // the endpoint doesn't exist yet.
+      // A missing /state route (404) returns null from fetchStageState — the
+      // bootstrap then paints the empty placeholder. A hard error still toasts
+      // and falls back to the placeholder so the tab doesn't look broken.
       bootstrap(root, state).catch(err => {
-        // Don't toast on a 404 — the endpoint is a follow-up; silently
-        // show the placeholder so the tab doesn't look broken.
-        if (!err.message.includes('404')) {
-          W.toast('Failed to load card gen state: ' + err.message, 'error');
-        }
+        W.toast('Failed to load card gen state: ' + err.message, 'error');
         paintGrid(root);
       });
       paintFooter(footer, state, stage);
@@ -317,9 +314,7 @@
       local.bootstrapping = true;
       bootstrap(root, state)
         .catch(err => {
-          if (!err.message.includes('404')) {
-            W.toast('Failed to refresh card gen state: ' + err.message, 'error');
-          }
+          W.toast('Failed to refresh card gen state: ' + err.message, 'error');
           paintGrid(root);
         })
         .finally(() => { local.bootstrapping = false; });
@@ -407,17 +402,13 @@
   }
 
   async function bootstrap(root, state) {
-    const resp = await fetch('/api/wizard/card_gen/state');
-    if (!resp.ok) {
-      const data = await resp.json().catch(() => ({}));
-      throw new Error(data.error || `HTTP ${resp.status}`);
+    const data = await W.fetchStageState(STAGE_ID);
+    if (data) {
+      local.cards = Array.isArray(data.cards) ? data.cards : [];
+      local.hasContent = local.cards.length > 0;
+      local.setParams = data.set_params || local.setParams;
+      local.stageStatus = data.stage_status || local.stageStatus;
     }
-    const data = await resp.json();
-    local.cards = Array.isArray(data.cards) ? data.cards : [];
-    local.hasContent = local.cards.length > 0;
-    local.setParams = data.set_params || local.setParams;
-    local.stageStatus = data.stage_status || local.stageStatus;
-
     rebuildFilterOptions(root);
     paintGrid(root);
     paintFooter(getFooter(root), state, null);
@@ -539,16 +530,13 @@
     if (!slot) return;
 
     if (!local.hasContent) {
-      const running = aiBusy();
-      slot.innerHTML = `
-        <div class="wiz-cardgen-empty">
-          ${running
-            ? 'Cards are generating — they will appear here as each slot completes.'
-            : 'No cards yet. Cards generate after the Skeleton, Reprints, and Lands stages complete '
-              + '— or use “Refresh AI…” above to regenerate them from scratch.'
-          }
-        </div>
-      `;
+      slot.innerHTML = W.emptyStatePanel({
+        generating: aiBusy(),
+        generatingMsg: 'Cards are generating — they will appear here as each slot completes.',
+        emptyMsg: 'No cards yet. Cards generate after the Skeleton, Reprints, and Lands stages '
+          + 'complete — or use “Refresh AI…” above to regenerate them from scratch.',
+        className: 'wiz-cardgen-empty',
+      });
       return;
     }
 
@@ -713,32 +701,14 @@
       html = `<span class="wiz-footer-note">Continue button appears once card generation is ready for review.</span>`;
     }
 
-    if (footer.dataset.lastFooter !== html) {
-      footer.innerHTML = html;
-      footer.dataset.lastFooter = html;
-    }
-    const btn = footer.querySelector('[data-role="cg-advance"]');
-    if (btn) btn.onclick = onAdvance;
+    W.paintFooter(footer, html, { role: 'cg-advance', onClick: onAdvance });
   }
 
-  async function onAdvance() {
-    const footer = getFooter(bodyRoot());
-    const btn = footer && footer.querySelector('[data-role="cg-advance"]');
-    const original = btn ? btn.textContent : '';
-    if (btn) { btn.disabled = true; btn.textContent = 'Advancing…'; }
-    try {
-      const resp = await W.postJSON('/api/wizard/advance', {});
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        W.toast(data.error || 'Advance failed', 'error');
-        if (btn) { btn.disabled = false; btn.textContent = original; }
-        return;
-      }
-      // Button stays disabled — SSE will update status as engine continues.
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-      if (btn) { btn.disabled = false; btn.textContent = original; }
-    }
+  // No navigate: card_gen is the last user-facing review gate before the engine
+  // continues, so on success the button stays disabled and SSE drives the status
+  // forward (a navigate would race the engine's own advance).
+  function onAdvance() {
+    return W.advanceStage({ stageId: STAGE_ID, btnRole: 'cg-advance', navigate: false });
   }
 
   // --------------------------------------------------------------------
