@@ -156,6 +156,26 @@ def test_refresh_card_replaces_only_indexed_slot(client, isolated_output, monkey
     assert on_disk[2]["name"] == "M0"
 
 
+def test_refresh_card_500_envelope_when_no_candidates(client, isolated_output, monkeypatch):
+    """A direct ``raise AIActionError`` inside a guarded endpoint ("LLM returned no
+    candidates") renders as the flat 500 ``{"error": ...}`` envelope (not FastAPI's
+    ``{"detail": ...}``), and the guard releases the lock afterwards."""
+
+    def stub_empty(*_a, **_k):
+        return {"mechanics": [], "model_id": "m"}
+
+    monkeypatch.setattr(mg, "generate_mechanic_candidates", stub_empty)
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    resp = client.post(
+        "/api/wizard/mechanics/refresh-card",
+        json={"candidate_index": 0, "candidates": [_make_candidate(f"U{i}") for i in range(6)]},
+    )
+    assert resp.status_code == 500
+    assert "no candidates" in resp.json()["error"]
+    assert ai_lock.is_running() is False  # guard released the lock on the raise
+
+
 def test_refresh_card_400_on_bad_index(client, isolated_output, monkeypatch):
     asset = isolated_output / "sets" / "TST"
     _seed_project(asset)

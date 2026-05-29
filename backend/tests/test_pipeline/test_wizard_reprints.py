@@ -233,6 +233,70 @@ def test_refresh_runs_selection_with_pinned_knob(client, isolated_output, monkey
     assert "Murder" in slot["reprint_card"]
 
 
+def test_refresh_cancel_preserves_prior_selection(client, isolated_output, monkeypatch):
+    """A Cancel landing mid-reroll must not clobber the prior reprint_selection.json
+    or the skeleton stamps — the endpoint skips the persist and returns prior state.
+    (Before B2's worker cancellation, Cancel was a no-op here; the fix makes sure
+    enabling it doesn't turn an abort into data loss.)"""
+    from mtgai.generation import reprint_selector as rs
+
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _write_skeleton(asset)  # B-C-03 slot
+
+    # Prior good selection on disk + a stamped skeleton slot.
+    prior = {
+        "set_code": "TST",
+        "set_size": 60,
+        "target_reprint_count": 1,
+        "per_rarity_targets": {"common": 1, "uncommon": 0, "rare": 0, "mythic": 0},
+        "selections": [
+            {
+                "slot": {"slot_id": "B-C-03", "descriptor": "d"},
+                "candidate": {
+                    "name": "Murder",
+                    "cmc": 3,
+                    "type_line": "Instant",
+                    "rarity": "common",
+                    "role": "removal",
+                },
+                "reason": "prior",
+            }
+        ],
+        "all_candidates_considered": 1,
+        "selection_timestamp": "t",
+    }
+    (asset / "reprint_selection.json").write_text(json.dumps(prior), encoding="utf-8")
+    sk = json.loads((asset / "skeleton.json").read_text())
+    sk["slots"][0]["is_reprint_slot"] = True
+    sk["slots"][0]["reprint_card"] = "Murder · Instant · {1}{B}{B}"
+    (asset / "skeleton.json").write_text(json.dumps(sk), encoding="utf-8")
+
+    def stub_cancel(*_a, **_k):
+        ai_lock.request_cancel()  # a user Cancel landing mid-run (lock is held)
+        return rs.ReprintSelection(
+            set_code="TST",
+            set_size=60,
+            target_reprint_count=0,
+            per_rarity_targets=None,
+            selections=[],
+            all_candidates_considered=0,
+            selection_timestamp="t",
+        )
+
+    monkeypatch.setattr(rs, "select_reprints", stub_cancel)
+    resp = client.post("/api/wizard/reprints/refresh", json={})
+    assert resp.status_code == 200
+    # Prior selection preserved on disk (not overwritten with the empty result).
+    on_disk = json.loads((asset / "reprint_selection.json").read_text())
+    assert len(on_disk["selections"]) == 1
+    assert on_disk["selections"][0]["candidate"]["name"] == "Murder"
+    # Skeleton stamp survives the cancelled re-roll.
+    assert json.loads((asset / "skeleton.json").read_text())["slots"][0]["is_reprint_slot"] is True
+    # Response is the preserved prior state, not the aborted empty result.
+    assert len(resp.json()["selections"]) == 1
+
+
 def test_refresh_400_when_no_skeleton(client, isolated_output, monkeypatch):
     asset = isolated_output / "sets" / "TST"
     _seed_project(asset)

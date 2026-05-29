@@ -686,6 +686,19 @@ def run_skeleton(
                 ),
             )
 
+        # A user Cancel during the relabel makes relabel_skeleton stop early and
+        # return a partial/all-default map — don't apply or persist it over the
+        # default skeleton (already saved above). Fail the stage so the engine halts
+        # (mirrors card_gen); the user re-rolls from the Skeleton tab.
+        if ai_lock.is_cancelled():
+            return StageResult(
+                success=False,
+                error_message=(
+                    "Skeleton relabel cancelled by user. The default (un-themed) "
+                    "skeleton was kept — re-roll from the Skeleton tab."
+                ),
+            )
+
         updates = relabel["updates"]
         for slot in result.slots:
             upd = updates.get(slot.slot_id)

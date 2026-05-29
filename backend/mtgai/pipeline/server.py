@@ -165,9 +165,13 @@ def guarded_ai(label: str, *, stage_id: str | None = None, heal: bool = True):
       grabbing the lock.
     * **Error → 500.** Any exception escaping the block is logged and re-raised as
       :class:`AIActionError`, rendered ``500 {"error": str(exc)}`` by the handler.
+      Do NOT ``return`` an error ``JSONResponse`` from inside the block — that is a
+      *clean* exit, so the heal would wrongly fire; ``raise AIActionError`` instead.
     * **Heal.** On a clean exit ``_heal_failed_stage(stage_id)`` runs — unless
-      ``heal`` is False, ``guard.skip_heal`` was set, or the run was cancelled
-      (``ai_lock.is_cancelled()``), since a cancel is not a successful recovery.
+      ``heal`` is False or the endpoint set ``guard.skip_heal`` (the single opt-out,
+      e.g. after a worker reports a *cancelled* run, since a cancel is not a
+      recovery). The guard does NOT itself inspect ``ai_lock.is_cancelled()``: an
+      endpoint that healed unconditionally before keeps doing so unless it opts out.
     * **Release** always happens on exit.
 
     Strictly NOT reentrant (the AI lock isn't): never nest ``guarded_ai`` inside
@@ -186,8 +190,13 @@ def guarded_ai(label: str, *, stage_id: str | None = None, heal: bool = True):
         logger.exception("Guarded AI action failed: %s", label)
         raise AIActionError(str(exc)) from exc
     else:
-        if heal and stage_id and not guard.skip_heal and not ai_lock.is_cancelled():
-            _heal_failed_stage(stage_id)
+        # Wrapped so a heal failure can't turn the success response into a
+        # non-enveloped 500 (the else/finally run outside the except above).
+        if heal and stage_id and not guard.skip_heal:
+            try:
+                _heal_failed_stage(stage_id)
+            except Exception:
+                logger.exception("Post-action heal failed for stage %s", stage_id)
     finally:
         ai_lock.release()
 
@@ -3636,15 +3645,26 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
         result = await asyncio.to_thread(
             select_reprints, skeleton_path=skeleton_path, temperature=0.7
         )
-        atomic_write_text(
-            asset / "reprint_selection.json",
-            json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
-        )
-        # Stamp the picks into the skeleton (reset-then-stamp) so card-gen skips
-        # them and the lands investigation sees an accurate unfilled-slot view. A
-        # manual re-roll replaces the prior stamps cleanly. Kept inside the guard
-        # so the persist + stamp run under the same lock that produced them.
-        apply_selection_to_skeleton(skeleton_path, result)
+        if ai_lock.is_cancelled():
+            # A Cancel mid-run leaves `result` partial/empty — persisting it would
+            # clobber the prior good reprint_selection.json + skeleton stamps, so
+            # skip the write entirely and don't count the cancel as a recovery.
+            guard.skip_heal = True
+        else:
+            atomic_write_text(
+                asset / "reprint_selection.json",
+                json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
+            )
+            # Stamp the picks into the skeleton (reset-then-stamp) so card-gen skips
+            # them and the lands investigation sees an accurate unfilled-slot view. A
+            # manual re-roll replaces the prior stamps cleanly. Kept inside the guard
+            # so the persist + stamp run under the same lock that produced them.
+            apply_selection_to_skeleton(skeleton_path, result)
+
+    # On cancel nothing was written — return the preserved on-disk state instead of
+    # the aborted (empty) result so the tab keeps showing the prior picks.
+    if ai_lock.is_cancelled():
+        return await wizard_reprints_state()
 
     selections = result.model_dump(mode="json")["selections"]
     knobs_payload = _reprint_knobs_payload(asset)
@@ -3737,7 +3757,12 @@ async def wizard_lands_refresh() -> JSONResponse:
     with guarded_ai("Land generation", stage_id="lands") as guard:
         if guard.busy:
             return guard.busy_response
-        await asyncio.to_thread(generate_lands)
+        result = await asyncio.to_thread(generate_lands)
+        # A cancel isn't a recovery — leave a stuck FAILED stage as-is. (Lands
+        # clears-then-writes its L-* cards, so a cancel leaves basics only; the
+        # re-read below surfaces whatever was written.)
+        if isinstance(result, dict) and result.get("cancelled"):
+            guard.skip_heal = True
 
     # Re-read the freshly-written L-* cards into the tile shape (same source of
     # truth the tab bootstraps from), keeping the response shape DRY.
@@ -4157,35 +4182,47 @@ async def wizard_skeleton_refresh() -> JSONResponse:
             # success — this path emits no pipeline_status terminal event of its
             # own; the guard renders any worker error as the 500 envelope.
             event_bus.stage_phase("skeleton", "done", "")
-        updates = relabel["updates"]
-        for slot in skeleton["slots"]:
-            upd = updates.get(slot.get("slot_id"))
-            if not upd:
-                continue
-            slot["tweaked_text"] = upd.get("tweaked_text")
-            # Replace (don't union) — a re-roll fully recomputes request
-            # placements, so a slot the new run didn't place must lose its prior
-            # "specially requested card" tag. reserved_card is only ever set by
-            # the relabel's Pass 2 (the deterministic skeleton never stamps it),
-            # so there's no generator-anchor value to preserve here.
-            slot["reserved_card"] = upd.get("reserved_card")
-        # Persist the relabel outcome so a reload still shows the incomplete warning.
-        skeleton["relabel_incomplete"] = bool(relabel.get("incomplete"))
-        skeleton["relabeled_slots"] = int(relabel.get("relabeled", 0))
-        atomic_write_text(
-            asset / "skeleton.json", json.dumps(skeleton, indent=2, ensure_ascii=False)
-        )
-        # Terminal stream event (mirrors the engine path) so the live view
-        # settles even if these events are later replayed from the bus buffer.
-        event_bus.publish(
-            "skeleton_relabel_done",
-            {
-                "stage_id": "skeleton",
-                "incomplete": bool(relabel.get("incomplete")),
-                "relabeled": int(relabel.get("relabeled", 0)),
-            },
-        )
+        if ai_lock.is_cancelled():
+            # A Cancel mid-relabel leaves a partial/empty result — applying it would
+            # clobber the prior themed tweaked_text with defaults, so skip the apply
+            # + persist entirely (the prior skeleton on disk stays intact) and don't
+            # count the cancel as a recovery.
+            guard.skip_heal = True
+        else:
+            updates = relabel["updates"]
+            for slot in skeleton["slots"]:
+                upd = updates.get(slot.get("slot_id"))
+                if not upd:
+                    continue
+                slot["tweaked_text"] = upd.get("tweaked_text")
+                # Replace (don't union) — a re-roll fully recomputes request
+                # placements, so a slot the new run didn't place must lose its prior
+                # "specially requested card" tag. reserved_card is only ever set by
+                # the relabel's Pass 2 (the deterministic skeleton never stamps it),
+                # so there's no generator-anchor value to preserve here.
+                slot["reserved_card"] = upd.get("reserved_card")
+            # Persist the relabel outcome so a reload still shows the incomplete warning.
+            skeleton["relabel_incomplete"] = bool(relabel.get("incomplete"))
+            skeleton["relabeled_slots"] = int(relabel.get("relabeled", 0))
+            atomic_write_text(
+                asset / "skeleton.json", json.dumps(skeleton, indent=2, ensure_ascii=False)
+            )
+            # Terminal stream event (mirrors the engine path) so the live view
+            # settles even if these events are later replayed from the bus buffer.
+            event_bus.publish(
+                "skeleton_relabel_done",
+                {
+                    "stage_id": "skeleton",
+                    "incomplete": bool(relabel.get("incomplete")),
+                    "relabeled": int(relabel.get("relabeled", 0)),
+                },
+            )
         # The guard heals a stuck FAILED skeleton stage on a clean exit.
+
+    # On cancel nothing was applied — return the preserved prior slots so the tab
+    # reverts its live (partial) view to what's on disk.
+    if ai_lock.is_cancelled():
+        return await wizard_skeleton_state()
 
     return JSONResponse(
         {
