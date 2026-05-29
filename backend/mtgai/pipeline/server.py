@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +82,116 @@ def _no_active_project_response() -> JSONResponse:
     )
 
 
+def _busy_response() -> JSONResponse:
+    """The one source of the "another AI action holds the lock" 409.
+
+    ``ai_lock.busy_payload()`` at status 409 — the shape the wizard client
+    renders as the shared "AI is busy" toast. Emitted by :func:`guarded_ai`
+    (the acquiring endpoints), the bare ``is_running()`` gates (theme section
+    refresh / kickoff, which don't hold the lock at the check), and
+    :func:`_project_switch_guard`, so every busy 409 the server returns is
+    byte-identical.
+    """
+    return JSONResponse(ai_lock.busy_payload(), status_code=409)
+
+
+def _reject_if_busy() -> JSONResponse | None:
+    """Return the 409 busy response if an AI action is in flight, else ``None``.
+
+    For the gate-only endpoints that check the lock is *free* before kicking off
+    work the worker acquires itself later — they can't use :func:`guarded_ai`
+    (which holds the lock). ``None`` means "clear to proceed".
+    """
+    return _busy_response() if ai_lock.is_running() else None
+
+
+class AIActionError(Exception):
+    """A guarded AI worker raised — rendered as ``500 {"error": <msg>}``.
+
+    :func:`guarded_ai` wraps any exception escaping its body in this so the
+    registered handler emits the flat ``{"error": ...}`` envelope the wizard
+    client reads (``W.reportError`` keys on ``data.error``) instead of FastAPI's
+    default ``{"detail": ...}`` 500. The message is the original ``str(exc)``;
+    an endpoint that wants its own 500 (e.g. "LLM returned nothing usable")
+    raises this directly and no success-heal fires.
+    """
+
+
+class _AIGuard:
+    """Handle yielded by :func:`guarded_ai` — see it for the full lifecycle.
+
+    ``busy`` is True when the lock was already held: the endpoint must return
+    ``busy_response`` immediately and do no work. ``skip_heal`` lets an endpoint
+    suppress the success-heal after its worker reports a *cancelled* run (the
+    card-gen contract — a user cancel isn't a recovery).
+    """
+
+    __slots__ = ("run_id", "skip_heal")
+
+    def __init__(self, run_id: int | None) -> None:
+        self.run_id = run_id
+        self.skip_heal = False
+
+    @property
+    def busy(self) -> bool:
+        return self.run_id is None
+
+    @property
+    def busy_response(self) -> JSONResponse:
+        return _busy_response()
+
+
+@contextmanager
+def guarded_ai(label: str, *, stage_id: str | None = None, heal: bool = True):
+    """Own the AI-tab action lifecycle for a wizard endpoint body.
+
+    The single collapse of the ``ai_lock.hold → 409`` + ``try: <work> except:
+    500 {"error": str}`` + ``_heal_failed_stage`` boilerplate every refresh /
+    re-pick / regenerate endpoint repeated. Usage::
+
+        with guarded_ai("Land generation", stage_id="lands") as guard:
+            if guard.busy:
+                return guard.busy_response
+            await asyncio.to_thread(generate_lands)
+        return await wizard_lands_state()
+
+    Lifecycle:
+
+    * **Acquire / busy.** Tries the AI lock. If busy, yields a guard with
+      ``busy is True`` and never touches the lock — the caller returns
+      ``guard.busy_response`` (the 409) and does nothing else.
+    * **Run.** Validation / project + asset resolution belong *before* the block,
+      so a no-project / no-asset / malformed-body request 409s/400s without
+      grabbing the lock.
+    * **Error → 500.** Any exception escaping the block is logged and re-raised as
+      :class:`AIActionError`, rendered ``500 {"error": str(exc)}`` by the handler.
+    * **Heal.** On a clean exit ``_heal_failed_stage(stage_id)`` runs — unless
+      ``heal`` is False, ``guard.skip_heal`` was set, or the run was cancelled
+      (``ai_lock.is_cancelled()``), since a cancel is not a successful recovery.
+    * **Release** always happens on exit.
+
+    Strictly NOT reentrant (the AI lock isn't): never nest ``guarded_ai`` inside
+    another held one — the inner acquire sees busy and silently skips its work.
+    """
+    run_id = ai_lock.try_acquire(label)
+    guard = _AIGuard(run_id)
+    if run_id is None:
+        yield guard  # busy — caller returns guard.busy_response; nothing acquired
+        return
+    try:
+        yield guard
+    except AIActionError:
+        raise  # already shaped; failure, so no heal
+    except Exception as exc:
+        logger.exception("Guarded AI action failed: %s", label)
+        raise AIActionError(str(exc)) from exc
+    else:
+        if heal and stage_id and not guard.skip_heal and not ai_lock.is_cancelled():
+            _heal_failed_stage(stage_id)
+    finally:
+        ai_lock.release()
+
+
 class _NoActiveProject(Exception):
     """Sentinel raised by :func:`_require_active_project` when no project is open.
 
@@ -132,6 +243,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(NoAssetFolderError)
     async def _handle_no_asset_folder(request: Request, exc: NoAssetFolderError) -> JSONResponse:
         return _no_asset_folder_response(exc)
+
+    @app.exception_handler(AIActionError)
+    async def _handle_ai_action_error(request: Request, exc: AIActionError) -> JSONResponse:
+        return JSONResponse({"error": str(exc)}, status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -815,7 +930,7 @@ async def extract_theme_stream(
         if existing is not None and existing.upload_id == upload_id:
             mode = "reattach"
         elif ai_lock.is_running():
-            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+            return _busy_response()
         else:
             cached = _upload_cache.get(upload_id)
             text = cached["text"] if cached else None
@@ -954,8 +1069,8 @@ async def extract_section_endpoint(request: Request):
     if kind not in ("constraints", "card_suggestions"):
         return JSONResponse({"error": f"Unknown kind: {kind}"}, status_code=400)
 
-    if ai_lock.is_running():
-        return JSONResponse(ai_lock.busy_payload(), status_code=409)
+    if (resp := _reject_if_busy()) is not None:
+        return resp
 
     q, DONE = _stream_section_refresh(theme_text, kind, model_key)
 
@@ -1504,8 +1619,8 @@ async def wizard_project_start(request: Request) -> JSONResponse:
     # because it acquires the AI lock atomically below before starting
     # the worker, and the new worker is the only writer to
     # extraction_run._run after we call start_run().
-    if ai_lock.is_running():
-        return JSONResponse(ai_lock.busy_payload(), status_code=409)
+    if (resp := _reject_if_busy()) is not None:
+        return resp
 
     model_key = settings.llm_assignments.get("theme_extract", "haiku")
     extraction_run.start_run(upload_id)
@@ -1556,8 +1671,7 @@ async def _project_switch_guard(body: object) -> JSONResponse | None:
         return None
     force = isinstance(body, dict) and body.get("force") is True
     if not force:
-        payload = ai_lock.busy_payload()
-        return JSONResponse(payload, status_code=409)
+        return _busy_response()
     ai_lock.request_cancel()
     if not await active_project.await_lock_release_async():
         logger.warning(
@@ -2642,28 +2756,23 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
             },
         )
 
-    with ai_lock.hold("Mechanic candidate refresh") as acquired:
-        if not acquired:
-            return JSONResponse(ai_lock.busy_payload(), status_code=409)
-        try:
-            # Only the first result is used to replace the one slot — ask
-            # for exactly one so we don't run the full top-up loop.
-            response = await asyncio.to_thread(
-                generate_mechanic_candidates,
-                count=1,
-                on_draft=_on_draft,
-                on_finalized=_on_finalized,
-            )
-        except Exception as exc:
-            logger.exception("Refresh-card LLM call failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
-
+    with guarded_ai("Mechanic candidate refresh", stage_id="mechanics") as guard:
+        if guard.busy:
+            return guard.busy_response
+        # Only the first result is used to replace the one slot — ask
+        # for exactly one so we don't run the full top-up loop.
+        response = await asyncio.to_thread(
+            generate_mechanic_candidates,
+            count=1,
+            on_draft=_on_draft,
+            on_finalized=_on_finalized,
+        )
         new_mechanics = response["mechanics"]
         if not new_mechanics:
-            return JSONResponse({"error": "LLM returned no candidates"}, status_code=500)
-        # ``merged`` is already up to date via the on_finalized callback —
-        # the new mechanic landed in slot ``idx`` and was written to disk.
-        _heal_failed_stage("mechanics")
+            raise AIActionError("LLM returned no candidates")
+        # ``merged`` is already up to date via the on_finalized callback — the new
+        # mechanic landed in slot ``idx`` and was written to disk; the guard heals
+        # the stage + releases on a clean exit.
 
     return JSONResponse(
         {
@@ -2806,23 +2915,19 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
             },
         )
 
-    with ai_lock.hold("Mechanic candidate refresh") as acquired:
-        if not acquired:
-            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+    with guarded_ai("Mechanic candidate refresh", stage_id="mechanics") as guard:
+        if guard.busy:
+            return guard.busy_response
         # Initial generation wants the full pool; a targeted refresh only
         # needs as many fresh candidates as there are flagged rows.
         gen_count = pool if initial_generate else len(indices)
-        try:
-            response = await asyncio.to_thread(
-                generate_mechanic_candidates,
-                count=gen_count,
-                on_reset=_on_reset,
-                on_draft=_on_draft,
-                on_finalized=_on_finalized,
-            )
-        except Exception as exc:
-            logger.exception("Refresh-all LLM call failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
+        response = await asyncio.to_thread(
+            generate_mechanic_candidates,
+            count=gen_count,
+            on_reset=_on_reset,
+            on_draft=_on_draft,
+            on_finalized=_on_finalized,
+        )
 
         # ``merged`` is already up to date via the on_finalized callback —
         # each finalized mechanic landed in its slot and was written to disk.
@@ -2846,11 +2951,8 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
             selections=pick["selections"],
             model_id=pick["model_id"],
         )
-        # If the engine left the stage FAILED (e.g. initial generation ran
-        # below the floor), this manual recovery is the user's signal that
-        # the stage is healthy again — demote FAILED → PAUSED_FOR_REVIEW so
-        # the wizard's Save & Continue + /advance flow becomes available.
-        _heal_failed_stage("mechanics")
+        # The guard heals a stuck FAILED stage (e.g. an initial generation that
+        # ran below the floor) on a clean exit, so Save & Continue reappears.
 
     collisions = detect_keyword_collisions(merged)
     return JSONResponse(
@@ -3001,14 +3103,10 @@ async def wizard_mechanics_pick(request: Request) -> JSONResponse:
         return JSONResponse({"error": "No candidates to pick from"}, status_code=400)
     mech_dir = _mechanics_dir()
 
-    with ai_lock.hold("Mechanic AI pick") as acquired:
-        if not acquired:
-            return JSONResponse(ai_lock.busy_payload(), status_code=409)
-        try:
-            pick = await asyncio.to_thread(pick_best_mechanics, candidates=candidates)
-        except Exception as exc:
-            logger.exception("Mechanic pick LLM call failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
+    with guarded_ai("Mechanic AI pick", stage_id="mechanics") as guard:
+        if guard.busy:
+            return guard.busy_response
+        pick = await asyncio.to_thread(pick_best_mechanics, candidates=candidates)
         approved = persist_mechanic_selection(
             mech_dir,
             candidates,
@@ -3018,9 +3116,8 @@ async def wizard_mechanics_pick(request: Request) -> JSONResponse:
             selections=pick["selections"],
             model_id=pick["model_id"],
         )
-        # Recovery from a FAILED-stage initial run: a successful pick means
-        # the stage is healthy and the wizard's Save & Continue should appear.
-        _heal_failed_stage("mechanics")
+        # The guard heals a FAILED stage on a clean exit — a successful pick
+        # means the stage is healthy and Save & Continue should reappear.
 
     return JSONResponse(
         {
@@ -3191,24 +3288,16 @@ async def wizard_archetypes_refresh_card(request: Request) -> JSONResponse:
     asset = set_artifact_dir()
 
     ordered = _order_working_archetypes(working)
-    with ai_lock.hold("Archetype refresh") as acquired:
-        if not acquired:
-            return JSONResponse(ai_lock.busy_payload(), status_code=409)
-        try:
-            response = await asyncio.to_thread(
-                generate_archetypes, focus_pairs=[color_pair], existing=ordered
-            )
-        except Exception as exc:
-            logger.exception("Archetype refresh-card LLM call failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
-
+    with guarded_ai("Archetype refresh", stage_id="archetypes") as guard:
+        if guard.busy:
+            return guard.busy_response
+        response = await asyncio.to_thread(
+            generate_archetypes, focus_pairs=[color_pair], existing=ordered
+        )
         fresh = response["archetypes"]
         new_entry = next((a for a in fresh if a.get("color_pair") == color_pair), None)
         if new_entry is None:
-            return JSONResponse(
-                {"error": f"Regeneration produced no archetype for {color_pair}"},
-                status_code=500,
-            )
+            raise AIActionError(f"Regeneration produced no archetype for {color_pair}")
         for entry in ordered:
             if entry["color_pair"] == color_pair:
                 entry["name"] = new_entry.get("name") or ""
@@ -3216,7 +3305,6 @@ async def wizard_archetypes_refresh_card(request: Request) -> JSONResponse:
                 entry["_ai_generated"] = True
                 break
         _persist_archetypes_working(asset, ordered)
-        _heal_failed_stage("archetypes")
 
     return JSONResponse(
         {"success": True, "archetypes": ordered, "model_id": response.get("model_id")}
@@ -3273,15 +3361,10 @@ async def wizard_archetypes_refresh_all(request: Request) -> JSONResponse:
     asset = set_artifact_dir()
 
     ordered = _order_working_archetypes(working)
-    with ai_lock.hold("Archetype refresh") as acquired:
-        if not acquired:
-            return JSONResponse(ai_lock.busy_payload(), status_code=409)
-        try:
-            response = await asyncio.to_thread(generate_archetypes)
-        except Exception as exc:
-            logger.exception("Archetype refresh-all LLM call failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
-
+    with guarded_ai("Archetype refresh", stage_id="archetypes") as guard:
+        if guard.busy:
+            return guard.busy_response
+        response = await asyncio.to_thread(generate_archetypes)
         fresh_by_pair = {a["color_pair"]: a for a in response["archetypes"]}
         for entry in ordered:
             pair = entry["color_pair"]
@@ -3292,7 +3375,6 @@ async def wizard_archetypes_refresh_all(request: Request) -> JSONResponse:
                 entry["description"] = fresh.get("description") or ""
                 entry["_ai_generated"] = True
         _persist_archetypes_working(asset, ordered)
-        _heal_failed_stage("archetypes")
 
     return JSONResponse(
         {"success": True, "archetypes": ordered, "model_id": response.get("model_id")}
@@ -3548,26 +3630,21 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
 
     from mtgai.generation.reprint_selector import apply_selection_to_skeleton, select_reprints
 
-    with ai_lock.hold("Reprint selection") as acquired:
-        if not acquired:
-            return JSONResponse(ai_lock.busy_payload(), status_code=409)
-        try:
-            result = await asyncio.to_thread(
-                select_reprints, skeleton_path=skeleton_path, temperature=0.7
-            )
-        except Exception as exc:
-            logger.exception("Reprint refresh failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
-
-    atomic_write_text(
-        asset / "reprint_selection.json",
-        json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
-    )
-    # Stamp the picks into the skeleton (reset-then-stamp) so card-gen skips them and
-    # the lands investigation sees an accurate unfilled-slot view. A manual re-roll
-    # replaces the prior stamps cleanly.
-    apply_selection_to_skeleton(skeleton_path, result)
-    _heal_failed_stage("reprints")
+    with guarded_ai("Reprint selection", stage_id="reprints") as guard:
+        if guard.busy:
+            return guard.busy_response
+        result = await asyncio.to_thread(
+            select_reprints, skeleton_path=skeleton_path, temperature=0.7
+        )
+        atomic_write_text(
+            asset / "reprint_selection.json",
+            json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
+        )
+        # Stamp the picks into the skeleton (reset-then-stamp) so card-gen skips
+        # them and the lands investigation sees an accurate unfilled-slot view. A
+        # manual re-roll replaces the prior stamps cleanly. Kept inside the guard
+        # so the persist + stamp run under the same lock that produced them.
+        apply_selection_to_skeleton(skeleton_path, result)
 
     selections = result.model_dump(mode="json")["selections"]
     knobs_payload = _reprint_knobs_payload(asset)
@@ -3657,15 +3734,10 @@ async def wizard_lands_refresh() -> JSONResponse:
 
     from mtgai.generation.land_generator import generate_lands
 
-    with ai_lock.hold("Land generation") as acquired:
-        if not acquired:
-            return JSONResponse(ai_lock.busy_payload(), status_code=409)
-        try:
-            await asyncio.to_thread(generate_lands)
-        except Exception as exc:
-            logger.exception("Land refresh failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
-        _heal_failed_stage("lands")
+    with guarded_ai("Land generation", stage_id="lands") as guard:
+        if guard.busy:
+            return guard.busy_response
+        await asyncio.to_thread(generate_lands)
 
     # Re-read the freshly-written L-* cards into the tile shape (same source of
     # truth the tab bootstraps from), keeping the response shape DRY.
@@ -3805,9 +3877,9 @@ async def wizard_card_gen_refresh() -> JSONResponse:
 
     from mtgai.generation.card_generator import generate_set
 
-    with ai_lock.hold("Card generation") as acquired:
-        if not acquired:
-            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+    with guarded_ai("Card generation", stage_id="card_gen") as guard:
+        if guard.busy:
+            return guard.busy_response
 
         # From-scratch: drop the prior card-gen cards + progress so every slot
         # regenerates. Keep the Lands tab's L-* basics/dual — a card-gen re-roll
@@ -3848,20 +3920,17 @@ async def wizard_card_gen_refresh() -> JSONResponse:
                 {"stage_id": "card_gen", "card": card_tile_dict(card, slots_by_id)},
             )
 
-        try:
-            result = await asyncio.to_thread(
-                generate_set,
-                progress_callback=_on_progress,
-                card_saved_callback=_on_card_saved,
-            )
-        except Exception as exc:
-            logger.exception("Card-gen refresh failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
+        result = await asyncio.to_thread(
+            generate_set,
+            progress_callback=_on_progress,
+            card_saved_callback=_on_card_saved,
+        )
 
-        # A successful (non-cancelled) regen means card_gen is healthy again —
-        # clear any stuck FAILED stage state so the failure modal stops firing.
-        if not (isinstance(result, dict) and result.get("cancelled")):
-            _heal_failed_stage("card_gen")
+        # A cancel isn't a recovery: suppress the guard's success-heal so a stuck
+        # FAILED card_gen stays FAILED. A clean (non-cancelled) regen means the
+        # stage is healthy, so the guard heals it and the failure modal stops.
+        if isinstance(result, dict) and result.get("cancelled"):
+            guard.skip_heal = True
 
     return await wizard_card_gen_state()
 
@@ -4015,16 +4084,11 @@ async def wizard_skeleton_knobs_tune(request: Request) -> JSONResponse:
         raw = skeleton.get("knobs")
         base = SkeletonKnobs.model_validate(raw) if isinstance(raw, dict) else SkeletonKnobs()
 
-    with ai_lock.hold("Skeleton knob tuning") as acquired:
-        if not acquired:
-            return JSONResponse(ai_lock.busy_payload(), status_code=409)
-        try:
-            knobs, meta = await asyncio.to_thread(tune_skeleton_knobs, base=base)
-            new_skeleton = _rebuild_skeleton_from_knobs(asset, skeleton, knobs)
-        except Exception as exc:
-            logger.exception("Skeleton knob tuning failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
-        _heal_failed_stage("skeleton")
+    with guarded_ai("Skeleton knob tuning", stage_id="skeleton") as guard:
+        if guard.busy:
+            return guard.busy_response
+        knobs, meta = await asyncio.to_thread(tune_skeleton_knobs, base=base)
+        new_skeleton = _rebuild_skeleton_from_knobs(asset, skeleton, knobs)
 
     return JSONResponse(
         {
@@ -4061,9 +4125,9 @@ async def wizard_skeleton_refresh() -> JSONResponse:
             {"error": "No skeleton.json yet — run Skeleton Generation first."}, status_code=400
         )
 
-    with ai_lock.hold("Skeleton relabel") as acquired:
-        if not acquired:
-            return JSONResponse(ai_lock.busy_payload(), status_code=409)
+    with guarded_ai("Skeleton relabel", stage_id="skeleton") as guard:
+        if guard.busy:
+            return guard.busy_response
         try:
             relabel = await asyncio.to_thread(
                 relabel_skeleton,
@@ -4088,12 +4152,10 @@ async def wizard_skeleton_refresh() -> JSONResponse:
                     "skeleton_relabel_reset", {"stage_id": "skeleton"}
                 ),
             )
-        except Exception as exc:
-            logger.exception("Skeleton relabel refresh failed")
-            return JSONResponse({"error": str(exc)}, status_code=500)
         finally:
-            # Terminal phase so the strip clears even on SSE replay — this path
-            # emits no pipeline_status terminal event of its own.
+            # Terminal phase so the strip clears even on SSE replay, error or
+            # success — this path emits no pipeline_status terminal event of its
+            # own; the guard renders any worker error as the 500 envelope.
             event_bus.stage_phase("skeleton", "done", "")
         updates = relabel["updates"]
         for slot in skeleton["slots"]:
@@ -4123,7 +4185,7 @@ async def wizard_skeleton_refresh() -> JSONResponse:
                 "relabeled": int(relabel.get("relabeled", 0)),
             },
         )
-        _heal_failed_stage("skeleton")
+        # The guard heals a stuck FAILED skeleton stage on a clean exit.
 
     return JSONResponse(
         {

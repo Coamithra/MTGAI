@@ -43,6 +43,7 @@ from mtgai.generation.skeleton_prompt_blocks import (
     format_mechanics_block,
     format_setting_block,
 )
+from mtgai.runtime import ai_lock
 from mtgai.skeleton.generator import render_slot_string
 
 logger = logging.getLogger(__name__)
@@ -393,6 +394,11 @@ def relabel_slots(
     last_error: Exception | None = None
 
     for attempt in range(1, RELABEL_MAX_ATTEMPTS + 1):
+        # Honor a Cancel between attempts (an in-flight stream can't be cleanly
+        # interrupted) — keep the best partial parse so far.
+        if ai_lock.is_cancelled():
+            logger.warning("Skeleton relabel CANCELLED by user before attempt %d", attempt)
+            break
         suffix = "" if attempt == 1 else " (retrying — last response was incomplete)"
         _note(
             on_progress,
@@ -452,9 +458,11 @@ def relabel_slots(
         if len(slots) - len(best) <= tolerable:
             break  # complete enough — stop retrying
 
-    if not best and not responses:
+    if not best and not responses and not ai_lock.is_cancelled():
         # Nothing usable came back at all (every attempt raised before producing
-        # any parseable block). This is the only hard failure.
+        # any parseable block). This is the only hard failure — but a user Cancel
+        # before any output isn't one: fall through to the all-default tweaked map
+        # (each slot keeps its default descriptor), flagged incomplete below.
         raise RelabelIncompleteError(
             f"Relabel produced no usable output after {RELABEL_MAX_ATTEMPTS} attempts"
             + (f": {last_error}" if last_error is not None else "")
@@ -583,6 +591,10 @@ def assign_requests(
 
     for attempt in range(1, ASSIGN_MAX_ATTEMPTS + 1):
         if len(placed) >= len(expected):
+            break
+        # Honor a Cancel between attempts — keep whatever placed so far.
+        if ai_lock.is_cancelled():
+            logger.warning("Skeleton request-assign CANCELLED by user before attempt %d", attempt)
             break
         suffix = "" if attempt == 1 else " (retrying — requests still unplaced)"
         _note(

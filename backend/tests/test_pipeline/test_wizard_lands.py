@@ -172,6 +172,26 @@ def test_refresh_reruns_and_returns_fresh_cards(client, isolated_output, monkeyp
     assert "smoking caldera" in by_cn["L-04a"]["design_notes"]
 
 
+def test_refresh_500_when_generator_raises(client, isolated_output, monkeypatch):
+    """A worker exception is rendered as 500 ``{"error": ...}`` by the guarded_ai
+    AIActionError handler — the flat shape ``W.reportError`` reads, not FastAPI's
+    default ``{"detail": ...}``. Pins the guard's try/500 ownership + that the
+    lock is released after a failure."""
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _write_skeleton(asset)
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("generator exploded")
+
+    monkeypatch.setattr("mtgai.generation.land_generator.generate_lands", boom)
+    resp = client.post("/api/wizard/lands/refresh", json={})
+    assert resp.status_code == 500
+    assert "generator exploded" in resp.json()["error"]
+    # The guard released the lock on the failure — a follow-up isn't wrongly 409'd.
+    assert ai_lock.is_running() is False
+
+
 def test_refresh_400_when_no_skeleton(client, isolated_output):
     asset = isolated_output / "sets" / "TST"
     _seed_project(asset)  # no skeleton.json written

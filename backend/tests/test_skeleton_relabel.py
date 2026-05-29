@@ -215,6 +215,47 @@ def test_relabel_resends_whole_prompt_until_complete(monkeypatch) -> None:
     assert resp["incomplete"] is False
 
 
+def test_relabel_cancel_before_attempts_keeps_defaults(_project, monkeypatch) -> None:
+    """A user Cancel signalled before any attempt produces output breaks the
+    retry loop, never calls the model, and returns the all-default tweaked map
+    (no RelabelIncompleteError) flagged incomplete — the uniform-cancellation
+    contract (the relabel worker now polls ``ai_lock.is_cancelled()``)."""
+    from mtgai.runtime import ai_lock
+
+    seed = _seed_slots()
+    calls = {"n": 0}
+
+    def stub(*_a, **_k):
+        calls["n"] += 1
+
+        def _gen():
+            yield _complete("", input_tokens=1, output_tokens=1)
+
+        return _gen()
+
+    monkeypatch.setattr(sr, "stream_text", stub)
+    ai_lock.reset_for_tests()
+    ai_lock.try_acquire("test")
+    try:
+        ai_lock.request_cancel()  # only sticks while a run holds the lock
+        tweaked, resp = sr.relabel_slots(
+            slots=seed,
+            theme=_theme(),
+            approved=_approved(),
+            archetypes=[],
+            set_name="T",
+            set_size=4,
+            model="m",
+        )
+    finally:
+        ai_lock.reset_for_tests()
+
+    assert calls["n"] == 0  # cancel broke the loop before the first model call
+    assert set(tweaked) == {s["slot_id"] for s in seed}  # count guarantee holds
+    assert tweaked["W-C-01"] == render_slot_string(seed[0])  # every slot on default
+    assert resp["incomplete"] is True
+
+
 def test_relabel_keeps_partial_when_persistently_incomplete(monkeypatch) -> None:
     """If the model never covers enough slots, the best partial is KEPT and
     flagged incomplete (the 'keep partial, mark incomplete' contract) rather

@@ -44,6 +44,7 @@ from mtgai.generation.skeleton_prompt_blocks import (
 from mtgai.io.atomic import atomic_write_text
 from mtgai.models.card import Card
 from mtgai.models.enums import Color, Rarity
+from mtgai.runtime import ai_lock
 
 logger = logging.getLogger(__name__)
 
@@ -490,6 +491,11 @@ def _place_reprints(
     for attempt in range(1, _PLACE_MAX_ATTEMPTS + 1):
         if len(placed) >= len(selected):
             break
+        # Honor a Cancel between placement attempts (an in-flight call can't be
+        # interrupted) — keep whatever placed so far.
+        if ai_lock.is_cancelled():
+            logger.warning("Reprint placement CANCELLED by user after %d placed", len(placed))
+            break
         try:
             response = generate_with_tool(
                 system_prompt=system_prompt,
@@ -619,7 +625,12 @@ def select_reprints(
             chosen = _select_from_pool(
                 context, pool, total, model, log_dir, temperature, per_rarity=per_rarity
             )
-            selections = _place_reprints(chosen, slot_texts, model, log_dir, temperature)
+            # Honor a Cancel between the select and place passes (an in-flight
+            # call can't be interrupted) — skip placement, keep no selections.
+            if ai_lock.is_cancelled():
+                logger.warning("Reprint selection CANCELLED by user before placement")
+            else:
+                selections = _place_reprints(chosen, slot_texts, model, log_dir, temperature)
 
     result = ReprintSelection(
         set_code=set_code,

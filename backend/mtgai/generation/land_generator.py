@@ -33,6 +33,7 @@ from mtgai.generation.reprint_selector import (
 from mtgai.io.atomic import atomic_write_text
 from mtgai.models.card import Card
 from mtgai.models.enums import Color, Rarity
+from mtgai.runtime import ai_lock
 
 logger = logging.getLogger(__name__)
 
@@ -421,6 +422,15 @@ def generate_lands(
             logger.info("  Saved %s alt %s: %s", basic["name"], cn, filename)
             if on_card_saved is not None:
                 on_card_saved(card)
+
+    # Honor a Cancel between the two LLM calls — an in-flight call can't be
+    # interrupted, so we stop at this boundary. The basics already written persist;
+    # the guarded endpoint reads ``ai_lock.is_cancelled()`` to skip the success-heal.
+    if ai_lock.is_cancelled():
+        logger.warning(
+            "Land generation CANCELLED by user after basics (%d cards saved)", cards_saved
+        )
+        return {"total_cards": cards_saved, "cost_usd": cost, "cancelled": True}
 
     # (2) Investigate the set's fixing across all three sources, add one bonus
     # rare dual land only if a real gap remains. Reuses the ``context`` loaded above.
