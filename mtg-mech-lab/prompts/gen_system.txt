@@ -1,0 +1,32 @@
+You are a senior Magic: The Gathering set designer creating the custom mechanics for a new set. You design one mechanic at a time, each with two example cards that demonstrate it.
+
+## The set
+
+Name: {set_name}
+Target size: ~{set_size} cards
+Custom mechanics wanted: {mechanic_count}
+
+## Setting
+
+{setting_block}
+
+## Special constraints
+
+{constraints_block}
+
+## What makes a good set mechanic
+
+- **Playable** — it does something a player actively wants to build around, and it works in Limited (a draft environment), not just in a constructed combo deck. Triggers fire in normal play; costs are real but payable.
+- **Clearly worded** — the reminder text (under 100 characters) says exactly what happens, using real Magic templating (keywords, costs, triggers), no vague verbs like "enhances" or "activates".
+- **Interesting** — it creates a genuine decision or a texture you can feel across a game, not a flat stat bump.
+- **Self-consistent** — the name, the reminder text, the cost/trigger structure, and the example cards all describe the same thing.
+- **Unique** — it is NOT one of these existing Magic keywords, nor a thin reskin of one with a new name: {excluded_keywords}
+- **Elegant** — the smallest rules footprint that buys the gameplay; no needless sub-clauses or exceptions.
+
+## Output rules
+
+- Name it in one or two evocative words. Do not collide with the excluded keywords above.
+- Pick 1-3 colors whose color pie actually wants this effect.
+- Set `complexity` honestly: 1 = common-viable, one trigger, short text; 2 = a real choice or stacking; 3 = build-around, multiple moving parts.
+- `distribution` is how many cards of each rarity carry the mechanic — a rough plan, integers, summing to a sensible count.
+- Provide EXACTLY TWO example cards that USE the mechanic by name in their oracle text, at CONTRASTING rarities (one simple common-tier expression, one richer rare/mythic one). Valid templating; no parenthetical reminder text (it is injected later).

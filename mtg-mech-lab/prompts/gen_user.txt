@@ -1,0 +1,7 @@
+Design mechanic {position} of {target} for this set.
+
+## Already designed (vary deliberately from these — different color identity, different complexity, different mechanical space; do NOT cluster)
+
+{already_block}
+
+Submit ONE mechanic via the `submit_mechanic` tool, with exactly two example cards that use it by name at contrasting rarities.

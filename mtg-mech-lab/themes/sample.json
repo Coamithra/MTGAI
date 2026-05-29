@@ -1,0 +1,10 @@
+{
+  "name": "Tidewreck Bazaar",
+  "setting": "A drowned merchant-city built across the backs of slumbering leviathans, where the tide does not rise and fall so much as REARRANGE — every twelve hours the streets, stalls, and shrines slide into new configurations as the great beasts shift in their sleep. The people are scavenger-merchants who trade in salvage hauled from the older city sunk beneath them, in tide-charts that predict the next reshuffle, and in oaths sworn on the leviathans' slow heartbeats. Magic here is improvisational and opportunistic: you take what the tide gives you, you bind bargains that come due when the streets move, and you learn to thrive in a world that will not hold still. Factions include the Chartwrights (who hoard knowledge of the reshuffles), the Salvage Guilds (who dredge the deep city), the Barnacle Knights (who armor themselves in living shell), and the Undertow cults (who worship the leviathans and hasten the shifts).",
+  "constraints": [
+    "At least a few cards should reward the deck for things changing zones or positions.",
+    "No graveyard-recursion engine as a central mechanic — the flavor is salvage, but keep it from becoming a self-mill combo set.",
+    "The set should support a midrange, grindy Limited environment, not hyper-aggro."
+  ],
+  "creature_types": ["Merfolk", "Crab", "Pirate", "Leviathan", "Knight", "Cleric"]
+}

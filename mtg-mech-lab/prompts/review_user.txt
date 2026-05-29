@@ -1,0 +1,8 @@
+You are ONE independent member of the council. Review this mechanic on your own — you have not seen the other members' opinions.
+
+{mechanic_block}
+
+Judge it against all six standards in your instructions. Be specific and skeptical: if a standard is only "fine" rather than excellent, that is a reason to flag it, not pass it. Submit your verdict with the `submit_review` tool:
+
+- `verdict`: "OK" only if this is a genuinely strong mechanic that needs no changes; "REVISE" if anything from a wording slip to a dull design holds it back.
+- `issues`: one entry per concrete problem, each tagged with its category (playable / wording / interesting / self_consistent / unique / elegant / other) and severity (minor / major). If you pass it OK, return an empty list.
