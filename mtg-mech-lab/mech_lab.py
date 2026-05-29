@@ -314,7 +314,7 @@ def call_generate(theme: dict, accepted: list[dict], position: int, target: int,
     })
     return generate_with_tool(
         system_prompt=sys_p, user_prompt=user_p, tool_schema=GEN_TOOL,
-        model=model, temperature=temp, max_tokens=2048, log_dir=log_dir,
+        model=model, temperature=temp, max_tokens=8192, log_dir=log_dir,
         repeat_penalty=repeat_penalty,
     )
 
@@ -325,7 +325,7 @@ def call_reviewer(mech: dict, model: str, temp: float, log_dir: Path,
     user_p = render(load_prompt("review_user.txt"), {"mechanic_block": format_mechanic_block(mech)})
     return generate_with_tool(
         system_prompt=sys_p, user_prompt=user_p, tool_schema=REVIEW_TOOL,
-        model=model, temperature=temp, max_tokens=3072, log_dir=log_dir,
+        model=model, temperature=temp, max_tokens=8192, log_dir=log_dir,
         repeat_penalty=repeat_penalty,
     )
 
@@ -338,11 +338,13 @@ def call_synth(mech: dict, reviews: list[dict], model: str, temp: float, log_dir
         "reviews_block": format_reviews_block(reviews),
         "council_size": len(reviews),
     })
-    # Synth re-emits the full mechanic (2 example cards) + consensus prose; local
-    # models are verbose, so give it real headroom or it truncates mid-JSON.
+    # The synth model reasons (chain-of-thought) before it emits, and that CoT
+    # plus the full re-emit (mechanic + 2 cards + consensus prose) runs ~8k+
+    # tokens on local Gemma — so it needs generous headroom or it truncates
+    # mid-reasoning with empty output (see learnings/reasoning-budget-overrun.md).
     return generate_with_tool(
         system_prompt=sys_p, user_prompt=user_p, tool_schema=SYNTH_TOOL,
-        model=model, temperature=temp, max_tokens=8192, log_dir=log_dir,
+        model=model, temperature=temp, max_tokens=24576, log_dir=log_dir,
         repeat_penalty=repeat_penalty,
     )
 
@@ -481,10 +483,13 @@ def review_one(draft: dict, *, model: str, council_size: int, max_iterations: in
             "review_notes": note,
         }
         rounds.append(round_rec)
-        final_verdict = s.get("verdict", "REVISE")
-
-        if final_verdict == "OK":
-            break  # synthesizer is confident the revision is now clean
+        # The synth grades its own work, and it over-claims (writes "fixed the
+        # wording" while leaving the flaw in the text). So DON'T trust its verdict
+        # to end the loop: mark the revision unconfirmed and fall back to Phase 1
+        # so the council RE-REVIEWS it. We exit OK only on reviewer consensus (the
+        # all_ok branch above) or when the iteration budget runs out (in which case
+        # the unverified revision is honestly left REVISE).
+        final_verdict = "REVISE"
 
     return {
         "draft": draft,

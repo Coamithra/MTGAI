@@ -23,6 +23,22 @@ Custom mechanics wanted: {mechanic_count}
 - **Unique** — it is NOT one of these existing Magic keywords, nor a thin reskin of one with a new name: {excluded_keywords}
 - **Elegant** — the smallest rules footprint that buys the gameplay; no needless sub-clauses or exceptions.
 
+## Avoid these common mistakes
+
+These wreck first drafts. Check your mechanic against every one before submitting:
+
+- **Undefined referents.** Never invoke a counter, token, or sub-state you don't define. If a card uses "a mode counter" or makes "an Energon token", the reminder text itself must say what it is and what it does. Vague verbs with no rules action ("switch its mode", "boost it", "power up") are broken.
+- **Examples must use the keyword.** Each example MUST contain the keyword by name and do EXACTLY what the reminder text says — not a similar-but-different hand-written effect. If the reminder defines an activated ability, the examples use it as an activated ability (not an ETB trigger), and vice-versa.
+- **No useless costs / no payoff.** Every cost must buy something a player actively wants. No "{T}: Sacrifice this" with no benefit, no downside without an upside, no ability nobody would ever activate.
+- **No parasitism / dead cards.** The mechanic should do something on its own. Avoid designs that are blank unless you happen to have a second specific thing on board (an artifact to sacrifice AND a creature to target; "do nothing until you draw the other half").
+- **Real templating only.** No placeholders like "[Cost]". Use correct Magic templating:
+  - Keyword ability with a cost → put the cost on the keyword, like `Crew 2` or `Equip {2}`; the reminder defines the full ability. Do NOT write `{T}, pay [Cost]`.
+  - Activated ability → `[cost]: [effect]` (the cost may include `{T}`).
+  - Optional ETB with a cost → `When this creature enters, you may [cost]. If you do, [effect].` — NOT `When this enters, [cost]: [effect]`.
+  - Add a creature type → `is a Beast in addition to its other types` (or `is also a Beast`), never bare `except it's a Beast`.
+  - Toggle via a counter → `[cost]: Put a [name] counter on this creature. If it already has one, remove it instead.`
+- **Self-contained reminder.** The reminder text alone (under 100 characters) must fully define the mechanic and resolve unambiguously.
+
 ## Output rules
 
 - Name it in one or two evocative words. Do not collide with the excluded keywords above.
@@ -30,3 +46,13 @@ Custom mechanics wanted: {mechanic_count}
 - Set `complexity` honestly: 1 = common-viable, one trigger, short text; 2 = a real choice or stacking; 3 = build-around, multiple moving parts.
 - `distribution` is how many cards of each rarity carry the mechanic — a rough plan, integers, summing to a sensible count.
 - Provide EXACTLY TWO example cards that USE the mechanic by name in their oracle text, at CONTRASTING rarities (one simple common-tier expression, one richer rare/mythic one). Valid templating; no parenthetical reminder text (it is injected later).
+
+## Before you submit: the originality test
+
+Most first drafts fail HERE — they are a well-worn pattern with a new name. Before submitting, check your mechanic against this list and REDESIGN if it matches any of them:
+
+- It is one of these tired patterns in a costume: pay-mana-for-a-temporary-keyword, a flat +1/+1 / stat pump, sacrifice-a-permanent-for-mana-or-a-token (Food/Clue/Treasure), a generic ETB "do X" value trigger, move/re-attach an Equipment, or a "draw a card" effect. None of these is a new mechanic.
+- It is an existing keyword with the serial numbers filed off (Equip, Crew, Convoke, Cascade, Exploit, Mutate, Modular, Bloodthirst, Embalm, …). If yours behaves like one of those, it IS one of those.
+- The "decision" is fake: an auto-include with no real cost, a one-shot button you press once and forget, or a "choose one" where the same option is almost always correct.
+
+A strong mechanic creates a **recurring decision, or a board texture you feel across the whole game** — a real tension (give something up to gain something, time it right, build toward a payoff) that a player actively drafts and pilots around. If you cannot state, in one sentence, the interesting decision your mechanic makes a player face turn after turn, it is not ready — redesign it.
