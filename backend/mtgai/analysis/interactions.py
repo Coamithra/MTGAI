@@ -24,6 +24,7 @@ import re
 from mtgai.analysis.gate_common import filter_gate_cards
 from mtgai.analysis.models import InteractionFlag
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool
+from mtgai.generation.token_budgets import HEAVY
 from mtgai.models.card import Card
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 # Model + effort come from per-set model_settings at runtime.
 TEMPERATURE = 0.3  # Low temp for analytical task
-MAX_TOKENS = 8192
+MAX_TOKENS = HEAVY
 
 # ---------------------------------------------------------------------------
 # Card serialization — full oracle text, no truncation

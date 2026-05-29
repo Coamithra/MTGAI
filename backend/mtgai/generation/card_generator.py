@@ -36,6 +36,7 @@ from pathlib import Path
 from mtgai.generation.archetype_generator import load_archetypes
 from mtgai.generation.llm_client import calc_cost, cost_from_result, generate_with_tool
 from mtgai.generation.prompts import build_user_prompt, load_system_prompt
+from mtgai.generation.token_budgets import BATCH, STANDARD
 from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
 from mtgai.models.card import Card, GenerationAttempt
@@ -329,7 +330,7 @@ def _retry_single_card(
             tool_schema=CARD_TOOL_SCHEMA,
             model=model,
             temperature=TEMPERATURE,
-            max_tokens=4096,
+            max_tokens=STANDARD,
             effort=effort,
             log_dir=_card_gen_log_dir(),
         )
@@ -1247,7 +1248,7 @@ def generate_set(
                 tool_schema=tool_schema,
                 model=active_model,
                 temperature=TEMPERATURE,
-                max_tokens=8192,
+                max_tokens=BATCH,
                 effort=active_effort,
                 log_dir=log_dir,
             )

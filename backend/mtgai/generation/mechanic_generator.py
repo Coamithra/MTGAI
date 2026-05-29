@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from mtgai.generation.llm_client import generate_with_tool
+from mtgai.generation.token_budgets import STANDARD
 from mtgai.io.atomic import atomic_write_text
 
 # Per-mechanic streaming hook signatures. Engine path wires these to
@@ -604,7 +605,7 @@ def review_mechanic(
             tool_schema=MECHANIC_REVIEW_TOOL_SCHEMA,
             model=model_id,
             temperature=temperature,
-            max_tokens=2048,
+            max_tokens=STANDARD,
             log_dir=log_dir,
         )
     except Exception as exc:
@@ -1131,7 +1132,7 @@ def generate_mechanic_candidates(
                 tool_schema=MECHANIC_TOOL_SCHEMA,
                 model=model_id,
                 temperature=1.0,
-                max_tokens=4096,
+                max_tokens=STANDARD,
                 log_dir=log_dir,
             )
         except Exception as exc:
@@ -1256,14 +1257,13 @@ def _resolve_picks(
     Returns ``(picks, reasons)`` where ``reasons`` maps a picked index to
     the model's one-line reason (topped-up picks have no reason).
     """
+
     # When valid_indices is None we accept everything (legacy behaviour for
     # callers that haven't computed it — tests and any older caller).
     def _ok(idx: int) -> bool:
         return valid_indices is None or idx in valid_indices
 
-    valid_count = (
-        candidate_count_total if valid_indices is None else len(valid_indices)
-    )
+    valid_count = candidate_count_total if valid_indices is None else len(valid_indices)
     want = max(0, min(target, valid_count))
     picks: list[int] = []
     reasons: dict[int, str] = {}
@@ -1388,7 +1388,7 @@ def pick_best_mechanics(
             tool_schema=MECHANIC_PICK_TOOL_SCHEMA,
             model=model_id,
             temperature=0.4,
-            max_tokens=2048,
+            max_tokens=STANDARD,
             log_dir=log_dir,
         )
     except Exception as exc:

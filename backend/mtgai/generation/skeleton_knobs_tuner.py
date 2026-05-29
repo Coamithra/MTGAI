@@ -26,6 +26,7 @@ from mtgai.generation.skeleton_prompt_blocks import (
     format_mechanics_block,
     format_setting_block,
 )
+from mtgai.generation.token_budgets import STANDARD
 from mtgai.skeleton.knobs import (
     CYCLE_SPAN_SIZE,
     KNOB_SPECS,
@@ -167,7 +168,7 @@ def tune_knobs(
             tool_schema=build_tool_schema(),
             model=model,
             temperature=0.7,
-            max_tokens=4096,
+            max_tokens=STANDARD,
             log_dir=log_dir,
         )
     except Exception as exc:  # default-on-failure, never a hard error

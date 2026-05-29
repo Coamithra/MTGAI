@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.generation.prompts import format_mechanic_block
+from mtgai.generation.token_budgets import HEAVY
 from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
 from mtgai.models.card import Card
@@ -511,7 +512,7 @@ def _review_single(
                 tool_schema=REVIEW_TOOL_SCHEMA,
                 model=review_model,
                 temperature=TEMPERATURE,
-                max_tokens=8192,
+                max_tokens=HEAVY,
                 effort=review_effort,
             )
         except Exception:
@@ -660,7 +661,7 @@ def _review_council(
                 tool_schema=REVIEW_TOOL_SCHEMA,
                 model=review_model,
                 temperature=TEMPERATURE,
-                max_tokens=8192,
+                max_tokens=HEAVY,
                 effort=review_effort,
             )
         except Exception:
@@ -764,7 +765,7 @@ def _review_council(
                 tool_schema=tool,
                 model=review_model,
                 temperature=TEMPERATURE,
-                max_tokens=8192,
+                max_tokens=HEAVY,
                 effort=review_effort,
             )
         except Exception:

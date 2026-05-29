@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from mtgai.generation.llm_client import generate_with_tool
+from mtgai.generation.token_budgets import BATCH
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ def pair_label(pair: str) -> str:
     """``"WU"`` -> ``"WU (White-Blue)"`` for prompt + UI display."""
     names = "-".join(_COLOR_FULL.get(c, c) for c in pair)
     return f"{pair} ({names})"
+
 
 # Minimum surviving archetypes after dedupe before the runner treats the
 # call as a failure. We ask for all ten; allow a small shortfall (a model
@@ -412,7 +414,7 @@ def generate_archetypes(
         tool_schema=ARCHETYPE_TOOL_SCHEMA,
         model=model_id,
         temperature=1.0,
-        max_tokens=8192,
+        max_tokens=BATCH,
         log_dir=log_dir,
     )
 

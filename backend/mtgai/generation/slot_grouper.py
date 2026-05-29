@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from mtgai.generation.llm_client import generate_with_tool
+from mtgai.generation.token_budgets import STANDARD
 from mtgai.skeleton.generator import render_slot_string
 
 logger = logging.getLogger(__name__)
@@ -202,7 +203,7 @@ def find_cycle_families(
                 tool_schema=_FIND_TOOL_SCHEMA,
                 model=model,
                 temperature=_TEMPERATURE,
-                max_tokens=2048,
+                max_tokens=STANDARD,
                 log_dir=log_dir,
             )
         except Exception as exc:

@@ -30,6 +30,7 @@ from mtgai.generation.reprint_selector import (
     _read_json,
     extract_set_config,
 )
+from mtgai.generation.token_budgets import STANDARD
 from mtgai.io.atomic import atomic_write_text
 from mtgai.models.card import Card
 from mtgai.models.enums import Color, Rarity
@@ -381,7 +382,7 @@ def generate_lands(
         # 5 land types x (4 one-sentence art briefs + 1 flavor) is a lot of JSON;
         # at 2048 the (often verbose, local) model truncated mid-output
         # (finish: length) around the 3rd type. 4096 fits all five with headroom.
-        max_tokens=4096,
+        max_tokens=STANDARD,
         log_dir=log_dir,
     )
     basics_data = response.get("result", {}).get("basics", [])
@@ -453,7 +454,7 @@ def generate_lands(
             temperature=0.7,
             # Smaller output (one dual + reasoning), but a truncated tool-call JSON
             # fails to parse just the same — give the same headroom as the basics call.
-            max_tokens=4096,
+            max_tokens=STANDARD,
             log_dir=log_dir,
         )
         cost += cost_from_result(inv_response)

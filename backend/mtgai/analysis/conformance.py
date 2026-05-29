@@ -27,12 +27,13 @@ import re
 from mtgai.analysis.gate_common import filter_gate_cards
 from mtgai.analysis.models import ConformanceFinding
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool
+from mtgai.generation.token_budgets import HEAVY
 from mtgai.models.card import Card
 
 logger = logging.getLogger(__name__)
 
 TEMPERATURE = 0.2  # Low temp — objective adherence check
-MAX_TOKENS = 8192
+MAX_TOKENS = HEAVY
 
 
 # ---------------------------------------------------------------------------

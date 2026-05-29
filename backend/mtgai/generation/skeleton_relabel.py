@@ -43,6 +43,7 @@ from mtgai.generation.skeleton_prompt_blocks import (
     format_mechanics_block,
     format_setting_block,
 )
+from mtgai.generation.token_budgets import BATCH, HEAVY
 from mtgai.runtime import ai_lock
 from mtgai.skeleton.generator import render_slot_string
 
@@ -418,7 +419,7 @@ def relabel_slots(
                 user_prompt=user_prompt,
                 model=model,
                 temperature=1.0,
-                max_tokens=16384,
+                max_tokens=HEAVY,
                 log_dir=log_dir,
                 repeat_penalty=RELABEL_TEXT_REPEAT_PENALTY,
                 name="relabel_skeleton",
@@ -608,7 +609,7 @@ def assign_requests(
                 tool_schema=ASSIGN_TOOL_SCHEMA,
                 model=model,
                 temperature=1.0,
-                max_tokens=8192,
+                max_tokens=BATCH,
                 log_dir=log_dir,
                 repeat_penalty=_repeat_penalty_for(attempt),
             )

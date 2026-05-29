@@ -421,6 +421,7 @@ def _select_from_pool(
     when given). Returns (candidate, reason). The mix is soft — capped at the
     total, not per rarity."""
     from mtgai.generation.llm_client import generate_with_tool
+    from mtgai.generation.token_budgets import STANDARD
 
     if count <= 0 or not pool:
         return []
@@ -432,7 +433,7 @@ def _select_from_pool(
             tool_schema=_SELECT_TOOL,
             model=model,
             temperature=temperature,
-            max_tokens=2048,
+            max_tokens=STANDARD,
             log_dir=log_dir,
         )
     except Exception:
@@ -474,6 +475,7 @@ def _place_reprints(
 ) -> list[SelectionPair]:
     """Assign each chosen reprint to a slot. Retries, dedups by card + slot."""
     from mtgai.generation.llm_client import generate_with_tool
+    from mtgai.generation.token_budgets import STANDARD
 
     if not selected or not slot_texts:
         return []
@@ -503,7 +505,7 @@ def _place_reprints(
                 tool_schema=_PLACE_TOOL,
                 model=model,
                 temperature=temperature,
-                max_tokens=2048,
+                max_tokens=STANDARD,
                 log_dir=log_dir,
             )
         except Exception:

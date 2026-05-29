@@ -24,6 +24,7 @@ from typing import Any
 
 from llmfacade import SystemBlock
 
+from mtgai.generation.token_budgets import HEAVY, STANDARD
 from mtgai.io.atomic import atomic_write_text
 from mtgai.runtime import ai_lock
 
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 # Tokens reserved for LLM output. Used both for budget calculations and as the
 # concrete max_tokens / num_predict on each call - keep these in sync.
-_OUTPUT_BUDGET = 16384
+_OUTPUT_BUDGET = HEAVY
 _LOG_DIR = Path("C:/Programming/MTGAI/output/extraction_logs")
 
 # Cap how many lines of each message llmfacade dumps into its JSONL/HTML logs.
@@ -55,8 +56,8 @@ _LLAMACPP_STOP_SEQUENCES = [
 # Constraints output is tiny (3-8 short strings). Card suggestions (3-5 cards
 # with descriptions) needs more room - local models sometimes pad descriptions
 # or emit extra cards before the JSON closes.
-_JSON_SUBCALL_CONSTRAINTS_MAX_TOKENS = 4096
-_JSON_SUBCALL_SUGGESTIONS_MAX_TOKENS = 8192
+_JSON_SUBCALL_CONSTRAINTS_MAX_TOKENS = STANDARD
+_JSON_SUBCALL_SUGGESTIONS_MAX_TOKENS = STANDARD
 
 # Per-attempt repeat_penalty escalation for the JSON subcall retry loop.
 # Index = attempt-1. None means "use provider default" (1.1).
