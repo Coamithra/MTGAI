@@ -54,7 +54,84 @@ not the synthesizer). Still TODO in the prototype: implement + validate this spl
 good/bad draft set to measure catch-rate vs false-positive-rate, then port back. The rest of this plan
 (council structure, theme-free checklist, safe fallback, signature/return-shape preservation) stands.
 
-## Design
+## Update — 2026-05-29 (final): the council becomes a regenerate-GATE — supersedes the synthesis design below
+
+After prototyping the full loop in [`mtg-mech-lab/`](../mtg-mech-lab/README.md) across ~6
+Transformers-theme iterations (lab commits `e440bf6`, `a9337c5`, `53837aa`), the picture and the user's
+decisions changed enough to **replace the synth-based design below**.
+
+### What the prototype established
+- **The six-standard reviewer prompt is excellent** — validated v1 to port (`mtg-mech-lab/prompts/review_system.txt`).
+- **The synth (revise-in-place) is the weak, unreliable link.** The truncation turned out to be
+  *reasoning-budget overrun* (local Gemma is a reasoning model whose chain-of-thought ate the token
+  budget before the answer — see [`learnings/reasoning-budget-overrun.md`](reasoning-budget-overrun.md));
+  fixing the budget unblocked it, BUT even then, and even with explicit anti-regression rules, the synth
+  still ~⅓ of the time **stripped existing definitions, re-introduced `[placeholder]`s, or claimed fixes
+  it never made**. A synth that grades its own work also needed a **re-review** net (exit on *reviewer*
+  consensus, not the synth's self-verdict).
+- **An originality gate in the GENERATION prompt is what actually lifted idea quality** — naming the
+  tired patterns (sac-for-mana, stat-pump, equip-move, temp-keyword) and demanding a real recurring
+  decision. It produced the run's standout, **Integrate** (a creature that sacrifices itself to become a
+  bespoke Equipment — on-theme, a genuine keep-or-convert decision).
+- **gen-temp 0.9 beats 1.1** (1.1 clustered + degraded templating without adding novelty). Keep 0.9.
+
+### Locked decisions (these supersede the synth-based Design section)
+1. **Revise → regenerate.** Drop the synthesizer entirely. The council is a **pass/fail quality gate**,
+   not a fixer. A flagged candidate is **discarded and regenerated from scratch**, threading the
+   council's reasons into the gen prompt — reusing the proven `card_gen` regenerate-with-`regen_reason`
+   pattern. This removes the two-call consensus→revise machinery from this plan and sidesteps the synth's
+   unreliability. (A regenerated candidate is "re-reviewed" simply by passing through the gate like any
+   fresh draft, so no separate re-review loop is needed.)
+2. **The pool must be 2N *working* mechanics.** `generate_mechanic_candidates` keeps generating /
+   regenerating until the pool holds `candidate_count` (= 2N) candidates that all **pass council**
+   (attempt-capped). This matters because `pick_best_mechanics` selects N on **theme fit** — the
+   dimension the theme-blind council deliberately can't judge. A pool of 2N *sound* mechanics is what
+   gives the theme-fit pick real choice. **Small-set caveat:** 2N scales with N, so a small set gets a
+   thin pool and weaker theme-fit selection — consider a higher multiple or a floor for small N (open).
+
+### Revised flow
+generate candidate → **council gate** (3 theme-free reviewers, six standards) → consensus OK? keep :
+discard + regenerate-with-reasons → repeat per slot until 2N pass (attempt cap) → `pick_best_mechanics`
+selects N on **theme fit** + diversity → persist `approved.json`.
+
+### Revised port (replaces the synth pieces)
+- **Port from the lab:** `gen_system` pitfalls + originality gate → `mechanic_system.txt`; six-standard
+  `review_system` → `mechanic_review_system.txt`; council-member `review_user` → `mechanic_review_user.txt`.
+  **No synth prompts** (no consensus/revise files).
+- **Schemas:** add `MECHANIC_REVIEWER_TOOL_SCHEMA` (`{verdict, issues}`); **drop** the synth/consensus/
+  revise schemas. Keep `MECHANIC_ITEM_SCHEMA` (gen + regen).
+- **Orchestration moves up a level.** The gate+regen loop lives in **`generate_mechanic_candidates`**
+  (not inside `review_mechanic`): review each draft; on consensus REVISE, regenerate that slot with the
+  reasons rather than tweak it. `review_mechanic` becomes a `council_gate(draft) -> {verdict, issues}`
+  helper with no mechanic re-emit. Reviewers run **sequentially** — the app-wide AI mutex forbids
+  parallel calls.
+- **Verdict → selection:** stamp `_review_verdict`; the pool is all-OK by construction, so the pick
+  selects mainly on theme fit (pass verdicts through as a guard).
+- **Budgets:** reviewers + gen at `STANDARD` (no synth → no `HEAVY` need here; the reasoning-budget
+  headroom still matters for gen on local Gemma).
+- **Streaming:** existing `on_draft`/`on_finalized` hooks already re-fire on a regenerated slot; add the
+  verdict to the finalized event if useful.
+
+### Updated files to touch
+- `backend/mtgai/generation/mechanic_generator.py` — reviewer schema, `council_gate`, regen-until-2N-pass
+  loop in `generate_mechanic_candidates`, verdict stamp; remove the synth schemas + `review_mechanic`'s tweak path.
+- `backend/mtgai/pipeline/prompts/` — `mechanic_system.txt`, `mechanic_review_system.txt`,
+  `mechanic_review_user.txt`. (No consensus/revise prompts.)
+- `backend/mtgai/pipeline/stages.py` — `run_mechanics` (cancellation between regens, phase strings).
+- `backend/mtgai/pipeline/stage_hooks.py` — verdict in finalized event (optional).
+- `backend/tests/test_mechanic_generator.py` — replace review_mechanic tests with council-gate +
+  regen-until-pass + verdict tests.
+
+### Open questions
+- **Regen attempt cap** when the model can't produce 2N passing (keep best-effort flagged + human pause?
+  accept a smaller pool?) — mirror `card_gen`'s `MAX_REVIEW_ROUNDS`.
+- **Small-set pool multiple** (2N vs 3N vs a floor) so theme-fit selection has room.
+- **Cost.** Council on every draft + regens, sequential (AI mutex), ~7–8k reasoning tokens/call on local
+  Gemma (~minutes each). Options: a cheaper single-reviewer gate for pool culling + full council only for
+  finalists; or assign a faster/stronger model to `mechanics`. The stronger-model path is also the route
+  to *consistent* quality (local Gemma is ~⅔ rule-consistent and creatively capped).
+
+## Design (SUPERSEDED — see the "final" update directly above; kept for history)
 
 Replace the body of `review_mechanic()` with a council orchestrator while keeping its **public
 signature and return shape identical** — `{mechanic, review_notes, input_tokens, output_tokens}`.
