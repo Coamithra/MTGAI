@@ -8,7 +8,7 @@ Lives inside the MTGAI repo but is **not wired into anything** — it's a sandbo
 > check on each mechanic. The goal is to upgrade that to a **council** (like the card
 > review) so mechanics come out *playable, correctly worded, interesting, not
 > self-contradictory, unique, and elegant*. This lab is where we tune the prompts.
-> See `plans/hey-i-really-like-lexical-shore.md` for the production plan.
+> See `plans/mechanics-council-review.md` for the production plan.
 
 ## What it does
 

@@ -64,7 +64,7 @@ decisions changed enough to **replace the synth-based design below**.
 - **The six-standard reviewer prompt is excellent** — validated v1 to port (`mtg-mech-lab/prompts/review_system.txt`).
 - **The synth (revise-in-place) is the weak, unreliable link.** The truncation turned out to be
   *reasoning-budget overrun* (local Gemma is a reasoning model whose chain-of-thought ate the token
-  budget before the answer — see [`learnings/reasoning-budget-overrun.md`](reasoning-budget-overrun.md));
+  budget before the answer — see [`learnings/reasoning-budget-overrun.md`](../learnings/reasoning-budget-overrun.md));
   fixing the budget unblocked it, BUT even then, and even with explicit anti-regression rules, the synth
   still ~⅓ of the time **stripped existing definitions, re-introduced `[placeholder]`s, or claimed fixes
   it never made**. A synth that grades its own work also needed a **re-review** net (exit on *reviewer*
