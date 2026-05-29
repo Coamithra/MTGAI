@@ -79,7 +79,7 @@ failure mode **without over-rejecting the good one**.
 --council N           reviewers per round (default 3)
 --iterations N        max review rounds (default 3)
 --gen-temp / --review-temp / --synth-temp    sampling temperatures
---repeat-penalty F    llamacpp only; ~1.0 keeps JSON scaffolding intact (default 1.0)
+--repeat-penalty F    llamacpp only; provider default 1.1 (synth retries escalate to 1.20)
 --no-review           only generate (sanity-check the gen prompts)
 ```
 

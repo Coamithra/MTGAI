@@ -347,6 +347,51 @@ def call_synth(mech: dict, reviews: list[dict], model: str, temp: float, log_dir
     )
 
 
+# Escalating repeat_penalty rungs for retrying a synth that looped/truncated.
+# Mirrors the real app's theme_extractor JSON-subcall loop-breaker: on llama.cpp
+# repeat_penalty actually moves the sampler, and >1.20 noticeably degrades JSON
+# output, so 1.20 is the ceiling. Attempt 1 uses the run's base --repeat-penalty;
+# these are the higher rungs tried only after a failure.
+SYNTH_RETRY_PENALTIES = (1.15, 1.20)
+
+
+def call_synth_escalating(mech: dict, reviews: list[dict], model: str, temp: float,
+                          log_dir: Path, base_penalty: float | None) -> dict | None:
+    """Call the synth, escalating repeat_penalty on a looped/truncated reply.
+
+    The synth is the one call that reliably trips Gemma's constrained-JSON
+    repetition collapse — it re-emits the whole mechanic (2 example cards) plus
+    consensus prose, fed all the reviews, so it generates far past where a
+    correct answer would close and ``check_post_call_response`` raises on the
+    ``length`` finish. On llama.cpp a higher repeat_penalty breaks those loops in
+    practice, so on failure we retry at progressively higher penalties up to the
+    1.20 JSON-safe ceiling. Returns the first response carrying a usable
+    ``revised_mechanic``, or ``None`` if every rung failed.
+    """
+    rungs = [base_penalty] + [
+        p for p in SYNTH_RETRY_PENALTIES if base_penalty is None or p > base_penalty
+    ]
+    last_exc: Exception | None = None
+    for i, rp in enumerate(rungs, 1):
+        tag = f"repeat_penalty={rp}" if rp is not None else "default repeat_penalty"
+        try:
+            resp = call_synth(mech, reviews, model, temp, log_dir, rp)
+        except Exception as exc:  # truncation guard raises here on a loop
+            last_exc = exc
+            print(f"      synth attempt {i}/{len(rungs)} ({tag}) failed: "
+                  f"{type(exc).__name__}: {exc}")
+            continue
+        if (resp.get("result") or {}).get("revised_mechanic"):
+            if i > 1:
+                print(f"      synth recovered on attempt {i} ({tag})")
+            return resp
+        print(f"      synth attempt {i}/{len(rungs)} ({tag}) parsed but emitted no "
+              f"revised_mechanic; escalating")
+    if last_exc:
+        print(f"      synth exhausted all {len(rungs)} attempt(s) — keeping current mechanic")
+    return None
+
+
 # ── council review of one mechanic (the heart of the prototype) ────────────
 
 
@@ -406,11 +451,11 @@ def review_one(draft: dict, *, model: str, council_size: int, max_iterations: in
             final_verdict = "OK"
             break
 
-        # Phase 2 — synthesis (consensus filter + revision)
-        try:
-            sresp = call_synth(mechanic, reviews, model, synth_temp, log_dir, repeat_penalty)
-        except Exception as exc:
-            print(f"      synthesis failed: {type(exc).__name__}: {exc} — keeping current mechanic")
+        # Phase 2 — synthesis (consensus filter + revision). The synth is the call
+        # that trips Gemma's constrained-JSON repetition collapse, so retry it with
+        # escalating repeat_penalty (the real app's theme_extractor loop-breaker).
+        sresp = call_synth_escalating(mechanic, reviews, model, synth_temp, log_dir, repeat_penalty)
+        if sresp is None:
             rounds.append(round_rec)
             final_verdict = "REVISE"
             break
@@ -605,10 +650,14 @@ def main() -> int:
     ap.add_argument("--gen-temp", type=float, default=0.9)
     ap.add_argument("--review-temp", type=float, default=0.4)
     ap.add_argument("--synth-temp", type=float, default=0.2)
-    # 1.0 (not the provider default 1.1) keeps local-model JSON scaffolding intact
-    # for structured tool calls — see MTGAI CLAUDE.md "Local LLMs". Ignored on Anthropic.
-    ap.add_argument("--repeat-penalty", type=float, default=1.0,
-                    help="llamacpp only; ~1.0 keeps JSON scaffolding intact. Ignored on Anthropic.")
+    # 1.1 is the provider default (LLAMACPP_REPEAT_PENALTY) the real app uses for
+    # ALL structured tool-use — the mechanics stage included — and on llama.cpp it
+    # actually moves the sampler, breaking Gemma's constrained-JSON repetition
+    # collapse. The synth call escalates further (1.15 → 1.20) on a looped/truncated
+    # reply; >1.20 degrades JSON output, so that's the ceiling. Ignored on Anthropic.
+    ap.add_argument("--repeat-penalty", type=float, default=1.1,
+                    help="llamacpp only; provider default 1.1. Synth retries escalate to 1.20. "
+                         "Ignored on Anthropic.")
     ap.add_argument("--no-review", action="store_true", help="Only generate; skip the review.")
     ap.add_argument("--set-size", type=int, default=250)
     ap.add_argument("--mechanic-count", type=int, default=None,
