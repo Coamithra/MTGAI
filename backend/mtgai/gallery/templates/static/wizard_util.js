@@ -288,4 +288,43 @@
       restore();
     }
   };
+
+  // --- SSE stream bridge (conventions §14) ---------------------------------
+  // Wire a streaming stage tab's SSE hook. Owns the boilerplate every streaming
+  // tab (mechanics / skeleton / card_gen) hand-rolled: the W.on<Stage>Stream
+  // assignment, the event-name → handler dispatch, and the fresh tab-root
+  // lookup. The shell (wizard.js) addEventListens the bus events and forwards
+  // them here by name; the per-event semantics (collision tags, busy-label,
+  // live-slot DOM patch, merge keys) stay in the tab handlers — they diverge too
+  // much to fold into one onItem. Pair with W.streamUpsert for the merge-by-key
+  // half where it fits (card_gen).
+  //
+  //   stageId  — "mechanics" / "skeleton" / "card_gen". The hook name is derived
+  //              as on<PascalCase>Stream (card_gen → onCardGenStream) to match
+  //              the shell's lookup.
+  //   handlers — { [sseEventName]: (data, root) => void }. ``root`` is the live
+  //              tab body (W.tabRoot(stageId)), resolved fresh per event and null
+  //              when the tab isn't mounted (handlers already guard a falsy root).
+  W.registerStream = function (stageId, handlers) {
+    const pascal = String(stageId).replace(/(^|_)([a-z])/g, (_m, _sep, c) => c.toUpperCase());
+    W['on' + pascal + 'Stream'] = function (name, data) {
+      const fn = handlers[name];
+      if (fn) fn(data || {}, W.tabRoot(stageId));
+    };
+  };
+
+  // Merge a streamed item into a live list by key: replace the element whose key
+  // matches (so a duplicate delivery from an SSE replay + a /state refetch is
+  // idempotent), else append. Returns the item's index. The merge-by-key half of
+  // the streaming bookkeeping; card_gen keys by collector_number.
+  W.streamUpsert = function (list, item, keyFn) {
+    const key = keyFn(item);
+    const idx = list.findIndex((el) => keyFn(el) === key);
+    if (idx >= 0) {
+      list[idx] = item;
+      return idx;
+    }
+    list.push(item);
+    return list.length - 1;
+  };
 })();

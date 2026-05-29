@@ -68,7 +68,13 @@
   W.registerStageRenderer(STAGE_ID, render);
   // Registered at module load (not in render) so live relabel events are caught
   // even when the engine runs the skeleton stage while another tab is active.
-  W.onSkeletonStream = onSkeletonStream;
+  // The handlers resolve their own root via bodyRoot(); the root registerStream
+  // passes is ignored.
+  W.registerStream(STAGE_ID, {
+    skeleton_relabel_reset: onRelabelReset,
+    skeleton_slot: onRelabelSlot,
+    skeleton_relabel_done: onRelabelDone,
+  });
 
   // ----------------------------------------------------------------------
 
@@ -583,7 +589,7 @@
   }
 
   // ----------------------------------------------------------------------
-  // Live relabel streaming (SSE bridged from wizard.js via W.onSkeletonStream)
+  // Live relabel streaming (wired at module load via W.registerStream above)
   // ----------------------------------------------------------------------
   //
   // Three events, fired for BOTH the engine auto-run and the manual Refresh
@@ -591,12 +597,6 @@
   //   skeleton_relabel_reset — a fresh attempt is (re)starting
   //   skeleton_slot          — one slot's relabel/placement landed
   //   skeleton_relabel_done  — the relabel finished (success or kept-partial)
-
-  function onSkeletonStream(name, data) {
-    if (name === 'skeleton_relabel_reset') return onRelabelReset();
-    if (name === 'skeleton_slot') return onRelabelSlot(data || {});
-    if (name === 'skeleton_relabel_done') return onRelabelDone(data || {});
-  }
 
   // A fresh attempt begins. Drop the prior attempt's accumulated updates and
   // per-row "arrived" highlights and dim the grid so the user watches it

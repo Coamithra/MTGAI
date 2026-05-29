@@ -27,7 +27,7 @@ from fastapi.templating import Jinja2Templates
 from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
 from mtgai.io.atomic import atomic_write_text
 from mtgai.pipeline.engine import PipelineEngine, load_state, save_state
-from mtgai.pipeline.events import EventBus, format_sse
+from mtgai.pipeline.events import EventBus, StageEmitter, format_sse
 from mtgai.pipeline.models import (
     STAGE_DEFINITIONS,
     PipelineConfig,
@@ -37,7 +37,15 @@ from mtgai.pipeline.models import (
     StageStatus,
     create_pipeline_state,
 )
-from mtgai.pipeline.stages import card_tile_dict
+from mtgai.pipeline.stage_hooks import (
+    build_card_gen_hooks,
+    build_mechanic_hooks,
+    build_skeleton_hooks,
+    card_tile_dict,
+    emit_card_gen_reset,
+    emit_skeleton_done,
+    slots_by_id_from_skeleton,
+)
 from mtgai.pipeline.wizard import build_wizard_state
 from mtgai.pipeline.wizard import serialize as serialize_wizard_state
 from mtgai.runtime import active_project, ai_lock, extraction_run
@@ -265,6 +273,16 @@ def register_exception_handlers(app: FastAPI) -> None:
 event_bus = EventBus()
 _engine: PipelineEngine | None = None
 _engine_task: asyncio.Task | None = None
+
+
+def _refresh_emitter(stage_id: str) -> StageEmitter:
+    """A :class:`StageEmitter` for the manual-refresh path so it shares the
+    engine's stream-hook builders (``stage_hooks``) and emits byte-identical
+    SSE payloads. ``started_at=0.0`` → phase ticks report elapsed 0; the refresh
+    path drives the progress strip its own way (showBusy / stage_phase), so the
+    elapsed field is unused there."""
+    return StageEmitter(event_bus, stage_id, 0.0)
+
 
 # Templates
 _templates_dir = Path(__file__).resolve().parent.parent / "gallery" / "templates"
@@ -2744,17 +2762,18 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
         )
     mech_dir = _mechanics_dir()
 
-    # Stream the regenerated candidate into the wizard via the same SSE events
-    # the engine path uses, but rebound to the *one* slot being refreshed:
-    # ``position`` is the slot's 0-based index + 1 so the wizard tab can map it
-    # back to the right row. No reset — a targeted refresh leaves the other
-    # rows alone. ``known_keywords`` is built once outside the LLM call.
+    # Stream the regenerated candidate into the wizard via the same hooks the
+    # engine path uses (``stage_hooks``), rebound to the *one* slot being
+    # refreshed: ``slot_for`` pins every loop position to ``idx`` so the emitted
+    # position is idx+1 and the persist lands in ``merged[idx]``. No reset — a
+    # targeted refresh leaves the other rows alone (on_reset isn't wired).
+    # ``known_keywords`` is built once outside the LLM call.
     from mtgai.generation.mechanic_generator import known_keyword_set
 
     known_keywords = known_keyword_set()
 
     # Build the merged list up front from the user's snapshot so the on_finalized
-    # callback can mutate + persist it incrementally. Without this, candidates.json
+    # hook can mutate + persist it incrementally. Without this, candidates.json
     # only gets rewritten when the request returns — so a browser F5 mid-run reads
     # the pre-refresh snapshot and looks like a regression.
     merged = list(candidates)
@@ -2762,35 +2781,14 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
         merged.append({})
     merged = merged[:pool]
 
-    def _on_draft(_position: int, draft: dict) -> None:
-        tagged = dict(draft)
-        tagged["_ai_generated"] = True
-        event_bus.publish(
-            "mechanic_candidate_drafted",
-            {"stage_id": "mechanics", "position": idx + 1, "target": pool, "candidate": tagged},
-        )
-
-    def _on_finalized(_position: int, mech: dict, review_notes: str) -> None:
-        name = (mech.get("name") or "").strip()
-        collision = name if name and name.lower() in known_keywords else None
-        tagged = dict(mech)
-        tagged["_ai_generated"] = True
-        # Persist to disk BEFORE publishing the SSE event so a mid-event F5
-        # always sees a candidates.json that matches the event the client
-        # just received.
-        merged[idx] = tagged
-        _write_json(mech_dir / "candidates.json", merged)
-        event_bus.publish(
-            "mechanic_candidate_finalized",
-            {
-                "stage_id": "mechanics",
-                "position": idx + 1,
-                "target": pool,
-                "candidate": tagged,
-                "review_notes": review_notes or "",
-                "collision_with": collision,
-            },
-        )
+    hooks = build_mechanic_hooks(
+        _refresh_emitter("mechanics"),
+        pool=pool,
+        merged=merged,
+        candidates_path=mech_dir / "candidates.json",
+        known_keywords=known_keywords,
+        slot_for=lambda _position: idx,
+    )
 
     with guarded_ai("Mechanic candidate refresh", stage_id="mechanics") as guard:
         if guard.busy:
@@ -2800,8 +2798,8 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
         response = await asyncio.to_thread(
             generate_mechanic_candidates,
             count=1,
-            on_draft=_on_draft,
-            on_finalized=_on_finalized,
+            on_draft=hooks.on_draft,
+            on_finalized=hooks.on_finalized,
         )
         new_mechanics = response["mechanics"]
         if not new_mechanics:
@@ -2905,51 +2903,19 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
             merged.append({})
         merged = merged[:pool]
 
-    def _on_reset() -> None:
-        # Only the full-pool path resets the strip — a targeted refresh leaves
-        # the other rows alone, so reset would be visually destructive.
-        if initial_generate:
-            event_bus.publish(
-                "mechanic_candidates_reset",
-                {"stage_id": "mechanics", "target": pool},
-            )
-
-    def _on_draft(position: int, draft: dict) -> None:
-        tagged = dict(draft)
-        tagged["_ai_generated"] = True
-        event_bus.publish(
-            "mechanic_candidate_drafted",
-            {
-                "stage_id": "mechanics",
-                "position": _slot_for(position) + 1,
-                "target": pool,
-                "candidate": tagged,
-            },
-        )
-
-    def _on_finalized(position: int, mech: dict, review_notes: str) -> None:
-        name = (mech.get("name") or "").strip()
-        collision = name if name and name.lower() in known_keywords else None
-        tagged = dict(mech)
-        tagged["_ai_generated"] = True
-        # Persist to disk BEFORE publishing the SSE event so a mid-event F5
-        # sees a candidates.json that matches the event the client just
-        # received. On a partial failure (loop errors below the floor), the
-        # mechanics that *did* finalize stay on disk — the user keeps what
-        # was generated instead of seeing the original snapshot restored.
-        merged[_slot_for(position)] = tagged
-        _write_json(mech_dir / "candidates.json", merged)
-        event_bus.publish(
-            "mechanic_candidate_finalized",
-            {
-                "stage_id": "mechanics",
-                "position": _slot_for(position) + 1,
-                "target": pool,
-                "candidate": tagged,
-                "review_notes": review_notes or "",
-                "collision_with": collision,
-            },
-        )
+    # Same hooks the engine path uses (``stage_hooks``): ``_slot_for`` remaps
+    # each loop position to its real slot, and ``fire_reset`` gates the reset
+    # event to the full-pool (initial-generate) path — a targeted refresh leaves
+    # untouched rows alone. The hooks own the persist + collision + payloads.
+    hooks = build_mechanic_hooks(
+        _refresh_emitter("mechanics"),
+        pool=pool,
+        merged=merged,
+        candidates_path=mech_dir / "candidates.json",
+        known_keywords=known_keywords,
+        slot_for=_slot_for,
+        fire_reset=initial_generate,
+    )
 
     with guarded_ai("Mechanic candidate refresh", stage_id="mechanics") as guard:
         if guard.busy:
@@ -2960,9 +2926,9 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
         response = await asyncio.to_thread(
             generate_mechanic_candidates,
             count=gen_count,
-            on_reset=_on_reset,
-            on_draft=_on_draft,
-            on_finalized=_on_finalized,
+            on_reset=hooks.on_reset,
+            on_draft=hooks.on_draft,
+            on_finalized=hooks.on_finalized,
         )
 
         # ``merged`` is already up to date via the on_finalized callback —
@@ -3849,11 +3815,7 @@ async def wizard_card_gen_state() -> JSONResponse:
     # eyeball "did the card design fulfil the slot's brief?". Reserved-card
     # slots already land their request text in tweaked_text via the relabel's
     # Pass 2, so this single resolver covers them too.
-    skeleton = _read_json(asset / "skeleton.json", {}) or {}
-    raw_slots = skeleton.get("slots") if isinstance(skeleton, dict) else None
-    slots_by_id: dict[str, dict] = {
-        s["slot_id"]: s for s in (raw_slots or []) if isinstance(s, dict) and s.get("slot_id")
-    }
+    slots_by_id = slots_by_id_from_skeleton(asset / "skeleton.json")
 
     cards_dir = asset / "cards"
     cards: list[dict] = []
@@ -3921,34 +3883,29 @@ async def wizard_card_gen_refresh() -> JSONResponse:
         def _on_progress(item: str, completed: int, total: int, detail: str, cost: float) -> None:
             event_bus.item_progress("card_gen", item, completed, total, detail)
 
+        # Reuse the engine's card-gen stream hooks (``stage_hooks``) via a
+        # refresh-path emitter so the streamed tile shape stays byte-identical
+        # to /state and run_card_gen.
+        emitter = _refresh_emitter("card_gen")
+
         # Tell the tab to drop its local card list before the new run streams
         # in (the cards/ dir was just wiped above — the SSE reset event is how
         # the client learns about it without a separate /state poll). Engine
         # path doesn't emit this: a first run already starts empty, a resume
         # must keep existing cards visible.
-        event_bus.publish("card_gen_reset", {"stage_id": "card_gen"})
+        emit_card_gen_reset(emitter)
 
         # Load the skeleton once so each streamed card tile gets the final
-        # relabeled descriptor for its slot, same shape /state emits.
-        skeleton = _read_json(skeleton_path, {}) or {}
-        raw_slots = skeleton.get("slots") if isinstance(skeleton, dict) else None
-        slots_by_id: dict[str, dict] = {
-            s["slot_id"]: s for s in (raw_slots or []) if isinstance(s, dict) and s.get("slot_id")
-        }
-
-        # Stream each saved card to the tab as it lands, so the grid pops in
-        # one card at a time during the run. Same payload as /state so client
-        # merge stays a no-op when the final repaint arrives.
-        def _on_card_saved(card) -> None:
-            event_bus.publish(
-                "card_gen_card",
-                {"stage_id": "card_gen", "card": card_tile_dict(card, slots_by_id)},
-            )
+        # relabeled descriptor for its slot, same shape /state emits, then stream
+        # each saved card to the tab as it lands so the grid pops in one card at
+        # a time (same payload as /state → the client merge is a no-op on repaint).
+        slots_by_id = slots_by_id_from_skeleton(skeleton_path)
+        cg_hooks = build_card_gen_hooks(emitter, slots_by_id=slots_by_id)
 
         result = await asyncio.to_thread(
             generate_set,
             progress_callback=_on_progress,
-            card_saved_callback=_on_card_saved,
+            card_saved_callback=cg_hooks.on_card_saved,
         )
 
         # A cancel isn't a recovery: suppress the guard's success-heal so a stuck
@@ -4148,6 +4105,12 @@ async def wizard_skeleton_refresh() -> JSONResponse:
     with guarded_ai("Skeleton relabel", stage_id="skeleton") as guard:
         if guard.busy:
             return guard.busy_response
+        # Reuse the engine's relabel stream hooks (``stage_hooks``) via a
+        # refresh-path emitter so the streamed slot/reset/done payloads stay
+        # identical to run_skeleton. on_progress stays a plain stage_phase tick
+        # (it drives the strip's activity line, not the tab's live slot view).
+        sk_emitter = _refresh_emitter("skeleton")
+        sk_hooks = build_skeleton_hooks(sk_emitter)
         try:
             relabel = await asyncio.to_thread(
                 relabel_skeleton,
@@ -4156,21 +4119,8 @@ async def wizard_skeleton_refresh() -> JSONResponse:
                 # the relabel's retry loop. Runs in the worker thread; the bus
                 # is thread-safe.
                 on_progress=lambda msg: event_bus.stage_phase("skeleton", "running", msg),
-                # Stream relabeled/placed slots into the tab as they land, and
-                # clear the tab's provisional rows at the start of every attempt
-                # (same event shape the engine path emits via StageEmitter.event).
-                on_slot=lambda sid, text, reserved=None: event_bus.publish(
-                    "skeleton_slot",
-                    {
-                        "stage_id": "skeleton",
-                        "slot_id": sid,
-                        "tweaked_text": text,
-                        "reserved_card": reserved,
-                    },
-                ),
-                on_reset=lambda: event_bus.publish(
-                    "skeleton_relabel_reset", {"stage_id": "skeleton"}
-                ),
+                on_slot=sk_hooks.on_slot,
+                on_reset=sk_hooks.on_reset,
             )
         finally:
             # Terminal phase so the strip clears even on SSE replay, error or
@@ -4204,13 +4154,10 @@ async def wizard_skeleton_refresh() -> JSONResponse:
             )
             # Terminal stream event (mirrors the engine path) so the live view
             # settles even if these events are later replayed from the bus buffer.
-            event_bus.publish(
-                "skeleton_relabel_done",
-                {
-                    "stage_id": "skeleton",
-                    "incomplete": bool(relabel.get("incomplete")),
-                    "relabeled": int(relabel.get("relabeled", 0)),
-                },
+            emit_skeleton_done(
+                sk_emitter,
+                incomplete=bool(relabel.get("incomplete")),
+                relabeled=int(relabel.get("relabeled", 0)),
             )
         # The guard heals a stuck FAILED skeleton stage on a clean exit.
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from mtgai.models.card import Card
 from mtgai.models.enums import CardStatus, Color, Rarity
-from mtgai.pipeline.stages import card_tile_dict
+from mtgai.pipeline.stage_hooks import card_tile_dict
 
 
 def _full_card() -> Card:

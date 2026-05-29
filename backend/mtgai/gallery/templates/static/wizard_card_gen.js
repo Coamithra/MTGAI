@@ -61,16 +61,37 @@
     filterColor: 'all',
     locked: false,
     bootstrapping: false,
-    // The currently-mounted tab root, captured on each ``render`` call so the
-    // SSE-driven ``onCardGenStream`` handler can paintGrid without going
-    // through the wizard's render pipeline. Null when the tab isn't mounted;
-    // paintGrid is a safe no-op in that case (root is still consulted but the
-    // ``data-role="cg-grid"`` querySelector returns nothing).
-    liveRoot: null,
   };
 
   W.registerStageRenderer(STAGE_ID, render);
-  W.onCardGenStream = onCardGenStream;
+  // SSE bridge (wizard.js forwards card_gen_reset / card_gen_card here). The
+  // ``root`` each handler receives is W.tabRoot(STAGE_ID) resolved fresh per
+  // event — null when the tab isn't mounted, in which case paintGrid is skipped.
+  W.registerStream(STAGE_ID, {
+    // A from-scratch refresh wiped cards/ on disk: drop the local list so the
+    // new run streams in against an empty grid.
+    card_gen_reset: (_data, root) => {
+      local.cards = [];
+      local.hasContent = false;
+      if (root) {
+        rebuildFilterOptions(root);
+        paintGrid(root);
+      }
+    },
+    // One freshly-saved card; merge by collector_number (replace if present,
+    // else append) so duplicate deliveries from a /state refetch + SSE replay
+    // are idempotent.
+    card_gen_card: (data, root) => {
+      const card = data && data.card;
+      if (!card || !card.collector_number) return;
+      W.streamUpsert(local.cards, card, (c) => c.collector_number);
+      local.hasContent = true;
+      if (root) {
+        rebuildFilterOptions(root);
+        paintGrid(root);
+      }
+    },
+  });
 
   // Inject scoped styles once at module load.
   (function injectStyles() {
@@ -272,10 +293,6 @@
   // --------------------------------------------------------------------
 
   function render({ root, state, stage, content, footer }) {
-    // Cache the current root so onCardGenStream can paintGrid without going
-    // through the wizard's render pipeline. Updated every call so re-mounts
-    // (tab switch round-trips) point at the fresh DOM.
-    local.liveRoot = root;
     if (!local.initialized) {
       local.initialized = true;
       local.stageStatus = stage ? stage.status : 'pending';
@@ -364,42 +381,8 @@
   // if the call fails (shows the empty placeholder rather than erroring out).
   // --------------------------------------------------------------------
 
-  // --------------------------------------------------------------------
-  // Live card streaming — SSE bridged from wizard.js via W.onCardGenStream.
-  //
-  // Two events drive this tab live:
-  //   card_gen_reset — a from-scratch refresh wiped cards/ on disk;
-  //                    drop the local list so the new run streams in
-  //                    against an empty grid.
-  //   card_gen_card  — one freshly-saved card; merge by collector_number
-  //                    (replace if present, else append) so duplicate
-  //                    deliveries from a /state refetch + SSE replay are
-  //                    idempotent.
-  // --------------------------------------------------------------------
-  function onCardGenStream(name, data) {
-    const root = local.liveRoot;
-    if (name === 'card_gen_reset') {
-      local.cards = [];
-      local.hasContent = false;
-      if (root) {
-        rebuildFilterOptions(root);
-        paintGrid(root);
-      }
-      return;
-    }
-    if (name === 'card_gen_card') {
-      const card = data && data.card;
-      if (!card || !card.collector_number) return;
-      const idx = local.cards.findIndex(c => c.collector_number === card.collector_number);
-      if (idx >= 0) local.cards[idx] = card;
-      else local.cards.push(card);
-      local.hasContent = true;
-      if (root) {
-        rebuildFilterOptions(root);
-        paintGrid(root);
-      }
-    }
-  }
+  // Live card streaming (card_gen_reset / card_gen_card) is wired at module
+  // load via W.registerStream above.
 
   async function bootstrap(root, state) {
     const data = await W.fetchStageState(STAGE_ID);

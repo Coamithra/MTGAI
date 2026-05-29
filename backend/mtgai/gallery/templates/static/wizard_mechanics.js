@@ -54,8 +54,14 @@
   W.registerStageRenderer(STAGE_ID, render);
   // SSE bridge from wizard.js — the mechanic generation stream pushes a draft
   // (pre-review) then a finalized version (post-review) per candidate, plus a
-  // reset at the start of a from-scratch run.
-  W.onMechanicsStream = onMechanicsStream;
+  // reset at the start of a from-scratch run. The handlers resolve their own
+  // root via tabRoot() (shared with the rest of the tab), so they ignore the
+  // root registerStream passes.
+  W.registerStream(STAGE_ID, {
+    mechanic_candidates_reset: onStreamReset,
+    mechanic_candidate_drafted: onStreamDrafted,
+    mechanic_candidate_finalized: onStreamFinalized,
+  });
 
   // ----------------------------------------------------------------------
   // Top-level render
@@ -823,7 +829,7 @@
   }
 
   // ----------------------------------------------------------------------
-  // Live streaming (SSE bridged from wizard.js via W.onMechanicsStream)
+  // Live streaming (wired at module load via W.registerStream above)
   //
   // Three events:
   //   mechanic_candidates_reset    — clear the strip (only fires on a from-
@@ -836,17 +842,11 @@
   //                                  draft with the final mechanic +
   //                                  optional ``review_notes`` line.
   //
-  // The handler is idempotent: a tab reattach mid-run sees the same events
+  // The handlers are idempotent: a tab reattach mid-run sees the same events
   // it would have if it never left, so repainting on each event is safe.
   // We avoid clobbering picks: ``_review_notes`` lives on the candidate dict
   // alongside ``_ai_generated``; picks are tracked by index in ``local.picks``.
   // ----------------------------------------------------------------------
-
-  function onMechanicsStream(name, data) {
-    if (name === 'mechanic_candidates_reset') return onStreamReset(data || {});
-    if (name === 'mechanic_candidate_drafted') return onStreamDrafted(data || {});
-    if (name === 'mechanic_candidate_finalized') return onStreamFinalized(data || {});
-  }
 
   const tabRoot = () => W.tabRoot(STAGE_ID);
 

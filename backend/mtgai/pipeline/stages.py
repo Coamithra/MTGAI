@@ -26,6 +26,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mtgai.io.atomic import atomic_write_text
+from mtgai.pipeline.stage_hooks import (
+    build_card_gen_hooks,
+    build_mechanic_hooks,
+    build_skeleton_hooks,
+    emit_skeleton_done,
+    slots_by_id_from_skeleton,
+)
 
 if TYPE_CHECKING:
     from mtgai.pipeline.events import StageEmitter
@@ -50,60 +57,6 @@ def _set_dir() -> Path:
     from mtgai.io.asset_paths import set_artifact_dir
 
     return set_artifact_dir()
-
-
-def card_tile_dict(card: object, slots_by_id: dict[str, dict] | None = None) -> dict:
-    """Render a Card (or its disk-JSON dict) into the Card-Generation tab's
-    tile shape — the same payload :func:`server.wizard_card_gen_state` emits.
-
-    Single source of the tile shape so the engine's per-card SSE stream and
-    the manual ``/refresh`` endpoint stay byte-identical to the canonical
-    ``/state`` response — the tab merges streamed cards into a list that
-    eventually gets repainted from ``/state``, so any drift would surface as
-    layout flicker.
-
-    Accepts either a ``Card`` model instance (calls ``model_dump(mode="json")``
-    so enums become strings) or a plain dict already loaded from disk.
-
-    ``slots_by_id`` (optional) is a ``{slot_id: slot_dict}`` map from the
-    project's ``skeleton.json``. When provided, the tile gains a ``slot_text``
-    field carrying the final relabeled descriptor for the card's slot — the
-    same string :func:`mtgai.generation.prompts.format_slot_specs` uses
-    (``tweaked_text`` when present, else :func:`render_slot_string` on the
-    default seeds). Reserved-card slots already land their request text into
-    ``tweaked_text`` via the relabel's Pass 2, so this covers them too.
-    Reprint slots don't appear on the card-gen tab, so they're a no-op here.
-    """
-    if hasattr(card, "model_dump"):
-        c: dict = card.model_dump(mode="json")  # type: ignore[attr-defined]
-    elif isinstance(card, dict):
-        c = card
-    else:
-        raise TypeError(f"card_tile_dict expects Card or dict, got {type(card).__name__}")
-
-    slot_text = ""
-    if slots_by_id:
-        slot = slots_by_id.get(c.get("collector_number") or "")
-        if slot:
-            from mtgai.skeleton.generator import render_slot_string
-
-            slot_text = (slot.get("tweaked_text") or "").strip() or render_slot_string(slot)
-
-    return {
-        "name": c.get("name") or "",
-        "mana_cost": c.get("mana_cost") or "",
-        "type_line": c.get("type_line") or "",
-        "oracle_text": c.get("oracle_text") or "",
-        "flavor_text": c.get("flavor_text") or "",
-        "rarity": c.get("rarity") or "common",
-        "power": c.get("power"),
-        "toughness": c.get("toughness"),
-        "loyalty": c.get("loyalty"),
-        "colors": c.get("colors") or [],
-        "collector_number": c.get("collector_number") or "",
-        "status": c.get("status") or "",
-        "slot_text": slot_text,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -230,68 +183,32 @@ def run_mechanics(
         merged_engine: list[dict] = [{} for _ in range(pool)]
 
         # Stream candidates into the wizard as they're produced. Each accepted
-        # draft fires _drafted (pre-review) and then _finalized (post-review);
+        # draft fires on_draft (pre-review) and then on_finalized (post-review);
         # the wizard replaces the "Reviewing…" placeholder with the final card.
-        # The pool size is the right ``target`` — the strip slots line up.
+        # The hooks (shared with the refresh endpoints via ``stage_hooks``) own
+        # the event payloads, the ``_ai_generated`` tag, the collision check, and
+        # the incremental persist of ``merged_engine`` to candidates.json (so a
+        # mid-engine-run F5 reads a snapshot matching the last event).
         #
-        # Phase events drive the global progress strip in the engine path
-        # (the refresh-path equivalent is wizard_mechanics.js setBusyLabel).
-        # Without per-candidate phase events the strip would freeze on the
-        # initial "Calling LLM for mechanic candidates" / "Mechanic generation"
-        # label for the full ~5-minute Gemma run, looking dead.
-        def _on_reset() -> None:
-            emitter.event("mechanic_candidates_reset", target=pool)
-            emitter.phase("running", f"Generating candidate 1/{pool}")
-
-        def _on_draft(position: int, draft: dict) -> None:
-            # Tag provenance up front so the streamed mechanic carries the
-            # ``_ai_generated`` flag the wizard's edit-cascade contract relies
-            # on (matches the post-loop tagging below).
-            tagged = dict(draft)
-            tagged["_ai_generated"] = True
-            emitter.event(
-                "mechanic_candidate_drafted",
-                position=position,
-                target=pool,
-                candidate=tagged,
-            )
-            emitter.phase("running", f"Reviewing candidate {position}/{pool}")
-
-        def _on_finalized(position: int, mech: dict, review_notes: str) -> None:
-            name = (mech.get("name") or "").strip()
-            collision = name if name and name.lower() in known_keywords else None
-            tagged = dict(mech)
-            tagged["_ai_generated"] = True
-            # Persist incrementally before publishing the SSE event, so a
-            # mid-event F5 always reads a candidates.json that matches the
-            # event the client just received. On a partial-failure run
-            # (below the floor), whatever finalized survives on disk.
-            if 1 <= position <= pool:
-                merged_engine[position - 1] = tagged
-                atomic_write_text(
-                    candidates_path,
-                    json.dumps(merged_engine, indent=2, ensure_ascii=False),
-                )
-            emitter.event(
-                "mechanic_candidate_finalized",
-                position=position,
-                target=pool,
-                candidate=tagged,
-                review_notes=review_notes or "",
-                collision_with=collision,
-            )
-            # Mid-run: telegraph the next candidate's generation. Last slot:
-            # the picker call follows; the existing post-loop phase event
-            # below sets "Selecting the best mechanics" so leave that one
-            # to the existing code path.
-            if position < pool:
-                emitter.phase("running", f"Generating candidate {position + 1}/{pool}")
+        # ``emit_phase`` adds the engine's per-candidate progress-strip ticks
+        # ("Generating/Reviewing candidate X/N"); without them the strip would
+        # freeze on the initial label for the full ~5-minute Gemma run. The
+        # refresh path drives the strip with an indeterminate showBusy bar
+        # instead, so it leaves phase off.
+        hooks = build_mechanic_hooks(
+            emitter,
+            pool=pool,
+            merged=merged_engine,
+            candidates_path=candidates_path,
+            known_keywords=known_keywords,
+            emit_phase=True,
+        )
 
         try:
             response = generate_mechanic_candidates(
-                on_reset=_on_reset,
-                on_draft=_on_draft,
-                on_finalized=_on_finalized,
+                on_reset=hooks.on_reset,
+                on_draft=hooks.on_draft,
+                on_finalized=hooks.on_finalized,
             )
         except Exception as exc:
             logger.exception("Mechanic generation failed")
@@ -658,8 +575,13 @@ def run_skeleton(
         )
         slot_count = len(result.slots)
 
-        # Phase 2: LLM relabel + request placement.
+        # Phase 2: LLM relabel + request placement. The on_slot/on_reset stream
+        # hooks (shared with the refresh endpoint via ``stage_hooks``) clear the
+        # tab's provisional rows at the start of every attempt and push each
+        # relabeled/placed slot as it lands; the tab's onSkeletonStream handler
+        # consumes them.
         emitter.phase("running", "Relabeling the skeleton to fit the set")
+        sk_hooks = build_skeleton_hooks(emitter)
         try:
             relabel = relabel_skeleton(
                 slots=[s.model_dump() for s in result.slots],
@@ -667,14 +589,8 @@ def run_skeleton(
                 # activity line — the relabel retries silently and can take a
                 # while, so "attempt 2/3" is the feedback the user needs.
                 on_progress=lambda msg: emitter.phase("running", msg),
-                # Stream each relabeled slot into the Skeleton tab as it lands,
-                # and clear the tab's provisional rows at the start of every
-                # attempt (the visible half of the rollback). Raw SSE events the
-                # tab's onSkeletonStream handler consumes.
-                on_slot=lambda sid, text, reserved=None: emitter.event(
-                    "skeleton_slot", slot_id=sid, tweaked_text=text, reserved_card=reserved
-                ),
-                on_reset=lambda: emitter.event("skeleton_relabel_reset"),
+                on_slot=sk_hooks.on_slot,
+                on_reset=sk_hooks.on_reset,
             )
         except Exception as exc:
             logger.exception("Skeleton relabel failed")
@@ -718,8 +634,8 @@ def run_skeleton(
         # Terminal stream event so the Skeleton tab settles its live view (drops
         # the streaming dim, shows the incomplete warning if any) without waiting
         # for the stage to fully complete.
-        emitter.event(
-            "skeleton_relabel_done",
+        emit_skeleton_done(
+            emitter,
             incomplete=result.relabel_incomplete,
             relabeled=result.relabeled_slots,
         )
@@ -1049,7 +965,6 @@ def run_card_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) ->
     ``generation_progress.json`` keeps the cards saved so far, so Retry resumes.
     """
     from mtgai.generation.card_generator import generate_set
-    from mtgai.models.card import Card
     from mtgai.runtime import ai_lock
 
     emitter.phase("running", "Generating cards from skeleton slots")
@@ -1062,22 +977,16 @@ def run_card_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) ->
     # never a blocker (tests + edge runs without a skeleton still work).
     slots_by_id: dict[str, dict] = {}
     try:
-        skeleton_path = _set_dir() / "skeleton.json"
-        if skeleton_path.exists():
-            sk = json.loads(skeleton_path.read_text(encoding="utf-8"))
-            raw = sk.get("slots") if isinstance(sk, dict) else None
-            slots_by_id = {
-                s["slot_id"]: s for s in (raw or []) if isinstance(s, dict) and s.get("slot_id")
-            }
+        slots_by_id = slots_by_id_from_skeleton(_set_dir() / "skeleton.json")
     except Exception:
         logger.warning("Failed to read skeleton.json for slot_text lookup", exc_info=True)
 
     # Stream each saved card to the Card Generation tab as it lands so the
     # grid fills in live (mirrors the skeleton relabel's per-slot streaming).
     # No reset event from the engine path: the first run starts on an empty
-    # cards/ dir and a resume must keep existing cards on screen.
-    def _on_card_saved(card: Card) -> None:
-        emitter.event("card_gen_card", card=card_tile_dict(card, slots_by_id))
+    # cards/ dir and a resume must keep existing cards on screen — only the
+    # refresh endpoint (which wiped cards/) fires card_gen_reset.
+    cg_hooks = build_card_gen_hooks(emitter, slots_by_id=slots_by_id)
 
     with ai_lock.hold("Card generation") as acquired:
         if not acquired:
@@ -1087,7 +996,7 @@ def run_card_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) ->
             )
         result = generate_set(
             progress_callback=progress_cb,
-            card_saved_callback=_on_card_saved,
+            card_saved_callback=cg_hooks.on_card_saved,
         )
 
     # Terminal phase emission: every other runner (archetypes, visual_refs,
