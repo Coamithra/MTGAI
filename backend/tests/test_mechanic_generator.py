@@ -334,35 +334,15 @@ def _tool_name(args, kwargs) -> str:
     return (schema or {}).get("name", "")
 
 
-def _review_passthrough_response(args, kwargs) -> dict:
-    """Echo the mechanic from the review prompt back unchanged, no notes.
+def _reviewer_ok_response(args, kwargs) -> dict:
+    """A council reviewer that passes the mechanic — verdict OK, no issues.
 
-    The user prompt's ``mechanic_block`` carries the draft's name on the
-    first line ("Name: <name>"), so we don't need to reconstruct the full
-    object — the generator only requires the review tool to return
-    *something dict-shaped under "mechanic"*. We return the bare minimum
-    that survives the generator's defensive checks: keep the original draft
-    intact by re-using ``_valid_mech`` keyed on the parsed name.
+    With all reviewers OK the council exits round 1 without ever calling the
+    synth, so the draft is accepted unchanged (the cheap, common path). Zero
+    tokens so token-summation assertions stay about the generation calls.
     """
-    user_prompt = ""
-    if "user_prompt" in kwargs:
-        user_prompt = kwargs["user_prompt"]
-    elif len(args) >= 2:
-        user_prompt = args[1]
-    name = ""
-    for line in (user_prompt or "").splitlines():
-        if line.startswith("Name:"):
-            name = line.split(":", 1)[1].strip()
-            break
-    # The reviewer needs the mechanic in its original schema shape (so the
-    # name+metadata survives), but the loop doesn't care about anything
-    # beyond ``mechanic`` being a dict — _valid_mech(0) is enough to keep
-    # the structure valid.
-    mech = _valid_mech(0)
-    if name:
-        mech["name"] = name
     return {
-        "result": {"mechanic": mech, "review_notes": ""},
+        "result": {"verdict": "OK", "issues": []},
         "input_tokens": 0,
         "output_tokens": 0,
     }
@@ -371,16 +351,17 @@ def _review_passthrough_response(args, kwargs) -> dict:
 def _stub_n_per_call(n: int):
     """Return ``n`` fresh, distinct mechanics per call to the generation tool.
 
-    Branches on tool name: generation tool returns mechanics; review tool
-    passes through unchanged (no notes). A counter keeps names unique across
-    generation calls so the dedup loop makes progress.
+    Branches on tool name: the generation tool returns mechanics; every council
+    reviewer passes the mechanic OK (so no synth runs and the draft is accepted
+    unchanged). A counter keeps names unique across generation calls so the
+    dedup loop makes progress.
     """
     counter = {"next": 0}
 
     def stub(*args, **kwargs):
         tool = _tool_name(args, kwargs)
-        if tool == "review_mechanic":
-            return _review_passthrough_response(args, kwargs)
+        if tool == "submit_mechanic_review":
+            return _reviewer_ok_response(args, kwargs)
         start = counter["next"]
         counter["next"] += n
         return {
@@ -400,8 +381,8 @@ def _stub_distinct_then_dupes(distinct: int):
 
     def stub(*args, **kwargs):
         tool = _tool_name(args, kwargs)
-        if tool == "review_mechanic":
-            return _review_passthrough_response(args, kwargs)
+        if tool == "submit_mechanic_review":
+            return _reviewer_ok_response(args, kwargs)
         i = counter["call"]
         counter["call"] += 1
         idx = i if i < distinct else 0  # repeats Mechanic0 once exhausted
@@ -459,8 +440,8 @@ def test_generate_mechanic_candidates_drops_malformed_entries(_project, monkeypa
     # Debris (null name, or example-card-shaped objects lacking mechanic
     # metadata) is dropped; only the well-formed mechanic survives.
     def stub(*args, **kwargs):
-        if _tool_name(args, kwargs) == "review_mechanic":
-            return _review_passthrough_response(args, kwargs)
+        if _tool_name(args, kwargs) == "submit_mechanic_review":
+            return _reviewer_ok_response(args, kwargs)
         return {
             "result": {
                 "mechanics": [
@@ -480,81 +461,158 @@ def test_generate_mechanic_candidates_drops_malformed_entries(_project, monkeypa
 
 
 # ---------------------------------------------------------------------------
-# Per-mechanic review pass
+# Per-mechanic council review (council_review)
 # ---------------------------------------------------------------------------
 
 
-def test_review_mechanic_returns_revised_with_notes(monkeypatch) -> None:
-    """Happy path: reviewer tweaks the draft and returns notes; the helper
-    threads the revised mechanic + notes + token totals through."""
+def _reviewer(verdict: str, *, category: str = "wording", severity: str = "major") -> dict:
+    issues = (
+        []
+        if verdict == "OK"
+        else [{"category": category, "severity": severity, "description": f"{category} problem"}]
+    )
+    return {"result": {"verdict": verdict, "issues": issues}, "input_tokens": 1, "output_tokens": 1}
+
+
+def _synth(revised: dict | None, *, notes: str = "Revised.", verdict: str = "OK") -> dict:
+    result: dict = {
+        "synthesis": "agreed",
+        "consensus_issues": [],
+        "verdict": verdict,
+        "review_notes": notes,
+    }
+    if revised is not None:
+        result["revised_mechanic"] = revised
+    return {"result": result, "input_tokens": 5, "output_tokens": 5}
+
+
+def test_council_review_all_ok_skips_synth(monkeypatch) -> None:
+    """All reviewers OK → no synthesis, draft returned unchanged, verdict OK."""
     draft = _valid_mech(0)
-    revised = dict(draft)
-    revised["reminder_text"] = "(tighter rewrite under 100 chars.)"
+    synth_calls = {"n": 0}
 
     def stub(*args, **kwargs):
-        assert _tool_name(args, kwargs) == "review_mechanic"
-        return {
-            "result": {
-                "mechanic": revised,
-                "review_notes": "Tightened reminder text from 110 → 30 chars.",
-            },
-            "input_tokens": 7,
-            "output_tokens": 12,
-        }
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            return _reviewer("OK")
+        if tool == "submit_mechanic_synthesis":
+            synth_calls["n"] += 1
+            return _synth(draft)
+        raise AssertionError(f"unexpected tool {tool}")
 
     monkeypatch.setattr(mg, "generate_with_tool", stub)
-    out = mg.review_mechanic(draft, model_id="any-model")
-    assert out["mechanic"]["reminder_text"] == "(tighter rewrite under 100 chars.)"
-    assert "Tightened" in out["review_notes"]
-    assert out["input_tokens"] == 7
-    assert out["output_tokens"] == 12
-
-
-def test_review_mechanic_keeps_draft_on_llm_failure(monkeypatch) -> None:
-    """A bad review pass must never destroy a good draft."""
-    draft = _valid_mech(0)
-
-    def boom(*args, **kwargs):
-        raise RuntimeError("provider down")
-
-    monkeypatch.setattr(mg, "generate_with_tool", boom)
-    out = mg.review_mechanic(draft, model_id="any-model")
-    assert out["mechanic"] is draft  # exact same object — no copy
+    out = mg.council_review(draft, model_id="any-model")
+    assert out["verdict"] == "OK"
+    assert out["mechanic"] is draft  # unchanged
     assert out["review_notes"] == ""
-    assert out["input_tokens"] == 0
-
-
-def test_review_mechanic_keeps_draft_on_malformed_response(monkeypatch) -> None:
-    """``mechanic`` missing → fall back to the draft so the loop can proceed."""
-    draft = _valid_mech(0)
-    monkeypatch.setattr(
-        mg,
-        "generate_with_tool",
-        lambda *a, **k: {"result": {"review_notes": "n/a"}, "input_tokens": 3, "output_tokens": 4},
-    )
-    out = mg.review_mechanic(draft, model_id="any-model")
-    assert out["mechanic"] is draft
-    # Tokens still roll up so the cost surfaces accurately even on fallback.
+    assert out["reasons"] == []
+    assert synth_calls["n"] == 0
+    # Three reviewers, one round, 1 in / 1 out each.
     assert out["input_tokens"] == 3
-    assert out["output_tokens"] == 4
+    assert out["output_tokens"] == 3
 
 
-def test_review_mechanic_reverts_rename(monkeypatch) -> None:
-    """The prompt forbids renames; enforce it in code too — a misbehaving local
-    model can't strand the user with a silently-renamed candidate."""
+def test_council_review_revises_then_passes(monkeypatch) -> None:
+    """Round 1 REVISE → synth revises in place → round 2 OK → final is the revision."""
     draft = _valid_mech(0)
-    renamed = dict(draft)
-    renamed["name"] = "Totally Different Name"
-    monkeypatch.setattr(
-        mg,
-        "generate_with_tool",
-        lambda *a, **k: {
-            "result": {"mechanic": renamed, "review_notes": "Renamed for clarity."},
-            "input_tokens": 1,
-            "output_tokens": 1,
-        },
-    )
-    out = mg.review_mechanic(draft, model_id="any-model")
+    revised = dict(draft)
+    revised["reminder_text"] = "(tightened)"
+    rcalls = {"n": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            rcalls["n"] += 1
+            return _reviewer("REVISE" if rcalls["n"] <= 3 else "OK")
+        if tool == "submit_mechanic_synthesis":
+            return _synth(revised, notes="Tightened wording.")
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model")
+    assert out["verdict"] == "OK"
+    assert out["mechanic"]["reminder_text"] == "(tightened)"
+    assert "Tightened wording." in out["review_notes"]
+
+
+def test_council_review_budget_exhausted_keeps_last_revision(monkeypatch) -> None:
+    """Reviewers never agree → after the iteration budget the last revision is
+    kept, honestly flagged REVISE, with the round's open issues as ``reasons``."""
+    draft = _valid_mech(0)
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            return _reviewer("REVISE", category="interesting")
+        if tool == "submit_mechanic_synthesis":
+            rev = dict(draft)
+            rev["reminder_text"] = "(rev)"
+            return _synth(rev, verdict="REVISE")
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model", max_iterations=3)
+    assert out["verdict"] == "REVISE"
+    assert out["mechanic"]["reminder_text"] == "(rev)"
+    assert out["reasons"] and "interesting" in out["reasons"][0]
+
+
+def test_council_review_reviewer_collapse_keeps_draft(monkeypatch) -> None:
+    """Every reviewer call failing → no critiques → keep the draft (safe
+    fallback), and the synth is never reached."""
+    draft = _valid_mech(0)
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            raise RuntimeError("reviewer down")
+        raise AssertionError("synth must not run when there are no reviews")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model")
+    assert out["verdict"] == "OK"
+    assert out["mechanic"] is draft
+    assert out["review_notes"] == ""
+
+
+def test_council_review_synth_failure_keeps_prior(monkeypatch) -> None:
+    """A failing synth keeps the current mechanic, flagged REVISE for the
+    caller's regenerate fallback — never crashes the council."""
+    draft = _valid_mech(0)
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            return _reviewer("REVISE")
+        if tool == "submit_mechanic_synthesis":
+            raise RuntimeError("synth down")
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model")
+    assert out["verdict"] == "REVISE"
+    assert out["mechanic"] is draft  # unchanged on synth failure
+
+
+def test_council_review_reverts_synth_rename(monkeypatch) -> None:
+    """The synth may not rename — enforce it in code (the prompt forbids it)."""
+    draft = _valid_mech(0)  # name "Mechanic0"
+    rcalls = {"n": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            rcalls["n"] += 1
+            return _reviewer("REVISE" if rcalls["n"] <= 3 else "OK")
+        if tool == "submit_mechanic_synthesis":
+            renamed = dict(draft)
+            renamed["name"] = "Totally Different Name"
+            renamed["reminder_text"] = "(rev)"
+            return _synth(renamed)
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model")
     assert out["mechanic"]["name"] == "Mechanic0"  # original wins
 
 
@@ -597,35 +655,45 @@ def test_generate_mechanic_candidates_fires_streaming_hooks(_project, monkeypatc
     ]
 
 
-def test_generate_mechanic_candidates_stamps_review_notes(_project, monkeypatch) -> None:
-    """The reviewer's notes (or empty string on no-op) ride on the mechanic
-    so the wizard can surface what was fixed."""
-    counter = {"call": 0}
+def test_generate_mechanic_candidates_stamps_ok_verdict(_project, monkeypatch) -> None:
+    """A council-passing candidate is stamped ``_review_verdict='OK'`` with empty
+    notes (the cheap path — all reviewers OK, no synth)."""
+    monkeypatch.setattr(mg, "generate_with_tool", _stub_n_per_call(1))
+    result = mg.generate_mechanic_candidates(count=2)
+    assert len(result["mechanics"]) == 2
+    assert all(m["_review_verdict"] == "OK" for m in result["mechanics"])
+    assert all(m["_review_notes"] == "" for m in result["mechanics"])
+
+
+def test_generate_mechanic_candidates_regen_fallback_accepts_best_effort(
+    _project, monkeypatch
+) -> None:
+    """When the council never passes a slot (reviewers REVISE, synth no-ops), the
+    slot is regenerated from scratch and ultimately accepted best-effort, stamped
+    REVISE — the pool still fills exactly ``count`` so the picker has a slate."""
+    counter = {"next": 0}
 
     def stub(*args, **kwargs):
         tool = _tool_name(args, kwargs)
-        if tool == "review_mechanic":
-            counter["call"] += 1
-            # First review tweaks; second is a no-op (empty notes).
-            notes = "Fixed example card 2." if counter["call"] == 1 else ""
-            user_prompt = kwargs.get("user_prompt", "")
-            name = ""
-            for line in user_prompt.splitlines():
-                if line.startswith("Name:"):
-                    name = line.split(":", 1)[1].strip()
-                    break
-            mech = _valid_mech(0)
-            if name:
-                mech["name"] = name
+        if tool == "submit_mechanic_review":
             return {
-                "result": {"mechanic": mech, "review_notes": notes},
-                "input_tokens": 0,
-                "output_tokens": 0,
+                "result": {
+                    "verdict": "REVISE",
+                    "issues": [
+                        {"category": "interesting", "severity": "major", "description": "dull"}
+                    ],
+                },
+                "input_tokens": 1,
+                "output_tokens": 1,
             }
-        # Generation path: one fresh mechanic per call.
-        idx = counter["call"]  # any unique-enough seed; review counter is separate
+        if tool == "submit_mechanic_synthesis":
+            # No revised_mechanic → council keeps the draft, flagged REVISE.
+            return {"result": {}, "input_tokens": 1, "output_tokens": 1}
+        # Generation: a fresh, distinct mechanic per call (so regens don't dup).
+        i = counter["next"]
+        counter["next"] += 1
         return {
-            "result": {"mechanics": [_valid_mech(idx + 100)]},
+            "result": {"mechanics": [_valid_mech(i)]},
             "input_tokens": 1,
             "output_tokens": 1,
         }
@@ -633,8 +701,7 @@ def test_generate_mechanic_candidates_stamps_review_notes(_project, monkeypatch)
     monkeypatch.setattr(mg, "generate_with_tool", stub)
     result = mg.generate_mechanic_candidates(count=2)
     assert len(result["mechanics"]) == 2
-    assert result["mechanics"][0]["_review_notes"] == "Fixed example card 2."
-    assert result["mechanics"][1]["_review_notes"] == ""
+    assert all(m["_review_verdict"] == "REVISE" for m in result["mechanics"])
 
 
 # ---------------------------------------------------------------------------

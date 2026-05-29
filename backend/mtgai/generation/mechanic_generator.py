@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from mtgai.generation.llm_client import generate_with_tool
-from mtgai.generation.token_budgets import STANDARD
+from mtgai.generation.token_budgets import HEAVY, STANDARD
 from mtgai.io.atomic import atomic_write_text
 
 # Per-mechanic streaming hook signatures. Engine path wires these to
@@ -45,6 +45,44 @@ _TEMPLATES_DIR = _PIPELINE_ROOT / "templates"
 # Maximum number of mechanics a user may select for a single set — a sanity
 # cap so the candidate pool (twice this, see ``candidate_count``) stays bounded.
 MAX_MECHANIC_COUNT = 6
+
+# ---------------------------------------------------------------------------
+# Council review tuning (the per-candidate quality gate; see council_review)
+# ---------------------------------------------------------------------------
+
+# Reviewers per round. Always-full-council (no tiering) — every candidate gets
+# all three independent critiques + synthesis. Mirrors the card council
+# (``review.ai_review._review_council``), theme-free here.
+MECHANIC_COUNCIL_SIZE = 3
+
+# Revise-in-place rounds (synth → council re-review) before a still-REVISE
+# mechanic is discarded and regenerated from scratch. Matches the validated lab
+# default (``mtg-mech-lab`` --iterations 3).
+MAX_MECHANIC_REVIEW_ITERATIONS = 3
+
+# From-scratch regenerations of one slot (threading the council's reasons) after
+# the revise loop gives up, before the best-effort mechanic is accepted flagged.
+# Kept low — each regen is a full fresh council, the stage's dominant cost.
+MAX_MECHANIC_REGEN_ATTEMPTS = 1
+
+# Sampling temperatures. Generation at 0.9 (the lab found 0.9 beats 1.1 — 1.1
+# clustered designs + degraded templating without adding novelty). Reviewers at
+# 0.4 so the three critiques are not identical; synth at 0.2 (a careful edit).
+MECHANIC_GEN_TEMP = 0.9
+MECHANIC_REVIEW_TEMP = 0.4
+MECHANIC_SYNTH_TEMP = 0.2
+
+# Issue categories the reviewers + synth tag findings with — the six standards
+# plus an escape hatch. Drives the reviewer/synth tool schemas.
+MECHANIC_ISSUE_CATEGORIES = [
+    "playable",
+    "wording",
+    "interesting",
+    "self_consistent",
+    "unique",
+    "elegant",
+    "other",
+]
 
 
 def candidate_count(mechanic_count: int) -> int:
@@ -240,29 +278,94 @@ MECHANIC_ITEM_SCHEMA["properties"] = MECHANIC_TOOL_SCHEMA["input_schema"]["prope
 ]["items"]["properties"]
 
 
-# Tool schema for the per-mechanic review/tweak pass. The reviewer always
-# submits a mechanic — unchanged if it's sound, revised if it isn't — plus a
-# short ``review_notes`` changelog. The mechanic shape is identical to one
-# entry from MECHANIC_TOOL_SCHEMA so the reviewed mechanic can drop into the
-# candidates list with no projection.
-MECHANIC_REVIEW_TOOL_SCHEMA: dict = {
-    "name": "review_mechanic",
+# One critique entry from a single council reviewer — the problem, its
+# category (the six standards + "other"), and severity.
+_MECHANIC_ISSUE_SCHEMA: dict = {
+    "type": "object",
+    "required": ["category", "severity", "description"],
+    "properties": {
+        "category": {"type": "string", "enum": MECHANIC_ISSUE_CATEGORIES},
+        "severity": {"type": "string", "enum": ["minor", "major"]},
+        "description": {
+            "type": "string",
+            "description": "One sentence: the problem, concretely.",
+        },
+    },
+}
+
+
+# Tool schema for ONE council reviewer (Phase 1). Each member independently
+# returns a verdict + a list of concrete issues — no mechanic re-emit, so the
+# output stays bounded (the heavy re-emit lives in the synth tool below).
+MECHANIC_REVIEWER_TOOL_SCHEMA: dict = {
+    "name": "submit_mechanic_review",
+    "description": "Submit your independent critique of one mechanic.",
+    "input_schema": {
+        "type": "object",
+        "required": ["verdict", "issues"],
+        "properties": {
+            "verdict": {"type": "string", "enum": ["OK", "REVISE"]},
+            "issues": {"type": "array", "items": _MECHANIC_ISSUE_SCHEMA},
+        },
+    },
+}
+
+
+# A consensus issue the synth chose to act on, with how many reviewers raised it.
+_MECHANIC_CONSENSUS_ISSUE_SCHEMA: dict = {
+    "type": "object",
+    "required": ["category", "agreement", "description"],
+    "properties": {
+        "category": {"type": "string", "enum": MECHANIC_ISSUE_CATEGORIES},
+        "agreement": {
+            "type": "integer",
+            "description": "How many of the council's reviewers raised this issue.",
+        },
+        "description": {"type": "string"},
+    },
+}
+
+
+# Tool schema for the synthesizer (Phase 2). It applies a >=2-of-N consensus
+# filter and re-emits the whole improved mechanic in one call — the heavy shape
+# the synth runs at the HEAVY token budget (see council_review). ``verdict`` is
+# the synth's self-assessment, but the loop trusts only the *reviewers'*
+# consensus to exit OK, so a re-review always follows a revision.
+MECHANIC_SYNTH_TOOL_SCHEMA: dict = {
+    "name": "submit_mechanic_synthesis",
     "description": (
-        "Submit your review of one mechanic. Always include the mechanic "
-        "object — unchanged if it's already sound, or revised if you fixed "
-        "anything. Use review_notes to summarise what you changed (or "
-        "leave it empty if you made no changes)."
+        "Synthesize the council's reviews into one consensus decision and an improved mechanic."
     ),
     "input_schema": {
         "type": "object",
-        "required": ["mechanic", "review_notes"],
+        "required": [
+            "synthesis",
+            "consensus_issues",
+            "revised_mechanic",
+            "verdict",
+            "review_notes",
+        ],
         "properties": {
-            "mechanic": MECHANIC_ITEM_SCHEMA,
+            "synthesis": {
+                "type": "string",
+                "description": "Brief: what the council agreed on.",
+            },
+            "consensus_issues": {
+                "type": "array",
+                "items": _MECHANIC_CONSENSUS_ISSUE_SCHEMA,
+            },
+            "revised_mechanic": MECHANIC_ITEM_SCHEMA,
+            "verdict": {
+                "type": "string",
+                "enum": ["OK", "REVISE"],
+                "description": (
+                    "Is the REVISED mechanic now excellent (OK) or still wanting (REVISE)?"
+                ),
+            },
             "review_notes": {
                 "type": "string",
                 "description": (
-                    "One or two short sentences naming what you fixed and why, "
-                    "or an empty string if no changes were made."
+                    "One or two sentences: what you changed and why. Empty if unchanged."
                 ),
             },
         },
@@ -319,6 +422,20 @@ MECHANIC_PICK_TOOL_SCHEMA: dict = {
 
 def _read_template(name: str) -> str:
     return (_PROMPTS_DIR / name).read_text(encoding="utf-8")
+
+
+def _render(template: str, /, **mapping: object) -> str:
+    """Literal ``{key}`` substitution (NOT ``str.format``).
+
+    The mechanic prompts teach Magic templating, so they contain literal mana
+    braces — ``{T}``, ``{2}{U}``, ``Equip {2}`` — that ``str.format`` would try
+    to interpret as fields and crash on. This replaces only the keys we pass and
+    leaves every other brace untouched. Mirrors ``mtg-mech-lab``'s ``render``.
+    """
+    out = template
+    for key, val in mapping.items():
+        out = out.replace("{" + key + "}", str(val))
+    return out
 
 
 def _format_setting_block(theme: dict) -> str:
@@ -421,7 +538,10 @@ def build_mechanic_system_prompt(
     known = load_known_keywords()
     expected_density = _expected_mechanic_density(set_size, mechanic_count)
 
-    return sys_template.format(
+    # ``_render`` (literal replace), not ``.format`` — the template now teaches
+    # Magic templating and carries literal braces (``Equip {2}``, ``{T}``).
+    return _render(
+        sys_template,
         set_name=set_name or "(unnamed set)",
         set_size=set_size,
         mechanic_count=mechanic_count,
@@ -555,93 +675,245 @@ def _format_mechanic_for_review(mech: dict) -> str:
     return "\n".join(lines)
 
 
-def build_review_prompts(mech: dict) -> tuple[str, str]:
-    """Render the reviewer's system + user prompts for ONE draft mechanic.
+def build_reviewer_prompts(mech: dict) -> tuple[str, str]:
+    """System + user prompts for ONE council reviewer of ``mech``. Theme-free.
 
-    Theme-free by design — the reviewer judges the mechanic on pure-MTG
-    soundness terms (reminder-text clarity, mechanical structure, color/pie
-    sanity, example-card correctness), so the system prompt carries the
-    review checklist + constraints and the user prompt is just the rendered
-    mechanic block. Keeps the prompt-cache hit rate high across calls and
-    keeps the reviewer out of "but it fits the theme!" rationalisation.
+    The six-standard checklist lives in the (static) system prompt, shared with
+    the synthesizer; the user prompt is just the rendered mechanic block, so the
+    prompt cache stays warm across the council's calls and the reviewer never
+    sees the setting — the deliberate anti-"but it fits the theme!" guard.
     """
-    sys_template = _read_template("mechanic_review_system.txt")
-    user_template = _read_template("mechanic_review_user.txt")
-    system_prompt = sys_template  # no substitutions — fully static
-    user_prompt = user_template.format(mechanic_block=_format_mechanic_for_review(mech))
+    system_prompt = _read_template("mechanic_review_system.txt")
+    user_prompt = _render(
+        _read_template("mechanic_review_user.txt"),
+        mechanic_block=_format_mechanic_for_review(mech),
+    )
     return system_prompt, user_prompt
 
 
-def review_mechanic(
+def _format_reviews_block(reviews: list[dict]) -> str:
+    """Render the council's critiques as the synth prompt's ``reviews_block``."""
+    lines: list[str] = []
+    for i, r in enumerate(reviews, 1):
+        lines.append(f"### Reviewer {i} — verdict: {r.get('verdict', '?')}")
+        issues = r.get("issues") or []
+        if not issues:
+            lines.append("  (no issues raised)")
+        for iss in issues:
+            lines.append(
+                f"  - [{iss.get('category', '?')}/{iss.get('severity', '?')}] "
+                f"{iss.get('description', '')}"
+            )
+    return "\n".join(lines)
+
+
+def build_synth_prompts(mech: dict, reviews: list[dict]) -> tuple[str, str]:
+    """System + user prompts for the synthesizer.
+
+    Shares the reviewer's system prompt (the six standards); the user prompt
+    carries the mechanic, the council's critiques, and the consensus-filter +
+    revise-in-place instructions.
+    """
+    system_prompt = _read_template("mechanic_review_system.txt")
+    user_prompt = _render(
+        _read_template("mechanic_synth_user.txt"),
+        mechanic_block=_format_mechanic_for_review(mech),
+        reviews_block=_format_reviews_block(reviews),
+        council_size=len(reviews),
+    )
+    return system_prompt, user_prompt
+
+
+def _tokens(resp: dict) -> tuple[int, int]:
+    """``(input_tokens, output_tokens)`` from a ``generate_with_tool`` response."""
+    return resp.get("input_tokens", 0) or 0, resp.get("output_tokens", 0) or 0
+
+
+def _open_issue_reasons(reviews: list[dict]) -> list[str]:
+    """Distinct open-issue descriptions from one council round.
+
+    Threaded into a from-scratch regenerate so the next draft avoids the same
+    problems (the ``card_gen`` regenerate-with-reason pattern). Major issues
+    first, deduped, and capped so the gen prompt stays lean.
+    """
+    major: list[str] = []
+    minor: list[str] = []
+    seen: set[str] = set()
+    for r in reviews:
+        if r.get("verdict") == "OK":
+            continue
+        for iss in r.get("issues") or []:
+            desc = (iss.get("description") or "").strip()
+            if not desc or desc.lower() in seen:
+                continue
+            seen.add(desc.lower())
+            (major if iss.get("severity") == "major" else minor).append(desc)
+    return (major + minor)[:6]
+
+
+def _call_synth(
+    mech: dict,
+    reviews: list[dict],
+    model_id: str,
+    temperature: float,
+    log_dir: Path | None,
+) -> dict | None:
+    """One synthesis call at the HEAVY budget; ``None`` on failure / empty output.
+
+    Single call, no ``repeat_penalty`` escalation: per
+    ``learnings/reasoning-budget-overrun.md`` the synth's truncation was
+    reasoning-budget overrun (fixed by the HEAVY budget — ~2x the ~8k tokens it
+    actually uses to re-emit the whole mechanic), NOT a repetition loop, and is
+    verified *not* fixed by ``repeat_penalty``. The provider default (1.1) still
+    applies. A truncated / empty synth returns ``None`` → the council keeps the
+    current mechanic at REVISE and the caller's regenerate fallback takes over.
+    """
+    system_prompt, user_prompt = build_synth_prompts(mech, reviews)
+    try:
+        resp = generate_with_tool(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            tool_schema=MECHANIC_SYNTH_TOOL_SCHEMA,
+            model=model_id,
+            temperature=temperature,
+            max_tokens=HEAVY,
+            log_dir=log_dir,
+        )
+    except Exception as exc:
+        logger.warning("Council synth failed: %s: %s", type(exc).__name__, exc)
+        return None
+    if not (resp.get("result") or {}).get("revised_mechanic"):
+        logger.warning("Council synth emitted no revised_mechanic; keeping current mechanic")
+        return None
+    return resp
+
+
+def council_review(
     draft: dict,
     *,
     model_id: str,
     log_dir: Path | None = None,
-    temperature: float = 0.3,
+    council_size: int = MECHANIC_COUNCIL_SIZE,
+    max_iterations: int = MAX_MECHANIC_REVIEW_ITERATIONS,
+    review_temp: float = MECHANIC_REVIEW_TEMP,
+    synth_temp: float = MECHANIC_SYNTH_TEMP,
 ) -> dict:
-    """One-shot critical review of ``draft`` that returns the final mechanic + notes.
+    """Council + revise-in-place loop for one draft mechanic (theme-free).
 
-    Calls the LLM once with the ``review_mechanic`` tool. The reviewer either
-    confirms the draft is sound (returns it unchanged with empty notes) or
-    submits a revised version with a short ``review_notes`` changelog. On any
-    LLM failure or malformed response we return the original draft with empty
-    notes — a bad review pass must never destroy a good draft.
+    Mirrors the card council (``review.ai_review._review_council``) and the
+    validated ``mtg-mech-lab`` ``review_one``:
 
-    Returns::
+      1. ``council_size`` independent reviewers critique the current mechanic.
+      2. All OK → done; the mechanic stands (the cheap, common path).
+      3. Else the synthesizer applies a >=2-of-N consensus filter and re-emits an
+         improved mechanic (one heavy call at the HEAVY budget — see
+         :func:`_call_synth`).
+      4. Re-review the revision; repeat until the *reviewers* agree OK or the
+         iteration budget runs out. The synth's own verdict is NOT trusted to end
+         the loop — it over-claims fixes (~1/3 regress) — so a revision always
+         faces a fresh council before it can pass.
+
+    Every call is best-effort: a failed reviewer is skipped; a failed synth keeps
+    the current mechanic (left REVISE for the caller's regenerate fallback). A bad
+    review pass never destroys a good draft, and the mechanic's name is never
+    changed (anti-rename guard). Polls ``ai_lock.is_cancelled()`` between calls so
+    the Cancel button halts a long council. Returns::
 
         {
-            "mechanic": dict,       # final (possibly revised) mechanic
-            "review_notes": str,    # empty if no changes / on fallback
+            "mechanic": dict,           # final (possibly revised) mechanic
+            "verdict": "OK" | "REVISE",
+            "review_notes": str,        # synth changelog(s), empty if unchanged
+            "reasons": list[str],       # last round's open issues (for a regen)
             "input_tokens": int,
             "output_tokens": int,
         }
     """
-    system_prompt, user_prompt = build_review_prompts(draft)
-    response: dict[str, Any] | None = None
-    try:
-        response = generate_with_tool(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            tool_schema=MECHANIC_REVIEW_TOOL_SCHEMA,
-            model=model_id,
-            temperature=temperature,
-            max_tokens=STANDARD,
-            log_dir=log_dir,
-        )
-    except Exception as exc:
-        logger.warning("Mechanic review call failed: %s: %s", type(exc).__name__, exc)
-    if response is None:
-        return {"mechanic": draft, "review_notes": "", "input_tokens": 0, "output_tokens": 0}
+    from mtgai.runtime import ai_lock
 
-    result = response.get("result") or {}
-    reviewed = result.get("mechanic")
-    notes = result.get("review_notes")
-    if not isinstance(reviewed, dict):
-        logger.warning("Mechanic review returned no usable mechanic; keeping draft")
-        return {
-            "mechanic": draft,
-            "review_notes": "",
-            "input_tokens": response.get("input_tokens", 0) or 0,
-            "output_tokens": response.get("output_tokens", 0) or 0,
-        }
-    # Don't let the reviewer rename — the prompt forbids it, but enforce it
-    # in code too so a misbehaving local model can't strand the user with a
-    # silently-renamed candidate that the downstream pick rationale no longer
-    # matches by name.
     original_name = (draft.get("name") or "").strip()
-    reviewed_name = (reviewed.get("name") or "").strip()
-    if original_name and reviewed_name and reviewed_name.lower() != original_name.lower():
-        logger.info(
-            "Mechanic review tried to rename %r → %r; reverting to the original name",
-            original_name,
-            reviewed_name,
-        )
-        reviewed["name"] = original_name
+    mechanic = draft
+    notes: list[str] = []
+    reasons: list[str] = []
+    total_in = total_out = 0
+    verdict = "OK"
+
+    for _round in range(1, max_iterations + 1):
+        if ai_lock.is_cancelled():
+            break
+
+        # Phase 1 — independent reviewers (each best-effort; a failure is skipped).
+        reviews: list[dict] = []
+        for member in range(1, council_size + 1):
+            if ai_lock.is_cancelled():
+                break
+            sys_p, user_p = build_reviewer_prompts(mechanic)
+            try:
+                resp = generate_with_tool(
+                    system_prompt=sys_p,
+                    user_prompt=user_p,
+                    tool_schema=MECHANIC_REVIEWER_TOOL_SCHEMA,
+                    model=model_id,
+                    temperature=review_temp,
+                    max_tokens=STANDARD,
+                    log_dir=log_dir,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Council reviewer %d failed: %s: %s", member, type(exc).__name__, exc
+                )
+                continue
+            r = resp.get("result") or {}
+            reviews.append({"verdict": r.get("verdict", "OK"), "issues": r.get("issues") or []})
+            in_t, out_t = _tokens(resp)
+            total_in += in_t
+            total_out += out_t
+
+        # Open issues from this round, in case it ends still-REVISE and the
+        # caller regenerates from scratch.
+        reasons = _open_issue_reasons(reviews)
+
+        all_ok = bool(reviews) and all(r["verdict"] == "OK" for r in reviews)
+        # All reviewers passed — or the whole council collapsed (no usable
+        # reviews), in which case an un-reviewable draft is kept, not destroyed
+        # (safe fallback). Either way the mechanic stands.
+        if all_ok or not reviews:
+            verdict = "OK"
+            reasons = []
+            break
+
+        # Phase 2 — synthesis (consensus filter + revise-in-place).
+        if ai_lock.is_cancelled():
+            verdict = "REVISE"
+            break
+        sresp = _call_synth(mechanic, reviews, model_id, synth_temp, log_dir)
+        if sresp is None:
+            verdict = "REVISE"
+            break
+        in_t, out_t = _tokens(sresp)
+        total_in += in_t
+        total_out += out_t
+        s = sresp.get("result") or {}
+        revised = s.get("revised_mechanic")
+        if isinstance(revised, dict) and revised:
+            rev_name = (revised.get("name") or "").strip()
+            if original_name and rev_name and rev_name.lower() != original_name.lower():
+                revised["name"] = original_name  # anti-rename guard
+            mechanic = revised
+        note = (s.get("review_notes") or "").strip()
+        if note:
+            notes.append(note)
+        # Don't trust the synth's self-verdict to exit — it over-claims. Mark
+        # REVISE and let the next round's council re-review; if this was the last
+        # round, the unconfirmed revision is honestly left REVISE.
+        verdict = "REVISE"
+
     return {
-        "mechanic": reviewed,
-        "review_notes": (notes or "").strip() if isinstance(notes, str) else "",
-        "input_tokens": response.get("input_tokens", 0) or 0,
-        "output_tokens": response.get("output_tokens", 0) or 0,
+        "mechanic": mechanic,
+        "verdict": verdict,
+        "review_notes": " ".join(notes),
+        "reasons": reasons,
+        "input_tokens": total_in,
+        "output_tokens": total_out,
     }
 
 
@@ -697,6 +969,22 @@ def _needed_hint(accepted: list[dict], remaining: int, enforce_simple_floor: boo
     return ""
 
 
+def _format_regen_block(reasons: list[str]) -> str:
+    """Render the council's reasons for discarding a prior attempt at this slot.
+
+    Threaded into a from-scratch regenerate (the ``card_gen`` regenerate-with-
+    reason pattern) so the next draft avoids the same problems. Empty when this
+    is a first attempt (no prior council failure).
+    """
+    if not reasons:
+        return ""
+    bullets = "\n".join(f"  - {r}" for r in reasons)
+    return (
+        "\n\nA PREVIOUS attempt at this slot was rejected by the design council. "
+        "Design a genuinely DIFFERENT mechanic that avoids these problems:\n" + bullets
+    )
+
+
 def build_single_mechanic_user_prompt(
     *,
     accepted: list[dict],
@@ -706,12 +994,15 @@ def build_single_mechanic_user_prompt(
     set_size: int,
     expected_density: str,
     enforce_simple_floor: bool = True,
+    regen_reasons: list[str] | None = None,
 ) -> str:
     """Render the per-call user prompt asking for ONE distinct mechanic.
 
     The system prompt (theme/flavor/constraints) is unchanged and shared
     across every call in the loop; only this user prompt varies, threading
-    the already-accepted mechanics so the model avoids repeats.
+    the already-accepted mechanics so the model avoids repeats. ``regen_reasons``
+    (when this slot is being regenerated from scratch after the council rejected
+    a prior attempt) are surfaced so the new draft avoids the same failures.
     """
     template = _read_template("mechanic_user_single.txt")
     remaining = max(0, target - len(accepted))
@@ -723,6 +1014,7 @@ def build_single_mechanic_user_prompt(
         expected_mechanic_density=expected_density,
         already_block=_format_already_designed(accepted),
         needed_hint=_needed_hint(accepted, remaining, enforce_simple_floor),
+        regen_block=_format_regen_block(regen_reasons or []),
     )
 
 
@@ -1011,34 +1303,37 @@ def generate_mechanic_candidates(
             "model_id": str,
         }
 
-    Generates ONE mechanic per call rather than the whole pool at once:
+    Generates ONE mechanic per slot rather than the whole pool at once:
     local models degrade on long structured output (a single big tool call
     returned syntactically-valid but semantically-shredded JSON once the
     generation grew long — clean first mechanic, junk by the third). Each
-    short call stays coherent; we validate the result, drop malformed or
-    duplicate entries, feed the accepted names back so the model avoids
-    repeats, and loop until the candidate pool (twice ``mechanic_count``)
-    is reached or the attempt budget is spent.
+    short call stays coherent; we validate the result and drop malformed,
+    duplicate, or keyword-colliding entries, feeding the accepted names back
+    so the model avoids repeats.
 
-    Each accepted draft then goes through a per-mechanic **review pass**
-    (:func:`review_mechanic`) — a theme-free LLM call that critiques
-    soundness, reminder-text clarity, and example-card correctness, and
-    submits a revised version if anything is off. The review pass never
-    raises; on failure the original draft is kept. ``_review_notes`` is
-    stamped onto the mechanic (empty string if no changes) so the wizard
-    can surface what the reviewer fixed.
+    Each draft is then **gated by the full council** (:func:`council_review`) —
+    3 theme-free reviewers against the six standards, with the synthesizer
+    revising in place and the council re-reviewing, up to
+    ``MAX_MECHANIC_REVIEW_ITERATIONS`` rounds. A draft the council passes is
+    accepted; one still REVISE after the revise budget is **regenerated from
+    scratch** (threading the council's reasons into the gen prompt) up to
+    ``MAX_MECHANIC_REGEN_ATTEMPTS`` times, then accepted best-effort flagged
+    REVISE so the slot still fills. The pool ends up (near-)all council-passing,
+    which is what gives the downstream theme-fit pick real choice. Each
+    mechanic carries ``_review_verdict`` + ``_review_notes`` for the wizard.
+    No call ever raises out of the council; a bad pass keeps the current draft.
 
-    Streaming: ``on_reset`` fires once before the first attempt;
-    ``on_draft(position, draft)`` fires immediately after each draft passes
-    form validation (before the review call); ``on_finalized(position,
-    mechanic, review_notes)`` fires after the review pass returns. All three
+    Streaming: ``on_reset`` fires once before the first slot;
+    ``on_draft(position, draft)`` fires for each draft (re-firing on a
+    regenerated slot) before its council runs; ``on_finalized(position,
+    mechanic, review_notes)`` fires once when the slot is accepted. All three
     are optional. The engine path wires them to ``StageEmitter.event`` so the
     wizard streams candidates in live; the refresh endpoints wire them to
     ``event_bus.publish`` for the same effect on manual re-runs.
 
-    Succeeds as long as at least ``mechanic_count`` valid candidates are
-    collected (that's all the user picks); raises ``RuntimeError`` only if
-    the loop can't reach that floor, or if calls fail repeatedly up front.
+    Succeeds as long as at least ``mechanic_count`` candidates are collected
+    (that's all the user picks); raises ``RuntimeError`` only if the pool can't
+    reach that floor, or if generation fails repeatedly with nothing accepted.
     """
     from mtgai.io.asset_paths import set_artifact_dir
     from mtgai.runtime import ai_lock
@@ -1073,20 +1368,18 @@ def generate_mechanic_candidates(
     # wants the full pool (twice mechanic_count); the refresh-one endpoint wants 1.
     target = candidate_count(sp.mechanic_count) if count is None else max(1, count)
     floor = max(1, min(sp.mechanic_count, target))
-    max_attempts = max(3, target * 2)
     # The "must include a complexity-1 mechanic" floor is a whole-pool concern;
     # don't impose it on a targeted single-slot refresh (count given).
     enforce_simple_floor = count is None
 
     logger.info(
-        "Generating up to %d mechanic candidates one at a time "
-        "(model=%s, set_size=%d, mech_count=%d, floor=%d, max_attempts=%d)",
+        "Generating %d council-gated mechanic candidate(s) one slot at a time "
+        "(model=%s, set_size=%d, mech_count=%d, floor=%d)",
         target,
         model_id,
         sp.set_size,
         sp.mechanic_count,
         floor,
-        max_attempts,
     )
 
     # Printed-keyword set for the hard collision reject below. Built once
@@ -1097,9 +1390,10 @@ def generate_mechanic_candidates(
     seen_names: set[str] = set()
     total_in = 0
     total_out = 0
-    attempt = 0
-    consecutive_errors = 0
     last_error: str | None = None
+    # Per-slot bound on generation retries to get one well-formed, non-duplicate,
+    # non-colliding draft before this slot is treated as ungenerable.
+    gen_retries = 3
 
     # Reset hook fires once before any attempt — the UI uses this to clear the
     # candidate strip when a from-scratch generation starts. Safe to fire even
@@ -1110,112 +1404,159 @@ def generate_mechanic_candidates(
         except Exception:
             logger.exception("on_reset hook raised; continuing")
 
-    while len(accepted) < target and attempt < max_attempts:
+    # Fill the pool one slot at a time. Each slot: design a draft → gate it
+    # through the full council (revise-in-place loop) → accept on a council pass;
+    # else regenerate from scratch (threading the council's reasons) up to
+    # MAX_MECHANIC_REGEN_ATTEMPTS; after the budget, accept the best-effort
+    # revision flagged REVISE. A slot always fills exactly once, so the loop
+    # makes progress on every iteration (no separate attempt cap needed).
+    while len(accepted) < target:
         if ai_lock.is_cancelled():
             logger.info("Mechanic generation cancelled after %d candidate(s)", len(accepted))
             break
-        attempt += 1
-        user_prompt = build_single_mechanic_user_prompt(
-            accepted=accepted,
-            position=len(accepted) + 1,
-            target=target,
-            mechanic_count=sp.mechanic_count,
-            set_size=sp.set_size,
-            expected_density=expected_density,
-            enforce_simple_floor=enforce_simple_floor,
-        )
-        response: dict[str, Any] | None = None
-        try:
-            response = generate_with_tool(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                tool_schema=MECHANIC_TOOL_SCHEMA,
-                model=model_id,
-                temperature=1.0,
-                max_tokens=STANDARD,
-                log_dir=log_dir,
-            )
-        except Exception as exc:
-            last_error = f"{type(exc).__name__}: {exc}"
-            logger.warning("Mechanic candidate attempt %d failed: %s", attempt, last_error)
 
-        if response is None:
-            # Fail fast on a persistent hard error (dead provider, missing
-            # model) rather than burning the whole attempt budget on it.
-            consecutive_errors += 1
-            if consecutive_errors >= 3 and not accepted:
-                raise RuntimeError(
-                    f"Mechanic generation failed {consecutive_errors} calls in a row "
-                    f"with no valid candidates: {last_error}"
+        position = len(accepted) + 1
+        regen_reasons: list[str] = []
+        best_effort: dict | None = None
+        best_notes = ""
+        slot_done = False
+
+        for regen in range(MAX_MECHANIC_REGEN_ATTEMPTS + 1):
+            if ai_lock.is_cancelled():
+                break
+
+            # --- design one valid draft for this slot (bounded retries) ---
+            draft: dict | None = None
+            for _try in range(gen_retries):
+                if ai_lock.is_cancelled():
+                    break
+                user_prompt = build_single_mechanic_user_prompt(
+                    accepted=accepted,
+                    position=position,
+                    target=target,
+                    mechanic_count=sp.mechanic_count,
+                    set_size=sp.set_size,
+                    expected_density=expected_density,
+                    enforce_simple_floor=enforce_simple_floor,
+                    regen_reasons=regen_reasons,
                 )
-            continue
-        consecutive_errors = 0
-        total_in += response.get("input_tokens", 0) or 0
-        total_out += response.get("output_tokens", 0) or 0
-
-        returned = (response.get("result") or {}).get("mechanics") or []
-        before = len(accepted)
-        for m in returned:
-            if not _is_valid_candidate(m, seen_names, known_keywords):
-                nm = m.get("name") if isinstance(m, dict) else None
-                if isinstance(nm, str) and nm.strip().lower() in known_keywords:
-                    logger.info(
-                        "Rejected mechanic %r — collides with a printed keyword; regenerating",
-                        nm.strip(),
+                try:
+                    response = generate_with_tool(
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        tool_schema=MECHANIC_TOOL_SCHEMA,
+                        model=model_id,
+                        temperature=MECHANIC_GEN_TEMP,
+                        max_tokens=STANDARD,
+                        log_dir=log_dir,
                     )
-                continue
-            # 1-based position so the UI can render "Candidate N of target"
-            # without a +1. Reserve the name immediately so the review pass
-            # can't accidentally introduce a duplicate via rename (defensive —
-            # ``review_mechanic`` also reverts renames).
-            position = len(accepted) + 1
-            seen_names.add(str(m["name"]).strip().lower())
+                except Exception as exc:
+                    last_error = f"{type(exc).__name__}: {exc}"
+                    logger.warning("Mechanic generation call failed: %s", last_error)
+                    continue
+                total_in += response.get("input_tokens", 0) or 0
+                total_out += response.get("output_tokens", 0) or 0
+                # The gen tool returns a list, but the prompt asks for ONE; take
+                # the first valid entry. Any extras are ignored (rare for a
+                # one-at-a-time ask) so each slot gets its own council gate.
+                for m in (response.get("result") or {}).get("mechanics") or []:
+                    if _is_valid_candidate(m, seen_names, known_keywords):
+                        draft = m
+                        break
+                    nm = m.get("name") if isinstance(m, dict) else None
+                    if isinstance(nm, str) and nm.strip().lower() in known_keywords:
+                        logger.info(
+                            "Rejected mechanic %r — collides with a printed keyword; regenerating",
+                            nm.strip(),
+                        )
+                if draft is not None:
+                    break
 
-            # Draft hook fires before the review call so the UI sees the
-            # mechanic as soon as it exists, then watches it get tweaked.
+            if draft is None:
+                # Couldn't produce a valid draft this round; stop trying this slot.
+                break
+
+            # --- stream the draft, then gate it through the council ---
             if on_draft is not None:
                 try:
-                    on_draft(position, m)
+                    on_draft(position, draft)
                 except Exception:
                     logger.exception("on_draft hook raised; continuing")
 
-            # Critical review pass — theme-free; one LLM call; safe fallback.
-            review = review_mechanic(m, model_id=model_id, log_dir=log_dir)
-            final_mech = review["mechanic"]
-            review_notes = review["review_notes"]
-            final_mech["_review_notes"] = review_notes
-            total_in += review.get("input_tokens", 0) or 0
-            total_out += review.get("output_tokens", 0) or 0
+            council = council_review(draft, model_id=model_id, log_dir=log_dir)
+            total_in += council["input_tokens"]
+            total_out += council["output_tokens"]
+            mech = council["mechanic"]
+            mech["_review_verdict"] = council["verdict"]
+            mech["_review_notes"] = council["review_notes"]
 
-            accepted.append(final_mech)
+            if council["verdict"] == "OK":
+                seen_names.add(str(mech.get("name") or "").strip().lower())
+                accepted.append(mech)
+                if on_finalized is not None:
+                    try:
+                        on_finalized(position, mech, council["review_notes"])
+                    except Exception:
+                        logger.exception("on_finalized hook raised; continuing")
+                slot_done = True
+                break
 
+            # Still REVISE after the revise loop — keep as best-effort, thread the
+            # council's reasons into the next from-scratch regeneration.
+            best_effort = mech
+            best_notes = council["review_notes"]
+            regen_reasons = council["reasons"]
+            if regen < MAX_MECHANIC_REGEN_ATTEMPTS:
+                logger.info(
+                    "Slot %d still REVISE after council; regenerating from scratch", position
+                )
+
+        if slot_done:
+            continue
+
+        # The council never reached OK for this slot. If it produced a best-effort
+        # revision, accept it flagged REVISE — the slot still fills once (the
+        # theme-fit picker prefers OK, and the pool is near-all-OK by construction).
+        if best_effort is not None:
+            logger.info(
+                "Slot %d accepted best-effort (still REVISE) after the regen budget", position
+            )
+            seen_names.add(str(best_effort.get("name") or "").strip().lower())
+            accepted.append(best_effort)
             if on_finalized is not None:
                 try:
-                    on_finalized(position, final_mech, review_notes)
+                    on_finalized(position, best_effort, best_notes)
                 except Exception:
                     logger.exception("on_finalized hook raised; continuing")
+            continue
 
-            if len(accepted) >= target:
-                break
-        if len(accepted) == before:
-            logger.info(
-                "Attempt %d yielded no valid new candidate (%d returned); retrying",
-                attempt,
-                len(returned),
+        # Couldn't even generate a valid draft for this slot. Fail fast if nothing
+        # has been accepted (dead provider / unusable model); otherwise stop and
+        # proceed with what we have (the floor check below is the final gate).
+        if not accepted:
+            raise RuntimeError(
+                f"Mechanic generation produced no valid candidate after {gen_retries} "
+                f"attempt(s): {last_error}. The model may be returning malformed tool "
+                "output — try a different mechanics model or re-run."
             )
+        logger.warning(
+            "Could not generate a valid draft for slot %d; proceeding with %d candidate(s)",
+            position,
+            len(accepted),
+        )
+        break
 
     if len(accepted) < floor:
         raise RuntimeError(
-            f"Mechanic generation produced only {len(accepted)} valid candidate(s) "
-            f"after {attempt} attempt(s); need at least {floor}. The model may be "
-            "returning malformed tool output — try a different mechanics model or re-run."
+            f"Mechanic generation produced only {len(accepted)} valid candidate(s); "
+            f"need at least {floor}. The model may be returning malformed tool output — "
+            "try a different mechanics model or re-run."
         )
     if len(accepted) < target:
         logger.warning(
-            "Collected %d/%d mechanic candidates after %d attempts (>= floor of %d, proceeding)",
+            "Collected %d/%d mechanic candidates (>= floor of %d, proceeding)",
             len(accepted),
             target,
-            attempt,
             floor,
         )
     return {

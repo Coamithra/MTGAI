@@ -253,3 +253,70 @@ model to `mechanics`.
    note when revised; confirm `<asset>/mechanics/logs` shows 3 reviewer transcripts + the consensus/
    revise transcripts per revised candidate, and that obviously-broken seeds get fixed (e.g. a reskinned
    keyword gets flagged/reworded, a contradictory reminder gets reconciled).
+
+## Update — 2026-05-29 (implementation, locked with the user)
+
+The three open questions are resolved; the synth-budget conflict with `token_budgets.py` is settled.
+
+### Locked answers
+- **Full council always** (no cull-gate). Every candidate gets all 3 reviewers + synth + re-review
+  each round. Faithful to the validated lab shape; council size + iteration count are tunable
+  constants so cost can be dialed later. Recommend assigning a capable model to `mechanics` if local
+  runtime hurts (orthogonal settings change, not code).
+- **Revise budget = 3 rounds** (`MAX_MECHANIC_REVIEW_ITERATIONS = 3`, matches the lab default).
+- **Pool stays 2N** — `candidate_count` unchanged; no small-set floor (out of scope this card).
+
+### Synth budget + repeat_penalty (deviations from the literal lab code, justified)
+- **Synth `max_tokens = HEAVY` (16384), not the lab's 24576.** `token_budgets.py` hard-caps every
+  budget at `MAX_OUTPUT_CEILING = 16384` (local ctx reservation + Anthropic non-streaming threshold).
+  Per `learnings/reasoning-budget-overrun.md` the synth only *used* ~8282 completion tokens when handed
+  a 24576 budget (it stops at EOS), so 16384 is ~2× the real requirement — sufficient, and safe if a
+  cloud model is assigned to `mechanics`.
+- **No `repeat_penalty` escalation on the synth.** The same learning *verified* the synth truncation is
+  reasoning-budget overrun, **not** a repetition loop, and is **not** fixed by `repeat_penalty`
+  ("identical truncation at 1.1 / 1.15 / 1.20"). The lab's `call_synth_escalating` was built on the
+  earlier (disproven) repetition-loop hypothesis, so it is **not** ported. Baseline 1.1 stays (provider
+  default for all structured calls). A synth that still fails (exception / no `revised_mechanic`) falls
+  back to the current mechanic at REVISE → the council re-reviews next round, and the regen fallback is
+  the terminal net.
+
+### Final flow (per-slot fill model)
+`generate_mechanic_candidates` fills slots `1..target` one at a time (clearer streaming + correct
+regen-reason scoping than a growing global pool). Per slot:
+1. **Generate** one valid draft (bounded gen retries; gen-temp **0.9**). Reasons from a prior failed
+   council in this slot thread into the gen prompt (`{regen_block}` in `mechanic_user_single.txt`).
+2. `on_draft(position, draft)` → **`council_review`** (the lab's `review_one`): up to
+   `MAX_MECHANIC_REVIEW_ITERATIONS` rounds of [3 reviewers → if not all-OK, synth revises in place →
+   re-review]. Exit on **reviewer** consensus OK (never the synth's self-verdict) or budget exhausted
+   (honestly left REVISE). Anti-rename guard on the final mechanic. Every call try/except → safe fallback.
+3. **Verdict OK** → accept, stamp `_review_verdict="OK"` + `_review_notes`, `on_finalized`, next slot.
+   **Verdict REVISE** → regenerate from scratch threading the council's consensus reasons, re-gate, up
+   to `MAX_MECHANIC_REGEN_ATTEMPTS = 1` from-scratch regens. Still REVISE after that → accept the
+   **best-effort** mechanic stamped `_review_verdict="REVISE"` (so the slot always fills exactly once;
+   the theme-fit picker prefers OK, and the pool is near-all-OK by construction).
+- **Robustness preserved:** a slot that can't produce *any* valid draft → fail-fast raise if nothing
+  accepted yet, else stop and proceed with what we have; final pool `< floor` → raise (same brittleness
+  threshold as today). Cancellation (`ai_lock.is_cancelled()`) polled at the slot boundary, before each
+  regen, and at the top of each council round.
+
+### Tool names / schemas
+- `MECHANIC_REVIEWER_TOOL_SCHEMA` (`submit_mechanic_review`, `{verdict, issues[]}`) +
+  `MECHANIC_SYNTH_TOOL_SCHEMA` (`submit_mechanic_synthesis`,
+  `{synthesis, consensus_issues[], revised_mechanic, verdict, review_notes}`, `revised_mechanic`
+  reusing `MECHANIC_ITEM_SCHEMA`). Remove the superseded single-shot `MECHANIC_REVIEW_TOOL_SCHEMA`.
+- Temps: reviewers 0.4, synth 0.2 (lab/plan values); reviewers + synth share the review system prompt.
+
+### Files
+- `mechanic_generator.py` — constants, two schemas, `build_reviewer_prompts` / `build_synth_prompts` /
+  `_format_reviews_block`, `council_review` (replaces `review_mechanic`), per-slot fill + regen
+  fallback in `generate_mechanic_candidates`, `regen_reasons` threading, gen-temp 0.9.
+- Prompts — merge lab pitfalls + originality gate into `mechanic_system.txt`; overwrite
+  `mechanic_review_system.txt` (six standards) + `mechanic_review_user.txt`; new `mechanic_synth_user.txt`;
+  add `{regen_block}` to `mechanic_user_single.txt`.
+- `stages.py` / `stage_hooks.py` — **no change needed**: phase strings come from the hooks (unchanged
+  signatures), and `_review_verdict` rides along in the candidate payload (`dict(mech)`), so the wizard
+  can read it with no hook-shape change.
+- Tests — replace the `review_mechanic` tests with `council_review` (all-OK → no synth; mixed → synth
+  fires; REVISE→OK across rounds; budget exhausted → keeps last revision; reviewer-collapse → original;
+  synth failure → keeps prior; anti-rename) + regen-fallback + verdict-stamp + the updated streaming stubs.
+- `CLAUDE.md` — update the Mechanics bullet (council loop + regen fallback replaces the single-shot review).
