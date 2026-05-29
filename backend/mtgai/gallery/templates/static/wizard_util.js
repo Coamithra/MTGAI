@@ -57,6 +57,24 @@
     return !!state && state.latestTabId !== stageId;
   };
 
+  // --- Read-only tile grid (shared chrome) ---------------------------------
+  // Reprints + Lands both render a responsive grid of read-only card tiles. The
+  // chrome (grid sizing, tile box, header row, rarity pill, locked dim) lived as
+  // prefix-renamed copies in each tab's injectStyles() — lands literally commented
+  // "same column sizing as reprints". The shared rules now live in wizard.css under
+  // .wiz-tile-grid / .wiz-tile / .wiz-tile-header / .wiz-rarity* / .wiz-tile-locked;
+  // a tab that needs tile variants (lands' per-basic border tint) layers its own
+  // class alongside .wiz-tile. This helper renders the rarity pill off those rules.
+  //
+  // Maps a rarity (full word like "Rare" or a bare letter) to the c/u/r/m class;
+  // the visible label is the full rarity word (or "?" when absent). Matches the
+  // reprints/lands behavior it replaces: a missing rarity keys to 'c', labels '?'.
+  W.rarityPill = function (rarity) {
+    const word = rarity || '';
+    const key = String(word).toLowerCase().charAt(0) || 'c';
+    return `<span class="wiz-rarity wiz-rarity-${W.escAttr(key)}">${W.escHtml(word || '?')}</span>`;
+  };
+
   // --- AI-action error reporting -------------------------------------------
   // Standard toast for a failed AI-tab action: the 409 "AI busy" branch plus a
   // generic fallback. Lifted verbatim from the archetypes/skeleton copies.

@@ -48,54 +48,19 @@
       }
       .wiz-lands-meta strong { color: #ddd; }
 
-      /* Grid — same column sizing as reprints for visual consistency */
-      .wiz-lands-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-        gap: 0.75rem;
-        margin-top: 0.75rem;
-      }
-
-      /* Tile */
-      .wiz-lands-tile {
-        background: #0f1729;
-        border: 1px solid #1f2540;
-        border-radius: 8px;
-        padding: 0.75rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-        transition: border-color 0.15s;
-      }
+      /* Grid + base tile chrome + rarity pill are shared (.wiz-tile* /
+         .wiz-rarity* in wizard.css). Land tiles layer .wiz-lands-tile for the
+         per-basic border tint (and a teal hover). */
       .wiz-lands-tile:hover { border-color: #00d4aa44; }
-
       /* Basic land tiles get a subtle green tint; nonbasics are blue */
       .wiz-lands-tile[data-basic="true"] { border-color: #00d4aa22; }
       .wiz-lands-tile[data-basic="false"] { border-color: #4a9eff22; }
-
-      .wiz-lands-tile-header {
-        display: flex;
-        align-items: baseline;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-      }
       .wiz-lands-name {
         font-weight: 600;
         font-size: 0.9rem;
         color: #e0e0e0;
         flex: 1 1 auto;
       }
-      .wiz-lands-rarity {
-        font-size: 0.68rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        padding: 1px 5px;
-        border-radius: 3px;
-        flex-shrink: 0;
-      }
-      .wiz-lands-rarity-c { background: #2a2a2a; color: #aaa; }
-      .wiz-lands-rarity-u { background: #c0d0e022; color: #b0c8d8; }
-      .wiz-lands-rarity-r { background: #ffd70022; color: #ffd700; }
 
       /* Collector number — the alternate-printing key (L-01a, L-01b, …) */
       .wiz-lands-cn {
@@ -141,11 +106,7 @@
         margin-top: 0.1rem;
       }
 
-      /* Locked */
-      .wiz-lands-locked .wiz-lands-tile {
-        opacity: 0.6;
-        pointer-events: none;
-      }
+      /* Locked-tile dim is shared (.wiz-tile-locked .wiz-tile in wizard.css). */
     `;
     document.head.appendChild(s);
   })();
@@ -308,14 +269,11 @@
       return (a.collector_number || '').localeCompare(b.collector_number || '');
     });
 
-    slot.innerHTML = `<div class="wiz-lands-grid">${sorted.map(l => landTileHtml(l)).join('')}</div>`;
+    slot.innerHTML = `<div class="wiz-tile-grid">${sorted.map(l => landTileHtml(l)).join('')}</div>`;
   }
 
   function landTileHtml(land) {
     const isBasic = isBasicType(land.type_line);
-    const rarityKey = (land.rarity || 'c').toLowerCase().charAt(0);
-    const rarityClass = `wiz-lands-rarity-${escAttr(rarityKey)}`;
-    const rarityLabel = escHtml(land.rarity || '?');
 
     const oracle = land.oracle_text || '';
     const flavor = land.flavor_text || '';
@@ -323,11 +281,11 @@
     const brief = artBrief(land);
 
     return `
-      <article class="wiz-lands-tile" data-basic="${escAttr(String(isBasic))}">
-        <div class="wiz-lands-tile-header">
+      <article class="wiz-tile wiz-lands-tile" data-basic="${escAttr(String(isBasic))}">
+        <div class="wiz-tile-header">
           <span class="wiz-lands-name">${escHtml(land.name || '(unnamed)')}</span>
           ${cn ? `<span class="wiz-lands-cn">${escHtml(cn)}</span>` : ''}
-          <span class="wiz-lands-rarity ${rarityClass}">${rarityLabel}</span>
+          ${W.rarityPill(land.rarity)}
         </div>
         ${land.type_line ? `<div class="wiz-lands-type">${escHtml(land.type_line)}</div>` : ''}
         ${brief ? `<div class="wiz-lands-brief"><span class="wiz-lands-brief-label">Art</span>${escHtml(brief)}</div>` : ''}
@@ -449,7 +407,7 @@
   function setLocked(locked) {
     local.locked = !!locked;
     W.setTabLocked(bodyRoot(), aiBusy(), {
-      lockClass: 'wiz-lands-locked',
+      lockClass: 'wiz-tile-locked',
       selectors: ['[data-role="lands-refresh-all"]'],
     });
   }

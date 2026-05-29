@@ -962,6 +962,49 @@
   border: 1px solid #3a3a3a;
 }
 
+/* Shared read-only tile grid (Reprints, Lands). The chrome only — a tab's
+   content classes (name, oracle, …) and any tile variant (lands layers
+   .wiz-lands-tile for its per-basic border tint) stay tab-local. Rarity pill
+   rendered by W.rarityPill. card_gen keeps its own grid (different palette). */
+.wiz-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.wiz-tile {
+  background: #0f1729;
+  border: 1px solid #1f2540;
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  transition: border-color 0.15s;
+}
+.wiz-tile:hover { border-color: #4a9eff55; }
+.wiz-tile-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.wiz-rarity {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.wiz-rarity-c { background: #2a2a2a; color: #aaa; }
+.wiz-rarity-u { background: #c0d0e022; color: #b0c8d8; }
+.wiz-rarity-r { background: #ffd70022; color: #ffd700; }
+.wiz-rarity-m { background: #ff8c0022; color: #ff8c00; }
+/* Locked grid: faint dim + no interaction (the tab's setLocked toggles the class). */
+.wiz-tile-locked .wiz-tile { opacity: 0.6; pointer-events: none; }
+
 .wiz-theme-actions {
   display: flex;
   justify-content: flex-end;

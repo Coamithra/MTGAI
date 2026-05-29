@@ -50,33 +50,8 @@
       }
       .wiz-reprints-meta strong { color: #ddd; }
 
-      /* Grid */
-      .wiz-reprints-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-        gap: 0.75rem;
-        margin-top: 0.75rem;
-      }
-
-      /* Tile */
-      .wiz-reprints-tile {
-        background: #0f1729;
-        border: 1px solid #1f2540;
-        border-radius: 8px;
-        padding: 0.75rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-        transition: border-color 0.15s;
-      }
-      .wiz-reprints-tile:hover { border-color: #4a9eff55; }
-
-      .wiz-reprints-tile-header {
-        display: flex;
-        align-items: baseline;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-      }
+      /* Grid + tile chrome + rarity pill are shared (.wiz-tile* / .wiz-rarity*
+         in wizard.css). Only the reprint-specific tile content lives here. */
       .wiz-reprints-name {
         font-weight: 600;
         font-size: 0.9rem;
@@ -87,20 +62,6 @@
         color: #aaa;
         font-family: monospace;
       }
-      .wiz-reprints-rarity {
-        font-size: 0.68rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        padding: 1px 5px;
-        border-radius: 3px;
-        margin-left: auto;
-        flex-shrink: 0;
-      }
-      .wiz-reprints-rarity-c { background: #2a2a2a; color: #aaa; }
-      .wiz-reprints-rarity-u { background: #c0d0e022; color: #b0c8d8; }
-      .wiz-reprints-rarity-r { background: #ffd70022; color: #ffd700; }
-      .wiz-reprints-rarity-m { background: #ff8c0022; color: #ff8c00; }
-
       .wiz-reprints-type {
         font-size: 0.73rem;
         color: #888;
@@ -157,11 +118,7 @@
         padding: 1.5rem 0;
       }
 
-      /* Locked: faint dim */
-      .wiz-reprints-locked .wiz-reprints-tile {
-        opacity: 0.6;
-        pointer-events: none;
-      }
+      /* Locked-tile dim is shared (.wiz-tile-locked .wiz-tile in wizard.css). */
 
       /* Knob panel */
       .wiz-reprints-knobs-panel {
@@ -387,26 +344,23 @@
       return;
     }
 
-    slot.innerHTML = `<div class="wiz-reprints-grid">${local.selections.map(sel => reprintTileHtml(sel)).join('')}</div>`;
+    slot.innerHTML = `<div class="wiz-tile-grid">${local.selections.map(sel => reprintTileHtml(sel)).join('')}</div>`;
   }
 
   function reprintTileHtml(sel) {
     const c = sel.candidate || {};
     const s = sel.slot || {};
-    const rarityKey = (c.rarity || '').toLowerCase().charAt(0) || 'c';
-    const rarityClass = `wiz-reprints-rarity-${escAttr(rarityKey)}`;
-    const rarityLabel = escHtml(c.rarity || '?');
 
     // Clip oracle text to ~200 chars to keep tiles manageable.
     const oracle = c.oracle_text || '';
     const oracleClipped = oracle.length > 220 ? oracle.slice(0, 217) + '…' : oracle;
 
     return `
-      <article class="wiz-reprints-tile">
-        <div class="wiz-reprints-tile-header">
+      <article class="wiz-tile">
+        <div class="wiz-tile-header">
           <span class="wiz-reprints-name">${escHtml(c.name || '(unnamed)')}</span>
           ${c.mana_cost ? `<span class="wiz-reprints-cost">${escHtml(c.mana_cost)}</span>` : ''}
-          <span class="wiz-reprints-rarity ${rarityClass}">${rarityLabel}</span>
+          ${W.rarityPill(c.rarity)}
         </div>
         ${c.type_line ? `<div class="wiz-reprints-type">${escHtml(c.type_line)}</div>` : ''}
         ${oracleClipped ? `<div class="wiz-reprints-oracle">${escHtml(oracleClipped)}</div>` : ''}
@@ -593,7 +547,7 @@
   function setLocked(locked) {
     local.locked = !!locked;
     W.setTabLocked(bodyRoot(), aiBusy(), {
-      lockClass: 'wiz-reprints-locked',
+      lockClass: 'wiz-tile-locked',
       selectors: ['[data-role="reprints-refresh-all"]', 'input[data-knob]'],
       footerSelector: '[data-role="reprints-advance"]',
     });
