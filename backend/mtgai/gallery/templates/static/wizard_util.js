@@ -442,7 +442,7 @@
     }
   };
 
-  // --- SSE stream bridge (conventions §14) ---------------------------------
+  // --- SSE stream bridge (conventions §17) ---------------------------------
   // Wire a streaming stage tab's SSE hook. Owns the boilerplate every streaming
   // tab (mechanics / skeleton / card_gen) hand-rolled: the W.on<Stage>Stream
   // assignment, the event-name → handler dispatch, and the fresh tab-root

@@ -241,7 +241,9 @@ Items added by an LLM (constraints, card requests, future similar
 lists) carry:
 
 * `data-ai-generated="true"` on the `.wiz-list-item` element
-* A visible `<span class="wiz-ai-badge">AI</span>` next to the input
+* A visible AI badge next to the input, rendered by
+  **`W.provenanceBadge(aiGenerated, { role: 'ai-badge' })`** — the `role`
+  emits `data-role="ai-badge"` so `clearAiBadge` can find + remove it on edit.
 
 When the user edits the input, the badge clears (input listener calls
 `clearAiBadge(item)`). This is the core of the **preserve-on-refresh**
@@ -255,6 +257,16 @@ contract:
 
 Don't break this contract — it's the user's only protection against
 losing hand-curated edits when they hit Refresh.
+
+**Call `W.provenanceBadge(prov)` (`wizard_util.js`), don't hand-roll the
+badge.** It is the one provenance-badge component, with one canonical vocab:
+`true` / `'ai'` → the purple "AI" badge, `'user'` → "edited", `'auto'` /
+`'default'` → "auto", a falsy value → no badge. Synonyms render identically
+(`'default'` and `'auto'` are the same badge; `true` and `'ai'` are), so it
+folds in both the boolean list-item badge here (`_ai_generated`) **and** the
+tri-state knob provenance the Skeleton + Reprints tabs show — closing the old
+split where Skeleton badged `default` and Reprints badged `auto` for the same
+"not user-set" state. The `KnobPanel` (§17) renders it for knob controls.
 
 ## 6. Past-tab edit cascade
 
@@ -633,3 +645,77 @@ applied fixes + cost that llmfacade can't capture — but it still routes
 the llmfacade transcript to the same dir. Don't reinvent that bespoke
 logger for other stages; the llmfacade transcript is the canonical
 per-call log.
+
+## 17. Shared helpers — call, don't copy
+
+The wizard tabs were bootstrapped by *copying* the two reference tabs
+(Project Settings, Theme) into each new stage tab. That seeded byte-identical
+leaf helpers, lifecycle blocks, and CSS — which then drifted (Skeleton vs
+Reprints badged the same state with different words; Lands' grid CSS literally
+commented "same column sizing as reprints"). The shared surface below replaces
+"copy this block" with "call this helper", so a new tab inherits §1–§16
+behaviour by construction instead of re-deriving it and silently diverging.
+The sections above cite the relevant entries inline; this is the index.
+
+### Frontend — `window.MTGAIWizard`, installed by `wizard_util.js`
+
+`wizard_util.js` loads before `wizard.js` and every tab module, so a tab
+aliases these off `W` at the top of its IIFE instead of carrying private
+copies.
+
+* **Leaf helpers** — `W.escHtml` / `W.escAttr` / `W.cssEsc` (escaping);
+  `W.tabRoot(id)` / `W.tabFooter(root)` / `W.isPastTab(id, state)` (the
+  stage-tab DOM lookups, once forked under three names); `W.reportError(resp,
+  data, fallback)` (the 409-busy / generic AI-action error toast).
+* **AI-action lifecycle (§7)** — `W.runAiAction(opts)` owns the own-lock guard
+  → confirm → lock → `showBusy` → POST → 409/error toast → unlock recipe;
+  `W.setTabLocked(root, locked, { lockClass, selectors, footerSelector })` is
+  the form-lock DOM sweep.
+* **Stage-tab shell (§1)** — `W.fetchStageState(id)` (first-paint GET, graceful
+  404 → `null`); `W.emptyStatePanel(opts)`; `W.paintFooter(footer, html,
+  { role, onClick })` (the `dataset.lastFooter` diff-guard); `W.saveAndAdvance`
+  / `W.advanceStage` (save→advance→navigate / resume→navigate, with the button
+  text-spinner).
+* **Provenance + controls** — `W.provenanceBadge(prov, { role })` (§5, the one
+  badge component); `W.KnobPanel(container, opts)` (the spec-driven
+  bounded-control grid the Skeleton + Reprints knob panels render through —
+  grouped/flat, pinnable, nullable-"auto", range hint, badge placement; the tab
+  supplies state + `onChange`/`onPin` reactions + its own CSS classes + extras
+  like Skeleton's cycles / Reprints' jitter); `W.rarityPill(rarity)` + the
+  shared read-only tile grid CSS in `wizard.css` (`.wiz-tile` / `.wiz-tile-grid`
+  / `.wiz-tile-header` / `.wiz-rarity*` / `.wiz-tile-locked`, used by Reprints +
+  Lands — a tile variant layers its own class beside `.wiz-tile`).
+* **SSE stream bridge (live tiles)** — `W.registerStream(stageId, handlers)`
+  owns the `W.on<Stage>Stream` hook assignment + event-name dispatch + fresh
+  tab-root lookup the mechanics / skeleton / card_gen streaming tabs hand-rolled;
+  `W.streamUpsert(list, item, keyFn)` is the merge-by-key/append primitive. The
+  per-event semantics (collision tags, busy label, live-slot patch) stay in the
+  tab handlers — they diverge too much to fold into one `onItem`.
+
+### Backend — `pipeline/server.py` unless noted
+
+* **Guards** — a registered exception handler turns a `_NoActiveProject` /
+  `NoAssetFolderError` raised anywhere (including nested helpers) into the 409
+  `{error, code}` payloads, so an endpoint calls `_require_active_project()` /
+  `set_artifact_dir()` inline rather than wrapping each in try/except.
+  `read_theme_or_none()` names the "swallow `NoAssetFolderError` → None" intent.
+* **`guarded_ai(label, stage_id=…)` (§7, §15)** — the AI-tab endpoint context
+  manager: `ai_lock.hold` → 409 busy, the `try/500 {error}` envelope (worker
+  exceptions become `AIActionError`), the success-only `_heal_failed_stage`, and
+  release. Set `guard.skip_heal = True` to opt out after a cancelled run.
+* **`_read_request_json(request)`** — JSON body parse with a 400 envelope on
+  malformed input (use it instead of raw `await request.json()`).
+* **`_stage_state_base(stage_id, settings)` (§1)** — the `{set_params,
+  theme_summary, model_id, stage_status}` tail every `*/state` merges its
+  tab-specific keys onto; **`_next_stage_nav(stage_id)`** — the `*/save`
+  navigate computation.
+* **`_skeleton_knobs_from_body(body)`** — the Skeleton tab's `{knobs, cycles,
+  pinned, provenance}` overlay onto `SkeletonKnobs.from_payload`, shared by
+  `/skeleton/knobs` (deterministic rebuild) and `/skeleton/knobs/tune` (AI
+  re-tune base). `ReprintKnobs` validates too differently (nullable-auto vs
+  clamp) to share the step, so the reprint side keeps `_write_reprint_knobs`.
+* **`pipeline/stage_hooks.py`** — the engine↔refresh SSE hook builders
+  (`build_{mechanic,skeleton,card_gen}_hooks`, `emit_skeleton_done`,
+  `emit_card_gen_reset`, `card_tile_dict`, `slots_by_id_from_skeleton`). Both
+  the engine stage runner and the refresh endpoints construct them against a
+  real `StageEmitter`, so the two paths' event payloads can't drift.
