@@ -197,28 +197,27 @@
   };
 
   // --- AI provenance badge (conventions §5) --------------------------------
-  // One badge component, one canonical vocab (ai / user / auto), display-only.
-  // The three tabs that show provenance had each grown their own markup + vocab
-  // (skeleton: wiz-ai-badge "AI" / wiz-skel-userbadge "edited" / nothing for
-  // 'default'; reprints: wiz-reprints-knob-badge "auto"/"user"; theme/mechanics/
-  // archetypes: a boolean _ai_generated → wiz-ai-badge "AI" / nothing). This maps
-  // every synonym onto one rendering so they can't drift again:
-  //   true  / 'ai'                     → the established .wiz-ai-badge "AI"
-  //   'user'                           → .wiz-prov-badge.wiz-prov-user "edited"
-  //   'auto' / 'default'               → .wiz-prov-badge.wiz-prov-auto "auto"
-  //   false / null / undefined / ''    → '' (a hand-authored row carries no badge)
-  // So provenanceBadge('default') and provenanceBadge('auto') render identically,
-  // as do provenanceBadge(true) and provenanceBadge('ai').
+  // One badge component, one markup, display-only. The tabs that show provenance
+  // had each grown their own badge markup + vocab (skeleton: wiz-ai-badge "AI" /
+  // wiz-skel-userbadge "edited" / nothing for 'default'; reprints: bespoke
+  // wiz-reprints-knob-badge "auto"/"user"; theme/mechanics/archetypes: a boolean
+  // _ai_generated → wiz-ai-badge "AI" / nothing). This unifies the markup while
+  // preserving each tab's not-user-set rendering:
+  //   true / 'ai'                          → the established .wiz-ai-badge "AI"
+  //   'user'                               → .wiz-prov-badge.wiz-prov-user "edited"
+  //   'auto'                               → .wiz-prov-badge.wiz-prov-auto "auto"
+  //   'default' / false / null / '' / etc. → '' (no badge)
+  // provenanceBadge(true) ≡ provenanceBadge('ai'). 'auto' (reprints' system-
+  // resolved rarity) shows a badge; 'default' (skeleton's untouched-knob state)
+  // shows none — distinct on purpose, matching each tab's prior look.
   //   opts.role — emit data-role="<role>" so a clear-on-edit listener can find +
   //               remove the badge (the list-item badges use 'ai-badge').
   W.provenanceBadge = function (prov, opts) {
     const role = opts && opts.role ? ` data-role="${W.escAttr(opts.role)}"` : '';
     if (prov === true || prov === 'ai') return `<span class="wiz-ai-badge"${role}>AI</span>`;
     if (prov === 'user') return `<span class="wiz-prov-badge wiz-prov-user"${role}>edited</span>`;
-    if (prov === 'auto' || prov === 'default') {
-      return `<span class="wiz-prov-badge wiz-prov-auto"${role}>auto</span>`;
-    }
-    return '';
+    if (prov === 'auto') return `<span class="wiz-prov-badge wiz-prov-auto"${role}>auto</span>`;
+    return ''; // 'default' (skeleton untouched) + falsy (hand-authored row) → no badge
   };
 
   // --- AI-tab action lifecycle (conventions §7) ----------------------------

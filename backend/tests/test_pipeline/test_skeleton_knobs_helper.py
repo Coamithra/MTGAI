@@ -48,6 +48,25 @@ def test_overlays_knobs_cycles_pinned_provenance():
     assert knobs.provenance["rarity_common"] == "user"
 
 
+def test_cycles_fall_back_to_knobs_nested_cycles():
+    # The tab may nest `cycles` inside the `knobs` dict; with no top-level
+    # `cycles`, the helper falls back to body["knobs"]["cycles"].
+    knobs, _ = _skeleton_knobs_from_body(
+        {"knobs": {"cycles": [{"id": "c1", "name": "Nested", "span": "mono5"}]}}
+    )
+    assert [c.name for c in knobs.cycles] == ["Nested"]
+
+
+def test_top_level_cycles_win_over_nested():
+    knobs, _ = _skeleton_knobs_from_body(
+        {
+            "knobs": {"cycles": [{"id": "c1", "name": "Nested", "span": "mono5"}]},
+            "cycles": [{"id": "c2", "name": "TopLevel", "span": "mono5"}],
+        }
+    )
+    assert [c.name for c in knobs.cycles] == ["TopLevel"]
+
+
 def test_out_of_range_value_is_clamped_with_warning():
     knobs, warnings = _skeleton_knobs_from_body({"knobs": {"rarity_common": 9999}})
     assert knobs.rarity_common != 9999  # clamped down to the spec max

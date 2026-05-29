@@ -259,14 +259,16 @@ Don't break this contract — it's the user's only protection against
 losing hand-curated edits when they hit Refresh.
 
 **Call `W.provenanceBadge(prov)` (`wizard_util.js`), don't hand-roll the
-badge.** It is the one provenance-badge component, with one canonical vocab:
-`true` / `'ai'` → the purple "AI" badge, `'user'` → "edited", `'auto'` /
-`'default'` → "auto", a falsy value → no badge. Synonyms render identically
-(`'default'` and `'auto'` are the same badge; `true` and `'ai'` are), so it
-folds in both the boolean list-item badge here (`_ai_generated`) **and** the
-tri-state knob provenance the Skeleton + Reprints tabs show — closing the old
-split where Skeleton badged `default` and Reprints badged `auto` for the same
-"not user-set" state. The `KnobPanel` (§17) renders it for knob controls.
+badge.** It is the one provenance-badge component: `true` / `'ai'` → the purple
+"AI" badge, `'user'` → "edited", `'auto'` → "auto", and anything else
+(`'default'`, a falsy value) → no badge. `true` and `'ai'` render identically.
+It unifies the *markup* across the boolean list-item badge here (`_ai_generated`)
+and the knob-provenance badges the Skeleton + Reprints tabs show, while keeping
+each tab's not-user-set rendering: Reprints' `'auto'` (a system-resolved rarity)
+shows a badge; Skeleton's `'default'` (an untouched knob) shows none — they were
+distinct before and stay distinct. The `KnobPanel` (§17) renders it for knob
+controls. This replaced three divergent badge markups (`wiz-ai-badge`,
+`wiz-skel-userbadge`, the bespoke `wiz-reprints-knob-badge`).
 
 ## 6. Past-tab edit cascade
 
