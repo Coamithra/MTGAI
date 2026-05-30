@@ -136,6 +136,10 @@ class TestLlamaCppNewModel:
         fake_info.cache_type_k = "q8_0"
         fake_info.cache_type_v = "q8_0"
         fake_info.n_gpu_layers = -1
+        # No thinking on this entry — bare MagicMock attrs would otherwise be
+        # truthy and leak thinking=/thinking_style= into the call.
+        fake_info.thinking = None
+        fake_info.thinking_style = None
         with patch(
             "mtgai.settings.model_registry.ModelRegistry.get_llm_by_model_id",
             return_value=fake_info,
@@ -161,6 +165,8 @@ class TestLlamaCppNewModel:
         fake_info.cache_type_k = None
         fake_info.cache_type_v = None
         fake_info.n_gpu_layers = None
+        fake_info.thinking = None
+        fake_info.thinking_style = None
         with patch(
             "mtgai.settings.model_registry.ModelRegistry.get_llm_by_model_id",
             return_value=fake_info,
@@ -172,6 +178,52 @@ class TestLlamaCppNewModel:
             "gguf": "C:/Models/qwen2.5-14b.gguf",
             "context_size": 32768,
         }
+
+    def test_threads_thinking_knobs_from_registry(self):
+        """thinking / thinking_style from the registry must reach
+        provider.new_model so llama-server gets the enable_thinking template
+        kwarg (the IQ4_XS local default sets thinking="adaptive"). thinking_style
+        left unset is omitted so llmfacade auto-detects it from the GGUF."""
+        provider = MagicMock()
+        fake_info = MagicMock()
+        fake_info.model_id = "gemma4-26b-unsloth-iq4xs"
+        fake_info.gguf_path = "C:/Models/gemma-4-26B-A4B-it-UD-IQ4_XS.gguf"
+        fake_info.context_window = 128000
+        fake_info.cache_type_k = "q8_0"
+        fake_info.cache_type_v = "q8_0"
+        fake_info.n_gpu_layers = -1
+        fake_info.thinking = "adaptive"
+        fake_info.thinking_style = None
+        with patch(
+            "mtgai.settings.model_registry.ModelRegistry.get_llm_by_model_id",
+            return_value=fake_info,
+        ):
+            _llamacpp_new_model(provider, "gemma4-26b-unsloth-iq4xs")
+        kwargs = provider.new_model.call_args.kwargs
+        assert kwargs["thinking"] == "adaptive"
+        assert "thinking_style" not in kwargs
+        assert kwargs["n_gpu_layers"] == -1
+
+    def test_threads_thinking_style_override_from_registry(self):
+        """An explicit thinking_style override must reach provider.new_model
+        (covers the set-branch; auto-detection is bypassed when it's given)."""
+        provider = MagicMock()
+        fake_info = MagicMock()
+        fake_info.model_id = "m"
+        fake_info.gguf_path = "C:/Models/m.gguf"
+        fake_info.context_window = 8192
+        fake_info.cache_type_k = None
+        fake_info.cache_type_v = None
+        fake_info.n_gpu_layers = None
+        fake_info.thinking = "adaptive"
+        fake_info.thinking_style = "template_kwarg"
+        with patch(
+            "mtgai.settings.model_registry.ModelRegistry.get_llm_by_model_id",
+            return_value=fake_info,
+        ):
+            _llamacpp_new_model(provider, "m")
+        kwargs = provider.new_model.call_args.kwargs
+        assert kwargs["thinking_style"] == "template_kwarg"
 
 
 # ── llmfacade Response/Usage/ToolCall stubs ──────────────────────────

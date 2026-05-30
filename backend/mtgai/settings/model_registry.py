@@ -14,6 +14,12 @@ logger = logging.getLogger(__name__)
 
 _MODELS_TOML = Path(__file__).resolve().parent / "models.toml"
 
+# Valid ``thinking`` values for a llamacpp entry — mirror llmfacade's
+# ThinkingMode values. Validated at load so a TOML typo fails loudly instead of
+# silently disabling reasoning (an unrecognised value reaches llama.cpp as "no
+# enable_thinking kwarg", i.e. thinking quietly off, with no error).
+_VALID_THINKING_MODES = frozenset({"adaptive", "adaptive_summarized", "disabled"})
+
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -40,6 +46,12 @@ class LLMModel:
     cache_type_k: str | None = None
     cache_type_v: str | None = None
     n_gpu_layers: int | None = None
+    # llamacpp thinking/reasoning knobs (managed-mode only). ``thinking`` takes
+    # an llmfacade ThinkingMode value — "adaptive" (reason) or "disabled".
+    # ``thinking_style`` is an optional override (a ThinkingStyle value, e.g.
+    # "template_kwarg"); left unset, llmfacade auto-detects it from the GGUF.
+    thinking: str | None = None
+    thinking_style: str | None = None
 
 
 @dataclass(frozen=True)
@@ -79,6 +91,12 @@ class ModelRegistry:
         registry = cls()
 
         for key, raw in data.get("llm", {}).items():
+            thinking = raw.get("thinking")
+            if thinking is not None and thinking not in _VALID_THINKING_MODES:
+                raise ValueError(
+                    f"models.toml [llm.{key}]: invalid thinking={thinking!r}; "
+                    f"expected one of {sorted(_VALID_THINKING_MODES)} or omit it"
+                )
             model = LLMModel(
                 key=key,
                 name=raw["name"],
@@ -95,6 +113,8 @@ class ModelRegistry:
                 cache_type_k=raw.get("cache_type_k"),
                 cache_type_v=raw.get("cache_type_v"),
                 n_gpu_layers=raw.get("n_gpu_layers"),
+                thinking=thinking,
+                thinking_style=raw.get("thinking_style"),
             )
             registry.llm_models[key] = model
             registry._model_id_to_key[model.model_id] = key

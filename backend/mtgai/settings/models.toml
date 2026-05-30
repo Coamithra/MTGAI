@@ -138,6 +138,38 @@ n_gpu_layers = -1
 cache_type_k = "q8_0"
 cache_type_v = "q8_0"
 
+# Current local default (DEFAULT_LLM_ASSIGNMENTS + the all-local preset point
+# here). Unsloth's text-only 26B-A4B MoE repack at UD-IQ4_XS (~13.6 GB) —
+# ~0.6 GB smaller than the Vlad entry above, so n_gpu_layers = -1 (all layers on
+# GPU) fits the 12 GB card at least as well as Vlad's proven all-GPU config.
+# The registry-load VRAM check is conservative (GGUF size + KV + overhead vs
+# live VRAM) and flags every n_gpu_layers = -1 entry — it may log at WARN or
+# ERROR level depending on free VRAM, but it is warn-only and never raises
+# unless MTGAI_VRAM_CHECK_STRICT=1, so a load-time VRAM message here is expected
+# (same as for Vlad). The one addition over Vlad: thinking = "adaptive" turns on
+# reasoning — llama-server launches with --jinja by default, so the GGUF chat
+# template's enable_thinking gate is honoured (thinking_style is expected to
+# auto-detect to TEMPLATE_KWARG; the first load logs a once-per-model warning if
+# it doesn't). The structured tool call still lands on the SAME turn because the
+# llamacpp tool path keeps tool_choice unforced (forcing it would misroute the
+# call into reasoning_content under llama.cpp).
+[llm.gemma4-26b-unsloth-iq4xs]
+name = "Gemma 4 26B Unsloth UD-IQ4_XS (Local, thinking)"
+provider = "llamacpp"
+model_id = "gemma4-26b-unsloth-iq4xs"
+gguf_path = "C:/Models/gemma-4-26B-A4B-it-UD-IQ4_XS.gguf"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_effort = false
+supports_vision = false
+supports_caching = false
+n_gpu_layers = -1
+cache_type_k = "q8_0"
+cache_type_v = "q8_0"
+thinking = "adaptive"
+
 # ── TC-2 Phase D: competitor / discounted-from-Ollama candidates ─────────
 # Originally we hard-linked stock Google Gemma 4 GGUFs from Ollama's blob
 # cache, but llama-server rejects them with "wrong number of tensors;
