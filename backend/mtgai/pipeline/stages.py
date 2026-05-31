@@ -209,6 +209,7 @@ def run_mechanics(
                 on_reset=hooks.on_reset,
                 on_draft=hooks.on_draft,
                 on_finalized=hooks.on_finalized,
+                on_council=hooks.on_council,
             )
         except Exception as exc:
             logger.exception("Mechanic generation failed")

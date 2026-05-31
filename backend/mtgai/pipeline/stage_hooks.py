@@ -123,11 +123,12 @@ def slots_by_id_from_skeleton(skeleton_path: Path) -> dict[str, dict]:
 
 @dataclass
 class MechanicStreamHooks:
-    """The three ``generate_mechanic_candidates`` streaming callbacks."""
+    """The ``generate_mechanic_candidates`` streaming callbacks."""
 
     on_reset: Callable[[], None]
     on_draft: Callable[[int, dict], None]
     on_finalized: Callable[[int, dict, str], None]
+    on_council: Callable[[int, dict], None]
 
 
 def build_mechanic_hooks(
@@ -145,10 +146,10 @@ def build_mechanic_hooks(
     (``run_mechanics``) and the refresh endpoints (refresh-card / refresh-all).
 
     Owns the canonical ``mechanic_candidates_reset`` / ``mechanic_candidate_drafted``
-    / ``mechanic_candidate_finalized`` payloads, the ``_ai_generated`` provenance
-    tag, the keyword-collision check, and the incremental persist of ``merged``
-    to ``candidates.json`` (so a mid-run browser F5 reads a snapshot matching the
-    last event the client received).
+    / ``mechanic_council_update`` / ``mechanic_candidate_finalized`` payloads, the
+    ``_ai_generated`` provenance tag, the keyword-collision check, and the
+    incremental persist of ``merged`` to ``candidates.json`` (so a mid-run browser
+    F5 reads a snapshot matching the last event the client received).
 
     The path-specific bits are parameters, not forks:
 
@@ -210,7 +211,20 @@ def build_mechanic_hooks(
         if emit_phase and position < pool:
             emitter.phase("running", f"Generating candidate {position + 1}/{pool}")
 
-    return MechanicStreamHooks(on_reset, on_draft, on_finalized)
+    def on_council(position: int, event: dict) -> None:
+        # Fine-grained council progress (reviewer thumbs, synth revisions). The
+        # generator's 1-based loop ``position`` is remapped to the real row via
+        # ``slot_for`` so the tab updates the right card; the raw council
+        # ``event`` payload (kind + fields) rides along untouched.
+        slot = slot_for(position)
+        emitter.event(
+            "mechanic_council_update",
+            position=slot + 1,
+            target=pool,
+            event=event,
+        )
+
+    return MechanicStreamHooks(on_reset, on_draft, on_finalized, on_council)
 
 
 # ---------------------------------------------------------------------------

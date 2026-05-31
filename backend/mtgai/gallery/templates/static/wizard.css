@@ -1413,6 +1413,97 @@
   0%, 100% { opacity: 0.55; }
   50%      { opacity: 1; }
 }
+/* Live council panel under the header while a card is under review. A head row
+   (round counter, a thumb per reviewer, a synth indicator) plus an optional
+   note line (the v{n} tag + the synth's "what changed" note) once a revision
+   has landed. The thumbs are static (they just appear as each reviewer reports);
+   only the "Revising…" indicator pulses, so the panel doesn't flicker as it
+   repaints per event. */
+.wiz-mech-council {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  margin: 0.1rem 0 0.2rem;
+  background: #4a9eff14;
+  border: 1px solid #4a9eff33;
+  border-radius: 5px;
+  font-size: 0.72rem;
+}
+/* One round in the timeline: a head row + an optional note line under it. */
+.wiz-mech-council-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.wiz-mech-council-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+.wiz-mech-council-round {
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.wiz-mech-council-slots {
+  display: inline-flex;
+  gap: 0.3rem;
+}
+.wiz-mech-council-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  line-height: 1;
+  border: 1px solid #ffffff14;
+}
+.wiz-mech-council-slot.pending { color: #555; background: #ffffff08; }
+.wiz-mech-council-slot.ok      { background: #00d4aa22; border-color: #00d4aa66; }
+.wiz-mech-council-slot.revise  { background: #ff9d5c22; border-color: #ff9d5c66; }
+.wiz-mech-council-slot.error   { color: #777; background: #ffffff08; border-color: #ffffff14; }
+.wiz-mech-council-slot.running {
+  color: #4a9eff;
+  background: #4a9eff1c;
+  border-color: #4a9eff66;
+  animation: wiz-mech-reviewing-pulse 1.4s ease-in-out infinite;
+}
+.wiz-mech-council-synth {
+  margin-left: auto;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+}
+.wiz-mech-council-synth.running {
+  color: #4a9eff;
+  background: #4a9eff22;
+  border: 1px solid #4a9eff66;
+  animation: wiz-mech-reviewing-pulse 1.6s ease-in-out infinite;
+}
+.wiz-mech-council-synth.done {
+  color: #00d4aa;
+  background: #00d4aa1c;
+  border: 1px solid #00d4aa55;
+}
+/* The synth's "what changed" note under a round (the reason the mechanic moved
+   to the next version). Shown once that round's synth finished revising. */
+.wiz-mech-council-note {
+  color: #bcd6f5;
+  line-height: 1.35;
+  padding-left: 0.1rem;
+}
+/* Divider marking a from-scratch regeneration — the council rejected the prior
+   lineage and a fresh design (with its own rounds) follows below. */
+.wiz-mech-council-regen {
+  color: #ff9d5c;
+  font-style: italic;
+  padding-top: 0.3rem;
+  border-top: 1px dashed #ff9d5c44;
+}
 /* "Reviewer tweak: …" line at the bottom of the card — surfaces what the
    review pass changed (empty notes ⇒ line is suppressed in the renderer). */
 .wiz-mech-review-notes {
@@ -1458,11 +1549,6 @@
   font-size: 0.85rem;
   font-family: inherit;
   resize: vertical;
-}
-.wiz-mech-distribution {
-  font-size: 0.85rem;
-  color: #ccc;
-  font-family: ui-monospace, SFMono-Regular, monospace;
 }
 .wiz-mech-details {
   font-size: 0.85rem;

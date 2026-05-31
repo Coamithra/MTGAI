@@ -193,7 +193,6 @@ def test_candidate_to_approved_renames_design_rationale_and_keeps_examples() -> 
                 "toughness": "3",
             },
         ],
-        "distribution": {"common": 3, "uncommon": 2, "rare": 1, "mythic": 0},
     }
     approved = mg.candidate_to_approved(candidate)
     assert approved["design_notes"] == "rationale goes here"
@@ -211,13 +210,13 @@ def test_candidate_to_approved_renames_design_rationale_and_keeps_examples() -> 
     assert len(approved["example_cards"]) == 2
     assert approved["example_cards"][0]["name"] == "Wee Tinkerer"
     assert approved["example_cards"][1]["rarity"] == "rare"
-    # rarity_range derives from non-zero distribution rarities.
-    assert approved["rarity_range"] == ["common", "uncommon", "rare"]
-    # Distribution survives.
-    assert approved["distribution"]["common"] == 3
+    # rarity_range derives from complexity (1 → spans the whole range).
+    assert approved["rarity_range"] == ["common", "uncommon", "rare", "mythic"]
+    # distribution was removed from the schema — it must never reach approved.json.
+    assert "distribution" not in approved
 
 
-def test_candidate_to_approved_falls_back_when_distribution_is_empty() -> None:
+def test_candidate_to_approved_rarity_range_from_complexity() -> None:
     candidate = {
         "name": "Test",
         "complexity": 3,
@@ -316,7 +315,6 @@ def _valid_mech(i: int) -> dict:
         "uncommon_patterns": [],
         "rare_patterns": [],
         "example_cards": [],
-        "distribution": {"common": 1, "uncommon": 0, "rare": 0, "mythic": 0},
     }
 
 
@@ -616,6 +614,76 @@ def test_council_review_reverts_synth_rename(monkeypatch) -> None:
     assert out["mechanic"]["name"] == "Mechanic0"  # original wins
 
 
+def test_council_review_emits_progress_events(monkeypatch) -> None:
+    """``on_event`` streams the council happening live (what the wizard's council
+    panel renders): a ``round_start`` per round, a ``reviewer`` per member with its
+    verdict, then ``synth_start`` / ``synth_done`` (carrying the revised mechanic)
+    when a round revises. Revise-then-pass: round 1 all REVISE → synth → round 2 OK."""
+    draft = _valid_mech(0)
+    revised = dict(draft)
+    revised["reminder_text"] = "(tightened)"
+    rcalls = {"n": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            rcalls["n"] += 1
+            return _reviewer("REVISE" if rcalls["n"] <= 3 else "OK")
+        if tool == "submit_mechanic_synthesis":
+            return _synth(revised, notes="Tightened wording.")
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    events: list[dict] = []
+    out = mg.council_review(draft, model_id="any-model", on_event=events.append)
+
+    assert out["verdict"] == "OK"
+    # The kind sequence the panel walks: round 1 (3 REVISE → synth) then round 2 (3 OK).
+    assert [e["kind"] for e in events] == [
+        "round_start",
+        "reviewer",
+        "reviewer",
+        "reviewer",
+        "synth_start",
+        "synth_done",
+        "round_start",
+        "reviewer",
+        "reviewer",
+        "reviewer",
+    ]
+    # round_start carries the counters the panel shows (round x/max, council size).
+    assert events[0] == {"kind": "round_start", "round": 1, "max_rounds": 3, "council_size": 3}
+    # Each reviewer event identifies its member (the thumb slot) + its verdict.
+    round1_reviewers = [e for e in events[1:4]]
+    assert [e["member"] for e in round1_reviewers] == [1, 2, 3]
+    assert all(e["verdict"] == "REVISE" for e in round1_reviewers)
+    assert all(e["verdict"] == "OK" for e in events[7:10])
+    # synth_done carries the revised mechanic so the UI can pop the new text in.
+    synth_done = next(e for e in events if e["kind"] == "synth_done")
+    assert synth_done["mechanic"]["reminder_text"] == "(tightened)"
+    assert synth_done["review_notes"] == "Tightened wording."
+
+
+def test_council_review_emits_error_verdict_on_failed_reviewer(monkeypatch) -> None:
+    """A reviewer call that raises still emits a ``reviewer`` event (verdict
+    ``error``) so the panel shows the slot was attempted-and-skipped, not stuck
+    awaiting. With every reviewer down the council keeps the draft (safe fallback)."""
+    draft = _valid_mech(0)
+
+    def stub(*args, **kwargs):
+        if _tool_name(args, kwargs) == "submit_mechanic_review":
+            raise RuntimeError("reviewer down")
+        raise AssertionError("synth must not run when there are no reviews")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    events: list[dict] = []
+    out = mg.council_review(draft, model_id="any-model", on_event=events.append)
+
+    assert out["verdict"] == "OK"  # un-reviewable draft kept, not destroyed
+    reviewer_events = [e for e in events if e["kind"] == "reviewer"]
+    assert reviewer_events and all(e["verdict"] == "error" for e in reviewer_events)
+
+
 # ---------------------------------------------------------------------------
 # Streaming hooks on generate_mechanic_candidates
 # ---------------------------------------------------------------------------
@@ -713,6 +781,35 @@ def test_generate_mechanic_candidates_regen_fallback_accepts_best_effort(
     # fires exactly once per slot when the best-effort mechanic is accepted.
     assert drafts == [1, 1, 2, 2]
     assert finalized == [1, 2]
+
+
+def test_generate_mechanic_candidates_threads_council_events_with_position(
+    _project, monkeypatch
+) -> None:
+    """``on_council(position, event)`` fires for each council step, tagged with the
+    1-based slot ``position``. Guards the position binding (B023): each slot's events
+    must carry that slot's position, not the loop's final value. All reviewers OK ⇒
+    each slot is one round of round_start + 3 reviewers, no synth."""
+    monkeypatch.setattr(mg, "generate_with_tool", _stub_n_per_call(1))
+    councils: list[tuple[int, str]] = []
+
+    result = mg.generate_mechanic_candidates(
+        count=2,
+        on_council=lambda pos, ev: councils.append((pos, ev["kind"])),
+    )
+    assert len(result["mechanics"]) == 2
+    # Slot 1's events all carry position 1, slot 2's all carry position 2 — proof the
+    # lambda bound ``position`` per-slot rather than late-binding to the final value.
+    assert councils == [
+        (1, "round_start"),
+        (1, "reviewer"),
+        (1, "reviewer"),
+        (1, "reviewer"),
+        (2, "round_start"),
+        (2, "reviewer"),
+        (2, "reviewer"),
+        (2, "reviewer"),
+    ]
 
 
 # ---------------------------------------------------------------------------

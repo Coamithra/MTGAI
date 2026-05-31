@@ -537,10 +537,11 @@
   function populateConstraints(constraints) {
     const list = document.getElementById('wiz-constraints-list');
     list.innerHTML = '';
-    if (!constraints.length) {
-      addConstraint('', false);
-      return;
-    }
+    // No auto-blank row on an empty list. The "+ Add constraint" button is the
+    // affordance for adding one; a seeded blank row was redundant with it and —
+    // worse — persisted through AI generation as a phantom empty constraint
+    // (replaceListWithAi only clears AI-flagged rows, so the human blank stayed).
+    // Empty list ⇒ render nothing; collectThemePayload already drops blanks.
     for (const c of constraints) {
       const { text, source } = normalizeProvenance(c);
       addConstraint(text, source === 'ai');
@@ -550,10 +551,9 @@
   function populateCardRequests(requests) {
     const list = document.getElementById('wiz-card-requests-list');
     list.innerHTML = '';
-    if (!requests.length) {
-      addCardRequest('', false);
-      return;
-    }
+    // No auto-blank row on an empty list — see populateConstraints. The
+    // "+ Add card request" button adds one on demand; a seeded blank otherwise
+    // lingered as a phantom empty request after AI generation.
     for (const r of requests) {
       const { text, source } = normalizeProvenance(r);
       addCardRequest(text, source === 'ai');

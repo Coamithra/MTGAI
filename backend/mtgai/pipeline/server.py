@@ -2803,6 +2803,7 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
             count=1,
             on_draft=hooks.on_draft,
             on_finalized=hooks.on_finalized,
+            on_council=hooks.on_council,
         )
         new_mechanics = response["mechanics"]
         if not new_mechanics:
@@ -2932,6 +2933,7 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
             on_reset=hooks.on_reset,
             on_draft=hooks.on_draft,
             on_finalized=hooks.on_finalized,
+            on_council=hooks.on_council,
         )
 
         # ``merged`` is already up to date via the on_finalized callback —

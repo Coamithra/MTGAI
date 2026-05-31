@@ -54,12 +54,15 @@
   W.registerStageRenderer(STAGE_ID, render);
   // SSE bridge from wizard.js — the mechanic generation stream pushes a draft
   // (pre-review) then a finalized version (post-review) per candidate, plus a
-  // reset at the start of a from-scratch run. The handlers resolve their own
-  // root via tabRoot() (shared with the rest of the tab), so they ignore the
-  // root registerStream passes.
+  // reset at the start of a from-scratch run. Between draft and finalized, a
+  // run of council_update events reports the review happening live (reviewer
+  // thumbs, synth revisions). The handlers resolve their own root via tabRoot()
+  // (shared with the rest of the tab), so they ignore the root registerStream
+  // passes.
   W.registerStream(STAGE_ID, {
     mechanic_candidates_reset: onStreamReset,
     mechanic_candidate_drafted: onStreamDrafted,
+    mechanic_council_update: onStreamCouncil,
     mechanic_candidate_finalized: onStreamFinalized,
   });
 
@@ -289,7 +292,6 @@
     const colors = Array.isArray(m.colors) ? m.colors : [];
     const complexity = Number(m.complexity || 1);
     const keywordType = String(m.keyword_type || 'keyword_ability');
-    const dist = m.distribution || {};
     // Provenance lives on the candidate dict — server persists
     // ``_ai_generated`` in candidates.json so it survives reload, and
     // refresh-{card,all} preserves the flag for rows the server didn't
@@ -302,9 +304,21 @@
     // the form locked (the card is being rewritten any moment). After review,
     // ``_review_notes`` carries what the reviewer fixed (empty = unchanged).
     const pendingReview = !!m._pending_review;
+    // The pulsing header badge tracks the live council phase so the card never
+    // looks frozen: reviewers running → "Reviewing…"; synthesizer running (it's
+    // combining the council's feedback into a revision) → "Combining feedback…".
+    // Between rounds it falls back to "Reviewing…".
+    const activeRound = pendingReview ? lastRoundStep(m._council) : null;
+    const reviewingLabel = (activeRound && activeRound.synth === 'running')
+      ? 'Combining feedback…'
+      : 'Reviewing…';
     const reviewingBadge = pendingReview
-      ? '<span class="wiz-mech-reviewing" data-role="reviewing-badge">Reviewing…</span>'
+      ? `<span class="wiz-mech-reviewing" data-role="reviewing-badge">${reviewingLabel}</span>`
       : '';
+    // Live council panel — only while under review, and only once the first
+    // council event has landed (``_council`` set). Before that the header badge
+    // alone signals "Reviewing…"; the panel fills in as reviewers report.
+    const councilPanel = pendingReview ? councilPanelHtml(m._council) : '';
     const reviewNotes = (m._review_notes || '').trim();
     const reviewNotesLine = (!pendingReview && reviewNotes)
       ? `<div class="wiz-mech-review-notes" title="The AI review pass tweaked this draft.">Reviewer tweak: ${escHtml(reviewNotes)}</div>`
@@ -322,6 +336,7 @@
             Pick
           </label>
         </header>
+        ${councilPanel}
         ${collisionWarning}
         <div class="wiz-mech-row">
           <div class="wiz-mech-field">
@@ -352,15 +367,6 @@
           <textarea class="wiz-mech-reminder" data-role="reminder"
                     rows="2" maxlength="120">${escHtml(m.reminder_text || '')}</textarea>
         </div>
-        <div class="wiz-mech-field">
-          <span class="wiz-mech-label">Distribution</span>
-          <div class="wiz-mech-distribution">
-            C: ${escHtml(String(dist.common || 0))} ·
-            U: ${escHtml(String(dist.uncommon || 0))} ·
-            R: ${escHtml(String(dist.rare || 0))} ·
-            M: ${escHtml(String(dist.mythic || 0))}
-          </div>
-        </div>
         ${exampleCardsHtml(m.example_cards)}
         <details class="wiz-mech-details">
           <summary>Design rationale</summary>
@@ -379,6 +385,87 @@
 
   function chipHtml(value, label, active) {
     return `<button type="button" class="wiz-mech-chip${active ? ' active' : ''}" data-value="${escAttr(value)}">${escHtml(label)}</button>`;
+  }
+
+  // Live council panel — the candidate's full deliberation timeline, so every
+  // separate stage/prompt is visible as it runs. State lives in ``_council``
+  // (maintained by ``onStreamCouncil`` from the streamed events); shape:
+  //   { size, maxRounds, steps: [ ... ] }  where each step is one of:
+  //     { kind: 'round', round, verdicts: [...], synth, notes }
+  //     { kind: 'regen' }  — the council rejected the prior design; the generator
+  //                          produced a fresh one from scratch (a new lineage of
+  //                          rounds follows the divider).
+  // Each round is a row: the round counter, one slot per reviewer (👍 OK / 👎
+  // REVISE / – skipped / ⟳ currently reading / · queued), the synth state
+  // ("Combining feedback…" while it runs → "→ v{n}" once it revised), and the
+  // synth's own note on what changed under it.
+
+  // The last 'round' step — the one in flight (gets the live reviewer spinner).
+  function lastRoundStep(council) {
+    if (!council || !Array.isArray(council.steps)) return null;
+    for (let i = council.steps.length - 1; i >= 0; i--) {
+      if (council.steps[i].kind === 'round') return council.steps[i];
+    }
+    return null;
+  }
+
+  function councilPanelHtml(council) {
+    if (!council || !Array.isArray(council.steps) || !council.steps.length) return '';
+    const size = Math.max(1, Number(council.size) || 3);
+    const maxRounds = Number(council.maxRounds) || 0;
+    const active = lastRoundStep(council);
+    const rows = council.steps
+      .map(step => step.kind === 'regen'
+        ? `<div class="wiz-mech-council-regen" title="The council rejected the previous design; the generator produced a fresh one from scratch.">↻ Regenerated from scratch — previous design rejected</div>`
+        : councilRoundRowHtml(step, size, maxRounds, step === active))
+      .join('');
+    return `<div class="wiz-mech-council" data-role="council">${rows}</div>`;
+  }
+
+  // One council round as a row. ``isActive`` (the in-flight round) gets the live
+  // reviewer spinner; finished rounds render fully resolved.
+  function councilRoundRowHtml(step, size, maxRounds, isActive) {
+    const verdicts = Array.isArray(step.verdicts) ? step.verdicts : [];
+    // Reviewers run sequentially, so the count of verdicts in is the index of the
+    // one currently running — but only while this round is active and the synth
+    // hasn't taken over.
+    const runningSlot = (isActive && !step.synth && verdicts.length < size) ? verdicts.length : -1;
+    const slots = [];
+    for (let i = 0; i < size; i++) {
+      const v = verdicts[i];
+      let cls = 'pending';
+      let glyph = '·';
+      let title = 'Queued reviewer';
+      if (v === 'ok') { cls = 'ok'; glyph = '👍'; title = 'Reviewer: looks good'; }
+      else if (v === 'revise') { cls = 'revise'; glyph = '👎'; title = 'Reviewer: wants changes'; }
+      else if (v === 'error') { cls = 'error'; glyph = '–'; title = 'Reviewer call failed — skipped'; }
+      else if (i === runningSlot) { cls = 'running'; glyph = '⟳'; title = 'Reviewer is reading the mechanic…'; }
+      slots.push(`<span class="wiz-mech-council-slot ${cls}" title="${escAttr(title)}">${glyph}</span>`);
+    }
+    const roundLabel = maxRounds
+      ? `Round ${Number(step.round) || 1}/${maxRounds}`
+      : `Round ${Number(step.round) || 1}`;
+    let synth = '';
+    if (step.synth === 'running') {
+      synth = '<span class="wiz-mech-council-synth running">Combining feedback…</span>';
+    } else if (step.synth === 'done') {
+      const nextV = (Number(step.round) || 1) + 1;
+      synth = `<span class="wiz-mech-council-synth done">→ v${nextV}</span>`;
+    }
+    const notes = (step.notes || '').toString().trim();
+    const noteLine = (step.synth === 'done' && notes)
+      ? `<div class="wiz-mech-council-note" title="What the reviser changed">${escHtml(notes)}</div>`
+      : '';
+    return `
+      <div class="wiz-mech-council-row">
+        <div class="wiz-mech-council-head">
+          <span class="wiz-mech-council-round">${escHtml(roundLabel)}</span>
+          <span class="wiz-mech-council-slots">${slots.join('')}</span>
+          ${synth}
+        </div>
+        ${noteLine}
+      </div>
+    `;
   }
 
   // Read-only "Example cards" preview — the two reference cards the mechanic
@@ -829,21 +916,28 @@
   // ----------------------------------------------------------------------
   // Live streaming (wired at module load via W.registerStream above)
   //
-  // Three events:
+  // Four events:
   //   mechanic_candidates_reset    — clear the strip (only fires on a from-
   //                                  scratch generation; targeted refresh
   //                                  preserves untouched rows)
   //   mechanic_candidate_drafted   — draft accepted, pre-review. Shows a
   //                                  "Reviewing…" badge on the card so the
   //                                  user can see it's not yet final.
+  //   mechanic_council_update      — a step of the council loop for the card
+  //                                  under review: a reviewer returned (thumb
+  //                                  fills in), or the synth started/finished a
+  //                                  revision (the new text pops into the body).
+  //                                  Maintained as ``_council`` on the candidate.
   //   mechanic_candidate_finalized — review pass returned. Replaces the
   //                                  draft with the final mechanic +
   //                                  optional ``review_notes`` line.
   //
   // The handlers are idempotent: a tab reattach mid-run sees the same events
-  // it would have if it never left, so repainting on each event is safe.
-  // We avoid clobbering picks: ``_review_notes`` lives on the candidate dict
-  // alongside ``_ai_generated``; picks are tracked by index in ``local.picks``.
+  // it would have if it never left, so repainting on each event is safe (a
+  // council replay just walks the card to the same final state finalized then
+  // clears). We avoid clobbering picks: ``_review_notes`` / ``_council`` live on
+  // the candidate dict alongside ``_ai_generated``; picks are tracked by index
+  // in ``local.picks``.
   // ----------------------------------------------------------------------
 
   const tabRoot = () => W.tabRoot(STAGE_ID);
@@ -893,7 +987,25 @@
     // mid-run, missed the reset). Each empty slot is just {} so paintStrip
     // renders a blank placeholder rather than crashing.
     while (local.candidates.length <= idx) local.candidates.push({});
+    // Regen detection: a fresh draft for a slot that already has council rounds
+    // means the council rejected the prior design and the generator regenerated
+    // from scratch. Carry the timeline forward + push a divider so the rejected
+    // lineage stays visible (the next round_start appends round 1 of attempt 2).
+    const prevCouncil = (local.candidates[idx] && local.candidates[idx]._council) || null;
+    const hadRounds = !!(prevCouncil && Array.isArray(prevCouncil.steps)
+      && prevCouncil.steps.some(s => s.kind === 'round'));
     local.candidates[idx] = Object.assign({}, candidate, { _pending_review: true });
+    if (hadRounds) {
+      const steps = prevCouncil.steps.map(s => (s.kind === 'round'
+        ? Object.assign({}, s, { verdicts: s.verdicts.slice() })
+        : Object.assign({}, s)));
+      steps.push({ kind: 'regen' });
+      local.candidates[idx]._council = {
+        size: prevCouncil.size || 0,
+        maxRounds: prevCouncil.maxRounds || 0,
+        steps,
+      };
+    }
     // A streamed draft means the row is fresh AI — invalidate any prior
     // collision warning for this slot until the finalized event reasserts it.
     delete local.collisions[String(idx)];
@@ -902,6 +1014,97 @@
     // The draft just landed; the review call is now in flight for the same
     // candidate. Reflect that in the global progress strip.
     if (target > 0) setBusyLabel(`Reviewing candidate ${position}/${target}`);
+  }
+
+  // A single council step for the card at ``position``. We fold it into the
+  // card's ``_council`` state and repaint. Guarded to cards that are actually
+  // mid-review: on an event-replay (tab reattach) the finalized event for an
+  // earlier card already cleared its pending flag, so a late-arriving council
+  // event for it is ignored (the finalized state wins).
+  function onStreamCouncil(data) {
+    const root = tabRoot();
+    if (!root) return;
+    const position = Number(data && data.position);
+    const ev = (data && data.event) || {};
+    if (!Number.isInteger(position) || position < 1 || !ev.kind) return;
+    const idx = position - 1;
+    const card = local.candidates[idx];
+    // Only meaningful while the card is under review (drafted, not yet
+    // finalized). If the draft was missed (buffer trimmed) there's nothing to
+    // decorate, so bail rather than fabricating a card.
+    if (!card || !card._pending_review) return;
+
+    const prev = card._council || { size: 0, maxRounds: 0, steps: [] };
+    // Clone the timeline (and the round entry we're about to mutate) so
+    // paintStrip's render reads a fresh object (avoids stale identity). Round
+    // steps carry a verdicts array that fills in place, so deep-copy those.
+    const c = {
+      size: prev.size,
+      maxRounds: prev.maxRounds,
+      steps: prev.steps.map(s => (s.kind === 'round'
+        ? Object.assign({}, s, { verdicts: s.verdicts.slice() })
+        : Object.assign({}, s))),
+    };
+    // The round currently being mutated is always the last 'round' step.
+    const curRound = () => {
+      for (let i = c.steps.length - 1; i >= 0; i--) {
+        if (c.steps[i].kind === 'round') return c.steps[i];
+      }
+      return null;
+    };
+    let revised = null;
+
+    switch (ev.kind) {
+      case 'round_start': {
+        // A new round → append a fresh round step to the timeline (we never
+        // overwrite past rounds, so the whole deliberation stays visible).
+        c.maxRounds = Number(ev.max_rounds) || c.maxRounds;
+        c.size = Number(ev.council_size) || c.size || 3;
+        c.steps.push({
+          kind: 'round',
+          round: Number(ev.round) || 1,
+          verdicts: [],
+          synth: null,
+          notes: '',
+        });
+        break;
+      }
+      case 'reviewer': {
+        c.size = Number(ev.council_size) || c.size || 3;
+        const r = curRound();
+        if (r) {
+          const member = Number(ev.member) || 1;
+          r.verdicts[member - 1] =
+            ev.verdict === 'OK' ? 'ok' : (ev.verdict === 'REVISE' ? 'revise' : 'error');
+        }
+        break;
+      }
+      case 'synth_start': {
+        const r = curRound();
+        if (r) r.synth = 'running';
+        break;
+      }
+      case 'synth_done': {
+        const r = curRound();
+        if (r) {
+          r.synth = 'done';
+          // The synth's own note on what it changed — surfaced under the round.
+          r.notes = (ev.review_notes || '').toString();
+        }
+        // Pop the revised text into the card body. The synth mechanic carries
+        // the design fields (name/colors/reminder/…) but none of the streaming
+        // flags, so merging it over the card preserves _pending_review/_council.
+        if (ev.mechanic && typeof ev.mechanic === 'object') revised = ev.mechanic;
+        break;
+      }
+      default:
+        return;
+    }
+
+    const base = revised ? Object.assign({}, card, revised) : card;
+    local.candidates[idx] = Object.assign({}, base, { _pending_review: true, _council: c });
+    paintStrip(root);
+    paintSummary(root);
   }
 
   function onStreamFinalized(data) {

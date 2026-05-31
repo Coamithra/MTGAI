@@ -31,10 +31,18 @@ from mtgai.io.atomic import atomic_write_text
 
 # Per-mechanic streaming hook signatures. Engine path wires these to
 # ``StageEmitter.event`` (SSE), the wizard's refresh endpoints wire them to
-# ``event_bus.publish`` directly. All three are optional — None means no-op.
+# ``event_bus.publish`` directly. All are optional — None means no-op.
 ResetHook = Callable[[], None]
 DraftHook = Callable[[int, dict], None]
 FinalizedHook = Callable[[int, dict, str], None]  # (position, mechanic, review_notes)
+# Fine-grained council progress, so the wizard can show the review happening
+# (reviewer thumbs appearing, synth revisions popping in) instead of a card
+# sitting on "Reviewing…" for the whole multi-round loop. ``CouncilHook`` is
+# what ``council_review`` calls with a bare event payload (it has no slot
+# context); ``CouncilProgressHook`` is the ``generate_mechanic_candidates``
+# variant that prepends the 1-based slot ``position``.
+CouncilHook = Callable[[dict], None]
+CouncilProgressHook = Callable[[int, dict], None]  # (position, event)
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +119,6 @@ MECHANIC_ITEM_SCHEMA: dict = {
         "colors",
         "complexity",
         "design_rationale",
-        "distribution",
         "example_cards",
     ],
     "properties": {},  # filled in below after we've defined the field shapes
@@ -140,7 +147,6 @@ MECHANIC_TOOL_SCHEMA: dict = {
                         "colors",
                         "complexity",
                         "design_rationale",
-                        "distribution",
                         "example_cards",
                     ],
                     "properties": {
@@ -178,20 +184,6 @@ MECHANIC_TOOL_SCHEMA: dict = {
                         "design_rationale": {
                             "type": "string",
                             "description": "Why this mechanic is good for the set",
-                        },
-                        "distribution": {
-                            "type": "object",
-                            "required": ["common", "uncommon", "rare", "mythic"],
-                            "description": (
-                                "Approximate slot counts per rarity for this mechanic. "
-                                "Should sum to roughly the set's mechanic-density target."
-                            ),
-                            "properties": {
-                                "common": {"type": "integer", "minimum": 0},
-                                "uncommon": {"type": "integer", "minimum": 0},
-                                "rare": {"type": "integer", "minimum": 0},
-                                "mythic": {"type": "integer", "minimum": 0},
-                            },
                         },
                         "example_cards": {
                             "type": "array",
@@ -631,11 +623,6 @@ def _format_mechanic_for_review(mech: dict) -> str:
     ktype = m.get("keyword_type") or "?"
     reminder = (m.get("reminder_text") or "").strip() or "(no reminder text)"
     rationale = (m.get("design_rationale") or "").strip() or "(no rationale)"
-    dist = m.get("distribution") or {}
-    dist_line = (
-        f"common {dist.get('common', 0)}, uncommon {dist.get('uncommon', 0)}, "
-        f"rare {dist.get('rare', 0)}, mythic {dist.get('mythic', 0)}"
-    )
     examples = m.get("example_cards") or []
     lines = [
         f"Name: {m.get('name', '?')}",
@@ -643,7 +630,6 @@ def _format_mechanic_for_review(mech: dict) -> str:
         f"Colors: {colors}",
         f"Complexity: {cx}",
         f"Reminder text: {reminder}",
-        f"Rarity distribution: {dist_line}",
         f"Design rationale: {rationale}",
         "",
         "Example cards:",
@@ -818,6 +804,7 @@ def council_review(
     max_iterations: int = MAX_MECHANIC_REVIEW_ITERATIONS,
     review_temp: float = MECHANIC_REVIEW_TEMP,
     synth_temp: float = MECHANIC_SYNTH_TEMP,
+    on_event: CouncilHook | None = None,
 ) -> dict:
     """Council + revise-in-place loop for one draft mechanic (theme-free).
 
@@ -841,7 +828,15 @@ def council_review(
     the current mechanic (left REVISE for the caller's regenerate fallback). A bad
     review pass never destroys a good draft, and the mechanic's name is never
     changed (anti-rename guard). Polls ``ai_lock.is_cancelled()`` between calls so
-    the Cancel button halts a long council. Returns::
+    the Cancel button halts a long council.
+
+    ``on_event`` (optional, best-effort) fires fine-grained progress payloads so
+    the UI can show the review happening live: ``round_start`` at the top of each
+    round, ``reviewer`` as each reviewer returns (``verdict`` OK / REVISE / error),
+    ``synth_start`` before the synthesizer runs, and ``synth_done`` with the revised
+    mechanic when it lands. A hook exception is logged and swallowed.
+
+    Returns::
 
         {
             "mechanic": dict,           # final (possibly revised) mechanic
@@ -854,6 +849,15 @@ def council_review(
     """
     from mtgai.runtime import ai_lock
 
+    def _emit(payload: dict) -> None:
+        """Fire a council-progress event, swallowing any hook error."""
+        if on_event is None:
+            return
+        try:
+            on_event(payload)
+        except Exception:
+            logger.exception("council on_event hook raised; continuing")
+
     original_name = (draft.get("name") or "").strip()
     mechanic = draft
     notes: list[str] = []
@@ -864,6 +868,14 @@ def council_review(
     for _round in range(1, max_iterations + 1):
         if ai_lock.is_cancelled():
             break
+        _emit(
+            {
+                "kind": "round_start",
+                "round": _round,
+                "max_rounds": max_iterations,
+                "council_size": council_size,
+            }
+        )
 
         # Phase 1 — independent reviewers (each best-effort; a failure is skipped).
         reviews: list[dict] = []
@@ -885,12 +897,31 @@ def council_review(
                 logger.warning(
                     "Council reviewer %d failed: %s: %s", member, type(exc).__name__, exc
                 )
+                _emit(
+                    {
+                        "kind": "reviewer",
+                        "round": _round,
+                        "member": member,
+                        "council_size": council_size,
+                        "verdict": "error",
+                    }
+                )
                 continue
             r = resp.get("result") or {}
+            member_verdict = "OK" if r.get("verdict", "OK") == "OK" else "REVISE"
             reviews.append({"verdict": r.get("verdict", "OK"), "issues": r.get("issues") or []})
             in_t, out_t = _tokens(resp)
             total_in += in_t
             total_out += out_t
+            _emit(
+                {
+                    "kind": "reviewer",
+                    "round": _round,
+                    "member": member,
+                    "council_size": council_size,
+                    "verdict": member_verdict,
+                }
+            )
 
         # Open issues from this round, in case it ends still-REVISE and the
         # caller regenerates from scratch. These critique the mechanic as it
@@ -912,6 +943,7 @@ def council_review(
         if ai_lock.is_cancelled():
             verdict = "REVISE"
             break
+        _emit({"kind": "synth_start", "round": _round})
         sresp = _call_synth(mechanic, reviews, model_id, synth_temp, log_dir)
         if sresp is None:
             verdict = "REVISE"
@@ -936,6 +968,16 @@ def council_review(
         note = (s.get("review_notes") or "").strip()
         if note:
             notes.append(note)
+        # Surface the (possibly) revised mechanic so the UI can pop the new text
+        # in immediately — even though the loop won't trust the synth's verdict.
+        _emit(
+            {
+                "kind": "synth_done",
+                "round": _round,
+                "mechanic": mechanic,
+                "review_notes": note,
+            }
+        )
         # Don't trust the synth's self-verdict to exit — it over-claims. Mark
         # REVISE and let the next round's council re-review; if this was the last
         # round, the unconfirmed revision is honestly left REVISE.
@@ -1269,7 +1311,6 @@ _APPROVED_FIELDS: tuple[str, ...] = (
     "reminder_text",
     "colors",
     "complexity",
-    "distribution",
     # Two concrete reference cards per mechanic — the LLM generates them
     # alongside the mechanic and they propagate through to card generation
     # (rendered in ``format_mechanic_block``) as templating examples. Without
@@ -1282,12 +1323,13 @@ def candidate_to_approved(candidate: dict) -> dict:
     """Project a candidate dict to the on-disk ``approved.json`` shape.
 
     * Copies the ``_APPROVED_FIELDS`` whitelist (name, keyword_type,
-      reminder_text, colors, complexity, distribution) — anything else the
-      candidate carries is dropped.
+      reminder_text, colors, complexity) — anything else the candidate
+      carries is dropped.
     * Renames ``design_rationale`` → ``design_notes`` (downstream
       consumers read ``design_notes``).
-    * Synthesises ``rarity_range`` from non-zero ``distribution`` rarities
-      so AI-review prompts have it.
+    * Derives ``rarity_range`` from ``complexity`` (a soft "appears at"
+      hint for the card-gen prompt). Actual rarity allocation is the
+      skeleton stage's job, not the mechanic's.
     """
     out: dict = {}
     for key in _APPROVED_FIELDS:
@@ -1299,15 +1341,13 @@ def candidate_to_approved(candidate: dict) -> dict:
     # ``design_notes`` editor today. Falling back the other way is just
     # defensive in case a future caller flips the field name back.
     out["design_notes"] = candidate.get("design_rationale") or candidate.get("design_notes", "")
-    distribution = candidate.get("distribution") or {}
-    rarity_range = [r for r in ("common", "uncommon", "rare", "mythic") if distribution.get(r, 0)]
-    if not rarity_range:
-        complexity = candidate.get("complexity", 1)
-        if complexity >= 3:
-            rarity_range = ["uncommon", "rare", "mythic"]
-        else:
-            rarity_range = ["common", "uncommon", "rare", "mythic"]
-    out["rarity_range"] = rarity_range
+    # A complexity-3 build-around won't sit at common; everything else can span
+    # the whole range. This is only a hint — the skeleton owns real rarity counts.
+    complexity = candidate.get("complexity", 1)
+    if complexity >= 3:
+        out["rarity_range"] = ["uncommon", "rare", "mythic"]
+    else:
+        out["rarity_range"] = ["common", "uncommon", "rare", "mythic"]
     return out
 
 
@@ -1323,6 +1363,7 @@ def generate_mechanic_candidates(
     on_reset: ResetHook | None = None,
     on_draft: DraftHook | None = None,
     on_finalized: FinalizedHook | None = None,
+    on_council: CouncilProgressHook | None = None,
 ) -> dict:
     """Generate mechanic candidates for the active project via LLM.
 
@@ -1359,11 +1400,14 @@ def generate_mechanic_candidates(
 
     Streaming: ``on_reset`` fires once before the first slot;
     ``on_draft(position, draft)`` fires for each draft (re-firing on a
-    regenerated slot) before its council runs; ``on_finalized(position,
-    mechanic, review_notes)`` fires once when the slot is accepted. All three
-    are optional. The engine path wires them to ``StageEmitter.event`` so the
-    wizard streams candidates in live; the refresh endpoints wire them to
-    ``event_bus.publish`` for the same effect on manual re-runs.
+    regenerated slot) before its council runs; ``on_council(position, event)``
+    fires for each fine-grained council step (reviewer verdicts, synth
+    revisions — see :func:`council_review`) so the UI can show the review in
+    flight; ``on_finalized(position, mechanic, review_notes)`` fires once when
+    the slot is accepted. All are optional. The engine path wires them to
+    ``StageEmitter.event`` so the wizard streams candidates in live; the refresh
+    endpoints wire them to ``event_bus.publish`` for the same effect on manual
+    re-runs.
 
     Succeeds as long as at least ``mechanic_count`` candidates are collected
     (that's all the user picks); raises ``RuntimeError`` only if the pool can't
@@ -1517,7 +1561,19 @@ def generate_mechanic_candidates(
                 except Exception:
                     logger.exception("on_draft hook raised; continuing")
 
-            council = council_review(draft, model_id=model_id, log_dir=log_dir)
+            council = council_review(
+                draft,
+                model_id=model_id,
+                log_dir=log_dir,
+                on_event=(
+                    # ``council_review`` invokes this synchronously within the
+                    # iteration, but bind ``position`` as a default so it's a
+                    # value, not a late-bound free var (B023).
+                    (lambda ev, _pos=position: on_council(_pos, ev))
+                    if on_council is not None
+                    else None
+                ),
+            )
             total_in += council["input_tokens"]
             total_out += council["output_tokens"]
             mech = council["mechanic"]

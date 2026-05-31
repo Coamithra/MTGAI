@@ -71,7 +71,6 @@ def _make_candidate(name: str) -> dict:
         "uncommon_patterns": [],
         "rare_patterns": [],
         "example_cards": [],
-        "distribution": {"common": 2, "uncommon": 1, "rare": 1, "mythic": 0},
     }
 
 

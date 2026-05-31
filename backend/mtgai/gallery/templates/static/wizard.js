@@ -506,11 +506,21 @@
     });
 
     // Mechanics generation streaming: each accepted draft pops onto the
-    // Mechanics tab (mechanic_candidate_drafted, pre-review) and is then
-    // replaced in-place once the review pass returns (mechanic_candidate_finalized).
-    // mechanic_candidates_reset fires at the start of a from-scratch generation.
+    // Mechanics tab (mechanic_candidate_drafted, pre-review); the council loop
+    // then reports live (mechanic_council_update — reviewer thumbs + synth
+    // revisions) before the draft is replaced in-place once review returns
+    // (mechanic_candidate_finalized). mechanic_candidates_reset fires at the
+    // start of a from-scratch generation. Every name here MUST also be a key in
+    // the Mechanics tab's W.registerStream map — EventSource only delivers the
+    // event types explicitly subscribed below, so a name missing here is
+    // silently dropped (the council panel stayed blank until this was added).
     // The Mechanics tab listens via the W.onMechanicsStream bridge.
-    ['mechanic_candidates_reset', 'mechanic_candidate_drafted', 'mechanic_candidate_finalized'].forEach(name => {
+    [
+      'mechanic_candidates_reset',
+      'mechanic_candidate_drafted',
+      'mechanic_council_update',
+      'mechanic_candidate_finalized',
+    ].forEach(name => {
       state.eventSource.addEventListener(name, (e) => {
         const handler = (window.MTGAIWizard || {}).onMechanicsStream;
         if (handler) handler(name, JSON.parse(e.data));
