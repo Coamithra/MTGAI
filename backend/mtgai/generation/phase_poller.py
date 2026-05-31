@@ -144,6 +144,11 @@ class PromptEvalPoller:
                 # load (llama-swap spawning + weights loading). Heartbeat so
                 # the strip shows ticking activity instead of freezing.
                 self._note_slots_failure(e)
+                # A probe can take 100s of ms; if __exit__ landed during it,
+                # don't publish a stale heartbeat after stop (mirrors the
+                # post-success guard above).
+                if self._stop.is_set():
+                    return
                 self._heartbeat()
                 continue
             if self._stop.is_set():

@@ -288,7 +288,13 @@ def _refresh_emitter(stage_id: str) -> StageEmitter:
 
 
 @contextmanager
-def _bus_poller(stage_id: str, *, activity_prefix: str = "", phase_kind: str = "running"):
+def _bus_poller(
+    stage_id: str,
+    *,
+    activity_prefix: str = "",
+    phase_kind: str = "running",
+    emit_done: bool = True,
+):
     """Wrap a synchronous local-LLM tab-refresh call so the progress strip shows
     live prompt-eval heartbeat / generation tok/s, then tears down cleanly.
 
@@ -301,7 +307,10 @@ def _bus_poller(stage_id: str, *, activity_prefix: str = "", phase_kind: str = "
 
     On exit a terminal ``phase: "done"`` fires (only when a live poller ran) so
     the *last* SSE event hides the strip even if a trailing generation tick races
-    the client's ``clearBusy()``.
+    the client's ``clearBusy()``. Pass ``emit_done=False`` when this is not the
+    last poller of the endpoint (the first of two sequential spans, whose "done"
+    would blink the strip off; or a path that emits its own terminal "done") so
+    exactly one "done" closes the strip.
     """
     import time as _t
 
@@ -319,7 +328,7 @@ def _bus_poller(stage_id: str, *, activity_prefix: str = "", phase_kind: str = "
         with poller:
             yield
     finally:
-        if live:
+        if live and emit_done:
             event_bus.stage_phase(stage_id, "done", "")
 
 
@@ -2964,7 +2973,9 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
         # Initial generation wants the full pool; a targeted refresh only
         # needs as many fresh candidates as there are flagged rows.
         gen_count = pool if initial_generate else len(indices)
-        with _bus_poller("mechanics", activity_prefix="Designing mechanics"):
+        # First of two sequential spans (generate, then pick) — suppress this
+        # one's terminal "done" so the strip doesn't blink off before the pick.
+        with _bus_poller("mechanics", activity_prefix="Designing mechanics", emit_done=False):
             response = await asyncio.to_thread(
                 generate_mechanic_candidates,
                 count=gen_count,
@@ -4170,7 +4181,9 @@ async def wizard_skeleton_refresh() -> JSONResponse:
         sk_emitter = _refresh_emitter("skeleton")
         sk_hooks = build_skeleton_hooks(sk_emitter)
         try:
-            with _bus_poller("skeleton", activity_prefix="Relabeling skeleton"):
+            # emit_done=False: the manual finally below already emits the single
+            # terminal "done" (it also covers the cloud/NullPoller case).
+            with _bus_poller("skeleton", activity_prefix="Relabeling skeleton", emit_done=False):
                 relabel = await asyncio.to_thread(
                     relabel_skeleton,
                     slots=skeleton["slots"],

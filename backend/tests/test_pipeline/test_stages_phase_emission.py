@@ -168,3 +168,38 @@ def test_run_card_gen_emits_done_on_cancelled(monkeypatch) -> None:
     assert result.error_message == "Cancelled after 3 cards"
     phase_names = [name for name, _ in spy.calls]
     assert "done" in phase_names, f"missing terminal phase('done'); got {spy.calls}"
+
+
+def test_run_ai_review_emits_done(monkeypatch) -> None:
+    """``run_ai_review`` makes many small LLM calls with no per-item phase of
+    its own; it must still bracket the run with a terminal ``phase('done', ...)``
+    so the poller-driven strip clears (it previously emitted no done at all)."""
+    monkeypatch.setattr(
+        "mtgai.review.ai_review.review_all_cards",
+        lambda **_kwargs: {"reviewed": 8, "revised": 2, "unfixable": [], "cost_usd": 0.0},
+    )
+    # No asset folder in the test harness → stub the flag-and-save side so the
+    # runner doesn't touch disk; an empty unfixable list means nothing to flag.
+    monkeypatch.setattr(stages, "_flag_cards_for_regen", lambda *_a, **_k: [])
+
+    spy = _SpyEmitter()
+    result = stages.run_ai_review(progress_cb=None, emitter=spy)
+
+    assert result.success is True
+    phase_names = [name for name, _ in spy.calls]
+    assert "done" in phase_names, f"missing terminal phase('done'); got {spy.calls}"
+
+
+def test_run_art_prompts_emits_done(monkeypatch) -> None:
+    """``run_art_prompts`` likewise had no terminal done before this change."""
+    monkeypatch.setattr(
+        "mtgai.art.prompt_builder.generate_prompts_for_set",
+        lambda **_kwargs: {"processed": 5, "skipped": 0, "cost_usd": 0.0},
+    )
+
+    spy = _SpyEmitter()
+    result = stages.run_art_prompts(progress_cb=None, emitter=spy)
+
+    assert result.success is True
+    phase_names = [name for name, _ in spy.calls]
+    assert "done" in phase_names, f"missing terminal phase('done'); got {spy.calls}"

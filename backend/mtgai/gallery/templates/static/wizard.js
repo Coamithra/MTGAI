@@ -837,6 +837,12 @@
     const cancelEl = document.getElementById('wiz-progress-cancel');
     const bar = document.querySelector('#wiz-progress-strip .wiz-progress-bar');
     if (stageEl) stageEl.textContent = label || 'Working…';
+    // If a local-model poller is already streaming live tok/s (e.g. the
+    // Mechanics refresh fires showBusy on every candidate event while its
+    // PromptEvalPoller runs), only relabel; yanking the bar to indeterminate
+    // and wiping the stats here would strobe against the poller's determinate
+    // ticks (the same fight handlePhaseEvent's grace window prevents).
+    if (performance.now() - _lastLiveStatsAt < _LIVE_STATS_GRACE_MS) return;
     if (activityEl) activityEl.textContent = '';
     if (statsEl) statsEl.textContent = '';
     // These actions resolve via their own fetch; the engine cancel button
