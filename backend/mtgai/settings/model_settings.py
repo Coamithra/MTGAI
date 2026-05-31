@@ -74,6 +74,10 @@ IMAGE_STAGE_NAMES: dict[str, str] = {
 # never silently hits a paid cloud API. Opt into cloud per-stage in Settings,
 # or apply the ``recommended`` preset wholesale.
 _LOCAL_DEFAULT = "gemma4-26b-vlad-updated"
+# 48k DOWNSTREAM-tier twin of the carrier (same GGUF, smaller --ctx-size). Used by
+# the `all-local-tiered` preset for every stage except theme_extract — see
+# learnings/ctx-tier-sweet-spots.md and the context-length-tiers note in models.toml.
+_LOCAL_DEFAULT_48K = "gemma4-26b-vlad-updated-48k"
 DEFAULT_LLM_ASSIGNMENTS: dict[str, str] = {
     "theme_extract": _LOCAL_DEFAULT,
     "mechanics": _LOCAL_DEFAULT,
@@ -165,9 +169,24 @@ PRESETS: dict[str, dict] = {
         # Every stage on the local Gemma default (vlad-updated: Vlad's fast
         # ~14.2 GB K-quant mix + the fixed Apr-11+ chat template, thinking on).
         # Mirrors DEFAULT_LLM_ASSIGNMENTS — exists so a user who applied the cloud
-        # `recommended` preset can switch wholesale back to local. Per-stage local
-        # model / context tuning (e.g. a low-ctx twin downstream) is future work.
+        # `recommended` preset can switch wholesale back to local. For the
+        # context-length-tuned variant (theme_extract at 128k, the rest on a 48k
+        # twin to free KV VRAM downstream) apply `all-local-tiered` below.
         "llm": {k: _LOCAL_DEFAULT for k in DEFAULT_LLM_ASSIGNMENTS},
+        "image": dict(DEFAULT_IMAGE_ASSIGNMENTS),
+        "effort": {},
+    },
+    "all-local-tiered": {
+        # Context-length-tiered local run (see learnings/ctx-tier-sweet-spots.md). Only
+        # theme_extract ingests a large document (~58.7k tokens), so it keeps the
+        # 128k carrier; every downstream stage runs the 48k twin of the same GGUF.
+        # That frees ~0.81 GiB of KV VRAM downstream (the bulk of the SWA-capped
+        # ~1.2 GiB max) — fewer weight layers spill to CPU → faster generation —
+        # with a single llama-swap reload at the theme_extract boundary.
+        "llm": {
+            **{k: _LOCAL_DEFAULT_48K for k in DEFAULT_LLM_ASSIGNMENTS},
+            "theme_extract": _LOCAL_DEFAULT,
+        },
         "image": dict(DEFAULT_IMAGE_ASSIGNMENTS),
         "effort": {},
     },
