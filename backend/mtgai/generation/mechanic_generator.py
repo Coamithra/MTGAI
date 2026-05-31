@@ -135,17 +135,28 @@ def _generate_with_escalation(budget: _EscalatingBudget, **kwargs: Any) -> dict:
         )
         return generate_with_tool(max_tokens=budget.current, **kwargs)
 
-# Issue categories the reviewers + synth tag findings with — the six standards
-# plus an escape hatch. Drives the reviewer/synth tool schemas.
+
+# Issue categories the reviewers + synth tag findings with — the concrete-defect
+# standards plus an escape hatch. Drives the reviewer/synth tool schemas. The
+# old taste categories `interesting` / `unique` are deliberately gone: the
+# council gates on "is it broken?", not "is it excellent?", so it never rejects
+# a mechanic merely for being simple, familiar, or unoriginal.
 MECHANIC_ISSUE_CATEGORIES = [
     "playable",
     "wording",
-    "interesting",
     "self_consistent",
-    "unique",
     "elegant",
     "other",
 ]
+
+# The subset of categories whose presence makes a REVISE actually block. These
+# are concrete, fixable faults that leave a mechanic unworkable or rules-wrong.
+# `elegant` is intentionally absent -- mild bloat / wordiness is advisory, not a
+# fail. A reviewer that votes REVISE but cites only `elegant` (or no issue at
+# all) is treated as a soft pass. See `_effective_verdict` / `council_review`.
+MECHANIC_BLOCKING_CATEGORIES: frozenset[str] = frozenset(
+    {"playable", "wording", "self_consistent", "other"}
+)
 
 
 def candidate_count(mechanic_count: int) -> int:
@@ -770,20 +781,44 @@ def _tokens(resp: dict) -> tuple[int, int]:
     return resp.get("input_tokens", 0) or 0, resp.get("output_tokens", 0) or 0
 
 
+def _effective_verdict(review: dict) -> str:
+    """One reviewer's *gating* verdict: ``"REVISE"`` only when it both voted
+    REVISE and cited at least one blocking defect (see
+    :data:`MECHANIC_BLOCKING_CATEGORIES`); otherwise ``"OK"``.
+
+    This is what makes the council an "is it broken?" gate rather than an "is it
+    excellent?" one: a REVISE whose only complaints are advisory (``elegant``),
+    or that lists no concrete issue at all, does not block. The taste categories
+    that used to drive nearly every REVISE (``interesting`` / ``unique``) no
+    longer exist, so a simple, familiar, or unexciting-but-workable mechanic
+    passes.
+    """
+    if review.get("verdict") != "REVISE":
+        return "OK"
+    for iss in review.get("issues") or []:
+        if iss.get("category") in MECHANIC_BLOCKING_CATEGORIES:
+            return "REVISE"
+    return "OK"
+
+
 def _open_issue_reasons(reviews: list[dict]) -> list[str]:
     """Distinct open-issue descriptions from one council round.
 
     Threaded into a from-scratch regenerate so the next draft avoids the same
-    problems (the ``card_gen`` regenerate-with-reason pattern). Major issues
-    first, deduped, and capped so the gen prompt stays lean.
+    problems (the ``card_gen`` regenerate-with-reason pattern). Only blocking
+    defects (see :data:`MECHANIC_BLOCKING_CATEGORIES`) steer a regen — advisory
+    ``elegant`` nitpicks are dropped so the next draft isn't redesigned on taste.
+    Major issues first, deduped, and capped so the gen prompt stays lean.
     """
     major: list[str] = []
     minor: list[str] = []
     seen: set[str] = set()
     for r in reviews:
-        if r.get("verdict") == "OK":
+        if _effective_verdict(r) == "OK":
             continue
         for iss in r.get("issues") or []:
+            if iss.get("category") not in MECHANIC_BLOCKING_CATEGORIES:
+                continue
             desc = (iss.get("description") or "").strip()
             if not desc or desc.lower() in seen:
                 continue
@@ -871,7 +906,12 @@ def council_review(
     all-N-succeed gate would stall):
 
       1. ``council_size`` independent reviewers critique the current mechanic.
-      2. All OK → done; the mechanic stands (the cheap, common path).
+      2. Majority (effective) OK -> done; the mechanic stands (the cheap,
+         common path). The council gates on "is it broken?", not "is it
+         excellent?": a reviewer's REVISE only counts when it cites a
+         *blocking* defect (see :func:`_effective_verdict`), so a
+         workable-but-unexciting mechanic passes and a lone dissenter no
+         longer blocks consensus.
       3. Else the synthesizer applies a >=2-of-N consensus filter and re-emits an
          improved mechanic (one heavy call at the HEAVY budget — see
          :func:`_call_synth`).
@@ -973,8 +1013,12 @@ def council_review(
                 )
                 continue
             r = resp.get("result") or {}
-            member_verdict = "OK" if r.get("verdict", "OK") == "OK" else "REVISE"
-            reviews.append({"verdict": r.get("verdict", "OK"), "issues": r.get("issues") or []})
+            review = {"verdict": r.get("verdict", "OK"), "issues": r.get("issues") or []}
+            reviews.append(review)
+            # The UI thumb shows the *effective* (gating) verdict, so a passing
+            # mechanic never displays a stray REVISE thumb for a taste-only or
+            # empty nitpick that doesn't actually block.
+            member_verdict = _effective_verdict(review)
             in_t, out_t = _tokens(resp)
             total_in += in_t
             total_out += out_t
@@ -995,11 +1039,15 @@ def council_review(
         # stale relative to the returned mechanic — fine as regen guidance.
         reasons = _open_issue_reasons(reviews)
 
-        all_ok = bool(reviews) and all(r["verdict"] == "OK" for r in reviews)
-        # All reviewers passed — or the whole council collapsed (no usable
-        # reviews), in which case an un-reviewable draft is kept, not destroyed
-        # (safe fallback). Either way the mechanic stands.
-        if all_ok or not reviews:
+        # Pass on a MAJORITY of surviving reviewers voting (effective) OK. The
+        # old gate required every reviewer OK, which became unhittable once the
+        # taste standards drove the reviewer OK-rate to ~0 (the strictness
+        # investigation: 0 of 108 reviewer calls returned OK in a full run).
+        # Majority plus the "is it broken?" effective verdict lets a workable
+        # mechanic pass round 1. A collapsed council (no usable reviews) keeps
+        # the un-reviewable draft rather than destroying it (safe fallback).
+        ok_votes = sum(1 for rv in reviews if _effective_verdict(rv) == "OK")
+        if not reviews or ok_votes * 2 > len(reviews):
             verdict = "OK"
             reasons = []
             break

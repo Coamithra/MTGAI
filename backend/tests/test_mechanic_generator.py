@@ -510,6 +510,72 @@ def test_council_review_all_ok_skips_synth(monkeypatch) -> None:
     assert out["output_tokens"] == 3
 
 
+def test_council_review_majority_ok_passes(monkeypatch) -> None:
+    """A MAJORITY of effective-OK reviewers passes round 1 — one lone REVISE
+    (even citing a blocking defect) no longer blocks consensus, and the synth
+    never runs. The old all-OK gate would have gone to synthesis here."""
+    draft = _valid_mech(0)
+    rcalls = {"n": 0}
+    synth_calls = {"n": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            rcalls["n"] += 1
+            # members 1 & 2 OK, member 3 REVISE (blocking wording) -> 2-of-3 OK.
+            return _reviewer("OK" if rcalls["n"] <= 2 else "REVISE")
+        if tool == "submit_mechanic_synthesis":
+            synth_calls["n"] += 1
+            return _synth(draft)
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model")
+    assert out["verdict"] == "OK"
+    assert out["mechanic"] is draft
+    assert synth_calls["n"] == 0
+    assert rcalls["n"] == 3  # exactly one round
+
+
+def test_council_review_advisory_only_revise_is_soft_pass(monkeypatch) -> None:
+    """All reviewers vote REVISE but cite only an advisory (``elegant``) issue —
+    no blocking defect — so the council treats every vote as effective-OK and
+    passes round 1 without synthesizing. The gate is "is it broken?", not taste."""
+    draft = _valid_mech(0)
+    synth_calls = {"n": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            return _reviewer("REVISE", category="elegant")
+        if tool == "submit_mechanic_synthesis":
+            synth_calls["n"] += 1
+            return _synth(draft)
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model")
+    assert out["verdict"] == "OK"
+    assert out["mechanic"] is draft
+    assert synth_calls["n"] == 0
+    assert out["reasons"] == []  # advisory issues don't become regen reasons
+
+
+def test_effective_verdict_blocks_only_on_blocking_category() -> None:
+    """The taste standards are gone from the schema and only concrete defects
+    gate; an empty or advisory-only REVISE is an effective OK."""
+    assert "interesting" not in mg.MECHANIC_ISSUE_CATEGORIES
+    assert "unique" not in mg.MECHANIC_ISSUE_CATEGORIES
+    assert "elegant" not in mg.MECHANIC_BLOCKING_CATEGORIES
+    block = {"category": "wording", "severity": "major", "description": "bad templating"}
+    advisory = {"category": "elegant", "severity": "minor", "description": "wordy"}
+    assert mg._effective_verdict({"verdict": "OK", "issues": []}) == "OK"
+    assert mg._effective_verdict({"verdict": "REVISE", "issues": []}) == "OK"
+    assert mg._effective_verdict({"verdict": "REVISE", "issues": [advisory]}) == "OK"
+    assert mg._effective_verdict({"verdict": "REVISE", "issues": [block]}) == "REVISE"
+    assert mg._effective_verdict({"verdict": "REVISE", "issues": [advisory, block]}) == "REVISE"
+
+
 def test_council_review_revises_then_passes(monkeypatch) -> None:
     """Round 1 REVISE → synth revises in place → round 2 OK → final is the revision."""
     draft = _valid_mech(0)
@@ -541,7 +607,7 @@ def test_council_review_budget_exhausted_keeps_last_revision(monkeypatch) -> Non
     def stub(*args, **kwargs):
         tool = _tool_name(args, kwargs)
         if tool == "submit_mechanic_review":
-            return _reviewer("REVISE", category="interesting")
+            return _reviewer("REVISE", category="wording")
         if tool == "submit_mechanic_synthesis":
             rev = dict(draft)
             rev["reminder_text"] = "(rev)"
@@ -552,7 +618,7 @@ def test_council_review_budget_exhausted_keeps_last_revision(monkeypatch) -> Non
     out = mg.council_review(draft, model_id="any-model", max_iterations=3)
     assert out["verdict"] == "REVISE"
     assert out["mechanic"]["reminder_text"] == "(rev)"
-    assert out["reasons"] and "interesting" in out["reasons"][0]
+    assert out["reasons"] and "wording" in out["reasons"][0]
 
 
 def test_council_review_reviewer_collapse_keeps_draft(monkeypatch) -> None:
@@ -825,7 +891,11 @@ def test_generate_mechanic_candidates_regen_fallback_accepts_best_effort(
                 "result": {
                     "verdict": "REVISE",
                     "issues": [
-                        {"category": "interesting", "severity": "major", "description": "dull"}
+                        {
+                            "category": "wording",
+                            "severity": "major",
+                            "description": "invalid templating",
+                        }
                     ],
                 },
                 "input_tokens": 1,
