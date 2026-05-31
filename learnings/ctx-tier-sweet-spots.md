@@ -97,4 +97,3 @@ the savings — the extra tier is a bad trade.
 - **Auto-derivation of ctx twins**: only 1–2 base models need a twin, so they're
   hand-authored. A registry-load helper synthesizing `<key>-<ctx>` twins is deferred
   until twin count justifies the machinery.
-</content>

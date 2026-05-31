@@ -128,4 +128,3 @@ SWA already capped the savings, so the extra tier is a bad trade.
 - Materializing the payoff via a live benchmark harness (separate, optional).
 - Per-stage *model* routing beyond ctx (covered by other cards).
 - Tuning theme_extract's chunk budget.
-</content>
