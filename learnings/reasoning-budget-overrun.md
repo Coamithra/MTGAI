@@ -77,9 +77,19 @@ discards `reasoning_content` → the retry path papers over the truncations.
    lets the truncation guard distinguish "still thinking → raise budget" from
    real truncation.
 
-3. **Recommended — escalate-on-overrun.** When a call truncates mid-reasoning,
-   retry at a higher budget instead of re-rolling at the same one (only pay the
-   big budget when actually needed). Pairs with #2.
+3. **Done (mechanics stage) — escalate-on-overrun, sticky for the phase.** When
+   a call truncates mid-reasoning, retry at a higher budget instead of re-rolling
+   at the same one (only pay the big budget when actually needed). Implemented in
+   `mechanic_generator.py` via `_EscalatingBudget` + `_generate_with_escalation`:
+   the first `OutputTruncatedError` anywhere in one `generate_mechanic_candidates`
+   run bumps the budget `STANDARD → HEAVY` and **keeps it there** for every later
+   candidate-draft *and* council-reviewer call in that run — so the
+   fail-then-bump tax is paid once per phase, not once per slot (and not again
+   per reviewer). The run-shared budget threads into `council_review(budget=…)`;
+   the synth already runs at the HEAVY ceiling. This surfaced on the Transformers
+   set when the `mechanics` model was the aggressive UD-IQ2_M 2-bit quant, which
+   burned the entire 8192 budget on circular chain-of-thought and never emitted
+   the tool call. Still TODO elsewhere (card_gen, gates) and pairs with #2.
 
 4. **Optional — suppress reasoning** for calls that don't need it
    (`chat_template_kwargs:{enable_thinking:false}` / `--reasoning-budget 0`, if

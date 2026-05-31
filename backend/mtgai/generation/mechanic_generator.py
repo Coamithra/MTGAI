@@ -27,6 +27,7 @@ from typing import Any, TypeGuard
 
 from mtgai.generation.llm_client import generate_with_tool
 from mtgai.generation.token_budgets import HEAVY, STANDARD
+from mtgai.generation.token_utils import OutputTruncatedError
 from mtgai.io.atomic import atomic_write_text
 
 # Per-mechanic streaming hook signatures. Engine path wires these to
@@ -79,6 +80,60 @@ MAX_MECHANIC_REGEN_ATTEMPTS = 1
 MECHANIC_GEN_TEMP = 0.9
 MECHANIC_REVIEW_TEMP = 0.4
 MECHANIC_SYNTH_TEMP = 0.2
+
+
+class _EscalatingBudget:
+    """A ``max_tokens`` budget that ratchets up to a ceiling on the first
+    output-truncation and then *stays there* for the rest of the run.
+
+    Local reasoning models — especially aggressive quants like UD-IQ2_M — can
+    spend the whole ``STANDARD`` budget on chain-of-thought and never emit the
+    tool call (``finish_reason=length`` with empty output; see
+    ``learnings/reasoning-budget-overrun.md``). Retrying at the *same* budget
+    just hits the same wall, and starting every later candidate slot back at
+    ``STANDARD`` re-pays the fail-then-bump tax once per slot (and again per
+    council reviewer). This holder makes the bump **sticky for the whole
+    phase**: the first overrun anywhere in one ``generate_mechanic_candidates``
+    run raises the budget to the ceiling for every subsequent LLM call in that
+    run, so we pay the overrun-then-retry cost at most once.
+    """
+
+    def __init__(self, base: int = STANDARD, ceiling: int = HEAVY) -> None:
+        self.current = base
+        self.ceiling = ceiling
+
+    def escalate(self) -> bool:
+        """Raise the budget to the ceiling. Returns ``True`` if this actually
+        changed it (so retrying is worthwhile), ``False`` if already capped."""
+        if self.current >= self.ceiling:
+            return False
+        self.current = self.ceiling
+        return True
+
+
+def _generate_with_escalation(budget: _EscalatingBudget, **kwargs: Any) -> dict:
+    """:func:`generate_with_tool` at ``budget.current``; on a reasoning overrun,
+    escalate the (shared) budget and retry once at the ceiling.
+
+    Re-raises :class:`OutputTruncatedError` if the call still truncates at the
+    ceiling, or if the budget was already there — the caller's own retry/skip
+    logic then takes over. Any non-truncation error propagates unchanged.
+    Only the llamacpp path raises ``OutputTruncatedError`` (the failure mode
+    this guards); the Anthropic path is unaffected.
+    """
+    base = budget.current
+    try:
+        return generate_with_tool(max_tokens=base, **kwargs)
+    except OutputTruncatedError:
+        if not budget.escalate():
+            raise
+        logger.warning(
+            "Mechanic LLM call overran its %d-token budget on reasoning; "
+            "escalating to %d for the rest of this run",
+            base,
+            budget.current,
+        )
+        return generate_with_tool(max_tokens=budget.current, **kwargs)
 
 # Issue categories the reviewers + synth tag findings with — the six standards
 # plus an escape hatch. Drives the reviewer/synth tool schemas.
@@ -805,6 +860,7 @@ def council_review(
     review_temp: float = MECHANIC_REVIEW_TEMP,
     synth_temp: float = MECHANIC_SYNTH_TEMP,
     on_event: CouncilHook | None = None,
+    budget: _EscalatingBudget | None = None,
 ) -> dict:
     """Council + revise-in-place loop for one draft mechanic (theme-free).
 
@@ -836,6 +892,12 @@ def council_review(
     ``synth_start`` before the synthesizer runs, and ``synth_done`` with the revised
     mechanic when it lands. A hook exception is logged and swallowed.
 
+    ``budget`` is the run-shared :class:`_EscalatingBudget` for the reviewer
+    calls; ``generate_mechanic_candidates`` passes its own so a reasoning
+    overrun escalates the *whole* run, not just this council. A standalone call
+    (none given) gets a fresh one. The synth always runs at the HEAVY ceiling
+    (:func:`_call_synth`), so it needs no budget threading.
+
     Returns::
 
         {
@@ -848,6 +910,9 @@ def council_review(
         }
     """
     from mtgai.runtime import ai_lock
+
+    # Standalone call gets its own budget; the generator passes its run-shared one.
+    budget = budget or _EscalatingBudget()
 
     def _emit(payload: dict) -> None:
         """Fire a council-progress event, swallowing any hook error."""
@@ -884,13 +949,13 @@ def council_review(
                 break
             sys_p, user_p = build_reviewer_prompts(mechanic)
             try:
-                resp = generate_with_tool(
+                resp = _generate_with_escalation(
+                    budget,
                     system_prompt=sys_p,
                     user_prompt=user_p,
                     tool_schema=MECHANIC_REVIEWER_TOOL_SCHEMA,
                     model=model_id,
                     temperature=review_temp,
-                    max_tokens=STANDARD,
                     log_dir=log_dir,
                 )
             except Exception as exc:
@@ -1472,6 +1537,9 @@ def generate_mechanic_candidates(
     # Per-slot bound on generation retries to get one well-formed, non-duplicate,
     # non-colliding draft before this slot is treated as ungenerable.
     gen_retries = 3
+    # Output-token budget for this run's gen + reviewer calls, shared so a single
+    # reasoning overrun bumps every later call to HEAVY (see _EscalatingBudget).
+    budget = _EscalatingBudget()
 
     # Reset hook fires once before any attempt — the UI uses this to clear the
     # candidate strip when a from-scratch generation starts. Safe to fire even
@@ -1519,13 +1587,13 @@ def generate_mechanic_candidates(
                     regen_reasons=regen_reasons,
                 )
                 try:
-                    response = generate_with_tool(
+                    response = _generate_with_escalation(
+                        budget,
                         system_prompt=system_prompt,
                         user_prompt=user_prompt,
                         tool_schema=MECHANIC_TOOL_SCHEMA,
                         model=model_id,
                         temperature=MECHANIC_GEN_TEMP,
-                        max_tokens=STANDARD,
                         log_dir=log_dir,
                     )
                 except Exception as exc:
@@ -1565,6 +1633,7 @@ def generate_mechanic_candidates(
                 draft,
                 model_id=model_id,
                 log_dir=log_dir,
+                budget=budget,
                 on_event=(
                     # ``council_review`` invokes this synchronously within the
                     # iteration, but bind ``position`` as a default so it's a

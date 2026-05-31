@@ -685,6 +685,83 @@ def test_council_review_emits_error_verdict_on_failed_reviewer(monkeypatch) -> N
 
 
 # ---------------------------------------------------------------------------
+# Reasoning-overrun budget escalation (sticky for the whole run)
+# ---------------------------------------------------------------------------
+
+
+def test_generate_mechanic_candidates_escalates_budget_and_sticks(_project, monkeypatch) -> None:
+    """A reasoning overrun on a gen call escalates the budget to HEAVY and KEEPS
+    it there for every later call in the run — we pay the fail-then-bump tax once
+    for the phase, not once per candidate slot (regression for the IQ2_M
+    finish_reason=length failure; see learnings/reasoning-budget-overrun.md)."""
+    from mtgai.generation.token_budgets import HEAVY, STANDARD
+    from mtgai.generation.token_utils import OutputTruncatedError
+
+    gen_budgets: list[int] = []
+    counter = {"next": 0}
+    truncated = {"done": False}
+
+    def stub(*args, **kwargs):
+        if _tool_name(args, kwargs) == "submit_mechanic_review":
+            return _reviewer_ok_response(args, kwargs)
+        mt = kwargs.get("max_tokens")
+        assert mt is not None  # the escalation helper always threads a budget
+        if not truncated["done"]:
+            # First gen call overruns at the STANDARD budget, like the 2-bit
+            # quant burning the whole budget on chain-of-thought.
+            truncated["done"] = True
+            assert mt == STANDARD
+            raise OutputTruncatedError("overran on reasoning", eval_count=mt, num_predict=mt)
+        gen_budgets.append(mt)
+        i = counter["next"]
+        counter["next"] += 1
+        return {
+            "result": {"mechanics": [_valid_mech(i)]},
+            "input_tokens": 10,
+            "output_tokens": 20,
+        }
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    result = mg.generate_mechanic_candidates()
+
+    assert len(result["mechanics"]) == 6
+    # The escalated retry AND every subsequent slot's gen call ran at HEAVY.
+    assert gen_budgets
+    assert all(b == HEAVY for b in gen_budgets)
+
+
+def test_council_review_escalates_reviewer_budget(monkeypatch) -> None:
+    """The run-shared budget threads into the council: a reviewer overrun
+    escalates it, and the remaining reviewers run at HEAVY (the bump sticks
+    across the council too, not just the generation loop)."""
+    from mtgai.generation.token_budgets import HEAVY, STANDARD
+    from mtgai.generation.token_utils import OutputTruncatedError
+
+    draft = _valid_mech(0)
+    reviewer_budgets: list[int] = []
+    truncated = {"done": False}
+
+    def stub(*args, **kwargs):
+        if _tool_name(args, kwargs) != "submit_mechanic_review":
+            raise AssertionError("only reviewer calls expected (all pass OK -> no synth)")
+        mt = kwargs.get("max_tokens")
+        assert mt is not None  # the escalation helper always threads a budget
+        if not truncated["done"]:
+            truncated["done"] = True
+            assert mt == STANDARD
+            raise OutputTruncatedError("overran on reasoning", eval_count=mt, num_predict=mt)
+        reviewer_budgets.append(mt)
+        return {"result": {"verdict": "OK", "issues": []}, "input_tokens": 0, "output_tokens": 0}
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model")
+
+    assert out["verdict"] == "OK"
+    assert reviewer_budgets
+    assert all(b == HEAVY for b in reviewer_budgets)
+
+
+# ---------------------------------------------------------------------------
 # Streaming hooks on generate_mechanic_candidates
 # ---------------------------------------------------------------------------
 
