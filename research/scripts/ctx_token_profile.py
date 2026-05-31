@@ -33,7 +33,7 @@ def load_cards() -> list[Card]:
         raw = json.loads(p.read_text(encoding="utf-8"))
         try:
             cards.append(Card.model_validate(raw))
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"  skip {p.name}: {e}")
     return cards
 
@@ -106,7 +106,8 @@ def main() -> None:
     # ---- card_gen existing-cards context (grows over the run) ----
     print("CARD_GEN existing-cards context (format_set_context grows per batch):")
     card_dicts = [c.model_dump() for c in cards]
-    t_ctx_full = tok(f"context @ {len(cards)} prior cards", format_set_context(card_dicts), len(cards))
+    ctx_label = f"context @ {len(cards)} prior cards"
+    t_ctx_full = tok(ctx_label, format_set_context(card_dicts), len(cards))
     per_card_ctx = t_ctx_full / len(cards)
     # Late-run batch: ~250 prior cards in context
     ctx_250 = int(per_card_ctx * 250)

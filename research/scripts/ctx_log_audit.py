@@ -49,16 +49,24 @@ def _toolname(convo: str | None) -> str:
 
 
 def _stage_from_path(path: str) -> str | None:
-    """Stage id = the dir right before a ``logs`` component, if any."""
+    """Stage id = the dir right before a ``logs`` component, if any.
+
+    The dir-name is the stage id for the per-stage routing, with one alias:
+    visual_refs routes to ``<asset>/art-direction/logs``. The flat
+    ``backend/logs/`` session-dir fallback has no stage structure, so those
+    files return ``None`` here and get grouped by tool name in ``collect``.
+    """
     parts = re.split(r"[\\/]+", path)
+    if "extraction_logs" in parts:
+        return "theme_extract"
     if "logs" in parts:
         i = parts.index("logs")
         if i >= 1:
             cand = parts[i - 1]
+            if cand == "art-direction":
+                return "visual_refs"
             if cand not in ("backend", "."):
                 return cand
-    if "extraction_logs" in parts:
-        return "theme_extract"
     return None
 
 
@@ -70,7 +78,8 @@ def collect(roots: list[str]) -> dict[str, list[int]]:
     for f in files:
         stage = _stage_from_path(f)
         try:
-            lines = open(f, encoding="utf-8").read().splitlines()
+            with open(f, encoding="utf-8") as fh:
+                lines = fh.read().splitlines()
         except OSError:
             continue
         convo = None
@@ -100,14 +109,9 @@ def recommend_tier(max_tok: int) -> int:
 
 def main() -> None:
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
-    if args:
-        roots = args
-    else:
-        roots = [
-            f"{REPO}/output",        # asset-folder + extraction logs under the repo
-            f"{REPO}/backend/logs",  # flat session-dir fallback
-            f"{REPO}/research",
-        ]
+    # Default: asset-folder + extraction logs under the repo, then the flat
+    # backend/logs session-dir fallback, then research transcripts.
+    roots = args or [f"{REPO}/output", f"{REPO}/backend/logs", f"{REPO}/research"]
     print("Scanning:", *roots, sep="\n  ")
     by_stage = collect(roots)
     if not by_stage:

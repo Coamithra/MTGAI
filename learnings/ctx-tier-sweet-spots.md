@@ -1,6 +1,7 @@
 # Context-length tiers — finding the sweet spots
 
-Carrier: **Gemma 4 26B-A4B** (`gemma4-26b-vlad-updated`, 13.2 GiB GGUF) on an **RTX 4070 Ti
+Carrier: **Gemma 4 26B-A4B** (`gemma4-26b-vlad-updated`, 13.2 GiB / ~14.2 GB GGUF — the
+same file the older `models.toml` comments call "~14.2 GB" in decimal) on an **RTX 4070 Ti
 (12 GiB)**. Born from the 2026-05-31 IQ4_XS-vs-Vlad / MoE-offload investigation
 (Trello `6a1c1940`). Reproduce the numbers with `research/scripts/ctx_token_profile.py`
 (analytical) and `research/scripts/ctx_log_audit.py` (from a real run's transcripts).
