@@ -38,12 +38,18 @@ URL: https://trello.com/c/peHQmbl1
 - [ ] User validation: full run + ctx_log_audit.py confirms 48k holds
 
 ## Phase 6: Review & Ship
-- [ ] Commit + push
-- [ ] /review, fix findings
-- [ ] Pull master, resolve conflicts
-- [ ] Merge to master, clean up worktree/branch
+- [x] Commit + push (ead6cf5, e7001fc on feat/ctx-tier-variants)
+- [x] /review (fresh agent), fixed findings (audit-script polish, GiB/GB units)
+- [x] Pull master (no movement; clean)
+- [x] Follow-up card filed: built-in preset discoverability (6a1c36ad)
+- [ ] **PAUSED — merge to master** (blocked: validation pending + master-push not authorized)
+- [ ] User validation: full pipeline run → `python research/scripts/ctx_log_audit.py <asset>`
+- [ ] Confirm/tune 48k from real maxima, then merge + clean up worktree/branch
 - [ ] Delete plan + tracker
 - [ ] Move card to Done + comment
-- [ ] Follow-up cards if needed
-- [ ] Final overview to user
-</content>
+
+## Handoff state
+Implementation complete, verified (1427 tests, ruff clean), reviewed, pushed to
+`feat/ctx-tier-variants`. NOT merged — awaiting (1) the real full-pipeline run to
+validate the 48k tier via the audit script, and (2) explicit go-ahead to merge to
+master. Worktree kept so the ctx value can be tuned post-run if needed.
