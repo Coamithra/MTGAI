@@ -34,6 +34,9 @@ _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 # Tokens reserved for LLM output. Used both for budget calculations and as the
 # concrete max_tokens / num_predict on each call - keep these in sync.
 _OUTPUT_BUDGET = HEAVY
+# Fallback log root, used only when no project is open (e.g. a standalone
+# script / test driving the extractor directly). When a project IS open the
+# run dir lands under the asset folder instead — see _log_base_dir().
 _LOG_DIR = Path("C:/Programming/MTGAI/output/extraction_logs")
 
 # Cap how many lines of each message llmfacade dumps into its JSONL/HTML logs.
@@ -305,21 +308,40 @@ def _record_retry() -> None:
 # =============================================================================
 #
 # llmfacade writes one JSONL (and HTML twin) per Conversation. We give every
-# extraction its own subdirectory under output/extraction_logs/ so all of a
-# run's calls live together and can be tail-ed / browsed as a unit. The UI
-# /api/pipeline/theme/status endpoint exposes this directory path.
+# extraction its own subdirectory so all of a run's calls live together and can
+# be tail-ed / browsed as a unit. The run dir lives under the active project's
+# asset folder (<asset>/theme_extract/logs/extraction_<ts>/) so theme transcripts
+# sit beside the other stages' logs — matching the per-stage logging convention
+# the generators use; it falls back to the global _LOG_DIR only when no project
+# is open. The UI /api/pipeline/theme/status endpoint exposes this directory path.
 
 _run_log_dir: Path | None = None
 _run_call_counter: int = 0
+
+
+def _log_base_dir() -> Path:
+    """Root under which a run's ``extraction_<ts>/`` dir is created.
+
+    ``<asset>/theme_extract/logs`` when a project is open (so theme transcripts
+    sit beside the other stages' ``<asset>/<stage>/logs``); the global
+    ``_LOG_DIR`` fallback when no project / asset folder is available — keeping
+    standalone scripts and tests working without an open project."""
+    from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
+
+    try:
+        return set_artifact_dir() / "theme_extract" / "logs"
+    except NoAssetFolderError:
+        return _LOG_DIR
 
 
 def _init_run_log_dir() -> Path:
     """Create a fresh per-run log directory. Resets _run_stats and the
     per-run call counter used to disambiguate per-call log filenames."""
     global _run_log_dir, _run_stats, _run_call_counter
-    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+    base = _log_base_dir()
+    base.mkdir(parents=True, exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    _run_log_dir = _LOG_DIR / f"extraction_{ts}"
+    _run_log_dir = base / f"extraction_{ts}"
     _run_log_dir.mkdir(parents=True, exist_ok=True)
     _run_stats = _RunStats()
     _run_call_counter = 0
