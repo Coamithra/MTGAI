@@ -888,7 +888,7 @@
     if (!stage) return;
     const err = (stage.progress && stage.progress.error_message)
       || 'The stage failed without a specific error message.';
-    const sig = stage.instance_id +' ' + err;
+    const sig = stage.instance_id +'\u0000' + err;
     if (sig === _failureShownSig) return;
     _failureShownSig = sig;
     showStageFailureModal(stage.display_name || stage.stage_id, err);
