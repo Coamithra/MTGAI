@@ -661,6 +661,15 @@
   };
   let _phaseLastWidth = 0;
 
+  // When live tok/s last arrived (performance.now() ms). A local stage often
+  // interleaves coarse stats-less "running" labels (mechanics "candidate 3/8",
+  // skeleton "attempt 2/3") with the poller's 1/s tok/s ticks; without a grace
+  // window each coarse label would flip the determinate tok/s bar back to the
+  // indeterminate animation and reset its fill, so the strip strobes. Inside the
+  // window we keep the bar and just update the label.
+  let _lastLiveStatsAt = 0;
+  const _LIVE_STATS_GRACE_MS = 2500;
+
   // Live elapsed clock for the progress strip. Engine phases that wrap a
   // single non-streaming LLM call (skeleton relabel, archetypes, visual_refs,
   // mechanics gen) emit one `phase` event then go silent for the whole call —
@@ -739,6 +748,7 @@
 
     if (phaseHasLiveStats(data)) {
       // Quantitative signal (token rate / prompt-eval) → determinate fill.
+      _lastLiveStatsAt = performance.now();
       setStripIndeterminate(false);
       let target = PHASE_PROGRESS[phase];
       const pe = data.prompt_eval;
@@ -752,6 +762,9 @@
         _phaseLastWidth = target;
         fillEl.style.width = target + '%';
       }
+    } else if (performance.now() - _lastLiveStatsAt < _LIVE_STATS_GRACE_MS) {
+      // A coarse label landed between tok/s ticks (poller still running) — keep
+      // the determinate bar; the activity text was already updated above.
     } else {
       // No per-unit progress (a single blocking LLM call) → an honest
       // indeterminate animation beats a frozen determinate fill. Clear any
@@ -806,6 +819,7 @@
     const fillEl = document.getElementById('wiz-progress-bar-fill');
     if (fillEl) fillEl.style.width = '';
     _phaseLastWidth = 0;
+    _lastLiveStatsAt = 0;
   }
 
   // Busy indicator for synchronous, non-streaming AI actions (e.g. the

@@ -15,7 +15,6 @@ import json as _json
 import logging
 import math
 import re
-import threading
 import time
 from collections.abc import Callable, Generator, Iterator
 from dataclasses import dataclass, field
@@ -24,6 +23,7 @@ from typing import Any
 
 from llmfacade import SystemBlock
 
+from mtgai.generation.phase_poller import NullPoller, PromptEvalPoller
 from mtgai.generation.token_budgets import HEAVY, STANDARD
 from mtgai.io.atomic import atomic_write_text
 from mtgai.runtime import ai_lock
@@ -1368,217 +1368,6 @@ def _stream_anthropic_call(
         _write_call_meta(log_path, meta)
 
 
-class _NullPoller:
-    """No-op stand-in used when no phase emitter is registered.
-
-    Lets the streaming loop wear a single ``with`` shape without paying
-    for a polling thread it'd publish nothing through (the section-refresh
-    non-streaming path is the canonical case).
-    """
-
-    def __enter__(self) -> _NullPoller:
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        return None
-
-
-_NULL_POLLER = _NullPoller()
-
-
-class _PromptEvalPoller:
-    """Background poller that surfaces ``/slots`` introspection as phase events.
-
-    Started for the lifetime of a llamacpp streaming call. Polls every
-    ``poll_interval`` seconds; emits a ``phase`` event whenever the
-    observed prompt-eval or generation counters move materially.
-
-    Lifecycle:
-        with _PromptEvalPoller(provider, model_id, phase_kind="extracting"):
-            for ev in convo.stream(...): ...
-
-    Single-use, not re-entrant — construct a fresh instance per call.
-    The poller runs on a daemon thread so a stuck HTTP probe can never
-    block process shutdown. Errors during a poll are swallowed and
-    logged at debug — telemetry must never crash the run.
-    """
-
-    # Don't spam events — only emit when prompt-eval token count moves by
-    # at least this fraction of total or this many tokens, whichever is
-    # smaller. Keeps the SSE stream readable on long prompt-eval spans.
-    _MIN_DELTA_TOKENS = 200
-    _MIN_DELTA_FRACTION = 0.01
-
-    # Floor on time between consecutive generation-phase ticks. The
-    # poll loop runs at 0.5s, but we don't need to publish that fast —
-    # users can't read it, and every tick lands in extraction_run.events
-    # forever (replayed on reattach). 1 tick/s is plenty.
-    _GEN_MIN_INTERVAL_S = 1.0
-
-    # Newer llama-server builds dropped n_prompt_tokens / _processed from
-    # /slots, so we can't compute a prompt-eval percent. Heartbeat at this
-    # interval instead so the banner gets activity + elapsed_s ticks during
-    # TTFT, and the frontend's phase-default paints the bar.
-    _PROMPT_EVAL_HEARTBEAT_S = 1.0
-
-    def __init__(
-        self,
-        provider: Any,
-        model_id: str,
-        phase_kind: str,
-        activity_prefix: str,
-        poll_interval: float = 0.5,
-    ) -> None:
-        self._provider = provider
-        self._model_id = model_id
-        self._phase_kind = phase_kind
-        self._activity_prefix = activity_prefix
-        self._poll_interval = poll_interval
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
-        self._last_processed = -1
-        self._last_total = -1
-        self._last_decoded = -1
-        self._last_gen_emit_at: float = 0.0
-        self._last_prompt_eval_emit_at: float = 0.0
-        self._gen_started_at: float | None = None
-        self._switched_to_generation = False
-
-    def __enter__(self) -> _PromptEvalPoller:
-        self._thread = threading.Thread(
-            target=self._loop,
-            name="theme-prompt-eval-poller",
-            daemon=True,
-        )
-        self._thread.start()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self._stop.set()
-        t = self._thread
-        if t is not None:
-            t.join(timeout=1.0)
-            if t.is_alive():
-                # Probe is wedged (dead llama-server, network stall).
-                # The thread is daemon-flagged so process shutdown is
-                # safe, but if calls keep happening we'd accumulate
-                # zombie pollers each publishing under a stale prefix.
-                logger.warning(
-                    "Prompt-eval poller thread did not exit within 1s; leaking thread (model=%s)",
-                    self._model_id,
-                )
-
-    def _loop(self) -> None:
-        while not self._stop.wait(self._poll_interval):
-            try:
-                slots = self._provider.slots(model=self._model_id)
-            except Exception as e:
-                logger.debug("slots poll failed (transient): %s", e)
-                continue
-            # The slots() call is HTTP and can take 100s of ms; an
-            # __exit__ that landed during the probe would otherwise
-            # let us publish one stale tick after stop.
-            if self._stop.is_set():
-                return
-            active = next(
-                (s for s in slots if s.get("is_processing")),
-                None,
-            )
-            if active is None:
-                continue
-            self._publish(active)
-
-    def _publish(self, slot: dict[str, Any]) -> None:
-        # llama-server's /slots shape changed: per-slot decoder counters now
-        # live under next_token[0] instead of the top level. Read both so we
-        # work on old and new builds. Empty next_token list resolves to {}.
-        next_tok = (slot.get("next_token") or [{}])[0]
-        decoded = int(next_tok.get("n_decoded") or slot.get("n_decoded") or 0)
-        processed = int(slot.get("n_prompt_tokens_processed") or 0)
-        total = int(slot.get("n_prompt_tokens") or 0)
-
-        # Once decoding starts we switch to generation phase. Each tick
-        # past that point reports tokens + tok/s; the prompt-eval bar
-        # gets replaced with an indeterminate animation client-side.
-        if decoded > 0:
-            if not self._switched_to_generation:
-                self._switched_to_generation = True
-                self._gen_started_at = time.monotonic()
-            self._publish_generation(decoded)
-            return
-
-        # Prompt-eval phase. Old shape exposed exact processed/total — emit
-        # a precise percent. New shape doesn't, so fall back to a heartbeat
-        # so the banner at least shows activity + ticking elapsed time.
-        if total > 0:
-            if not self._should_emit_prompt_eval(processed, total):
-                return
-            self._last_processed = processed
-            self._last_total = total
-            sep = " — " if self._activity_prefix else ""
-            _emit_phase(
-                phase=self._phase_kind,
-                activity=f"{self._activity_prefix}{sep}processing prompt {processed:,}/{total:,}",
-                prompt_eval={"processed": processed, "total": total},
-            )
-            return
-
-        now = time.monotonic()
-        if now - self._last_prompt_eval_emit_at < self._PROMPT_EVAL_HEARTBEAT_S:
-            return
-        self._last_prompt_eval_emit_at = now
-        sep = " — " if self._activity_prefix else ""
-        _emit_phase(
-            phase=self._phase_kind,
-            activity=f"{self._activity_prefix}{sep}evaluating prompt",
-        )
-
-    def _publish_generation(self, decoded: int) -> None:
-        if decoded == self._last_decoded:
-            return
-        now = time.monotonic()
-        # Rate-cap so a long generation doesn't burn the replay buffer
-        # with 100s of identical-shape events. Always emit the first
-        # tick (last_emit==0) and any update at least _GEN_MIN_INTERVAL_S
-        # after the previous one.
-        if now - self._last_gen_emit_at < self._GEN_MIN_INTERVAL_S:
-            return
-        self._last_decoded = decoded
-        self._last_gen_emit_at = now
-        elapsed = (now - self._gen_started_at) if self._gen_started_at is not None else 0.0
-        tok_per_sec = decoded / elapsed if elapsed > 0 else 0.0
-        sep = " — " if self._activity_prefix else ""
-        activity = (
-            f"{self._activity_prefix}{sep}generating ({decoded:,} tok @ {tok_per_sec:.1f} tok/s)"
-        )
-        _emit_phase(
-            phase="generation",
-            activity=activity,
-            generation={
-                "tokens": decoded,
-                "tok_per_sec": round(tok_per_sec, 2),
-                "elapsed_s": round(elapsed, 2),
-            },
-        )
-
-    def _should_emit_prompt_eval(self, processed: int, total: int) -> bool:
-        # No movement → suppress (also catches the "fully evaluated,
-        # waiting for n_decoded > 0" steady state where every poll
-        # would otherwise look like a fresh "final tick").
-        if processed == self._last_processed and total == self._last_total:
-            return False
-        if self._last_processed < 0:
-            return True
-        delta = processed - self._last_processed
-        if delta >= self._MIN_DELTA_TOKENS:
-            return True
-        if total > 0 and delta / total >= self._MIN_DELTA_FRACTION:
-            return True
-        # Always emit the final tick (processed == total) — this is
-        # the cleanest "prompt eval done" signal for the UI.
-        return processed == total
-
-
 def _stream_llamacpp_call(
     user_msg: str,
     system_prompt: str,
@@ -1700,14 +1489,15 @@ def _stream_llamacpp_call(
         # so the section-refresh non-streaming path doesn't pay for HTTP
         # probes whose output goes nowhere.
         poller_ctx: Any = (
-            _PromptEvalPoller(
+            PromptEvalPoller(
                 provider=provider,
                 model_id=model_info.model_id,
+                emit=_emit_phase,
                 phase_kind=phase_kind,
                 activity_prefix=activity_prefix,
             )
             if _phase_emit_fn is not None
-            else _NULL_POLLER
+            else NullPoller()
         )
         try:
             with poller_ctx:

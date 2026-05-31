@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from mtgai.generation.phase_poller import make_poller
 from mtgai.io.atomic import atomic_write_text
 from mtgai.pipeline.stage_hooks import (
     build_card_gen_hooks,
@@ -205,12 +206,13 @@ def run_mechanics(
         )
 
         try:
-            response = generate_mechanic_candidates(
-                on_reset=hooks.on_reset,
-                on_draft=hooks.on_draft,
-                on_finalized=hooks.on_finalized,
-                on_council=hooks.on_council,
-            )
+            with make_poller("mechanics", emitter.phase, activity_prefix="Designing mechanics"):
+                response = generate_mechanic_candidates(
+                    on_reset=hooks.on_reset,
+                    on_draft=hooks.on_draft,
+                    on_finalized=hooks.on_finalized,
+                    on_council=hooks.on_council,
+                )
         except Exception as exc:
             logger.exception("Mechanic generation failed")
             return StageResult(success=False, error_message=str(exc))
@@ -249,7 +251,8 @@ def run_mechanics(
         # picker degrades to the first N candidates on any LLM failure, so
         # the stage never auto-continues without a selection on disk.
         emitter.phase("running", "Selecting the best mechanics")
-        pick = pick_best_mechanics(candidates=candidates)
+        with make_poller("mechanics", emitter.phase, activity_prefix="Picking the best mechanics"):
+            pick = pick_best_mechanics(candidates=candidates)
         approved = persist_mechanic_selection(
             mech_dir,
             candidates,
@@ -349,7 +352,8 @@ def run_archetypes(
             )
 
         try:
-            response = generate_archetypes()
+            with make_poller("archetypes", emitter.phase, activity_prefix="Designing archetypes"):
+                response = generate_archetypes()
         except Exception as exc:
             logger.exception("Archetype generation failed")
             return StageResult(success=False, error_message=str(exc))
@@ -450,7 +454,10 @@ def run_visual_refs(
             )
 
         try:
-            response = generate_visual_references()
+            with make_poller(
+                "visual_refs", emitter.phase, activity_prefix="Extracting visual references"
+            ):
+                response = generate_visual_references()
         except Exception as exc:
             logger.exception("Visual-reference extraction failed")
             return StageResult(success=False, error_message=str(exc))
@@ -564,7 +571,8 @@ def run_skeleton(
             )
 
         # Phase 0: LLM knob tuning (default-on-failure — never a hard error).
-        knobs, knob_meta = tune_skeleton_knobs(theme=theme_data)
+        with make_poller("skeleton", emitter.phase, activity_prefix="Tuning skeleton knobs"):
+            knobs, knob_meta = tune_skeleton_knobs(theme=theme_data)
 
         # Phase 1: deterministic build from the tuned knobs.
         emitter.phase("running", "Building the skeleton")
@@ -584,15 +592,16 @@ def run_skeleton(
         emitter.phase("running", "Relabeling the skeleton to fit the set")
         sk_hooks = build_skeleton_hooks(emitter)
         try:
-            relabel = relabel_skeleton(
-                slots=[s.model_dump() for s in result.slots],
-                # Surface each relabel/assign attempt on the progress strip's
-                # activity line — the relabel retries silently and can take a
-                # while, so "attempt 2/3" is the feedback the user needs.
-                on_progress=lambda msg: emitter.phase("running", msg),
-                on_slot=sk_hooks.on_slot,
-                on_reset=sk_hooks.on_reset,
-            )
+            with make_poller("skeleton", emitter.phase, activity_prefix="Relabeling skeleton"):
+                relabel = relabel_skeleton(
+                    slots=[s.model_dump() for s in result.slots],
+                    # Surface each relabel/assign attempt on the progress strip's
+                    # activity line — the relabel retries silently and can take a
+                    # while, so "attempt 2/3" is the feedback the user needs.
+                    on_progress=lambda msg: emitter.phase("running", msg),
+                    on_slot=sk_hooks.on_slot,
+                    on_reset=sk_hooks.on_reset,
+                )
         except Exception as exc:
             logger.exception("Skeleton relabel failed")
             return StageResult(
@@ -758,32 +767,14 @@ def run_reprints(
 
     import time as _time
 
-    from mtgai.generation.llm_client import _get_provider, _resolve_provider
-    from mtgai.generation.phase_poller import NullPoller, PromptEvalPoller
-    from mtgai.runtime.active_project import require_active_project
-
-    # Spin up a poller so the activity banner shows real prompt-eval%
-    # / generation tok/s during the (potentially long) llamacpp call.
-    # Anthropic doesn't expose /slots, so we no-op for that provider.
-    project = require_active_project()
-    reprint_model = project.settings.get_llm_model_id("reprints")
-    provider_name = _resolve_provider(reprint_model)
-    if provider_name == "llamacpp":
-        try:
-            poller_ctx: PromptEvalPoller | NullPoller = PromptEvalPoller(
-                provider=_get_provider("llamacpp"),
-                model_id=reprint_model,
-                emit=emitter.phase,
-                phase_kind="running",
-                activity_prefix=f"Selecting reprints (pool={len(eligible_pool)})",
-            )
-        except Exception as e:  # provider construction failure — skip telemetry
-            logger.warning("Reprints poller setup failed (%s); continuing without telemetry", e)
-            poller_ctx = NullPoller()
-    else:
-        poller_ctx = NullPoller()
-
-    with poller_ctx:
+    # Spin up a poller so the activity banner shows a prompt-eval heartbeat
+    # + generation tok/s during the (potentially long) llamacpp call. make_poller
+    # no-ops (NullPoller) for Anthropic, which doesn't expose /slots.
+    with make_poller(
+        "reprints",
+        emitter.phase,
+        activity_prefix=f"Selecting reprints (pool={len(eligible_pool)})",
+    ):
         result = select_reprints(skeleton_path=skeleton_path)
 
     count = len(result.selections)
@@ -891,28 +882,7 @@ def run_lands(
     def _on_card_saved(card) -> None:
         saved_cards.append(card)
 
-    from mtgai.generation.llm_client import _get_provider, _resolve_provider
-    from mtgai.generation.phase_poller import NullPoller, PromptEvalPoller
-    from mtgai.runtime.active_project import require_active_project
-
-    project = require_active_project()
-    lands_model = project.settings.get_llm_model_id("lands")
-    if _resolve_provider(lands_model) == "llamacpp":
-        try:
-            poller_ctx: PromptEvalPoller | NullPoller = PromptEvalPoller(
-                provider=_get_provider("llamacpp"),
-                model_id=lands_model,
-                emit=emitter.phase,
-                phase_kind="running",
-                activity_prefix="Designing lands",
-            )
-        except Exception as e:
-            logger.warning("Lands poller setup failed (%s); continuing without telemetry", e)
-            poller_ctx = NullPoller()
-    else:
-        poller_ctx = NullPoller()
-
-    with poller_ctx:
+    with make_poller("lands", emitter.phase, activity_prefix="Designing lands"):
         result = generate_lands(
             on_call_start=_on_call_start,
             on_card_saved=_on_card_saved,
@@ -995,10 +965,11 @@ def run_card_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) ->
                 success=False,
                 error_message="Another AI action holds the lock; try again later.",
             )
-        result = generate_set(
-            progress_callback=progress_cb,
-            card_saved_callback=cg_hooks.on_card_saved,
-        )
+        with make_poller("card_gen", emitter.phase, activity_prefix="Generating cards"):
+            result = generate_set(
+                progress_callback=progress_cb,
+                card_saved_callback=cg_hooks.on_card_saved,
+            )
 
     # Terminal phase emission: every other runner (archetypes, visual_refs,
     # reprints, lands) emits ``phase("done", …)`` when it finishes; without it
@@ -1122,7 +1093,8 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
             return StageResult(
                 success=False, error_message="Another AI action holds the lock; try again later."
             )
-        findings, analysis_text, cost = check_conformance(cards, slots_by_id)
+        with make_poller("conformance", emitter.phase, activity_prefix="Checking conformance"):
+            findings, analysis_text, cost = check_conformance(cards, slots_by_id)
 
     flagged = _flag_cards_for_regen([(f.slot_id, f.reason) for f in findings], "conformance")
     emitter.phase("done", f"Conformance: {len(flagged)} card(s) flagged")
@@ -1168,7 +1140,8 @@ def run_balance(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
             return StageResult(
                 success=False, error_message="Another AI action holds the lock; try again later."
             )
-        flags, analysis_text, cost = analyze_interactions(cards, mechanics)
+        with make_poller("balance", emitter.phase, activity_prefix="Scanning interactions"):
+            flags, analysis_text, cost = analyze_interactions(cards, mechanics)
 
     regen_flags = [
         (
@@ -1214,7 +1187,9 @@ def run_ai_review(progress_cb: ProgressCallback | None, emitter: StageEmitter) -
     """
     from mtgai.review.ai_review import review_all_cards
 
-    result = review_all_cards(progress_callback=progress_cb)
+    emitter.phase("running", "Reviewing cards")
+    with make_poller("ai_review", emitter.phase, activity_prefix="Reviewing cards"):
+        result = review_all_cards(progress_callback=progress_cb)
     reviewed = result.get("reviewed", 0)
     revised = result.get("revised", 0)
     unfixable = result.get("unfixable", []) or []
@@ -1223,6 +1198,7 @@ def run_ai_review(progress_cb: ProgressCallback | None, emitter: StageEmitter) -
     detail = f"AI review complete — {reviewed} reviewed, {revised} revised"
     if flagged:
         detail += f", {len(flagged)} flagged for regeneration"
+    emitter.phase("done", detail)
     return StageResult(
         total_items=reviewed,
         completed_items=reviewed,
@@ -1263,9 +1239,12 @@ def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter)
     """Generate art prompts for all cards."""
     from mtgai.art.prompt_builder import generate_prompts_for_set
 
-    result = generate_prompts_for_set(progress_callback=progress_cb)
+    emitter.phase("running", "Writing art prompts")
+    with make_poller("art_prompts", emitter.phase, activity_prefix="Writing art prompts"):
+        result = generate_prompts_for_set(progress_callback=progress_cb)
 
     processed = result.get("processed", 0)
+    emitter.phase("done", f"Generated {processed} art prompts")
     return StageResult(
         total_items=processed + result.get("skipped", 0),
         completed_items=processed,

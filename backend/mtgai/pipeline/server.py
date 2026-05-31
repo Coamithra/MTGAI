@@ -287,6 +287,42 @@ def _refresh_emitter(stage_id: str) -> StageEmitter:
     return StageEmitter(event_bus, stage_id, 0.0)
 
 
+@contextmanager
+def _bus_poller(stage_id: str, *, activity_prefix: str = "", phase_kind: str = "running"):
+    """Wrap a synchronous local-LLM tab-refresh call so the progress strip shows
+    live prompt-eval heartbeat / generation tok/s, then tears down cleanly.
+
+    The refresh endpoints today paint the strip with an indeterminate
+    ``showBusy()`` bar (no rate). This upgrades them to the same live telemetry
+    the engine stages emit: it spins a :class:`PromptEvalPoller` for the stage's
+    model and routes its ticks through the shared ``event_bus`` (the same strip),
+    stamping a real ticking ``elapsed_s`` so the client clock advances. No-op for
+    a cloud model (``make_poller`` → ``NullPoller``) — those keep the showBusy bar.
+
+    On exit a terminal ``phase: "done"`` fires (only when a live poller ran) so
+    the *last* SSE event hides the strip even if a trailing generation tick races
+    the client's ``clearBusy()``.
+    """
+    import time as _t
+
+    from mtgai.generation.phase_poller import PromptEvalPoller, make_poller
+
+    t0 = _t.monotonic()
+
+    def _emit(phase: str, activity: str, **extra: Any) -> None:
+        extra.setdefault("elapsed_s", round(_t.monotonic() - t0, 2))
+        event_bus.stage_phase(stage_id, phase, activity, **extra)
+
+    poller = make_poller(stage_id, _emit, activity_prefix=activity_prefix, phase_kind=phase_kind)
+    live = isinstance(poller, PromptEvalPoller)
+    try:
+        with poller:
+            yield
+    finally:
+        if live:
+            event_bus.stage_phase(stage_id, "done", "")
+
+
 # Templates
 _templates_dir = Path(__file__).resolve().parent.parent / "gallery" / "templates"
 templates = Jinja2Templates(directory=str(_templates_dir))
@@ -2798,13 +2834,14 @@ async def wizard_mechanics_refresh_card(request: Request) -> JSONResponse:
             return guard.busy_response
         # Only the first result is used to replace the one slot — ask
         # for exactly one so we don't run the full top-up loop.
-        response = await asyncio.to_thread(
-            generate_mechanic_candidates,
-            count=1,
-            on_draft=hooks.on_draft,
-            on_finalized=hooks.on_finalized,
-            on_council=hooks.on_council,
-        )
+        with _bus_poller("mechanics", activity_prefix="Designing mechanic"):
+            response = await asyncio.to_thread(
+                generate_mechanic_candidates,
+                count=1,
+                on_draft=hooks.on_draft,
+                on_finalized=hooks.on_finalized,
+                on_council=hooks.on_council,
+            )
         new_mechanics = response["mechanics"]
         if not new_mechanics:
             raise AIActionError("LLM returned no candidates")
@@ -2927,14 +2964,15 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
         # Initial generation wants the full pool; a targeted refresh only
         # needs as many fresh candidates as there are flagged rows.
         gen_count = pool if initial_generate else len(indices)
-        response = await asyncio.to_thread(
-            generate_mechanic_candidates,
-            count=gen_count,
-            on_reset=hooks.on_reset,
-            on_draft=hooks.on_draft,
-            on_finalized=hooks.on_finalized,
-            on_council=hooks.on_council,
-        )
+        with _bus_poller("mechanics", activity_prefix="Designing mechanics"):
+            response = await asyncio.to_thread(
+                generate_mechanic_candidates,
+                count=gen_count,
+                on_reset=hooks.on_reset,
+                on_draft=hooks.on_draft,
+                on_finalized=hooks.on_finalized,
+                on_council=hooks.on_council,
+            )
 
         # ``merged`` is already up to date via the on_finalized callback —
         # each finalized mechanic landed in its slot and was written to disk.
@@ -2948,7 +2986,8 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
         # Final Picks box on the tab. Same call the stage runner makes;
         # ``persist_mechanic_selection`` writes candidates.json + approved.json
         # + sidecars so disk + memory agree on the new selection.
-        pick = await asyncio.to_thread(pick_best_mechanics, candidates=merged)
+        with _bus_poller("mechanics", activity_prefix="Picking the best mechanics"):
+            pick = await asyncio.to_thread(pick_best_mechanics, candidates=merged)
         persist_mechanic_selection(
             mech_dir,
             merged,
@@ -3100,7 +3139,8 @@ async def wizard_mechanics_pick(request: Request) -> JSONResponse:
     with guarded_ai("Mechanic AI pick", stage_id="mechanics") as guard:
         if guard.busy:
             return guard.busy_response
-        pick = await asyncio.to_thread(pick_best_mechanics, candidates=candidates)
+        with _bus_poller("mechanics", activity_prefix="Picking the best mechanics"):
+            pick = await asyncio.to_thread(pick_best_mechanics, candidates=candidates)
         approved = persist_mechanic_selection(
             mech_dir,
             candidates,
@@ -3280,9 +3320,10 @@ async def wizard_archetypes_refresh_card(request: Request) -> JSONResponse:
     with guarded_ai("Archetype refresh", stage_id="archetypes") as guard:
         if guard.busy:
             return guard.busy_response
-        response = await asyncio.to_thread(
-            generate_archetypes, focus_pairs=[color_pair], existing=ordered
-        )
+        with _bus_poller("archetypes", activity_prefix="Designing archetype"):
+            response = await asyncio.to_thread(
+                generate_archetypes, focus_pairs=[color_pair], existing=ordered
+            )
         fresh = response["archetypes"]
         new_entry = next((a for a in fresh if a.get("color_pair") == color_pair), None)
         if new_entry is None:
@@ -3353,7 +3394,8 @@ async def wizard_archetypes_refresh_all(request: Request) -> JSONResponse:
     with guarded_ai("Archetype refresh", stage_id="archetypes") as guard:
         if guard.busy:
             return guard.busy_response
-        response = await asyncio.to_thread(generate_archetypes)
+        with _bus_poller("archetypes", activity_prefix="Designing archetypes"):
+            response = await asyncio.to_thread(generate_archetypes)
         fresh_by_pair = {a["color_pair"]: a for a in response["archetypes"]}
         for entry in ordered:
             pair = entry["color_pair"]
@@ -3613,9 +3655,10 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
     with guarded_ai("Reprint selection", stage_id="reprints") as guard:
         if guard.busy:
             return guard.busy_response
-        result = await asyncio.to_thread(
-            select_reprints, skeleton_path=skeleton_path, temperature=0.7
-        )
+        with _bus_poller("reprints", activity_prefix="Selecting reprints"):
+            result = await asyncio.to_thread(
+                select_reprints, skeleton_path=skeleton_path, temperature=0.7
+            )
         if ai_lock.is_cancelled():
             # A Cancel mid-run leaves `result` partial/empty — persisting it would
             # clobber the prior good reprint_selection.json + skeleton stamps, so
@@ -3728,7 +3771,8 @@ async def wizard_lands_refresh() -> JSONResponse:
     with guarded_ai("Land generation", stage_id="lands") as guard:
         if guard.busy:
             return guard.busy_response
-        result = await asyncio.to_thread(generate_lands)
+        with _bus_poller("lands", activity_prefix="Designing lands"):
+            result = await asyncio.to_thread(generate_lands)
         # A cancel isn't a recovery — leave a stuck FAILED stage as-is. (Lands
         # clears-then-writes its L-* cards, so a cancel leaves basics only; the
         # re-read below surfaces whatever was written.)
@@ -3907,11 +3951,12 @@ async def wizard_card_gen_refresh() -> JSONResponse:
         slots_by_id = slots_by_id_from_skeleton(skeleton_path)
         cg_hooks = build_card_gen_hooks(emitter, slots_by_id=slots_by_id)
 
-        result = await asyncio.to_thread(
-            generate_set,
-            progress_callback=_on_progress,
-            card_saved_callback=cg_hooks.on_card_saved,
-        )
+        with _bus_poller("card_gen", activity_prefix="Generating cards"):
+            result = await asyncio.to_thread(
+                generate_set,
+                progress_callback=_on_progress,
+                card_saved_callback=cg_hooks.on_card_saved,
+            )
 
         # A cancel isn't a recovery: suppress the guard's success-heal so a stuck
         # FAILED card_gen stays FAILED. A clean (non-cancelled) regen means the
@@ -4076,7 +4121,8 @@ async def wizard_skeleton_knobs_tune(request: Request) -> JSONResponse:
     with guarded_ai("Skeleton knob tuning", stage_id="skeleton") as guard:
         if guard.busy:
             return guard.busy_response
-        knobs, meta = await asyncio.to_thread(tune_skeleton_knobs, base=base)
+        with _bus_poller("skeleton", activity_prefix="Tuning skeleton knobs"):
+            knobs, meta = await asyncio.to_thread(tune_skeleton_knobs, base=base)
         new_skeleton = _rebuild_skeleton_from_knobs(asset, skeleton, knobs)
 
     return JSONResponse(
@@ -4124,16 +4170,17 @@ async def wizard_skeleton_refresh() -> JSONResponse:
         sk_emitter = _refresh_emitter("skeleton")
         sk_hooks = build_skeleton_hooks(sk_emitter)
         try:
-            relabel = await asyncio.to_thread(
-                relabel_skeleton,
-                slots=skeleton["slots"],
-                # Drive the progress strip's activity line ("attempt N/M") from
-                # the relabel's retry loop. Runs in the worker thread; the bus
-                # is thread-safe.
-                on_progress=lambda msg: event_bus.stage_phase("skeleton", "running", msg),
-                on_slot=sk_hooks.on_slot,
-                on_reset=sk_hooks.on_reset,
-            )
+            with _bus_poller("skeleton", activity_prefix="Relabeling skeleton"):
+                relabel = await asyncio.to_thread(
+                    relabel_skeleton,
+                    slots=skeleton["slots"],
+                    # Drive the progress strip's activity line ("attempt N/M") from
+                    # the relabel's retry loop. Runs in the worker thread; the bus
+                    # is thread-safe.
+                    on_progress=lambda msg: event_bus.stage_phase("skeleton", "running", msg),
+                    on_slot=sk_hooks.on_slot,
+                    on_reset=sk_hooks.on_reset,
+                )
         finally:
             # Terminal phase so the strip clears even on SSE replay, error or
             # success — this path emits no pipeline_status terminal event of its

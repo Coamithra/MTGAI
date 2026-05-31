@@ -8,6 +8,12 @@ Designed for use as a context manager around a synchronous or streaming
 LLM call. The poll loop runs on a daemon thread so a stuck HTTP probe
 never blocks process shutdown. All errors during a poll are swallowed —
 telemetry must never crash the run.
+
+:func:`make_poller` is the one-call factory: hand it a stage assignment
+key and a phase-emit callable and it resolves the stage's model, returns
+a real poller for a local (llamacpp) model, or a :class:`NullPoller` for a
+cloud model / no open project / any setup failure — so callers always wear
+a single ``with`` shape.
 """
 
 from __future__ import annotations
@@ -55,6 +61,12 @@ class PromptEvalPoller:
 
     where ``extra`` may include ``prompt_eval={"processed": int, "total": int}``
     or ``generation={"tokens": int, "tok_per_sec": float, "elapsed_s": float}``.
+
+    A single span may wrap *several* LLM calls (e.g. card_gen's per-batch
+    loop, mechanics' council, ai_review's per-card pass). llama-server resets
+    a slot's decode counter to ~0 on each new request, so the poller restarts
+    its generation clock when the counter drops — otherwise tok/s after the
+    first call would be a meaningless cross-call average.
     """
 
     # Don't spam events — only emit when prompt-eval token count moves by
@@ -68,10 +80,11 @@ class PromptEvalPoller:
     # can't read it, and every tick lands in the replay buffer.
     _GEN_MIN_INTERVAL_S = 1.0
 
-    # Newer llama-server builds dropped n_prompt_tokens / _processed from
-    # /slots, so we can't compute a precise prompt-eval percent. Heartbeat
-    # at this interval so the banner gets activity + elapsed_s ticks
-    # during TTFT and the frontend's phase-default paints the bar.
+    # Newer llama-server builds (9010+) dropped n_prompt_tokens / _processed
+    # from /slots, so we can't compute a precise prompt-eval percent. And
+    # during a cold model load /slots doesn't answer at all. In both "dark
+    # window" cases we heartbeat at this interval with a ticking elapsed so
+    # the banner never freezes on a static label.
     _PROMPT_EVAL_HEARTBEAT_S = 1.0
 
     def __init__(
@@ -91,6 +104,7 @@ class PromptEvalPoller:
         self._poll_interval = poll_interval
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._started_at: float = 0.0
         self._last_processed = -1
         self._last_total = -1
         self._last_decoded = -1
@@ -98,8 +112,10 @@ class PromptEvalPoller:
         self._last_prompt_eval_emit_at: float = 0.0
         self._gen_started_at: float | None = None
         self._switched_to_generation = False
+        self._warned_slots_failure = False
 
     def __enter__(self) -> PromptEvalPoller:
+        self._started_at = time.monotonic()
         self._thread = threading.Thread(
             target=self._loop,
             name="phase-poller",
@@ -124,7 +140,11 @@ class PromptEvalPoller:
             try:
                 slots = self._provider.slots(model=self._model_id)
             except Exception as e:
-                logger.debug("slots poll failed (transient): %s", e)
+                # The server isn't answering yet — almost always a cold model
+                # load (llama-swap spawning + weights loading). Heartbeat so
+                # the strip shows ticking activity instead of freezing.
+                self._note_slots_failure(e)
+                self._heartbeat()
                 continue
             if self._stop.is_set():
                 return
@@ -133,6 +153,10 @@ class PromptEvalPoller:
                 None,
             )
             if active is None:
+                # Server is up but this model has no in-flight request yet
+                # (warmup / between calls in a multi-call span). Keep the
+                # banner alive.
+                self._heartbeat()
                 continue
             self._publish(active)
 
@@ -146,11 +170,25 @@ class PromptEvalPoller:
         total = int(slot.get("n_prompt_tokens") or 0)
 
         if decoded > 0:
-            if not self._switched_to_generation:
+            # Start (or restart) the generation clock when decoding begins, or
+            # when the counter drops below the last value — the latter means a
+            # fresh call rolled in within this span, so tok/s should reflect it
+            # rather than averaging across calls.
+            if not self._switched_to_generation or decoded < self._last_decoded:
                 self._switched_to_generation = True
                 self._gen_started_at = time.monotonic()
+                self._last_decoded = -1
             self._publish_generation(decoded)
             return
+
+        # decoded == 0 → prompt-eval or dark window. If we'd previously rolled
+        # into generation, this is the *next* call's prompt-eval beginning;
+        # reset the per-call trackers so its clock + heartbeat gate apply.
+        if self._switched_to_generation:
+            self._switched_to_generation = False
+            self._last_decoded = -1
+            self._last_processed = -1
+            self._last_total = -1
 
         if total > 0:
             if not self._should_emit_prompt_eval(processed, total):
@@ -165,14 +203,32 @@ class PromptEvalPoller:
             )
             return
 
+        # No counters (build 9010+ prompt-eval) → time-based heartbeat.
+        self._heartbeat()
+
+    def _heartbeat(self) -> None:
+        """Emit a ticking-elapsed banner tick during the dark window.
+
+        The "dark window" is any stretch with no usable counters: a cold
+        model load (``/slots`` unreachable), warmup before the slot reports
+        ``is_processing``, or a build-9010 prompt-eval that drops the
+        prompt-token counters. Rate-limited to one tick per
+        ``_PROMPT_EVAL_HEARTBEAT_S``. Suppressed once decoding has started —
+        generation ticks carry their own (richer) activity, and between calls
+        in a multi-call span the last tok/s tick is better left on screen than
+        flicked back to "evaluating prompt".
+        """
+        if self._switched_to_generation:
+            return
         now = time.monotonic()
         if now - self._last_prompt_eval_emit_at < self._PROMPT_EVAL_HEARTBEAT_S:
             return
         self._last_prompt_eval_emit_at = now
+        elapsed = now - self._started_at if self._started_at else 0.0
         sep = " — " if self._activity_prefix else ""
         self._safe_emit(
             phase=self._phase_kind,
-            activity=f"{self._activity_prefix}{sep}evaluating prompt",
+            activity=f"{self._activity_prefix}{sep}evaluating prompt ({elapsed:.0f}s)",
         )
 
     def _publish_generation(self, decoded: int) -> None:
@@ -212,8 +268,83 @@ class PromptEvalPoller:
         # Final tick: cleanest "prompt eval done" signal for the UI.
         return processed == total
 
+    def _note_slots_failure(self, exc: Exception) -> None:
+        """Log a ``/slots`` probe failure — once at WARN, then DEBUG.
+
+        A failure is expected (and harmless) during a cold model load, so we
+        don't want a WARN per poll. But a *genuine* drop (wrong target, wedged
+        probe) would otherwise be invisible at DEBUG, so surface the first one
+        at WARN with the resolved URL to make it catchable.
+        """
+        if not self._warned_slots_failure:
+            self._warned_slots_failure = True
+            logger.warning(
+                "Phase poller: /slots probe failed at %s (%s). tok/s telemetry is "
+                "delayed until the server answers — expected briefly during a cold "
+                "model load; persistent failures mean the probe can't reach the model.",
+                self._slots_url(),
+                exc,
+            )
+        else:
+            logger.debug("slots poll failed (transient): %s", exc)
+
+    def _slots_url(self) -> str:
+        """Best-effort resolved ``/slots`` URL for the diagnostic WARN.
+
+        Reads the llamacpp provider's private ``_http_base`` if present
+        (managed-mode server root); falls back to just the upstream path. This
+        is a log string only, so an approximate value is fine.
+        """
+        base = getattr(self._provider, "_http_base", "") or ""
+        return f"{base}/upstream/{self._model_id}/slots"
+
     def _safe_emit(self, **kwargs: Any) -> None:
         try:
             self._emit(**kwargs)
         except Exception as e:
             logger.warning("phase emit from poller failed: %s", e)
+
+
+def make_poller(
+    stage: str,
+    emit: PhaseEmitFn,
+    *,
+    activity_prefix: str = "",
+    phase_kind: str = "running",
+) -> PromptEvalPoller | NullPoller:
+    """Build a poller for ``stage``'s assigned model, or a :class:`NullPoller`.
+
+    Resolves the active project's model assignment for ``stage`` and returns a
+    live :class:`PromptEvalPoller` only when that model runs on the local
+    ``llamacpp`` provider (the one with a ``/slots`` endpoint). Returns a
+    :class:`NullPoller` for a cloud (Anthropic) model, when no project is open,
+    or on any setup failure — telemetry is strictly best-effort and must never
+    block generation. Either way the caller wears one ``with`` shape::
+
+        with make_poller("card_gen", emitter.phase, activity_prefix="Generating cards"):
+            result = generate_set(...)
+
+    ``stage`` is the model-assignment key (e.g. ``"card_gen"``, ``"mechanics"``,
+    ``"balance"``) — the same key the stage passes to ``get_llm_model_id`` — so
+    the poller polls exactly the model the call uses (llama-swap routes per
+    model id).
+    """
+    try:
+        from mtgai.generation.llm_client import _get_provider, _resolve_provider
+        from mtgai.runtime.active_project import require_active_project
+
+        model_id = require_active_project().settings.get_llm_model_id(stage)
+        if _resolve_provider(model_id) != "llamacpp":
+            return NullPoller()
+        return PromptEvalPoller(
+            provider=_get_provider("llamacpp"),
+            model_id=model_id,
+            emit=emit,
+            phase_kind=phase_kind,
+            activity_prefix=activity_prefix,
+        )
+    except Exception as e:
+        logger.warning(
+            "Poller setup for stage %r failed (%s); continuing without telemetry", stage, e
+        )
+        return NullPoller()
