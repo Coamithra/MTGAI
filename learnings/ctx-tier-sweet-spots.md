@@ -89,11 +89,25 @@ the savings — the extra tier is a bad trade.
 - No code-path change: `context_window` already flows to `--ctx-size`
   (`_llamacpp_new_model`) and the budget (`get_context_window`).
 
-## Open / deferred
+## Validation status
+
+48k is validated for the stages in active use (`theme_extract` → `card_gen`): the
+measured high-water mark downstream of theme is `reprints` at ~17k, and the two
+un-measured in-scope stages (`card_gen`, `skeleton` relabel) are bounded by analysis at
+~15k (worst case ~22k) — all comfortably under 48k with 2×+ headroom. No live run was
+needed to ship the tiers.
+
+The post-`card_gen` review gates (`conformance` ~24k, `interactions` ~18.5k, `ai_review`)
+were the only stages approaching the tier, but they're under active construction, so
+their input shapes are provisional. When they stabilize, re-run `ctx_log_audit.py`
+against a real pipeline run to confirm they fit 48k (or bump the one `context_window`
+number — 48k→64k is only +0.17 GiB KV).
+
+## Deferred
 
 - **Live tok/s benchmark**: the VRAM payoff is exact; the tok/s *delta* (128k vs 48k on
-  the carrier) needs a live GPU run. Deferred — validate with a real full-pipeline run +
-  `ctx_log_audit.py` (confirms the per-stage maxima fit 48k) and an A/B speed check.
+  the carrier) would need a live GPU A/B run. Optional — the sizing decision doesn't
+  depend on it.
 - **Auto-derivation of ctx twins**: only 1–2 base models need a twin, so they're
   hand-authored. A registry-load helper synthesizing `<key>-<ctx>` twins is deferred
   until twin count justifies the machinery.
