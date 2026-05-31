@@ -294,9 +294,12 @@ def _llamacpp_new_model(provider: Provider, model_id: str):
     """Build an llmfacade Model for a registered llamacpp entry.
 
     Threads the registry's launch knobs (gguf_path, context_window,
-    cache_type_k/_v, n_gpu_layers, thinking/thinking_style) into
+    cache_type_k/_v, n_gpu_layers, fit, thinking/thinking_style) into
     ``provider.new_model(...)`` so the supervisor can launch llama-server with
-    the right flags. ``thinking`` turns on reasoning via the GGUF chat template
+    the right flags. ``fit`` (default True) bakes ``--fit on`` into the launch so
+    llama-server re-fits offload/context to available VRAM at spawn (the
+    OOM-safety net the registry-load VRAM check accounts for). ``thinking`` turns
+    on reasoning via the GGUF chat template
     (llama-server runs with ``--jinja`` by default, so the template's
     ``enable_thinking`` gate is honoured) while the tool call still lands on the
     same turn because the tool path keeps ``tool_choice`` unforced. Models
@@ -323,6 +326,9 @@ def _llamacpp_new_model(provider: Provider, model_id: str):
         launch_kwargs["cache_type_v"] = info.cache_type_v
     if info.n_gpu_layers is not None:
         launch_kwargs["n_gpu_layers"] = info.n_gpu_layers
+    # fit is a real bool (default True) — always forward it so the registry,
+    # not llmfacade's provider default, is the source of truth for --fit on/off.
+    launch_kwargs["fit"] = info.fit
     if info.thinking is not None:
         launch_kwargs["thinking"] = info.thinking
     if info.thinking_style is not None:

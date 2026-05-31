@@ -89,9 +89,9 @@ class TestJsonExtraction:
 
 class TestLocalCost:
     def test_local_model_is_free(self):
-        # qwen2.5-14b is registered with input_price=0.0; the registry path
+        # vlad-gemma4-26b-dynamic is registered with input_price=0.0; the registry path
         # resolves it correctly and the cost is zero.
-        cost = calc_cost("qwen2.5-14b", input_tokens=10000, output_tokens=5000)
+        cost = calc_cost("vlad-gemma4-26b-dynamic", input_tokens=10000, output_tokens=5000)
         assert cost == 0.0
 
     def test_unregistered_model_is_free(self):
@@ -126,8 +126,8 @@ class TestLlamaCppNewModel:
         provider.new_model.assert_not_called()
 
     def test_threads_launch_kwargs_from_registry(self):
-        """Registry knobs (gguf, context_size, cache_type_k/_v, n_gpu_layers)
-        must be forwarded to provider.new_model(...)."""
+        """Registry knobs (gguf, context_size, cache_type_k/_v, n_gpu_layers,
+        fit) must be forwarded to provider.new_model(...)."""
         provider = MagicMock()
         fake_info = MagicMock()
         fake_info.model_id = "vlad-gemma4-26b-dynamic"
@@ -136,6 +136,7 @@ class TestLlamaCppNewModel:
         fake_info.cache_type_k = "q8_0"
         fake_info.cache_type_v = "q8_0"
         fake_info.n_gpu_layers = -1
+        fake_info.fit = True
         # No thinking on this entry — bare MagicMock attrs would otherwise be
         # truthy and leak thinking=/thinking_style= into the call.
         fake_info.thinking = None
@@ -152,53 +153,80 @@ class TestLlamaCppNewModel:
             cache_type_k="q8_0",
             cache_type_v="q8_0",
             n_gpu_layers=-1,
+            fit=True,
         )
 
     def test_omits_optional_kwargs_when_unset(self):
         """cache_type_k/_v and n_gpu_layers are llamacpp-server flags whose
-        absence should be passed as 'don't set this flag', not as None."""
+        absence should be passed as 'don't set this flag', not as None. fit is a
+        real bool (default True) so it's always forwarded."""
         provider = MagicMock()
         fake_info = MagicMock()
-        fake_info.model_id = "qwen2.5-14b"
-        fake_info.gguf_path = "C:/Models/qwen2.5-14b.gguf"
+        fake_info.model_id = "vlad-gemma4-26b-dynamic"
+        fake_info.gguf_path = "C:/Models/vlad-gemma4-26b-dynamic.gguf"
         fake_info.context_window = 32768
         fake_info.cache_type_k = None
         fake_info.cache_type_v = None
         fake_info.n_gpu_layers = None
+        fake_info.fit = True
         fake_info.thinking = None
         fake_info.thinking_style = None
         with patch(
             "mtgai.settings.model_registry.ModelRegistry.get_llm_by_model_id",
             return_value=fake_info,
         ):
-            _llamacpp_new_model(provider, "qwen2.5-14b")
+            _llamacpp_new_model(provider, "vlad-gemma4-26b-dynamic")
         kwargs = provider.new_model.call_args.kwargs
         assert kwargs == {
-            "name": "qwen2.5-14b",
-            "gguf": "C:/Models/qwen2.5-14b.gguf",
+            "name": "vlad-gemma4-26b-dynamic",
+            "gguf": "C:/Models/vlad-gemma4-26b-dynamic.gguf",
             "context_size": 32768,
+            "fit": True,
         }
+
+    def test_threads_fit_false_from_registry(self):
+        """fit=false in the registry must reach provider.new_model as fit=False
+        so llama-server launches --fit off (the registry, not llmfacade's
+        provider default, is the source of truth for the fit flag)."""
+        provider = MagicMock()
+        fake_info = MagicMock()
+        fake_info.model_id = "m"
+        fake_info.gguf_path = "C:/Models/m.gguf"
+        fake_info.context_window = 8192
+        fake_info.cache_type_k = None
+        fake_info.cache_type_v = None
+        fake_info.n_gpu_layers = None
+        fake_info.fit = False
+        fake_info.thinking = None
+        fake_info.thinking_style = None
+        with patch(
+            "mtgai.settings.model_registry.ModelRegistry.get_llm_by_model_id",
+            return_value=fake_info,
+        ):
+            _llamacpp_new_model(provider, "m")
+        assert provider.new_model.call_args.kwargs["fit"] is False
 
     def test_threads_thinking_knobs_from_registry(self):
         """thinking / thinking_style from the registry must reach
         provider.new_model so llama-server gets the enable_thinking template
-        kwarg (the IQ4_XS local default sets thinking="adaptive"). thinking_style
-        left unset is omitted so llmfacade auto-detects it from the GGUF."""
+        kwarg (the vlad-updated local default sets thinking="adaptive").
+        thinking_style left unset is omitted so llmfacade auto-detects it."""
         provider = MagicMock()
         fake_info = MagicMock()
-        fake_info.model_id = "gemma4-26b-unsloth-iq4xs"
-        fake_info.gguf_path = "C:/Models/gemma-4-26B-A4B-it-UD-IQ4_XS.gguf"
+        fake_info.model_id = "gemma4-26b-vlad-updated"
+        fake_info.gguf_path = "C:/Models/vlad-updated-gemma4-26b.gguf"
         fake_info.context_window = 128000
         fake_info.cache_type_k = "q8_0"
         fake_info.cache_type_v = "q8_0"
         fake_info.n_gpu_layers = -1
+        fake_info.fit = True
         fake_info.thinking = "adaptive"
         fake_info.thinking_style = None
         with patch(
             "mtgai.settings.model_registry.ModelRegistry.get_llm_by_model_id",
             return_value=fake_info,
         ):
-            _llamacpp_new_model(provider, "gemma4-26b-unsloth-iq4xs")
+            _llamacpp_new_model(provider, "gemma4-26b-vlad-updated")
         kwargs = provider.new_model.call_args.kwargs
         assert kwargs["thinking"] == "adaptive"
         assert "thinking_style" not in kwargs
@@ -215,6 +243,7 @@ class TestLlamaCppNewModel:
         fake_info.cache_type_k = None
         fake_info.cache_type_v = None
         fake_info.n_gpu_layers = None
+        fake_info.fit = True
         fake_info.thinking = "adaptive"
         fake_info.thinking_style = "template_kwarg"
         with patch(
@@ -374,7 +403,7 @@ class TestLlamaCppGenerateWithTool:
                 system_prompt="You are a card designer.",
                 user_prompt="Make a card.",
                 tool_schema=SAMPLE_TOOL,
-                model="qwen2.5-14b",
+                model="vlad-gemma4-26b-dynamic",
             )
 
         assert result["result"] == SAMPLE_CARD
@@ -401,7 +430,7 @@ class TestLlamaCppGenerateWithTool:
                 system_prompt="Sys",
                 user_prompt="User",
                 tool_schema=SAMPLE_TOOL,
-                model="qwen2.5-14b",
+                model="vlad-gemma4-26b-dynamic",
                 repeat_penalty=1.0,
             )
         assert model.new_conversation.call_args.kwargs.get("repeat_penalty") == 1.0
@@ -417,7 +446,7 @@ class TestLlamaCppGenerateWithTool:
                 system_prompt="Sys",
                 user_prompt="User",
                 tool_schema=SAMPLE_TOOL,
-                model="qwen2.5-14b",
+                model="vlad-gemma4-26b-dynamic",
             )
         assert "repeat_penalty" not in model2.new_conversation.call_args.kwargs
 
@@ -435,7 +464,7 @@ class TestLlamaCppGenerateWithTool:
                 system_prompt="Sys",
                 user_prompt="User",
                 tool_schema=SAMPLE_TOOL,
-                model="qwen2.5-14b",
+                model="vlad-gemma4-26b-dynamic",
             )
 
         assert result["result"] == SAMPLE_CARD
@@ -454,7 +483,7 @@ class TestLlamaCppGenerateWithTool:
                 system_prompt="Sys",
                 user_prompt="User",
                 tool_schema=SAMPLE_TOOL,
-                model="qwen2.5-14b",
+                model="vlad-gemma4-26b-dynamic",
             )
 
         assert result["result"] == SAMPLE_CARD
@@ -476,7 +505,7 @@ class TestLlamaCppGenerateWithTool:
                     system_prompt="Sys",
                     user_prompt="User",
                     tool_schema=SAMPLE_TOOL,
-                    model="qwen2.5-14b",
+                    model="vlad-gemma4-26b-dynamic",
                 )
 
     def test_wrong_named_tool_call_is_not_accepted(self, monkeypatch):
@@ -501,7 +530,7 @@ class TestLlamaCppGenerateWithTool:
                     system_prompt="Sys",
                     user_prompt="User",
                     tool_schema=SAMPLE_TOOL,
-                    model="qwen2.5-14b",
+                    model="vlad-gemma4-26b-dynamic",
                 )
 
 
@@ -522,7 +551,7 @@ class TestGenerateText:
             result = generate_text(
                 system_prompt="Sys",
                 user_prompt="User",
-                model="qwen2.5-14b",
+                model="vlad-gemma4-26b-dynamic",
                 repeat_penalty=1.0,
             )
         assert result["text"] == "line one\nline two"
@@ -542,7 +571,9 @@ class TestGenerateText:
             patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
             patch("mtgai.generation.llm_client._get_provider", return_value=provider),
         ):
-            result = generate_text(system_prompt="Sys", user_prompt="User", model="qwen2.5-14b")
+            result = generate_text(
+                system_prompt="Sys", user_prompt="User", model="vlad-gemma4-26b-dynamic"
+            )
         assert result["text"] == "partial output"
         assert result["stop_reason"] == "length"
 

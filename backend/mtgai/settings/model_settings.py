@@ -73,7 +73,7 @@ IMAGE_STAGE_NAMES: dict[str, str] = {
 # Skeleton Generation's LLM relabel, absent from .mtg files predating it) —
 # never silently hits a paid cloud API. Opt into cloud per-stage in Settings,
 # or apply the ``recommended`` preset wholesale.
-_LOCAL_DEFAULT = "gemma4-26b-unsloth-iq4xs"
+_LOCAL_DEFAULT = "gemma4-26b-vlad-updated"
 DEFAULT_LLM_ASSIGNMENTS: dict[str, str] = {
     "theme_extract": _LOCAL_DEFAULT,
     "mechanics": _LOCAL_DEFAULT,
@@ -162,26 +162,12 @@ PRESETS: dict[str, dict] = {
         "effort": {},
     },
     "all-local": {
-        "llm": {
-            # Unsloth Gemma 4 26B UD-IQ4_XS — the IQ4_XS quant fits all-GPU on
-            # 12 GB VRAM (like the Vlad entry it replaces), now with reasoning
-            # on (thinking=adaptive). llamacpp managed mode handles per-server
-            # KV-cache quantization, so cache_type_k=q8_0 is set on the model
-            # entry directly — no global env var needed.
-            "theme_extract": "gemma4-26b-unsloth-iq4xs",
-            "mechanics": "gemma4-26b-unsloth-iq4xs",
-            "archetypes": "gemma4-26b-unsloth-iq4xs",
-            "skeleton": "gemma4-26b-unsloth-iq4xs",
-            "visual_refs": "gemma4-26b-unsloth-iq4xs",
-            "reprints": "gemma4-26b-unsloth-iq4xs",
-            "lands": "gemma4-26b-unsloth-iq4xs",
-            "card_gen": "gemma4-26b-unsloth-iq4xs",
-            "conformance": "gemma4-26b-unsloth-iq4xs",
-            "balance": "gemma4-26b-unsloth-iq4xs",
-            "ai_review": "gemma4-26b-unsloth-iq4xs",
-            "art_prompts": "gemma4-26b-unsloth-iq4xs",
-            "art_select": "gemma4-26b-unsloth-iq4xs",
-        },
+        # Every stage on the local Gemma default (vlad-updated: Vlad's fast
+        # ~14.2 GB K-quant mix + the fixed Apr-11+ chat template, thinking on).
+        # Mirrors DEFAULT_LLM_ASSIGNMENTS — exists so a user who applied the cloud
+        # `recommended` preset can switch wholesale back to local. Per-stage local
+        # model / context tuning (e.g. a low-ctx twin downstream) is future work.
+        "llm": {k: _LOCAL_DEFAULT for k in DEFAULT_LLM_ASSIGNMENTS},
         "image": dict(DEFAULT_IMAGE_ASSIGNMENTS),
         "effort": {},
     },

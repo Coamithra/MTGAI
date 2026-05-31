@@ -46,6 +46,13 @@ class LLMModel:
     cache_type_k: str | None = None
     cache_type_v: str | None = None
     n_gpu_layers: int | None = None
+    # llama-server autofit (managed-mode only). ``True`` (the default, matching
+    # llmfacade) launches with ``--fit on``, so llama-server trims offload /
+    # context at spawn to fit available VRAM — an over-budget ``n_gpu_layers=-1``
+    # entry then spills to CPU/RAM rather than OOMing. Set ``false`` to launch
+    # ``--fit off`` (no autofit), which also restores the hard VRAM-risk warning
+    # at registry load (see ``vram_estimate.check_vram_risk``).
+    fit: bool = True
     # llamacpp thinking/reasoning knobs (managed-mode only). ``thinking`` takes
     # an llmfacade ThinkingMode value — "adaptive" (reason) or "disabled".
     # ``thinking_style`` is an optional override (a ThinkingStyle value, e.g.
@@ -113,6 +120,7 @@ class ModelRegistry:
                 cache_type_k=raw.get("cache_type_k"),
                 cache_type_v=raw.get("cache_type_v"),
                 n_gpu_layers=raw.get("n_gpu_layers"),
+                fit=raw.get("fit", True),
                 thinking=thinking,
                 thinking_style=raw.get("thinking_style"),
             )

@@ -6,6 +6,17 @@ In llama.cpp ``--n-gpu-layers -1`` means "place every layer on the GPU" — it i
 runtime, silently, mid-generation. This module estimates that load at registry
 *load* time so the footgun surfaces at startup instead.
 
+**Autofit caveat.** That OOM is only real with ``--fit off``. llmfacade launches
+managed llama-server with ``--fit on`` by default (``LLMModel.fit``), which makes
+llama-server *re-fit* offload/context to the available VRAM at spawn — an
+over-budget model then spills to CPU/RAM (slower generation) rather than OOMing.
+So this estimator is **fit-aware**: for a ``fit = true`` entry an over-budget
+estimate is downgraded to an informational autofit note (never an ERROR, never a
+strict-mode raise), because the geometry the estimator measures (all layers on
+the GPU) is not what actually gets launched. The hard WARN/ERROR/refuse path is
+reserved for ``fit = false`` entries, where the all-on-GPU geometry *is* the
+launch and an over-budget load really will OOM.
+
 The estimate has two terms:
 
 * **Weights** — the GGUF file size on disk (the dominant, reliably-known term).
@@ -495,13 +506,20 @@ def estimate_model_load(
 def check_vram_risk(models: dict[str, LLMModel]) -> list[VramEstimate]:
     """Estimate every all-GPU llamacpp model and log/raise on the verdict.
 
-    For each ``n_gpu_layers == -1`` llamacpp entry: a ``warn`` verdict (load
-    tight against *free* VRAM) logs a WARNING; a ``refuse`` verdict (load over
-    *total* VRAM — a guaranteed OOM) logs an ERROR. By default the check is
-    warn-only, so even a refuse verdict does **not** raise — a misestimate or a
-    config the operator knowingly runs at the VRAM edge can never brick startup.
-    Set ``MTGAI_VRAM_CHECK_STRICT`` to make a refuse verdict raise
-    :class:`VramRiskError`; ``MTGAI_DISABLE_VRAM_CHECK`` skips the check entirely.
+    For each ``n_gpu_layers == -1`` llamacpp entry the verdict is **fit-aware**:
+
+    * ``fit = true`` (the default — launches ``--fit on``): a ``warn`` or
+      ``refuse`` verdict logs an INFO autofit note and **never** raises. The
+      all-on-GPU geometry the estimate measures isn't what gets launched —
+      llama-server re-fits at spawn, so the model spills to CPU/RAM (slower)
+      instead of OOMing.
+    * ``fit = false`` (launches ``--fit off``): the all-on-GPU geometry *is* the
+      launch, so a ``warn`` verdict (tight against *free* VRAM) logs a WARNING
+      and a ``refuse`` verdict (over *total* VRAM — a real OOM) logs an ERROR.
+      Still warn-only by default; ``MTGAI_VRAM_CHECK_STRICT`` makes a ``fit =
+      false`` refuse raise :class:`VramRiskError`.
+
+    ``MTGAI_DISABLE_VRAM_CHECK`` skips the check entirely.
 
     Returns the estimates for every all-GPU entry (for inspection/testing).
     """
@@ -518,17 +536,37 @@ def check_vram_risk(models: dict[str, LLMModel]) -> list[VramEstimate]:
             continue
         est = estimate_model_load(model)
         estimates.append(est)
+        if est.verdict not in (Verdict.WARN, Verdict.REFUSE):
+            continue  # OK / UNKNOWN: nothing to flag.
+
+        if model.fit:
+            # --fit on (the default): llama-server re-fits offload/context to
+            # available VRAM at spawn, so an over-budget estimate is not an OOM
+            # — part of the model just spills to CPU/RAM and generation slows.
+            # Informational only: never an ERROR, never a strict-mode raise.
+            logger.info(
+                "VRAM autofit: %s. n_gpu_layers=-1 requests all layers, but "
+                "llama-server launches with --fit on and will trim offload/"
+                "context at spawn to fit — no OOM, but expect CPU/RAM spill and "
+                "slower generation. Pin n_gpu_layers or use a smaller quant to "
+                "keep it fully GPU-resident.",
+                est.message(),
+            )
+            continue
+
+        # fit is off: the all-on-GPU geometry is what actually launches.
         if est.verdict is Verdict.WARN:
             logger.warning(
                 "VRAM risk: %s. Pin n_gpu_layers explicitly in models.toml or "
                 "lower context_window / KV cache quant.",
                 est.message(),
             )
-        elif est.verdict is Verdict.REFUSE:
+        else:  # Verdict.REFUSE
             logger.error(
                 "VRAM over budget: %s. n_gpu_layers=-1 places all layers on the "
-                "GPU but the estimated load exceeds total VRAM, so this config "
-                "will OOM at runtime; pin n_gpu_layers in models.toml.",
+                "GPU (fit=off) but the estimated load exceeds total VRAM, so this "
+                "config will OOM at runtime; pin n_gpu_layers in models.toml or "
+                "set fit=true to let llama-server autofit.",
                 est.message(),
             )
             if refusal is None:
@@ -537,11 +575,12 @@ def check_vram_risk(models: dict[str, LLMModel]) -> list[VramEstimate]:
     if strict and refusal is not None:
         raise VramRiskError(
             f"{refusal.message()}. n_gpu_layers=-1 places all layers on the GPU "
-            f"but the estimated load exceeds total VRAM, so this model will OOM "
-            f"at runtime. Pin n_gpu_layers to a fitting value in "
+            f"(fit=false) but the estimated load exceeds total VRAM, so this "
+            f"model will OOM at runtime. Pin n_gpu_layers to a fitting value in "
             f"backend/mtgai/settings/models.toml, lower its context_window or KV "
-            f"cache quant, or unset {_STRICT_ENV} (or set {_DISABLE_ENV}=1) to "
-            f"downgrade this to a warning."
+            f"cache quant, set fit=true to let llama-server autofit, or unset "
+            f"{_STRICT_ENV} (or set {_DISABLE_ENV}=1) to downgrade this to a "
+            f"warning."
         )
     return estimates
 

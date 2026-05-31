@@ -5,10 +5,10 @@ from mtgai.settings.model_registry import get_registry
 from mtgai.settings.model_settings import DEFAULT_LLM_ASSIGNMENTS
 
 
-def test_iq4xs_local_default_entry():
-    """The local-default Gemma 4 26B UD-IQ4_XS entry must load with thinking on
-    and the all-GPU placement that mirrors the Vlad config."""
-    info = get_registry().get_llm("gemma4-26b-unsloth-iq4xs")
+def test_local_default_entry():
+    """The local-default Gemma 4 26B Vlad-Updated entry must load with thinking
+    on and the all-GPU placement (Vlad's fast K-quant mix + the fixed template)."""
+    info = get_registry().get_llm("gemma4-26b-vlad-updated")
     assert info is not None
     assert info.provider == "llamacpp"
     assert info.thinking == "adaptive"
@@ -18,14 +18,17 @@ def test_iq4xs_local_default_entry():
     assert info.cache_type_k == "q8_0"
     assert info.cache_type_v == "q8_0"
     assert info.context_window == 128000
+    # fit defaults on → launches --fit on, so llama-server autofits to VRAM at
+    # spawn (the registry-load VRAM check logs only an INFO note for this entry).
+    assert info.fit is True
     assert info.gguf_path is not None
-    assert info.gguf_path.endswith("gemma-4-26B-A4B-it-UD-IQ4_XS.gguf")
+    assert info.gguf_path.endswith("vlad-updated-gemma4-26b.gguf")
 
 
-def test_local_default_assignments_point_at_iq4xs():
+def test_local_default_assignments_point_at_vlad_updated():
     """DEFAULT_LLM_ASSIGNMENTS (every fresh project's local default) resolves to
-    the new IQ4_XS entry — the preset switch this card makes."""
-    assert set(DEFAULT_LLM_ASSIGNMENTS.values()) == {"gemma4-26b-unsloth-iq4xs"}
+    the vlad-updated entry (the local default after the model-registry prune)."""
+    assert set(DEFAULT_LLM_ASSIGNMENTS.values()) == {"gemma4-26b-vlad-updated"}
 
 
 def test_invalid_thinking_value_raises(tmp_path):

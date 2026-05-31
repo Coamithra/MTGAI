@@ -18,10 +18,17 @@ dependencies = [
     "tiktoken>=0.7",
     "pyyaml>=6.0",
     # llamacpp extra pulls openai>=2.32 + pyyaml for managed-mode llama-swap.
-    "llmfacade[llamacpp] @ git+https://github.com/Coamithra/LLMFacade.git@main",
+    "llmfacade[llamacpp]",
     "tomlkit>=0.14.0",
     "python-multipart>=0.0.27",
 ]
+
+# Local editable checkout so changes in the sibling LLMFacade repo are reflected
+# immediately (no commit/push/relock cycle). Path is relative to this file
+# (backend/). On a machine without ../../LLMFacade, swap this for the git source:
+#   "llmfacade[llamacpp] @ git+https://github.com/Coamithra/LLMFacade.git@main"
+[tool.uv.sources]
+llmfacade = { path = "../../LLMFacade", editable = true }
 
 [project.optional-dependencies]
 dev = [

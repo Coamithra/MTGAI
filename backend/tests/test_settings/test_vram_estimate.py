@@ -484,7 +484,8 @@ class TestEstimateModelLoad:
 class TestCheckVramRisk:
     def test_warn_logs_no_raise(self, sized_gguf, caplog):
         gguf = sized_gguf(10 * GIB)
-        model = _llamacpp_model(str(gguf), context_window=1)
+        # fit=False so the all-on-GPU geometry IS the launch (hard WARN path).
+        model = _llamacpp_model(str(gguf), context_window=1, fit=False)
         # 11 GiB load, free 11.5 (warn), total 12 (fits) → warn, no raise.
         ve._vram_cache = VramInfo(int(11.5 * GIB), 12 * GIB)
         with caplog.at_level("WARNING"):
@@ -494,7 +495,7 @@ class TestCheckVramRisk:
 
     def test_refuse_raises_only_in_strict_mode(self, sized_gguf, monkeypatch):
         gguf = sized_gguf(22 * GIB)
-        model = _llamacpp_model(str(gguf), context_window=1)
+        model = _llamacpp_model(str(gguf), context_window=1, fit=False)
         ve._vram_cache = VramInfo(12 * GIB, 12 * GIB)
         monkeypatch.setenv(ve._STRICT_ENV, "1")
         with pytest.raises(VramRiskError) as exc:
@@ -503,12 +504,36 @@ class TestCheckVramRisk:
 
     def test_refuse_default_warn_only_no_raise(self, sized_gguf, caplog):
         gguf = sized_gguf(22 * GIB)
-        model = _llamacpp_model(str(gguf), context_window=1)
+        model = _llamacpp_model(str(gguf), context_window=1, fit=False)
         ve._vram_cache = VramInfo(12 * GIB, 12 * GIB)
         with caplog.at_level("ERROR"):
             ests = check_vram_risk({"local": model})  # no raise by default
         assert ests[0].verdict is Verdict.REFUSE
         assert any("VRAM over budget" in r.message for r in caplog.records)
+
+    def test_fit_on_over_budget_logs_info_not_error(self, sized_gguf, caplog):
+        """fit=True (the default): an over-budget all-GPU model logs an INFO
+        autofit note, not an ERROR — llama-server re-fits at spawn (--fit on)
+        and spills to CPU/RAM instead of OOMing. Geometry verdict is unchanged."""
+        gguf = sized_gguf(22 * GIB)
+        model = _llamacpp_model(str(gguf), context_window=1)  # fit defaults True
+        ve._vram_cache = VramInfo(12 * GIB, 12 * GIB)
+        with caplog.at_level("INFO"):
+            ests = check_vram_risk({"local": model})
+        assert ests[0].verdict is Verdict.REFUSE  # geometry unchanged
+        assert any("VRAM autofit" in r.message for r in caplog.records)
+        # No ERROR-level "over budget" line for a fit=on entry.
+        assert not any(r.levelname == "ERROR" for r in caplog.records)
+
+    def test_fit_on_over_budget_never_raises_in_strict_mode(self, sized_gguf, monkeypatch):
+        """Strict mode must NOT raise for a fit=on model — autofit prevents the
+        OOM the strict raise guards against."""
+        gguf = sized_gguf(22 * GIB)
+        model = _llamacpp_model(str(gguf), context_window=1)  # fit defaults True
+        ve._vram_cache = VramInfo(12 * GIB, 12 * GIB)
+        monkeypatch.setenv(ve._STRICT_ENV, "1")
+        ests = check_vram_risk({"local": model})  # no raise
+        assert ests[0].verdict is Verdict.REFUSE
 
     def test_ignores_non_all_gpu_entries(self, sized_gguf):
         gguf = sized_gguf(22 * GIB)
