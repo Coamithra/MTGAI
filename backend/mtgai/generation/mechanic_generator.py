@@ -337,7 +337,7 @@ MECHANIC_ITEM_SCHEMA["properties"] = MECHANIC_TOOL_SCHEMA["input_schema"]["prope
 
 
 # One critique entry from a single council reviewer — the problem, its
-# category (the six standards + "other"), and severity.
+# category (a concrete-defect standard or the "other" escape hatch), and severity.
 _MECHANIC_ISSUE_SCHEMA: dict = {
     "type": "object",
     "required": ["category", "severity", "description"],
@@ -730,8 +730,8 @@ def _format_mechanic_for_review(mech: dict) -> str:
 def build_reviewer_prompts(mech: dict) -> tuple[str, str]:
     """System + user prompts for ONE council reviewer of ``mech``. Theme-free.
 
-    The six-standard checklist lives in the (static) system prompt, shared with
-    the synthesizer; the user prompt is just the rendered mechanic block, so the
+    The concrete-defect checklist lives in the (static) system prompt, shared
+    with the synthesizer; the user prompt is just the rendered mechanic block, so the
     prompt cache stays warm across the council's calls and the reviewer never
     sees the setting — the deliberate anti-"but it fits the theme!" guard.
     """
@@ -762,8 +762,8 @@ def _format_reviews_block(reviews: list[dict]) -> str:
 def build_synth_prompts(mech: dict, reviews: list[dict]) -> tuple[str, str]:
     """System + user prompts for the synthesizer.
 
-    Shares the reviewer's system prompt (the six standards); the user prompt
-    carries the mechanic, the council's critiques, and the consensus-filter +
+    Shares the reviewer's system prompt (the concrete-defect standards); the
+    user prompt carries the mechanic, the council's critiques, and the consensus-filter +
     revise-in-place instructions.
     """
     system_prompt = _read_template("mechanic_review_system.txt")
@@ -1500,8 +1500,9 @@ def generate_mechanic_candidates(
     so the model avoids repeats.
 
     Each draft is then **gated by the full council** (:func:`council_review`) —
-    3 theme-free reviewers against the six standards, with the synthesizer
-    revising in place and the council re-reviewing, up to
+    3 theme-free reviewers sanity-checking it for concrete defects (a majority
+    of effective-OK votes passes), with the synthesizer revising in place and
+    the council re-reviewing, up to
     ``MAX_MECHANIC_REVIEW_ITERATIONS`` rounds. A draft the council passes is
     accepted; one still REVISE after the revise budget is **regenerated from
     scratch** (threading the council's reasons into the gen prompt) up to
