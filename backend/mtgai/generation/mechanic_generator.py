@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -783,8 +784,9 @@ def _tokens(resp: dict) -> tuple[int, int]:
 
 def _effective_verdict(review: dict) -> str:
     """One reviewer's *gating* verdict: ``"REVISE"`` only when it both voted
-    REVISE and cited at least one blocking defect (see
-    :data:`MECHANIC_BLOCKING_CATEGORIES`); otherwise ``"OK"``.
+    REVISE and cited at least one **major** blocking defect (a blocking category
+    — see :data:`MECHANIC_BLOCKING_CATEGORIES` — at ``severity == "major"``);
+    otherwise ``"OK"``. ``minor`` issues are advisory and never gate.
 
     This is what makes the council an "is it broken?" gate rather than an "is it
     excellent?" one: a REVISE whose only complaints are advisory (``elegant``),
@@ -796,7 +798,11 @@ def _effective_verdict(review: dict) -> str:
     if review.get("verdict") != "REVISE":
         return "OK"
     for iss in review.get("issues") or []:
-        if iss.get("category") in MECHANIC_BLOCKING_CATEGORIES:
+        # Severity-weighted: only a MAJOR blocking defect gates. A `minor`
+        # blocking issue (a nit — e.g. "omit the word 'token'") is advisory and
+        # never blocks; it is surfaced but does not force a REVISE. This is what
+        # stops a sound mechanic churning to death on trivial wording.
+        if iss.get("category") in MECHANIC_BLOCKING_CATEGORIES and iss.get("severity") == "major":
             return "REVISE"
     return "OK"
 
@@ -896,6 +902,7 @@ def council_review(
     synth_temp: float = MECHANIC_SYNTH_TEMP,
     on_event: CouncilHook | None = None,
     budget: _EscalatingBudget | None = None,
+    skip_final_synth: bool = False,
 ) -> dict:
     """Council + revise-in-place loop for one draft mechanic (theme-free).
 
@@ -906,12 +913,14 @@ def council_review(
     all-N-succeed gate would stall):
 
       1. ``council_size`` independent reviewers critique the current mechanic.
-      2. Majority (effective) OK -> done; the mechanic stands (the cheap,
+      2. No open MAJOR blocking defect -> done; the mechanic stands (the cheap,
          common path). The council gates on "is it broken?", not "is it
-         excellent?": a reviewer's REVISE only counts when it cites a
-         *blocking* defect (see :func:`_effective_verdict`), so a
-         workable-but-unexciting mechanic passes and a lone dissenter no
-         longer blocks consensus.
+         excellent?": only a *major* defect in a blocking category (see
+         :func:`_effective_verdict`) gates; `minor` nits and advisory `elegant`
+         are surfaced but never block, so a workable mechanic passes even if
+         imperfectly worded. Conversely a single concrete major defect from any
+         reviewer blocks -- it cannot be outvoted (objective defects, e.g. a
+         dead-on-use example, must not lose to reviewers who missed them).
       3. Else the synthesizer applies a >=2-of-N consensus filter and re-emits an
          improved mechanic (one heavy call at the HEAVY budget — see
          :func:`_call_synth`).
@@ -937,6 +946,12 @@ def council_review(
     overrun escalates the *whole* run, not just this council. A standalone call
     (none given) gets a fresh one. The synth always runs at the HEAVY ceiling
     (:func:`_call_synth`), so it needs no budget threading.
+
+    ``skip_final_synth`` (set by the caller when a from-scratch regen will follow
+    a still-REVISE result): skip the Phase-2 synth on the *final* round, since its
+    revision would be discarded by the regen (which re-drafts from the reviewers'
+    ``reasons``). Left ``False`` on the last attempt — where the caller keeps this
+    revision best-effort — so the synth still runs there.
 
     Returns::
 
@@ -1039,20 +1054,33 @@ def council_review(
         # stale relative to the returned mechanic — fine as regen guidance.
         reasons = _open_issue_reasons(reviews)
 
-        # Pass on a MAJORITY of surviving reviewers voting (effective) OK. The
-        # old gate required every reviewer OK, which became unhittable once the
-        # taste standards drove the reviewer OK-rate to ~0 (the strictness
-        # investigation: 0 of 108 reviewer calls returned OK in a full run).
-        # Majority plus the "is it broken?" effective verdict lets a workable
-        # mechanic pass round 1. A collapsed council (no usable reviews) keeps
-        # the un-reviewable draft rather than destroying it (safe fallback).
-        ok_votes = sum(1 for rv in reviews if _effective_verdict(rv) == "OK")
-        if not reviews or ok_votes * 2 > len(reviews):
+        # Pass when NO surviving reviewer raises an open MAJOR blocking defect.
+        # Severity-weighted (see `_effective_verdict`): `minor` nits and advisory
+        # `elegant` never block, so a sound-but-imperfectly-worded mechanic passes
+        # round 1 (this kills the trivial-wording churn). But a single concrete
+        # MAJOR defect from ANY reviewer blocks -- it cannot be outvoted, because
+        # such defects are objective/verifiable and a lone correct catch (e.g. a
+        # dead-on-use example) must not lose to reviewers who missed it. The old
+        # gate first required all-OK (unhittable at the ~0% taste-era OK rate),
+        # then a simple majority (which silently outvoted real major defects);
+        # this fixes both. A collapsed council (no usable reviews) keeps the
+        # un-reviewable draft rather than destroying it (safe fallback).
+        open_major = sum(1 for rv in reviews if _effective_verdict(rv) == "REVISE")
+        if not reviews or open_major == 0:
             verdict = "OK"
             reasons = []
             break
 
         # Phase 2 — synthesis (consensus filter + revise-in-place).
+        # Skip the synth on the FINAL round when the caller will regenerate from
+        # scratch anyway (skip_final_synth): the regen re-drafts from the
+        # reviewers' `reasons` and discards the synth's revision, so the HEAVY
+        # synth call would be pure waste. On the last attempt (no regen left) the
+        # caller keeps this revision best-effort, so skip_final_synth is False
+        # and the synth still runs. `reasons` was already set above for the regen.
+        if skip_final_synth and _round == max_iterations:
+            verdict = "REVISE"
+            break
         if ai_lock.is_cancelled():
             verdict = "REVISE"
             break
@@ -1620,6 +1648,17 @@ def generate_mechanic_candidates(
             if ai_lock.is_cancelled():
                 break
 
+            # On a regeneration (not the first attempt), signal the UI BEFORE the
+            # slow re-draft so the card shows "Regenerating…" instead of a frozen-
+            # looking "Reviewing…" badge left over from the rejected council round.
+            # Reuses the council channel (no new event type); cleared when the
+            # fresh draft lands.
+            if regen > 0 and on_council is not None:
+                try:
+                    on_council(position, {"kind": "regenerating", "attempt": regen + 1})
+                except Exception:
+                    logger.exception("on_council hook raised; continuing")
+
             # --- design one valid draft for this slot (bounded retries) ---
             draft: dict | None = None
             for _try in range(gen_retries):
@@ -1683,6 +1722,11 @@ def generate_mechanic_candidates(
                 model_id=model_id,
                 log_dir=log_dir,
                 budget=budget,
+                # A regen still to come (regen < MAX) means a still-REVISE result
+                # gets re-drafted from scratch, discarding the final-round synth --
+                # so skip that wasted call. On the last attempt the synth's
+                # revision is kept best-effort, so let it run.
+                skip_final_synth=regen < MAX_MECHANIC_REGEN_ATTEMPTS,
                 on_event=(
                     # ``council_review`` invokes this synchronously within the
                     # iteration, but bind ``position`` as a default so it's a
@@ -1845,6 +1889,48 @@ def _resolve_picks(
     return picks[:want], reasons
 
 
+_FENCED_JSON = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
+_CONTROL_TOKEN = re.compile(r"<\|[^|]*\|>")
+
+
+def _salvage_tool_json(text: str | None) -> dict | None:
+    """Best-effort recover a tool-call JSON object from raw model ``text``.
+
+    Local models sometimes emit the tool call as plain text instead of a
+    structured call (so ``response["result"]`` comes back empty) -- occasionally
+    with control-token noise (a ``<|...|>`` artifact) or the tool name jammed onto
+    the payload (``select_best_mechanics{...}``). Strip the noise, then try a
+    fenced ```json block, then the first balanced ``{...}``, and ``json.loads`` it.
+    Returns the parsed dict, or ``None`` if nothing valid can be recovered (the
+    caller then keeps its existing fallback). Strict parse only -- genuinely
+    malformed pseudo-JSON (unquoted keys) is left to the fallback, never guessed.
+    """
+    if not text:
+        return None
+    s = _CONTROL_TOKEN.sub("", text)
+    m = _FENCED_JSON.search(s)
+    if m:
+        try:
+            return json.loads(m.group(1))
+        except (ValueError, TypeError):
+            pass
+    start = s.find("{")
+    if start < 0:
+        return None
+    depth = 0
+    for i in range(start, len(s)):
+        if s[i] == "{":
+            depth += 1
+        elif s[i] == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(s[start : i + 1])
+                except (ValueError, TypeError):
+                    return None
+    return None
+
+
 def pick_best_mechanics(
     *,
     candidates: list[dict],
@@ -1947,6 +2033,18 @@ def pick_best_mechanics(
         return _fallback(error or "no response")
 
     result = response.get("result") or {}
+    # Local models sometimes emit the picker tool call as raw text (control-token
+    # noise, or the tool name jammed onto the payload), so `result` comes back
+    # empty. Recover the real selections from the text before degrading to
+    # first-N -- otherwise the LLM's actual ranking + reasons are silently lost.
+    if not result.get("selections"):
+        salvaged = _salvage_tool_json(response.get("text"))
+        if salvaged and salvaged.get("selections"):
+            result = salvaged
+            logger.info(
+                "Mechanic picker: recovered selections from raw text "
+                "(model emitted no structured tool call)"
+            )
     selections_raw = result.get("selections") or []
     picks, reasons = _resolve_picks(selections_raw, total, target, valid_indices)
     selections = [

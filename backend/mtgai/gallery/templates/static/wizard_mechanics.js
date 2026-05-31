@@ -308,12 +308,17 @@
     // looks frozen: reviewers running → "Reviewing…"; synthesizer running (it's
     // combining the council's feedback into a revision) → "Combining feedback…".
     // Between rounds it falls back to "Reviewing…".
+    // While a slot is regenerating from scratch (council rejected the prior
+    // design; the LLM is re-drafting), the card carries no live council yet — show
+    // a distinct "Regenerating…" badge instead of a frozen-looking "Reviewing…".
+    const regenerating = !!m._regenerating;
     const activeRound = pendingReview ? lastRoundStep(m._council) : null;
     const reviewingLabel = (activeRound && activeRound.synth === 'running')
       ? 'Combining feedback…'
       : 'Reviewing…';
-    const reviewingBadge = pendingReview
-      ? `<span class="wiz-mech-reviewing" data-role="reviewing-badge">${reviewingLabel}</span>`
+    const headerLabel = regenerating ? 'Regenerating from scratch…' : reviewingLabel;
+    const reviewingBadge = (pendingReview || regenerating)
+      ? `<span class="wiz-mech-reviewing" data-role="reviewing-badge">${headerLabel}</span>`
       : '';
     // Live council panel — only while under review, and only once the first
     // council event has landed (``_council`` set). Before that the header badge
@@ -1033,6 +1038,18 @@
     // finalized). If the draft was missed (buffer trimmed) there's nothing to
     // decorate, so bail rather than fabricating a card.
     if (!card || !card._pending_review) return;
+
+    // Regen signal: the council rejected the prior design and the LLM is now
+    // re-drafting from scratch (a slow call with no council events). Flag the card
+    // so the header shows "Regenerating…" instead of a frozen "Reviewing…"; the
+    // flag is dropped when the fresh draft lands (onStreamDrafted rebuilds the
+    // object). No timeline mutation — the regen divider is appended on that draft.
+    if (ev.kind === 'regenerating') {
+      card._regenerating = true;
+      paintStrip(root);
+      setBusyLabel('Regenerating a candidate…');
+      return;
+    }
 
     const prev = card._council || { size: 0, maxRounds: 0, steps: [] };
     // Clone the timeline (and the round entry we're about to mutate) so

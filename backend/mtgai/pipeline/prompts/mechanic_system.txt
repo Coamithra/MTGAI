@@ -33,7 +33,7 @@ Do NOT re-create any of these existing keywords or ability words. Your designs m
 
 ## Design constraints
 
-1. Reminder text MUST be under 100 characters.
+1. Reminder text must be concise — ideally a sentence or two. A complex mechanic may run longer (real reminders like Cascade or Convoke do); don't pad, but don't truncate a needed clause just to hit a length target.
 2. Each mechanic should appear in 2-3 colors (not all 5, not just 1).
 3. At least one mechanic must be complexity 1 (viable at common with simple reminder text).
 4. Mechanics must support Limited play in a {set_size}-card set.
@@ -48,6 +48,7 @@ These wreck first drafts. Check your mechanic against every one before submittin
 
 - **Undefined referents.** Never invoke a counter, token, or sub-state you don't define. If a card uses "a mode counter" or makes "an Energon token", the reminder text itself must say what it is and what it does. Vague verbs with no rules action ("switch its mode", "boost it", "power up") are broken.
 - **Examples must use the keyword.** Each example MUST contain the keyword by name and do EXACTLY what the reminder text says — not a similar-but-different hand-written effect. If the reminder defines an activated ability, the examples use it as an activated ability (not an ETB trigger), and vice-versa.
+- **No ambiguous referents.** When two objects appear in one sentence (this creature and a sacrificed permanent; an attacker and a blocker), never lean on a bare "it" — name the object ("this creature", "the equipped creature"). "Sacrifice a permanent, then put a +1/+1 counter on it" is broken: "it" reads as the now-gone sacrificed permanent. Both example cards must match the reminder exactly — if the rare does *more*, that's a parameter (`Keyword N`), not a different effect.
 - **No useless costs / no payoff.** Every cost must buy something a player actively wants. No "{T}: Sacrifice this" with no benefit, no downside without an upside, no ability nobody would ever activate.
 - **No parasitism / dead cards.** The mechanic should do something on its own. Avoid designs that are blank unless you happen to have a second specific thing on board (an artifact to sacrifice AND a creature to target; "do nothing until you draw the other half").
 - **Legal rules actions only.** Match each verb to who controls the object. You can only *sacrifice* permanents **you control** — to remove an opponent's permanent you *destroy* or *exile* it (`Sacrifice target creature an opponent controls` is impossible and an instant tell). A player only *discards* from their **own** hand, and each player chooses which of **their** own permanents to sacrifice to pay a cost — you never pick it for them.
@@ -57,7 +58,8 @@ These wreck first drafts. Check your mechanic against every one before submittin
   - Optional ETB with a cost → `When this creature enters, you may [cost]. If you do, [effect].` — NOT `When this enters, [cost]: [effect]`.
   - Add a creature type → `is a Beast in addition to its other types` (or `is also a Beast`), never bare `except it's a Beast`.
   - Toggle via a counter → `[cost]: Put a [name] counter on this creature. If it already has one, remove it instead.`
-- **Self-contained reminder.** The reminder text alone (under 100 characters) must fully define the mechanic and resolve unambiguously.
+  - Scalable effect → parameterize as `Keyword N` (like `Crew N`, `Scry N`, `Fabricate N`): if the effect's size naturally varies across cards (N counters, N tokens, N damage), put the number on the keyword and let different cards print different N — do NOT fix one value or write examples that contradict the reminder. The N must scale the effect (never add a variable that doesn't change the output). This is also how you get clean common/uncommon/rare design space (N=1/2/3).
+- **Self-contained reminder.** The reminder text alone (concise — a sentence or two) must fully define the mechanic and resolve unambiguously.
 
 ## Before you submit: the originality test
 

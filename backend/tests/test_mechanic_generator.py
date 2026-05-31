@@ -510,11 +510,15 @@ def test_council_review_all_ok_skips_synth(monkeypatch) -> None:
     assert out["output_tokens"] == 3
 
 
-def test_council_review_majority_ok_passes(monkeypatch) -> None:
+def test_council_review_lone_major_blocks_despite_majority(monkeypatch) -> None:
     """A MAJORITY of effective-OK reviewers passes round 1 — one lone REVISE
-    (even citing a blocking defect) no longer blocks consensus, and the synth
-    never runs. The old all-OK gate would have gone to synthesis here."""
+    (citing a blocking defect) was the OLD majority gate. Under the
+    severity-weighted gate a lone reviewer citing a MAJOR blocking defect now
+    BLOCKS even against a 2-OK majority (the Integrate fix: an objective defect
+    must not lose to reviewers who missed it); the synth then runs to fix it."""
     draft = _valid_mech(0)
+    revised = dict(draft)
+    revised["reminder_text"] = "(fixed)"
     rcalls = {"n": 0}
     synth_calls = {"n": 0}
 
@@ -522,8 +526,34 @@ def test_council_review_majority_ok_passes(monkeypatch) -> None:
         tool = _tool_name(args, kwargs)
         if tool == "submit_mechanic_review":
             rcalls["n"] += 1
-            # members 1 & 2 OK, member 3 REVISE (blocking wording) -> 2-of-3 OK.
-            return _reviewer("OK" if rcalls["n"] <= 2 else "REVISE")
+            # Round 1: members 1 & 2 OK, member 3 REVISE (MAJOR) -> blocks despite
+            # the 2-of-3 majority. Round 2 (after synth): all OK -> passes.
+            if rcalls["n"] == 3:
+                return _reviewer("REVISE")  # default category=wording, severity=major
+            return _reviewer("OK")
+        if tool == "submit_mechanic_synthesis":
+            synth_calls["n"] += 1
+            return _synth(revised)
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model")
+    assert synth_calls["n"] == 1  # the lone major forced a synth -- not outvoted
+    assert out["verdict"] == "OK"  # round 2 cleared it
+    assert out["mechanic"]["reminder_text"] == "(fixed)"
+
+
+def test_council_review_minor_blocking_only_is_soft_pass(monkeypatch) -> None:
+    """A REVISE citing only a MINOR blocking-category issue (a nit, e.g. a missing
+    "token") is advisory and never blocks. All three reviewers nit-REVISE on
+    wording/minor -> passes round 1, no synth (the Protocol wording-churn fix)."""
+    draft = _valid_mech(0)
+    synth_calls = {"n": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            return _reviewer("REVISE", category="wording", severity="minor")
         if tool == "submit_mechanic_synthesis":
             synth_calls["n"] += 1
             return _synth(draft)
@@ -532,9 +562,8 @@ def test_council_review_majority_ok_passes(monkeypatch) -> None:
     monkeypatch.setattr(mg, "generate_with_tool", stub)
     out = mg.council_review(draft, model_id="any-model")
     assert out["verdict"] == "OK"
-    assert out["mechanic"] is draft
     assert synth_calls["n"] == 0
-    assert rcalls["n"] == 3  # exactly one round
+    assert out["reasons"] == []  # minor nits don't become regen reasons
 
 
 def test_council_review_advisory_only_revise_is_soft_pass(monkeypatch) -> None:
@@ -561,6 +590,53 @@ def test_council_review_advisory_only_revise_is_soft_pass(monkeypatch) -> None:
     assert out["reasons"] == []  # advisory issues don't become regen reasons
 
 
+def test_council_review_skips_final_synth_when_regen_will_follow(monkeypatch) -> None:
+    """With skip_final_synth=True the Phase-2 synth is skipped on the FINAL round
+    (a from-scratch regen would discard it). Non-final rounds still synth; the
+    result is REVISE with the round's open issues as `reasons` for the regen."""
+    draft = _valid_mech(0)
+    synth_calls = {"n": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            return _reviewer("REVISE")  # MAJOR -> always blocks, so it never passes
+        if tool == "submit_mechanic_synthesis":
+            synth_calls["n"] += 1
+            # A valid revision so the loop re-reviews and runs every round.
+            return _synth(dict(draft, reminder_text="(r)"))
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model", max_iterations=3, skip_final_synth=True)
+    assert out["verdict"] == "REVISE"
+    # Rounds 1 and 2 synth; the final round (3) is skipped -> 2 calls, not 3.
+    assert synth_calls["n"] == 2
+    assert out["reasons"]  # open issues still captured for the regen
+
+
+def test_council_review_runs_final_synth_on_last_attempt(monkeypatch) -> None:
+    """Default skip_final_synth=False (the last attempt, no regen left): the synth
+    runs on every failing round including the final one, so its best-effort
+    revision is available for the caller to keep."""
+    draft = _valid_mech(0)
+    synth_calls = {"n": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            return _reviewer("REVISE")
+        if tool == "submit_mechanic_synthesis":
+            synth_calls["n"] += 1
+            return _synth(dict(draft, reminder_text="(r)"))  # valid revision each round
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model", max_iterations=3)
+    assert out["verdict"] == "REVISE"
+    assert synth_calls["n"] == 3  # all three rounds synth
+
+
 def test_effective_verdict_blocks_only_on_blocking_category() -> None:
     """The taste standards are gone from the schema and only concrete defects
     gate; an empty or advisory-only REVISE is an effective OK."""
@@ -572,8 +648,13 @@ def test_effective_verdict_blocks_only_on_blocking_category() -> None:
     assert mg._effective_verdict({"verdict": "OK", "issues": []}) == "OK"
     assert mg._effective_verdict({"verdict": "REVISE", "issues": []}) == "OK"
     assert mg._effective_verdict({"verdict": "REVISE", "issues": [advisory]}) == "OK"
+    # A MINOR-severity issue in a blocking category is a nit -> advisory, soft OK.
+    minor_block = {"category": "wording", "severity": "minor", "description": "omit token"}
+    assert mg._effective_verdict({"verdict": "REVISE", "issues": [minor_block]}) == "OK"
     assert mg._effective_verdict({"verdict": "REVISE", "issues": [block]}) == "REVISE"
     assert mg._effective_verdict({"verdict": "REVISE", "issues": [advisory, block]}) == "REVISE"
+    # A co-cited major still gates even alongside an advisory nit.
+    assert mg._effective_verdict({"verdict": "REVISE", "issues": [minor_block, block]}) == "REVISE"
 
 
 def test_council_review_revises_then_passes(monkeypatch) -> None:
@@ -930,6 +1011,31 @@ def test_generate_mechanic_candidates_regen_fallback_accepts_best_effort(
     assert finalized == [1, 2]
 
 
+def test_generate_mechanic_candidates_emits_regenerating_signal(_project, monkeypatch) -> None:
+    """When a slot regenerates from scratch, a council 'regenerating' event fires
+    for that position before the re-draft — so the UI can show "Regenerating…"
+    instead of a stale "Reviewing…" badge during the (council-less) re-draft."""
+    counter = {"next": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            return _reviewer("REVISE")  # never passes -> forces a regen
+        if tool == "submit_mechanic_synthesis":
+            return _synth(None)  # keeps the draft, REVISE
+        i = counter["next"]
+        counter["next"] += 1
+        return {"result": {"mechanics": [_valid_mech(i)]}, "input_tokens": 1, "output_tokens": 1}
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    events: list[tuple[int, str | None]] = []
+    mg.generate_mechanic_candidates(
+        count=1, on_council=lambda pos, ev: events.append((pos, ev.get("kind")))
+    )
+    # Exactly one regen attempt (MAX_MECHANIC_REGEN_ATTEMPTS=1) -> one signal, on slot 1.
+    assert events.count((1, "regenerating")) == 1
+
+
 def test_generate_mechanic_candidates_threads_council_events_with_position(
     _project, monkeypatch
 ) -> None:
@@ -962,6 +1068,21 @@ def test_generate_mechanic_candidates_threads_council_events_with_position(
 # ---------------------------------------------------------------------------
 # AI picker: prompt assembly + pick resolution
 # ---------------------------------------------------------------------------
+
+
+def test_salvage_tool_json_recovers_from_noisy_text() -> None:
+    """`_salvage_tool_json` recovers valid JSON from raw text (a fenced block, or
+    with control-token / jammed-tool-name noise) so the picker keeps the model's
+    real selections; it returns None on genuinely malformed pseudo-JSON, leaving
+    the first-N fallback intact rather than guessing."""
+    fenced = 'pre ```json\n{"selections": [{"candidate_number": 1}]}\n``` post'
+    assert mg._salvage_tool_json(fenced) == {"selections": [{"candidate_number": 1}]}
+    noisy = 'select_best_mechanics<|chan|>{"a": 1, "b": [2, 3]}'
+    assert mg._salvage_tool_json(noisy) == {"a": 1, "b": [2, 3]}
+    # Unquoted keys (the real failure observed) -> unrecoverable -> None.
+    assert mg._salvage_tool_json('select_best_mechanics{overall_rationale:<|"|>nope}') is None
+    assert mg._salvage_tool_json(None) is None
+    assert mg._salvage_tool_json("no json here at all") is None
 
 
 def test_build_pick_prompts_numbers_candidates_and_threads_context() -> None:
