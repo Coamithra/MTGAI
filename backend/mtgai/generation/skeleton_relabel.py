@@ -775,7 +775,8 @@ def relabel_skeleton(
         "updates": updates,
         "requests_total": requested,
         "requests_placed": len(reserved),
-        "model_id": model_id,
+        # Base id for provenance/display (model_id is the effective ctx twin).
+        "model_id": settings.get_assigned_model_id("skeleton"),
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "cost_usd": cost,

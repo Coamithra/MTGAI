@@ -2668,7 +2668,9 @@ def _stage_state_base(stage_id: str, settings: Any) -> dict:
     return {
         "set_params": settings.set_params.model_dump(),
         "theme_summary": _theme_summary(read_theme_or_none()),
-        "model_id": settings.get_llm_model_id(stage_id),
+        # Display the base model the user assigned, not the internal context-tier
+        # twin get_llm_model_id resolves to at runtime.
+        "model_id": settings.get_assigned_model_id(stage_id),
         "stage_status": _stage_status_in_state(stage_id),
     }
 
@@ -3093,7 +3095,7 @@ async def wizard_mechanics_save(request: Request) -> JSONResponse:
         picks,
         source="user",
         selections=[{"name": (candidates[i].get("name") or "?"), "reason": ""} for i in picks],
-        model_id=settings.get_llm_model_id("mechanics"),
+        model_id=settings.get_assigned_model_id("mechanics"),
     )
     _heal_failed_stage("mechanics")
 

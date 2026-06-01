@@ -154,8 +154,12 @@ def tune_knobs(
         cycle_spans=_cycle_span_listing(),
     )
 
+    from mtgai.settings.model_registry import get_registry
+
     meta: dict[str, Any] = {
-        "model_id": model,
+        # Provenance shows the base; `model` is the effective ctx twin used for
+        # the generate call.
+        "model_id": get_registry().public_model_id(model),
         "defaulted": False,
         "input_tokens": 0,
         "output_tokens": 0,

@@ -38,7 +38,7 @@ def test_local_default_assignments_point_at_vlad_updated():
 def test_ctx_tier_twin_is_a_48k_clone_of_the_carrier():
     """The DOWNSTREAM-tier twin is the same GGUF as the 128k carrier but at a 48k
     --ctx-size, with every other launch knob identical (so only the KV budget
-    differs). This is what the all-local-tiered preset assigns downstream."""
+    differs). get_llm_model_id swaps it in per stage; it's flagged internal."""
     reg = get_registry()
     carrier = reg.get_llm("gemma4-26b-vlad-updated")
     twin = reg.get_llm("gemma4-26b-vlad-updated-48k")
@@ -47,6 +47,8 @@ def test_ctx_tier_twin_is_a_48k_clone_of_the_carrier():
     assert twin.model_id == "gemma4-26b-vlad-updated-48k"
     assert twin.context_window == 48000
     assert carrier.context_window == 128000
+    # The twin is internal (hidden from the UI); its base is not.
+    assert twin.internal is True and carrier.internal is False
     # Same GGUF + identical placement/quant/thinking — only context_window differs.
     assert twin.gguf_path == carrier.gguf_path
     assert twin.provider == carrier.provider == "llamacpp"
@@ -59,25 +61,140 @@ def test_ctx_tier_twin_is_a_48k_clone_of_the_carrier():
     assert iq2m is not None and iq2m.context_window == 48000
 
 
-def test_all_local_tiered_preset_keeps_theme_at_128k_and_drops_the_rest_to_48k():
-    """all-local-tiered: only theme_extract (the large-document stage) stays on the
-    128k carrier; every other stage runs the 48k twin of the same GGUF."""
-    assert "all-local-tiered" in PRESETS
-    reg = get_registry()
-    settings = ModelSettings.from_preset("all-local-tiered")
-    theme_key = settings.llm_assignments["theme_extract"]
-    assert theme_key == "gemma4-26b-vlad-updated"
-    theme_model = reg.get_llm(theme_key)
-    assert theme_model is not None and theme_model.context_window == 128000
+def test_tiering_is_automatic_no_separate_tiered_preset():
+    """The context-length tiering is applied per stage in get_llm_model_id, so
+    there is no user-facing 'tiered' preset to choose (and never an -48k twin in
+    an assignment)."""
+    assert "all-local-tiered" not in PRESETS
 
-    downstream = {
-        stage: key for stage, key in settings.llm_assignments.items() if stage != "theme_extract"
-    }
-    # Every non-theme stage is covered and on the 48k twin.
-    assert set(downstream) == set(DEFAULT_LLM_ASSIGNMENTS) - {"theme_extract"}
-    assert set(downstream.values()) == {"gemma4-26b-vlad-updated-48k"}
-    twin = reg.get_llm("gemma4-26b-vlad-updated-48k")
-    assert twin is not None and twin.context_window == 48000
+
+def test_get_llm_model_id_swaps_base_for_48k_twin_on_downstream_stages():
+    """The user assigns a *base* model (all-local); get_llm_model_id keeps the
+    full 128k window only for theme_extract and resolves every other stage to the
+    base's 48k downstream twin -- automatically, the same id the poller polls."""
+    settings = ModelSettings.from_preset("all-local")
+    # The stored assignment is always the base the user picked (no twins leak in).
+    assert set(settings.llm_assignments.values()) == {"gemma4-26b-vlad-updated"}
+    # theme_extract keeps the full window; everything else drops to the twin.
+    assert settings.get_llm_model_id("theme_extract") == "gemma4-26b-vlad-updated"
+    for stage in DEFAULT_LLM_ASSIGNMENTS:
+        expected = (
+            "gemma4-26b-vlad-updated" if stage == "theme_extract" else "gemma4-26b-vlad-updated-48k"
+        )
+        assert settings.get_llm_model_id(stage) == expected
+
+
+def test_get_llm_model_id_leaves_models_without_a_twin_untouched():
+    """A base with no downstream twin (cloud models) resolves to itself on every
+    stage -- the tiering only kicks in where a twin exists."""
+    settings = ModelSettings.from_preset("recommended")
+    for stage in ("theme_extract", "card_gen", "ai_review"):
+        model_id = settings.get_llm_model_id(stage)
+        assert not model_id.endswith("-48k")
+        # And it round-trips to a real, non-internal registry entry.
+        info = get_registry().get_llm_by_model_id(model_id)
+        assert info is not None and info.internal is False
+
+
+def test_twins_are_hidden_from_user_facing_lists_but_resolvable_by_id():
+    """list_llm + to_dict (the settings UI sources) must exclude internal twins,
+    while get_llm / get_llm_by_model_id still resolve them for launch + budget +
+    the tok/s poller."""
+    reg = get_registry()
+    twin_id = "gemma4-26b-vlad-updated-48k"
+    assert all(m.key != twin_id for m in reg.list_llm())
+    assert twin_id not in reg.to_dict()["llm"]
+    # Still resolvable internally.
+    assert reg.get_llm(twin_id) is not None
+    assert reg.get_llm_by_model_id(twin_id) is not None
+
+
+def test_get_assigned_model_id_never_returns_a_twin():
+    """The provenance/display resolver returns the base the user assigned on
+    every stage -- it must never surface the internal ctx twin (unlike the
+    runtime get_llm_model_id)."""
+    settings = ModelSettings.from_preset("all-local")
+    for stage in DEFAULT_LLM_ASSIGNMENTS:
+        assert settings.get_assigned_model_id(stage) == "gemma4-26b-vlad-updated"
+    # The runtime resolver, by contrast, DOES return the twin downstream.
+    assert settings.get_llm_model_id("card_gen") == "gemma4-26b-vlad-updated-48k"
+
+
+def test_public_model_id_maps_twin_to_base_else_identity():
+    """public_model_id turns an internal twin id back into its base (for
+    provenance), and is the identity for any non-twin id."""
+    reg = get_registry()
+    assert reg.public_model_id("gemma4-26b-vlad-updated-48k") == "gemma4-26b-vlad-updated"
+    assert reg.public_model_id("gemma4-26b-iq2m-48k") == "gemma4-26b-iq2m"
+    # Identity for bases, cloud models, and unknown ids.
+    assert reg.public_model_id("gemma4-26b-vlad-updated") == "gemma4-26b-vlad-updated"
+    assert reg.public_model_id("claude-opus-4-6") == "claude-opus-4-6"
+    assert reg.public_model_id("nonsense") == "nonsense"
+
+
+def test_tier_twins_are_synthesized_in_code_not_declared_in_toml():
+    """The 48k twins must NOT be TOML entries -- model_registry clones them in
+    code from the bases, so the gguf path + quant settings live in exactly one
+    place. Guards against someone re-adding a hand-typed twin block to the TOML."""
+    import tomllib
+
+    from mtgai.settings.model_registry import _MODELS_TOML
+
+    with open(_MODELS_TOML, "rb") as f:
+        raw_llm = tomllib.load(f)["llm"]
+    for twin_id in ("gemma4-26b-vlad-updated-48k", "gemma4-26b-iq2m-48k"):
+        assert twin_id not in raw_llm, f"{twin_id} should be code-synthesized, not in TOML"
+        assert get_registry().get_llm(twin_id) is not None
+
+
+def test_synthesized_twin_is_a_clone_of_its_base_with_only_ctx_changed():
+    """Each synthesized twin shares every launch knob with its base except the
+    fields the clone overrides: key, model_id, context_window, name, internal."""
+    from dataclasses import asdict
+
+    from mtgai.settings.model_registry import _CONTEXT_TIER_TWINS, get_registry
+
+    reg = get_registry()
+    for spec in _CONTEXT_TIER_TWINS:
+        base = reg.get_llm(spec.base)
+        twin = reg.get_llm(f"{spec.base}-{spec.suffix}")
+        assert base is not None and twin is not None
+        differing = {f for f in asdict(base) if getattr(base, f) != getattr(twin, f)}
+        assert differing == {"key", "model_id", "context_window", "name", "internal"}
+        assert twin.context_window == spec.context_window
+        assert twin.model_id == f"{spec.base}-{spec.suffix}"
+
+
+def test_synthesize_tier_twins_unknown_base_raises(monkeypatch):
+    """A _CONTEXT_TIER_TWINS spec pointing at an unregistered base is a
+    programming error and must fail loudly at registry load."""
+    import pytest
+
+    from mtgai.settings import model_registry as mr
+
+    monkeypatch.setattr(
+        mr,
+        "_CONTEXT_TIER_TWINS",
+        (mr._TierTwin(base="does-not-exist", suffix="48k", context_window=48000),),
+    )
+    with pytest.raises(ValueError, match="not a registered model"):
+        mr.ModelRegistry.load()
+
+
+def test_synthesized_twin_auto_names_when_spec_omits_name(monkeypatch):
+    """A twin spec with name=None auto-tags the base name with its ctx size."""
+    from mtgai.settings import model_registry as mr
+
+    monkeypatch.setattr(
+        mr,
+        "_CONTEXT_TIER_TWINS",
+        (mr._TierTwin(base="gemma4-26b-iq2m", suffix="24k", context_window=24000),),
+    )
+    reg = mr.ModelRegistry.load()
+    base = reg.get_llm("gemma4-26b-iq2m")
+    twin = reg.get_llm("gemma4-26b-iq2m-24k")
+    assert base is not None and twin is not None
+    assert twin.name == f"{base.name} (24k ctx)"
 
 
 def test_invalid_thinking_value_raises(tmp_path):

@@ -437,5 +437,6 @@ def generate_archetypes(
         "archetypes": archetypes,
         "input_tokens": response.get("input_tokens", 0),
         "output_tokens": response.get("output_tokens", 0),
-        "model_id": model_id,
+        # Provenance shows the base the user assigned, not the internal ctx twin.
+        "model_id": settings.get_assigned_model_id("archetypes"),
     }

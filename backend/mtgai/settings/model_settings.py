@@ -74,10 +74,16 @@ IMAGE_STAGE_NAMES: dict[str, str] = {
 # never silently hits a paid cloud API. Opt into cloud per-stage in Settings,
 # or apply the ``recommended`` preset wholesale.
 _LOCAL_DEFAULT = "gemma4-26b-vlad-updated"
-# 48k DOWNSTREAM-tier twin of the carrier (same GGUF, smaller --ctx-size). Used by
-# the `all-local-tiered` preset for every stage except theme_extract — see
-# learnings/ctx-tier-sweet-spots.md and the context-length-tiers note in models.toml.
-_LOCAL_DEFAULT_48K = "gemma4-26b-vlad-updated-48k"
+
+# Per-stage context-length tiering (see learnings/ctx-tier-sweet-spots.md).
+# Stages NOT listed here resolve a base model to its smaller --ctx-size
+# downstream twin (when one exists) so they pre-allocate less KV VRAM. Only
+# theme_extract ingests a large document (~58.7k tokens) and needs the base's
+# full window; every other stage's measured worst case is under ~24k, which the
+# 48k twin holds with headroom. Applied transparently in get_llm_model_id(): the
+# user picks a base model, the right tier is chosen per stage. A base with no
+# twin (cloud models, untiered locals) is unaffected.
+_FULL_CONTEXT_STAGES: frozenset[str] = frozenset({"theme_extract"})
 DEFAULT_LLM_ASSIGNMENTS: dict[str, str] = {
     "theme_extract": _LOCAL_DEFAULT,
     "mechanics": _LOCAL_DEFAULT,
@@ -168,25 +174,12 @@ PRESETS: dict[str, dict] = {
     "all-local": {
         # Every stage on the local Gemma default (vlad-updated: Vlad's fast
         # ~14.2 GB K-quant mix + the fixed Apr-11+ chat template, thinking on).
-        # Mirrors DEFAULT_LLM_ASSIGNMENTS — exists so a user who applied the cloud
-        # `recommended` preset can switch wholesale back to local. For the
-        # context-length-tuned variant (theme_extract at 128k, the rest on a 48k
-        # twin to free KV VRAM downstream) apply `all-local-tiered` below.
+        # Mirrors DEFAULT_LLM_ASSIGNMENTS -- exists so a user who applied the
+        # cloud `recommended` preset can switch wholesale back to local.
+        # Context-length tiering is automatic (get_llm_model_id consulting
+        # _FULL_CONTEXT_STAGES): theme_extract runs the base's 128k window, every
+        # other stage its 48k twin. There is no separate "tiered" preset to apply.
         "llm": {k: _LOCAL_DEFAULT for k in DEFAULT_LLM_ASSIGNMENTS},
-        "image": dict(DEFAULT_IMAGE_ASSIGNMENTS),
-        "effort": {},
-    },
-    "all-local-tiered": {
-        # Context-length-tiered local run (see learnings/ctx-tier-sweet-spots.md). Only
-        # theme_extract ingests a large document (~58.7k tokens), so it keeps the
-        # 128k carrier; every downstream stage runs the 48k twin of the same GGUF.
-        # That frees ~0.81 GiB of KV VRAM downstream (the bulk of the SWA-capped
-        # ~1.2 GiB max) — fewer weight layers spill to CPU → faster generation —
-        # with a single llama-swap reload at the theme_extract boundary.
-        "llm": {
-            **{k: _LOCAL_DEFAULT_48K for k in DEFAULT_LLM_ASSIGNMENTS},
-            "theme_extract": _LOCAL_DEFAULT,
-        },
         "image": dict(DEFAULT_IMAGE_ASSIGNMENTS),
         "effort": {},
     },
@@ -309,11 +302,10 @@ class ModelSettings(BaseModel):
     # ``output/sets/<CODE>/``. Phase 2 routes outputs into this folder.
     asset_folder: str = ""
 
-    def get_llm_model_id(self, stage_id: str) -> str:
-        """Resolve the API model_id for a pipeline stage.
-
-        Returns the model_id string that ``generate_with_tool`` expects.
-        Falls back to the default assignment if the stage isn't configured.
+    def get_assigned_model_id(self, stage_id: str) -> str:
+        """The *base* model_id the user assigned to a stage, for display and
+        provenance. Unlike :meth:`get_llm_model_id` this does NOT apply
+        context-length tiering, so it never returns an internal twin id.
         """
         key = self.llm_assignments.get(stage_id, DEFAULT_LLM_ASSIGNMENTS.get(stage_id, "sonnet"))
         registry = get_registry()
@@ -326,6 +318,28 @@ class ModelSettings(BaseModel):
             if model is None:
                 return "claude-sonnet-4-6"
         return model.model_id
+
+    def get_llm_model_id(self, stage_id: str) -> str:
+        """Resolve the *effective* API model_id a stage actually runs on.
+
+        This is what ``generate_with_tool`` launches and what the tok/s poller
+        polls. The user assigns a base model (see :meth:`get_assigned_model_id`);
+        this layers per-stage context-length tiering on top: for a stage not in
+        ``_FULL_CONTEXT_STAGES``, the base is swapped for its smaller
+        ``--ctx-size`` downstream twin when one exists, so the stage launches a
+        leaner llama-server and budgets against the right window. A base with no
+        twin (cloud models, untiered locals) is returned unchanged.
+        """
+        base_id = self.get_assigned_model_id(stage_id)
+        if stage_id in _FULL_CONTEXT_STAGES:
+            return base_id
+        registry = get_registry()
+        base = registry.get_llm_by_model_id(base_id)
+        if base is not None:
+            twin = registry.downstream_twin(base.key)
+            if twin is not None:
+                return twin.model_id
+        return base_id
 
     def get_image_model_key(self, stage_id: str) -> str:
         """Get the image model key for a stage."""

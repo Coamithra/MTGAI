@@ -80,14 +80,17 @@ the savings — the extra tier is a bad trade.
 
 ## Implementation (shipped)
 
-- `models.toml`: `gemma4-26b-vlad-updated-48k` (the DOWNSTREAM twin the preset uses) +
-  `gemma4-26b-iq2m-48k` (the residency-win option, for manual assignment). Same GGUF as
-  the 128k entry, distinct `model_id` (= distinct llama-swap model, so same-gguf/
-  different-ctx entries coexist and swap at the boundary).
-- `model_settings.PRESETS["all-local-tiered"]`: `theme_extract` → 128k carrier, every
-  other stage → the 48k twin. One toggle.
-- No code-path change: `context_window` already flows to `--ctx-size`
-  (`_llamacpp_new_model`) and the budget (`get_context_window`).
+- `model_registry._CONTEXT_TIER_TWINS`: the DOWNSTREAM twins, synthesized in code by
+  cloning a base entry (`dataclasses.replace`, only `--ctx-size` + id + name change) --
+  `gemma4-26b-vlad-updated-48k` and `gemma4-26b-iq2m-48k`. Distinct `model_id` (=
+  distinct llama-swap model, so same-gguf/different-ctx entries coexist and swap at the
+  boundary). Flagged `internal`, so they never appear in a model picker.
+- `model_settings.get_llm_model_id(stage)`: the single seam (every generator + the tok/s
+  poller resolve through it). It swaps a base for its `downstream_twin` on every stage
+  except those in `_FULL_CONTEXT_STAGES` (just `theme_extract`). No preset, no manual
+  twin assignment -- the user picks a base, the tier is automatic.
+- `context_window` already flows to `--ctx-size` (`_llamacpp_new_model`) and the budget
+  (`get_context_window`); resolving the twin id at the seam makes both pick the right tier.
 
 ## Validation status
 

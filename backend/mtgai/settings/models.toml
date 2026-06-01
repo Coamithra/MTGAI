@@ -14,6 +14,9 @@
 #   - n_gpu_layers: number of layers to offload to GPU (-1 / 999 = all)
 #   - thinking: "adaptive" (reasoning on via the GGUF chat template) / "disabled"
 #   - fit: true (default) launches `--fit on` so llama-server re-fits to VRAM
+# Context-length tier twins (a base at a smaller --ctx-size) are NOT declared
+# here — they're synthesized in code from these entries; see _CONTEXT_TIER_TWINS
+# in model_registry.py.
 
 # ── External LLMs (Anthropic) ────────────────────────────────────────────────
 
@@ -74,8 +77,10 @@ supports_caching = true
 # Measured/analytical per-stage maxima put every downstream stage under ~24k, so a
 # single 48k DOWNSTREAM twin (below) covers them with 2x headroom while theme_extract
 # (the only large-document stage, ~58.7k) keeps the 128k entry. Two tiers, one
-# llama-swap boundary. The `all-local-tiered` preset wires this up. Twins are
-# hand-authored (only 1-2 base models need one); auto-derivation is deferred.
+# llama-swap boundary. There is no user-facing tiered preset: get_llm_model_id()
+# swaps a base for its twin on every stage except theme_extract, automatically.
+# The 48k downstream twins are NOT TOML entries -- model_registry.py clones them
+# from the bases below (same GGUF/quant, smaller --ctx-size); see _CONTEXT_TIER_TWINS.
 
 [llm.gemma4-26b-vlad-updated]
 name = "Gemma 4 26B Vlad-Updated (Local, fast K-quant + fixed template)"
@@ -119,49 +124,6 @@ tier = 0
 input_price = 0.00
 output_price = 0.00
 context_window = 128000
-supports_effort = false
-supports_vision = false
-supports_caching = false
-n_gpu_layers = -1
-cache_type_k = "q8_0"
-cache_type_v = "q8_0"
-thinking = "adaptive"
-
-# ── Context-length twins (DOWNSTREAM tier, 48k) ──────────────────────────────
-# Same GGUF as the 128k entries above, different --ctx-size. Distinct model_id =
-# distinct llama-swap model, so same-gguf/different-ctx entries coexist and the
-# swap reloads at the tier boundary. 48k holds the ~24k whole-set worst case
-# (conformance) with headroom for chunky streamed output (skeleton relabel).
-
-[llm.gemma4-26b-vlad-updated-48k]
-name = "Gemma 4 26B Vlad-Updated (Local, 48k downstream tier)"
-provider = "llamacpp"
-model_id = "gemma4-26b-vlad-updated-48k"
-gguf_path = "C:/Models/vlad-updated-gemma4-26b.gguf"
-tier = 0
-input_price = 0.00
-output_price = 0.00
-context_window = 48000
-supports_effort = false
-supports_vision = false
-supports_caching = false
-n_gpu_layers = -1
-cache_type_k = "q8_0"
-cache_type_v = "q8_0"
-thinking = "adaptive"
-
-# iq2m at 48k is the full-residency win: 9.3 GiB weights + 0.69 GiB KV + overhead
-# drops to ~90% of the 12 GB card (vs ~99% at 128k), so it stays fully GPU-resident.
-# Not used by a preset (vlad-updated is the carrier); available for manual assignment.
-[llm.gemma4-26b-iq2m-48k]
-name = "Gemma 4 26B Unsloth UD-IQ2_M (Local, 48k — fully GPU-resident)"
-provider = "llamacpp"
-model_id = "gemma4-26b-iq2m-48k"
-gguf_path = "C:/Models/gemma-4-26B-A4B-it-UD-IQ2_M.gguf"
-tier = 0
-input_price = 0.00
-output_price = 0.00
-context_window = 48000
 supports_effort = false
 supports_vision = false
 supports_caching = false

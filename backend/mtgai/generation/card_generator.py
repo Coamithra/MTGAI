@@ -538,8 +538,12 @@ def _process_batch_result(
 
     Returns the list of successfully saved Card objects.
     """
+    from mtgai.settings.model_registry import get_registry
+
     saved: list[Card] = []
     cost_per_card = calc_cost(model, input_tokens, output_tokens) / max(len(raw_cards), 1)
+    # Provenance shows the base; `model` is the effective ctx twin used to generate.
+    display_model = get_registry().public_model_id(model)
 
     for i, raw in enumerate(raw_cards):
         slot = slots[i] if i < len(slots) else slots[-1]
@@ -678,7 +682,7 @@ def _process_batch_result(
                 GenerationAttempt(
                     attempt_number=1,
                     timestamp=datetime.now(UTC),
-                    model_used=model,
+                    model_used=display_model,
                     success=True,
                     validation_errors=[e.message for e in errors],
                     input_tokens=input_tokens // max(len(raw_cards), 1),

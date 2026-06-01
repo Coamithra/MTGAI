@@ -7,7 +7,7 @@ this module.  Users can add custom models by editing models.toml directly.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,12 @@ class LLMModel:
     # "template_kwarg"); left unset, llmfacade auto-detects it from the GGUF.
     thinking: str | None = None
     thinking_style: str | None = None
+    # True for context-length tier twins synthesized in code (see
+    # _synthesize_tier_twins). Internal models resolve by key/model_id for
+    # launch + token-budget + the tok/s poller, but are hidden from every
+    # user-facing list (list_llm / to_dict) — the user picks a base model and
+    # get_llm_model_id() swaps in the right tier per stage.
+    internal: bool = False
 
 
 @dataclass(frozen=True)
@@ -70,6 +76,54 @@ class ImageModel:
     provider: str  # "comfyui", "gemini", "openai"
     cost_per_image: float = 0.0
     implemented: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Context-length tier twins (synthesized in code, not declared in models.toml)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _TierTwin:
+    """A context-length tier twin to synthesize from a base ``[llm.*]`` entry.
+
+    A twin is the *same* GGUF/quant/offload/thinking as its base — only the
+    llama-server ``--ctx-size`` (``context_window``) shrinks, so a downstream
+    stage that never sees a big input gets a smaller KV pre-allocation and frees
+    VRAM. See the context-length-tiers note in models.toml and
+    learnings/ctx-tier-sweet-spots.md.
+
+    Kept in code rather than config because it carries no real design decision
+    beyond "which base, what window": ``model_registry`` clones the base entry
+    via ``dataclasses.replace``, so the gguf path + quant knobs live in exactly
+    one place and can never drift. The twin's key/model_id is ``<base>-<suffix>``
+    (distinct, because two ``--ctx-size`` servers must be distinct llama-swap
+    backends); ``name`` defaults to the base name tagged with the new window.
+    """
+
+    base: str  # base registry key to clone
+    suffix: str  # appended to the base key/model_id, e.g. "48k"
+    context_window: int
+    name: str | None = None
+
+
+# The 48k DOWNSTREAM tier. These are internal: get_llm_model_id() swaps a base
+# model for its twin on every stage except theme_extract (_FULL_CONTEXT_STAGES),
+# so the user never picks one. One per tier-able base model.
+_CONTEXT_TIER_TWINS: tuple[_TierTwin, ...] = (
+    _TierTwin(
+        base="gemma4-26b-vlad-updated",
+        suffix="48k",
+        context_window=48000,
+        name="Gemma 4 26B Vlad-Updated (Local, 48k downstream tier)",
+    ),
+    _TierTwin(
+        base="gemma4-26b-iq2m",
+        suffix="48k",
+        context_window=48000,
+        name="Gemma 4 26B Unsloth UD-IQ2_M (Local, 48k — fully GPU-resident)",
+    ),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +139,11 @@ class ModelRegistry:
     image_models: dict[str, ImageModel] = field(default_factory=dict)
     # Reverse lookup: API model_id -> registry key
     _model_id_to_key: dict[str, str] = field(default_factory=dict)
+    # base registry key -> its downstream context-tier twin key (see
+    # _synthesize_tier_twins / downstream_twin).
+    _base_twin_key: dict[str, str] = field(default_factory=dict)
+    # internal twin model_id -> its public base model_id (see public_model_id).
+    _twin_to_base_model_id: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Path | None = None) -> ModelRegistry:
@@ -137,6 +196,10 @@ class ModelRegistry:
             )
             registry.image_models[key] = model
 
+        # Context-length tier twins are derived in code from the entries above
+        # (same GGUF, smaller --ctx-size) rather than re-declared in the TOML.
+        registry._synthesize_tier_twins()
+
         logger.info(
             "Loaded model registry: %d LLM models, %d image models",
             len(registry.llm_models),
@@ -154,6 +217,51 @@ class ModelRegistry:
 
         return registry
 
+    def _synthesize_tier_twins(self) -> None:
+        """Materialize the ``_CONTEXT_TIER_TWINS`` into the registry.
+
+        Each twin is a ``dataclasses.replace`` clone of its base LLMModel — so
+        it inherits every launch knob automatically — with only its
+        ``key``/``model_id`` (``<base>-<suffix>``, distinct so the two
+        ``--ctx-size`` servers are distinct llama-swap backends),
+        ``context_window``, and display ``name`` overridden. Runs after the TOML
+        entries are loaded so the bases exist to clone. A spec pointing at an
+        unknown base is a programming error and raises.
+        """
+        for spec in _CONTEXT_TIER_TWINS:
+            base = self.llm_models.get(spec.base)
+            if base is None:
+                raise ValueError(
+                    f"context-tier twin base {spec.base!r} is not a registered model "
+                    f"(check _CONTEXT_TIER_TWINS against models.toml)"
+                )
+            twin_id = f"{spec.base}-{spec.suffix}"
+            name = spec.name or f"{base.name} ({spec.context_window // 1000}k ctx)"
+            twin = replace(
+                base,
+                key=twin_id,
+                model_id=twin_id,
+                context_window=spec.context_window,
+                name=name,
+                internal=True,
+            )
+            self.llm_models[twin_id] = twin
+            self._model_id_to_key[twin_id] = twin_id
+            self._base_twin_key[spec.base] = twin_id
+            self._twin_to_base_model_id[twin_id] = base.model_id
+
+    def public_model_id(self, model_id: str) -> str:
+        """Map an internal context-tier twin id back to its public base id.
+
+        Identity for any non-twin id. Use this wherever a model id is *stored as
+        provenance or shown in the UI* (card ``model_used``, the per-stage
+        rationale/response ``model_id``) so the internal ``-48k`` twin never
+        surfaces — the user picked the base, and the twin is the same model at a
+        smaller window. Runtime callers (launch, poller) want the twin and use
+        ``get_llm_model_id`` instead.
+        """
+        return self._twin_to_base_model_id.get(model_id, model_id)
+
     def get_llm(self, key: str) -> LLMModel | None:
         """Look up an LLM model by its short key (e.g. 'opus')."""
         return self.llm_models.get(key)
@@ -169,9 +277,24 @@ class ModelRegistry:
         """Look up an image model by its short key (e.g. 'flux-local')."""
         return self.image_models.get(key)
 
+    def downstream_twin(self, base_key: str) -> LLMModel | None:
+        """The downstream context-tier twin for a base model key, or None.
+
+        Used by ``ModelSettings.get_llm_model_id`` to swap a base model for its
+        smaller-``--ctx-size`` twin on stages that don't need the full window.
+        """
+        twin_key = self._base_twin_key.get(base_key)
+        return self.llm_models.get(twin_key) if twin_key else None
+
     def list_llm(self) -> list[LLMModel]:
-        """All LLM models sorted by tier (highest first)."""
-        return sorted(self.llm_models.values(), key=lambda m: -m.tier)
+        """User-facing LLM models, sorted by tier (highest first).
+
+        Excludes ``internal`` context-tier twins — the user picks a base model
+        and the per-stage tiering happens automatically (see ``internal``)."""
+        return sorted(
+            (m for m in self.llm_models.values() if not m.internal),
+            key=lambda m: -m.tier,
+        )
 
     def list_image(self) -> list[ImageModel]:
         """All image models, implemented first."""
@@ -181,11 +304,12 @@ class ModelRegistry:
         )
 
     def to_dict(self) -> dict:
-        """Serialize for JSON (used by the settings UI)."""
+        """Serialize for JSON (used by the settings UI). Excludes internal
+        context-tier twins so they never surface as a selectable model."""
         from dataclasses import asdict
 
         return {
-            "llm": {k: asdict(v) for k, v in self.llm_models.items()},
+            "llm": {k: asdict(v) for k, v in self.llm_models.items() if not v.internal},
             "image": {k: asdict(v) for k, v in self.image_models.items()},
         }
 

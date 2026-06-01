@@ -372,5 +372,6 @@ def generate_visual_references(*, theme: dict | None = None) -> dict:
         "references": references,
         "input_tokens": response.get("input_tokens", 0),
         "output_tokens": response.get("output_tokens", 0),
-        "model_id": model_id,
+        # Provenance shows the base the user assigned, not the internal ctx twin.
+        "model_id": settings.get_assigned_model_id("visual_refs"),
     }
