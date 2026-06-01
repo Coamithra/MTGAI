@@ -32,6 +32,14 @@ MAX_OUTPUT_CEILING = 16384
 
 # Standard single-item generation — one card / mechanic / land / reprint set,
 # a knob-tune, a slot grouping. Small (~300-token) answer; room for moderate CoT.
+COMPACT = 2048
+"""Tiny structured verdict: a per-card gate emitting ~2 fields (a bool + a
+one-line reason) after a short, bounded CoT. Conformance transcripts show
+healthy calls finish at 300-1500 completion tokens (one legit ~3.5k outlier);
+the rest of an 8k budget is only ever burned by a heavily-quantized model that
+mangles the tool call and runs to the cap (finish_reason=length, empty {} args).
+A tight cap turns that minutes-long runaway into a fast fail the gate re-rolls."""
+
 STANDARD = 8192
 
 # Batch / multi-item generation — several cards in one call, a full archetype
