@@ -3,7 +3,6 @@
 Public surface (preserved across refactor):
   - ``generate_with_tool(...)``      provider-agnostic structured-JSON call
   - ``calc_cost`` / ``cost_from_result``  pricing helpers
-  - ``cap_model(...)``                MTGAI_MAX_MODEL ceiling
   - ``PRICING``                       per-model pricing table
 
 Provider for a given ``model_id`` is resolved through the model registry
@@ -79,13 +78,6 @@ except ValueError:
 # JSON-subcall retries; the structured tool-use path here uses this default.
 LLAMACPP_REPEAT_PENALTY = 1.1
 
-# Model tiers: family name -> (rank, latest model ID)
-_MODEL_TIERS: dict[str, tuple[int, str]] = {
-    "haiku": (0, "claude-haiku-4-5-20251001"),
-    "sonnet": (1, "claude-sonnet-4-6"),
-    "opus": (2, "claude-opus-4-8"),
-}
-
 # Pricing per 1M tokens (2026). Mirrors models.toml; calc_cost falls back to the
 # registry for any model_id not listed here.
 PRICING: dict[str, dict[str, float]] = {
@@ -144,58 +136,6 @@ def cost_from_result(result: dict) -> float:
         cache_creation_input_tokens=result.get("cache_creation_input_tokens", 0),
         cache_read_input_tokens=result.get("cache_read_input_tokens", 0),
     )
-
-
-# ── MAX_MODEL ceiling ────────────────────────────────────────────────
-
-
-def _model_tier(model: str) -> int:
-    """Return numeric tier for a model string, or -1 if unknown."""
-    model_lower = model.lower()
-    for family, (tier, _) in _MODEL_TIERS.items():
-        if family in model_lower:
-            return tier
-    return -1
-
-
-def cap_model(model: str, effort: str | None = None) -> tuple[str, str | None]:
-    """Cap *model* to the MTGAI_MAX_MODEL ceiling.
-
-    Set MTGAI_MAX_MODEL to a family name (haiku, sonnet, opus) and any call
-    requesting a higher-tier model will be downgraded to the latest model in
-    the cap tier.
-
-    Returns ``(effective_model, effective_effort)``.
-    """
-    max_family = os.environ.get("MTGAI_MAX_MODEL", "").strip().lower()
-    if not max_family:
-        return model, effort
-
-    cap = _MODEL_TIERS.get(max_family)
-    if cap is None:
-        logger.warning("MTGAI_MAX_MODEL=%r not recognised (use haiku/sonnet/opus)", max_family)
-        return model, effort
-
-    cap_tier, cap_model_id = cap
-    req_tier = _model_tier(model)
-    if req_tier == -1:
-        return model, effort  # unknown model — pass through
-
-    if req_tier > cap_tier:
-        logger.info("MAX_MODEL cap: %s -> %s", model, cap_model_id)
-        if effort:
-            # Effort levels aren't portable across tiers: xhigh/max are Opus-only
-            # and Haiku takes no effort at all. Clamp so the capped model can't
-            # 400 on a level it doesn't accept.
-            if "opus" in cap_model_id:
-                pass  # opus accepts every level
-            elif "sonnet" in cap_model_id:
-                if effort in ("xhigh", "max"):
-                    effort = "high"  # Sonnet 4.6's ceiling
-            else:
-                effort = None  # haiku: no effort parameter
-        return cap_model_id, effort
-    return model, effort
 
 
 # ── llmfacade plumbing ───────────────────────────────────────────────
@@ -786,7 +726,6 @@ def generate_with_tool(
             repeat_penalty=repeat_penalty,
         )
 
-    model, effort = cap_model(model, effort)
     return _generate_anthropic(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
@@ -941,7 +880,6 @@ def generate_text(
             name=name,
         )
 
-    model, effort = cap_model(model, effort)
     return _generate_text_anthropic(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
@@ -1119,7 +1057,6 @@ def stream_text(
         )
         return
 
-    model, _ = cap_model(model, None)
     yield from _stream_text_anthropic(
         system_prompt=system_prompt,
         user_prompt=user_prompt,

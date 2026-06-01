@@ -1448,6 +1448,13 @@ def build_single_mechanic_user_prompt(
 _PLACEHOLDER_RE = re.compile(r"\[[^\]]+\]|\{[^}]*[a-z]{2,}[^}]*\}")
 
 
+def _add_reject_reason(reasons: list[str], reason: str) -> None:
+    """Append a retry-feedback reason, de-duplicating so repeated rejections of
+    the same kind don't pile identical lines into the next prompt."""
+    if reason not in reasons:
+        reasons.append(reason)
+
+
 def _forbidden_placeholder(reminder_text: Any) -> str | None:
     """Return the first forbidden bracket placeholder in ``reminder_text``, else ``None``.
 
@@ -1931,11 +1938,35 @@ def generate_mechanic_candidates(
                 for m in (response.get("result") or {}).get("mechanics") or []:
                     if not _is_valid_candidate(m, seen_names, known_keywords):
                         nm = m.get("name") if isinstance(m, dict) else None
-                        if isinstance(nm, str) and nm.strip().lower() in known_keywords:
+                        nm_clean = nm.strip() if isinstance(nm, str) else ""
+                        nm_norm = nm_clean.lower()
+                        # Feed the name-rejection reason back into the next retry's
+                        # prompt so the model stops re-proposing the same dead name.
+                        # Without this, a model can fixate on one thematically-obvious
+                        # name (e.g. "Reconfigure" for a robots set) and burn every
+                        # retry re-submitting it, leaving the slot unfilled.
+                        if nm_norm and nm_norm in known_keywords:
                             logger.info(
                                 "Rejected mechanic %r - collides with a printed keyword; "
                                 "regenerating",
-                                nm.strip(),
+                                nm_clean,
+                            )
+                            _add_reject_reason(
+                                draft_reject_reasons,
+                                f"The name {nm_clean!r} is already a printed Magic keyword and "
+                                "cannot be reused. Invent a brand-new mechanic with a different, "
+                                "original name.",
+                            )
+                        elif nm_norm and nm_norm in seen_names:
+                            logger.info(
+                                "Rejected mechanic %r - name already used by another candidate; "
+                                "regenerating",
+                                nm_clean,
+                            )
+                            _add_reject_reason(
+                                draft_reject_reasons,
+                                f"The name {nm_clean!r} is already taken by another mechanic in "
+                                "this set. Choose a different, original name.",
                             )
                         continue
                     # Deterministic backstop for the forbidden-placeholder defect
@@ -1950,12 +1981,13 @@ def generate_mechanic_candidates(
                             str(m.get("name") or "").strip(),
                             bad,
                         )
-                        draft_reject_reasons = [
+                        _add_reject_reason(
+                            draft_reject_reasons,
                             f"The reminder text contained the forbidden placeholder {bad!r}. "
                             "Write the concrete wording instead - for a card-defined-effect "
                             "mechanic the reminder states ONLY the shared cost/trigger and each "
-                            "example card writes its own effect; never a bracket placeholder."
-                        ]
+                            "example card writes its own effect; never a bracket placeholder.",
+                        )
                         continue
                     draft = m
                     break
