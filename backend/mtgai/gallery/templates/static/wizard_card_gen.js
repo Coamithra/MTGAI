@@ -5,6 +5,23 @@
  * wizard_stage.js shell still owns the header (status pill, break-point
  * toggle, Edit-cascade button) and we paint the body + footer.
  *
+ * Instance-aware: the card_gen stage can appear more than once (the review→regen
+ * loop appends an inserted ``card_gen.2`` span after a gate flags cards — see the
+ * "Re-entrant pipeline" note in CLAUDE.md). Each instance is its own wizard tab
+ * with ``tab.id == instance_id`` (``"card_gen"`` for the backbone,
+ * ``"card_gen.2"`` etc. for inserts). So ALL per-tab state lives in a Map keyed
+ * by instance id (``stateFor``), every DOM/stream lookup resolves the tab by the
+ * instance id (not a hardcoded ``"card_gen"``), and the SSE bridge routes each
+ * ``card_gen_card`` / ``card_gen_reset`` to the tab named by its ``instance_id``.
+ * Without this, an inserted instance shared the backbone's singleton state (so
+ * its shell was never mounted) and its streamed cards painted into the backbone
+ * tab — the inserted "Card Generation 2" tab looked empty.
+ *
+ * The ``/api/wizard/card_gen/state`` fetch stays on the stage route (there is no
+ * per-instance state endpoint): it returns the full set from ``cards/`` on disk,
+ * and the inserted instance's regenerated cards stream in on top via upsert —
+ * which is exactly the backbone "cards pop in one by one" experience.
+ *
  * Conventions:
  *   §1  one primary footer button when paused_for_review (bindNextStepButton
  *       pattern)
@@ -50,48 +67,68 @@
     M: 'Multicolor', C: 'Colorless',
   };
 
-  const local = {
-    initialized: false,
-    cards: [],          // Card[] from the server, once loaded
-    hasContent: false,
-    stageStatus: 'pending',
-    setParams: { set_name: '', set_size: 0 },
-    groupBy: 'rarity',  // 'rarity' | 'color'
-    filterRarity: 'all',
-    filterColor: 'all',
-    locked: false,
-    bootstrapping: false,
-  };
+  // Per-instance tab state, keyed by instance id (tab.id). A stage that repeats
+  // (card_gen, card_gen.2, …) gets one entry per instance so the inserted tab
+  // never shares — and so the SSE handler can accumulate cards for an instance
+  // whose tab the user hasn't opened yet.
+  const instances = new Map();
+  function stateFor(instanceId) {
+    let s = instances.get(instanceId);
+    if (!s) {
+      s = {
+        initialized: false,
+        cards: [],          // Card[] from the server, once loaded
+        hasContent: false,
+        stageStatus: 'pending',
+        setParams: { set_name: '', set_size: 0 },
+        groupBy: 'rarity',  // 'rarity' | 'color'
+        filterRarity: 'all',
+        filterColor: 'all',
+        locked: false,
+        bootstrapping: false,
+      };
+      instances.set(instanceId, s);
+    }
+    return s;
+  }
 
   W.registerStageRenderer(STAGE_ID, render);
-  // SSE bridge (wizard.js forwards card_gen_reset / card_gen_card here). The
-  // ``root`` each handler receives is W.tabRoot(STAGE_ID) resolved fresh per
-  // event — null when the tab isn't mounted, in which case paintGrid is skipped.
-  W.registerStream(STAGE_ID, {
-    // A from-scratch refresh wiped cards/ on disk: drop the local list so the
-    // new run streams in against an empty grid.
-    card_gen_reset: (_data, root) => {
+
+  // SSE bridge — wizard.js forwards card_gen_reset / card_gen_card here. We
+  // route by ``data.instance_id`` (events carry it; == "card_gen" for the
+  // backbone) so an inserted instance's cards land in ITS tab + ITS state, not
+  // the backbone's. ``root`` is resolved fresh per event and is null when that
+  // instance's tab isn't mounted — paintGrid is skipped, but the per-instance
+  // state still accumulates so the cards show once the user opens the tab (the
+  // bootstrap /state fetch also covers it).
+  W.onCardGenStream = function (name, data) {
+    data = data || {};
+    const instanceId = data.instance_id || STAGE_ID;
+    const local = stateFor(instanceId);
+    const root = W.tabRoot(instanceId);
+    if (name === 'card_gen_reset') {
+      // A from-scratch refresh wiped cards/ on disk: drop the local list so the
+      // new run streams in against an empty grid.
       local.cards = [];
       local.hasContent = false;
       if (root) {
-        rebuildFilterOptions(root);
-        paintGrid(root);
+        rebuildFilterOptions(root, local);
+        paintGrid(root, local);
       }
-    },
-    // One freshly-saved card; merge by collector_number (replace if present,
-    // else append) so duplicate deliveries from a /state refetch + SSE replay
-    // are idempotent.
-    card_gen_card: (data, root) => {
-      const card = data && data.card;
+    } else if (name === 'card_gen_card') {
+      // One freshly-saved card; merge by collector_number (replace if present,
+      // else append) so duplicate deliveries from a /state refetch + SSE replay
+      // are idempotent.
+      const card = data.card;
       if (!card || !card.collector_number) return;
       W.streamUpsert(local.cards, card, (c) => c.collector_number);
       local.hasContent = true;
       if (root) {
-        rebuildFilterOptions(root);
-        paintGrid(root);
+        rebuildFilterOptions(root, local);
+        paintGrid(root, local);
       }
-    },
-  });
+    }
+  };
 
   // Inject scoped styles once at module load.
   (function injectStyles() {
@@ -292,20 +329,23 @@
   // Top-level render (called by wizard_stage.js on every SSE rerender)
   // --------------------------------------------------------------------
 
-  function render({ root, state, stage, content, footer }) {
+  function render({ tab, root, state, stage, content, footer }) {
+    const instanceId = tab.id;
+    const local = stateFor(instanceId);
+
     if (!local.initialized) {
       local.initialized = true;
       local.stageStatus = stage ? stage.status : 'pending';
       content.innerHTML = mountShellHtml();
-      bindControls(root);
+      bindControls(root, instanceId, local);
       // A missing /state route (404) returns null from fetchStageState — the
       // bootstrap then paints the empty placeholder. A hard error still toasts
       // and falls back to the placeholder so the tab doesn't look broken.
-      bootstrap(root, state).catch(err => {
+      bootstrap(root, state, local).catch(err => {
         W.toast('Failed to load card gen state: ' + err.message, 'error');
-        paintGrid(root);
+        paintGrid(root, local);
       });
-      paintFooter(footer, state, stage);
+      paintFooter(footer, state, stage, instanceId, local);
       return;
     }
 
@@ -317,7 +357,7 @@
     if (stage) local.stageStatus = stage.status;
 
     // Live progress — always update from stage.progress, no guard.
-    paintProgress(root, stage);
+    paintProgress(root, stage, local);
 
     // Status transition: was running → now not running → no cards yet → refetch.
     const justFinished =
@@ -329,17 +369,17 @@
       && !local.bootstrapping;
     if (justFinished) {
       local.bootstrapping = true;
-      bootstrap(root, state)
+      bootstrap(root, state, local)
         .catch(err => {
           W.toast('Failed to refresh card gen state: ' + err.message, 'error');
-          paintGrid(root);
+          paintGrid(root, local);
         })
         .finally(() => { local.bootstrapping = false; });
       return;
     }
 
-    paintFooter(footer, state, stage);
-    setLocked(local.locked);
+    paintFooter(footer, state, stage, instanceId, local);
+    setLocked(root, local, local.locked);
   }
 
   function mountShellHtml() {
@@ -379,12 +419,16 @@
   // Bootstrap — fetch card data from GET /api/wizard/card_gen/state
   // ({ cards, has_content, set_params, stage_status }). Degrades gracefully
   // if the call fails (shows the empty placeholder rather than erroring out).
+  //
+  // The fetch is on the stage route (STAGE_ID), not the instance id — there is
+  // no per-instance state endpoint, and the full set from disk is exactly what
+  // an inserted instance should show (its regenerated cards stream in on top).
   // --------------------------------------------------------------------
 
   // Live card streaming (card_gen_reset / card_gen_card) is wired at module
-  // load via W.registerStream above.
+  // load via W.onCardGenStream above.
 
-  async function bootstrap(root, state) {
+  async function bootstrap(root, state, local) {
     const data = await W.fetchStageState(STAGE_ID);
     if (data) {
       local.cards = Array.isArray(data.cards) ? data.cards : [];
@@ -392,16 +436,15 @@
       local.setParams = data.set_params || local.setParams;
       local.stageStatus = data.stage_status || local.stageStatus;
     }
-    rebuildFilterOptions(root);
-    paintGrid(root);
-    paintFooter(getFooter(root), state, null);
+    rebuildFilterOptions(root, local);
+    paintGrid(root, local);
   }
 
   // --------------------------------------------------------------------
   // Live progress block — purely reactive, no card data needed
   // --------------------------------------------------------------------
 
-  function paintProgress(root, stage) {
+  function paintProgress(root, stage, local) {
     const slot = root && root.querySelector('[data-role="cg-progress"]');
     if (!slot) return;
 
@@ -449,7 +492,7 @@
   // Filter control helpers
   // --------------------------------------------------------------------
 
-  function rebuildFilterOptions(root) {
+  function rebuildFilterOptions(root, local) {
     const sel = root && root.querySelector('[data-role="cg-filter"]');
     if (!sel) return;
     const groupBy = local.groupBy;
@@ -479,28 +522,28 @@
     sel.value = groupBy === 'rarity' ? local.filterRarity : local.filterColor;
   }
 
-  function bindControls(root) {
+  function bindControls(root, instanceId, local) {
     root.addEventListener('change', function (e) {
       const role = e.target && e.target.dataset && e.target.dataset.role;
       if (role === 'cg-group-by') {
         local.groupBy = e.target.value;
         local.filterRarity = 'all';
         local.filterColor = 'all';
-        rebuildFilterOptions(root);
-        paintGrid(root);
+        rebuildFilterOptions(root, local);
+        paintGrid(root, local);
       } else if (role === 'cg-filter') {
         if (local.groupBy === 'rarity') {
           local.filterRarity = e.target.value;
         } else {
           local.filterColor = e.target.value;
         }
-        paintGrid(root);
+        paintGrid(root, local);
       }
     });
     // Refresh AI button — §13.
     root.addEventListener('click', function (e) {
       const btn = e.target && e.target.closest('[data-role="cg-refresh-btn"]');
-      if (btn) onRefreshCards();
+      if (btn) onRefreshCards(root, local);
     });
   }
 
@@ -508,13 +551,13 @@
   // Card grid — grouped and filtered
   // --------------------------------------------------------------------
 
-  function paintGrid(root) {
+  function paintGrid(root, local) {
     const slot = root && root.querySelector('[data-role="cg-grid"]');
     if (!slot) return;
 
     if (!local.hasContent) {
       slot.innerHTML = W.emptyStatePanel({
-        generating: aiBusy(),
+        generating: aiBusy(local),
         generatingMsg: 'Cards are generating — they will appear here as each slot completes.',
         emptyMsg: 'No cards yet. Cards generate after the Skeleton, Reprints, and Lands stages '
           + 'complete — or use “Refresh AI…” above to regenerate them from scratch.',
@@ -538,13 +581,13 @@
     }
 
     // Group.
-    const groups = buildGroups(filtered);
+    const groups = buildGroups(filtered, local);
     slot.innerHTML = groups
       .map(({ key, label, cards }) => groupHtml(key, label, cards))
       .join('');
   }
 
-  function buildGroups(cards) {
+  function buildGroups(cards, local) {
     if (local.groupBy === 'rarity') {
       return RARITY_ORDER
         .map(r => ({
@@ -623,10 +666,10 @@
   // /state shape, which we repaint from directly.
   // --------------------------------------------------------------------
 
-  async function onRefreshCards() {
+  async function onRefreshCards(root, local) {
     await W.runAiAction({
       isLocked: () => local.locked,
-      setLocked,
+      setLocked: (locked) => setLocked(root, local, locked),
       confirm: () => (local.hasContent
         ? 'Regenerate all cards from scratch? This deletes the current cards and generates them again. (Lands are kept.)'
         : ''),
@@ -641,8 +684,7 @@
           local.hasContent = local.cards.length > 0;
           local.setParams = data.set_params || local.setParams;
           local.stageStatus = data.stage_status || local.stageStatus;
-          const root = bodyRoot();
-          if (root) { rebuildFilterOptions(root); paintGrid(root); }
+          if (root) { rebuildFilterOptions(root, local); paintGrid(root, local); }
         }
         W.toast('Cards regenerated.', 'success');
       },
@@ -653,11 +695,11 @@
   // Footer — §1
   // --------------------------------------------------------------------
 
-  function paintFooter(footer, state, stage) {
+  function paintFooter(footer, state, stage, instanceId, local) {
     if (!footer) return;
-    const isLatest = !state || state.latestTabId === STAGE_ID;
+    const isLatest = !state || state.latestTabId === instanceId;
     const status = (stage && stage.status) || local.stageStatus;
-    const next = W.nextStageEntryAfter(STAGE_ID);
+    const next = W.nextStageEntryAfter(instanceId);
     const nextName = next ? next.name : 'the next stage';
 
     let html;
@@ -684,13 +726,13 @@
       html = `<span class="wiz-footer-note">Continue button appears once card generation is ready for review.</span>`;
     }
 
-    W.paintFooter(footer, html, { role: 'cg-advance', onClick: onAdvance });
+    W.paintFooter(footer, html, { role: 'cg-advance', onClick: () => onAdvance(instanceId) });
   }
 
   // No navigate: on success the button stays disabled and SSE drives the status
   // forward — a navigate would race the engine's own advance.
-  function onAdvance() {
-    return W.advanceStage({ stageId: STAGE_ID, btnRole: 'cg-advance', navigate: false });
+  function onAdvance(instanceId) {
+    return W.advanceStage({ stageId: instanceId, btnRole: 'cg-advance', navigate: false });
   }
 
   // --------------------------------------------------------------------
@@ -700,13 +742,13 @@
   // AI is "active" on this tab when this tab kicked off an op (local.locked) or
   // the engine is running the card_gen stage (stageStatus). The composite is
   // the standardized lock truth source across stage tabs (§3).
-  function aiBusy() {
+  function aiBusy(local) {
     return local.locked || local.stageStatus === 'running';
   }
 
-  function setLocked(locked) {
+  function setLocked(root, local, locked) {
     local.locked = !!locked;
-    W.setTabLocked(bodyRoot(), aiBusy(), {
+    W.setTabLocked(root, aiBusy(local), {
       lockClass: 'wiz-cardgen-locked',
       selectors: [
         '[data-role="cg-refresh-btn"]',
@@ -720,10 +762,6 @@
   // --------------------------------------------------------------------
   // Helpers
   // --------------------------------------------------------------------
-
-  const bodyRoot = () => W.tabRoot(STAGE_ID);
-
-  const getFooter = (root) => W.tabFooter(root);
 
   const escHtml = W.escHtml;
 
