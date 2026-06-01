@@ -513,25 +513,56 @@ class TestAssignCmcs:
 
 
 class TestAssignMechanicTags:
-    """_assign_mechanic_tags returns valid MechanicTag values."""
+    """_assign_mechanic_tags assigns valid, type-aware MechanicTag values."""
 
-    def test_output_length(self):
-        tags = _assign_mechanic_tags(20, "common")
-        assert len(tags) == 20
+    @staticmethod
+    def _blocks(creatures: int, others: int = 0) -> dict[str, list[str]]:
+        """One block with `creatures` creature slots followed by `others` spells."""
+        return {"W": ["creature"] * creatures + ["instant"] * others}
+
+    def test_output_index_aligned(self):
+        block_types = self._blocks(15, 5)
+        tags = _assign_mechanic_tags(block_types, "common")
+        assert set(tags) == set(block_types)
+        assert len(tags["W"]) == 20
 
     def test_all_tags_are_valid(self):
         valid = {e.value for e in MechanicTag}
         for rarity in ["common", "uncommon", "rare", "mythic"]:
-            tags = _assign_mechanic_tags(15, rarity)
-            assert all(t in valid for t in tags)
+            tags = _assign_mechanic_tags(self._blocks(10, 5), rarity)
+            assert all(t in valid for t in tags["W"])
 
-    def test_commons_have_vanilla(self):
-        tags = _assign_mechanic_tags(30, "common")
-        assert MechanicTag.VANILLA in tags
+    def test_commons_have_vanilla_with_enough_creatures(self):
+        # ~4% of 50 creatures -> 2 vanilla.
+        tags = _assign_mechanic_tags(self._blocks(50), "common")
+        assert MechanicTag.VANILLA in tags["W"]
 
     def test_rares_have_no_vanilla(self):
-        tags = _assign_mechanic_tags(30, "rare")
-        assert MechanicTag.VANILLA not in tags
+        tags = _assign_mechanic_tags(self._blocks(30), "rare")
+        assert MechanicTag.VANILLA not in tags["W"]
+
+    def test_vanilla_and_french_only_on_creatures(self):
+        # Creatures first, then a colorless artifact-only block — neither vanilla nor
+        # french_vanilla may ever land on a non-creature slot ("vanilla artifact").
+        block_types: dict[str, list[str]] = {
+            "W": ["creature"] * 40,
+            "colorless": ["artifact"] * 8,
+        }
+        tags = _assign_mechanic_tags(block_types, "common")
+        creature_tier = {MechanicTag.VANILLA, MechanicTag.FRENCH_VANILLA}
+        for bk, types in block_types.items():
+            for i, t in enumerate(types):
+                if t != "creature":
+                    assert tags[bk][i] not in creature_tier, (
+                        f"{tags[bk][i]} landed on non-creature {bk}[{i}]"
+                    )
+
+    def test_vanilla_share_is_low(self):
+        # Realistic density: true vanilla stays a tiny fraction of creatures
+        # (recent sets ~1%), nothing like the historical 15%.
+        tags = _assign_mechanic_tags(self._blocks(50), "common")
+        n_vanilla = tags["W"].count(MechanicTag.VANILLA)
+        assert 0 < n_vanilla <= 4
 
 
 # ---------------------------------------------------------------------------

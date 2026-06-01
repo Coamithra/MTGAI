@@ -546,47 +546,62 @@ def _assign_cmcs(block_size: int, rarity: str) -> list[int]:
 # ---------------------------------------------------------------------------
 
 
-def _assign_mechanic_tags(block_size: int, rarity: str) -> list[str]:
-    """Assign complexity-tier tags to a block of slots.
+# Complexity-tier rates, per rarity. ``vanilla`` / ``french`` are fractions of the
+# rarity's *creature* slots (a spell or noncreature artifact is never "vanilla");
+# ``complex`` is the fraction of the *remaining* slots (non-vanilla/french creatures
+# + every non-creature) that get COMPLEX, the rest EVERGREEN. The vanilla / French-
+# vanilla rates are tuned to observed recent-set (2023-2025) densities — true vanilla
+# ~1% of creatures, French vanilla ~2-3% — rather than the historical ~15%/25% commons
+# (WotC made vanilla deciduous in 2021; recent premier sets average ~1 true vanilla and
+# ~3 French vanilla creatures). See research notes / git history for the source data.
+_TIER_RATES: dict[str, dict[str, float]] = {
+    "common": {"vanilla": 0.04, "french": 0.06, "complex": 0.20},
+    "uncommon": {"vanilla": 0.0, "french": 0.03, "complex": 0.40},
+    "rare": {"vanilla": 0.0, "french": 0.0, "complex": 0.85},
+    "mythic": {"vanilla": 0.0, "french": 0.0, "complex": 0.85},
+}
 
-    Common: ~15% vanilla, ~25% french_vanilla, ~40% evergreen, ~20% complex
-    Uncommon: ~5% french_vanilla, ~55% evergreen, ~40% complex
-    Rare/Mythic: mostly complex
+
+def _assign_mechanic_tags(block_types: dict[str, list[str]], rarity: str) -> dict[str, list[str]]:
+    """Assign complexity-tier tags across all of a rarity's color blocks.
+
+    Returns ``{block_key: [tag, ...]}`` index-aligned to the matching ``block_types``
+    entry, so every slot's tier matches its card type.
+
+    VANILLA and FRENCH_VANILLA are **creature-only** tiers and their counts are
+    **pooled across the whole rarity** rather than rounded per block: with only ~1
+    vanilla wanted set-wide, a per-block ``round`` would force either zero or one per
+    color (the old ``max(1, …)`` floor even stamped "vanilla" onto colorless artifact
+    blocks). Pooling makes small, realistic totals achievable and spreads the few
+    special tags across colors. Remaining creatures + every non-creature slot split
+    EVERGREEN / COMPLEX by the rarity's ``complex`` fraction. Rates: ``_TIER_RATES``.
     """
-    if block_size == 0:
-        return []
+    rates = _TIER_RATES.get(rarity, _TIER_RATES["rare"])
+    assigned: dict[tuple[str, int], str] = {}
 
-    if rarity == "common":
-        n_vanilla = max(1, round(block_size * 0.15))
-        n_french = max(1, round(block_size * 0.25))
-        n_complex = max(0, round(block_size * 0.20))
-        n_evergreen = block_size - n_vanilla - n_french - n_complex
-        if n_evergreen < 0:
-            n_complex += n_evergreen
-            n_evergreen = 0
-    elif rarity == "uncommon":
-        n_vanilla = 0
-        n_french = max(0, round(block_size * 0.05))
-        n_complex = max(1, round(block_size * 0.40))
-        n_evergreen = block_size - n_french - n_complex
-        if n_evergreen < 0:
-            n_complex += n_evergreen
-            n_evergreen = 0
-    else:
-        n_vanilla = 0
-        n_french = 0
-        n_evergreen = max(0, round(block_size * 0.15))
-        n_complex = block_size - n_evergreen
+    # Interleave slot coordinates round-robin by position across blocks so the few
+    # vanilla/french/complex tags spread across colors instead of clumping in one.
+    max_len = max((len(t) for t in block_types.values()), default=0)
+    interleaved: list[tuple[str, int]] = [
+        (bk, pos) for pos in range(max_len) for bk, t in block_types.items() if pos < len(t)
+    ]
+    creature_coords = [c for c in interleaved if block_types[c[0]][c[1]] == SlotCardType.CREATURE]
 
-    tags: list[str] = (
-        [MechanicTag.VANILLA] * n_vanilla
-        + [MechanicTag.FRENCH_VANILLA] * n_french
-        + [MechanicTag.EVERGREEN] * n_evergreen
-        + [MechanicTag.COMPLEX] * n_complex
-    )
-    while len(tags) < block_size:
-        tags.append(MechanicTag.EVERGREEN)
-    return tags[:block_size]
+    n_creatures = len(creature_coords)
+    n_vanilla = min(round(n_creatures * rates["vanilla"]), n_creatures)
+    n_french = min(round(n_creatures * rates["french"]), n_creatures - n_vanilla)
+    specials = [MechanicTag.VANILLA] * n_vanilla + [MechanicTag.FRENCH_VANILLA] * n_french
+    for coord, tag in zip(creature_coords, specials, strict=False):
+        assigned[coord] = tag
+
+    # Everything still unassigned (remaining creatures + all non-creatures) splits
+    # EVERGREEN / COMPLEX by the complex fraction, in the same interleaved order.
+    rest = [c for c in interleaved if c not in assigned]
+    n_complex = round(len(rest) * rates["complex"])
+    for idx, coord in enumerate(rest):
+        assigned[coord] = MechanicTag.COMPLEX if idx < n_complex else MechanicTag.EVERGREEN
+
+    return {bk: [assigned[(bk, i)] for i in range(len(t))] for bk, t in block_types.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -1330,13 +1345,18 @@ def generate_skeleton(
             key = ca["color"] if ca["color"] != "multicolor" else f"multi_{ca['color_pair']}"
             blocks.setdefault(key, []).append(ca)
 
+        # Card types drive the mechanic tier (vanilla/french are creature-only), so
+        # resolve every block's types first, then assign tiers pooled across the rarity.
+        block_types = {
+            block_key: _assign_card_types(block_items[0]["color"], rarity, len(block_items), knobs)
+            for block_key, block_items in blocks.items()
+        }
+        block_mech = _assign_mechanic_tags(block_types, rarity)
+
         block_queues: dict[str, list[dict]] = {}
         for block_key, block_items in blocks.items():
-            block_size = len(block_items)
-            representative_color = block_items[0]["color"]
-
-            types = _assign_card_types(representative_color, rarity, block_size, knobs)
-            mech_tags = _assign_mechanic_tags(block_size, rarity)
+            types = block_types[block_key]
+            mech_tags = block_mech[block_key]
 
             queue: list[dict] = []
             for i, item in enumerate(block_items):
