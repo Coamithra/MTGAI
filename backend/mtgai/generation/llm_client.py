@@ -74,14 +74,15 @@ LLAMACPP_REPEAT_PENALTY = 1.1
 _MODEL_TIERS: dict[str, tuple[int, str]] = {
     "haiku": (0, "claude-haiku-4-5-20251001"),
     "sonnet": (1, "claude-sonnet-4-6"),
-    "opus": (2, "claude-opus-4-6"),
+    "opus": (2, "claude-opus-4-8"),
 }
 
-# Pricing per 1M tokens (March 2026)
+# Pricing per 1M tokens (2026). Mirrors models.toml; calc_cost falls back to the
+# registry for any model_id not listed here.
 PRICING: dict[str, dict[str, float]] = {
     "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.00},
     "claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
-    "claude-opus-4-6": {"input": 15.00, "output": 75.00},
+    "claude-opus-4-8": {"input": 5.00, "output": 25.00},
 }
 
 
@@ -173,8 +174,17 @@ def cap_model(model: str, effort: str | None = None) -> tuple[str, str | None]:
 
     if req_tier > cap_tier:
         logger.info("MAX_MODEL cap: %s -> %s", model, cap_model_id)
-        if effort and "opus" not in cap_model_id:
-            effort = None
+        if effort:
+            # Effort levels aren't portable across tiers: xhigh/max are Opus-only
+            # and Haiku takes no effort at all. Clamp so the capped model can't
+            # 400 on a level it doesn't accept.
+            if "opus" in cap_model_id:
+                pass  # opus accepts every level
+            elif "sonnet" in cap_model_id:
+                if effort in ("xhigh", "max"):
+                    effort = "high"  # Sonnet 4.6's ceiling
+            else:
+                effort = None  # haiku: no effort parameter
         return cap_model_id, effort
     return model, effort
 

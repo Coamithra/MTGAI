@@ -1248,6 +1248,7 @@ def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
             "name": m.name,
             "tier": m.tier,
             "supports_effort": m.supports_effort,
+            "effort_levels": list(m.effort_levels),
         }
         for m in registry.list_llm()
     ]
@@ -1827,6 +1828,7 @@ async def project_new(request: Request) -> JSONResponse:
                         "name": m.name,
                         "tier": m.tier,
                         "supports_effort": m.supports_effort,
+                        "effort_levels": list(m.effort_levels),
                     }
                     for m in registry.list_llm()
                 ],

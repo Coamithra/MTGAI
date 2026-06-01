@@ -91,6 +91,44 @@ def test_from_preset_resolves_builtin():
     assert settings.llm_assignments["card_gen"] == "opus"
 
 
+# ---------------------------------------------------------------------------
+# get_effort — per-model effort gating + clamping
+# ---------------------------------------------------------------------------
+
+
+def test_get_effort_passes_supported_level():
+    """A level the assigned model accepts is returned unchanged (max on Opus)."""
+    settings = ms.ModelSettings(
+        llm_assignments={"card_gen": "opus"},
+        effort_overrides={"card_gen": "max"},
+    )
+    assert settings.get_effort("card_gen") == "max"
+
+
+def test_get_effort_clamps_unsupported_level_to_model_ceiling():
+    """A stored level the model can't take (max on Sonnet, which caps at high)
+    is clamped down rather than passed through — sending it would 400."""
+    settings = ms.ModelSettings(
+        llm_assignments={"card_gen": "sonnet"},
+        effort_overrides={"card_gen": "max"},
+    )
+    assert settings.get_effort("card_gen") == "high"
+
+
+def test_get_effort_none_when_model_takes_no_effort():
+    """Haiku takes no effort parameter, so any stored override resolves to None."""
+    settings = ms.ModelSettings(
+        llm_assignments={"card_gen": "haiku"},
+        effort_overrides={"card_gen": "high"},
+    )
+    assert settings.get_effort("card_gen") is None
+
+
+def test_get_effort_none_when_unset():
+    settings = ms.ModelSettings(llm_assignments={"card_gen": "opus"}, effort_overrides={})
+    assert settings.get_effort("card_gen") is None
+
+
 def test_global_toml_first_create_imports_legacy_as_profile():
     """When global.toml doesn't exist + current.toml does, we save it as
     'imported' and point default_preset there."""

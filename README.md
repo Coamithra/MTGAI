@@ -7,7 +7,7 @@ Build complete custom Magic: The Gathering sets from scratch — from set design
 **Dev set "Anomalous Descent" (ASD)** — 66-card development set (60 main + 6 lands) through the full pipeline:
 
 - **Set Design** — skeleton generator with slot allocation matrix, 10 draft archetypes, 3 custom mechanics
-- **Card Generation** — Opus 4.6 with validation library (8 validators, 18 auto-fixers), tiered AI review (council + iteration)
+- **Card Generation** — Opus 4.8 with validation library (8 validators, 18 auto-fixers), tiered AI review (council + iteration)
 - **Art Generation** — Flux.1-dev via local ComfyUI, Haiku vision-based art selection, PuLID character identity
 - **Card Rendering** — M15 frame compositing with SVG mana symbols, dynamic text sizing, bold fonts, shrink-to-fit
 
@@ -89,7 +89,7 @@ python -m mtgai.review ai-review --set ASD
 ## Architecture
 
 ### LLM Usage
-- **Opus 4.6** — card generation (effort=max), AI design review (council + iteration)
+- **Opus 4.8** — card generation (effort=max), AI design review (council + iteration)
 - **Haiku** — art prompts, reprint selection, art quality judging
 - **Prompt caching** — system prompt + tool schema cached for 90% input token discount
 - **Structured output** — all LLM calls use `tool_choice` for guaranteed JSON

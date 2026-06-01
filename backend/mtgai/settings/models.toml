@@ -20,15 +20,22 @@
 
 # ── External LLMs (Anthropic) ────────────────────────────────────────────────
 
+# ``effort_levels`` lists the API effort settings a model accepts, low→high.
+# It is the single source of truth for effort: the registry derives
+# ``supports_effort`` from it (non-empty → True), and the wizard builds the
+# per-stage effort dropdown from it so a model is never offered a level it
+# would 400 on. ``xhigh``/``max`` are Opus-tier only; Sonnet 4.6 caps at
+# ``high``; Haiku 4.5 and the local models take no effort at all (omit it).
+
 [llm.opus]
-name = "Claude Opus 4.6"
+name = "Claude Opus 4.8"
 provider = "anthropic"
-model_id = "claude-opus-4-6"
+model_id = "claude-opus-4-8"
 tier = 3
-input_price = 15.00   # per 1M tokens
-output_price = 75.00  # per 1M tokens
-context_window = 200000
-supports_effort = true
+input_price = 5.00   # per 1M tokens
+output_price = 25.00  # per 1M tokens
+context_window = 1000000
+effort_levels = ["low", "medium", "high", "xhigh", "max"]
 supports_vision = true
 supports_caching = true
 
@@ -39,8 +46,8 @@ model_id = "claude-sonnet-4-6"
 tier = 2
 input_price = 3.00
 output_price = 15.00
-context_window = 200000
-supports_effort = false
+context_window = 1000000
+effort_levels = ["low", "medium", "high"]  # xhigh/max are Opus-tier only
 supports_vision = true
 supports_caching = true
 
@@ -52,7 +59,7 @@ tier = 1
 input_price = 0.80
 output_price = 4.00
 context_window = 200000
-supports_effort = false
+# No effort_levels — Haiku 4.5 does not support the effort parameter.
 supports_vision = true
 supports_caching = true
 
@@ -91,7 +98,6 @@ tier = 0
 input_price = 0.00
 output_price = 0.00
 context_window = 128000
-supports_effort = false
 supports_vision = false
 supports_caching = false
 n_gpu_layers = -1
@@ -108,7 +114,6 @@ tier = 0
 input_price = 0.00
 output_price = 0.00
 context_window = 128000
-supports_effort = false
 supports_vision = false
 supports_caching = false
 n_gpu_layers = -1
@@ -124,7 +129,6 @@ tier = 0
 input_price = 0.00
 output_price = 0.00
 context_window = 128000
-supports_effort = false
 supports_vision = false
 supports_caching = false
 n_gpu_layers = -1

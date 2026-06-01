@@ -348,18 +348,27 @@ class ModelSettings(BaseModel):
         )
 
     def get_effort(self, stage_id: str) -> str | None:
-        """Get the effort level for a stage (None if not set or unsupported)."""
+        """Resolve the effort level for a stage, or None.
+
+        Returns None when no effort is set or the assigned model takes no effort
+        parameter at all. If a level is stored that the assigned model doesn't
+        accept (e.g. a profile carries ``max`` but the stage is now on Sonnet,
+        which caps at ``high``), it's clamped down to the model's ceiling rather
+        than passed through — sending an unsupported level would 400.
+        """
         effort = self.effort_overrides.get(stage_id)
         if not effort:
             return None
-        # Only return effort if the assigned model supports it
-        key = self.llm_assignments.get(stage_id)
-        if key:
-            registry = get_registry()
-            model = registry.get_llm(key)
-            if model and not model.supports_effort:
-                return None
-        return effort
+        key = self.llm_assignments.get(stage_id, DEFAULT_LLM_ASSIGNMENTS.get(stage_id))
+        if not key:
+            return effort
+        model = get_registry().get_llm(key)
+        if model is None or not model.effort_levels:
+            return None
+        if effort in model.effort_levels:
+            return effort
+        # Unsupported level for this model — clamp to its highest (last) level.
+        return model.effort_levels[-1]
 
     def to_toml_doc(self, *, profile_only: bool = False) -> TOMLDocument:
         """Build a tomlkit document for this settings instance.

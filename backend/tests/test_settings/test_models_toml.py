@@ -128,7 +128,7 @@ def test_public_model_id_maps_twin_to_base_else_identity():
     assert reg.public_model_id("gemma4-26b-iq2m-48k") == "gemma4-26b-iq2m"
     # Identity for bases, cloud models, and unknown ids.
     assert reg.public_model_id("gemma4-26b-vlad-updated") == "gemma4-26b-vlad-updated"
-    assert reg.public_model_id("claude-opus-4-6") == "claude-opus-4-6"
+    assert reg.public_model_id("claude-opus-4-8") == "claude-opus-4-8"
     assert reg.public_model_id("nonsense") == "nonsense"
 
 
@@ -195,6 +195,60 @@ def test_synthesized_twin_auto_names_when_spec_omits_name(monkeypatch):
     twin = reg.get_llm("gemma4-26b-iq2m-24k")
     assert base is not None and twin is not None
     assert twin.name == f"{base.name} (24k ctx)"
+
+
+def test_anthropic_entries_are_current():
+    """The Anthropic entries track the shipped models: Opus is 4.8 (the latest),
+    Sonnet 4.6 and Haiku 4.5 stay current. Guards against a stale model_id
+    silently pinning an older generation."""
+    reg = get_registry()
+    opus = reg.get_llm("opus")
+    sonnet = reg.get_llm("sonnet")
+    haiku = reg.get_llm("haiku")
+    assert opus is not None and opus.model_id == "claude-opus-4-8"
+    assert sonnet is not None and sonnet.model_id == "claude-sonnet-4-6"
+    assert haiku is not None and haiku.model_id == "claude-haiku-4-5-20251001"
+    # Opus 4.8 pricing (no long-context premium).
+    assert (opus.input_price, opus.output_price) == (5.00, 25.00)
+
+
+def test_effort_levels_drive_supports_effort_and_tier_gating():
+    """effort_levels is the single source of truth: supports_effort is derived
+    from it, xhigh/max are Opus-only, Sonnet caps at high, Haiku/local take none."""
+    reg = get_registry()
+    opus = reg.get_llm("opus")
+    sonnet = reg.get_llm("sonnet")
+    haiku = reg.get_llm("haiku")
+    local = reg.get_llm("gemma4-26b-vlad-updated")
+    assert opus is not None and sonnet is not None and haiku is not None and local is not None
+    assert opus.effort_levels == ("low", "medium", "high", "xhigh", "max")
+    assert sonnet.effort_levels == ("low", "medium", "high")
+    assert haiku.effort_levels == ()
+    assert local.effort_levels == ()
+    # supports_effort is derived, never hand-set in TOML.
+    assert opus.supports_effort is True
+    assert sonnet.supports_effort is True
+    assert haiku.supports_effort is False
+    assert local.supports_effort is False
+
+
+def test_invalid_effort_level_raises(tmp_path):
+    """A typo'd effort level must fail loudly at load rather than silently
+    offering a level the API would 400 on."""
+    import pytest
+
+    from mtgai.settings.model_registry import ModelRegistry
+
+    toml = tmp_path / "bad.toml"
+    toml.write_text(
+        "[llm.x]\n"
+        'name = "X"\n'
+        'provider = "anthropic"\n'
+        'model_id = "x"\n'
+        'effort_levels = ["low", "ultra"]\n'
+    )
+    with pytest.raises(ValueError, match="invalid effort_levels"):
+        ModelRegistry.load(toml)
 
 
 def test_invalid_thinking_value_raises(tmp_path):

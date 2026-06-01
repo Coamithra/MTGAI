@@ -20,6 +20,12 @@ _MODELS_TOML = Path(__file__).resolve().parent / "models.toml"
 # enable_thinking kwarg", i.e. thinking quietly off, with no error).
 _VALID_THINKING_MODES = frozenset({"adaptive", "adaptive_summarized", "disabled"})
 
+# Valid ``effort_levels`` entries (low→high), mirroring the Anthropic effort
+# parameter. ``xhigh``/``max`` are Opus-tier only; the per-model TOML list says
+# which a given model actually accepts. Validated at load so a typo fails loudly
+# instead of silently offering a level the API would 400 on.
+_VALID_EFFORT_LEVELS = frozenset({"low", "medium", "high", "xhigh", "max"})
+
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -37,6 +43,12 @@ class LLMModel:
     tier: int = 0  # quality ranking (higher = better)
     input_price: float = 0.0  # per 1M tokens
     output_price: float = 0.0
+    # Effort parameter levels this model accepts, ordered low→high (last is the
+    # ceiling). Empty = no effort support. Single source of truth: the registry
+    # derives ``supports_effort`` from this, and the wizard builds the effort
+    # dropdown from it so a model is never offered a level it would 400 on.
+    effort_levels: tuple[str, ...] = ()
+    # Derived from ``effort_levels`` at load (non-empty → True); not set in TOML.
     supports_effort: bool = False
     supports_vision: bool = False
     supports_caching: bool = False
@@ -163,6 +175,13 @@ class ModelRegistry:
                     f"models.toml [llm.{key}]: invalid thinking={thinking!r}; "
                     f"expected one of {sorted(_VALID_THINKING_MODES)} or omit it"
                 )
+            effort_levels = tuple(raw.get("effort_levels", ()))
+            bad_levels = [lvl for lvl in effort_levels if lvl not in _VALID_EFFORT_LEVELS]
+            if bad_levels:
+                raise ValueError(
+                    f"models.toml [llm.{key}]: invalid effort_levels {bad_levels}; "
+                    f"expected a subset of {sorted(_VALID_EFFORT_LEVELS)} or omit it"
+                )
             model = LLMModel(
                 key=key,
                 name=raw["name"],
@@ -171,7 +190,9 @@ class ModelRegistry:
                 tier=raw.get("tier", 0),
                 input_price=raw.get("input_price", 0.0),
                 output_price=raw.get("output_price", 0.0),
-                supports_effort=raw.get("supports_effort", False),
+                effort_levels=effort_levels,
+                # Derived, not read from TOML — keeps effort capability in one place.
+                supports_effort=bool(effort_levels),
                 supports_vision=raw.get("supports_vision", False),
                 supports_caching=raw.get("supports_caching", False),
                 context_window=raw.get("context_window", 200_000),
@@ -267,7 +288,7 @@ class ModelRegistry:
         return self.llm_models.get(key)
 
     def get_llm_by_model_id(self, model_id: str) -> LLMModel | None:
-        """Look up an LLM model by its API model_id (e.g. 'claude-opus-4-6')."""
+        """Look up an LLM model by its API model_id (e.g. 'claude-opus-4-8')."""
         key = self._model_id_to_key.get(model_id)
         if key:
             return self.llm_models.get(key)

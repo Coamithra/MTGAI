@@ -1192,11 +1192,11 @@
         `<option value="${escAttr(m.key)}" ${m.key === assigned ? 'selected' : ''}>${escHtml(m.name)}</option>`
       ).join('');
       const model = data.llm_models.find(m => m.key === assigned);
-      const supportsEffort = !!(model && model.supports_effort);
+      const levels = (model && model.effort_levels) || [];
       const effort = data.effort_overrides[stage.id] || '';
-      const effortCell = supportsEffort ? `
+      const effortCell = levels.length ? `
         <select data-effort-stage="${escAttr(stage.id)}" class="wiz-effort-select">
-          ${EFFORT_OPTIONS.map(e => `<option value="${e.value}" ${e.value === effort ? 'selected' : ''}>${e.label}</option>`).join('')}
+          ${effortOptionsHtml(levels, effort)}
         </select>
       ` : '<span class="wiz-effort-na">—</span>';
       return `
@@ -1222,7 +1222,7 @@
     }).join('');
 
     return `
-      <section class="wiz-proj-section">
+      <section class="wiz-proj-section" id="wiz-models-section">
         <h3>Model assignments</h3>
         ${renderPresetControls(data)}
         <table class="wiz-models-table">
@@ -1262,12 +1262,25 @@
     { value: 'low', label: 'Low' },
     { value: 'medium', label: 'Medium' },
     { value: 'high', label: 'High' },
-    { value: 'max', label: 'Max' },
+    { value: 'xhigh', label: 'X-High' },  // Opus-tier only
+    { value: 'max', label: 'Max' },       // Opus-tier only
   ];
+
+  // Build the effort <option> list for a stage from the assigned model's
+  // effort_levels (the registry decides which the model accepts). The leading
+  // blank ('—') means "no override / use the model default".
+  function effortOptionsHtml(levels, selected) {
+    return EFFORT_OPTIONS
+      .filter(e => e.value === '' || (levels || []).includes(e.value))
+      .map(e =>
+        `<option value="${escAttr(e.value)}" ${e.value === selected ? 'selected' : ''}>${escHtml(e.label)}</option>`
+      )
+      .join('');
+  }
 
   function bindModelHandlers(state) {
     document.querySelectorAll('select[data-llm-stage]').forEach(sel => {
-      sel.addEventListener('change', () => saveModel(state, 'llm', sel.dataset.llmStage, sel.value));
+      sel.addEventListener('change', () => onLlmModelChange(state, sel.dataset.llmStage, sel.value));
     });
     document.querySelectorAll('select[data-image-stage]').forEach(sel => {
       sel.addEventListener('change', () => saveModel(state, 'image', sel.dataset.imageStage, sel.value));
@@ -1275,6 +1288,31 @@
     document.querySelectorAll('select[data-effort-stage]').forEach(sel => {
       sel.addEventListener('change', () => saveModel(state, 'effort', sel.dataset.effortStage, sel.value));
     });
+  }
+
+  // Changing the model can change which effort levels are valid, so persist the
+  // model, drop any now-unsupported effort override, and re-render the
+  // assignments table so the effort dropdown matches the new model.
+  async function onLlmModelChange(state, stageId, value) {
+    await saveModel(state, 'llm', stageId, value);
+    const model = (local.data.llm_models || []).find(
+      m => m.key === local.data.llm_assignments[stageId]
+    );
+    const levels = (model && model.effort_levels) || [];
+    const cur = local.data.effort_overrides[stageId];
+    if (cur && !levels.includes(cur)) {
+      delete local.data.effort_overrides[stageId];
+      saveModel(state, 'effort', stageId, '');  // persist the drop (best-effort)
+    }
+    rerenderModelAssignments(state);
+  }
+
+  function rerenderModelAssignments(state) {
+    const section = document.getElementById('wiz-models-section');
+    if (!section) return;
+    section.outerHTML = renderModelAssignmentsSection(local.data);
+    bindModelHandlers(state);
+    bindPresetHandlers(state);  // preset controls live inside this section
   }
 
   async function saveModel(state, kind, stageId, value) {
