@@ -28,6 +28,7 @@ import re
 import threading
 import uuid
 from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -205,6 +206,100 @@ def cap_model(model: str, effort: str | None = None) -> tuple[str, str | None]:
 # multiple threads.
 _PROVIDERS: dict[str, Provider] = {}
 _PROVIDERS_LOCK = threading.Lock()
+
+
+# ── Local-inference interrupt (responsive cancel) ────────────────────
+#
+# A synchronous local LLM call blocks the worker thread inside the OpenAI SDK
+# client with no cross-thread cancel hook, so polling ``ai_lock.is_cancelled()``
+# can only abort at the next loop boundary — never a call already in flight. To
+# make Cancel instant for local models we hard-kill the in-flight llama-server
+# backend from the cancelling thread (wired as an ``ai_lock`` cancel hook); the
+# blocked ``convo.send()`` then raises and the worker, seeing ``is_cancelled()``,
+# treats it as a clean cancel.
+#
+# We kill ONLY when a local call is actually in flight, so a cancel during a
+# cloud/Anthropic run doesn't needlessly cold-start a warm-but-idle local
+# server. ``_local_inflight`` is a count (not a bool) so overlapping local
+# sends are tracked correctly.
+_local_inflight = 0
+_local_inflight_lock = threading.Lock()
+
+
+@contextmanager
+def _local_call_marker() -> Iterator[None]:
+    """Mark a local llama-server call as in flight for its whole duration.
+
+    Wraps the blocking ``convo.send()`` / stream consumption so
+    :func:`interrupt_local_inference` knows a kill would actually abort
+    something. Decrements in ``finally`` so any exception — including the
+    transport error the kill itself produces — still clears the marker.
+    """
+    global _local_inflight
+    with _local_inflight_lock:
+        _local_inflight += 1
+    try:
+        yield
+    finally:
+        with _local_inflight_lock:
+            _local_inflight -= 1
+
+
+def interrupt_local_inference() -> bool:
+    """Hard-kill the in-flight local llama-server, if one is running our call.
+
+    Registered as an ``ai_lock`` cancel hook, so it fires on every cancel path
+    (UI button, project-switch drain). No-op (returns ``False``) unless a local
+    call is currently in flight AND the llamacpp provider has been constructed
+    — so a cancel during a cloud run, or before any local model loaded, leaves
+    the server untouched.
+
+    Calls the provider's ``interrupt()`` (kills the backend process tree
+    immediately, recoverable on the next call: llmfacade respawns llama-swap
+    and reloads the model lazily). If the installed llmfacade predates that
+    method (``getattr`` finds nothing callable), this logs a pointed warning
+    and returns ``False`` so Cancel degrades to the slower
+    poll-at-next-boundary path instead of crashing the cancel handler.
+    """
+    with _local_inflight_lock:
+        if _local_inflight <= 0:
+            return False
+    with _PROVIDERS_LOCK:
+        prov = _PROVIDERS.get("llamacpp")
+    if prov is None:
+        return False
+    interrupt = getattr(prov, "interrupt", None)
+    if not callable(interrupt):
+        logger.warning(
+            "llamacpp provider has no interrupt() yet — cannot kill the in-flight "
+            "local call, so Cancel only takes effect at the next loop boundary. "
+            "Update llmfacade to add LlamaCppServerProvider.interrupt() (see the "
+            "LLMFacade Trello card)."
+        )
+        return False
+    try:
+        killed = bool(interrupt())
+    except Exception:
+        logger.exception("llamacpp provider.interrupt() failed")
+        return False
+    if killed:
+        logger.info("Cancel: hard-killed in-flight local llama-server inference")
+    return killed
+
+
+def _register_cancel_hook() -> None:
+    """Register :func:`interrupt_local_inference` with ``ai_lock`` once at import.
+
+    Any cancel path then kills a local in-flight call automatically. The
+    ``ai_lock`` import is local to keep the module-import graph one-directional
+    (``ai_lock`` never imports ``llm_client``).
+    """
+    from mtgai.runtime import ai_lock
+
+    ai_lock.register_cancel_hook(interrupt_local_inference)
+
+
+_register_cancel_hook()
 
 
 def _noop_tool_fn(**kw: Any) -> dict[str, Any]:
@@ -536,7 +631,8 @@ def _generate_llamacpp(
     next_user: str | None = user_prompt
     for attempt in range(MAX_RETRIES):
         try:
-            resp = convo.send(next_user)
+            with _local_call_marker():
+                resp = convo.send(next_user)
         except LLMError as e:
             raise ValueError(f"llamacpp [{model}] error: {e}") from e
 
@@ -752,7 +848,8 @@ def _generate_text_llamacpp(
     convo = facade_model.new_conversation(**convo_kwargs)
 
     try:
-        resp = convo.send(user_prompt)
+        with _local_call_marker():
+            resp = convo.send(user_prompt)
     except LLMError as e:
         raise ValueError(f"llamacpp [{model}] error: {e}") from e
 
@@ -903,7 +1000,11 @@ def _stream_text_llamacpp(
         convo_kwargs["repeat_penalty"] = repeat_penalty
     convo = facade_model.new_conversation(**convo_kwargs)
 
-    yield from _consume_text_stream(convo, user_prompt, model)
+    # Marker spans the whole stream consumption: the blocking decode happens as
+    # the caller pulls events, not at the convo.stream() call, so a kill mid-
+    # stream must still see the call as in flight.
+    with _local_call_marker():
+        yield from _consume_text_stream(convo, user_prompt, model)
 
 
 def _stream_text_anthropic(

@@ -13,10 +13,18 @@ from mtgai.runtime import ai_lock
 
 @pytest.fixture(autouse=True)
 def _reset_ai_lock():
-    """Make every test start from a clean idle state."""
+    """Make every test start from a clean idle state.
+
+    Cancel-hook registrations persist across ``reset_for_tests`` by design
+    (they're process-wide wiring), so snapshot + restore them here to keep a
+    test that registers a hook from leaking it into the next test (and to keep
+    the real ``llm_client`` interrupt hook, registered at import, intact).
+    """
+    saved_hooks = list(ai_lock._cancel_hooks)
     ai_lock.reset_for_tests()
     yield
     ai_lock.reset_for_tests()
+    ai_lock._cancel_hooks[:] = saved_hooks
 
 
 def test_idle_state():
@@ -336,5 +344,86 @@ def test_busy_payload_includes_action_metadata():
         # ISO 8601 timestamp string.
         assert payload["started_at"] is not None
         assert "T" in payload["started_at"]
+    finally:
+        ai_lock.release()
+
+
+# ── Cancel hooks ─────────────────────────────────────────────────────
+
+
+def test_cancel_hook_fires_on_cancel():
+    """A registered hook runs when a cancel is actually signalled."""
+    calls: list[int] = []
+    ai_lock.register_cancel_hook(lambda: calls.append(1))
+    ai_lock.try_acquire("a")
+    try:
+        assert ai_lock.request_cancel() is True
+        assert calls == [1]
+    finally:
+        ai_lock.release()
+
+
+def test_cancel_hook_not_fired_when_idle():
+    """No running action → no cancel signalled → hook must not fire."""
+    calls: list[int] = []
+    ai_lock.register_cancel_hook(lambda: calls.append(1))
+    assert ai_lock.request_cancel() is False
+    assert calls == []
+
+
+def test_cancel_hook_not_fired_on_stale_run_id():
+    """A stale run-scoped cancel is a no-op, so its hooks must not fire."""
+    calls: list[int] = []
+    ai_lock.register_cancel_hook(lambda: calls.append(1))
+
+    run_a = ai_lock.try_acquire("run A")
+    assert run_a is not None
+    ai_lock.release()
+    run_b = ai_lock.try_acquire("run B")
+    assert run_b is not None
+    try:
+        # Cancel aimed at the already-finished run A: no-op, no hook.
+        assert ai_lock.request_cancel(run_id=run_a) is False
+        assert calls == []
+        # B's own id fires it.
+        assert ai_lock.request_cancel(run_id=run_b) is True
+        assert calls == [1]
+    finally:
+        ai_lock.release()
+
+
+def test_register_cancel_hook_is_idempotent():
+    """Registering the same callable twice fires it only once per cancel."""
+    calls: list[int] = []
+
+    def hook():
+        calls.append(1)
+
+    ai_lock.register_cancel_hook(hook)
+    ai_lock.register_cancel_hook(hook)
+    ai_lock.try_acquire("a")
+    try:
+        ai_lock.request_cancel()
+        assert calls == [1]
+    finally:
+        ai_lock.release()
+
+
+def test_cancel_hook_exception_is_swallowed():
+    """A raising hook must not break cancellation or sibling hooks."""
+    calls: list[str] = []
+
+    def bad():
+        raise RuntimeError("boom")
+
+    ai_lock.register_cancel_hook(bad)
+    ai_lock.register_cancel_hook(lambda: calls.append("good"))
+    ai_lock.try_acquire("a")
+    try:
+        # request_cancel still reports success and the event is set despite the
+        # bad hook, and the sibling hook still ran.
+        assert ai_lock.request_cancel() is True
+        assert ai_lock.is_cancelled() is True
+        assert calls == ["good"]
     finally:
         ai_lock.release()

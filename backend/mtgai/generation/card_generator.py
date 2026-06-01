@@ -1258,6 +1258,20 @@ def generate_set(
             )
             api_latency = time.time() - t0
         except Exception:
+            # A Cancel mid-call hard-kills the local llama-server (see
+            # llm_client.interrupt_local_inference), so the in-flight call raises
+            # here. That's a clean cancel, not a batch failure: don't stamp the
+            # slots API-failed (they'd wrongly show as errors and skew Retry);
+            # just stop. Cards already saved persist for resume.
+            if ai_lock.is_cancelled():
+                logger.warning(
+                    "Card generation CANCELLED by user during batch %d/%d (%d saved).",
+                    batch_idx,
+                    len(batches),
+                    total_saved,
+                )
+                cancelled = True
+                break
             logger.exception(
                 "API CALL FAILED for batch %d — marking all slots as failed",
                 batch_idx,

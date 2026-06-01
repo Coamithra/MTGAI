@@ -373,18 +373,29 @@ def generate_lands(
     system, user = _build_basics_prompt(set_config, context)
     if on_call_start is not None:
         on_call_start(model_id)
-    response = generate_with_tool(
-        system_prompt=system,
-        user_prompt=user,
-        tool_schema=_build_basics_tool_schema(),
-        model=model_id,
-        temperature=0.7,
-        # 5 land types x (4 one-sentence art briefs + 1 flavor) is a lot of JSON;
-        # at 2048 the (often verbose, local) model truncated mid-output
-        # (finish: length) around the 3rd type. 4096 fits all five with headroom.
-        max_tokens=STANDARD,
-        log_dir=log_dir,
-    )
+    try:
+        response = generate_with_tool(
+            system_prompt=system,
+            user_prompt=user,
+            tool_schema=_build_basics_tool_schema(),
+            model=model_id,
+            temperature=0.7,
+            # 5 land types x (4 one-sentence art briefs + 1 flavor) is a lot of JSON;
+            # at 2048 the (often verbose, local) model truncated mid-output
+            # (finish: length) around the 3rd type. 4096 fits all five with headroom.
+            max_tokens=STANDARD,
+            log_dir=log_dir,
+        )
+    except Exception:
+        # A Cancel mid-call hard-kills the local llama-server (see
+        # llm_client.interrupt_local_inference), so this in-flight call raises.
+        # If the user cancelled, that's a clean cancel — return the cancelled
+        # shape (nothing written yet) so the guarded endpoint skips the heal,
+        # rather than surfacing a 500. A non-cancel failure still propagates.
+        if ai_lock.is_cancelled():
+            logger.warning("Land generation CANCELLED by user during basics call")
+            return {"total_cards": 0, "cost_usd": 0.0, "cancelled": True}
+        raise
     basics_data = response.get("result", {}).get("basics", [])
     cost += cost_from_result(response)
     logger.info(

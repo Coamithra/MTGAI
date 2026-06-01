@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -65,6 +65,44 @@ _cancel_event = threading.Event()
 # ``_current_run_id`` mirrors the active run's id while held; 0 means idle.
 _run_counter = 0
 _current_run_id = 0
+
+# Cancel hooks: callables fired (best-effort) whenever :func:`request_cancel`
+# actually signals a running action. They let a higher layer react to a cancel
+# beyond the polled ``_cancel_event`` — specifically, ``llm_client`` registers a
+# hook that hard-kills the in-flight local llama-server, since a synchronous
+# in-flight LLM call can't be interrupted by polling alone. Kept here (not in
+# llm_client) so this low-level primitive stays import-free of the generation
+# layer; callers register inward. Hooks run on the cancelling thread, OUTSIDE
+# ``_state_lock``, so a slow hook (a process kill) can't stall lock readers.
+# Return value is ignored, so the hook may return anything (e.g. a bool).
+_cancel_hooks: list[Callable[[], object]] = []
+_cancel_hooks_lock = threading.Lock()
+
+
+def register_cancel_hook(hook: Callable[[], object]) -> None:
+    """Register a callable to run whenever a cancel is signalled.
+
+    Idempotent per callable (registering the same hook twice is a no-op).
+    Hooks fire on the thread calling :func:`request_cancel`, after the cancel
+    event is set and the state lock is released, and any exception a hook
+    raises is logged and swallowed so one bad hook can't break cancellation.
+    Registrations persist across :func:`reset_for_tests` (they're process-wide
+    wiring, not per-run state).
+    """
+    with _cancel_hooks_lock:
+        if hook not in _cancel_hooks:
+            _cancel_hooks.append(hook)
+
+
+def _fire_cancel_hooks() -> None:
+    """Invoke every registered cancel hook, best-effort."""
+    with _cancel_hooks_lock:
+        hooks = list(_cancel_hooks)
+    for hook in hooks:
+        try:
+            hook()
+        except Exception:
+            logger.exception("Cancel hook %r raised; continuing", getattr(hook, "__name__", hook))
 
 
 def is_running() -> bool:
@@ -128,6 +166,10 @@ def request_cancel(run_id: int | None = None) -> bool:
         action_name = _current.name
         _cancel_event.set()
     logger.info("Cancel requested for active AI action: %s", action_name)
+    # Fire hooks outside _state_lock: a hook may hard-kill a subprocess (the
+    # local-inference interrupt), which we must not do while holding the mutex
+    # that every status/acquire read contends on.
+    _fire_cancel_hooks()
     return True
 
 

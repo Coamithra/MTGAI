@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from mtgai.generation import llm_client
 from mtgai.generation.llm_client import (
     _llamacpp_extract_json,
     _llamacpp_new_model,
@@ -591,3 +592,85 @@ class TestGenerateText:
         assert result["text"] == "hello"
         assert result["input_tokens"] == 10
         convo.send.assert_called_once()
+
+
+# ── Responsive cancel: interrupt the in-flight local server ──────────
+
+
+class TestInterruptLocalInference:
+    """``interrupt_local_inference`` kills the local server only when a local
+    call is actually in flight, and degrades gracefully until llmfacade ships
+    ``provider.interrupt()``."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate_module_state(self):
+        # Snapshot + restore the module-level in-flight counter and provider
+        # cache so these tests don't leak into each other or the wider suite.
+        saved_inflight = llm_client._local_inflight
+        saved_providers = dict(llm_client._PROVIDERS)
+        llm_client._local_inflight = 0
+        yield
+        llm_client._local_inflight = saved_inflight
+        with llm_client._PROVIDERS_LOCK:
+            llm_client._PROVIDERS.clear()
+            llm_client._PROVIDERS.update(saved_providers)
+
+    def _set_provider(self, prov):
+        with llm_client._PROVIDERS_LOCK:
+            llm_client._PROVIDERS["llamacpp"] = prov
+
+    def test_noop_when_nothing_in_flight(self):
+        prov = MagicMock()
+        prov.interrupt.return_value = True
+        self._set_provider(prov)
+        # _local_inflight == 0 → no local call to abort.
+        assert llm_client.interrupt_local_inference() is False
+        prov.interrupt.assert_not_called()
+
+    def test_noop_when_no_provider_cached(self):
+        llm_client._local_inflight = 1
+        with llm_client._PROVIDERS_LOCK:
+            llm_client._PROVIDERS.pop("llamacpp", None)
+        assert llm_client.interrupt_local_inference() is False
+
+    def test_kills_when_in_flight(self):
+        prov = MagicMock()
+        prov.interrupt.return_value = True
+        self._set_provider(prov)
+        llm_client._local_inflight = 1
+        assert llm_client.interrupt_local_inference() is True
+        prov.interrupt.assert_called_once_with()
+
+    def test_missing_interrupt_method_degrades(self):
+        # A provider without interrupt() (today's llmfacade): warn + False, no crash.
+        class NoInterrupt:
+            pass
+
+        self._set_provider(NoInterrupt())
+        llm_client._local_inflight = 1
+        assert llm_client.interrupt_local_inference() is False
+
+    def test_interrupt_exception_is_swallowed(self):
+        prov = MagicMock()
+        prov.interrupt.side_effect = RuntimeError("kaboom")
+        self._set_provider(prov)
+        llm_client._local_inflight = 1
+        assert llm_client.interrupt_local_inference() is False
+
+    def test_marker_increments_and_clears(self):
+        assert llm_client._local_inflight == 0
+        with llm_client._local_call_marker():
+            assert llm_client._local_inflight == 1
+        assert llm_client._local_inflight == 0
+
+    def test_marker_clears_on_exception(self):
+        with pytest.raises(ValueError), llm_client._local_call_marker():
+            assert llm_client._local_inflight == 1
+            raise ValueError("x")
+        assert llm_client._local_inflight == 0
+
+    def test_interrupt_hook_registered_with_ai_lock(self):
+        # Importing llm_client must have wired the interrupt as a cancel hook.
+        from mtgai.runtime import ai_lock
+
+        assert llm_client.interrupt_local_inference in ai_lock._cancel_hooks
