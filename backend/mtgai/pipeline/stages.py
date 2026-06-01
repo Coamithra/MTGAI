@@ -1147,9 +1147,8 @@ def run_balance(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
         (
             f.enabler_slot_id,
             (
-                f"Avoid this degenerate interaction ({f.interaction_type}): "
-                f"{f.why_enabler or f.description}. Replacement constraint: "
-                f"{f.replacement_constraint}"
+                f"Avoid this degenerate interaction: {f.reason}. "
+                f"Replacement constraint: {f.replacement_constraint}"
             ).strip(),
         )
         for f in flags

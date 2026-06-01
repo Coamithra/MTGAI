@@ -123,62 +123,36 @@ INTERACTION_TOOL_SCHEMA = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "cards_involved": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Names of the 2-3 cards involved",
-                        },
-                        "interaction_type": {
-                            "type": "string",
-                            "enum": [
-                                "infinite_combo",
-                                "degenerate_synergy",
-                                "unintended_loop",
-                            ],
-                            "description": "Category of the interaction",
-                        },
-                        "description": {
-                            "type": "string",
-                            "description": (
-                                "Step-by-step description of how the interaction works"
-                            ),
-                        },
-                        "severity": {
-                            "type": "string",
-                            "enum": ["WARN", "FAIL"],
-                            "description": (
-                                "FAIL for true infinite combos or game-breaking interactions. "
-                                "WARN for degenerate but bounded synergies."
-                            ),
-                        },
-                        "enabler_card": {
-                            "type": "string",
-                            "description": "Name of the card that is the root cause",
-                        },
                         "enabler_slot_id": {
                             "type": "string",
-                            "description": "Slot ID / collector number of the enabler",
+                            "description": (
+                                "Slot ID / collector number of the enabler — the one "
+                                "card whose design is the root cause and should be "
+                                "regenerated. This is required; a flag without it is "
+                                "dropped."
+                            ),
                         },
-                        "why_enabler": {
+                        "reason": {
                             "type": "string",
-                            "description": ("Why this card is the problem, not the other card(s)"),
+                            "description": (
+                                "The diagnosis: which cards combo, and step-by-step how "
+                                "the degenerate interaction works. Name the other card(s) "
+                                "involved here so the explanation stands on its own."
+                            ),
                         },
                         "replacement_constraint": {
                             "type": "string",
                             "description": (
-                                "What the replacement card should avoid to prevent "
-                                "this interaction. Brief structural constraint only."
+                                "The fix: what the regenerated enabler card must avoid to "
+                                "prevent this interaction. A brief structural constraint "
+                                "(e.g. 'no free untap of a creature'), not a restatement "
+                                "of the problem."
                             ),
                         },
                     },
                     "required": [
-                        "cards_involved",
-                        "interaction_type",
-                        "description",
-                        "severity",
-                        "enabler_card",
                         "enabler_slot_id",
-                        "why_enabler",
+                        "reason",
                         "replacement_constraint",
                     ],
                 },
@@ -299,23 +273,16 @@ def analyze_interactions(
             logger.warning("Interaction flag missing enabler_slot_id — dropping: %r", rf)
             continue
         flag = InteractionFlag(
-            cards_involved=rf.get("cards_involved") or [],
-            interaction_type=rf.get("interaction_type") or "degenerate_synergy",
-            description=rf.get("description") or "",
-            severity=rf.get("severity") or "WARN",
-            enabler_card=rf.get("enabler_card") or "",
             enabler_slot_id=slot_id,
-            why_enabler=rf.get("why_enabler") or "",
+            reason=rf.get("reason") or "",
             replacement_constraint=rf.get("replacement_constraint") or "",
         )
         flags.append(flag)
         logger.info(
-            "  [%s] %s: %s (enabler: %s @ %s)",
-            flag.severity,
-            flag.interaction_type,
-            ", ".join(flag.cards_involved),
-            flag.enabler_card,
+            "  enabler %s: %s | avoid: %s",
             flag.enabler_slot_id,
+            flag.reason[:120],
+            flag.replacement_constraint[:80],
         )
 
     return flags, analysis_text, cost

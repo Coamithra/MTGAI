@@ -14,16 +14,16 @@ from pydantic import BaseModel
 
 
 class InteractionFlag(BaseModel):
-    """A degenerate card interaction flagged by the LLM interaction scanner."""
+    """A degenerate card interaction flagged by the LLM interaction scanner.
 
-    cards_involved: list[str]
-    interaction_type: str  # infinite_combo, degenerate_synergy, unintended_loop
-    description: str
-    severity: str  # WARN or FAIL
-    enabler_card: str
-    enabler_slot_id: str
-    why_enabler: str
-    replacement_constraint: str
+    Minimal by design: the only consumer is ``run_balance``, which flags the
+    enabler card (joined by ``enabler_slot_id``) for regeneration with a reason
+    built from ``reason`` (the diagnosis) + ``replacement_constraint`` (the fix).
+    """
+
+    enabler_slot_id: str  # join key — which card gets flagged for regen
+    reason: str  # what the degenerate interaction is (the diagnosis)
+    replacement_constraint: str  # what the regenerated card must avoid (the fix)
 
 
 class ConformanceFinding(BaseModel):
