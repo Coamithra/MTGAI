@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from mtgai.generation.llm_client import generate_with_tool
-from mtgai.generation.token_budgets import STANDARD
+from mtgai.generation.token_budgets import BATCH
 from mtgai.skeleton.generator import render_slot_string
 
 logger = logging.getLogger(__name__)
@@ -41,8 +41,19 @@ _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "pipeline" / "prompts"
 # ASSIGN — past that, the fallback is more useful than another retry.
 _FIND_MAX_ATTEMPTS = 3
 
-# Temperature 0 — this is a clustering task, not creative work.
-_TEMPERATURE = 0.0
+# Whole-set cycle clustering is a reasoning-heavy pass: the local model thinks
+# through every slot before emitting the tool call, so its CoT alone can run
+# several thousand tokens (BATCH headroom, not a single-item STANDARD budget).
+#
+# Temperature is NOT 0 here, despite this being a clustering task. At greedy
+# decode the local model deterministically falls into a repetition loop —
+# re-reasoning the same slot groups verbatim until it exhausts the budget
+# mid-CoT and never reaches the tool call (finish_reason=length, empty args).
+# A flat re-roll reproduces the identical loop, so mirroring the review gates'
+# generate_gate_tool, each attempt is perturbed off a low base by a fixed
+# step, the verified lever out of the loop (see learnings/gemma-repetition-loops.md).
+_BASE_TEMPERATURE = 0.3
+_TEMPERATURE_STEP = 0.2
 
 _FIND_TOOL_SCHEMA: dict[str, Any] = {
     "name": "identify_cycles",
@@ -196,14 +207,17 @@ def find_cycle_families(
     last_error: Exception | None = None
 
     for attempt in range(1, _FIND_MAX_ATTEMPTS + 1):
+        # Perturb the decode off the low base each attempt so a retry doesn't
+        # re-derive the same repetition loop a flat re-roll would (see above).
+        temperature = _BASE_TEMPERATURE + _TEMPERATURE_STEP * (attempt - 1)
         try:
             response = generate_with_tool(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 tool_schema=_FIND_TOOL_SCHEMA,
                 model=model,
-                temperature=_TEMPERATURE,
-                max_tokens=STANDARD,
+                temperature=temperature,
+                max_tokens=BATCH,
                 log_dir=log_dir,
             )
         except Exception as exc:
