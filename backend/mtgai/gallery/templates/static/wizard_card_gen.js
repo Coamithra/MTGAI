@@ -376,6 +376,7 @@
           paintGrid(root, local);
         })
         .finally(() => { local.bootstrapping = false; });
+      W.bindRerunButton(root, stage);
       return;
     }
 

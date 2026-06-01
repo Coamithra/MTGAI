@@ -257,3 +257,43 @@ def test_card_gen_state_tip_reads_live(client):
     # card_gen IS the tip here -> live pool, not the (stale) snapshot.
     data = client.get("/api/wizard/card_gen/state?instance_id=card_gen").json()
     assert [c["name"] for c in data["cards"]] == ["FromLive"]
+
+
+# ---------------------------------------------------------------------------
+# _resnapshot_stage_tip — manual refresh keeps history in step with the live pool
+# ---------------------------------------------------------------------------
+
+
+def test_resnapshot_stage_tip_updates_stale_snapshot():
+    asset = _make_set()
+    config = PipelineConfig(set_code="ABC", set_name="ABC", set_size=20)
+    stages = [
+        StageState(stage_id="card_gen", instance_id="card_gen", display_name="Card Generation",
+                   status=StageStatus.COMPLETED, entry_snapshot_id="lands"),
+    ]
+    save_state(PipelineState(config=config, stages=stages, current_instance_id="card_gen"))
+
+    # Stale snapshot vs the live pool a refresh just rewrote.
+    _write_card(history.snapshot_dir("card_gen", asset) / "cards", "001.json",
+                {"collector_number": "001", "name": "PreRefresh"})
+    _write_card(asset / "cards", "001.json", {"collector_number": "001", "name": "Refreshed"})
+
+    pipeline_server._resnapshot_stage_tip("card_gen")
+
+    snap = json.loads(
+        (history.snapshot_dir("card_gen", asset) / "cards" / "001.json").read_text()
+    )
+    assert snap["name"] == "Refreshed", "snapshot must track the refreshed live pool"
+
+
+def test_resnapshot_stage_tip_noop_for_non_snapshot_stage():
+    _make_set()
+    config = PipelineConfig(set_code="ABC", set_name="ABC", set_size=20)
+    save_state(PipelineState(
+        config=config,
+        stages=[StageState(stage_id="skeleton", instance_id="skeleton",
+                           display_name="Skeleton Generation", status=StageStatus.COMPLETED)],
+    ))
+    # No raise, no snapshot created for a non-snapshot stage.
+    pipeline_server._resnapshot_stage_tip("skeleton")
+    assert not history.snapshot_exists("skeleton")

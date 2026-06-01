@@ -24,8 +24,10 @@ Design choices:
   if I/O hurts.
 * **``cards/_regen_archive/`` is excluded** from snapshots: it's a transient bag
   card_gen writes during regen, and history supersedes it.
-* All operations run under the AI lock (the engine ``save_state`` seam, or a
-  guarded endpoint), so there is never a concurrent writer to the live folder.
+* These run either at the engine ``save_state`` seam (mid-run, no other AI work
+  can interleave) or from an endpoint that first refuses while the engine /
+  extraction is running — so there is never a concurrent writer to the live
+  folder. They do not themselves hold ``ai_lock``.
 """
 
 from __future__ import annotations

@@ -3884,6 +3884,10 @@ async def wizard_lands_refresh() -> JSONResponse:
         # re-read below surfaces whatever was written.)
         if isinstance(result, dict) and result.get("cancelled"):
             guard.skip_heal = True
+        else:
+            # Keep the lands snapshot in step with the just-rewritten live pool so a
+            # later backbone card_gen re-run restores the refreshed lands, not stale.
+            _resnapshot_stage_tip("lands")
 
     # Re-read the freshly-written L-* cards into the tile shape (same source of
     # truth the tab bootstraps from), keeping the response shape DRY.
@@ -3951,6 +3955,32 @@ def _heal_failed_stage(stage_id: str) -> None:
             instance_id=stage.instance_id,
         )
     event_bus.pipeline_status(state.overall_status.value, state.current_instance_id)
+
+
+def _resnapshot_stage_tip(stage_id: str) -> None:
+    """Re-snapshot a stage's tip instance after a manual refresh rewrote the live pool.
+
+    The engine snapshots each instance's output at completion, but a tab "Refresh"
+    regenerates the live ``cards/`` afterward *without* going through the engine — so
+    ``history/<instance_id>/`` would otherwise stay stale and a later
+    ``rerun_instance`` would restore the pre-refresh pool (silent data loss).
+    Snapshotting the stage's most-recent instance keeps history in step with the live
+    pool the refresh just wrote. Best-effort; no-op for a non-snapshot stage.
+    """
+    from mtgai.pipeline import history
+
+    if stage_id not in history.SNAPSHOT_STAGES:
+        return
+    state = load_state()
+    if state is None:
+        return
+    inst = next((s for s in reversed(state.stages) if s.stage_id == stage_id), None)
+    if inst is None:
+        return
+    try:
+        history.snapshot_instance(inst.instance_id)
+    except Exception:
+        logger.exception("Re-snapshot after %s refresh failed (continuing)", stage_id)
 
 
 def _resolve_view_cards_dir(instance_id: str | None, asset: Path) -> Path:
@@ -4100,6 +4130,11 @@ async def wizard_card_gen_refresh() -> JSONResponse:
         # stage is healthy, so the guard heals it and the failure modal stops.
         if isinstance(result, dict) and result.get("cancelled"):
             guard.skip_heal = True
+        else:
+            # The refresh rewrote the live pool without going through the engine;
+            # re-snapshot this stage's tip so a later re-run restores the refreshed
+            # pool, not the stale pre-refresh one.
+            _resnapshot_stage_tip("card_gen")
 
     return await wizard_card_gen_state()
 
