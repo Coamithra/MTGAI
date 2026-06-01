@@ -392,6 +392,23 @@ def _llamacpp_new_model(provider: Provider, model_id: str):
 # ── Anthropic provider ───────────────────────────────────────────────
 
 
+def _anthropic_supports_temperature(model: str) -> bool:
+    """Whether an Anthropic model accepts the ``temperature`` parameter.
+
+    Anthropic's reasoning models (the effort-capable ones, e.g. Opus 4.8)
+    deprecated ``temperature`` — sending it 400s ("temperature is deprecated
+    for this model"). Non-effort models (e.g. Haiku 4.5) still accept it. We
+    key off the registry's ``supports_effort`` flag, defaulting to sending
+    temperature for an unknown model (no worse than today's behaviour).
+    """
+    from mtgai.settings.model_registry import get_registry
+
+    info = get_registry().get_llm_by_model_id(model)
+    if info is None:
+        return True
+    return not info.supports_effort
+
+
 def _generate_anthropic(
     system_prompt: str,
     user_prompt: str,
@@ -418,10 +435,9 @@ def _generate_anthropic(
         cache_dir=_active_cache_dir(),
     )
 
-    send_kwargs: dict[str, Any] = {
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }
+    send_kwargs: dict[str, Any] = {"max_tokens": max_tokens}
+    if _anthropic_supports_temperature(model):
+        send_kwargs["temperature"] = temperature
     if effort:
         send_kwargs["effort"] = effort
 
@@ -824,7 +840,9 @@ def _generate_text_anthropic(
         log_dir=log_dir,
         cache_dir=_active_cache_dir(),
     )
-    send_kwargs: dict[str, Any] = {"max_tokens": max_tokens, "temperature": temperature}
+    send_kwargs: dict[str, Any] = {"max_tokens": max_tokens}
+    if _anthropic_supports_temperature(model):
+        send_kwargs["temperature"] = temperature
     if effort:
         send_kwargs["effort"] = effort
     resp = convo.send(user_prompt, **send_kwargs)
@@ -959,14 +977,16 @@ def _stream_text_anthropic(
     ``complete`` event with the full text + usage (incl. cache stats)."""
     provider = _get_provider("anthropic")
     facade_model = provider.new_model(model)
-    convo = facade_model.new_conversation(
-        name=_text_convo_name(name),
-        system_blocks=[SystemBlock(text=system_prompt, cache=cache)],
-        max_tokens=max_tokens,
-        temperature=temperature,
-        log_dir=log_dir,
-        cache_dir=_active_cache_dir(),
-    )
+    convo_kwargs: dict[str, Any] = {
+        "name": _text_convo_name(name),
+        "system_blocks": [SystemBlock(text=system_prompt, cache=cache)],
+        "max_tokens": max_tokens,
+        "log_dir": log_dir,
+        "cache_dir": _active_cache_dir(),
+    }
+    if _anthropic_supports_temperature(model):
+        convo_kwargs["temperature"] = temperature
+    convo = facade_model.new_conversation(**convo_kwargs)
     yield from _consume_text_stream(convo, user_prompt, model)
 
 
