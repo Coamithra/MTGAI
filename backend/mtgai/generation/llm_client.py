@@ -36,14 +36,22 @@ from llmfacade.exceptions import LLMError
 
 logger = logging.getLogger(__name__)
 
-# Load .env file from project root
+# Load .env file from project root.
+#
+# .env wins over a missing OR blank OS variable, but defers to a genuinely
+# set one. We can't use os.environ.setdefault: an empty pre-existing var
+# (e.g. ANTHROPIC_API_KEY="" exported by the shell — common on Windows)
+# counts as "present", so setdefault keeps the blank and llmfacade then
+# reports "No API key for 'anthropic'" despite a valid key sitting in .env.
 _ENV_PATH = Path("C:/Programming/MTGAI/.env")
 if _ENV_PATH.exists():
     for line in _ENV_PATH.read_text().splitlines():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip())
+            key, value = key.strip(), value.strip()
+            if value and not os.environ.get(key, "").strip():
+                os.environ[key] = value
 
 # ── Provider config ──────────────────────────────────────────────────
 
