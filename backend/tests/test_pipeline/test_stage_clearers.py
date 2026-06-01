@@ -83,12 +83,8 @@ def test_clear_card_gen_preserves_lands(fake_output_root: Path) -> None:
     set_dir = fake_output_root / "sets" / "TST"
     cards_dir = set_dir / "cards"
     cards_dir.mkdir(parents=True)
-    (cards_dir / "001_foo.json").write_text(
-        '{"collector_number": "001"}', encoding="utf-8"
-    )
-    (cards_dir / "L-01_plains.json").write_text(
-        '{"collector_number": "L-01"}', encoding="utf-8"
-    )
+    (cards_dir / "001_foo.json").write_text('{"collector_number": "001"}', encoding="utf-8")
+    (cards_dir / "L-01_plains.json").write_text('{"collector_number": "L-01"}', encoding="utf-8")
     archive = cards_dir / "_regen_archive"
     archive.mkdir()
     (archive / "001_foo.json").write_text("{}", encoding="utf-8")
@@ -209,7 +205,6 @@ def test_in_place_mutator_clearers_are_no_ops(fake_output_root: Path) -> None:
 
     for stage_id in (
         "conformance",
-        "balance",
         "ai_review",
         "finalize",
         "art_prompts",

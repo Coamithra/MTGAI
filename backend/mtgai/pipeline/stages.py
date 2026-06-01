@@ -1078,16 +1078,26 @@ def _flag_cards_for_regen(flags: list[tuple[str, str]], flagged_by: str) -> list
 
 
 def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Conformance gate — each card vs. its slot spec; runs first.
+    """Merged review gate — conformance + interactions in one stage (stage_id ``conformance``).
 
-    One whole-set LLM call (``analysis.conformance.check_conformance``); flags
-    every non-conforming card for regeneration and bounces to ``card_gen`` if
-    any. A clean pass advances to the interaction gate.
+    Runs two whole-set LLM steps back-to-back under one AI-lock hold and one
+    tok/s poller (both resolve the shared ``conformance`` model assignment):
+
+    1. **Conformance** (``analysis.conformance.check_conformance``) — each card
+       vs. its slot spec.
+    2. **Interaction Check** (``analysis.interactions.analyze_interactions``) —
+       whole-pool degenerate-combo scan, flagging each combo's enabler.
+
+    Cards are flagged for regeneration only after *both* steps succeed (a card
+    flagged by both gets its reasons joined), so a persistent truncation in
+    either step raises out of here with the pool untouched — the engine marks
+    the stage FAILED and a re-run starts clean. Either step flagging a card
+    bounces the pipeline to ``card_gen``; a clean pass advances to ai_review.
     """
     from mtgai.analysis.conformance import check_conformance
+    from mtgai.analysis.interactions import analyze_interactions
     from mtgai.runtime import ai_lock
 
-    emitter.phase("running", "Checking each card against its slot spec")
     set_dir = _set_dir()
     skeleton_path = set_dir / "skeleton.json"
     slots_by_id: dict[str, dict] = {}
@@ -1099,46 +1109,6 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
             if isinstance(s, dict) and s.get("slot_id")
         }
     cards = _load_set_cards()
-
-    with ai_lock.hold("Conformance check") as acquired:
-        if not acquired:
-            return StageResult(
-                success=False, error_message="Another AI action holds the lock; try again later."
-            )
-        with make_poller("conformance", emitter.phase, activity_prefix="Checking conformance"):
-            findings, analysis_text, cost = check_conformance(cards, slots_by_id)
-
-    flagged = _flag_cards_for_regen([(f.slot_id, f.reason) for f in findings], "conformance")
-    emitter.phase("done", f"Conformance: {len(flagged)} card(s) flagged")
-    detail = (
-        f"Conformance: {len(flagged)} card(s) flagged for regeneration"
-        if flagged
-        else "Conformance: all cards match their slot spec"
-    )
-    return StageResult(
-        total_items=len(cards),
-        completed_items=len(cards),
-        cost_usd=cost,
-        detail=detail,
-        rerun_from="card_gen" if flagged else None,
-        artifacts={"flagged": flagged, "analysis": analysis_text, "passed": not flagged},
-    )
-
-
-def run_balance(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Interaction Check gate — whole-pool degenerate-combo scan (stage_id ``balance``).
-
-    Keeps ``analyze_interactions``' substance; flags the enabler of each
-    degenerate interaction (``regen_reason`` = the replacement constraint,
-    ``flagged_by="balance"``) and bounces to ``card_gen`` if any. Runs after
-    conformance, so it scans a pool already matching the plan.
-    """
-    from mtgai.analysis.interactions import analyze_interactions
-    from mtgai.runtime import ai_lock
-
-    emitter.phase("running", "Scanning the pool for degenerate interactions")
-    set_dir = _set_dir()
-    cards = _load_set_cards()
     mechanics: list[dict] = []
     mech_path = set_dir / "mechanics" / "approved.json"
     if mech_path.exists():
@@ -1147,15 +1117,28 @@ def run_balance(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
         except (OSError, json.JSONDecodeError):
             logger.warning("Could not read approved mechanics for interaction check")
 
-    with ai_lock.hold("Interaction check") as acquired:
+    name_by_slot: dict[str, str] = {}
+    for c in cards:
+        if c.slot_id:
+            name_by_slot[c.slot_id] = c.name
+        if c.collector_number:
+            name_by_slot.setdefault(c.collector_number, c.name)
+
+    with ai_lock.hold("Conformance & Interactions") as acquired:
         if not acquired:
             return StageResult(
                 success=False, error_message="Another AI action holds the lock; try again later."
             )
-        with make_poller("balance", emitter.phase, activity_prefix="Scanning interactions"):
-            flags, analysis_text, cost = analyze_interactions(cards, mechanics)
+        with make_poller("conformance", emitter.phase, activity_prefix="Reviewing cards"):
+            emitter.phase("running", "Checking each card against its slot spec")
+            conf_findings, conf_analysis, conf_cost = check_conformance(cards, slots_by_id)
+            emitter.phase("running", "Scanning the pool for degenerate interactions")
+            inter_flags, inter_analysis, inter_cost = analyze_interactions(cards, mechanics)
 
-    regen_flags = [
+    # Per-step (slot_id, reason) — the conformance reason as-is; the interaction
+    # reason threads diagnosis + replacement constraint into the regen prompt.
+    conf_pairs = [(f.slot_id, f.reason) for f in conf_findings]
+    inter_pairs = [
         (
             f.enabler_slot_id,
             (
@@ -1163,27 +1146,53 @@ def run_balance(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
                 f"Replacement constraint: {f.replacement_constraint}"
             ).strip(),
         )
-        for f in flags
+        for f in inter_flags
     ]
-    flagged = _flag_cards_for_regen(regen_flags, "balance")
-    emitter.phase("done", f"Interaction Check: {len(flagged)} enabler(s) flagged")
+
+    def _display(pairs: list[tuple[str, str]]) -> list[dict]:
+        return [
+            {"slot_id": sid, "card_name": name_by_slot.get(sid, ""), "reason": reason}
+            for sid, reason in pairs
+        ]
+
+    # Merge by slot_id (a card flagged by both steps keeps both reasons) and flag once.
+    merged: dict[str, list[str]] = {}
+    for sid, reason in [*conf_pairs, *inter_pairs]:
+        merged.setdefault(sid, []).append(reason)
+    flagged = _flag_cards_for_regen(
+        [(sid, " | ".join(reasons)) for sid, reasons in merged.items()], "conformance"
+    )
+
+    steps = [
+        {
+            "id": "conformance",
+            "label": "Conformance",
+            "flagged": _display(conf_pairs),
+            "analysis": conf_analysis,
+            "passed": not conf_pairs,
+        },
+        {
+            "id": "interactions",
+            "label": "Interaction Check",
+            "flagged": _display(inter_pairs),
+            "analysis": inter_analysis,
+            "passed": not inter_pairs,
+        },
+    ]
+    emitter.phase("done", f"Conformance & Interactions: {len(flagged)} card(s) flagged")
     detail = (
-        f"Interaction Check: {len(flagged)} enabler(s) flagged for regeneration"
+        f"Conformance & Interactions: {len(flagged)} card(s) flagged for regeneration "
+        f"(conformance {len(conf_pairs)}, interactions {len(inter_pairs)})"
         if flagged
-        else "Interaction Check: no degenerate interactions found"
+        else "Conformance & Interactions: all cards conform and the pool is clean"
     )
     return StageResult(
         total_items=len(cards),
         completed_items=len(cards),
-        cost_usd=cost,
+        cost_usd=conf_cost + inter_cost,
         detail=detail,
         rerun_from="card_gen" if flagged else None,
-        artifacts={
-            "flagged": flagged,
-            "analysis": analysis_text,
-            "passed": not flagged,
-            "flags": [f.model_dump() for f in flags],
-        },
+        artifacts={"steps": steps, "flagged": flagged, "passed": not flagged},
     )
 
 
@@ -1409,7 +1418,6 @@ STAGE_RUNNERS = {
     "lands": run_lands,
     "card_gen": run_card_gen,
     "conformance": run_conformance,
-    "balance": run_balance,
     "ai_review": run_ai_review,
     "finalize": run_finalize,
     "human_card_review": run_human_card_review,
@@ -1607,7 +1615,6 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
     "lands": _no_artifacts,
     "card_gen": clear_card_gen,
     "conformance": _no_artifacts,
-    "balance": _no_artifacts,
     "ai_review": _no_artifacts,
     "finalize": _no_artifacts,
     "human_card_review": _no_artifacts,

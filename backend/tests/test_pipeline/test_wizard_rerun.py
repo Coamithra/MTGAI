@@ -92,14 +92,20 @@ def _seed_loop_state() -> PipelineState:
 
     state = create_pipeline_state(PipelineConfig(set_code="ABC", set_name="ABC", set_size=20))
     done = {
-        "mechanics", "archetypes", "skeleton", "reprints", "lands",
-        "card_gen", "conformance", "balance", "ai_review", "finalize",
+        "mechanics",
+        "archetypes",
+        "skeleton",
+        "reprints",
+        "lands",
+        "card_gen",
+        "conformance",
+        "ai_review",
+        "finalize",
     }
     entry_by_inst = {
         "card_gen": "lands",
         "conformance": "card_gen",
-        "balance": "conformance.2",
-        "ai_review": "balance",
+        "ai_review": "conformance.2",
         "finalize": "ai_review",
     }
     for s in state.stages:
@@ -108,12 +114,20 @@ def _seed_loop_state() -> PipelineState:
         if s.instance_id in entry_by_inst:
             s.entry_snapshot_id = entry_by_inst[s.instance_id]
     idx = next(i for i, s in enumerate(state.stages) if s.instance_id == "conformance")
-    cg2 = StageState(stage_id="card_gen", instance_id="card_gen.2",
-                     display_name="Card Generation 2", status=StageStatus.COMPLETED,
-                     entry_snapshot_id="conformance")
-    cf2 = StageState(stage_id="conformance", instance_id="conformance.2",
-                     display_name="Conformance 2", status=StageStatus.COMPLETED,
-                     entry_snapshot_id="card_gen.2")
+    cg2 = StageState(
+        stage_id="card_gen",
+        instance_id="card_gen.2",
+        display_name="Card Generation 2",
+        status=StageStatus.COMPLETED,
+        entry_snapshot_id="conformance",
+    )
+    cf2 = StageState(
+        stage_id="conformance",
+        instance_id="conformance.2",
+        display_name="Conformance & Interactions 2",
+        status=StageStatus.COMPLETED,
+        entry_snapshot_id="card_gen.2",
+    )
     state.stages[idx + 1 : idx + 1] = [cg2, cf2]
     state.current_instance_id = "finalize"
     state.overall_status = PipelineStatus.COMPLETED
@@ -171,7 +185,7 @@ def test_rerun_success_truncates_and_kicks(client, no_thread_start):
     assert all(s.status == StageStatus.COMPLETED for s in reloaded.stages[:cg2_pos])
     assert reloaded.stages[cg2_pos].status == StageStatus.PENDING
     # Forward path re-appended: conformance.2 (sibling survives) then backbone tail.
-    assert ids[cg2_pos + 1 : cg2_pos + 5] == ["conformance.2", "balance", "ai_review", "finalize"]
+    assert ids[cg2_pos + 1 : cg2_pos + 4] == ["conformance.2", "ai_review", "finalize"]
     # The full canonical tail is re-appended (art/render/human).
     assert "rendering" in ids[cg2_pos:] and "human_final_review" in ids[cg2_pos:]
     assert all(s.status == StageStatus.PENDING for s in reloaded.stages[cg2_pos:])
@@ -213,10 +227,20 @@ def test_card_gen_state_routes_non_tip_to_history(client):
     # State: card_gen completed, then conformance completed -> conformance is tip.
     config = PipelineConfig(set_code="ABC", set_name="ABC", set_size=20)
     stages = [
-        StageState(stage_id="card_gen", instance_id="card_gen", display_name="Card Generation",
-                   status=StageStatus.COMPLETED, entry_snapshot_id="lands"),
-        StageState(stage_id="conformance", instance_id="conformance", display_name="Conformance",
-                   status=StageStatus.COMPLETED, entry_snapshot_id="card_gen"),
+        StageState(
+            stage_id="card_gen",
+            instance_id="card_gen",
+            display_name="Card Generation",
+            status=StageStatus.COMPLETED,
+            entry_snapshot_id="lands",
+        ),
+        StageState(
+            stage_id="conformance",
+            instance_id="conformance",
+            display_name="Conformance",
+            status=StageStatus.COMPLETED,
+            entry_snapshot_id="card_gen",
+        ),
     ]
     save_state(PipelineState(config=config, stages=stages, current_instance_id="conformance"))
 
@@ -242,8 +266,13 @@ def test_card_gen_state_tip_reads_live(client):
     (asset / "skeleton.json").write_text('{"slots": []}', encoding="utf-8")
     config = PipelineConfig(set_code="ABC", set_name="ABC", set_size=20)
     stages = [
-        StageState(stage_id="card_gen", instance_id="card_gen", display_name="Card Generation",
-                   status=StageStatus.COMPLETED, entry_snapshot_id="lands"),
+        StageState(
+            stage_id="card_gen",
+            instance_id="card_gen",
+            display_name="Card Generation",
+            status=StageStatus.COMPLETED,
+            entry_snapshot_id="lands",
+        ),
     ]
     save_state(PipelineState(config=config, stages=stages, current_instance_id="card_gen"))
 
@@ -268,32 +297,46 @@ def test_resnapshot_stage_tip_updates_stale_snapshot():
     asset = _make_set()
     config = PipelineConfig(set_code="ABC", set_name="ABC", set_size=20)
     stages = [
-        StageState(stage_id="card_gen", instance_id="card_gen", display_name="Card Generation",
-                   status=StageStatus.COMPLETED, entry_snapshot_id="lands"),
+        StageState(
+            stage_id="card_gen",
+            instance_id="card_gen",
+            display_name="Card Generation",
+            status=StageStatus.COMPLETED,
+            entry_snapshot_id="lands",
+        ),
     ]
     save_state(PipelineState(config=config, stages=stages, current_instance_id="card_gen"))
 
     # Stale snapshot vs the live pool a refresh just rewrote.
-    _write_card(history.snapshot_dir("card_gen", asset) / "cards", "001.json",
-                {"collector_number": "001", "name": "PreRefresh"})
+    _write_card(
+        history.snapshot_dir("card_gen", asset) / "cards",
+        "001.json",
+        {"collector_number": "001", "name": "PreRefresh"},
+    )
     _write_card(asset / "cards", "001.json", {"collector_number": "001", "name": "Refreshed"})
 
     pipeline_server._resnapshot_stage_tip("card_gen")
 
-    snap = json.loads(
-        (history.snapshot_dir("card_gen", asset) / "cards" / "001.json").read_text()
-    )
+    snap = json.loads((history.snapshot_dir("card_gen", asset) / "cards" / "001.json").read_text())
     assert snap["name"] == "Refreshed", "snapshot must track the refreshed live pool"
 
 
 def test_resnapshot_stage_tip_noop_for_non_snapshot_stage():
     _make_set()
     config = PipelineConfig(set_code="ABC", set_name="ABC", set_size=20)
-    save_state(PipelineState(
-        config=config,
-        stages=[StageState(stage_id="skeleton", instance_id="skeleton",
-                           display_name="Skeleton Generation", status=StageStatus.COMPLETED)],
-    ))
+    save_state(
+        PipelineState(
+            config=config,
+            stages=[
+                StageState(
+                    stage_id="skeleton",
+                    instance_id="skeleton",
+                    display_name="Skeleton Generation",
+                    status=StageStatus.COMPLETED,
+                )
+            ],
+        )
+    )
     # No raise, no snapshot created for a non-snapshot stage.
     pipeline_server._resnapshot_stage_tip("skeleton")
     assert not history.snapshot_exists("skeleton")

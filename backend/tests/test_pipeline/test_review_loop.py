@@ -82,7 +82,7 @@ def _patch_clean(monkeypatch, *stage_ids):
         monkeypatch.setitem(engine_mod.STAGE_RUNNERS, sid, _clean)
 
 
-_SPAN = ["card_gen", "conformance", "balance", "ai_review", "finalize"]
+_SPAN = ["card_gen", "conformance", "ai_review", "finalize"]
 
 
 # ----------------------------------------------------------------------
@@ -91,23 +91,23 @@ _SPAN = ["card_gen", "conformance", "balance", "ai_review", "finalize"]
 
 
 def test_gate_flags_then_passes_inserts_spans_and_advances(project, monkeypatch):
-    """balance flags twice then passes → 3 instances each of card_gen/conformance/
-    balance, and the run advances to completion."""
+    """A late gate (ai_review) flags twice then passes -> 3 instances each of
+    card_gen/conformance/ai_review, and the run advances to completion."""
     state = _state(_SPAN)
     counter = [0]
-    _patch_clean(monkeypatch, "card_gen", "conformance", "ai_review", "finalize")
-    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "balance", _flagging(2, counter))
+    _patch_clean(monkeypatch, "card_gen", "conformance", "finalize")
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "ai_review", _flagging(2, counter))
 
     PipelineEngine(state, EventBus()).run()
 
     ids = [s.instance_id for s in state.stages]
-    assert sum(1 for s in state.stages if s.stage_id == "balance") == 3, ids
+    assert sum(1 for s in state.stages if s.stage_id == "ai_review") == 3, ids
     assert sum(1 for s in state.stages if s.stage_id == "card_gen") == 3, ids
     assert sum(1 for s in state.stages if s.stage_id == "conformance") == 3, ids
     # Inserted instances carry the ".N" suffix + ordinal display name.
-    assert "balance.2" in ids and "balance.3" in ids
-    bal3 = next(s for s in state.stages if s.instance_id == "balance.3")
-    assert bal3.display_name == "Interaction Check 3"
+    assert "ai_review.2" in ids and "ai_review.3" in ids
+    ar3 = next(s for s in state.stages if s.instance_id == "ai_review.3")
+    assert ar3.display_name == "AI Design Review 3"
     assert state.overall_status == PipelineStatus.COMPLETED
     assert all(s.status == StageStatus.COMPLETED for s in state.stages)
 
@@ -116,17 +116,17 @@ def test_gate_exhaustion_pauses_for_review(project, monkeypatch):
     """A gate that flags every round pauses for human review at the cap."""
     state = _state(_SPAN)
     counter = [0]
-    _patch_clean(monkeypatch, "card_gen", "conformance", "ai_review", "finalize")
-    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "balance", _flagging(999, counter))
+    _patch_clean(monkeypatch, "card_gen", "conformance", "finalize")
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "ai_review", _flagging(999, counter))
 
     PipelineEngine(state, EventBus()).run()
 
-    bal = [s for s in state.stages if s.stage_id == "balance"]
-    assert len(bal) == MAX_REVIEW_ROUNDS, [s.instance_id for s in state.stages]
+    ar = [s for s in state.stages if s.stage_id == "ai_review"]
+    assert len(ar) == MAX_REVIEW_ROUNDS, [s.instance_id for s in state.stages]
     assert state.overall_status == PipelineStatus.PAUSED
-    # The last balance instance is the paused-for-review surface.
-    assert bal[-1].status == StageStatus.PAUSED_FOR_REVIEW
-    # ai_review / finalize never ran.
+    # The last ai_review instance is the paused-for-review surface.
+    assert ar[-1].status == StageStatus.PAUSED_FOR_REVIEW
+    # finalize never ran.
     assert next(s for s in state.stages if s.stage_id == "finalize").status == StageStatus.PENDING
 
 
@@ -134,28 +134,28 @@ def test_conformance_bounce_reinserts_only_card_gen_and_conformance(project, mon
     """Cost rule: a bounce at conformance re-inserts only [card_gen, conformance]."""
     state = _state(_SPAN)
     counter = [0]
-    _patch_clean(monkeypatch, "card_gen", "balance", "ai_review", "finalize")
+    _patch_clean(monkeypatch, "card_gen", "ai_review", "finalize")
     monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "conformance", _flagging(1, counter))
 
     PipelineEngine(state, EventBus()).run()
 
-    # The inserted span is exactly [card_gen.2, conformance.2] — no balance.2.
+    # The inserted span is exactly [card_gen.2, conformance.2] -- no ai_review.2.
     assert sum(1 for s in state.stages if s.stage_id == "card_gen") == 2
     assert sum(1 for s in state.stages if s.stage_id == "conformance") == 2
-    assert sum(1 for s in state.stages if s.stage_id == "balance") == 1
-    assert "balance.2" not in [s.instance_id for s in state.stages]
+    assert sum(1 for s in state.stages if s.stage_id == "ai_review") == 1
+    assert "ai_review.2" not in [s.instance_id for s in state.stages]
     assert state.overall_status == PipelineStatus.COMPLETED
 
 
 def test_build_rerun_span_ordinals_and_scope(project):
     state = _state(_SPAN)
     eng = PipelineEngine(state, EventBus())
-    span = eng._build_rerun_span("card_gen", "balance")
-    assert [s.instance_id for s in span] == ["card_gen.2", "conformance.2", "balance.2"]
+    span = eng._build_rerun_span("card_gen", "ai_review")
+    assert [s.instance_id for s in span] == ["card_gen.2", "conformance.2", "ai_review.2"]
     assert [s.display_name for s in span] == [
         "Card Generation 2",
-        "Conformance 2",
-        "Interaction Check 2",
+        "Conformance & Interactions 2",
+        "AI Design Review 2",
     ]
     assert all(s.review_mode == StageReviewMode.AUTO for s in span)
     assert all(s.status == StageStatus.PENDING for s in span)
@@ -167,7 +167,7 @@ def test_build_rerun_span_ordinals_and_scope(project):
 
 
 def test_legacy_skeleton_rev_dropped_on_sync():
-    state = _state(["card_gen", "balance", "ai_review"])
+    state = _state(["card_gen", "conformance", "ai_review"])
     # Splice in a legacy skeleton_rev backbone (removed from STAGE_DEFINITIONS).
     state.stages.insert(
         2,

@@ -61,9 +61,9 @@ def project_with_state(tmp_path: Path):
 
 
 def _state_with_inserted_dupes() -> PipelineState:
-    """A backbone state with ``card_gen.2`` + ``balance.2`` inserted after balance."""
+    """A backbone state with ``card_gen.2`` + ``conformance.2`` inserted after conformance."""
     state = create_pipeline_state(PipelineConfig(set_code="ABC", set_name="Test", set_size=20))
-    idx = next(i for i, s in enumerate(state.stages) if s.stage_id == "balance")
+    idx = next(i for i, s in enumerate(state.stages) if s.stage_id == "conformance")
     cg2 = StageState(
         stage_id="card_gen",
         instance_id="card_gen.2",
@@ -71,9 +71,9 @@ def _state_with_inserted_dupes() -> PipelineState:
         status=StageStatus.COMPLETED,
     )
     bal2 = StageState(
-        stage_id="balance",
-        instance_id="balance.2",
-        display_name="Interaction Check 2",
+        stage_id="conformance",
+        instance_id="conformance.2",
+        display_name="Conformance & Interactions 2",
         status=StageStatus.PAUSED_FOR_REVIEW,
     )
     state.stages[idx + 1 : idx + 1] = [cg2, bal2]
@@ -86,14 +86,14 @@ def _state_with_inserted_dupes() -> PipelineState:
 
 
 def test_backbone_instance_id_defaults_to_stage_id():
-    s = StageState(stage_id="balance", display_name="Balance Analysis")
-    assert s.instance_id == "balance"
+    s = StageState(stage_id="conformance", display_name="Conformance")
+    assert s.instance_id == "conformance"
     assert s.result == {}
 
 
 def test_make_instance_id():
-    assert make_instance_id("balance", 1) == "balance"
-    assert make_instance_id("balance", 2) == "balance.2"
+    assert make_instance_id("conformance", 1) == "conformance"
+    assert make_instance_id("conformance", 2) == "conformance.2"
     assert make_instance_id("card_gen", 3) == "card_gen.3"
 
 
@@ -109,12 +109,12 @@ def test_build_stages_are_all_backbone():
 
 def test_current_stage_resolves_instance():
     state = _state_with_inserted_dupes()
-    state.current_instance_id = "balance.2"
+    state.current_instance_id = "conformance.2"
     current = state.current_stage()
     assert current is not None
-    assert current.instance_id == "balance.2"
-    assert current.stage_id == "balance"
-    assert current.display_name == "Interaction Check 2"
+    assert current.instance_id == "conformance.2"
+    assert current.stage_id == "conformance"
+    assert current.display_name == "Conformance & Interactions 2"
 
 
 def test_legacy_current_stage_id_alias_loads():
@@ -147,8 +147,8 @@ def test_sync_preserves_inserted_instances():
     assert after == before
     assert changed is False
     # The inserts trail the backbone they were anchored to.
-    bal = after.index("balance")
-    assert after[bal : bal + 3] == ["balance", "card_gen.2", "balance.2"]
+    bal = after.index("conformance")
+    assert after[bal : bal + 3] == ["conformance", "card_gen.2", "conformance.2"]
 
 
 def test_sync_inserts_missing_backbone():
@@ -184,8 +184,8 @@ def test_inserted_instances_roundtrip_through_load_state(project_with_state):
     assert [s.instance_id for s in loaded.stages] == [s.instance_id for s in original.stages]
     by_inst = {s.instance_id: s for s in loaded.stages}
     assert by_inst["card_gen.2"].display_name == "Card Generation 2"
-    assert by_inst["balance.2"].display_name == "Interaction Check 2"
-    assert by_inst["balance.2"].stage_id == "balance"
+    assert by_inst["conformance.2"].display_name == "Conformance & Interactions 2"
+    assert by_inst["conformance.2"].stage_id == "conformance"
 
 
 # ----------------------------------------------------------------------
@@ -195,17 +195,17 @@ def test_inserted_instances_roundtrip_through_load_state(project_with_state):
 
 def test_compute_visible_tabs_emits_distinct_tab_per_instance():
     state = _state_with_inserted_dupes()
-    # Make every stage up through balance.2 visible (non-PENDING).
-    last = next(i for i, s in enumerate(state.stages) if s.instance_id == "balance.2")
+    # Make every stage up through conformance.2 visible (non-PENDING).
+    last = next(i for i, s in enumerate(state.stages) if s.instance_id == "conformance.2")
     for s in state.stages[: last + 1]:
         if s.status == StageStatus.PENDING:
             s.status = StageStatus.COMPLETED
 
     tabs = compute_visible_tabs(state=state, theme={"name": "x"})
     ids = [t.id for t in tabs]
-    assert "balance" in ids and "balance.2" in ids
+    assert "conformance" in ids and "conformance.2" in ids
     titles = {t.id: t.title for t in tabs}
-    assert titles["balance"] == "Interaction Check"  # display renamed; stage_id stays "balance"
-    assert titles["balance.2"] == "Interaction Check 2"
+    assert titles["conformance"] == "Conformance & Interactions"  # merged gate display
+    assert titles["conformance.2"] == "Conformance & Interactions 2"
     # Distinct tabs, no collision.
     assert len(ids) == len(set(ids))

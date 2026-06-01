@@ -126,17 +126,16 @@ def test_delete_snapshot_is_idempotent(project: Path) -> None:
 
 def _loop_state() -> PipelineState:
     """A completed run that bounced once: [card_gen, conformance, card_gen.2,
-    conformance.2, balance, ai_review, finalize] all COMPLETED, with entry
-    pointers stamped as the engine would."""
+    conformance.2, ai_review, finalize] all COMPLETED, with entry pointers
+    stamped as the engine would."""
     config = PipelineConfig(set_code="ABC", set_name="Test", set_size=20)
     order = [
         ("lands", "lands", "Land Generation", None),
         ("card_gen", "card_gen", "Card Generation", "lands"),
-        ("conformance", "conformance", "Conformance", "card_gen"),
+        ("conformance", "conformance", "Conformance & Interactions", "card_gen"),
         ("card_gen", "card_gen.2", "Card Generation 2", "conformance"),
-        ("conformance", "conformance.2", "Conformance 2", "card_gen.2"),
-        ("balance", "balance", "Interaction Check", "conformance.2"),
-        ("ai_review", "ai_review", "AI Design Review", "balance"),
+        ("conformance", "conformance.2", "Conformance & Interactions 2", "card_gen.2"),
+        ("ai_review", "ai_review", "AI Design Review", "conformance.2"),
         ("finalize", "finalize", "Finalization", "ai_review"),
     ]
     stages = [
@@ -164,16 +163,13 @@ def test_rerun_instance_truncates_and_reappends(project: Path) -> None:
     assert cg2.status == StageStatus.PENDING
     assert cg2.result == {}
     # The forward path re-establishes conformance.2 (sibling survives -> ordinal 2)
-    # and backbone balance/ai_review/finalize (no survivor -> ordinal 1).
+    # and backbone ai_review/finalize (no survivor -> ordinal 1).
     after_cg2 = ids[ids.index("card_gen.2") + 1 :]
-    assert after_cg2[:4] == ["conformance.2", "balance", "ai_review", "finalize"]
+    assert after_cg2[:3] == ["conformance.2", "ai_review", "finalize"]
     # Canonical tail (art/render/human) is re-appended too.
     assert "rendering" in after_cg2 and "human_final_review" in after_cg2
     # All re-appended stages are PENDING.
-    assert all(
-        s.status == StageStatus.PENDING
-        for s in state.stages[state.stages.index(cg2) + 1 :]
-    )
+    assert all(s.status == StageStatus.PENDING for s in state.stages[state.stages.index(cg2) + 1 :])
     assert state.current_instance_id == "card_gen.2"
     assert state.overall_status == PipelineStatus.NOT_STARTED
 
@@ -218,11 +214,11 @@ def test_rerun_missing_entry_snapshot_degrades(project: Path) -> None:
     # No history on disk at all (migration / first-ever run): rerun still resets
     # state, just without restoring a pool.
     state = _loop_state()
-    entry = engine_mod.rerun_instance(state, "balance")
+    entry = engine_mod.rerun_instance(state, "ai_review")
     assert entry == "conformance.2"  # predecessor pointer, even with no snapshot file
-    bal = next(s for s in state.stages if s.instance_id == "balance")
-    assert bal.status == StageStatus.PENDING
-    # forward path after balance starts with ai_review (backbone), then finalize.
+    ar = next(s for s in state.stages if s.instance_id == "ai_review")
+    assert ar.status == StageStatus.PENDING
+    # forward path after ai_review starts with finalize, then human_card_review.
     ids = [s.instance_id for s in state.stages]
-    after = ids[ids.index("balance") + 1 :]
-    assert after[:2] == ["ai_review", "finalize"]
+    after = ids[ids.index("ai_review") + 1 :]
+    assert after[:2] == ["finalize", "human_card_review"]

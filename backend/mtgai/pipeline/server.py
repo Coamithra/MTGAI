@@ -4004,8 +4004,7 @@ def _resolve_view_cards_dir(instance_id: str | None, asset: Path) -> Path:
     ran = [
         s
         for s in state.stages
-        if s.status
-        in (StageStatus.RUNNING, StageStatus.PAUSED_FOR_REVIEW, StageStatus.COMPLETED)
+        if s.status in (StageStatus.RUNNING, StageStatus.PAUSED_FOR_REVIEW, StageStatus.COMPLETED)
     ]
     tip = ran[-1].instance_id if ran else None
     if instance_id == tip:
@@ -4635,7 +4634,6 @@ async def get_stage_logs(stage_id: str):
         "conformance": [set_dir / "conformance" / "logs"],
         "art_prompts": [set_dir / "art-direction" / "prompt-logs"],
         "art_select": [set_dir / "art-direction" / "selections"],
-        "balance": [set_dir / "balance" / "logs"],
         "finalize": [set_dir / "reports"],
     }
 

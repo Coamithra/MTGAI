@@ -1,13 +1,13 @@
 """Set-level interaction analysis — LLM-based degenerate combo detection.
 
-The whole-pool interaction gate (stage_id ``balance``, displayed "Interaction
-Check"). Feeds the generated pool — minus basic lands and reprints — to an LLM
+The whole-pool interaction step of the merged ``conformance`` gate (displayed
+"Conformance & Interactions"). Feeds the generated pool — minus basic lands and reprints — to an LLM
 and asks it to identify dangerous 2-3 card interactions: infinite combos,
 degenerate loops, and unintended synergies that break the format.
 
 For each flagged interaction the LLM names the "enabler" card — the one whose
 design is the root cause — and a ``replacement_constraint``. The runner
-(:func:`mtgai.pipeline.stages.run_balance`) flags that enabler card for
+(:func:`mtgai.pipeline.stages.run_conformance`) flags that enabler card for
 regeneration, threading the constraint into its ``regen_reason``.
 
 Usage:
@@ -21,9 +21,9 @@ from __future__ import annotations
 import logging
 import re
 
-from mtgai.analysis.gate_common import filter_gate_cards
+from mtgai.analysis.gate_common import filter_gate_cards, generate_gate_tool
 from mtgai.analysis.models import InteractionFlag
-from mtgai.generation.llm_client import cost_from_result, generate_with_tool
+from mtgai.generation.llm_client import cost_from_result
 from mtgai.generation.token_budgets import HEAVY
 from mtgai.models.card import Card
 
@@ -235,17 +235,19 @@ def analyze_interactions(
 
     settings = require_active_project().settings
     try:
-        log_dir = set_artifact_dir() / "balance" / "logs"
+        # The interaction step shares the merged ``conformance`` gate's log dir
+        # (distinct convo names keep the two steps' transcripts separate).
+        log_dir = set_artifact_dir() / "conformance" / "logs"
     except Exception:
         log_dir = None
-    result = generate_with_tool(
+    result = generate_gate_tool(
+        base_temperature=TEMPERATURE,
         system_prompt=INTERACTION_SYSTEM_PROMPT,
         user_prompt=user_prompt,
         tool_schema=INTERACTION_TOOL_SCHEMA,
-        model=settings.get_llm_model_id("balance"),
-        temperature=TEMPERATURE,
+        model=settings.get_llm_model_id("conformance"),
         max_tokens=MAX_TOKENS,
-        effort=settings.get_effort("balance"),
+        effort=settings.get_effort("conformance"),
         log_dir=log_dir,
     )
 

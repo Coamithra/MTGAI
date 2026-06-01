@@ -1,14 +1,15 @@
 /**
- * Wizard Conformance tab (stage_id ``conformance``).
+ * Wizard "Conformance & Interactions" tab (stage_id ``conformance``).
  *
- * The first review→regen gate: each generated card vs. its slot spec. Flags any
- * non-conforming card for regeneration. Renders this instance's findings
- * (``stage.result`` — the runner's artifacts, carried on the stage_update SSE),
- * so the backbone instance and any inserted ``conformance.2`` re-run render the
- * same way.
+ * The single post-card_gen review gate. It runs two whole-set LLM steps
+ * internally — Conformance (each card vs. its slot spec) and Interaction Check
+ * (whole-pool degenerate-combo scan) — and bounces any flagged card back to
+ * Card Generation. This tab renders both steps as labelled sections from
+ * ``stage.result.steps`` (the runner's artifacts, carried on the stage_update
+ * SSE), so the backbone instance and any inserted ``conformance.2`` re-run
+ * render identically.
  *
- * Instance-aware (keys off ``stage.instance_id`` / ``tab.id``); shares the
- * ``wiz-gate-*`` styles injected by wizard_balance.js.
+ * Instance-aware (keys off ``stage.instance_id`` / ``tab.id``).
  */
 
 (function () {
@@ -20,6 +21,8 @@
     const style = document.createElement('style');
     style.id = 'wiz-gate-styles';
     style.textContent = `
+      .wiz-gate-step { margin-bottom: 1.4rem; }
+      .wiz-gate-step-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: #8b949e; margin-bottom: 0.4rem; }
       .wiz-gate-ok { font-size: 1.1rem; font-weight: 700; color: #00d4aa; margin-bottom: 0.8rem; }
       .wiz-gate-flagged { font-size: 1.1rem; font-weight: 700; color: #ffa502; margin-bottom: 0.8rem; }
       .wiz-gate-analysis { color: #aaa; font-style: italic; margin: 0 0 1rem; }
@@ -30,6 +33,13 @@
     `;
     document.head.appendChild(style);
   }
+
+  // Step labels + their per-step empty-state copy. Keyed by the step `id` the
+  // runner emits; falls back to the step's own `label` for forward-compat.
+  const STEP_EMPTY = {
+    conformance: '✓ Every card matches its slot spec.',
+    interactions: '✓ No degenerate interactions found.',
+  };
 
   W.registerStageRenderer('conformance', render);
 
@@ -44,28 +54,45 @@
   function bodyHtml(stage) {
     const status = stage ? stage.status : 'pending';
     if (status === 'pending') {
-      return '<div class="wiz-stage-empty">Conformance check has not run yet.</div>';
+      return '<div class="wiz-stage-empty">Conformance &amp; interaction check has not run yet.</div>';
     }
     if (status === 'running') {
-      return '<div class="wiz-stage-empty">Checking each card against its slot spec…</div>';
+      return '<div class="wiz-stage-empty">Checking conformance and scanning for degenerate interactions…</div>';
     }
     const result = (stage && stage.result) || {};
-    const flagged = result.flagged || [];
-    const analysis = result.analysis || '';
-    const header = flagged.length === 0
-      ? '<div class="wiz-gate-ok">✓ Every card matches its slot spec.</div>'
-      : '<div class="wiz-gate-flagged">' + flagged.length
-        + ' card(s) flagged for regeneration</div>';
-    const analysisBlock = analysis
-      ? '<p class="wiz-gate-analysis">' + escHtml(analysis) + '</p>' : '';
-    const pausedNote = (status === 'paused_for_review' && flagged.length)
+    const steps = Array.isArray(result.steps) ? result.steps : null;
+    const pausedNote = (status === 'paused_for_review' && (result.flagged || []).length)
       ? '<p class="wiz-gate-paused">Review limit reached — these cards are left flagged for you '
         + 'to edit or accept by hand before continuing.</p>'
       : '';
+    if (steps) {
+      return pausedNote + steps.map(stepHtml).join('');
+    }
+    // Backward-compat: a pre-merge instance persisted a flat {flagged, analysis}.
+    return pausedNote + stepHtml({
+      id: 'conformance',
+      label: 'Conformance',
+      flagged: result.flagged || [],
+      analysis: result.analysis || '',
+    });
+  }
+
+  function stepHtml(step) {
+    const flagged = step.flagged || [];
+    const label = step.label || step.id || 'Step';
+    const emptyMsg = STEP_EMPTY[step.id] || ('✓ ' + escHtml(label) + ': nothing flagged.');
+    const header = flagged.length === 0
+      ? '<div class="wiz-gate-ok">' + emptyMsg + '</div>'
+      : '<div class="wiz-gate-flagged">' + flagged.length + ' card(s) flagged for regeneration</div>';
+    const analysisBlock = step.analysis
+      ? '<p class="wiz-gate-analysis">' + escHtml(step.analysis) + '</p>' : '';
     const list = flagged.length
       ? '<ul class="wiz-gate-list">' + flagged.map(flaggedItemHtml).join('') + '</ul>'
       : '';
-    return header + analysisBlock + pausedNote + list;
+    return '<div class="wiz-gate-step">'
+      + '<div class="wiz-gate-step-label">' + escHtml(label) + '</div>'
+      + header + analysisBlock + list
+      + '</div>';
   }
 
   function flaggedItemHtml(f) {

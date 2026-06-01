@@ -330,7 +330,7 @@ def make_poller(
             result = generate_set(...)
 
     ``stage`` is the model-assignment key (e.g. ``"card_gen"``, ``"mechanics"``,
-    ``"balance"``) — the same key the stage passes to ``get_llm_model_id`` — so
+    ``"conformance"``) — the same key the stage passes to ``get_llm_model_id`` — so
     the poller polls exactly the model the call uses (llama-swap routes per
     model id).
     """

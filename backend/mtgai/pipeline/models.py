@@ -209,14 +209,15 @@ STAGE_DEFINITIONS: list[dict] = [
     {"stage_id": "reprints", "display_name": "Reprint Selection", "review_eligible": True},
     {"stage_id": "lands", "display_name": "Land Generation", "review_eligible": False},
     {"stage_id": "card_gen", "display_name": "Card Generation", "review_eligible": True},
-    # Post-card_gen review gates run cheap→expensive:
-    # conformance (per-card vs slot spec) first — most objective, most likely to
-    # flag a fresh set, and a bounce re-inserts only [card_gen, conformance].
-    {"stage_id": "conformance", "display_name": "Conformance", "review_eligible": True},
-    # stage_id stays "balance" (URLs / break-points / model assignments don't
-    # churn); the reworked stage is the whole-pool interaction gate, display only
-    # renamed to "Interaction Check".
-    {"stage_id": "balance", "display_name": "Interaction Check", "review_eligible": True},
+    # Single post-card_gen gate running two whole-set LLM steps internally:
+    # conformance (per-card vs slot spec) then interactions (whole-pool combo
+    # scan). Combines their findings; either flagging a card bounces to card_gen
+    # (re-inserting only [card_gen, conformance]).
+    {
+        "stage_id": "conformance",
+        "display_name": "Conformance & Interactions",
+        "review_eligible": True,
+    },
     {"stage_id": "ai_review", "display_name": "AI Design Review", "review_eligible": True},
     {"stage_id": "finalize", "display_name": "Finalization", "review_eligible": False},
     {"stage_id": "human_card_review", "display_name": "Card Review", "review_eligible": True},

@@ -16,7 +16,7 @@ from pydantic import BaseModel
 class InteractionFlag(BaseModel):
     """A degenerate card interaction flagged by the LLM interaction scanner.
 
-    Minimal by design: the only consumer is ``run_balance``, which flags the
+    Minimal by design: the only consumer is ``run_conformance``, which flags the
     enabler card (joined by ``enabler_slot_id``) for regeneration with a reason
     built from ``reason`` (the diagnosis) + ``replacement_constraint`` (the fix).
     """

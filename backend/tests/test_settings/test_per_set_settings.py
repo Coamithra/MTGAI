@@ -170,7 +170,7 @@ def test_global_toml_round_trip(monkeypatch):
 def test_settings_round_trips_set_params_break_points(tmp_path):
     s = ms.ModelSettings(
         set_params=ms.SetParams(set_name="Test Set", set_size=80, mechanic_count=5),
-        break_points={"card_gen": "review", "balance": "review"},
+        break_points={"card_gen": "review", "conformance": "review"},
     )
     path = tmp_path / "settings.toml"
     s.write_toml(path)
@@ -179,7 +179,7 @@ def test_settings_round_trips_set_params_break_points(tmp_path):
     assert loaded.set_params.set_name == "Test Set"
     assert loaded.set_params.set_size == 80
     assert loaded.set_params.mechanic_count == 5
-    assert loaded.break_points == {"card_gen": "review", "balance": "review"}
+    assert loaded.break_points == {"card_gen": "review", "conformance": "review"}
 
 
 def test_settings_round_trips_theme_input(tmp_path):

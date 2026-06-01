@@ -24,9 +24,9 @@ from __future__ import annotations
 import logging
 import re
 
-from mtgai.analysis.gate_common import filter_gate_cards
+from mtgai.analysis.gate_common import filter_gate_cards, generate_gate_tool
 from mtgai.analysis.models import ConformanceFinding
-from mtgai.generation.llm_client import cost_from_result, generate_with_tool
+from mtgai.generation.llm_client import cost_from_result
 from mtgai.generation.token_budgets import HEAVY
 from mtgai.models.card import Card
 
@@ -189,12 +189,12 @@ def check_conformance(
         log_dir = set_artifact_dir() / "conformance" / "logs"
     except Exception:
         log_dir = None
-    result = generate_with_tool(
+    result = generate_gate_tool(
+        base_temperature=TEMPERATURE,
         system_prompt=CONFORMANCE_SYSTEM_PROMPT,
         user_prompt=user_prompt,
         tool_schema=CONFORMANCE_TOOL_SCHEMA,
         model=settings.get_llm_model_id("conformance"),
-        temperature=TEMPERATURE,
         max_tokens=MAX_TOKENS,
         effort=settings.get_effort("conformance"),
         log_dir=log_dir,

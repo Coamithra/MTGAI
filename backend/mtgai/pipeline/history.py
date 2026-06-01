@@ -48,17 +48,13 @@ _REGEN_ARCHIVE = "_regen_archive"
 # stages, plus ``lands`` — the last pre-loop stage that writes cards, so the
 # backbone ``card_gen`` has an entry snapshot to restore from. Stages outside
 # this set (mechanics, skeleton, finalize, art, render, ...) never snapshot.
-SNAPSHOT_STAGES: frozenset[str] = frozenset(
-    {"lands", "card_gen", "conformance", "balance", "ai_review"}
-)
+SNAPSHOT_STAGES: frozenset[str] = frozenset({"lands", "card_gen", "conformance", "ai_review"})
 
 # The duplicable loop stages a user can re-run via the per-tab "Re-run" button —
 # ``SNAPSHOT_STAGES`` minus the ``lands`` entry anchor (which has its own refresh
 # and isn't part of the review->regen loop). Also the set the engine keeps at
 # AUTO review_mode when re-appending the forward path, so the regen tail flows.
-RERUNNABLE_STAGES: frozenset[str] = frozenset(
-    {"card_gen", "conformance", "balance", "ai_review"}
-)
+RERUNNABLE_STAGES: frozenset[str] = frozenset({"card_gen", "conformance", "ai_review"})
 
 
 def _asset_dir() -> Path:
