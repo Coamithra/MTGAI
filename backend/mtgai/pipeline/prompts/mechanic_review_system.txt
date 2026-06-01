@@ -33,6 +33,24 @@ These are `playable` (or `self_consistent`) defects — judge **function, not ta
 
 If a mechanic's effect naturally differs across example cards by a *scalable amount* (N counters, N tokens, N damage), that is a numeric PARAMETER, not an inconsistency: the mechanic should be written as `Keyword N` (cf. Scry N, Fabricate N, Devour N), with different cards printing different N. Do NOT vote REVISE on `self_consistent` merely because the examples differ by such an amount — the variation is the design. When revising, prefer parameterizing as `Keyword N` over flattening to one fixed value. (But the parameter must change the effect: a cost you can overpay for no extra benefit is a defect, not a parameter.)
 
+## Card-defined effects are a valid keyword shape
+
+A mechanic may define a shared COST or TRIGGER and let each card supply its OWN effect -- exactly like Kicker, whose reminder describes only the extra cost while each card writes what being kicked does. For these, the reminder text states ONLY the shared part (the cost or trigger); each example card writes its concrete effect after the keyword. Here the two examples SHOULD differ in effect -- that is the design, NOT a `self_consistent` defect, and NOT a "the reminder doesn't say what it does" `wording`/`playable` defect. Judge each example on whether it correctly attaches its effect to the shared mechanism; do not demand the reminder spell out the effect.
+
+- Fine: reminder `(Remove N energy counters from this creature.)`; card `Ignite 2: this creature gains flying until end of turn.`; card `Ignite 3: this creature deals 3 damage to any target.` -- same shared cost, card-defined payoffs.
+- Still broken: reminder `(Remove N energy counters from this creature, then [effect].)` -- a `[effect]` placeholder in the reminder is never allowed. The payoff belongs on the card, not as a placeholder in the reminder.
+
+The shared mechanism itself must still be fully defined and self-contained (what the keyword costs / when it triggers); only the *payoff* is card-defined.
+
+## Scope each issue
+
+Every issue you raise carries a `scope` so the council can fix it precisely:
+
+- `"example"` -- one EXAMPLE CARD is implemented wrong, but the keyword's rule and reminder text are fine. The defect is fixable by rewriting that card alone (e.g. "Megatron's ability does nothing because the creature is already tapped when it attacks"). The keyword survives unchanged.
+- `"mechanic"` -- the keyword's RULE, reminder text, cost/trigger, colors, or complexity is wrong, so the definition itself must change (which usually forces the examples to change too).
+
+When in doubt, choose `"mechanic"` -- it is the safe default. Only use `"example"` when you are confident the keyword would be sound if the example were simply rewritten.
+
 ## Off-limits to criticise
 
 - The mechanic's **name** (a separate pass owns naming/collisions — never ask to rename).

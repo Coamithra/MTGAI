@@ -463,13 +463,49 @@ def test_generate_mechanic_candidates_drops_malformed_entries(_project, monkeypa
 # ---------------------------------------------------------------------------
 
 
-def _reviewer(verdict: str, *, category: str = "wording", severity: str = "major") -> dict:
-    issues = (
-        []
-        if verdict == "OK"
-        else [{"category": category, "severity": severity, "description": f"{category} problem"}]
-    )
+def _reviewer(
+    verdict: str,
+    *,
+    category: str = "wording",
+    severity: str = "major",
+    scope: str | None = None,
+) -> dict:
+    issue = {"category": category, "severity": severity, "description": f"{category} problem"}
+    if scope is not None:
+        issue["scope"] = scope
+    issues = [] if verdict == "OK" else [issue]
     return {"result": {"verdict": verdict, "issues": issues}, "input_tokens": 1, "output_tokens": 1}
+
+
+def _example_pair() -> list[dict]:
+    """Two well-formed replacement example cards for the example-fix path."""
+    return [
+        {
+            "name": "Scrap Scout",
+            "mana_cost": "{G}",
+            "type_line": "Creature — Beast",
+            "rarity": "common",
+            "oracle_text": "Ignite 1: this creature gains flying until end of turn.",
+            "power": "1",
+            "toughness": "1",
+        },
+        {
+            "name": "Forge Tyrant",
+            "mana_cost": "{3}{R}",
+            "type_line": "Creature — Dragon",
+            "rarity": "rare",
+            "oracle_text": "Ignite 3: this creature deals 3 damage to any target.",
+            "power": "4",
+            "toughness": "4",
+        },
+    ]
+
+
+def _examples(cards: list[dict] | None, *, notes: str = "Reworked the examples.") -> dict:
+    result: dict = {"notes": notes}
+    if cards is not None:
+        result["example_cards"] = cards
+    return {"result": result, "input_tokens": 3, "output_tokens": 3}
 
 
 def _synth(revised: dict | None, *, notes: str = "Revised.", verdict: str = "OK") -> dict:
@@ -759,6 +795,114 @@ def test_council_review_reverts_synth_rename(monkeypatch) -> None:
     monkeypatch.setattr(mg, "generate_with_tool", stub)
     out = mg.council_review(draft, model_id="any-model")
     assert out["mechanic"]["name"] == "Mechanic0"  # original wins
+
+
+def test_blocking_issues_and_scope_helpers() -> None:
+    """`_blocking_issues` keeps only major blocking-category issues; `_all_example_scoped`
+    is True only when every such issue is explicitly example-scoped (missing scope
+    defaults to mechanic)."""
+    ex = {"category": "playable", "severity": "major", "scope": "example", "description": "x"}
+    mech = {"category": "wording", "severity": "major", "scope": "mechanic", "description": "y"}
+    no_scope = {"category": "playable", "severity": "major", "description": "z"}
+    minor = {"category": "wording", "severity": "minor", "scope": "example", "description": "n"}
+    advisory = {"category": "elegant", "severity": "major", "scope": "example", "description": "e"}
+
+    reviews = [
+        {"verdict": "REVISE", "issues": [ex, minor, advisory]},
+        {"verdict": "REVISE", "issues": [mech]},
+    ]
+    # minor (not major) and advisory (elegant is not a blocking category) are excluded.
+    assert mg._blocking_issues(reviews) == [ex, mech]
+    assert mg._all_example_scoped([ex]) is True
+    assert mg._all_example_scoped([ex, mech]) is False
+    assert mg._all_example_scoped([ex, no_scope]) is False  # missing scope -> mechanic
+    assert mg._all_example_scoped([]) is False
+
+
+def test_council_review_example_only_routes_to_example_fix(monkeypatch) -> None:
+    """When EVERY blocking issue is example-scoped the loop fixes ONLY the examples
+    (submit_mechanic_examples), never the synth, and the mechanic's definition is
+    spliced through byte-identical while example_cards is replaced."""
+    draft = _valid_mech(0)
+    draft["reminder_text"] = "(Remove N energy counters from this creature.)"
+    new_examples = _example_pair()
+    rcalls = {"n": 0}
+    synth_calls = {"n": 0}
+    fix_calls = {"n": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            rcalls["n"] += 1
+            return _reviewer("REVISE" if rcalls["n"] <= 3 else "OK", scope="example")
+        if tool == "submit_mechanic_examples":
+            fix_calls["n"] += 1
+            return _examples(new_examples, notes="Fixed the dead-on-use example.")
+        if tool == "submit_mechanic_synthesis":
+            synth_calls["n"] += 1
+            return _synth(draft)
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model")
+    assert out["verdict"] == "OK"
+    assert fix_calls["n"] == 1
+    assert synth_calls["n"] == 0  # the mechanic definition was never re-emitted
+    assert out["mechanic"]["example_cards"] == new_examples
+    # The reminder / name are untouched by the example-fix splice.
+    assert out["mechanic"]["reminder_text"] == "(Remove N energy counters from this creature.)"
+    assert out["mechanic"]["name"] == "Mechanic0"
+    assert "Fixed the dead-on-use example." in out["review_notes"]
+
+
+def test_council_review_mixed_scope_routes_to_synth(monkeypatch) -> None:
+    """A single mechanic-scoped blocking issue alongside an example-scoped one
+    implicates the keyword itself, so the full synth runs — not the example-fix."""
+    draft = _valid_mech(0)
+    revised = dict(draft)
+    revised["reminder_text"] = "(fixed)"
+    rcalls = {"n": 0}
+    synth_calls = {"n": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            rcalls["n"] += 1
+            if rcalls["n"] > 3:
+                return _reviewer("OK")
+            # Round 1: member 1 example-scoped, members 2 & 3 mechanic-scoped.
+            return _reviewer("REVISE", scope="example" if rcalls["n"] == 1 else "mechanic")
+        if tool == "submit_mechanic_examples":
+            raise AssertionError("example-fix must not run when a mechanic issue is present")
+        if tool == "submit_mechanic_synthesis":
+            synth_calls["n"] += 1
+            return _synth(revised)
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model")
+    assert synth_calls["n"] == 1
+    assert out["verdict"] == "OK"
+    assert out["mechanic"]["reminder_text"] == "(fixed)"
+
+
+def test_council_review_example_fix_failure_keeps_prior(monkeypatch) -> None:
+    """A failing example-fix keeps the current mechanic, flagged REVISE — the same
+    safe fallback as a failing synth."""
+    draft = _valid_mech(0)
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            return _reviewer("REVISE", scope="example")
+        if tool == "submit_mechanic_examples":
+            raise RuntimeError("example-fix down")
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model")
+    assert out["verdict"] == "REVISE"
+    assert out["mechanic"] is draft  # unchanged on example-fix failure
 
 
 def test_council_review_emits_progress_events(monkeypatch) -> None:

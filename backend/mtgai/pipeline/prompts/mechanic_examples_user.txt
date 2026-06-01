@@ -1,0 +1,22 @@
+The council reviewed this mechanic and found that the KEYWORD ITSELF is sound — its rule, reminder text, cost/trigger, colors, and complexity are all fine. The only problems are in how the EXAMPLE CARDS implement it. Your job is narrow: give two replacement example cards that fix those problems. Do NOT change, restate, or "improve" the mechanic itself — it is not in your gift to alter.
+
+## The mechanic (unchanged — for context only)
+
+{mechanic_block}
+
+## What the council found wrong with the examples
+
+{issues_block}
+
+## Your task
+
+Produce EXACTLY TWO example cards that:
+
+- Fix every issue listed above.
+- Use the keyword by name and behave EXACTLY as the mechanic's reminder text defines it — if it is a `Keyword N` parameter, different cards may print different N; if the keyword supplies a shared cost/trigger and each card writes its own effect, the two cards may have different effects (that is allowed and expected).
+- Are at contrasting rarities (e.g. one common showing the simple version, one rare/mythic showing a richer expression) so card generation has reference designs across the range.
+- Have complete, valid MTG templating: proper mana cost, full type line, P/T on creatures, real Magic terms only. Do NOT write parenthetical reminder text of your own — it is injected automatically downstream.
+
+Submit with the `submit_mechanic_examples` tool:
+- `example_cards`: the two replacement cards.
+- `notes`: one sentence on what you changed and why (empty string if you changed nothing).

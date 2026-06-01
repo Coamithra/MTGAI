@@ -99,7 +99,12 @@ class _EscalatingBudget:
     run, so we pay the overrun-then-retry cost at most once.
     """
 
-    def __init__(self, base: int = STANDARD, ceiling: int = HEAVY) -> None:
+    def __init__(self, base: int = HEAVY, ceiling: int = HEAVY) -> None:
+        # Default base == ceiling: every mechanic-stage call (gen + each council
+        # reviewer) was overrunning the STANDARD budget in practice, so we start
+        # at the ceiling and skip the fail-then-bump tax. `escalate` is then a
+        # no-op for a default-constructed budget; the ratchet machinery survives
+        # only for callers that explicitly pass a lower `base`.
         self.current = base
         self.ceiling = ceiling
 
@@ -341,10 +346,22 @@ MECHANIC_ITEM_SCHEMA["properties"] = MECHANIC_TOOL_SCHEMA["input_schema"]["prope
 # category (a concrete-defect standard or the "other" escape hatch), and severity.
 _MECHANIC_ISSUE_SCHEMA: dict = {
     "type": "object",
-    "required": ["category", "severity", "description"],
+    "required": ["category", "severity", "scope", "description"],
     "properties": {
         "category": {"type": "string", "enum": MECHANIC_ISSUE_CATEGORIES},
         "severity": {"type": "string", "enum": ["minor", "major"]},
+        "scope": {
+            "type": "string",
+            "enum": ["example", "mechanic"],
+            "description": (
+                'Where the defect lives. "example" = one example CARD is '
+                "implemented wrong while the keyword's rule and wording are fine "
+                '(fixable by rewriting that card alone). "mechanic" = the '
+                "keyword's rule, reminder text, cost/trigger, colors, or "
+                "complexity is wrong (the definition itself must change). When "
+                'unsure, choose "mechanic".'
+            ),
+        },
         "description": {
             "type": "string",
             "description": "One sentence: the problem, concretely.",
@@ -425,6 +442,39 @@ MECHANIC_SYNTH_TOOL_SCHEMA: dict = {
                 "type": "string",
                 "description": (
                     "One or two sentences: what you changed and why. Empty if unchanged."
+                ),
+            },
+        },
+    },
+}
+
+
+# Tool schema for the narrow example-fix call (the examples-only branch of the
+# council loop). When EVERY blocking defect a round is example-scoped — the
+# keyword itself is sound, only an example card implements it wrong — we fix
+# ONLY the examples instead of running the full synth re-emit. The model returns
+# exactly two replacement example cards (the same shape the generator emits) and
+# never sees or re-states the mechanic's definition, so the keyword's name /
+# reminder_text / colors / etc. are pinned by construction (we splice the new
+# examples onto the unchanged mechanic). This kills the regression where a synth,
+# asked to fix a bad example, gratuitously rewrites a sound reminder.
+MECHANIC_EXAMPLES_TOOL_SCHEMA: dict = {
+    "name": "submit_mechanic_examples",
+    "description": (
+        "Submit two replacement example cards that fix the council's issues with "
+        "the examples. Do not restate or change the mechanic itself."
+    ),
+    "input_schema": {
+        "type": "object",
+        "required": ["example_cards", "notes"],
+        "properties": {
+            "example_cards": MECHANIC_TOOL_SCHEMA["input_schema"]["properties"]["mechanics"][
+                "items"
+            ]["properties"]["example_cards"],
+            "notes": {
+                "type": "string",
+                "description": (
+                    "One sentence: what you changed in the examples and why. Empty if unchanged."
                 ),
             },
         },
@@ -777,6 +827,32 @@ def build_synth_prompts(mech: dict, reviews: list[dict]) -> tuple[str, str]:
     return system_prompt, user_prompt
 
 
+def _format_example_issues_block(issues: list[dict]) -> str:
+    """Render the example-scoped blocking issues as the example-fix prompt's
+    ``issues_block`` — a flat bullet list of what's wrong with the examples."""
+    lines = [f"  - {iss.get('description', '')}" for iss in issues]
+    return "\n".join(lines) or "  (none)"
+
+
+def build_examples_prompts(mech: dict, issues: list[dict]) -> tuple[str, str]:
+    """System + user prompts for the narrow example-fix call.
+
+    Shares the reviewer/synth system prompt (the concrete-defect standards, the
+    templating rules, and the card-defined-effect shape) so the new examples are
+    held to the same bar. The user prompt shows the mechanic and its current
+    examples for context plus the council's complaints, and asks ONLY for two
+    replacement example cards — the mechanic definition is deliberately not
+    requested, so it cannot be changed.
+    """
+    system_prompt = _read_template("mechanic_review_system.txt")
+    user_prompt = _render(
+        _read_template("mechanic_examples_user.txt"),
+        mechanic_block=_format_mechanic_for_review(mech),
+        issues_block=_format_example_issues_block(issues),
+    )
+    return system_prompt, user_prompt
+
+
 def _tokens(resp: dict) -> tuple[int, int]:
     """``(input_tokens, output_tokens)`` from a ``generate_with_tool`` response."""
     return resp.get("input_tokens", 0) or 0, resp.get("output_tokens", 0) or 0
@@ -833,6 +909,38 @@ def _open_issue_reasons(reviews: list[dict]) -> list[str]:
     return (major + minor)[:6]
 
 
+def _blocking_issues(reviews: list[dict]) -> list[dict]:
+    """The round's blocking defects — major-severity issues in a blocking category
+    — across all reviewers, in the order raised.
+
+    These are the issues that actually force a revise round (mirrors the
+    ``open_major`` gate and :func:`_effective_verdict`). Their ``scope`` decides
+    how the loop revises: see :func:`_all_example_scoped`.
+    """
+    out: list[dict] = []
+    for r in reviews:
+        for iss in r.get("issues") or []:
+            if (
+                iss.get("category") in MECHANIC_BLOCKING_CATEGORIES
+                and iss.get("severity") == "major"
+            ):
+                out.append(iss)
+    return out
+
+
+def _all_example_scoped(issues: list[dict]) -> bool:
+    """True iff every issue is explicitly ``scope == "example"`` (and there is at
+    least one).
+
+    A missing or unrecognised scope counts as *not* example-scoped — the safe
+    default routes to the full synth, which can never *cause* a missed-fix (it
+    just may rewrite more than strictly necessary). So the narrow example-only
+    path is taken ONLY when the council is unanimous that the keyword itself is
+    sound and only its example cards are at fault.
+    """
+    return bool(issues) and all(iss.get("scope") == "example" for iss in issues)
+
+
 def _call_synth(
     mech: dict,
     reviews: list[dict],
@@ -866,6 +974,47 @@ def _call_synth(
         return None
     if not (resp.get("result") or {}).get("revised_mechanic"):
         logger.warning("Council synth emitted no revised_mechanic; keeping current mechanic")
+        return None
+    return resp
+
+
+def _call_example_fix(
+    mech: dict,
+    issues: list[dict],
+    model_id: str,
+    temperature: float,
+    log_dir: Path | None,
+) -> dict | None:
+    """One narrow example-fix call; ``None`` on failure / not exactly two examples.
+
+    The examples-only branch of the council loop (taken when every blocking
+    defect is example-scoped). Far cheaper than :func:`_call_synth` — it re-emits
+    only two example cards, never the mechanic — and structurally cannot regress
+    the keyword's definition, since that definition is not in the request. A
+    malformed / wrong-count result returns ``None`` → the council keeps the
+    current mechanic at REVISE, exactly like a failed synth.
+    """
+    system_prompt, user_prompt = build_examples_prompts(mech, issues)
+    try:
+        resp = generate_with_tool(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            tool_schema=MECHANIC_EXAMPLES_TOOL_SCHEMA,
+            model=model_id,
+            temperature=temperature,
+            max_tokens=HEAVY,
+            log_dir=log_dir,
+        )
+    except Exception as exc:
+        logger.warning("Council example-fix failed: %s: %s", type(exc).__name__, exc)
+        return None
+    examples = (resp.get("result") or {}).get("example_cards")
+    if not isinstance(examples, list) or len(examples) != 2:
+        logger.warning(
+            "Council example-fix emitted %s example cards (need exactly 2); "
+            "keeping current mechanic",
+            len(examples) if isinstance(examples, list) else "no",
+        )
         return None
     return resp
 
@@ -1084,6 +1233,47 @@ def council_review(
         if ai_lock.is_cancelled():
             verdict = "REVISE"
             break
+
+        # Route by the SCOPE of the blocking defects. When EVERY blocking issue
+        # is example-scoped -- the council agrees the keyword itself is sound and
+        # only an example card implements it wrong -- fix ONLY the examples: a
+        # cheap call that re-emits two example cards spliced onto the unchanged
+        # mechanic. The definition (name / reminder_text / colors / ...) is
+        # pinned by construction, so a sound reminder can't be gratuitously
+        # rewritten while "fixing" a bad example (the regression this guards).
+        # Any mechanic-scoped defect (or a missing scope, which defaults to
+        # mechanic) falls through to the full synth below.
+        blocking = _blocking_issues(reviews)
+        if _all_example_scoped(blocking):
+            _emit({"kind": "synth_start", "round": _round})
+            fresp = _call_example_fix(mechanic, blocking, model_id, synth_temp, log_dir)
+            if fresp is None:
+                verdict = "REVISE"
+                break
+            in_t, out_t = _tokens(fresp)
+            total_in += in_t
+            total_out += out_t
+            f = fresp.get("result") or {}
+            # Structural pin: splice the new examples onto the original mechanic;
+            # every other field stays exactly as the council reviewed it.
+            mechanic = {**mechanic, "example_cards": f.get("example_cards")}
+            note = (f.get("notes") or "").strip()
+            if note:
+                notes.append(note)
+            _emit(
+                {
+                    "kind": "synth_done",
+                    "round": _round,
+                    "mechanic": mechanic,
+                    "review_notes": note,
+                }
+            )
+            # Don't trust a self-verdict to exit; re-review next round.
+            verdict = "REVISE"
+            continue
+
+        # Phase 2 -- synthesis (consensus filter + revise-in-place), for a
+        # mechanic-scoped defect: re-emit the whole improved mechanic.
         _emit({"kind": "synth_start", "round": _round})
         sresp = _call_synth(mechanic, reviews, model_id, synth_temp, log_dir)
         if sresp is None:
@@ -1563,6 +1753,8 @@ def generate_mechanic_candidates(
     settings = project.settings
     sp = settings.set_params
     model_id = settings.get_llm_model_id("mechanics")
+    # Base id for provenance/display (model_id above is the effective ctx twin).
+    display_model_id = settings.get_assigned_model_id("mechanics")
     # llmfacade writes each call's JSONL+HTML transcript here (named after the
     # tool); it's the canonical per-call log — no bespoke logger needed.
     log_dir = set_artifact_dir() / "mechanics" / "logs"
@@ -1815,7 +2007,7 @@ def generate_mechanic_candidates(
         "mechanics": accepted[:target],
         "input_tokens": total_in,
         "output_tokens": total_out,
-        "model_id": model_id,
+        "model_id": display_model_id,
     }
 
 
@@ -1965,6 +2157,8 @@ def pick_best_mechanics(
     settings = project.settings
     sp = settings.set_params
     model_id = settings.get_llm_model_id("mechanics")
+    # Base id for provenance/display (model_id above is the effective ctx twin).
+    display_model_id = settings.get_assigned_model_id("mechanics")
     log_dir = set_artifact_dir() / "mechanics" / "logs"
 
     if theme is None:
@@ -1980,7 +2174,7 @@ def pick_best_mechanics(
     # never land on a slot whose name is "" → ``(unnamed)`` in Final picks.
     valid_indices: set[int] = {i for i, c in enumerate(candidates) if _is_filled_candidate(c)}
 
-    def _fallback(reason: str, model: str = model_id) -> dict:
+    def _fallback(reason: str, model: str = display_model_id) -> dict:
         # Pick the first ``target`` *filled* candidates (skip empties).
         # If fewer filled candidates exist than the target asks for, return
         # what we have — the wizard's "Save & Continue" gate keeps the user
@@ -2054,7 +2248,7 @@ def pick_best_mechanics(
         "picks": picks,
         "selections": selections,
         "overall_rationale": (result.get("overall_rationale") or "").strip(),
-        "model_id": model_id,
+        "model_id": display_model_id,
         "input_tokens": response.get("input_tokens", 0) or 0,
         "output_tokens": response.get("output_tokens", 0) or 0,
     }
