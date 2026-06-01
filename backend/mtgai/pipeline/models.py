@@ -127,6 +127,14 @@ class StageState(BaseModel):
     # later card_gen runs that clear the per-card flags — the /state endpoints
     # read this to show "the cards THIS instance flagged".
     result: dict = Field(default_factory=dict)
+    # The instance_id whose output snapshot is THIS instance's entry card-pool
+    # state (its immediate predecessor in ``stages``). Stamped when the instance
+    # starts running; used by ``engine.rerun_instance`` to restore the right pool
+    # before a manual re-run. Derivable from list position, but persisting it makes
+    # restore robust against ``_sync_stages_with_definitions`` reordering / reload.
+    # ``None`` for the first stage (no predecessor) and for pre-version-tracking
+    # state (migrates in as a from-live re-run).
+    entry_snapshot_id: str | None = None
 
     @model_validator(mode="after")
     def _default_instance(self) -> StageState:

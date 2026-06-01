@@ -2350,10 +2350,16 @@ def _apply_cascade_clear(state: PipelineState, start_idx: int) -> None:
     (missing files / dirs are fine). ``current_stage_id`` is dropped if
     it pointed at a stage in the cleared range.
     """
+    from mtgai.pipeline import history
     from mtgai.pipeline.stages import clear_stage_artifacts
 
     try:
         for stage in state.stages[start_idx:]:
+            # Drop this instance's card-pool snapshot — it describes now-discarded
+            # output and would mislead per-instance viewing / tip-detection on the
+            # re-run. (The dedicated /instance/rerun path restores entry snapshots;
+            # the generic edit-cascade just clears + lets the engine rebuild.)
+            history.delete_snapshot(stage.instance_id)
             try:
                 clear_stage_artifacts(stage.stage_id)
             except (OSError, KeyError) as e:
@@ -2608,6 +2614,91 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
             "navigate_to": f"/pipeline/{next_id}" if next_id else "/pipeline",
         }
     )
+
+
+@router.post("/api/wizard/instance/rerun")
+async def wizard_instance_rerun(request: Request) -> JSONResponse:
+    """Re-run a looping-stage instance from the card pool it received on entry.
+
+    Body: ``{"instance_id": "<card_gen|conformance|balance|ai_review[.N]>"}``.
+    Restores the instance's entry-pool snapshot, drops every downstream instance
+    (+ their history), resets the instance, re-appends the canonical forward path,
+    and kicks the engine — the forward mirror of the engine's own review->regen
+    insertion (see ``engine.rerun_instance``). Past instances are untouched.
+
+    Because it regenerates all downstream output (gates, finalize, art, renders),
+    it carries the same cascade contract as ``edit/accept`` — the client confirms
+    when art/renders already exist. 409 if the engine or a theme extraction is
+    running (cancel first); 400 for an unknown / non-re-runnable instance.
+    """
+    from mtgai.pipeline import history
+    from mtgai.pipeline.engine import rerun_instance
+
+    project = _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    instance_id = body.get("instance_id")
+    if not isinstance(instance_id, str) or not instance_id:
+        return JSONResponse({"error": "instance_id required"}, status_code=400)
+
+    if _engine is not None and _engine.is_running:
+        return JSONResponse(
+            {
+                "error": (
+                    "A pipeline stage is currently running. Cancel it from the "
+                    "global progress strip, then retry the re-run."
+                )
+            },
+            status_code=409,
+        )
+    er = extraction_run.current()
+    if er is not None and er.status == "running":
+        return JSONResponse(
+            {
+                "error": (
+                    "Theme extraction is currently running. Cancel it from the "
+                    "global progress strip, then retry the re-run."
+                )
+            },
+            status_code=409,
+        )
+
+    state = load_state()
+    if state is None:
+        return JSONResponse({"error": "No pipeline state to re-run"}, status_code=400)
+    idx = next((i for i, s in enumerate(state.stages) if s.instance_id == instance_id), None)
+    if idx is None:
+        return JSONResponse({"error": f"Unknown instance {instance_id!r}"}, status_code=400)
+    target = state.stages[idx]
+    if target.stage_id not in history.RERUNNABLE_STAGES:
+        return JSONResponse(
+            {"error": f"Stage {target.stage_id!r} is not re-runnable"}, status_code=400
+        )
+
+    # Note a missing entry snapshot (migration) so the client can surface that the
+    # re-run started from the live pool rather than a faithful entry snapshot.
+    entry_pred = target.entry_snapshot_id or (
+        state.stages[idx - 1].instance_id if idx > 0 else None
+    )
+    missing_snapshot = entry_pred is not None and not history.snapshot_exists(entry_pred)
+
+    rerun_instance(state, instance_id)
+
+    new_state, kickoff_err = _kickoff_pipeline_engine(project.set_code)
+    resp: dict[str, Any] = {
+        "success": True,
+        "engine_started": kickoff_err is None and new_state is not None,
+        "navigate_to": f"/pipeline/{instance_id}",
+    }
+    if kickoff_err is not None or new_state is None:
+        resp["warning"] = kickoff_err or "Engine kickoff skipped"
+    elif missing_snapshot:
+        resp["warning"] = (
+            "No entry snapshot for this instance (created before version "
+            "tracking) — re-ran from the current card pool."
+        )
+    return JSONResponse(resp)
 
 
 # ---------------------------------------------------------------------------
@@ -3862,8 +3953,39 @@ def _heal_failed_stage(stage_id: str) -> None:
     event_bus.pipeline_status(state.overall_status.value, state.current_instance_id)
 
 
+def _resolve_view_cards_dir(instance_id: str | None, asset: Path) -> Path:
+    """Cards dir a tab should read for ``instance_id``.
+
+    Live ``cards/`` reflects the output of the loop *tip* — the last instance that
+    has run. A completed *non-tip* instance reads its own output from
+    ``history/<instance_id>/cards`` instead, which fixes the bug where an old
+    card_gen tab (viewed after a later instance ran) showed the latest pool rather
+    than its own. Falls back to live for the tip, a missing snapshot (migration),
+    or no instance hint.
+    """
+    from mtgai.pipeline import history
+
+    live = asset / "cards"
+    if not instance_id:
+        return live
+    state = load_state()
+    if state is None:
+        return live
+    ran = [
+        s
+        for s in state.stages
+        if s.status
+        in (StageStatus.RUNNING, StageStatus.PAUSED_FOR_REVIEW, StageStatus.COMPLETED)
+    ]
+    tip = ran[-1].instance_id if ran else None
+    if instance_id == tip:
+        return live
+    snap = history.snapshot_dir(instance_id, asset) / "cards"
+    return snap if snap.is_dir() else live
+
+
 @router.get("/api/wizard/card_gen/state")
-async def wizard_card_gen_state() -> JSONResponse:
+async def wizard_card_gen_state(instance_id: str | None = None) -> JSONResponse:
     """First-paint state for the Card Generation tab.
 
     Reads the card-gen-owned JSONs from ``<asset>/cards/`` (everything except the
@@ -3883,7 +4005,9 @@ async def wizard_card_gen_state() -> JSONResponse:
     # Pass 2, so this single resolver covers them too.
     slots_by_id = slots_by_id_from_skeleton(asset / "skeleton.json")
 
-    cards_dir = asset / "cards"
+    # Per-instance read-routing: a completed non-tip instance reads its own
+    # snapshot under history/; the tip / in-flight instance reads the live pool.
+    cards_dir = _resolve_view_cards_dir(instance_id, asset)
     cards: list[dict] = []
     if cards_dir.exists():
         for path in sorted(cards_dir.glob("*.json")):

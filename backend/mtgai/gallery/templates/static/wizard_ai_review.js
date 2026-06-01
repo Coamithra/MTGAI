@@ -149,6 +149,7 @@
       local.initialized = true;
       local.stageStatus = stage ? stage.status : 'pending';
       content.innerHTML = mountShellHtml();
+      W.bindRerunButton(root, stage);
       bootstrap(root, state).catch(err => {
         W.toast('Failed to load AI review state: ' + err.message, 'error');
       });
@@ -175,11 +176,13 @@
         .finally(() => { local.bootstrapping = false; });
       return;
     }
+    W.bindRerunButton(root, stage);
     paintFooter(footer, state);
   }
 
   function mountShellHtml() {
     return `
+      ${W.rerunButtonHtml()}
       <div data-role="ar-summary"></div>
       <div data-role="ar-filter" class="wiz-ai-review-filter-bar"></div>
       <div data-role="ar-list" class="wiz-ai-review-list">

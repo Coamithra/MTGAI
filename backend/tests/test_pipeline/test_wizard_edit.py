@@ -186,7 +186,7 @@ def test_preview_400_for_missing_from_stage(client):
 
 
 def test_accept_cascades_artifacts_and_resets_stages(client, no_thread_start):
-    """Accepting a Skeleton edit clears skeleton.json, cards/, art/, etc."""
+    """Accepting a Skeleton edit clears skeleton.json, card_gen cards, art/, etc."""
     set_dir = _make_set("ASD", theme={"code": "ASD"})
     (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
     (set_dir / "reprint_selection.json").write_text("{}", encoding="utf-8")
@@ -220,7 +220,9 @@ def test_accept_cascades_artifacts_and_resets_stages(client, no_thread_start):
 
     assert not (set_dir / "skeleton.json").exists()
     assert not (set_dir / "reprint_selection.json").exists()
-    assert not cards.exists()
+    # Scoped clear removes the card_gen-owned card (the dir itself may remain,
+    # now that clear_card_gen preserves the lands stage's L-* in place).
+    assert not (cards / "001_foo.json").exists()
 
     reloaded = load_state()
     assert reloaded is not None

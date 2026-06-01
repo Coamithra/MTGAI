@@ -320,12 +320,91 @@
   // bootstrap ``.catch`` toasts it. Network rejections propagate the same way.
   // Standardizes the graceful-404 path that skeleton/mechanics/archetypes used
   // to throw on while reprints/lands swallowed.
-  W.fetchStageState = async function (stageId) {
-    const resp = await fetch(`/api/wizard/${stageId}/state`);
+  W.fetchStageState = async function (stageId, query) {
+    let url = `/api/wizard/${stageId}/state`;
+    if (query && typeof query === 'object') {
+      const qs = Object.keys(query)
+        .filter(k => query[k] !== undefined && query[k] !== null)
+        .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(query[k]))
+        .join('&');
+      if (qs) url += '?' + qs;
+    }
+    const resp = await fetch(url);
     if (resp.ok) return resp.json();
     if (resp.status === 404) return null;
     const data = await resp.json().catch(() => ({}));
     throw new Error(data.error || `HTTP ${resp.status}`);
+  };
+
+  // ---- Per-instance re-run (version tracking) --------------------------------
+  // A "Re-run this step" affordance for the duplicable loop tabs (card_gen,
+  // conformance, balance, ai_review). It restores the card pool the instance
+  // received on entry and re-runs it + every later step, leaving earlier steps
+  // intact — the forward mirror of the engine's review->regen insert span.
+  //
+  // rerunButtonHtml() emits a hidden button; bindRerunButton(container, stage)
+  // toggles its visibility/enabled-state from the stage and wires the click. The
+  // button shows only once the instance has run, and is disabled (with a reason)
+  // when the instance has no entry snapshot — i.e. a project created before
+  // version tracking, which has no history/ to restore from.
+
+  W.rerunButtonHtml = function () {
+    return '<div class="wiz-rerun-row" style="margin-bottom:0.8rem">'
+      + '<button type="button" class="wiz-btn-secondary" data-role="rerun-step" hidden>'
+      + '\u21bb Re-run this step</button></div>';
+  };
+
+  W.bindRerunButton = function (container, stage) {
+    if (!container) return;
+    const btn = container.querySelector('[data-role="rerun-step"]');
+    if (!btn) return;
+    const ran = !!stage
+      && ['completed', 'paused_for_review', 'failed'].indexOf(stage.status) !== -1;
+    const hasSnap = !!(stage && stage.entry_snapshot_id);
+    btn.hidden = !ran;
+    btn.disabled = !hasSnap;
+    btn.title = hasSnap
+      ? 'Restore the card pool this step received on entry and re-run it plus every later step.'
+      : 'Re-run unavailable: this project predates version tracking (no entry snapshot).';
+    if (!ran || !hasSnap) { btn.onclick = null; return; }
+    btn.onclick = function () {
+      W.rerunInstance({
+        instanceId: stage.instance_id,
+        stageName: stage.display_name || stage.instance_id,
+      });
+    };
+  };
+
+  W.rerunInstance = async function (opts) {
+    opts = opts || {};
+    const instanceId = opts.instanceId;
+    const stageName = opts.stageName || 'this step';
+    if (!instanceId) return;
+    if (W.editFlow && W.editFlow.isPipelineRunning && W.editFlow.isPipelineRunning()) {
+      W.toast('Cancel the running stage first, then retry the re-run.', 'warn');
+      return;
+    }
+    // Reuse the edit-cascade confirm modal: its /edit/preview lists exactly the
+    // downstream stages (incl. any art/renders) this re-run will discard.
+    const ok = await W.editFlow.confirmCascade({
+      from_stage: instanceId,
+      title: 'Re-run ' + stageName + '?',
+      body: 'Re-running ' + stageName + ' restores the card pool it received on entry, '
+        + 'then regenerates it and every later step — including any art and renders '
+        + 'already generated. Earlier steps are left untouched.',
+    });
+    if (!ok) return;
+    let data = {};
+    try {
+      const resp = await W.postJSON('/api/wizard/instance/rerun', { instance_id: instanceId });
+      data = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) { W.reportError(resp, data, 'Re-run failed'); return; }
+    } catch (err) {
+      W.toast('Network error: ' + err.message, 'error');
+      return;
+    }
+    if (data.warning) W.toast(data.warning, 'warn');
+    if (data.navigate_to) window.location.assign(data.navigate_to);
   };
 
   // The empty / loading placeholder a stage tab paints when it has no content:

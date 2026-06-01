@@ -283,7 +283,12 @@ class PipelineEngine:
                 i += 1
                 continue
 
-            # Run the stage
+            # Run the stage. Stamp this instance's entry-pool pointer (its
+            # immediate predecessor's output snapshot) so a later manual re-run
+            # restores the right card pool before walking forward from here.
+            stage.entry_snapshot_id = (
+                self.state.stages[i - 1].instance_id if i > 0 else None
+            )
             self.state.current_instance_id = stage.instance_id
             stage.status = StageStatus.RUNNING
             stage.progress = StageProgress(started_at=datetime.now(UTC))
@@ -352,6 +357,14 @@ class PipelineEngine:
                     traceback.format_exc(),
                 )
                 return
+
+            # Per-instance card-pool snapshot: capture this instance's output
+            # (live cards/ + progress) into history/<instance_id>/ so it can be
+            # re-run from its entry later and its tab can show its own pool. This
+            # single seam covers every downstream branch (rerun-insert, review
+            # pause, normal complete) since the live folder already holds the
+            # instance's output at this point.
+            self._snapshot_instance_output(stage)
 
             # A review runner that flagged cards bounces the pipeline: insert
             # fresh instances of the upstream span and walk forward into them.
@@ -606,3 +619,144 @@ class PipelineEngine:
                 self.bus.cost_update(stage.progress.cost_usd, self.state.total_cost_usd)
 
         return callback
+
+    def _snapshot_instance_output(self, stage: StageState) -> None:
+        """Snapshot a completed snapshot-eligible instance's card pool. Best-effort.
+
+        A snapshot failure must never crash the run — the only consequence is that
+        this instance can't be re-run from history (it degrades to a from-live
+        re-run), so we log and continue.
+        """
+        from mtgai.pipeline import history
+
+        if stage.stage_id not in history.SNAPSHOT_STAGES:
+            return
+        try:
+            history.snapshot_instance(stage.instance_id)
+        except Exception:
+            logger.exception(
+                "Card-pool snapshot for instance %s failed (continuing)", stage.instance_id
+            )
+
+
+def _build_forward_path(state: PipelineState, after_stage_id: str) -> list[StageState]:
+    """Fresh PENDING instances for every canonical stage strictly after ``after_stage_id``.
+
+    The forward mirror of :meth:`PipelineEngine._build_rerun_span` (which builds the
+    *backward* slice ``rerun_from..gate``). Each new instance gets the next free
+    ordinal for its stage_id via :func:`make_instance_id` — a stage with a surviving
+    earlier sibling becomes ``conformance.2`` while one with none becomes the backbone
+    ``balance`` — which is what re-establishes the gate that must *follow* a
+    regenerated loop instance. The duplicable loop stages stay AUTO so the regen tail
+    flows (matching the engine's own insert span); post-loop stages honour the
+    project's break points so human-review pauses still fire.
+    """
+    from mtgai.pipeline import history
+    from mtgai.pipeline.models import _resolve_break_point
+    from mtgai.runtime.active_project import read_active_project
+
+    project = read_active_project()
+    break_points = project.settings.break_points if project is not None else {}
+
+    canonical = [d["stage_id"] for d in STAGE_DEFINITIONS]
+    defn_by_id = {d["stage_id"]: d for d in STAGE_DEFINITIONS}
+    try:
+        start = canonical.index(after_stage_id) + 1
+    except ValueError:
+        logger.error("Forward-path anchor %s not in STAGE_DEFINITIONS", after_stage_id)
+        return []
+
+    path: list[StageState] = []
+    for sid in canonical[start:]:
+        defn = defn_by_id[sid]
+        ordinal = sum(1 for s in state.stages if s.stage_id == sid) + 1
+        if sid in history.RERUNNABLE_STAGES:
+            review_mode = StageReviewMode.AUTO
+        else:
+            review_mode = (
+                StageReviewMode.REVIEW
+                if _resolve_break_point(sid, break_points)
+                else StageReviewMode.AUTO
+            )
+        display = defn["display_name"] if ordinal <= 1 else f"{defn['display_name']} {ordinal}"
+        path.append(
+            StageState(
+                stage_id=sid,
+                instance_id=make_instance_id(sid, ordinal),
+                display_name=display,
+                review_eligible=defn["review_eligible"],
+                review_mode=review_mode,
+                status=StageStatus.PENDING,
+            )
+        )
+    return path
+
+
+def rerun_instance(state: PipelineState, instance_id: str) -> str | None:
+    """Reset the pipeline to re-run instance ``instance_id`` from its entry pool.
+
+    The forward mirror of the engine's review->regen insertion, and the generalized
+    form of the wizard edit-cascade. Mutates ``state`` in place + touches the
+    filesystem (snapshot restore + history truncation), then leaves the engine to be
+    kicked by the caller — it walks forward from the reset instance exactly as a
+    normal run, so a re-flag inserts a fresh span as usual. Must run under the AI
+    lock with no engine running.
+
+    Steps (uniform for any duplicable instance):
+
+    1. Restore the entry card pool — the predecessor instance's output snapshot. The
+       snapshot already encodes the correct flag/content state, so no manual flag
+       fix-up is needed. A missing snapshot (migration) degrades to a from-live run.
+    2. Truncate: drop every stage after the target + delete their history snapshots.
+    3. Reset the target to PENDING (clear result/progress) + drop its own snapshot
+       (it re-emits on completion).
+    4. Re-append the canonical forward path as fresh PENDING instances.
+    5. Point ``current_instance_id`` at the target + set ``NOT_STARTED`` so kickoff
+       runs it.
+
+    Returns the restored entry snapshot id (or ``None`` when there was no predecessor
+    / no snapshot). Raises ``ValueError`` if the instance isn't found.
+    """
+    from mtgai.pipeline import history
+
+    idx = next((i for i, s in enumerate(state.stages) if s.instance_id == instance_id), None)
+    if idx is None:
+        raise ValueError(f"Unknown instance id {instance_id!r}")
+    target = state.stages[idx]
+
+    # 1. Restore entry state from the predecessor's output snapshot.
+    entry_id = target.entry_snapshot_id
+    if entry_id is None and idx > 0:
+        entry_id = state.stages[idx - 1].instance_id
+    if entry_id is not None and not history.restore_snapshot(entry_id):
+        logger.warning(
+            "Re-run %s: entry snapshot %s missing — running from live cards",
+            instance_id,
+            entry_id,
+        )
+
+    # 2. Truncate downstream (state + history).
+    for s in state.stages[idx + 1 :]:
+        history.delete_snapshot(s.instance_id)
+    del state.stages[idx + 1 :]
+
+    # 3. Reset the target itself.
+    history.delete_snapshot(target.instance_id)
+    target.status = StageStatus.PENDING
+    target.progress = StageProgress()
+    target.result = {}
+
+    # 4. Re-append the canonical forward path.
+    state.stages.extend(_build_forward_path(state, target.stage_id))
+
+    # 5. Aim the engine at the reset instance.
+    state.current_instance_id = target.instance_id
+    state.overall_status = PipelineStatus.NOT_STARTED
+    save_state(state)
+    logger.info(
+        "Re-run %s: entry=%s, re-appended forward path [%s]",
+        instance_id,
+        entry_id,
+        ", ".join(s.instance_id for s in state.stages[idx + 1 :]),
+    )
+    return entry_id

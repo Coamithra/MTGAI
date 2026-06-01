@@ -34,7 +34,10 @@
   W.registerStageRenderer('conformance', render);
 
   function render({ state, stage, content, footer }) {
-    if (content) content.innerHTML = bodyHtml(stage);
+    if (content) {
+      content.innerHTML = W.rerunButtonHtml() + bodyHtml(stage);
+      W.bindRerunButton(content, stage);
+    }
     paintFooter(footer, state, stage);
   }
 

@@ -338,10 +338,11 @@
       local.stageStatus = stage ? stage.status : 'pending';
       content.innerHTML = mountShellHtml();
       bindControls(root, instanceId, local);
+      W.bindRerunButton(root, stage);
       // A missing /state route (404) returns null from fetchStageState — the
       // bootstrap then paints the empty placeholder. A hard error still toasts
       // and falls back to the placeholder so the tab doesn't look broken.
-      bootstrap(root, state, local).catch(err => {
+      bootstrap(root, state, local, instanceId).catch(err => {
         W.toast('Failed to load card gen state: ' + err.message, 'error');
         paintGrid(root, local);
       });
@@ -369,7 +370,7 @@
       && !local.bootstrapping;
     if (justFinished) {
       local.bootstrapping = true;
-      bootstrap(root, state, local)
+      bootstrap(root, state, local, instanceId)
         .catch(err => {
           W.toast('Failed to refresh card gen state: ' + err.message, 'error');
           paintGrid(root, local);
@@ -378,12 +379,14 @@
       return;
     }
 
+    W.bindRerunButton(root, stage);
     paintFooter(footer, state, stage, instanceId, local);
     setLocked(root, local, local.locked);
   }
 
   function mountShellHtml() {
     return `
+      ${W.rerunButtonHtml()}
       <div class="wiz-cardgen-section" data-role="cg-progress-section">
         <div class="wiz-theme-section-header-row">
           <h3 style="margin:0">Generation progress</h3>
@@ -428,8 +431,10 @@
   // Live card streaming (card_gen_reset / card_gen_card) is wired at module
   // load via W.onCardGenStream above.
 
-  async function bootstrap(root, state, local) {
-    const data = await W.fetchStageState(STAGE_ID);
+  async function bootstrap(root, state, local, instanceId) {
+    // Per-instance read-routing: a completed non-tip instance reads its own
+    // card-pool snapshot (history/<instance_id>/) rather than the live tip pool.
+    const data = await W.fetchStageState(STAGE_ID, { instance_id: instanceId });
     if (data) {
       local.cards = Array.isArray(data.cards) ? data.cards : [];
       local.hasContent = local.cards.length > 0;
