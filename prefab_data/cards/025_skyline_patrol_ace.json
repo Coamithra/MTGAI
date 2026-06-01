@@ -1,0 +1,68 @@
+{
+  "id": null,
+  "name": "Skyline Patrol Ace",
+  "layout": "normal",
+  "mana_cost": "{W}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "W",
+    "U"
+  ],
+  "color_identity": [
+    "W",
+    "U"
+  ],
+  "type_line": "Artifact Creature — BotBot Scout",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot",
+    "Scout"
+  ],
+  "oracle_text": "Vigilance\nAlt-Mode (Interceptor) — {1}: Until your next turn, ~'s base power and toughness become 2/1 and it gains flying. Activate only as a sorcery.\nWhenever ~ attacks, if ~ has flying, energize.",
+  "flavor_text": "High above the scrap heaps of Cybertron, the patrol begins.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "025",
+  "rarity": "uncommon",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:06:13.545921Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5701,
+      "output_tokens": 6476,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card serves as an uncommon signpost for the WU Skyline Patrol archetype. It exemplifies the 'Skyline' theme by using Alt-Mode to transform from a grounded, vigilant scout into an evasive Interceptor flyer. By tying the reward for attacking with a flyer to the Energize mechanic, it creates a cohesive loop: use Alt-Mode to bypass blockers (WU goal) and then generate resources (Energon) to fuel larger machines or other transformations. It adheres to the color pie by utilizing White's vigilance and Blue's ability to manipulate/generate efficiency through flying and resource interaction.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "025",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:06:13.545921Z",
+  "updated_at": null
+}

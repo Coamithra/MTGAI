@@ -1,0 +1,60 @@
+{
+  "id": null,
+  "name": "Matrix of Leadership",
+  "layout": "normal",
+  "mana_cost": "{5}",
+  "mana_cost_parsed": null,
+  "cmc": 5.0,
+  "colors": [],
+  "color_identity": [],
+  "type_line": "Legendary Artifact",
+  "supertypes": [
+    "Legendary"
+  ],
+  "card_types": [
+    "Artifact"
+  ],
+  "subtypes": [],
+  "oracle_text": "When ~ enters, energize.\n{T}: Add one mana of any color.\nWhenever you sacrifice an Energon token, you may cast a legendary artifact creature from your graveyard with no mana cost. If you do, it gains trample until end of turn.",
+  "flavor_text": "The sparks of the fallen leaders reside within, providing guidance and strength to those who carry the weight of the war.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "017",
+  "rarity": "mythic",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T15:58:47.883409Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5308,
+      "output_tokens": 3241,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "As a requested Mythic card, the Matrix of Leadership acts as the ultimate engine for the set's themes. It bridges the 'Energon' resource mechanic with the 'legendary artifact creature' core identity of the Transformers. By energizing upon entry, it provides an immediate 'spark' to fuel its own powerful ability: casting leaders directly from the graveyard (the essence). This fulfills the 'vessel for essence' flavor perfectly while providing a high-power gameplay loop that rewards players for building their Energon/Artifact engines. It is designed as a centerpiece for Commander-style play or heavy artifact/legendary decks.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "017",
+  "card_faces": null,
+  "created_at": "2026-06-01T15:58:47.883409Z",
+  "updated_at": null
+}

@@ -1,0 +1,67 @@
+{
+  "id": null,
+  "name": "Malice-Forged Colossus",
+  "layout": "normal",
+  "mana_cost": "{2}{B}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "B",
+    "G"
+  ],
+  "color_identity": [
+    "B",
+    "G"
+  ],
+  "type_line": "Artifact Creature — Cybertronian",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "Cybertronian"
+  ],
+  "oracle_text": "Combine.\nWhenever ~ enters from your graveyard, target creature you control gets +2/+2 and gains trample until end of turn.",
+  "flavor_text": "\"The debris of the fallen is not waste—it is raw material for victory.\"",
+  "reminder_text": null,
+  "power": "3",
+  "toughness": "4",
+  "loyalty": null,
+  "collector_number": "037",
+  "rarity": "rare",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:17:11.696329Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 6206,
+      "output_tokens": 3636,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card is a centerpiece for the BG (Combiner Protocol) archetype. It utilizes the 'Combine' mechanic to facilitate graveyard-to-battlefield recursion, which is the core of this color pair's strategy. As a Rare CMC 4 creature, it provides significant value by turning the act of 'combining' into a powerful board-state buff. The +2/+2 and trample effect on entry from the graveyard rewards the player for successfully executing the Combine activation, helping to transform smaller units into the 'unstoppable juggernauts' described in the archetype notes. I chose Cybertronian as the type to differentiate it from common BotBots, marking it as a larger-scale entity.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "037",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:17:11.696329Z",
+  "updated_at": null
+}

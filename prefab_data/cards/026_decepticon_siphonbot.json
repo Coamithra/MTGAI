@@ -1,0 +1,67 @@
+{
+  "id": null,
+  "name": "Decepticon Siphon-Bot",
+  "layout": "normal",
+  "mana_cost": "{1}{W}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "W",
+    "B"
+  ],
+  "color_identity": [
+    "W",
+    "B"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "Combine.\nWhenever an artifact creature you control dies, target opponent loses 1 life.",
+  "flavor_text": "The most efficient way to win a war is to ensure the enemy simply runs out of parts.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "026",
+  "rarity": "uncommon",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:07:04.047129Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5755,
+      "output_tokens": 3546,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card is designed as the signpost uncommon for the WB 'Decepticon Tyranny' archetype. It embodies the theme of attrition and life drain by providing a death trigger that rewards sacrificing low-cost artifacts (the core of the deck). By including the Combine mechanic, it also supports the recursion/big artifact subtheme, allowing players to potentially reassemble their discarded units into larger threats later in the game. The mana cost {1}{W}{B} and stats 2/2 are balanced for an uncommon-tier engine that requires specific board states or graveyard setup to fully realize its value.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "026",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:07:04.047129Z",
+  "updated_at": null
+}

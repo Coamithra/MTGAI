@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Decepticon Malice-Core",
+  "layout": "normal",
+  "mana_cost": "{1}{B}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Artifact Creature — Cybertronian",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "Cybertronian"
+  ],
+  "oracle_text": "Combine.\nWhen ~ dies, energize.",
+  "flavor_text": "Efficiency is irrelevant when the goal is total annihilation.",
+  "reminder_text": null,
+  "power": "3",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "034",
+  "rarity": "rare",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:14:48.270552Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 6049,
+      "output_tokens": 4287,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Designed for the WB (Decepticon Tyranny) and BG (Combiner Protocol) archetypes. As a rare, it provides high synergy: in WB decks, it facilitates resource generation (Energon) via sacrifice/death triggers; in BG decks, it acts as a solid mid-sized unit that can be 'Combined' into a larger threat using the graveyard recursion engine. The 3/2 stats for 3 mana is balanced given its ability to provide fuel upon death.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "034",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:14:48.270552Z",
+  "updated_at": null
+}

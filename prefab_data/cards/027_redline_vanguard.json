@@ -1,0 +1,68 @@
+{
+  "id": null,
+  "name": "Redline Vanguard",
+  "layout": "normal",
+  "mana_cost": "{W}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "W",
+    "R"
+  ],
+  "color_identity": [
+    "W",
+    "R"
+  ],
+  "type_line": "Artifact Creature — BotBot Soldier",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot",
+    "Soldier"
+  ],
+  "oracle_text": "Vigilance\nAlt-Mode (Turbo Mode) — {1}: Until your next turn, ~'s base power and toughness become 3/1 and it gains haste. Activate only as a sorcery.",
+  "flavor_text": "Efficiency in the defense, momentum in the strike.",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "027",
+  "rarity": "uncommon",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:07:47.601506Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5799,
+      "output_tokens": 3053,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card is the signpost uncommon for the WR (Rapid Strike) archetype. It embodies the 'tactical shift' of the Alt-Mode mechanic by offering a choice between stability and explosive speed. The base form uses White's defensive philosophy (Vigilance, 1/2 body) to allow for safe play and blocking, while the Alt-Mode utilizes Red's aggressive nature (Haste, 3/1 body) to facilitate sudden combat spikes. At CMC 2, it is an efficient early-game unit that can be upgraded into a tempo threat mid-game.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "027",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:07:47.601506Z",
+  "updated_at": null
+}

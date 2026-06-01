@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Decepticon Ravage-Unit",
+  "layout": "normal",
+  "mana_cost": "{B}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "",
+  "flavor_text": "They don't need a spark to feel the hunger for destruction.",
+  "reminder_text": null,
+  "power": "3",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "020",
+  "rarity": "uncommon",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:01:19.790689Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5412,
+      "output_tokens": 2516,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This is a vanilla uncommon designed to serve as efficient 'fodder' for the Decepticon Tyranny (WB) archetype. By providing a 3/2 body for {B}{B}, it offers an aggressive alternative to existing Scrapper ({1}{B} 2/2) and Scrap-Drone ({2}{B} 2/2), allowing players to build high-pressure boards or sacrifice bodies to trigger black's attrition effects.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "020",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:01:19.790689Z",
+  "updated_at": null
+}

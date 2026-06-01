@@ -1,0 +1,68 @@
+{
+  "id": null,
+  "name": "Aero-Guard Unit",
+  "layout": "normal",
+  "mana_cost": "{1}{W}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "W",
+    "U"
+  ],
+  "color_identity": [
+    "W",
+    "U"
+  ],
+  "type_line": "Artifact Creature — BotBot Soldier",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot",
+    "Soldier"
+  ],
+  "oracle_text": "Alt-Mode (Aerial Patrol) — {1}: Until your next turn, ~'s base power and toughness become 1/2 and it gains flying. Activate only as a sorcery.\nWhenever ~ attacks, if ~ has flying, energize.",
+  "flavor_text": "Eyes on the horizon, sensors on high alert; the patrol never sleeps.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "032",
+  "rarity": "rare",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:13:14.346486Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5935,
+      "output_tokens": 3915,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Designed for the WU Skyline Patrol archetype. This card provides tactical flexibility via Alt-Mode, allowing a ground-based soldier to become an evasive flyer. As a rare, it provides engine value by using the 'energize' keyword action upon attacking in its aerial form, helping fuel the deck's artifact and resource themes. The mana cost reflects its dual-color identity which is necessary to fully participate in the WU archetype's synergy with blue interaction and white protection/soldiers.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "032",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:13:14.346486Z",
+  "updated_at": null
+}

@@ -1,0 +1,62 @@
+{
+  "id": null,
+  "name": "Spark-Core Regulator",
+  "layout": "normal",
+  "mana_cost": "{1}{W}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Artifact",
+  "supertypes": [],
+  "card_types": [
+    "Artifact"
+  ],
+  "subtypes": [],
+  "oracle_text": "When ~ enters, energize.",
+  "flavor_text": "A small, white-cased module designed to stabilize energy flows during atmospheric entry.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "002",
+  "rarity": "common",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T15:49:21.268983Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 4843,
+      "output_tokens": 3633,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card serves as a low-cost mana-fixing/ramp tool for the WU (Skyline Patrol) and UG (Energon Harvesting) archetypes. By providing an Energon token immediately upon entry, it allows players to accelerate their mana development in the early game. While Energon is traditionally URG, this specific design uses White's identity to provide a bridge into the energy-based mechanics of the set, fitting the requirement for a 'cheap Energon source'.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "002",
+  "card_faces": null,
+  "created_at": "2026-06-01T15:49:21.268983Z",
+  "updated_at": null
+}

@@ -505,6 +505,20 @@
       });
     });
 
+    // Conformance & Interactions streaming. The gate's two internal LLM steps
+    // each emit a conformance_step the instant they return, so the tab's two
+    // sections fill in independently rather than waiting for the whole stage.
+    // Conformance additionally runs one call per card: conformance_cards lists
+    // every card up front, then conformance_card streams each ✓/✗ verdict as it
+    // lands. conformance_reset fires once at the start of a run. The Conformance
+    // tab listens via the W.onConformanceStream bridge.
+    ['conformance_reset', 'conformance_cards', 'conformance_card', 'conformance_step'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onConformanceStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     // Mechanics generation streaming: each accepted draft pops onto the
     // Mechanics tab (mechanic_candidate_drafted, pre-review); the council loop
     // then reports live (mechanic_council_update — reviewer thumbs + synth

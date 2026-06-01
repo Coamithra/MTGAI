@@ -1,0 +1,66 @@
+{
+  "id": null,
+  "name": "Quintesson Overmind",
+  "layout": "normal",
+  "mana_cost": "{2}{U}{U}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 5.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Artifact Creature — Quintesson Leader",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "Quintesson",
+    "Leader"
+  ],
+  "oracle_text": "Whenever you sacrifice an Energon token, draw a card.\nAlt-Mode (Orbital Array) — {1}: Until your next turn, ~'s base power and toughness become 7/7 and it gains flying and \"Whenever ~ attacks, tap target nonland permanent.\" Activate only as a sorcery.",
+  "flavor_text": "Logic is the only absolute in a multiverse of chaos.",
+  "reminder_text": null,
+  "power": "5",
+  "toughness": "5",
+  "loyalty": null,
+  "collector_number": "043",
+  "rarity": "mythic",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:21:21.364615Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 6548,
+      "output_tokens": 2945,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Designed for the UB (Logic Corruption) archetype, Quintesson Overmind rewards the player for managing Energon resources by providing card advantage. As a Mythic, its Alt-Mode provides a massive 'Titan' level presence that functions as a control finisher—it transforms into a high-power aerial threat that disrupts the opponent's board state via tapping rather than direct destruction (staying within Blue's color pie). The CMC 5 cost and mythic rarity reflect its status as a world-shaping machine.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "043",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:21:21.364615Z",
+  "updated_at": null
+}

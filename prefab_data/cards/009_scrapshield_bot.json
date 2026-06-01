@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Scrap-Shield Bot",
+  "layout": "normal",
+  "mana_cost": "{1}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "G"
+  ],
+  "color_identity": [
+    "G"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "",
+  "flavor_text": "The first line of defense is often the most durable.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "009",
+  "rarity": "common",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T15:53:26.644625Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5058,
+      "output_tokens": 2426,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This is a vanilla creature designed for the WG Autobot Vanguard archetype. It provides a sturdy 2/3 body at CMC 2, adhering to the power-to-toughness guideline (P+T of 5 $\\le$ CMC + 3). As an artifact creature, it fits the set's mechanical theme and provides a reliable base for tribal synergies without adding complexity.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "009",
+  "card_faces": null,
+  "created_at": "2026-06-01T15:53:26.644625Z",
+  "updated_at": null
+}

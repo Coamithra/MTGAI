@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Dash-Gear Bot",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "R"
+  ],
+  "color_identity": [
+    "R"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "Alt-Mode (Speedster) — {1}: Until your next turn, ~'s base power and toughness become 3/0 and it gains haste. Activate only as a sorcery.",
+  "flavor_text": "Built for the fast lane, even if they lack the fuel to stay there long.",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "007",
+  "rarity": "common",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T15:52:15.416443Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 4986,
+      "output_tokens": 1960,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Designed for the WR (Rapid Strike) archetype. As a common artifact creature, it provides an efficient way to trade utility/survivability (the 1/2 robot mode) for immediate explosive combat power (the 3/0 speedster mode with haste). The P+T follows common guidelines by remaining at a total of 3, simply shifting the distribution between power and toughness. This allows players to play it early as a blocker or utility piece, then pivot into an aggressive threat during a main phase.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "007",
+  "card_faces": null,
+  "created_at": "2026-06-01T15:52:15.416443Z",
+  "updated_at": null
+}

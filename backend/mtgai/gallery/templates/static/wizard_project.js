@@ -1354,6 +1354,20 @@
           + 'iteration when re-running stages with unchanged inputs. Cache lives '
           + 'under <code>&lt;asset folder&gt;/.llm-cache/</code>.',
     },
+    {
+      flag: 'use_prefab_mechanics',
+      label: 'Use prefab mechanics',
+      desc: 'Skip the LLM mechanic generation and install the hand-made selection '
+          + 'from <code>prefab_data/mechanics/</code> instead. Fast way to reach '
+          + 'later stages without waiting on (or paying for) generation.',
+    },
+    {
+      flag: 'use_prefab_cards',
+      label: 'Use prefab cards',
+      desc: 'Skip the LLM card generation and install the hand-made card pool from '
+          + '<code>prefab_data/cards/</code> instead. Fast way to exercise the '
+          + 'gates / art / render stages without generating cards.',
+    },
   ];
 
   function renderDebugSection(data) {

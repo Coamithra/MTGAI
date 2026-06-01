@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Decepticon Scrap-Core",
+  "layout": "normal",
+  "mana_cost": "{2}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "",
+  "flavor_text": "The fuel of conquest is often found in the wreckage of the defeated.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "021",
+  "rarity": "uncommon",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:02:12.580109Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5435,
+      "output_tokens": 3855,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Since 'vanilla' implies a creature with stats but no additional abilities, and the slot brief specifies an artifact, I have designed this as an Artifact Creature. This allows it to have power and toughness while remaining a simple, rule-text-free card. It fits the WB Decepticon Tyranny archetype by serving as low-cost 'fodder' (an artifact/creature piece) that can be sacrificed for value or used to facilitate attrition strategies.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "021",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:02:12.580109Z",
+  "updated_at": null
+}

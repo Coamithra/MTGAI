@@ -1,0 +1,60 @@
+{
+  "id": null,
+  "name": "Cybertron",
+  "layout": "normal",
+  "mana_cost": "",
+  "mana_cost_parsed": null,
+  "cmc": 0.0,
+  "colors": [],
+  "color_identity": [],
+  "type_line": "Legendary Land",
+  "supertypes": [
+    "Legendary"
+  ],
+  "card_types": [
+    "Land"
+  ],
+  "subtypes": [],
+  "oracle_text": "{T}: Add {C}.\n{T}: Energize.\nWhenever you sacrifice an Energon token, target artifact creature you control gets +1/+1 until end of turn.",
+  "flavor_text": "The metal heart of the multiverse, pulsing with the rhythm of a god's breathing.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "041",
+  "rarity": "mythic",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:20:00.023136Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 6444,
+      "output_tokens": 3325,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "As the physical manifestation of Primus, Cybertron is designed as a Mythic-tier Legendary Land that serves as the engine for the entire set's Energon mechanic. It provides color fixing/ramping via its ability to 'Energize' every turn, and directly rewards the player for using those resources by buffing artifact creatures (supporting the Titan, Combiner, and Autobot Vanguard archetypes). Its power level is balanced by its identity as a land; while it produces high value, it relies on the player having existing artifacts to realize its full potential.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "041",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:20:00.023136Z",
+  "updated_at": null
+}

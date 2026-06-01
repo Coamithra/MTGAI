@@ -1,0 +1,72 @@
+{
+  "id": null,
+  "name": "Optimus Prime",
+  "layout": "normal",
+  "mana_cost": "{3}{W}{R}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 6.0,
+  "colors": [
+    "W",
+    "R",
+    "G"
+  ],
+  "color_identity": [
+    "W",
+    "R",
+    "G"
+  ],
+  "type_line": "Legendary Artifact Creature — Autobot Leader",
+  "supertypes": [
+    "Legendary"
+  ],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "Autobot",
+    "Leader"
+  ],
+  "oracle_text": "Alt-Mode (Semi-Truck) — {1}: Until your next turn, ~'s base power and toughness become 7/7 and it gains trample and vigilance. Activate only as a sorcery.\nWhenever ~ attacks, create two Energon tokens.",
+  "flavor_text": "\"Freedom is the right of all sentient beings.\"",
+  "reminder_text": null,
+  "power": "5",
+  "toughness": "5",
+  "loyalty": null,
+  "collector_number": "042",
+  "rarity": "mythic",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:20:39.551298Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 6490,
+      "output_tokens": 2771,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Optimus Prime is designed as the set's mythic face character. His colors (White, Red, Green) represent his role as a principled leader (W), his vehicular combat prowess (R), and his connection to the vital life-force/growth of the Autobot cause (G). The Alt-Mode provides the necessary mechanical morphology, allowing him to transition from a sturdy humanoid leader into an unstoppable heavy vehicle. His ability to generate Energon tokens on attack supports the resource-management theme while rewarding the player for committing their leader to combat.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "042",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:20:39.551298Z",
+  "updated_at": null
+}

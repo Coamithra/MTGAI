@@ -1,0 +1,50 @@
+{
+  "id": null,
+  "name": "Swamp",
+  "layout": "normal",
+  "mana_cost": null,
+  "mana_cost_parsed": null,
+  "cmc": 0.0,
+  "colors": [],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Basic Land — Swamp",
+  "supertypes": [
+    "Basic"
+  ],
+  "card_types": [
+    "Land"
+  ],
+  "subtypes": [
+    "Swamp"
+  ],
+  "oracle_text": "",
+  "flavor_text": "",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "L-03c",
+  "rarity": "common",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Alternate basic land art — The oppressive shadow of Unicron's influence spreading over a lightless crater.",
+  "is_reprint": true,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": null,
+  "card_faces": null,
+  "created_at": "2026-06-01T15:41:58.244979Z",
+  "updated_at": "2026-06-01T15:41:58.244979Z"
+}

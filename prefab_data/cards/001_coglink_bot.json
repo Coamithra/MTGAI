@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Cog-Link Bot",
+  "layout": "normal",
+  "mana_cost": "{W}",
+  "mana_cost_parsed": null,
+  "cmc": 1.0,
+  "colors": [
+    "W"
+  ],
+  "color_identity": [
+    "W"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "",
+  "flavor_text": "Even the smallest gear is necessary for the movement of the whole.",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "collector_number": "001",
+  "rarity": "common",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T15:48:33.724493Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 4822,
+      "output_tokens": 1957,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This is a vanilla artifact creature intended to support the WG Autobot Vanguard archetype. By being an early-game, low-cost body that is also an artifact, it provides both a go-wide presence and synergy for artifact-matters cards without requiring complex text.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "001",
+  "card_faces": null,
+  "created_at": "2026-06-01T15:48:33.724493Z",
+  "updated_at": null
+}

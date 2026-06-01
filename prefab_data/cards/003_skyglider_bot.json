@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Sky-Glider Bot",
+  "layout": "normal",
+  "mana_cost": "{U}",
+  "mana_cost_parsed": null,
+  "cmc": 1.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "Alt-Mode (Interceptor) — {1}: Until your next turn, ~'s base power and toughness become 1/1 and it gains flying. Activate only as a sorcery.",
+  "flavor_text": "Small, sleek, and deceptively fast once the thrusters kick in.",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "1",
+  "loyalty": null,
+  "collector_number": "003",
+  "rarity": "common",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T15:49:46.011314Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 4864,
+      "output_tokens": 1681,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card is designed for the WU Skyline Patrol archetype. As a common, it introduces the Alt-Mode mechanic by providing an affordable way to turn a ground-based creature into a flyer. This supports the strategy of using evasive threats to chip away at life totals. The mana cost and ability cost are balanced so that a flying threat costs 2 mana total (cast + activate), making it a tempo-oriented piece for Blue players.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "003",
+  "card_faces": null,
+  "created_at": "2026-06-01T15:49:46.011314Z",
+  "updated_at": null
+}

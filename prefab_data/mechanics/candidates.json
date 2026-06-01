@@ -1,0 +1,209 @@
+[
+  {
+    "name": "Energon",
+    "keyword_type": "keyword_action",
+    "reminder_text": "(To energize, create an Energon token. It's a colorless artifact with \"{T}, Sacrifice this artifact: Add one mana of any color.\")",
+    "colors": [
+      "U",
+      "R",
+      "G"
+    ],
+    "complexity": 1,
+    "design_rationale": "Energon is the set's named secondary resource — a fuel artifact the world is built around. Making it a keyword action gives every color and rarity a shared verb that other cards (transformations, Combiners, activated abilities) can pay with or care about, exactly like the setting's 'dedicated secondary resource mechanic' constraint. As a Treasure-adjacent but distinct token (any-color mana ramp rather than generic fixing, and explicitly an Energon you can build a deck around), it feeds the ramp/artifact archetypes. It is the simplest mechanic so it anchors complexity 1; later mechanics can branch into richer activated/triggered space and different colors. Common cards energize once as a value rider; rares energize multiple times or off triggers to fuel big Titan/Combiner payoffs. Supports the 'Energon ramp', 'artifact matters', and 'transform/Combiner' archetypes.",
+    "example_cards": [
+      {
+        "name": "Energon Scavenger",
+        "mana_cost": "{2}{G}",
+        "type_line": "Artifact Creature — BotBot Scout",
+        "rarity": "common",
+        "oracle_text": "When this creature enters, energize.",
+        "power": "2",
+        "toughness": "2"
+      },
+      {
+        "name": "Vector Sigma Conduit",
+        "mana_cost": "{3}{U}{R}",
+        "type_line": "Artifact — Vehicle",
+        "rarity": "rare",
+        "oracle_text": "When this artifact enters, energize twice.\nWhenever you sacrifice an Energon token, draw a card.\nCrew 3",
+        "power": "4",
+        "toughness": "5"
+      }
+    ],
+    "_review_verdict": "OK",
+    "_review_notes": "",
+    "_ai_generated": true
+  },
+  {
+    "name": "Combine",
+    "keyword_type": "keyword_ability",
+    "reminder_text": "{2}, Exile this card and another card with combine from your graveyard: Return this card to the battlefield with a +1/+1 counter on it for each card exiled this way. Activate only as a sorcery.",
+    "colors": [
+      "W",
+      "B",
+      "G"
+    ],
+    "complexity": 2,
+    "design_rationale": "Combine is the set's 'Combiners merge small units into a single large entity' mechanic, expressed as a graveyard-recursion engine rather than a board-wide buff or a resource ramp like Energon. It is deliberately in WBG (the under-used colors here, vs. Energon's URG) and is a richer complexity-2 activated ability from the graveyard, a different shape and zone than Energon's keyword action. Flavorfully, fallen BotBots and Transformers physically join together to come back bigger, fueling the Combiner and graveyard-value archetypes; small aggressive creatures want to die and reassemble, while controlling decks recur and stack counters. Common cards are cheap creatures with small bodies that combine into modest threats; uncommons add a relevant ETB or evasion on return; rares come back huge, having merged several combine cards into one giant Titan. The recurring decision: do you keep these creatures on board now, or trade them away and spend mana later to reassemble them into one larger, harder-to-kill body. Supports 'graveyard/sacrifice value', 'go-wide-then-merge Combiners', and 'big artifact creature' archetypes.",
+    "example_cards": [
+      {
+        "name": "Scrapyard Scrambler",
+        "mana_cost": "{1}{G}",
+        "type_line": "Artifact Creature — BotBot",
+        "rarity": "common",
+        "oracle_text": "Combine",
+        "power": "2",
+        "toughness": "1"
+      },
+      {
+        "name": "Devastator, Reassembled",
+        "mana_cost": "{3}{W}{B}{G}",
+        "type_line": "Artifact Creature — Combiner Titan",
+        "rarity": "rare",
+        "oracle_text": "Combine\nTrample\nWhenever Devastator, Reassembled enters or attacks, each other creature you control gets +1/+1 until end of turn.",
+        "power": "6",
+        "toughness": "6"
+      }
+    ],
+    "_review_verdict": "OK",
+    "_review_notes": "",
+    "_ai_generated": true
+  },
+  {
+    "name": "Alt-Mode",
+    "keyword_type": "keyword_ability",
+    "reminder_text": "{1}: Until your next turn, this permanent's base power, toughness, and abilities become those listed after this keyword. Activate only as a sorcery.",
+    "colors": [
+      "W",
+      "U",
+      "R"
+    ],
+    "complexity": 2,
+    "design_rationale": "Alt-Mode is the set's in-place morphology mechanic for single-faced cards: a Transformer pays {1} as a sorcery to shift into its vehicle/weapon form, taking on the base P/T and abilities written after the keyword until the start of its controller's next turn. This is mechanically distinct from Energon (a resource keyword action) and Combine (a graveyard recursion engine): it flips the same permanent between two profiles without being a double-faced card. The 'until your next turn' duration means the bot stays in alt-mode through the opponent's turn — attacking on your turn, then defending in its alt-mode profile during opposing turns, then reverting at the start of your next turn — creating real timing tension. Each card defines its own alt-mode body (shape G), so the keyword reads identically while the profiles scale by rarity: commons offer a small evasive or defensive form, rares a bigger combat form. The recurring decision: stay in robot mode for its current stats and text, or spend {1} as a sorcery to commit to the vehicle form this combat and lose access to the robot's abilities until your next turn.",
+    "example_cards": [
+      {
+        "name": "Scoutbot Dasher",
+        "mana_cost": "{1}{U}",
+        "type_line": "Artifact Creature — BotBot Scout",
+        "rarity": "common",
+        "oracle_text": "Alt-Mode (Hovercar) — {1}: Until your next turn, Scoutbot Dasher's base power and toughness become 1/3 and it gains \"This creature can't be blocked.\" Activate only as a sorcery.",
+        "power": "2",
+        "toughness": "1"
+      },
+      {
+        "name": "Sentinel Prime, Convoy Form",
+        "mana_cost": "{2}{R}{W}",
+        "type_line": "Legendary Artifact Creature — Robot Soldier",
+        "rarity": "rare",
+        "oracle_text": "Alt-Mode (Battle Truck) — {1}: Until your next turn, Sentinel Prime, Convoy Form's base power and toughness become 5/5 and it gains trample and \"Whenever this creature attacks, it deals 2 damage to each creature defending player controls.\" Activate only as a sorcery.\nWhenever Sentinel Prime, Convoy Form deals combat damage to a player, you get {E} {E}.",
+        "power": "3",
+        "toughness": "4"
+      }
+    ],
+    "_review_verdict": "OK",
+    "_review_notes": "Replaced the wrong \"becomes a copy of\" term with proper shape-G templating: the reminder now defines only the shared {1} sorcery-speed cost and the 'until your next turn' base-P/T-and-abilities change, while each example card carries its own alt-mode profile. Replaced the undefined 'energize' with the defined energy action 'you get {E}{E}'.",
+    "_ai_generated": true
+  },
+  {
+    "name": "Reroute",
+    "keyword_type": "keyword_action",
+    "reminder_text": "To reroute N, move N +1/+1 counters from among permanents you control onto target creature you control.",
+    "colors": [
+      "U",
+      "B",
+      "G"
+    ],
+    "complexity": 2,
+    "design_rationale": "Reroute is a counter-shuffling keyword action that fits the set's theme of Transformers redirecting their energy and components between bodies — concentrating power into one chassis the way Combiners and Titans pool their strength. It is mechanically DISTINCT from everything designed so far: Energon is resource ramp (token-making), Combine is graveyard recursion, and Alt-Mode is a same-permanent profile swap; Reroute is a battlefield counter-manipulation verb that interacts with +1/+1 counters already on board, a space none of the others touch. Color identity is shifted to UBG (Green/Black for counters and sacrifice-adjacent value, Blue here is the artifact/precision-engineering bend), deliberately avoiding the WUR and URG clusters. As a keyword action it can be invoked by many cards at every rarity: an instant that reroutes once for a combat trick, a creature that reroutes on death so its counters live on, or a rare engine that reroutes repeatedly to assemble one giant threat. It rewards the +1/+1 counters / Combiner archetypes (consolidate scattered counters into a finisher) and the sacrifice-value archetype (pull counters off a creature before it dies). The recurring decision turn after turn: spread your power across a wide board for resilience, or reroute it into a single creature to push lethal or dodge removal — and time that consolidation right, since concentrating onto one body invites a single removal spell. Numeric N gives clean common (reroute 1), uncommon (reroute 2), and rare (reroute 3 or repeatable) design space.",
+    "example_cards": [
+      {
+        "name": "Energy Siphon",
+        "mana_cost": "{1}{G}",
+        "type_line": "Instant",
+        "rarity": "common",
+        "oracle_text": "Reroute 1.\nDraw a card."
+      },
+      {
+        "name": "Devastator, Combined Form",
+        "mana_cost": "{4}{B}{G}",
+        "type_line": "Artifact Creature — Robot Titan",
+        "rarity": "rare",
+        "oracle_text": "Trample\nWhen Devastator, Combined Form enters, reroute 3.\nWhenever another creature you control dies, you may move a +1/+1 counter from it onto Devastator, Combined Form.",
+        "power": "3",
+        "toughness": "3"
+      }
+    ],
+    "_review_verdict": "OK",
+    "_review_notes": "",
+    "_ai_generated": true
+  },
+  {
+    "name": "Spark Surge",
+    "keyword_type": "keyword_ability",
+    "reminder_text": "Whenever this creature becomes blocked by a creature, or blocks a creature, it deals N damage to that creature.",
+    "colors": [
+      "R",
+      "B"
+    ],
+    "complexity": 1,
+    "design_rationale": "Spark Surge is a combat-damage rider in RB that fires the moment a Transformer clashes with another creature — its energy core flares and pings the creature it engages before normal combat damage. It is distinct from the set's other mechanics (Energon ramp, Combine recursion, Alt-Mode profile swap, Reroute counters), none of which deal direct combat pinging. As a numeric shape-B keyword it scales cleanly: Spark Surge 1 is a value rider on a small common body, Spark Surge 3 pairs with menace and death payoffs at high rarity. The trigger fires when this creature becomes blocked OR when it blocks, so it is relevant on both axes — an attacker softens its blocker (and a multi-blocked attacker hits each blocker), while a defender grinds down attackers it stops. It is self-standing (it does something the moment combat is joined, no other piece required). The decision turn after turn: commit this creature to combat to trade up and clear blockers, knowing it exposes the creature, or hold it back. Supports the RB aggressive/attrition and artifact-creature combat archetypes.",
+    "example_cards": [
+      {
+        "name": "Cinder-Spark Skirmisher",
+        "mana_cost": "{2}{R}",
+        "type_line": "Artifact Creature — BotBot Soldier",
+        "rarity": "common",
+        "oracle_text": "Spark Surge 1",
+        "power": "2",
+        "toughness": "2"
+      },
+      {
+        "name": "Galvatron, Reforged Tyrant",
+        "mana_cost": "{3}{B}{R}",
+        "type_line": "Legendary Artifact Creature — Decepticon Tyrant",
+        "rarity": "mythic",
+        "oracle_text": "Menace\nSpark Surge 3\nWhenever a creature dealt damage by Galvatron, Reforged Tyrant this turn dies, draw a card.",
+        "power": "4",
+        "toughness": "4"
+      }
+    ],
+    "_review_verdict": "OK",
+    "_review_notes": "Rewrote the reminder to trigger on \"becomes blocked by a creature, or blocks a creature\" and deal N damage \"to that creature,\" eliminating the undefined \"fighting\" referent and the no-target unblocked-attack case (multi-block naturally hits each blocker via separate triggers). Examples unchanged — they already used the keyword by name and behave correctly under the corrected definition.",
+    "_ai_generated": true
+  },
+  {
+    "name": "Conquer",
+    "keyword_type": "keyword_ability",
+    "reminder_text": "Whenever this creature attacks, if defending player controls no untapped creatures, you may pay {2}. If you do, draw a card.",
+    "colors": [
+      "W",
+      "U",
+      "B"
+    ],
+    "complexity": 1,
+    "design_rationale": "Conquer is a tap-the-skies attrition mechanic in WUB that rewards Decepticon-style dominance: when a Transformer strikes at a defenseless opponent, you can spend to seize an advantage and draw. It is mechanically DISTINCT from everything designed so far — Energon makes resource tokens, Combine recurs from the graveyard, Alt-Mode swaps profiles, Reroute shuffles counters, and Spark Surge pings in combat; none of them are an attack-trigger card-draw payoff that checks the defender's open creatures. The 'no untapped creatures' clause makes it a true conquest gate: it pays off after you've cleared or tapped down the board, reinforcing the WUB evasion/control axis without being a flat unblockable beater. Color identity is shifted to WUB (white evasion and order, blue card draw, black dominance/attrition), deliberately avoiding the URG, WUR, RB, and UBG clusters above, and it anchors complexity 1 with a clean optional-pay rider. Design space is broad: commons are small evasive bodies that draw once when they get through, uncommons pair it with flyers or tappers that create their own openings, and rares make the payoff bigger (drawing plus another effect, or evasive bodies that reliably trigger it). It supports the WU/UB tempo-flyers archetype (chip in for value) and the WB attrition/control archetype (grind the board empty, then pull ahead on cards). The recurring decision turn after turn: hold mana back to cash Conquer for a card when you connect against an open board, or spend that mana developing your board and forgo the draw this turn.",
+    "example_cards": [
+      {
+        "name": "Recon Drone",
+        "mana_cost": "{1}{U}",
+        "type_line": "Artifact Creature — BotBot Scout",
+        "rarity": "common",
+        "oracle_text": "Flying\nConquer",
+        "power": "1",
+        "toughness": "2"
+      },
+      {
+        "name": "Soundwave, Spymaster",
+        "mana_cost": "{2}{U}{B}",
+        "type_line": "Legendary Artifact Creature — Decepticon",
+        "rarity": "rare",
+        "oracle_text": "Flying\nConquer\nWhenever you draw your second card each turn, target creature an opponent controls gets -2/-2 until end of turn.",
+        "power": "3",
+        "toughness": "3"
+      }
+    ],
+    "_review_verdict": "OK",
+    "_review_notes": "",
+    "_ai_generated": true
+  }
+]

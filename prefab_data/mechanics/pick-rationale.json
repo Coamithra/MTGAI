@@ -1,0 +1,20 @@
+{
+  "source": "ai",
+  "model_id": "claude-opus-4-8",
+  "overall_rationale": "This trio hits all three hard setting constraints head-on: Energon is the explicit secondary-resource mechanic, Combine is the Combiner-merging mechanic, and Alt-Mode embodies transformation/morphology to back up the high TDFC density. They occupy distinct mechanical zones — token ramp, graveyard recursion, and same-permanent profile swap — with no overlap or competition for the same cards. Color coverage is excellent and deliberately spread: Energon (URG), Combine (WBG), and Alt-Mode (WUR) together touch all five colors with healthy balance. Complexity is well-mixed: Energon anchors the simple complexity-1 slot while Combine and Alt-Mode add richer complexity-2 decisions, avoiding an all-simple or all-complex slate. Archetype-wise they reinforce one another — Energon fuels both Combine's reassembly costs and Alt-Mode activations, supporting ramp, go-wide-then-merge Combiner, and tempo/transform draft archetypes simultaneously.",
+  "selections": [
+    {
+      "name": "Energon",
+      "reason": "Energon directly satisfies the mandatory 'dedicated secondary resource' constraint as the set's named fuel, and anchors the slate's required complexity-1 simple mechanic in URG."
+    },
+    {
+      "name": "Combine",
+      "reason": "Combine delivers the mandated Combiner 'merge small units into one large entity' constraint as a graveyard-recursion engine in the under-used WBG colors."
+    },
+    {
+      "name": "Alt-Mode",
+      "reason": "Alt-Mode provides the in-place morphology/transformation flavor for single-faced cards in WUR, complementing the set's TDFC density with a distinct profile-swap shape."
+    }
+  ],
+  "picked_at": "2026-06-01T15:37:03.680853+00:00"
+}

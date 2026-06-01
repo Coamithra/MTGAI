@@ -1,0 +1,61 @@
+{
+  "id": null,
+  "name": "Modular Assembly Unit",
+  "layout": "normal",
+  "mana_cost": "{4}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [],
+  "color_identity": [],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "Combine.\nWhenever ~ is put into a graveyard from the battlefield, energize.",
+  "flavor_text": "Individual components are mere scrap; together, they become the foundation of a titan.",
+  "reminder_text": null,
+  "power": "3",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "031",
+  "rarity": "uncommon",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:12:20.393566Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5892,
+      "output_tokens": 7036,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Designed for the BG (Combiner Protocol) archetype. While the slot brief specified 'artifact', I have designed this as an 'Artifact Creature' to ensure the 'Combine' mechanic is functionally sound; since Combine returns the card with +1/+1 counters, the permanent must be a creature for those counters to matter. At uncommon CMC 4, it provides a mid-sized piece of the engine that supports both the recursion aspect of Combine and the resource management (Energon) theme by providing fuel when it is sacrificed or destroyed.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "031",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:12:20.393566Z",
+  "updated_at": null
+}

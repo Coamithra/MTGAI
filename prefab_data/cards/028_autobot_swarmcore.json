@@ -1,0 +1,67 @@
+{
+  "id": null,
+  "name": "Autobot Swarm-Core",
+  "layout": "normal",
+  "mana_cost": "{W}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "W",
+    "G"
+  ],
+  "color_identity": [
+    "W",
+    "G"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "Artifact creatures you control get +1/+1.",
+  "flavor_text": "\"The strength of the many outweighs the power of the one.\"",
+  "reminder_text": null,
+  "power": "1",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "028",
+  "rarity": "uncommon",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:08:41.179225Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5859,
+      "output_tokens": 3884,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card is the signpost uncommon for the WG Autobot Vanguard archetype. While the brief mentioned 'vanilla', a vanilla creature (one with no abilities) cannot function as an archetype signpost. I have interpreted the request by providing an 'evergreen' complexity ability—a simple anthem effect. This rewards the player for playing multiple small artifact creatures (BotBots), which is the core gameplay loop of this color pair. The 1/2 stats ensure it isn't a standalone threat, but rather a force multiplier that grows alongside the player's board state.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "028",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:08:41.179225Z",
+  "updated_at": null
+}

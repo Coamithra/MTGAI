@@ -1,0 +1,62 @@
+{
+  "id": null,
+  "name": "Verdant Energon Node",
+  "layout": "normal",
+  "mana_cost": "{1}{G}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "G"
+  ],
+  "color_identity": [
+    "G"
+  ],
+  "type_line": "Artifact",
+  "supertypes": [],
+  "card_types": [
+    "Artifact"
+  ],
+  "subtypes": [],
+  "oracle_text": "{T}: Energize.",
+  "flavor_text": "Life and machinery converge in the deep forests to harvest power from the very ground itself.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "010",
+  "rarity": "common",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T15:53:56.130496Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5082,
+      "output_tokens": 2062,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card serves as a repeatable resource generator for the RG (Primal Dominance) and UG (Energon Harvesting) archetypes. While 'Spark-Core Regulator' is a lower CMC one-time effect on entry, this artifact costs more to ensure it provides sustained value through its tap ability. In Green, creating colorless tokens that can provide any color of mana fits the theme of resource acquisition and natural synergy with alien technology.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "010",
+  "card_faces": null,
+  "created_at": "2026-06-01T15:53:56.130496Z",
+  "updated_at": null
+}

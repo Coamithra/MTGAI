@@ -1,0 +1,71 @@
+{
+  "id": null,
+  "name": "Megatron",
+  "layout": "normal",
+  "mana_cost": "{4}{B}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 6.0,
+  "colors": [
+    "B",
+    "R"
+  ],
+  "color_identity": [
+    "B",
+    "R"
+  ],
+  "type_line": "Legendary Artifact Creature — Decepticon",
+  "supertypes": [
+    "Legendary"
+  ],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "Decepticon"
+  ],
+  "oracle_text": "Alt-Mode (Galvatron) — {2}: Until your next turn, ~'s base power and toughness become 7/7 and it gains trample and haste. Activate only as a sorcery.\nWhenever you sacrifice an Energon token, target creature gets -3/-3 until end of turn.",
+  "flavor_text": "The era of peace is over; the age of Unicron has begun.",
+  "reminder_text": null,
+  "power": "5",
+  "toughness": "5",
+  "loyalty": null,
+  "collector_number": "044",
+  "rarity": "mythic",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:24:34.187706Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Type line is 47 characters, exceeding the 45-char guideline"
+      ],
+      "input_tokens": 6600,
+      "output_tokens": 3903,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Megatron serves as the flagship Mythic for the Decepticon faction. His design uses 'Alt-Mode' to represent his narrative mutation into Galvatron, providing a massive 7/7 haste/trample threat that creates immediate tension for opponents. To support the 'Decepticon Tyranny' archetype (WB/BR), I gave him an Energon synergy that converts fuel resources into powerful -3/-3 removal, allowing him to control the board through attrition and mechanical decay. The type line was carefully drafted to stay under the 45-character limit while maintaining all necessary supertypes.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "044",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:24:34.187706Z",
+  "updated_at": null
+}

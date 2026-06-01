@@ -146,6 +146,41 @@ def run_mechanics(
     mech_dir.mkdir(parents=True, exist_ok=True)
     candidates_path = mech_dir / "candidates.json"
 
+    # Debug: prefab mechanics — skip the LLM council/generation entirely and
+    # install the pre-made selection (approved.json + sidecars) from
+    # prefab_data/mechanics/. mechanics is a break-point, so the engine still
+    # pauses on the Mechanics tab for review; the tab reads the copied
+    # candidates.json / approved.json from disk like a normal run.
+    if require_active_project().settings.debug.use_prefab_mechanics:
+        from mtgai.generation.prefab import install_prefab_mechanics, prefab_mechanics_available
+
+        if prefab_mechanics_available():
+            emitter.phase("running", "Installing prefab mechanics")
+            approved = install_prefab_mechanics(mech_dir)
+            names = [a.get("name", "?") for a in approved]
+            emitter.init_sections(
+                [
+                    {
+                        "section_id": "overview",
+                        "title": "Mechanic Generation (prefab)",
+                        "content_type": "kv",
+                        "status": "done",
+                        "content": {
+                            "Source": "prefab_data/mechanics",
+                            "Mechanics": ", ".join(names) or "(none)",
+                        },
+                    }
+                ]
+            )
+            emitter.phase("done", f"Installed {len(approved)} prefab mechanics")
+            return StageResult(
+                total_items=len(approved),
+                completed_items=len(approved),
+                detail=(
+                    f"Installed {len(approved)} prefab mechanics — review on the Mechanics tab"
+                ),
+            )
+
     sp = require_active_project().settings.set_params
     pool = candidate_count(sp.mechanic_count)
 
@@ -1095,6 +1130,7 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
     bounces the pipeline to ``card_gen``; a clean pass advances to ai_review.
     """
     from mtgai.analysis.conformance import check_conformance
+    from mtgai.analysis.duplicates import find_duplicates
     from mtgai.analysis.interactions import analyze_interactions
     from mtgai.runtime import ai_lock
 
@@ -1129,33 +1165,88 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
             return StageResult(
                 success=False, error_message="Another AI action holds the lock; try again later."
             )
+
+        def _display(pairs: list[tuple[str, str]]) -> list[dict]:
+            return [
+                {"slot_id": sid, "card_name": name_by_slot.get(sid, ""), "reason": reason}
+                for sid, reason in pairs
+            ]
+
+        # Each step streams its results to the tab the instant its LLM call
+        # returns, so the Conformance and Interaction Check sections fill in
+        # independently instead of the tab waiting for the whole stage. The
+        # reset tells the tab to (re)render both sections in a "checking" state.
+        emitter.event("conformance_reset")
+
+        # Duplicate Check runs first and is purely algorithmic (no LLM call):
+        # flag cards functionally identical modulo mana cost, keeping the lowest
+        # collector number per group. Its findings are folded into the per-card
+        # conformance checklist below (each duplicate starts as an X), rather
+        # than shown as a separate section.
+        dup_findings, _dup_analysis = find_duplicates(cards)
+        dup_by_slot = {f.slot_id: f.reason for f in dup_findings}
+
+        # Conformance runs one LLM call per card and streams a live checklist:
+        # the full card list up front (conformance_cards), then a verdict per
+        # card as it returns (conformance_card). conf_cards accumulates those
+        # verdicts for the authoritative step snapshot (reload / buffer-cleared).
+        # Duplicates (dup_by_slot) are seeded as failed rows and skip the call.
+        conf_cards: list[dict] = []
+
+        def _on_conf_start(card_list: list[dict]) -> None:
+            emitter.event("conformance_cards", cards=card_list)
+
+        def _on_conf_card(rec: dict) -> None:
+            conf_cards.append(rec)
+            emitter.event("conformance_card", **rec)
+
         with make_poller("conformance", emitter.phase, activity_prefix="Reviewing cards"):
             emitter.phase("running", "Checking each card against its slot spec")
-            conf_findings, conf_analysis, conf_cost = check_conformance(cards, slots_by_id)
+            conf_findings, conf_analysis, conf_cost = check_conformance(
+                cards,
+                slots_by_id,
+                pre_flagged=dup_by_slot,
+                on_start=_on_conf_start,
+                on_card=_on_conf_card,
+                should_cancel=ai_lock.is_cancelled,
+            )
+            conf_pairs = [(f.slot_id, f.reason) for f in conf_findings]
+            conf_step = {
+                "id": "conformance",
+                "label": "Conformance",
+                "flagged": _display(conf_pairs),
+                "analysis": conf_analysis,
+                "passed": not conf_pairs,
+                "cards": conf_cards,
+            }
+            emitter.event("conformance_step", step=conf_step)
+
             emitter.phase("running", "Scanning the pool for degenerate interactions")
             inter_flags, inter_analysis, inter_cost = analyze_interactions(cards, mechanics)
+            # The interaction reason threads diagnosis + replacement constraint
+            # into the regen prompt (vs. the conformance reason, used as-is).
+            inter_pairs = [
+                (
+                    f.enabler_slot_id,
+                    (
+                        f"Avoid this degenerate interaction: {f.reason}. "
+                        f"Replacement constraint: {f.replacement_constraint}"
+                    ).strip(),
+                )
+                for f in inter_flags
+            ]
+            inter_step = {
+                "id": "interactions",
+                "label": "Interaction Check",
+                "flagged": _display(inter_pairs),
+                "analysis": inter_analysis,
+                "passed": not inter_pairs,
+            }
+            emitter.event("conformance_step", step=inter_step)
 
-    # Per-step (slot_id, reason) — the conformance reason as-is; the interaction
-    # reason threads diagnosis + replacement constraint into the regen prompt.
-    conf_pairs = [(f.slot_id, f.reason) for f in conf_findings]
-    inter_pairs = [
-        (
-            f.enabler_slot_id,
-            (
-                f"Avoid this degenerate interaction: {f.reason}. "
-                f"Replacement constraint: {f.replacement_constraint}"
-            ).strip(),
-        )
-        for f in inter_flags
-    ]
-
-    def _display(pairs: list[tuple[str, str]]) -> list[dict]:
-        return [
-            {"slot_id": sid, "card_name": name_by_slot.get(sid, ""), "reason": reason}
-            for sid, reason in pairs
-        ]
-
-    # Merge by slot_id (a card flagged by both steps keeps both reasons) and flag once.
+    # Merge by slot_id (a card flagged by multiple steps keeps every reason) and
+    # flag once. conf_pairs already folds in the duplicate findings (seeded as
+    # failed conformance rows), so the duplicates regen alongside the rest.
     merged: dict[str, list[str]] = {}
     for sid, reason in [*conf_pairs, *inter_pairs]:
         merged.setdefault(sid, []).append(reason)
@@ -1163,26 +1254,13 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
         [(sid, " | ".join(reasons)) for sid, reasons in merged.items()], "conformance"
     )
 
-    steps = [
-        {
-            "id": "conformance",
-            "label": "Conformance",
-            "flagged": _display(conf_pairs),
-            "analysis": conf_analysis,
-            "passed": not conf_pairs,
-        },
-        {
-            "id": "interactions",
-            "label": "Interaction Check",
-            "flagged": _display(inter_pairs),
-            "analysis": inter_analysis,
-            "passed": not inter_pairs,
-        },
-    ]
+    n_dups = len(dup_by_slot)
+    steps = [conf_step, inter_step]
     emitter.phase("done", f"Conformance & Interactions: {len(flagged)} card(s) flagged")
     detail = (
         f"Conformance & Interactions: {len(flagged)} card(s) flagged for regeneration "
-        f"(conformance {len(conf_pairs)}, interactions {len(inter_pairs)})"
+        f"(conformance {len(conf_pairs)} incl. {n_dups} duplicate(s), "
+        f"interactions {len(inter_pairs)})"
         if flagged
         else "Conformance & Interactions: all cards conform and the pool is clean"
     )

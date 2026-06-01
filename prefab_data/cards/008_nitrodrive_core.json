@@ -1,0 +1,62 @@
+{
+  "id": null,
+  "name": "Nitro-Drive Core",
+  "layout": "normal",
+  "mana_cost": "{2}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "R"
+  ],
+  "color_identity": [
+    "R"
+  ],
+  "type_line": "Artifact",
+  "supertypes": [],
+  "card_types": [
+    "Artifact"
+  ],
+  "subtypes": [],
+  "oracle_text": "When ~ enters, energize.",
+  "flavor_text": "To maintain extreme velocity, one must constantly replenish the tank.",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "008",
+  "rarity": "common",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T15:52:52.437503Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5036,
+      "output_tokens": 2670,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card is designed as a low-complexity common artifact to support the UR (High-Speed Ignition) archetype. By providing an Energon token upon entry, it grants players access to mana for tempo-based spells or Alt-Mode activations. It mirrors the design of existing colorless/colored artifacts like Spark-Core Regulator and Ionization Module to ensure set consistency.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "008",
+  "card_faces": null,
+  "created_at": "2026-06-01T15:52:52.437503Z",
+  "updated_at": null
+}

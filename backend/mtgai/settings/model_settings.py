@@ -267,9 +267,17 @@ class DebugSettings(BaseModel):
     omitted from saved profiles (``profile_only=True``) because debug
     state is per-project, not template-able. Off by default keeps the
     Anthropic-bill-vs-cache-hit semantics predictable.
+
+    :attr:`use_prefab_cards` / :attr:`use_prefab_mechanics` short-circuit the
+    ``card_gen`` / ``mechanics`` stages: instead of calling the LLM they
+    install the hand-made pool under ``<repo-root>/prefab_data/`` (see
+    :mod:`mtgai.generation.prefab`), so downstream stages can be exercised
+    instantly. Both no-op gracefully when the prefab folder is empty/missing.
     """
 
     response_cache: bool = False
+    use_prefab_cards: bool = False
+    use_prefab_mechanics: bool = False
 
 
 class ModelSettings(BaseModel):

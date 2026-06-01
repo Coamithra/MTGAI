@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Scorch-Drift Bot",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "R"
+  ],
+  "color_identity": [
+    "R"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "Alt-Mode (Racing Form) — {1}: Until your next turn, ~'s base power and toughness become 3/1 and it gains trample. Activate only as a sorcery.",
+  "flavor_text": "Shift gears, or be left in the dust.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "022",
+  "rarity": "uncommon",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:03:11.042295Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5465,
+      "output_tokens": 4292,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Designed for the WR Rapid Strike archetype, this creature offers an offensive morphology shift via Alt-Mode. It allows players to choose between a stable 2/2 BotBot and a more aggressive 3/1 vehicle with trample, providing tactical depth in combat. This differs from Dash-Gear Bot by focusing on raw impact (trample) rather than speed (haste).",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "022",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:03:11.042295Z",
+  "updated_at": null
+}

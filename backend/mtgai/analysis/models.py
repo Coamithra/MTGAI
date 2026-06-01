@@ -37,3 +37,19 @@ class ConformanceFinding(BaseModel):
     slot_id: str
     card_name: str | None = None
     reason: str
+
+
+class DuplicateFinding(BaseModel):
+    """One card flagged by the algorithmic functional-duplicate scan.
+
+    Two cards share a functional signature (same type line, P/T/loyalty, and
+    normalized rules text) once mana cost is set aside. The lowest collector
+    number in each duplicate group is kept; this finding names a flagged copy
+    (by ``slot_id``), the card it duplicates (``duplicate_of``), and the
+    ``reason`` that becomes its ``regen_reason``.
+    """
+
+    slot_id: str
+    card_name: str | None = None
+    duplicate_of: str
+    reason: str

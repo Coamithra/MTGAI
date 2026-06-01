@@ -1,0 +1,66 @@
+{
+  "id": null,
+  "name": "Apex Gear-Predator",
+  "layout": "normal",
+  "mana_cost": "{3}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "G"
+  ],
+  "color_identity": [
+    "G"
+  ],
+  "type_line": "Artifact Creature — BotBot Beast",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot",
+    "Beast"
+  ],
+  "oracle_text": "Alt-Mode (Siege Mode) — {1}: Until your next turn, ~'s base power and toughness become 6/5 and it gains trample. Activate only as a sorcery.\nWhenever ~ attacks, energize.",
+  "flavor_text": "Even in its most efficient form, the hunger for Energon is as primal as any organic predator's.",
+  "reminder_text": null,
+  "power": "4",
+  "toughness": "4",
+  "loyalty": null,
+  "collector_number": "036",
+  "rarity": "rare",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:16:21.467880Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 6150,
+      "output_tokens": 2949,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card is designed to fit the RG 'Primal Dominance' archetype while adhering to the single-color Green constraint. It provides a high-power threat that can scale up into a massive combatant via Alt-Mode, fulfilling the TDFC (Tactical/Fighting/Combat) intent. By including the Energize keyword action on an attack trigger, it supports the 'Energon ramp' theme and creates synergy with UR or UG decks, while remaining a powerhouse for mono-green or RG players looking to overwhelm defenders.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "036",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:16:21.467880Z",
+  "updated_at": null
+}

@@ -1,0 +1,73 @@
+{
+  "id": null,
+  "name": "Unicron, the Chaos Bringer",
+  "layout": "normal",
+  "mana_cost": "{4}{U}{B}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 7.0,
+  "colors": [
+    "U",
+    "B",
+    "R"
+  ],
+  "color_identity": [
+    "U",
+    "B",
+    "R"
+  ],
+  "type_line": "Legendary Artifact Creature — God",
+  "supertypes": [
+    "Legendary"
+  ],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "God"
+  ],
+  "oracle_text": "Indestructible\nWhenever an artifact or land is put into a graveyard from the battlefield, ~ deals 2 damage to any target.\n{T}, Sacrifice an Energon token: Destroy target land.",
+  "flavor_text": "The end of all things is not a bang, but the grinding of gears and the cold silence of the void.",
+  "reminder_text": null,
+  "power": "10",
+  "toughness": "10",
+  "loyalty": null,
+  "collector_number": "045",
+  "rarity": "mythic",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:26:52.613525Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [
+        "Oracle text is 382 characters, exceeding the 300-char limit for this card type"
+      ],
+      "input_tokens": 6658,
+      "output_tokens": 3492,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Unicron is designed as the set's ultimate antagonist, a mythic-tier 'God' that embodies cosmic horror. To represent his planet-devouring nature, I gave him high stats (10/10) and Indestructible. His primary ability triggers off the destruction of artifacts and lands, which synergizes with the set's Energon mechanic and common artifact-based play, while rewarding him for the chaos he causes. The {T} ability allows players to spend their gathered Energon tokens to destroy lands, reflecting his role as a world-ender. His color identity (U/B/R) covers blue's control/artifact interaction, black's destruction and damage, and red's chaotic impact.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "045",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:26:52.613525Z",
+  "updated_at": null
+}

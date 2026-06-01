@@ -1,0 +1,67 @@
+{
+  "id": null,
+  "name": "Fragmented Core Titan",
+  "layout": "normal",
+  "mana_cost": "{3}{B}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 5.0,
+  "colors": [
+    "B",
+    "G"
+  ],
+  "color_identity": [
+    "B",
+    "G"
+  ],
+  "type_line": "Artifact Creature — Cybertronian",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "Cybertronian"
+  ],
+  "oracle_text": "Combine.\nTrample\nWhenever ~ attacks, each artifact creature you control gets +1/+1 until end of turn.",
+  "flavor_text": "Even in pieces, the spark of a giant can never be truly extinguished.",
+  "reminder_text": null,
+  "power": "6",
+  "toughness": "6",
+  "loyalty": null,
+  "collector_number": "039",
+  "rarity": "rare",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:18:38.538025Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 6323,
+      "output_tokens": 4316,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card serves as a massive payoff for the BG 'Combiner Protocol' archetype. It utilizes the Combine mechanic to recur from the graveyard, scaling in size based on how many units were sacrificed/exiled to bring it back. As a Rare CMC 5 creature, it provides significant board presence with its high base stats and Trample, while its attack trigger reinforces the 'go-wide' artifact strategy by buffing the entire mechanical army. It respects the color pie by focusing on graveyard recursion and large, physical threats common in Black/Green.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "039",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:18:38.538025Z",
+  "updated_at": null
+}

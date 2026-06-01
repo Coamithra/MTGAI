@@ -1,0 +1,34 @@
+{
+  "W": [
+    "flying",
+    "first strike",
+    "vigilance",
+    "lifelink",
+    "defender"
+  ],
+  "U": [
+    "flying",
+    "ward",
+    "flash",
+    "hexproof"
+  ],
+  "B": [
+    "deathtouch",
+    "menace",
+    "lifelink",
+    "flash"
+  ],
+  "R": [
+    "haste",
+    "menace",
+    "first strike",
+    "trample"
+  ],
+  "G": [
+    "trample",
+    "reach",
+    "vigilance",
+    "flash",
+    "deathtouch"
+  ]
+}

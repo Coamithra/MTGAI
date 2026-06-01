@@ -1,0 +1,67 @@
+{
+  "id": null,
+  "name": "Glitch-Logic Siphon",
+  "layout": "normal",
+  "mana_cost": "{1}{U}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "U",
+    "B"
+  ],
+  "color_identity": [
+    "U",
+    "B"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "When ~ enters, energize.\nWhenever an opponent sacrifices an Energon token, return target nonland permanent an opponent controls to its owner's hand.\nWhenever you sacrifice an Energon token, target opponent loses 2 life.",
+  "flavor_text": "\"A single corrupted line of code can turn a powerhouse into a paperweight.\"",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "3",
+  "loyalty": null,
+  "collector_number": "029",
+  "rarity": "uncommon",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:09:58.202958Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5894,
+      "output_tokens": 5778,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card is the signpost uncommon for the UB 'Logic Corruption' archetype. It embodies the theme of resource denial and control by interacting directly with the Energon mechanic. The first ability (Blue) provides 'starvation' via a bounce effect whenever an opponent tries to use their energy, effectively disrupting their tempo. The second ability (Black) allows the controller to turn their own accumulated Energon into a weapon of attrition, draining the opponent's life. It follows the power level guidelines for an uncommon creature by providing utility rather than raw stats (2/3 for 3 CMC).",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "029",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:09:58.202958Z",
+  "updated_at": null
+}

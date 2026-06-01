@@ -909,6 +909,71 @@ def _collect_flagged_slots(cards_dir: Path) -> dict[str, str]:
     return flagged
 
 
+def _install_prefab_cards(
+    *,
+    set_dir: Path,
+    set_code: str,
+    progress_path: Path,
+    total_slots: int,
+    card_saved_callback: Callable[[Card], None] | None,
+    progress_callback: Callable[[str, int, int, str, float], None] | None,
+) -> dict:
+    """Install the prefab card pool, bypassing every LLM call (debug toggle).
+
+    Copies ``prefab_data/cards/*.json`` into ``<set_dir>/cards/`` — re-stamping
+    ``set_code`` to the active project and clearing any ``regen_reason`` /
+    ``flagged_by`` so a fresh copy reads clean — records each as a filled slot
+    in ``generation_progress.json``, and streams every card through the same
+    ``card_saved`` / ``progress`` callbacks the LLM path uses, so the Card
+    Generation tab and downstream stages behave identically to a real run.
+
+    Always overwrites (idempotent): on a re-entrant regen pass this re-installs
+    the clean prefabs over any gate-flagged card, which is the prefab analogue
+    of card_gen's archive-and-regenerate-with-cleared-flag contract.
+    """
+    from mtgai.generation.prefab import load_prefab_cards
+
+    cards = load_prefab_cards()
+    progress = GenerationProgress(path=progress_path)
+    logger.info("PREFAB MODE: installing %d prefab card(s) — no LLM calls", len(cards))
+
+    if progress_callback is not None:
+        progress_callback(
+            "preparing", 0, total_slots, f"Installing {len(cards)} prefab cards…", 0.0
+        )
+
+    saved = 0
+    for card in cards:
+        card = card.model_copy(
+            update={"set_code": set_code, "regen_reason": None, "flagged_by": None}
+        )
+        path = save_card(card, set_dir=set_dir)
+        slot_id = card.slot_id or card.collector_number
+        progress.filled_slots[slot_id] = str(path)
+        progress.failed_slots.pop(slot_id, None)
+        saved += 1
+        if card_saved_callback is not None:
+            try:
+                card_saved_callback(card)
+            except Exception:
+                logger.warning(
+                    "card_saved_callback failed for prefab card %s", card.name, exc_info=True
+                )
+        if progress_callback is not None:
+            progress_callback("prefab", saved, total_slots, f"Installed {card.name}", 0.0)
+    progress.save()
+
+    logger.info("PREFAB MODE: installed %d card(s) into %s", saved, set_dir / "cards")
+    return {
+        "total_slots": total_slots,
+        "filled": saved,
+        "failed": 0,
+        "cost_usd": 0.0,
+        "summary": f"Installed {saved} prefab cards (no LLM calls)",
+        "cancelled": False,
+    }
+
+
 def generate_set(
     *,
     dry_run: bool = False,
@@ -994,6 +1059,34 @@ def generate_set(
         theme.get("name", "?"),
         len(archetypes) if archetypes else 0,
     )
+
+    # Debug: prefab cards — skip all LLM generation and install the hand-made
+    # pool from prefab_data/cards/. The whole point is speed, so this returns
+    # immediately; the regen loop, cycle-sort, and batching below never run.
+    # A dry run still reports its plan rather than installing prefabs.
+    # FIRST PASS ONLY. A follow-up card_gen instance (Card Generation 2+,
+    # entered after a Conformance & Interactions bounce) carries gate-flagged
+    # cards that must be *actually* regenerated; re-installing the identical
+    # prefab would re-trip the gate and spin the review/regen loop forever.
+    # Any card on disk carrying a regen_reason is the canonical "this is a
+    # regen pass" signal, so prefab steps aside and the normal LLM path below
+    # regenerates the flagged slots.
+    from mtgai.generation.prefab import prefab_cards_available
+
+    if (
+        not dry_run
+        and project.settings.debug.use_prefab_cards
+        and not _collect_flagged_slots(set_dir / "cards")
+        and prefab_cards_available()
+    ):
+        return _install_prefab_cards(
+            set_dir=set_dir,
+            set_code=set_code,
+            progress_path=progress_path,
+            total_slots=len(skeleton["slots"]),
+            card_saved_callback=card_saved_callback,
+            progress_callback=progress_callback,
+        )
 
     progress = GenerationProgress(path=progress_path)
     if progress.total_api_calls > 0:

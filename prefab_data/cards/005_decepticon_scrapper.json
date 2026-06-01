@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Decepticon Scrapper",
+  "layout": "normal",
+  "mana_cost": "{1}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "",
+  "flavor_text": "Every discarded part is a step toward total dominance.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "005",
+  "rarity": "common",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T15:51:02.401238Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 4938,
+      "output_tokens": 3184,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "This card follows the 'vanilla' slot brief instructions, meaning it has no keyword or rules-text abilities. It is designed as efficient sacrifice fodder for the WB (Decepticon Tyranny) archetype. Its stats (a 2/2 for {1}{B}) provide a solid body that respects the power-to-cost guidelines for common creatures (P+T of 4, which is ≤ CMC 2 + 3).",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "005",
+  "card_faces": null,
+  "created_at": "2026-06-01T15:51:02.401238Z",
+  "updated_at": null
+}

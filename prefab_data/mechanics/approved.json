@@ -1,0 +1,116 @@
+[
+  {
+    "name": "Energon",
+    "keyword_type": "keyword_action",
+    "reminder_text": "(To energize, create an Energon token. It's a colorless artifact with \"{T}, Sacrifice this artifact: Add one mana of any color.\")",
+    "colors": [
+      "U",
+      "R",
+      "G"
+    ],
+    "complexity": 1,
+    "example_cards": [
+      {
+        "name": "Energon Scavenger",
+        "mana_cost": "{2}{G}",
+        "type_line": "Artifact Creature — BotBot Scout",
+        "rarity": "common",
+        "oracle_text": "When this creature enters, energize.",
+        "power": "2",
+        "toughness": "2"
+      },
+      {
+        "name": "Vector Sigma Conduit",
+        "mana_cost": "{3}{U}{R}",
+        "type_line": "Artifact — Vehicle",
+        "rarity": "rare",
+        "oracle_text": "When this artifact enters, energize twice.\nWhenever you sacrifice an Energon token, draw a card.\nCrew 3",
+        "power": "4",
+        "toughness": "5"
+      }
+    ],
+    "design_notes": "Energon is the set's named secondary resource — a fuel artifact the world is built around. Making it a keyword action gives every color and rarity a shared verb that other cards (transformations, Combiners, activated abilities) can pay with or care about, exactly like the setting's 'dedicated secondary resource mechanic' constraint. As a Treasure-adjacent but distinct token (any-color mana ramp rather than generic fixing, and explicitly an Energon you can build a deck around), it feeds the ramp/artifact archetypes. It is the simplest mechanic so it anchors complexity 1; later mechanics can branch into richer activated/triggered space and different colors. Common cards energize once as a value rider; rares energize multiple times or off triggers to fuel big Titan/Combiner payoffs. Supports the 'Energon ramp', 'artifact matters', and 'transform/Combiner' archetypes.",
+    "rarity_range": [
+      "common",
+      "uncommon",
+      "rare",
+      "mythic"
+    ]
+  },
+  {
+    "name": "Combine",
+    "keyword_type": "keyword_ability",
+    "reminder_text": "{2}, Exile this card and another card with combine from your graveyard: Return this card to the battlefield with a +1/+1 counter on it for each card exiled this way. Activate only as a sorcery.",
+    "colors": [
+      "W",
+      "B",
+      "G"
+    ],
+    "complexity": 2,
+    "example_cards": [
+      {
+        "name": "Scrapyard Scrambler",
+        "mana_cost": "{1}{G}",
+        "type_line": "Artifact Creature — BotBot",
+        "rarity": "common",
+        "oracle_text": "Combine",
+        "power": "2",
+        "toughness": "1"
+      },
+      {
+        "name": "Devastator, Reassembled",
+        "mana_cost": "{3}{W}{B}{G}",
+        "type_line": "Artifact Creature — Combiner Titan",
+        "rarity": "rare",
+        "oracle_text": "Combine\nTrample\nWhenever Devastator, Reassembled enters or attacks, each other creature you control gets +1/+1 until end of turn.",
+        "power": "6",
+        "toughness": "6"
+      }
+    ],
+    "design_notes": "Combine is the set's 'Combiners merge small units into a single large entity' mechanic, expressed as a graveyard-recursion engine rather than a board-wide buff or a resource ramp like Energon. It is deliberately in WBG (the under-used colors here, vs. Energon's URG) and is a richer complexity-2 activated ability from the graveyard, a different shape and zone than Energon's keyword action. Flavorfully, fallen BotBots and Transformers physically join together to come back bigger, fueling the Combiner and graveyard-value archetypes; small aggressive creatures want to die and reassemble, while controlling decks recur and stack counters. Common cards are cheap creatures with small bodies that combine into modest threats; uncommons add a relevant ETB or evasion on return; rares come back huge, having merged several combine cards into one giant Titan. The recurring decision: do you keep these creatures on board now, or trade them away and spend mana later to reassemble them into one larger, harder-to-kill body. Supports 'graveyard/sacrifice value', 'go-wide-then-merge Combiners', and 'big artifact creature' archetypes.",
+    "rarity_range": [
+      "common",
+      "uncommon",
+      "rare",
+      "mythic"
+    ]
+  },
+  {
+    "name": "Alt-Mode",
+    "keyword_type": "keyword_ability",
+    "reminder_text": "{1}: Until your next turn, this permanent's base power, toughness, and abilities become those listed after this keyword. Activate only as a sorcery.",
+    "colors": [
+      "W",
+      "U",
+      "R"
+    ],
+    "complexity": 2,
+    "example_cards": [
+      {
+        "name": "Scoutbot Dasher",
+        "mana_cost": "{1}{U}",
+        "type_line": "Artifact Creature — BotBot Scout",
+        "rarity": "common",
+        "oracle_text": "Alt-Mode (Hovercar) — {1}: Until your next turn, Scoutbot Dasher's base power and toughness become 1/3 and it gains \"This creature can't be blocked.\" Activate only as a sorcery.",
+        "power": "2",
+        "toughness": "1"
+      },
+      {
+        "name": "Sentinel Prime, Convoy Form",
+        "mana_cost": "{2}{R}{W}",
+        "type_line": "Legendary Artifact Creature — Robot Soldier",
+        "rarity": "rare",
+        "oracle_text": "Alt-Mode (Battle Truck) — {1}: Until your next turn, Sentinel Prime, Convoy Form's base power and toughness become 5/5 and it gains trample and \"Whenever this creature attacks, it deals 2 damage to each creature defending player controls.\" Activate only as a sorcery.\nWhenever Sentinel Prime, Convoy Form deals combat damage to a player, you get {E} {E}.",
+        "power": "3",
+        "toughness": "4"
+      }
+    ],
+    "design_notes": "Alt-Mode is the set's in-place morphology mechanic for single-faced cards: a Transformer pays {1} as a sorcery to shift into its vehicle/weapon form, taking on the base P/T and abilities written after the keyword until the start of its controller's next turn. This is mechanically distinct from Energon (a resource keyword action) and Combine (a graveyard recursion engine): it flips the same permanent between two profiles without being a double-faced card. The 'until your next turn' duration means the bot stays in alt-mode through the opponent's turn — attacking on your turn, then defending in its alt-mode profile during opposing turns, then reverting at the start of your next turn — creating real timing tension. Each card defines its own alt-mode body (shape G), so the keyword reads identically while the profiles scale by rarity: commons offer a small evasive or defensive form, rares a bigger combat form. The recurring decision: stay in robot mode for its current stats and text, or spend {1} as a sorcery to commit to the vehicle form this combat and lose access to the robot's abilities until your next turn.",
+    "rarity_range": [
+      "common",
+      "uncommon",
+      "rare",
+      "mythic"
+    ]
+  }
+]

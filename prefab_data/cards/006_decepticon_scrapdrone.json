@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Decepticon Scrap-Drone",
+  "layout": "normal",
+  "mana_cost": "{2}{B}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "B"
+  ],
+  "color_identity": [
+    "B"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "",
+  "flavor_text": "Small, jagged, and utterly devoid of mercy.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "006",
+  "rarity": "common",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T15:51:47.415234Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 4956,
+      "output_tokens": 3407,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Designed as a vanilla creature to support the WB 'Decepticon Tyranny' archetype. In this archetype, players need low-cost fodder for sacrifice and attrition effects. By making it an Artifact Creature rather than a non-creature artifact, I provide the necessary body for the player to interact with while keeping the complexity at 'vanilla'. The stats (2/2) follow the power + toughness rule (4 <= CMC 3 + 3).",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "006",
+  "card_faces": null,
+  "created_at": "2026-06-01T15:51:47.415234Z",
+  "updated_at": null
+}

@@ -1,0 +1,66 @@
+{
+  "id": null,
+  "name": "Skyline Scout Bot",
+  "layout": "normal",
+  "mana_cost": "{1}{U}",
+  "mana_cost_parsed": null,
+  "cmc": 2.0,
+  "colors": [
+    "U"
+  ],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Artifact Creature — BotBot Scout",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot",
+    "Scout"
+  ],
+  "oracle_text": "Alt-Mode (Tactical Flight Deployment) — {1}: Until your next turn, ~'s base power and toughness become 0/3 and it gains flying. Activate only as a sorcery.",
+  "flavor_text": "Scanning the horizon for Decepticon movement before the first strike is ever launched.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "1",
+  "loyalty": null,
+  "collector_number": "018",
+  "rarity": "uncommon",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T15:59:37.403578Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 5323,
+      "output_tokens": 3575,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Designed to support the WU Skyline Patrol archetype by providing a utility-based Alt-Mode. As an uncommon, it focuses on a single complex mechanic (Alt-Mode) and offers a tactical choice between offensive presence (2/1 robot) and defensive mobility (0/3 flyer). This fits the blue color identity of shifting form to evade or defend.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "018",
+  "card_faces": null,
+  "created_at": "2026-06-01T15:59:37.403578Z",
+  "updated_at": null
+}

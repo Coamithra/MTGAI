@@ -89,8 +89,9 @@ that accidentally enables a mythic-level board state)
 a natural stopping point
 
 You are NOT looking for:
-- Strong synergies that are intentional design (e.g., artifact payoffs with \
-artifacts — that's the set's theme)
+- Strong synergies that are intentional design (e.g., a payoff card \
+rewarding the mechanic, card type, or archetype it is built around is the \
+set's theme working as intended, not a degenerate interaction)
 - Cards that are individually strong but don't create problematic interactions
 - Three-card combos that require very specific board states (too unlikely in limited)
 - Color-pair synergies that only work if you draft both colors (that's normal)

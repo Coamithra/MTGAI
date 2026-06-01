@@ -1,0 +1,67 @@
+{
+  "id": null,
+  "name": "Obsidian Apex",
+  "layout": "normal",
+  "mana_cost": "{2}{R}{G}",
+  "mana_cost_parsed": null,
+  "cmc": 4.0,
+  "colors": [
+    "R",
+    "G"
+  ],
+  "color_identity": [
+    "R",
+    "G"
+  ],
+  "type_line": "Artifact Creature — Cybertronian",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "Cybertronian"
+  ],
+  "oracle_text": "Alt-Mode (Apex Predator) — {1}: Until your next turn, ~'s base power and toughness become 6/4 and it gains trample. Activate only as a sorcery.\nWhenever ~ attacks, energize.",
+  "flavor_text": "Forged in the heat of tectonic shifts, its predatory instinct is as unyielding as its armored shell.",
+  "reminder_text": null,
+  "power": "4",
+  "toughness": "4",
+  "loyalty": null,
+  "collector_number": "040",
+  "rarity": "rare",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:19:13.463300Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 6375,
+      "output_tokens": 2396,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Designed for the RG 'Primal Dominance' archetype. This card provides a high-quality combat threat that uses Alt-Mode to shift into an oversized, trampling beast form (6/4). The synergy with Energon—generating a token on attack—supports the theme of high-power, momentum-based gameplay characteristic of Red and Green in this set.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "040",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:19:13.463300Z",
+  "updated_at": null
+}

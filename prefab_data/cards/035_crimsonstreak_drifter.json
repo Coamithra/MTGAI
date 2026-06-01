@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "name": "Crimson-Streak Drifter",
+  "layout": "normal",
+  "mana_cost": "{1}{R}{R}",
+  "mana_cost_parsed": null,
+  "cmc": 3.0,
+  "colors": [
+    "R"
+  ],
+  "color_identity": [
+    "R"
+  ],
+  "type_line": "Artifact Creature — BotBot",
+  "supertypes": [],
+  "card_types": [
+    "Artifact",
+    "Creature"
+  ],
+  "subtypes": [
+    "BotBot"
+  ],
+  "oracle_text": "Whenever ~ attacks, energize.\nAlt-Mode (Nitro-Drift) — {1}: Until your next turn, ~'s base power and toughness become 4/1 and it gains haste. Activate only as a sorcery.",
+  "flavor_text": "Speed is the only logic that matters when the road turns into a battlefield.",
+  "reminder_text": null,
+  "power": "2",
+  "toughness": "2",
+  "loyalty": null,
+  "collector_number": "035",
+  "rarity": "rare",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [
+    {
+      "attempt_number": 1,
+      "timestamp": "2026-06-01T16:15:39.376237Z",
+      "prompt_used": null,
+      "model_used": "gemma4-26b-iq2m",
+      "success": true,
+      "error_message": null,
+      "validation_errors": [],
+      "input_tokens": 6092,
+      "output_tokens": 3622,
+      "cost_usd": 0.0,
+      "prompt_version": null
+    }
+  ],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Designed to support both the WR (Rapid Strike) and UR (High-Speed Ignition) archetypes. In its base Robot mode, it provides resource generation by energizing whenever it attacks, fueling other artifact or combo plays. Its Alt-Mode offers a tactical shift into a high-power/low-toughness profile with haste, enabling sudden explosive combat damage or tempo shifts. As a rare, the combination of mana generation and morphological utility makes it a powerful engine for aggressive decks.",
+  "is_reprint": false,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": "035",
+  "card_faces": null,
+  "created_at": "2026-06-01T16:15:39.376237Z",
+  "updated_at": null
+}

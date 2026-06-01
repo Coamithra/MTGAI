@@ -1,0 +1,50 @@
+{
+  "id": null,
+  "name": "Island",
+  "layout": "normal",
+  "mana_cost": null,
+  "mana_cost_parsed": null,
+  "cmc": 0.0,
+  "colors": [],
+  "color_identity": [
+    "U"
+  ],
+  "type_line": "Basic Land — Island",
+  "supertypes": [
+    "Basic"
+  ],
+  "card_types": [
+    "Land"
+  ],
+  "subtypes": [
+    "Island"
+  ],
+  "oracle_text": "",
+  "flavor_text": "“Information flows as endlessly as the tides.”",
+  "reminder_text": null,
+  "power": null,
+  "toughness": null,
+  "loyalty": null,
+  "collector_number": "L-02a",
+  "rarity": "common",
+  "set_code": "TF",
+  "artist": "AI Generated",
+  "status": "draft",
+  "generation_attempts": [],
+  "art_generation_attempts": [],
+  "render_attempts": [],
+  "regen_reason": null,
+  "flagged_by": null,
+  "art_path": null,
+  "render_path": null,
+  "art_prompt": null,
+  "design_notes": "Alternate basic land art — A tranquil, bioluminescent ocean on an alien world reflecting a swirling nebula.",
+  "is_reprint": true,
+  "scryfall_id": null,
+  "draft_archetype": null,
+  "mechanic_tags": [],
+  "slot_id": null,
+  "card_faces": null,
+  "created_at": "2026-06-01T15:41:58.241363Z",
+  "updated_at": "2026-06-01T15:41:58.241363Z"
+}
