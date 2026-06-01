@@ -56,8 +56,8 @@ name = "Claude Haiku 4.5"
 provider = "anthropic"
 model_id = "claude-haiku-4-5-20251001"
 tier = 1
-input_price = 0.80
-output_price = 4.00
+input_price = 1.00
+output_price = 5.00
 context_window = 200000
 # No effort_levels — Haiku 4.5 does not support the effort parameter.
 supports_vision = true

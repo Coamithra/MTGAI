@@ -80,7 +80,7 @@ _MODEL_TIERS: dict[str, tuple[int, str]] = {
 # Pricing per 1M tokens (2026). Mirrors models.toml; calc_cost falls back to the
 # registry for any model_id not listed here.
 PRICING: dict[str, dict[str, float]] = {
-    "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.00},
+    "claude-haiku-4-5-20251001": {"input": 1.00, "output": 5.00},
     "claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
     "claude-opus-4-8": {"input": 5.00, "output": 25.00},
 }
