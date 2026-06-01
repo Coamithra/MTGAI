@@ -273,6 +273,30 @@ def test_is_valid_candidate_still_rejects_dupes_and_malformed() -> None:
     )
 
 
+def test_forbidden_placeholder_flags_bracket_placeholders() -> None:
+    """The deterministic gen-time guard catches the `[effect]`/`[cost]` placeholders
+    the prompts forbid (and the weak quant slips in), returning the offender."""
+    assert mg._forbidden_placeholder("(..., [effect].)") == "[effect]"
+    assert mg._forbidden_placeholder("({T}, pay [cost]: draw.)") == "[cost]"
+    assert mg._forbidden_placeholder("(Do [target] thing.)") == "[target]"
+    assert mg._forbidden_placeholder("(... {cost} ...)") == "{cost}"
+
+
+def test_forbidden_placeholder_ignores_real_mana_and_loyalty_symbols() -> None:
+    """Genuine Magic symbols ({W}, {2}, {T}, {W/U}, {X}, {C}, {E}) are NOT
+    placeholders — the brace rule only fires on a 2+-lowercase-letter word."""
+    for clean in (
+        "(Remove N energy counters from this creature.)",
+        "({T}: Add {C}.)",
+        "(Pay {2}{W/U}, {T}: scry 1.)",
+        "({X}{W}: this gains +X/+0.)",
+        "(You get {E}{E} (two energy counters).)",
+        "(Crew 2. Equip {2}. Sacrifice this: add {C}{C}.)",
+    ):
+        assert mg._forbidden_placeholder(clean) is None, clean
+    assert mg._forbidden_placeholder(None) is None  # non-str is harmless
+
+
 # ---------------------------------------------------------------------------
 # generate_mechanic_candidates contract: count enforcement
 # ---------------------------------------------------------------------------
@@ -773,6 +797,34 @@ def test_council_review_synth_failure_keeps_prior(monkeypatch) -> None:
     out = mg.council_review(draft, model_id="any-model")
     assert out["verdict"] == "REVISE"
     assert out["mechanic"] is draft  # unchanged on synth failure
+
+
+def test_council_review_synth_retries_once_then_succeeds(monkeypatch) -> None:
+    """A truncated/empty synth on the first attempt is retried once at the same
+    budget; a good second attempt is taken in place (no wasted regen)."""
+    draft = _valid_mech(0)
+    revised = {**draft, "reminder_text": "(fixed wording)"}
+    rcalls = {"n": 0}
+    scalls = {"n": 0}
+
+    def stub(*args, **kwargs):
+        tool = _tool_name(args, kwargs)
+        if tool == "submit_mechanic_review":
+            rcalls["n"] += 1
+            # Round 1 (reviewers 1-3) blocks; the revision passes round 2.
+            return _reviewer("REVISE" if rcalls["n"] <= 3 else "OK")
+        if tool == "submit_mechanic_synthesis":
+            scalls["n"] += 1
+            if scalls["n"] == 1:
+                raise RuntimeError("synth truncated")  # first attempt misses
+            return _synth(revised)
+        raise AssertionError(f"unexpected tool {tool}")
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+    out = mg.council_review(draft, model_id="any-model")
+    assert scalls["n"] == 2  # failed once, retried once within the same round
+    assert out["mechanic"]["reminder_text"] == "(fixed wording)"
+    assert out["verdict"] == "OK"
 
 
 def test_council_review_reverts_synth_rename(monkeypatch) -> None:

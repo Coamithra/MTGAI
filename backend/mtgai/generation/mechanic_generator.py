@@ -948,34 +948,48 @@ def _call_synth(
     temperature: float,
     log_dir: Path | None,
 ) -> dict | None:
-    """One synthesis call at the HEAVY budget; ``None`` on failure / empty output.
+    """Up to two synthesis calls at the HEAVY budget; ``None`` on failure / empty output.
 
-    Single call, no ``repeat_penalty`` escalation: per
-    ``learnings/reasoning-budget-overrun.md`` the synth's truncation was
-    reasoning-budget overrun (fixed by the HEAVY budget — ~2x the ~8k tokens it
-    actually uses to re-emit the whole mechanic), NOT a repetition loop, and is
-    verified *not* fixed by ``repeat_penalty``. The provider default (1.1) still
-    applies. A truncated / empty synth returns ``None`` → the council keeps the
-    current mechanic at REVISE and the caller's regenerate fallback takes over.
+    No ``repeat_penalty`` escalation: per ``learnings/reasoning-budget-overrun.md``
+    the synth's truncation was reasoning-budget overrun (mitigated by the HEAVY
+    budget, ~2x the ~8k tokens it actually needs to re-emit the whole mechanic),
+    NOT a token-level repetition loop, and is verified *not* fixed by
+    ``repeat_penalty``. The provider default (1.1) still applies. We do retry the
+    call once at the same budget/temp: a truncated/empty synth is sometimes a
+    non-deterministic miss that a second attempt clears cheaply. A hard reasoning
+    spiral reproduces and still returns ``None`` -> the council keeps the current
+    mechanic at REVISE and the caller's regenerate-from-scratch fallback takes over.
     """
+    from mtgai.runtime import ai_lock
+
     system_prompt, user_prompt = build_synth_prompts(mech, reviews)
-    try:
-        resp = generate_with_tool(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            tool_schema=MECHANIC_SYNTH_TOOL_SCHEMA,
-            model=model_id,
-            temperature=temperature,
-            max_tokens=HEAVY,
-            log_dir=log_dir,
-        )
-    except Exception as exc:
-        logger.warning("Council synth failed: %s: %s", type(exc).__name__, exc)
-        return None
-    if not (resp.get("result") or {}).get("revised_mechanic"):
-        logger.warning("Council synth emitted no revised_mechanic; keeping current mechanic")
-        return None
-    return resp
+    for attempt in range(2):  # one same-params retry; see docstring
+        if attempt and ai_lock.is_cancelled():
+            break
+        try:
+            resp = generate_with_tool(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                tool_schema=MECHANIC_SYNTH_TOOL_SCHEMA,
+                model=model_id,
+                temperature=temperature,
+                max_tokens=HEAVY,
+                log_dir=log_dir,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Council synth attempt %d failed: %s: %s",
+                attempt + 1,
+                type(exc).__name__,
+                exc,
+            )
+            continue
+        if not (resp.get("result") or {}).get("revised_mechanic"):
+            logger.warning("Council synth attempt %d emitted no revised_mechanic", attempt + 1)
+            continue
+        return resp
+    logger.warning("Council synth produced no usable revision; keeping current mechanic")
+    return None
 
 
 def _call_example_fix(
@@ -1071,8 +1085,8 @@ def council_review(
          reviewer blocks -- it cannot be outvoted (objective defects, e.g. a
          dead-on-use example, must not lose to reviewers who missed them).
       3. Else the synthesizer applies a >=2-of-N consensus filter and re-emits an
-         improved mechanic (one heavy call at the HEAVY budget — see
-         :func:`_call_synth`).
+         improved mechanic (a HEAVY-budget call, retried once on a truncated/empty
+         miss — see :func:`_call_synth`).
       4. Re-review the revision; repeat until the *reviewers* agree OK or the
          iteration budget runs out. The synth's own verdict is NOT trusted to end
          the loop — it over-claims fixes (~1/3 regress) — so a revision always
@@ -1423,6 +1437,31 @@ def build_single_mechanic_user_prompt(
         needed_hint=_needed_hint(accepted, remaining, enforce_simple_floor),
         regen_block=_format_regen_block(regen_reasons or []),
     )
+
+
+# Bracket placeholders the prompts explicitly forbid in reminder text
+# (`[effect]`, `[cost]`, `[target]`, `{cost}`, ...). Square brackets never appear
+# in real Magic templating, so any `[...]` group is forbidden; for braces we match
+# only a 2+-lowercase-letter run so genuine mana/loyalty symbols ({W}, {2}, {T},
+# {W/U}, {X}, {C}, {E}) are never flagged while word placeholders ({cost},
+# {effect}) are. See mechanic_system.txt:63 / mechanic_review_system.txt:41.
+_PLACEHOLDER_RE = re.compile(r"\[[^\]]+\]|\{[^}]*[a-z]{2,}[^}]*\}")
+
+
+def _forbidden_placeholder(reminder_text: Any) -> str | None:
+    """Return the first forbidden bracket placeholder in ``reminder_text``, else ``None``.
+
+    The generator is told never to emit a `[effect]`/`[cost]` placeholder (the
+    payoff of a card-defined-effect mechanic lives on the card, not as a reminder
+    placeholder), but the weak local quant slips one in regularly. Catching it
+    deterministically at draft validation re-rolls the slot immediately instead
+    of spending a full council round + a spiral-prone synth on a defect the
+    reviewer would (correctly) flag anyway.
+    """
+    if not isinstance(reminder_text, str):
+        return None
+    m = _PLACEHOLDER_RE.search(reminder_text)
+    return m.group(0) if m else None
 
 
 def _is_valid_candidate(m: Any, seen_names: set[str], known: set[str]) -> bool:
@@ -1853,6 +1892,10 @@ def generate_mechanic_candidates(
 
             # --- design one valid draft for this slot (bounded retries) ---
             draft: dict | None = None
+            # Targeted feedback for an in-loop re-roll (e.g. a forbidden reminder
+            # placeholder); merged with the outer regen reasons so the next draft
+            # within this attempt sees why the last one was rejected.
+            draft_reject_reasons: list[str] = []
             for _try in range(gen_retries):
                 if ai_lock.is_cancelled():
                     break
@@ -1864,7 +1907,7 @@ def generate_mechanic_candidates(
                     set_size=sp.set_size,
                     expected_density=expected_density,
                     enforce_simple_floor=enforce_simple_floor,
-                    regen_reasons=regen_reasons,
+                    regen_reasons=regen_reasons + draft_reject_reasons,
                 )
                 try:
                     response = _generate_with_escalation(
@@ -1886,15 +1929,36 @@ def generate_mechanic_candidates(
                 # the first valid entry. Any extras are ignored (rare for a
                 # one-at-a-time ask) so each slot gets its own council gate.
                 for m in (response.get("result") or {}).get("mechanics") or []:
-                    if _is_valid_candidate(m, seen_names, known_keywords):
-                        draft = m
-                        break
-                    nm = m.get("name") if isinstance(m, dict) else None
-                    if isinstance(nm, str) and nm.strip().lower() in known_keywords:
+                    if not _is_valid_candidate(m, seen_names, known_keywords):
+                        nm = m.get("name") if isinstance(m, dict) else None
+                        if isinstance(nm, str) and nm.strip().lower() in known_keywords:
+                            logger.info(
+                                "Rejected mechanic %r - collides with a printed keyword; "
+                                "regenerating",
+                                nm.strip(),
+                            )
+                        continue
+                    # Deterministic backstop for the forbidden-placeholder defect
+                    # the weak quant slips in (e.g. `[effect]`): re-roll with
+                    # targeted feedback rather than letting the malformed reminder
+                    # burn a council round + the spiral-prone synth downstream.
+                    bad = _forbidden_placeholder(m.get("reminder_text"))
+                    if bad is not None:
                         logger.info(
-                            "Rejected mechanic %r — collides with a printed keyword; regenerating",
-                            nm.strip(),
+                            "Rejected mechanic %r - forbidden placeholder %r in reminder "
+                            "text; regenerating",
+                            str(m.get("name") or "").strip(),
+                            bad,
                         )
+                        draft_reject_reasons = [
+                            f"The reminder text contained the forbidden placeholder {bad!r}. "
+                            "Write the concrete wording instead - for a card-defined-effect "
+                            "mechanic the reminder states ONLY the shared cost/trigger and each "
+                            "example card writes its own effect; never a bracket placeholder."
+                        ]
+                        continue
+                    draft = m
+                    break
                 if draft is not None:
                     break
 

@@ -16,16 +16,11 @@ You are the chair of the council. {council_size} members independently reviewed 
 
    Fix the issue **in the text itself, not just in your notes** — a changelog claiming a fix you did not actually make is worse than no fix:
    - The `reminder_text` is the keyword's real definition. It must be self-contained and rules-complete: it states exactly what happens using only defined Magic terms and actions. NO undefined verbs or nouns (e.g. "switch its mode", "gain an Energon"), NO bracket placeholders (e.g. "[Cost]"). If the mechanic relies on a counter or token, the reminder text itself must say how that counter/token is created, what it is, and what it does — don't push the definition into the example cards and leave the reminder vague.
-   - The `reminder_text` and BOTH example cards must be in **lockstep**: each example uses the keyword by name and behaves EXACTLY as the reminder text defines it. If you change the definition, change the examples to match, and vice-versa. If a reviewer flagged the wording, the revised wording must be genuinely different — don't re-emit the same flawed phrase.
+   - The `reminder_text` and BOTH example cards must be in **lockstep**: each example uses the keyword by name and behaves EXACTLY as the reminder text defines it. If you change the definition, change the examples to match, and vice-versa. If a reviewer flagged the wording, the revised wording must be genuinely different — don't re-emit the same flawed phrase. (Shape G, the Kicker shape, is the exception: there the reminder defines only the shared cost/trigger and the two examples carry different card-defined effects.)
    - **Never introduce a placeholder.** No `[cost]`, `[target]`, `[keyword]`, etc. Write the concrete cost/target, or put the cost on the keyword (`Crew 2`, `Equip {2}`).
    - **Never delete a definition the draft already had.** If the draft's reminder defined a token or counter (e.g. "a Scrap token is a colorless artifact with '{T}, Sacrifice this: Add {C}'"), KEEP that definition — stripping it leaves an undefined referent. Improve it; don't remove it.
    - **Plain text only** — no markdown, no asterisks, no emphasis formatting, in any field.
-   - **Use correct Magic templating:**
-     - Keyword ability with a cost → put the cost on the keyword (`Crew 2`, `Equip {2}`); the reminder defines the full ability. Not `{T}, pay [cost]`.
-     - Activated ability → `[cost]: [effect]` (the cost may include `{T}`).
-     - Optional ETB with a cost → `When this creature enters, you may [cost]. If you do, [effect].` — not `When this enters, [cost]: [effect]`.
-     - Add a creature type → `is a Beast in addition to its other types` (or `is also a Beast`).
-     - Toggle via a counter → `[cost]: Put a [name] counter on this creature. If it already has one, remove it instead.`
+   - **Keep the mechanic in a legal shape.** The revised `reminder_text` must still match one of the shapes A–G / ability-word / keyword-action listed in the system prompt. If you put a cost on a keyword, write it on the keyword (`Crew 2`, `Equip {2}`), not as `{T}, pay [cost]`. The only place an effect lives outside the reminder is shape G (the Kicker shape), where the card carries the payoff — and even there the reminder holds no `[effect]` placeholder.
 
 3. **Decide the verdict by re-reading the text you actually emitted, not your intentions.** Read your revised `reminder_text` and both example cards back as if you were a fresh reviewer. "OK" only if they are now genuinely sound, consistent, and rules-complete; "REVISE" if ANY consensus issue still stands in the text you wrote (it will get another round). When in doubt, REVISE. The council will independently re-review your revision, so an over-confident "OK" only wastes a round.
 

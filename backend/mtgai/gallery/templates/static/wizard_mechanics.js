@@ -89,24 +89,35 @@
     const prevStatus = local.stageStatus;
     if (stage) local.stageStatus = stage.status;
 
-    // The stage runs LLM generation synchronously: candidates.json doesn't
-    // exist until the call returns, so an initial bootstrap that fires
-    // while the engine is mid-call sees an empty list. Re-pull state
-    // when status flips out of running so the strip refreshes once the
-    // candidates land. Gated on candidates.length===0 so we don't clobber
-    // user edits after they've appeared.
+    // When the engine-driven stage finishes, re-pull disk state. Two things
+    // the live view is missing at that point:
+    //   * candidates — if the strip never received the SSE stream (tab opened
+    //     after the run), candidates.length is still 0.
+    //   * the AI picks + rationale — these are NEVER streamed (only the
+    //     candidate drafts/finalizations are). The engine writes approved.json
+    //     + pick-rationale.json server-side; only a bootstrap reads them back.
+    //     So even when the strip DID stream in (candidates.length>0), the
+    //     "Final picks" box and AI-reasoning banner stay empty until we re-pull
+    //     — previously that only happened on a manual F5. Fire when picks are
+    //     still unloaded (picks.size===0) so the box fills in on stage finish.
+    // One-shot per status transition (prevStatus !== current), so the user's
+    // subsequent edits to the freshly-loaded picks are never clobbered.
     const justFinished =
       stage
       && prevStatus !== local.stageStatus
       && local.stageStatus !== 'pending'
       && local.stageStatus !== 'running'
-      && local.candidates.length === 0
+      && (local.candidates.length === 0 || local.picks.size === 0)
       && !local.bootstrapping;
     if (justFinished) {
       local.bootstrapping = true;
       bootstrap(root, state)
         .catch(err => W.toast('Failed to refresh mechanics state: ' + err.message, 'error'))
-        .finally(() => { local.bootstrapping = false; });
+        // Re-evaluate the form lock after the async re-pull: this branch
+        // returns before the usual setLocked below, and the stage just left
+        // 'running', so without this the lock class from the running render
+        // could linger over the now-interactive strip.
+        .finally(() => { local.bootstrapping = false; setLocked(local.locked); });
       return;
     }
     paintFooter(footer, state);
