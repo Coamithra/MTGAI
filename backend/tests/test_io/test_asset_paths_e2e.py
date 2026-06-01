@@ -69,16 +69,25 @@ def test_skeleton_clearer_targets_asset_folder(configured_project):
 
 
 def test_card_gen_clearer_targets_asset_folder(configured_project):
-    """``clear_card_gen`` wipes the cards/ dir under ``asset_folder``."""
+    """``clear_card_gen`` scopes its delete to the cards/ dir under ``asset_folder``.
+
+    Removes card_gen-owned cards while preserving the Lands tab's ``L-*``.
+    """
     _code, asset_dir = configured_project
 
     cards_dir = asset_dir / "cards"
     cards_dir.mkdir(parents=True)
-    (cards_dir / "001_test.json").write_text("{}", encoding="utf-8")
+    (cards_dir / "001_test.json").write_text(
+        '{"collector_number": "001"}', encoding="utf-8"
+    )
+    (cards_dir / "L-01_plains.json").write_text(
+        '{"collector_number": "L-01"}', encoding="utf-8"
+    )
 
     stages_mod.clear_stage_artifacts("card_gen")
 
-    assert not cards_dir.exists(), "asset-folder cards/ should be gone"
+    assert not (cards_dir / "001_test.json").exists(), "card_gen card should be gone"
+    assert (cards_dir / "L-01_plains.json").exists(), "asset-folder L-* lands must survive"
 
 
 def test_render_clearer_targets_asset_folder(configured_project):

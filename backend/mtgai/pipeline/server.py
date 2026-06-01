@@ -3802,11 +3802,13 @@ async def wizard_lands_refresh() -> JSONResponse:
 def _is_land_stage_card(card: dict) -> bool:
     """True for a lands-stage basic/dual (collector number ``L-*``).
 
-    Card-gen owns everything else in ``cards/`` (ordinary slots + land *cycles*,
-    whose collector numbers are slot ids, not ``L-*``). Mirrors the convention
-    the Lands tab uses to scope its own view.
+    Thin re-export of :func:`mtgai.pipeline.stages._is_land_stage_card` so the
+    card_gen state/refresh endpoints and the cascade clearer share one
+    definition of "what the Lands tab owns".
     """
-    return str(card.get("collector_number") or "").upper().startswith("L-")
+    from mtgai.pipeline.stages import _is_land_stage_card as _impl
+
+    return _impl(card)
 
 
 def _heal_failed_stage(stage_id: str) -> None:
@@ -3927,22 +3929,18 @@ async def wizard_card_gen_refresh() -> JSONResponse:
         )
 
     from mtgai.generation.card_generator import generate_set
+    from mtgai.pipeline.stages import clear_card_gen_cards
 
     with guarded_ai("Card generation", stage_id="card_gen") as guard:
         if guard.busy:
             return guard.busy_response
 
-        # From-scratch: drop the prior card-gen cards + progress so every slot
-        # regenerates. Keep the Lands tab's L-* basics/dual — a card-gen re-roll
-        # shouldn't cost the user their separately-generated lands.
-        cards_dir = asset / "cards"
-        if cards_dir.exists():
-            for path in cards_dir.glob("*.json"):
-                card = _read_json(path, None)
-                if isinstance(card, dict) and _is_land_stage_card(card):
-                    continue
-                path.unlink(missing_ok=True)
-        (asset / "generation_progress.json").unlink(missing_ok=True)
+        # From-scratch: drop the prior card-gen cards + progress + regen archive
+        # so every slot regenerates. The shared clearer keeps the Lands tab's L-*
+        # basics/dual — a card-gen re-roll shouldn't cost the user their
+        # separately-generated lands — so this stays in lock-step with the
+        # cascade clearer (one definition, no drift).
+        clear_card_gen_cards()
 
         def _on_progress(item: str, completed: int, total: int, detail: str, cost: float) -> None:
             event_bus.item_progress("card_gen", item, completed, total, detail)

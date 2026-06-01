@@ -73,15 +73,34 @@ def test_clear_archetypes_removes_file_and_logs(fake_output_root: Path) -> None:
     assert not (set_dir / "archetypes").exists()
 
 
-def test_clear_card_gen_removes_cards_dir(fake_output_root: Path) -> None:
+def test_clear_card_gen_preserves_lands(fake_output_root: Path) -> None:
+    """card_gen-owned cards + progress + regen archive go; the Lands tab's L-* stay.
+
+    The old behaviour wiped the whole ``cards/`` dir, destroying the lands stage's
+    ``L-*`` basics/dual whenever a cascade reached card_gen without re-running
+    lands. The scoped clearer deletes only what card_gen owns.
+    """
     set_dir = fake_output_root / "sets" / "TST"
     cards_dir = set_dir / "cards"
     cards_dir.mkdir(parents=True)
-    (cards_dir / "001_foo.json").write_text("{}", encoding="utf-8")
+    (cards_dir / "001_foo.json").write_text(
+        '{"collector_number": "001"}', encoding="utf-8"
+    )
+    (cards_dir / "L-01_plains.json").write_text(
+        '{"collector_number": "L-01"}', encoding="utf-8"
+    )
+    archive = cards_dir / "_regen_archive"
+    archive.mkdir()
+    (archive / "001_foo.json").write_text("{}", encoding="utf-8")
+    (set_dir / "generation_progress.json").write_text("{}", encoding="utf-8")
     _open_test_project("TST", set_dir)
 
     stages_mod.clear_stage_artifacts("card_gen")
-    assert not cards_dir.exists()
+
+    assert not (cards_dir / "001_foo.json").exists(), "card_gen card should be gone"
+    assert (cards_dir / "L-01_plains.json").exists(), "Lands tab L-* must survive"
+    assert not archive.exists(), "_regen_archive should be cleared"
+    assert not (set_dir / "generation_progress.json").exists(), "progress should be cleared"
 
 
 def test_clear_char_portraits_targets_real_output_dir(fake_output_root: Path) -> None:

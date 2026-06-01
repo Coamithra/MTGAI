@@ -60,6 +60,18 @@ def _set_dir() -> Path:
     return set_artifact_dir()
 
 
+def _is_land_stage_card(card: dict) -> bool:
+    """True for a lands-stage basic/dual (collector number ``L-*``).
+
+    Card-gen owns everything else in ``cards/`` (ordinary slots + land *cycles*,
+    whose collector numbers are slot ids, not ``L-*``). Mirrors the convention
+    the Lands tab uses to scope its own view, and is the single seam both
+    :func:`clear_card_gen_cards` and the card_gen refresh endpoint share so the
+    Lands tab's output is preserved identically by each.
+    """
+    return str(card.get("collector_number") or "").upper().startswith("L-")
+
+
 # ---------------------------------------------------------------------------
 # Stage result
 # ---------------------------------------------------------------------------
@@ -1524,15 +1536,47 @@ def clear_reprints() -> None:
             atomic_write_text(skeleton_path, json.dumps(skeleton, indent=2, ensure_ascii=False))
 
 
-def clear_card_gen() -> None:
-    """Wipe the entire ``cards/`` directory for the active project.
+def clear_card_gen_cards() -> None:
+    """Delete card_gen-owned artifacts, preserving the Lands tab's ``L-*`` cards.
 
-    ``card_gen`` owns the per-card JSON files. Lands, reprints, and
-    every later in-place mutator (ai_review, finalize, art_prompts,
-    art_select) all touch files in this directory; clearing it on a
-    cascade upstream of ``card_gen`` resets all of them at once.
+    Removes every ``cards/*.json`` whose collector number is *not* ``L-*`` (the
+    ordinary slots + land cycles card_gen owns), plus ``generation_progress.json``
+    and the ``cards/_regen_archive/`` bag. The ``lands`` stage's separately
+    generated basics/dual live in the same shared ``cards/`` dir but are owned by
+    an earlier stage a cascade may leave un-re-run, so they survive — a card_gen
+    reset shouldn't cost the user their lands.
+
+    Shared by :func:`clear_card_gen` (the cascade clearer) and
+    ``/api/wizard/card_gen/refresh`` so the two scopings never drift. A malformed
+    card JSON is treated as non-land (deleted) — same as the refresh endpoint.
     """
-    _remove_path(_set_dir() / "cards")
+    set_dir = _set_dir()
+    cards_dir = set_dir / "cards"
+    if cards_dir.exists():
+        for path in cards_dir.glob("*.json"):
+            try:
+                card = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                card = None
+            if isinstance(card, dict) and _is_land_stage_card(card):
+                continue
+            path.unlink(missing_ok=True)
+    _remove_path(cards_dir / "_regen_archive")
+    _remove_path(set_dir / "generation_progress.json")
+
+
+def clear_card_gen() -> None:
+    """Reset card_gen output, preserving the Lands tab's ``L-*`` cards.
+
+    Delegates to :func:`clear_card_gen_cards`. Historically this wiped the entire
+    ``cards/`` directory, which destroyed the ``lands`` stage's ``L-*`` basics/dual
+    whenever a cascade reached ``card_gen`` without re-running ``lands`` — directly
+    contradicting the refresh endpoint, which preserves them. It is now scoped to
+    card_gen-owned cards only (ordinary slots + land cycles) + ``generation_progress.json``
+    + ``_regen_archive/``; the in-place mutators downstream (ai_review, finalize,
+    art_prompts, art_select) still reset via the same cards being regenerated.
+    """
+    clear_card_gen_cards()
 
 
 def clear_char_portraits() -> None:
