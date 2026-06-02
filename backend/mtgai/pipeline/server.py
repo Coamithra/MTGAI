@@ -3657,6 +3657,60 @@ def _reprint_knobs_payload(asset: Path) -> dict:
     }
 
 
+def _resolve_selection_pairs(asset: Path, raw: Any, *, force_pinned: bool = False):
+    """Rebuild authoritative ``SelectionPair``s from a client payload.
+
+    ``raw`` is a list of ``{card_name, slot_id, reason?, pinned?}``. Each card is
+    looked up by name in the reprint pool and each slot by id in the skeleton's
+    open slots, so the server never trusts client-supplied card / slot blobs.
+    Returns ``(pairs, error)``; ``error`` is a user-facing string (the caller
+    returns it as a 400) when a name / slot is unknown or already filled, or a
+    card / slot repeats. ``force_pinned`` marks every pair pinned (the refresh pin
+    payload); otherwise each pair's ``pinned`` comes from its entry (default
+    False).
+    """
+    from mtgai.generation.reprint_selector import (
+        ReprintSlot,
+        SelectionPair,
+        _load_slot_texts,
+        load_reprint_pool,
+    )
+
+    if not isinstance(raw, list):
+        return [], "selections must be a list"
+    by_name = {c.name.lower(): c for c in load_reprint_pool() if c.setting_agnostic is not False}
+    text_by_id = {s["slot_id"]: s["text"] for s in _load_slot_texts(asset / "skeleton.json")}
+
+    pairs: list = []
+    used_cards: set[str] = set()
+    used_slots: set[str] = set()
+    for entry in raw:
+        if not isinstance(entry, dict):
+            return [], "each selection must be an object"
+        name = str(entry.get("card_name") or "").strip()
+        sid = str(entry.get("slot_id") or "").strip()
+        cand = by_name.get(name.lower())
+        if cand is None:
+            return [], f"Unknown reprint card: {name!r}"
+        if not sid or sid not in text_by_id:
+            return [], f"Unknown or already-filled slot for {name!r}: {sid!r}"
+        if name.lower() in used_cards:
+            return [], f"Duplicate reprint card: {name!r}"
+        if sid in used_slots:
+            return [], f"Two reprints assigned to slot {sid!r}"
+        used_cards.add(name.lower())
+        used_slots.add(sid)
+        pairs.append(
+            SelectionPair(
+                slot=ReprintSlot(slot_id=sid, descriptor=text_by_id[sid]),
+                candidate=cand,
+                reason=str(entry.get("reason") or "").strip(),
+                pinned=True if force_pinned else bool(entry.get("pinned", False)),
+            )
+        )
+    return pairs, None
+
+
 @router.get("/api/wizard/reprints/state")
 async def wizard_reprints_state() -> JSONResponse:
     """First-paint state for the Reprints tab.
@@ -3756,6 +3810,15 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
     if isinstance(body, dict) and isinstance(body.get("knobs"), dict):
         _write_reprint_knobs(asset, body)
 
+    # User-pinned picks survive the re-roll: the AI keeps them verbatim and only
+    # fills the remaining target around them (pinned cards + slots are withheld
+    # from its passes). Resolve + validate before acquiring the lock.
+    pinned_pairs: list = []
+    if isinstance(body, dict) and body.get("pinned"):
+        pinned_pairs, perr = _resolve_selection_pairs(asset, body.get("pinned"), force_pinned=True)
+        if perr is not None:
+            return JSONResponse({"error": perr}, status_code=400)
+
     from mtgai.generation.reprint_selector import apply_selection_to_skeleton, select_reprints
 
     with guarded_ai("Reprint selection", stage_id="reprints") as guard:
@@ -3763,7 +3826,10 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
             return guard.busy_response
         with _bus_poller("reprints", activity_prefix="Selecting reprints"):
             result = await asyncio.to_thread(
-                select_reprints, skeleton_path=skeleton_path, temperature=0.7
+                select_reprints,
+                skeleton_path=skeleton_path,
+                temperature=0.7,
+                pinned=pinned_pairs,
             )
         if ai_lock.is_cancelled():
             # A Cancel mid-run leaves `result` partial/empty — persisting it would
@@ -3797,6 +3863,96 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
             "per_rarity_targets": result.per_rarity_targets,
             "eligible_slots": knobs_payload.get("slot_count"),
             "stage_status": _stage_status_in_state("reprints"),
+            **knobs_payload,
+        }
+    )
+
+
+@router.get("/api/wizard/reprints/pool")
+async def wizard_reprints_pool() -> JSONResponse:
+    """Pool + open slots for the manual reprint picker (lazy-loaded by the tab).
+
+    Returns the full setting-agnostic reprint pool (each candidate as a dict the
+    tab renders into a row) plus the skeleton's open slots (``{slot_id, text}``).
+    Which cards / slots are already taken is derived client-side from the current
+    selections, so this endpoint stays a static catalogue.
+    """
+    _require_active_project()
+    asset = set_artifact_dir()
+    from mtgai.generation.reprint_selector import _load_slot_texts, load_reprint_pool
+
+    pool = [c.model_dump() for c in load_reprint_pool() if c.setting_agnostic is not False]
+    skeleton_path = asset / "skeleton.json"
+    open_slots = _load_slot_texts(skeleton_path) if skeleton_path.exists() else []
+    return JSONResponse({"pool": pool, "open_slots": open_slots})
+
+
+@router.post("/api/wizard/reprints/save")
+async def wizard_reprints_save(request: Request) -> JSONResponse:
+    """Persist a manual reprint selection/placement. No AI, a pure disk write.
+
+    Body: ``{selections: [{card_name, slot_id, reason?, pinned?}]}``. Each pick is
+    rebuilt authoritatively from the pool + skeleton (rejecting unknown / filled /
+    duplicate cards or slots), written to ``reprint_selection.json``, and stamped
+    into the skeleton (reset-then-stamp) so card-gen skips the slots. Heals a
+    FAILED reprints stage and returns the ``/state`` shape plus ``navigate_to`` for
+    the Save & Continue advance. Zero reprints is valid (a set may have none).
+    """
+    from datetime import UTC, datetime
+
+    _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+    asset = set_artifact_dir()
+    skeleton_path = asset / "skeleton.json"
+    if not skeleton_path.exists():
+        return JSONResponse(
+            {"error": "No skeleton.json yet — run Skeleton Generation first."}, status_code=400
+        )
+
+    pairs, perr = _resolve_selection_pairs(asset, body.get("selections"))
+    if perr is not None:
+        return JSONResponse({"error": perr}, status_code=400)
+
+    from mtgai.generation.reprint_selector import (
+        ReprintSelection,
+        apply_selection_to_skeleton,
+        extract_set_config,
+        load_reprint_pool,
+    )
+
+    cfg = extract_set_config(skeleton_path)
+    result = ReprintSelection(
+        set_code=cfg.get("code", "???"),
+        set_size=int(cfg.get("set_size", 60)),
+        target_reprint_count=len(pairs),
+        per_rarity_targets=None,
+        selections=pairs,
+        all_candidates_considered=len(load_reprint_pool()),
+        selection_timestamp=datetime.now(UTC).isoformat(),
+    )
+    atomic_write_text(
+        asset / "reprint_selection.json",
+        json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
+    )
+    apply_selection_to_skeleton(skeleton_path, result)
+    _heal_failed_stage("reprints")
+
+    selections = result.model_dump(mode="json")["selections"]
+    knobs_payload = _reprint_knobs_payload(asset)
+    return JSONResponse(
+        {
+            "success": True,
+            "selections": selections,
+            "has_content": bool(selections),
+            "target_count": result.target_reprint_count,
+            "per_rarity_targets": result.per_rarity_targets,
+            "eligible_slots": knobs_payload.get("slot_count"),
+            "stage_status": _stage_status_in_state("reprints"),
+            "navigate_to": _next_stage_nav("reprints"),
             **knobs_payload,
         }
     )
