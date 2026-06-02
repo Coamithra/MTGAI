@@ -203,3 +203,107 @@ def test_run_art_prompts_emits_done(monkeypatch) -> None:
     assert result.success is True
     phase_names = [name for name, _ in spy.calls]
     assert "done" in phase_names, f"missing terminal phase('done'); got {spy.calls}"
+
+
+# ---------------------------------------------------------------------------
+# AI-lock holding for the reprints + lands engine stages.
+#
+# Both runners must wrap their LLM work in ``ai_lock.hold(...)`` like every
+# other AI stage: (1) so a second AI action can't start concurrently while
+# they run, and (2) so the UI Cancel button (which only signals when the lock
+# is held) actually halts them. These pin the busy-guard + cancel-halt paths.
+# ---------------------------------------------------------------------------
+
+
+def test_run_reprints_returns_busy_when_lock_held(monkeypatch, tmp_path) -> None:
+    """When another AI action already holds the lock, ``run_reprints`` must bail
+    with a busy ``StageResult`` and never invoke the selector."""
+    from mtgai.runtime import ai_lock
+
+    (tmp_path / "skeleton.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(stages, "_set_dir", lambda: tmp_path)
+    monkeypatch.setattr("mtgai.generation.reprint_selector.load_reprint_pool", lambda: [])
+    monkeypatch.setattr(
+        "mtgai.generation.reprint_selector._load_slot_texts", lambda *_a, **_k: []
+    )
+    called: list[int] = []
+    monkeypatch.setattr(
+        "mtgai.generation.reprint_selector.select_reprints",
+        lambda **_k: called.append(1),
+    )
+
+    assert ai_lock.try_acquire("Other action") is not None
+    spy = _SpyEmitter()
+    result = stages.run_reprints(progress_cb=None, emitter=spy)
+
+    assert result.success is False
+    assert "holds the lock" in (result.error_message or "")
+    assert called == [], "selector ran despite the lock being held"
+
+
+def test_run_reprints_halts_on_cancel(monkeypatch, tmp_path) -> None:
+    """A user Cancel during selection must fail the stage and skip persistence."""
+    from mtgai.runtime import ai_lock
+
+    (tmp_path / "skeleton.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(stages, "_set_dir", lambda: tmp_path)
+    monkeypatch.setattr("mtgai.generation.reprint_selector.load_reprint_pool", lambda: [])
+    monkeypatch.setattr(
+        "mtgai.generation.reprint_selector._load_slot_texts", lambda *_a, **_k: []
+    )
+
+    persisted: list[str] = []
+    monkeypatch.setattr(
+        "mtgai.generation.reprint_selector.apply_selection_to_skeleton",
+        lambda *_a, **_k: persisted.append("skeleton"),
+    )
+    monkeypatch.setattr(stages, "atomic_write_text", lambda *_a, **_k: persisted.append("file"))
+
+    def fake_select(**_kwargs):
+        # The user hits Cancel mid-call; select_reprints returns a partial result.
+        ai_lock.request_cancel()
+        return object()
+
+    monkeypatch.setattr("mtgai.generation.reprint_selector.select_reprints", fake_select)
+
+    spy = _SpyEmitter()
+    result = stages.run_reprints(progress_cb=None, emitter=spy)
+
+    assert result.success is False
+    assert "cancelled" in (result.error_message or "").lower()
+    assert persisted == [], "partial selection was persisted despite cancel"
+
+
+def test_run_lands_returns_busy_when_lock_held(monkeypatch) -> None:
+    """When another AI action already holds the lock, ``run_lands`` must bail
+    with a busy ``StageResult`` and never invoke the land generator."""
+    from mtgai.runtime import ai_lock
+
+    called: list[int] = []
+    monkeypatch.setattr(
+        "mtgai.generation.land_generator.generate_lands",
+        lambda **_k: called.append(1),
+    )
+
+    assert ai_lock.try_acquire("Other action") is not None
+    spy = _SpyEmitter()
+    result = stages.run_lands(progress_cb=None, emitter=spy)
+
+    assert result.success is False
+    assert "holds the lock" in (result.error_message or "")
+    assert called == [], "land generator ran despite the lock being held"
+
+
+def test_run_lands_halts_on_cancel(monkeypatch) -> None:
+    """A user Cancel returns the ``cancelled`` shape; the stage must fail so the
+    engine halts instead of marching on with a partial land set."""
+    monkeypatch.setattr(
+        "mtgai.generation.land_generator.generate_lands",
+        lambda **_k: {"total_cards": 2, "cost_usd": 0.0, "cancelled": True},
+    )
+
+    spy = _SpyEmitter()
+    result = stages.run_lands(progress_cb=None, emitter=spy)
+
+    assert result.success is False
+    assert "cancelled" in (result.error_message or "").lower()
