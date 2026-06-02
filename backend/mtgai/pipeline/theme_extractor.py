@@ -23,6 +23,7 @@ from typing import Any
 
 from llmfacade import SystemBlock
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.phase_poller import NullPoller, PromptEvalPoller
 from mtgai.generation.token_budgets import HEAVY, STANDARD
 from mtgai.io.atomic import atomic_write_text
@@ -1293,7 +1294,7 @@ def _stream_anthropic_call(
     convo = facade_model.new_conversation(
         system_blocks=[SystemBlock(text=system_prompt, cache=True)],
         max_tokens=_OUTPUT_BUDGET,
-        temperature=0.7,
+        temperature=temps.BALANCED,
         log_path=log_path,
         log_max_message_lines=_LOG_MAX_MESSAGE_LINES,
     )
@@ -1443,7 +1444,9 @@ def _stream_llamacpp_call(
     provider = _get_provider("llamacpp")
     facade_model = _llamacpp_new_model(provider, model_info.model_id)
     log_path = _build_call_log_path(step_label, "llamacpp-call")
-    effective_temperature = temperature_override if temperature_override is not None else 0.7
+    effective_temperature = (
+        temperature_override if temperature_override is not None else temps.BALANCED
+    )
     convo_kwargs: dict[str, Any] = {
         "system_blocks": [SystemBlock(text=system_prompt)],
         "max_tokens": output_reserve,

@@ -25,6 +25,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import generate_with_tool
 from mtgai.generation.token_budgets import BATCH
 
@@ -413,7 +414,7 @@ def generate_archetypes(
         user_prompt=user_prompt,
         tool_schema=ARCHETYPE_TOOL_SCHEMA,
         model=model_id,
-        temperature=1.0,
+        temperature=temps.CREATIVE,
         max_tokens=BATCH,
         log_dir=log_dir,
     )

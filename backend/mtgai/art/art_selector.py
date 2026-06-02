@@ -19,6 +19,7 @@ from pathlib import Path
 
 from llmfacade import ImageBlock, TextBlock
 
+from mtgai.generation import temperatures as temps
 from mtgai.io.atomic import atomic_write_text
 
 logger = logging.getLogger(__name__)
@@ -149,7 +150,9 @@ def select_best_version(
     convo.add_user_message(
         content=_build_message_content(card_name, collector_number, colors, prompt, image_paths)
     )
-    resp = convo.send(max_tokens=1024, temperature=0.0)
+    # GREEDY is safe here: Haiku vision is a cloud model, so there's no local
+    # sampler to bypass and no repetition-loop pathology (see temperatures.py).
+    resp = convo.send(max_tokens=1024, temperature=temps.GREEDY)
 
     if not resp.tool_calls:
         raise ValueError("No tool_use block in response")

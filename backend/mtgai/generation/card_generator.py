@@ -33,6 +33,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.archetype_generator import load_archetypes
 from mtgai.generation.llm_client import calc_cost, cost_from_result, generate_with_tool
 from mtgai.generation.prompts import (
@@ -59,7 +60,7 @@ logger = logging.getLogger(__name__)
 # ``set_artifact_dir`` at run time — no module-level OUTPUT_ROOT here.
 
 # LLM settings — model + effort come from per-set model_settings at runtime.
-TEMPERATURE = 1.0
+TEMPERATURE = temps.CREATIVE  # creative card design (see temperatures.py)
 # One card per LLM call (was 5). A single-card request uses the simpler
 # CARD_TOOL_SCHEMA (one object, not an array), so the model has far less to
 # track per call and breaks the design rules less often. Trades more API calls

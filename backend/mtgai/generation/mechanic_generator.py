@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypeGuard
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import generate_with_tool
 from mtgai.generation.token_budgets import HEAVY, STANDARD
 from mtgai.generation.token_utils import OutputTruncatedError
@@ -78,9 +79,9 @@ MAX_MECHANIC_REGEN_ATTEMPTS = 1
 # Sampling temperatures. Generation at 0.9 (the lab found 0.9 beats 1.1 — 1.1
 # clustered designs + degraded templating without adding novelty). Reviewers at
 # 0.4 so the three critiques are not identical; synth at 0.2 (a careful edit).
-MECHANIC_GEN_TEMP = 0.9
-MECHANIC_REVIEW_TEMP = 0.4
-MECHANIC_SYNTH_TEMP = 0.2
+MECHANIC_GEN_TEMP = temps.INVENTIVE
+MECHANIC_REVIEW_TEMP = temps.FOCUSED
+MECHANIC_SYNTH_TEMP = temps.PRECISE
 
 
 class _EscalatingBudget:
@@ -2317,7 +2318,7 @@ def pick_best_mechanics(
             user_prompt=user_prompt,
             tool_schema=MECHANIC_PICK_TOOL_SCHEMA,
             model=model_id,
-            temperature=0.4,
+            temperature=temps.FOCUSED,
             max_tokens=STANDARD,
             log_dir=log_dir,
         )

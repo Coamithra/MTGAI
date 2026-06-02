@@ -20,7 +20,6 @@ class MTGAIConfig(BaseSettings):
     # === LLM Settings (populated after Phase 0D) ===
     llm_provider: str = "anthropic"
     llm_model: str = "claude-sonnet-4-20250514"
-    llm_temperature: float = 0.7
     llm_max_retries: int = 3
     max_model: str | None = None  # Cap: "haiku", "sonnet", or "opus"
 
