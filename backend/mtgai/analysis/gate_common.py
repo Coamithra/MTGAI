@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import generate_with_tool
 from mtgai.generation.token_utils import OutputTruncatedError
 from mtgai.models.card import Card
@@ -26,7 +27,7 @@ def generate_gate_tool(
     *,
     base_temperature: float,
     retries: int = 2,
-    temperature_step: float = 0.2,
+    temperature_step: float = temps.RETRY_TEMP_STEP,
     **kwargs,
 ) -> dict:
     """Run a gate's ``generate_with_tool`` call, retrying on output truncation.

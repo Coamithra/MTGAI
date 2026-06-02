@@ -23,6 +23,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.generation.reprint_selector import (
     _load_set_context,
@@ -379,7 +380,7 @@ def generate_lands(
             user_prompt=user,
             tool_schema=_build_basics_tool_schema(),
             model=model_id,
-            temperature=0.7,
+            temperature=temps.BALANCED,
             # 5 land types x (4 one-sentence art briefs + 1 flavor) is a lot of JSON;
             # at 2048 the (often verbose, local) model truncated mid-output
             # (finish: length) around the 3rd type. 4096 fits all five with headroom.
@@ -462,7 +463,7 @@ def generate_lands(
             user_prompt=inv_user,
             tool_schema=_build_investigation_tool_schema(),
             model=model_id,
-            temperature=0.7,
+            temperature=temps.BALANCED,
             # Smaller output (one dual + reasoning), but a truncated tool-call JSON
             # fails to parse just the same — give the same headroom as the basics call.
             max_tokens=STANDARD,

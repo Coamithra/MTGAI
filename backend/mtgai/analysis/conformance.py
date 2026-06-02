@@ -33,13 +33,14 @@ from collections.abc import Callable
 
 from mtgai.analysis.gate_common import filter_gate_cards, generate_gate_tool
 from mtgai.analysis.models import ConformanceFinding
+from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import cost_from_result
 from mtgai.generation.token_budgets import COMPACT
 from mtgai.models.card import Card
 
 logger = logging.getLogger(__name__)
 
-TEMPERATURE = 0.2  # Low temp — objective adherence check
+TEMPERATURE = temps.PRECISE  # objective adherence check (see temperatures.py)
 MAX_TOKENS = COMPACT  # One card per call: a tiny verdict + room for a short CoT
 
 

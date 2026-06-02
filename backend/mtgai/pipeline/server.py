@@ -3730,9 +3730,10 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
     """Persist any supplied knobs, then re-run reprint selection under the AI lock.
 
     Body (optional): ``{knobs: {...}}`` — persisted first so the run uses the
-    tab's current targets. Runs at a non-zero temperature so a manual re-roll
-    surfaces alternative picks (the engine stage stays deterministic at temp 0).
-    Writes ``reprint_selection.json`` and returns the same shape as ``/state``.
+    tab's current targets. Runs at a higher temperature so a manual re-roll
+    surfaces alternative picks (the engine stage uses a lower analytical base —
+    see ``temperatures.py``). Writes ``reprint_selection.json`` and returns the
+    same shape as ``/state``.
     """
     _require_active_project()
     body, err = await _read_request_json(request)
@@ -3748,6 +3749,7 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
     if isinstance(body, dict) and isinstance(body.get("knobs"), dict):
         _write_reprint_knobs(asset, body)
 
+    from mtgai.generation import temperatures as temps
     from mtgai.generation.reprint_selector import apply_selection_to_skeleton, select_reprints
 
     with guarded_ai("Reprint selection", stage_id="reprints") as guard:
@@ -3755,7 +3757,7 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
             return guard.busy_response
         with _bus_poller("reprints", activity_prefix="Selecting reprints"):
             result = await asyncio.to_thread(
-                select_reprints, skeleton_path=skeleton_path, temperature=0.7
+                select_reprints, skeleton_path=skeleton_path, temperature=temps.BALANCED
             )
         if ai_lock.is_cancelled():
             # A Cancel mid-run leaves `result` partial/empty — persisting it would
@@ -4005,6 +4007,69 @@ def _resolve_view_cards_dir(instance_id: str | None, asset: Path) -> Path:
     return snap if snap.is_dir() else live
 
 
+def _entry_snapshot_cards_dir(instance_id: str | None, asset: Path) -> Path | None:
+    """The card-pool snapshot dir of ``instance_id``'s entry state, or None.
+
+    An instance's entry pool is its predecessor's output snapshot, pinned as
+    ``StageState.entry_snapshot_id``. Diffing the viewed pool against it tells the
+    Card Generation tab which cards this instance (re)generated. Returns None when
+    the instance is unknown, has no entry snapshot (the first stage, or a
+    pre-version-tracking project), or the snapshot folder is missing — all of which
+    mean "no old/new distinction is available", so the tab highlights nothing.
+    """
+    from mtgai.pipeline import history
+
+    inst = instance_id or "card_gen"  # backbone default if the tab omits it
+    state = load_state()
+    if state is None:
+        return None
+    st = next((s for s in state.stages if s.instance_id == inst), None)
+    if st is None or not st.entry_snapshot_id:
+        return None
+    snap = history.snapshot_dir(st.entry_snapshot_id, asset) / "cards"
+    return snap if snap.is_dir() else None
+
+
+def _load_card_gen_cards(cards_dir: Path) -> dict[str, dict]:
+    """Load a card pool's card-gen cards as ``{collector_number: card_json}``.
+
+    Skips the Lands tab's ``L-*`` (they don't appear on the card-gen tab and
+    would never be flagged), and any malformed JSON. A missing directory yields
+    an empty map. Keyed by collector_number so a viewed pool can be diffed
+    against its entry snapshot one card at a time.
+    """
+    out: dict[str, dict] = {}
+    if not cards_dir.is_dir():
+        return out
+    for path in sorted(cards_dir.glob("*.json")):
+        card = _read_json(path, None)
+        if not isinstance(card, dict) or _is_land_stage_card(card):
+            continue
+        out[card.get("collector_number") or path.stem] = card
+    return out
+
+
+def _diff_regenerated(
+    view_cards: dict[str, dict], entry_cards: dict[str, dict]
+) -> tuple[bool, set[str]]:
+    """Classify the viewed instance's card-gen cards as carried-over vs regenerated.
+
+    Both maps are ``{collector_number: card_json}`` for card-gen cards only (lands
+    excluded). Returns ``(is_regen_instance, regenerated_collector_numbers)``.
+
+    ``is_regen_instance`` is False when the entry snapshot held no card-gen cards —
+    the first ``card_gen`` (whose entry is the ``lands`` snapshot), where
+    "everything is new" is not a useful distinction, so nothing is highlighted.
+    Otherwise a card is regenerated iff it is absent from / differs from the entry
+    pool: carried-over cards are byte-identical plain copies (see ``history.py``),
+    while a regenerated card differs — at minimum because the entry copy still
+    carries the gate's ``regen_reason``/``flagged_by`` flag.
+    """
+    if not entry_cards:
+        return False, set()
+    return True, {cn for cn, card in view_cards.items() if card != entry_cards.get(cn)}
+
+
 @router.get("/api/wizard/card_gen/state")
 async def wizard_card_gen_state(instance_id: str | None = None) -> JSONResponse:
     """First-paint state for the Card Generation tab.
@@ -4029,22 +4094,29 @@ async def wizard_card_gen_state(instance_id: str | None = None) -> JSONResponse:
     # Per-instance read-routing: a completed non-tip instance reads its own
     # snapshot under history/; the tip / in-flight instance reads the live pool.
     cards_dir = _resolve_view_cards_dir(instance_id, asset)
-    cards: list[dict] = []
-    if cards_dir.exists():
-        for path in sorted(cards_dir.glob("*.json")):
-            card = _read_json(path, None)
-            if not isinstance(card, dict) or _is_land_stage_card(card):
-                continue
-            # Use the shared tile helper so this endpoint and the per-card SSE
-            # stream emit byte-identical shapes — the tab merges streamed cards
-            # into a list eventually repainted from this response, so any drift
-            # would surface as layout flicker.
-            cards.append(card_tile_dict(card, slots_by_id))
+    view_cards = _load_card_gen_cards(cards_dir)
+
+    # Old/new distinction: diff this instance's pool against its entry snapshot so
+    # the tab highlights the cards THIS instance (re)generated vs those carried
+    # over from the prior instance. Suppressed on the first card_gen /
+    # pre-version-tracking projects (see _diff_regenerated).
+    entry_dir = _entry_snapshot_cards_dir(instance_id, asset)
+    entry_cards = _load_card_gen_cards(entry_dir) if entry_dir else {}
+    is_regen_instance, regenerated = _diff_regenerated(view_cards, entry_cards)
+
+    # Use the shared tile helper so this endpoint and the per-card SSE stream emit
+    # byte-identical shapes -- the tab merges streamed cards into a list eventually
+    # repainted from this response, so any drift would surface as layout flicker.
+    cards = [
+        card_tile_dict(view_cards[cn], slots_by_id, is_new=cn in regenerated)
+        for cn in sorted(view_cards)
+    ]
 
     return JSONResponse(
         {
             "cards": cards,
             "has_content": bool(cards),
+            "is_regen_instance": is_regen_instance,
             "set_params": settings.set_params.model_dump(),
             "stage_status": _stage_status_in_state("card_gen"),
         }

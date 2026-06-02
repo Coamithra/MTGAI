@@ -42,7 +42,10 @@
  * ``POST /api/wizard/card_gen/refresh`` (§13), which regenerates the whole set
  * from scratch and returns the same /state shape. Card shape mirrors
  * mtgai/models/card.py: name, mana_cost, type_line, oracle_text, rarity, power,
- * toughness, loyalty, colors, collector_number, flavor_text, status.
+ * toughness, loyalty, colors, collector_number, flavor_text, status, plus
+ * is_new (true for a card this instance regenerated). The /state response also
+ * carries is_regen_instance — true on a review->regen instance, which gates the
+ * new-vs-carried-over highlight (the first card_gen run is all-new, so no badge).
  */
 
 (function () {
@@ -79,6 +82,8 @@
         initialized: false,
         cards: [],          // Card[] from the server, once loaded
         hasContent: false,
+        isRegenInstance: false,  // true on a review->regen instance: highlight the
+                                 // cards THIS instance regenerated vs carried-over
         stageStatus: 'pending',
         setParams: { set_name: '', set_size: 0 },
         groupBy: 'rarity',  // 'rarity' | 'color'
@@ -227,6 +232,43 @@
         transition: border-color 0.15s;
       }
       .wiz-cardgen-card:hover { border-color: #4a9eff44; }
+      /* A card this instance (re)generated, vs one carried over from the prior
+         instance. Only applied on a review->regen instance (see paintGrid). */
+      .wiz-cardgen-card.is-new {
+        border-color: #45c98a;
+        background: #102016;
+        box-shadow: 0 0 0 1px #45c98a55;
+      }
+      .wiz-cardgen-card.is-new:hover { border-color: #45c98a; }
+      .wiz-cardgen-new-badge {
+        font-size: 0.6rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #45c98a;
+        background: #45c98a1f;
+        border: 1px solid #45c98a55;
+        border-radius: 3px;
+        padding: 1px 5px;
+        align-self: flex-start;
+      }
+      /* One-line legend shown above the grid on a regen instance. */
+      .wiz-cardgen-legend {
+        font-size: 0.74rem;
+        color: #9fb3c8;
+        margin-bottom: 0.7rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+      .wiz-cardgen-legend-swatch {
+        display: inline-block;
+        width: 0.8rem;
+        height: 0.8rem;
+        border-radius: 3px;
+        border: 1px solid #45c98a;
+        background: #102016;
+      }
       .wiz-cardgen-card-name {
         font-weight: 700;
         font-size: 0.85rem;
@@ -439,6 +481,7 @@
     if (data) {
       local.cards = Array.isArray(data.cards) ? data.cards : [];
       local.hasContent = local.cards.length > 0;
+      local.isRegenInstance = !!data.is_regen_instance;
       local.setParams = data.set_params || local.setParams;
       local.stageStatus = data.stage_status || local.stageStatus;
     }
@@ -586,10 +629,22 @@
       return;
     }
 
-    // Group.
+    // Group. Only a review->regen instance highlights new-vs-carried-over —
+    // on the first card_gen every card is "new", so the distinction is noise.
+    const highlightNew = !!local.isRegenInstance;
+    // Suppress the legend until at least one regenerated card is present: a
+    // /state poll early in the run (before any card re-saved) would otherwise
+    // show the legend over a grid with nothing highlighted.
+    const anyNew = highlightNew && local.cards.some(c => c.is_new);
+    const legend = anyNew
+      ? `<div class="wiz-cardgen-legend">
+           <span class="wiz-cardgen-legend-swatch"></span>
+           Highlighted cards were regenerated this round; the rest carried over.
+         </div>`
+      : '';
     const groups = buildGroups(filtered, local);
-    slot.innerHTML = groups
-      .map(({ key, label, cards }) => groupHtml(key, label, cards))
+    slot.innerHTML = legend + groups
+      .map(({ key, label, cards }) => groupHtml(key, label, cards, highlightNew))
       .join('');
   }
 
@@ -613,18 +668,19 @@
       .filter(g => g.cards.length > 0);
   }
 
-  function groupHtml(key, label, cards) {
+  function groupHtml(key, label, cards, highlightNew) {
     return `
       <div class="wiz-cardgen-group">
         <div class="wiz-cardgen-group-label">${escHtml(label)} (${cards.length})</div>
         <div class="wiz-cardgen-grid">
-          ${cards.map(c => cardTileHtml(c)).join('')}
+          ${cards.map(c => cardTileHtml(c, highlightNew)).join('')}
         </div>
       </div>
     `;
   }
 
-  function cardTileHtml(card) {
+  function cardTileHtml(card, highlightNew) {
+    const isNew = highlightNew && !!card.is_new;
     const rarity = (card.rarity || 'common').toLowerCase();
     const hasStats = card.power != null && card.toughness != null;
     const hasLoyalty = card.loyalty != null;
@@ -639,7 +695,8 @@
     const cn = card.collector_number || '';
 
     return `
-      <article class="wiz-cardgen-card">
+      <article class="wiz-cardgen-card${isNew ? ' is-new' : ''}">
+        ${isNew ? '<span class="wiz-cardgen-new-badge">Regenerated</span>' : ''}
         <div class="wiz-cardgen-card-name">${escHtml(card.name || '(unnamed)')}</div>
         ${card.mana_cost ? `<div class="wiz-cardgen-card-cost">${escHtml(card.mana_cost)}</div>` : ''}
         ${card.type_line ? `<div class="wiz-cardgen-card-type">${escHtml(card.type_line)}</div>` : ''}
@@ -688,6 +745,7 @@
         if (Array.isArray(data.cards)) {
           local.cards = data.cards;
           local.hasContent = local.cards.length > 0;
+          local.isRegenInstance = !!data.is_regen_instance;
           local.setParams = data.set_params || local.setParams;
           local.stageStatus = data.stage_status || local.stageStatus;
           if (root) { rebuildFilterOptions(root, local); paintGrid(root, local); }

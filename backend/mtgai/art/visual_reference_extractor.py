@@ -31,6 +31,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import generate_with_tool
 from mtgai.generation.token_budgets import STANDARD
 
@@ -352,7 +353,7 @@ def generate_visual_references(*, theme: dict | None = None) -> dict:
         user_prompt=user_prompt,
         tool_schema=VISUAL_REF_TOOL_SCHEMA,
         model=model_id,
-        temperature=1.0,
+        temperature=temps.CREATIVE,
         max_tokens=STANDARD,
         log_dir=log_dir,
     )

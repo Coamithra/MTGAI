@@ -28,6 +28,7 @@ from mtgai.art.visual_reference import (
     get_refs,
     get_visual_references,
 )
+from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import generate_with_tool
 from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
@@ -264,7 +265,7 @@ def generate_visual_description(card: Card) -> tuple[str, int, int]:
         user_prompt=user_prompt,
         tool_schema=TOOL_SCHEMA,
         model=require_active_project().settings.get_llm_model_id("art_prompts"),
-        temperature=0.6,
+        temperature=temps.GROUNDED,
         max_tokens=512,
     )
 

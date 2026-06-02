@@ -33,9 +33,14 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.archetype_generator import load_archetypes
 from mtgai.generation.llm_client import calc_cost, cost_from_result, generate_with_tool
-from mtgai.generation.prompts import build_user_prompt, load_system_prompt
+from mtgai.generation.prompts import (
+    build_static_set_context,
+    build_user_prompt,
+    load_system_prompt,
+)
 from mtgai.generation.token_budgets import BATCH, STANDARD
 from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
@@ -55,7 +60,7 @@ logger = logging.getLogger(__name__)
 # ``set_artifact_dir`` at run time — no module-level OUTPUT_ROOT here.
 
 # LLM settings — model + effort come from per-set model_settings at runtime.
-TEMPERATURE = 1.0
+TEMPERATURE = temps.CREATIVE  # creative card design (see temperatures.py)
 # One card per LLM call (was 5). A single-card request uses the simpler
 # CARD_TOOL_SCHEMA (one object, not an array), so the model has far less to
 # track per call and breaks the design rules less often. Trades more API calls
@@ -310,6 +315,7 @@ def _retry_single_card(
         slot["slot_id"],
     )
     system_prompt = load_system_prompt()
+    static_ctx = build_static_set_context(mechanics, theme, archetypes)
     existing_dicts = [c.model_dump() if hasattr(c, "model_dump") else c for c in existing_cards]
     user_prompt = build_user_prompt([slot], mechanics, existing_dicts, theme, archetypes)
     user_prompt += (
@@ -322,10 +328,14 @@ def _retry_single_card(
     # Route llmfacade's transcript alongside the bespoke per-card logs. The
     # bespoke log still owns the post-generation validation/fix/cost detail
     # llmfacade can't see; this just co-locates the raw conversation HTML.
+    #
+    # The base instructions + static set-context go in cached system blocks so
+    # the ~6-7k-token prefix is read at ~0.1x across batches/retries instead of
+    # re-billed in the user message (caching is a no-op on the llamacpp path).
     try:
         t0 = time.time()
         result = generate_with_tool(
-            system_prompt=system_prompt,
+            system_blocks=[(system_prompt, True), (static_ctx, True)],
             user_prompt=user_prompt,
             tool_schema=CARD_TOOL_SCHEMA,
             model=model,
@@ -1168,8 +1178,20 @@ def generate_set(
         len(unfilled),
     )
 
+    # Progress denominator = the slots THIS run (re)creates, not the full set.
+    # On the first instance ``unfilled == all_slots``; on a review->regen
+    # instance the flagged cards were dropped from ``filled_slots`` above so they
+    # re-enter ``unfilled`` — making this exactly the regen count. ``completed``
+    # is already this-run-scoped (``total_saved``), so reporting ``len(all_slots)``
+    # as the total made a regen instance read "5 / 277" instead of "5 / 5".
+    run_target = len(unfilled)
+
     if not unfilled:
         logger.info("Nothing to generate — all slots filled or failed.")
+        # No run executes here, so this is the all-done view, not a regen view:
+        # full-pool total + full-pool filled (e.g. "277/277"), internally
+        # consistent. The run-scoped denominator (run_target) only applies to the
+        # main return below, where a regen instance reports its flagged count.
         return {
             "total_slots": len(all_slots),
             "filled": len(progress.filled_slots),
@@ -1190,7 +1212,7 @@ def generate_set(
         progress_callback(
             "preparing",
             0,
-            len(all_slots),
+            run_target,
             f"Preparing to generate {len(unfilled)} cards…",
             0.0,
         )
@@ -1249,7 +1271,18 @@ def generate_set(
 
     # Generate!
     system_prompt = load_system_prompt()
-    logger.info("System prompt loaded: %d chars", len(system_prompt))
+    # Static set-context (setting prose, mechanics, archetypes, preventive
+    # guidance) is a pure function of the run's inputs, so hoist it out of the
+    # batch loop and reuse one immutable string. It rides in a cached system
+    # block per batch (written once, read at ~0.1x thereafter); `effective_system`
+    # is the full base + static text, logged so the sidecars still show everything.
+    static_ctx = build_static_set_context(mechanics, theme, archetypes)
+    effective_system = f"{system_prompt}\n\n---\n\n{static_ctx}"
+    logger.info(
+        "System prompt loaded: %d chars base + %d chars static context",
+        len(system_prompt),
+        len(static_ctx),
+    )
     total_saved = 0
     cancelled = False
     start_time = time.time()
@@ -1323,10 +1356,10 @@ def generate_set(
             cycle_siblings=siblings_for_batch,
         )
         logger.info(
-            "Prompt built: %d chars (system) + %d chars (user) = %d total",
-            len(system_prompt),
+            "Prompt built: %d chars (system+static) + %d chars (user) = %d total",
+            len(effective_system),
             len(user_prompt),
-            len(system_prompt) + len(user_prompt),
+            len(effective_system) + len(user_prompt),
         )
 
         tool_schema = CARD_TOOL_SCHEMA if len(batch) == 1 else CARDS_BATCH_TOOL_SCHEMA
@@ -1340,7 +1373,7 @@ def generate_set(
         try:
             t0 = time.time()
             result = generate_with_tool(
-                system_prompt=system_prompt,
+                system_blocks=[(system_prompt, True), (static_ctx, True)],
                 user_prompt=user_prompt,
                 tool_schema=tool_schema,
                 model=active_model,
@@ -1428,7 +1461,7 @@ def generate_set(
             latency_s=api_latency,
             stop_reason=result.get("stop_reason", ""),
             user_prompt=user_prompt,
-            system_prompt=system_prompt,
+            system_prompt=effective_system,
             effort=active_effort,
         )
 
@@ -1457,7 +1490,7 @@ def generate_set(
             progress,
             set_code=set_code,
             user_prompt=user_prompt,
-            system_prompt=system_prompt,
+            system_prompt=effective_system,
             latency_s=api_latency,
             stop_reason=result.get("stop_reason", ""),
             effort=active_effort,
@@ -1484,7 +1517,7 @@ def generate_set(
             progress_callback(
                 f"batch {batch_idx}/{len(batches)}",
                 total_saved,
-                len(all_slots),
+                run_target,
                 f"Batch {batch_idx}: {len(saved)}/{len(batch)} saved",
                 batch_cost,
             )
@@ -1539,7 +1572,11 @@ def generate_set(
         else f"Generated {total_saved} cards in {elapsed:.0f}s (${progress.total_cost_usd:.4f})"
     )
     return {
-        "total_slots": len(all_slots),
+        # ``total_slots`` is the progress denominator (-> StageResult.total_items
+        # -> the completed tab display), so it's the run target, not the full
+        # set — a regen instance shows "5 / 5", not "5 / 277". ``filled`` is the
+        # this-run saved count (the numerator), already correct.
+        "total_slots": run_target,
         "filled": total_saved,
         "failed": len(progress.failed_slots),
         "cost_usd": progress.total_cost_usd,
