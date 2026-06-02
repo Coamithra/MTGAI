@@ -40,8 +40,7 @@ from mtgai.pipeline.theme_extractor import (
 from mtgai.settings.model_registry import LLMModel, get_registry
 
 PDF_PATH = Path(
-    "C:/Programming/MTGAI/Inspiration/"
-    "The Dark Sun Campaign Setting for Worlds Without Number.pdf"
+    "C:/Programming/MTGAI/Inspiration/The Dark Sun Campaign Setting for Worlds Without Number.pdf"
 )
 ASD_THEME_PATH = Path("C:/Programming/MTGAI/output/sets/ASD/theme.txt")
 RESULTS_DIR = Path("C:/Programming/MTGAI/output/benchmarks")
@@ -132,7 +131,7 @@ def query_gpu_placement() -> str:
         if out.returncode == 0:
             line = out.stdout.strip().splitlines()[0]
             used, total = (int(x.strip()) for x in line.split(","))
-            return f"{used}/{total} MiB ({100*used/total:.0f}%)"
+            return f"{used}/{total} MiB ({100 * used / total:.0f}%)"
     except Exception:
         pass
     return "unknown"
@@ -334,11 +333,11 @@ def main():
             print(f"ERROR: unknown variant {vk!r}")
             continue
         v = by_key[vk]
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"BENCHMARKING: {vk}")
         print(f"  cache_type_k={v.cache_type_k}, cache_type_v={v.cache_type_v}")
         print(f"  n_gpu_layers={v.n_gpu_layers}, num_ctx={args.num_ctx}")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
 
         try:
             model_info = register_variant(v, num_ctx=args.num_ctx)

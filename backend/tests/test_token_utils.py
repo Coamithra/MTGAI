@@ -137,9 +137,7 @@ class TestCheckPostCall:
             "finish_reason": "stop",
         }
         with pytest.raises(OutputTruncatedError):
-            check_post_call(
-                data, estimated_input_tokens=500, model="test", num_predict=4096
-            )
+            check_post_call(data, estimated_input_tokens=500, model="test", num_predict=4096)
 
     def test_tokenizer_mismatch_tolerance(self):
         """Should allow ~30% difference due to tokenizer mismatch."""
@@ -168,9 +166,7 @@ class TestCheckPostCall:
             "completion_tokens": 50000,
             "finish_reason": "stop",
         }
-        check_post_call(
-            data, estimated_input_tokens=500, model="test", num_predict=-1
-        )
+        check_post_call(data, estimated_input_tokens=500, model="test", num_predict=-1)
 
 
 # ── Available for input ──────────────────────────────────────────────

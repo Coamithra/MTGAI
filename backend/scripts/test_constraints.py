@@ -57,28 +57,53 @@ def detect_repetition(text: str, min_repeats: int = 10) -> str | None:
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--theme-file", type=Path, default=DEFAULT_THEME)
-    p.add_argument("--model", default="vlad-gemma4-26b-dynamic",
-                   help="Ollama model_id (not registry key)")
+    p.add_argument(
+        "--model", default="vlad-gemma4-26b-dynamic", help="Ollama model_id (not registry key)"
+    )
     p.add_argument("--temperature", type=float, default=0.7)
-    p.add_argument("--repeat-penalty", type=float, default=None,
-                   help="Ollama repeat_penalty; omit for Ollama default (1.1)")
-    p.add_argument("--repeat-last-n", type=int, default=None,
-                   help="Ollama repeat_last_n (tokens considered for penalty)")
-    p.add_argument("--num-predict", type=int, default=-1,
-                   help="Max output tokens; -1 = unlimited (matches pipeline default)")
+    p.add_argument(
+        "--repeat-penalty",
+        type=float,
+        default=None,
+        help="Ollama repeat_penalty; omit for Ollama default (1.1)",
+    )
+    p.add_argument(
+        "--repeat-last-n",
+        type=int,
+        default=None,
+        help="Ollama repeat_last_n (tokens considered for penalty)",
+    )
+    p.add_argument(
+        "--num-predict",
+        type=int,
+        default=-1,
+        help="Max output tokens; -1 = unlimited (matches pipeline default)",
+    )
     p.add_argument("--num-ctx", type=int, default=32768)
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--top-p", type=float, default=None)
     p.add_argument("--top-k", type=int, default=None)
     p.add_argument("--min-p", type=float, default=None)
-    p.add_argument("--no-json-mode", action="store_true",
-                   help="Disable Ollama format=json (matches pipeline behavior when off)")
-    p.add_argument("--run-name", default=None,
-                   help="Override output filename; default is timestamp+model")
-    p.add_argument("--prompt-file", type=Path, default=CONSTRAINTS_PROMPT,
-                   help="System prompt file (default: constraints_system.txt)")
-    p.add_argument("--truncate-user-prompt", type=int, default=0,
-                   help="Truncate user-prompt section in the log file (0 = full)")
+    p.add_argument(
+        "--no-json-mode",
+        action="store_true",
+        help="Disable Ollama format=json (matches pipeline behavior when off)",
+    )
+    p.add_argument(
+        "--run-name", default=None, help="Override output filename; default is timestamp+model"
+    )
+    p.add_argument(
+        "--prompt-file",
+        type=Path,
+        default=CONSTRAINTS_PROMPT,
+        help="System prompt file (default: constraints_system.txt)",
+    )
+    p.add_argument(
+        "--truncate-user-prompt",
+        type=int,
+        default=0,
+        help="Truncate user-prompt section in the log file (0 = full)",
+    )
     args = p.parse_args()
 
     theme_text = args.theme_file.read_text(encoding="utf-8")
@@ -175,11 +200,18 @@ def main() -> int:
                             resp.close()
                             break
                 if evt.get("done"):
-                    final_meta = {k: evt.get(k) for k in (
-                        "total_duration", "load_duration", "prompt_eval_count",
-                        "prompt_eval_duration", "eval_count", "eval_duration",
-                        "done_reason",
-                    )}
+                    final_meta = {
+                        k: evt.get(k)
+                        for k in (
+                            "total_duration",
+                            "load_duration",
+                            "prompt_eval_count",
+                            "prompt_eval_duration",
+                            "eval_count",
+                            "eval_duration",
+                            "done_reason",
+                        )
+                    }
                     break
     except KeyboardInterrupt:
         exception_text = "KeyboardInterrupt (user cancelled)"

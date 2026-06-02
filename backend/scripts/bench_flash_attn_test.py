@@ -31,8 +31,7 @@ from mtgai.generation.token_utils import count_tokens
 from mtgai.pipeline.theme_extractor import extract_file_content
 
 PDF_PATH = Path(
-    "C:/Programming/MTGAI/Inspiration/"
-    "The Dark Sun Campaign Setting for Worlds Without Number.pdf"
+    "C:/Programming/MTGAI/Inspiration/The Dark Sun Campaign Setting for Worlds Without Number.pdf"
 )
 PROMPTS_DIR = Path("C:/Programming/MTGAI/backend/mtgai/pipeline/prompts")
 LLAMA_SERVER = Path("C:/Tools/llama.cpp/llama-server.exe")
@@ -94,9 +93,7 @@ def run_extraction(base: str, system_prompt: str, user_msg: str) -> dict:
             if content:
                 if first_chunk_time is None:
                     first_chunk_time = time.perf_counter()
-                    print(
-                        f"  [{first_chunk_time - start:7.1f}s] first content chunk"
-                    )
+                    print(f"  [{first_chunk_time - start:7.1f}s] first content chunk")
                 total_text += content
 
     end = time.perf_counter()
@@ -159,14 +156,22 @@ def main():
     # Build llama-server cmd
     cmd = [
         str(LLAMA_SERVER),
-        "--model", args.gguf,
-        "--port", str(PORT),
-        "--ctx-size", str(args.ctx),
-        "--cache-type-k", args.cache_k,
-        "--cache-type-v", args.cache_v,
-        "--n-gpu-layers", str(args.ngl),
-        "--flash-attn", args.flash_attn,
-        "--parallel", "1",
+        "--model",
+        args.gguf,
+        "--port",
+        str(PORT),
+        "--ctx-size",
+        str(args.ctx),
+        "--cache-type-k",
+        args.cache_k,
+        "--cache-type-v",
+        args.cache_v,
+        "--n-gpu-layers",
+        str(args.ngl),
+        "--flash-attn",
+        args.flash_attn,
+        "--parallel",
+        "1",
         "--no-webui",
     ]
     print(f"\nSpawning: {' '.join(cmd)}\n")
@@ -190,14 +195,14 @@ def main():
         print("\nRunning extraction...")
         r = run_extraction(base, system_prompt, user_msg)
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"RESULT (flash_attn={args.flash_attn}, ngl={args.ngl}, cache={args.cache_k})")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print(f"  Load time      {load_s:>8.1f} s")
         print(f"  Wall (extract) {r['wall_s']:>8.1f} s")
         print(f"  TTFT           {r['ttft_s']:>8.1f} s")
         print(f"  Output chars   {r['output_chars']:>8}")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
     finally:
         # Drain stdout and look for flash-attn evidence
         proc.terminate()
@@ -209,7 +214,8 @@ def main():
 
         # Print any line that mentions flash / fa / attn
         flash_lines = [
-            ln for ln in stdout.splitlines()
+            ln
+            for ln in stdout.splitlines()
             if any(kw in ln.lower() for kw in ("flash", "fa = ", "fa:"))
         ]
         if flash_lines:

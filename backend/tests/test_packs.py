@@ -306,9 +306,7 @@ def _make_colored_pool() -> list[Card]:
                     f"{color} Uncommon {i}", color, Rarity.UNCOMMON, f"{color}-U-{i:02d}"
                 )
             )
-        cards.append(
-            _make_colored_card(f"{color} Rare", color, Rarity.RARE, f"{color}-R-01")
-        )
+        cards.append(_make_colored_card(f"{color} Rare", color, Rarity.RARE, f"{color}-R-01"))
     # Add basic lands
     for i, land in enumerate(["Plains", "Island", "Swamp", "Mountain", "Forest"]):
         cards.append(
@@ -332,9 +330,7 @@ class TestColorBalance:
             commons = [
                 c for c in pack if c.rarity == Rarity.COMMON and "Basic Land" not in c.type_line
             ]
-            colors_present = {
-                c.color_identity[0].value for c in commons if c.color_identity
-            }
+            colors_present = {c.color_identity[0].value for c in commons if c.color_identity}
             assert len(colors_present) == 5, (
                 f"Seed {seed}: only {colors_present} in commons (need all WUBRG)"
             )
@@ -394,6 +390,5 @@ class TestColorBalance:
         for color in ["W", "U", "B", "R", "G"]:
             count = total_by_color.get(color, 0)
             assert 140 <= count <= 260, (
-                f"Color {color} appeared {count} times in {n_packs} packs "
-                f"(expected ~200 ± 60)"
+                f"Color {color} appeared {count} times in {n_packs} packs (expected ~200 ± 60)"
             )
