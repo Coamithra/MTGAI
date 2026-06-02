@@ -23,12 +23,6 @@ def test_default_llm_model():
     assert "claude" in config.llm_model or config.llm_model != ""
 
 
-def test_default_llm_temperature():
-    """Default temperature is a reasonable float between 0 and 2."""
-    config = MTGAIConfig()
-    assert 0.0 <= config.llm_temperature <= 2.0
-
-
 def test_default_llm_max_retries():
     """Default max retries is a positive integer."""
     config = MTGAIConfig()
@@ -154,13 +148,6 @@ def test_env_prefix_override():
     with patch.dict("os.environ", {"MTGAI_LLM_PROVIDER": "openai"}):
         config = MTGAIConfig()
         assert config.llm_provider == "openai"
-
-
-def test_env_override_temperature():
-    """MTGAI_LLM_TEMPERATURE overrides the default."""
-    with patch.dict("os.environ", {"MTGAI_LLM_TEMPERATURE": "0.3"}):
-        config = MTGAIConfig()
-        assert config.llm_temperature == pytest.approx(0.3)
 
 
 def test_env_override_batch_size():

@@ -35,6 +35,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool, stream_text
 from mtgai.generation.skeleton_prompt_blocks import (
     format_archetypes_block,
@@ -418,7 +419,7 @@ def relabel_slots(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 model=model,
-                temperature=1.0,
+                temperature=temps.CREATIVE,
                 max_tokens=HEAVY,
                 log_dir=log_dir,
                 repeat_penalty=RELABEL_TEXT_REPEAT_PENALTY,
@@ -608,7 +609,7 @@ def assign_requests(
                 user_prompt=user_prompt,
                 tool_schema=ASSIGN_TOOL_SCHEMA,
                 model=model,
-                temperature=1.0,
+                temperature=temps.CREATIVE,
                 max_tokens=BATCH,
                 log_dir=log_dir,
                 repeat_penalty=_repeat_penalty_for(attempt),

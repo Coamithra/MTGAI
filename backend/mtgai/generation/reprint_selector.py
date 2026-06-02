@@ -28,6 +28,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.reprint_knobs import (
     RARITIES,
     ReprintKnobs,
@@ -41,6 +42,7 @@ from mtgai.generation.skeleton_prompt_blocks import (
     format_mechanics_block,
     format_setting_block,
 )
+from mtgai.generation.token_utils import OutputTruncatedError
 from mtgai.io.atomic import atomic_write_text
 from mtgai.models.card import Card
 from mtgai.models.enums import Color, Rarity
@@ -426,18 +428,30 @@ def _select_from_pool(
     if count <= 0 or not pool:
         return []
     by_name = {c.name.lower(): c for c in pool}
-    try:
-        response = generate_with_tool(
-            system_prompt=_SELECT_SYSTEM,
-            user_prompt=_build_select_user(context, pool, count, per_rarity),
-            tool_schema=_SELECT_TOOL,
-            model=model,
-            temperature=temperature,
-            max_tokens=STANDARD,
-            log_dir=log_dir,
-        )
-    except Exception:
-        logger.error("Reprint selection (pick) failed", exc_info=True)
+    # A truncated local response is usually a repetition loop; a plain re-roll at
+    # the same low temp reproduces it, so bump the temperature per retry (the
+    # verified escape — see temperatures.RETRY_TEMP_STEP / gate_common).
+    response = None
+    for attempt in range(_PLACE_MAX_ATTEMPTS):
+        if attempt and ai_lock.is_cancelled():
+            break
+        try:
+            response = generate_with_tool(
+                system_prompt=_SELECT_SYSTEM,
+                user_prompt=_build_select_user(context, pool, count, per_rarity),
+                tool_schema=_SELECT_TOOL,
+                model=model,
+                temperature=temperature + temps.RETRY_TEMP_STEP * attempt,
+                max_tokens=STANDARD,
+                log_dir=log_dir,
+            )
+            break
+        except OutputTruncatedError as exc:
+            logger.warning("Reprint selection truncated (attempt %d): %s", attempt + 1, exc)
+        except Exception:
+            logger.error("Reprint selection (pick) failed", exc_info=True)
+            return []
+    if response is None:
         return []
 
     chosen: list[tuple[ReprintCandidate, str]] = []
@@ -499,12 +513,14 @@ def _place_reprints(
             logger.warning("Reprint placement CANCELLED by user after %d placed", len(placed))
             break
         try:
+            # Each re-ask is also perturbed off the base: it both fills the
+            # remaining slots and escapes a same-temp repetition loop on local.
             response = generate_with_tool(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 tool_schema=_PLACE_TOOL,
                 model=model,
-                temperature=temperature,
+                temperature=temperature + temps.RETRY_TEMP_STEP * (attempt - 1),
                 max_tokens=STANDARD,
                 log_dir=log_dir,
             )
@@ -569,7 +585,7 @@ def select_reprints(
     pool_path: Path | None = None,
     log_dir: Path | None = None,
     knobs: ReprintKnobs | None = None,
-    temperature: float = 0.0,
+    temperature: float = temps.ANALYTICAL,
 ) -> ReprintSelection:
     """Select + place reprints for a set — main entry point.
 
@@ -579,7 +595,10 @@ def select_reprints(
     stated to the select pass as a soft rarity mix. An explicit ``count`` bypasses
     the knobs (flat total — scripts/tests). The model is the active project's
     ``reprints`` assignment (local Gemma by default). ``temperature`` defaults to
-    0.0 (reproducible); a manual Refresh passes a higher value. Files
+    a low :data:`temperatures.ANALYTICAL` base (NOT 0 — greedy decode loops on the
+    local default and isn't actually deterministic anyway); both passes bump it by
+    :data:`temperatures.RETRY_TEMP_STEP` per retry to escape a Gemma repetition
+    loop. A manual Refresh passes a higher value. Files
     (theme/knobs/logs) resolve relative to ``skeleton_path``'s directory; the LLM
     transcript lands in ``<asset>/reprints/logs``.
     """

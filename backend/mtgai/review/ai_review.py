@@ -27,6 +27,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.generation.prompts import format_mechanic_block
 from mtgai.generation.token_budgets import HEAVY
@@ -49,7 +50,7 @@ REVIEWS_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reviews"
 REPORTS_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reports"
 
 # LLM settings — model + effort come from per-set model_settings at runtime.
-TEMPERATURE = 1.0
+TEMPERATURE = temps.CREATIVE  # open design-council review (see temperatures.py)
 MAX_ITERATIONS = 5
 
 
