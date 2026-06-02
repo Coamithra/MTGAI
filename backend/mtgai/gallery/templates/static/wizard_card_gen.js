@@ -30,8 +30,13 @@
  *   §6  past-tab edit cascade routes through wizard_stage.js / W.editFlow
  *   §8  status pill flows from stage state
  *   §9  Stop after this step — handled by wizard_stage.js
- *   §13 "Refresh AI…" section header button always rendered (recovery path
- *       for failed/empty runs)
+ *   §13 "Refresh AI…" section header button — gated to the tip instance
+ *       (recovery path for failed/empty runs). It regenerates the whole live
+ *       cards/ pool from scratch, which only makes sense for the loop tip; a
+ *       non-tip regen instance is a frozen history/<id>/ snapshot, so the button
+ *       is hidden there (matching the isLatest convention) — otherwise
+ *       clicking it would cross-wire the backbone refresh response (full fresh
+ *       pool, is_regen_instance=false) into that instance's per-tab state.
  *
  * No user-editable card fields — card content is produced by the engine.
  * The tab's job is to surface live progress, show the generated cards once
@@ -380,6 +385,7 @@
       local.stageStatus = stage ? stage.status : 'pending';
       content.innerHTML = mountShellHtml();
       bindControls(root, instanceId, local);
+      setRefreshVisibility(root, isLatestInstance(state, instanceId));
       W.bindRerunButton(root, stage);
       // A missing /state route (404) returns null from fetchStageState — the
       // bootstrap then paints the empty placeholder. A hard error still toasts
@@ -419,12 +425,31 @@
         })
         .finally(() => { local.bootstrapping = false; });
       W.bindRerunButton(root, stage);
+      setRefreshVisibility(root, isLatestInstance(state, instanceId));
       return;
     }
 
     W.bindRerunButton(root, stage);
+    setRefreshVisibility(root, isLatestInstance(state, instanceId));
     paintFooter(footer, state, stage, instanceId, local);
     setLocked(root, local, local.locked);
+  }
+
+  // The Refresh AI button regenerates the whole live cards/ pool from scratch,
+  // which only makes sense for the loop tip — so it shows only on the latest
+  // instance. A non-tip regen instance (e.g. card_gen.2) is a frozen
+  // history/<id>/ snapshot; clicking refresh there would target the backbone
+  // pool and write the backbone /state response (full fresh pool,
+  // is_regen_instance=false) into this instance's per-tab state. Same liveness
+  // as the footer's isLatest, re-evaluated on every render in case a later
+  // instance is appended and this tab stops being the tip.
+  function isLatestInstance(state, instanceId) {
+    return !state || state.latestTabId === instanceId;
+  }
+
+  function setRefreshVisibility(root, visible) {
+    const btn = root && root.querySelector('[data-role="cg-refresh-btn"]');
+    if (btn) btn.hidden = !visible;
   }
 
   function mountShellHtml() {
@@ -761,7 +786,7 @@
 
   function paintFooter(footer, state, stage, instanceId, local) {
     if (!footer) return;
-    const isLatest = !state || state.latestTabId === instanceId;
+    const isLatest = isLatestInstance(state, instanceId);
     const status = (stage && stage.status) || local.stageStatus;
     const next = W.nextStageEntryAfter(instanceId);
     const nextName = next ? next.name : 'the next stage';
