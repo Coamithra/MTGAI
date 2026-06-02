@@ -14,6 +14,7 @@ CLI usage:
 """
 
 import argparse
+import contextlib
 import json
 import logging
 import random
@@ -207,7 +208,8 @@ def start_comfyui(log_dir: Path | None = None) -> subprocess.Popen:
         log_dir.mkdir(parents=True, exist_ok=True)
         comfyui_log = log_dir / "comfyui.log"
         logger.info("ComfyUI output → %s", comfyui_log)
-        log_handle = open(comfyui_log, "w", encoding="utf-8", buffering=1)
+        # Long-lived handle: stored on the process and closed in kill_comfyui.
+        log_handle = open(comfyui_log, "w", encoding="utf-8", buffering=1)  # noqa: SIM115
         stdout_dest = log_handle
         stderr_dest = log_handle
     else:
@@ -271,10 +273,8 @@ def kill_comfyui(proc: subprocess.Popen | None = None) -> None:
     if proc is not None:
         log_handle = getattr(proc, "_log_handle", None)
         if log_handle is not None:
-            try:
+            with contextlib.suppress(Exception):
                 log_handle.close()
-            except Exception:
-                pass
 
     # Try the process handle we have
     if proc is not None and proc.poll() is None:

@@ -31,7 +31,9 @@ def _reset_state():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("code", ["AS", "ASD", "DRKSN", "DARKSUN", "asd", "AB-CD", "12345", "", "   "])
+@pytest.mark.parametrize(
+    "code", ["AS", "ASD", "DRKSN", "DARKSUN", "asd", "AB-CD", "12345", "", "   "]
+)
 def test_valid_codes_accept_any_string(code):
     assert active_project.is_valid_set_code(code)
 

@@ -10,6 +10,7 @@ Single-extraction model: only one extraction can run at a time.
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import json as _json
 import logging
@@ -23,6 +24,7 @@ from typing import Any
 
 from llmfacade import SystemBlock
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.phase_poller import NullPoller, PromptEvalPoller
 from mtgai.generation.token_budgets import HEAVY, STANDARD
 from mtgai.io.atomic import atomic_write_text
@@ -494,7 +496,7 @@ def _clean_pdf_text(text: str) -> str:
     text = text.replace("‌", " ")  # zero-width non-joiner
     text = text.replace("‍", " ")  # zero-width joiner
     text = text.replace("﻿", "")  # BOM
-    text = text.replace(" ", " ")  # non-breaking space
+    text = text.replace(" ", " ")  # noqa: RUF001 (deliberate non-breaking space)
     text = re.sub(r" {2,}", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     text = "\n".join(line.rstrip() for line in text.split("\n"))
@@ -576,10 +578,7 @@ def analyze_extraction(text: str, model_key: str) -> ExtractionPlan:
     fits = token_count <= available
 
     chunk_token_budget = model_info.context_window // 2
-    if fits:
-        chunk_count = 1
-    else:
-        chunk_count = max(1, math.ceil(token_count / max(chunk_token_budget, 1)))
+    chunk_count = 1 if fits else max(1, math.ceil(token_count / max(chunk_token_budget, 1)))
 
     if fits:
         total_input_tokens = token_count
@@ -1293,7 +1292,7 @@ def _stream_anthropic_call(
     convo = facade_model.new_conversation(
         system_blocks=[SystemBlock(text=system_prompt, cache=True)],
         max_tokens=_OUTPUT_BUDGET,
-        temperature=0.7,
+        temperature=temps.BALANCED,
         log_path=log_path,
         log_max_message_lines=_LOG_MAX_MESSAGE_LINES,
     )
@@ -1443,7 +1442,9 @@ def _stream_llamacpp_call(
     provider = _get_provider("llamacpp")
     facade_model = _llamacpp_new_model(provider, model_info.model_id)
     log_path = _build_call_log_path(step_label, "llamacpp-call")
-    effective_temperature = temperature_override if temperature_override is not None else 0.7
+    effective_temperature = (
+        temperature_override if temperature_override is not None else temps.BALANCED
+    )
     convo_kwargs: dict[str, Any] = {
         "system_blocks": [SystemBlock(text=system_prompt)],
         "max_tokens": output_reserve,
@@ -1545,10 +1546,8 @@ def _stream_llamacpp_call(
             # happy.
             close = getattr(stream_iter, "close", None)
             if close is not None:
-                try:
+                with contextlib.suppress(Exception):
                     close()
-                except Exception:
-                    pass
 
         if loop_err:
             logger.info(

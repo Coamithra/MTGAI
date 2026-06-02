@@ -48,7 +48,9 @@ def detect_repetition(text: str, min_repeats: int = 15) -> str | None:
     return None
 
 
-def detect_phrase_repetition(text: str, max_phrase_len: int = 60, min_repeats: int = 6) -> str | None:
+def detect_phrase_repetition(
+    text: str, max_phrase_len: int = 60, min_repeats: int = 6
+) -> str | None:
     """Detect repetition of multi-token phrases at the tail of the stream.
 
     Looks for any short suffix (1..max_phrase_len chars) that is repeated
@@ -100,13 +102,15 @@ def run_call(
     http_status: int | None = None
     start = time.perf_counter()
 
-    LOOP_THRESHOLD = 25
-    TAIL_BUDGET_CHARS = 1500
+    loop_threshold = 25
+    tail_budget_chars = 1500
     tokens_since_check = 0
     last_progress = time.perf_counter()
-    PROGRESS_INTERVAL_S = 15.0
+    progress_interval_s = 15.0
 
-    log_fp = open(stream_log_path, "w", encoding="utf-8") if stream_log_path else None
+    log_fp = None
+    if stream_log_path:
+        log_fp = open(stream_log_path, "w", encoding="utf-8")  # noqa: SIM115 (closed below)
 
     try:
         with requests.post(
@@ -145,15 +149,18 @@ def run_call(
                         print(f"    [ABORT: {aborted_reason}]", flush=True)
                         resp.close()
                         break
-                    if now - last_progress >= PROGRESS_INTERVAL_S:
+                    if now - last_progress >= progress_interval_s:
                         last_progress = now
                         total_chars = sum(len(c) for c in chunks)
-                        print(f"    [progress {elapsed:.0f}s tokens={len(chunks)} chars={total_chars}]",
-                              flush=True)
+                        print(
+                            f"    [progress {elapsed:.0f}s "
+                            f"tokens={len(chunks)} chars={total_chars}]",
+                            flush=True,
+                        )
                     if tokens_since_check >= 10:
                         tokens_since_check = 0
-                        tail = "".join(chunks)[-TAIL_BUDGET_CHARS:]
-                        finding = (detect_repetition(tail, min_repeats=LOOP_THRESHOLD)
+                        tail = "".join(chunks)[-tail_budget_chars:]
+                        finding = (detect_repetition(tail, min_repeats=loop_threshold)
                                    or detect_phrase_repetition(tail))
                         if finding:
                             aborted_reason = f"Streaming loop detected: {finding}"

@@ -23,6 +23,7 @@ import re
 
 from mtgai.analysis.gate_common import filter_gate_cards, generate_gate_tool
 from mtgai.analysis.models import InteractionFlag
+from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import cost_from_result
 from mtgai.generation.token_budgets import HEAVY
 from mtgai.models.card import Card
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 # Model + effort come from per-set model_settings at runtime.
-TEMPERATURE = 0.3  # Low temp for analytical task
+TEMPERATURE = temps.ANALYTICAL  # analytical scan (see temperatures.py)
 MAX_TOKENS = HEAVY
 
 # ---------------------------------------------------------------------------

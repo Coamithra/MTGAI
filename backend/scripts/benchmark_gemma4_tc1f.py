@@ -216,11 +216,16 @@ def print_summary(results: list[dict], kv_mode: str, num_ctx: int):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--models", nargs="+", help="Registry keys (default: all TC-1f models)")
-    parser.add_argument("--num-ctx", type=int, default=65536, help="Forced context window (default: 64K)")
+    parser.add_argument(
+        "--num-ctx", type=int, default=65536, help="Forced context window (default: 64K)"
+    )
     parser.add_argument(
         "--tag",
         default=None,
-        help="Override result-dir KV cache tag (e.g. 'default' or 'q4_0'). Defaults to env detection.",
+        help=(
+            "Override result-dir KV cache tag (e.g. 'default' or 'q4_0'). "
+            "Defaults to env detection."
+        ),
     )
     args = parser.parse_args()
 

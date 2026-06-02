@@ -23,7 +23,7 @@ class EventBus:
     """
 
     # Cap on the per-run replay buffer. ~10k events covers a long card_gen
-    # batch (per-tile updates × ~60 cards × multiple update kinds) with room
+    # batch (per-tile updates x ~60 cards x multiple update kinds) with room
     # to spare. When exceeded the oldest events are dropped — the only ones
     # at risk of being lost are early stage_update / phase ticks the user
     # already has on screen anyway.

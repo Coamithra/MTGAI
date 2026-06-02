@@ -27,7 +27,7 @@ import re
 import threading
 import uuid
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 
@@ -419,18 +419,42 @@ def _generate_anthropic(
     effort: str | None,
     cache: bool,
     log_dir: Any = True,
+    system_blocks: list[tuple[str, bool]] | None = None,
+    cache_user: bool = False,
 ) -> dict:
-    """Call Anthropic via llmfacade with forced tool_choice."""
+    """Call Anthropic via llmfacade with forced tool_choice.
+
+    ``system_blocks`` (already normalized to ``(text, cache)`` tuples by
+    :func:`generate_with_tool`) builds one ``SystemBlock`` per item, so a caller
+    can push bulk static context into its own independently-cached block — the
+    prompt-cache prefix every card_gen batch reuses. The per-block ``cache`` is
+    AND-ed with the call-level ``cache`` so passing ``cache=False`` still
+    disables caching wholesale. When ``system_blocks`` is omitted we keep the
+    historical single-block path. ``cache_user`` requests an ephemeral marker on
+    the last user block (used by the mechanics council so same-round reviewers
+    read an identical user prompt from cache). Anthropic caps a request at 4
+    ``cache_control`` markers — the tool schema, every cached system block, and
+    an optional cached last-user block all count, so callers bundle their static
+    context into ONE block (card_gen uses 3: tools + base + static).
+    """
     provider = _get_provider("anthropic")
     facade_model = provider.new_model(model)
+    if system_blocks is not None:
+        blocks: list[SystemBlock | str] = [
+            SystemBlock(text=text, cache=(blk_cache and cache)) for text, blk_cache in system_blocks
+        ]
+    else:
+        blocks = [SystemBlock(text=system_prompt, cache=cache)]
     convo = facade_model.new_conversation(
         name=_convo_name(tool_schema),
-        system_blocks=[SystemBlock(text=system_prompt, cache=cache)],
+        system_blocks=blocks,
         tools=[_make_tool(tool_schema)],
         tool_choice=tool_schema["name"],
         # Provider-level auto_cache_tools is True; explicitly disable here
         # when the caller passes cache=False so we honour the contract.
         auto_cache_tools=cache,
+        # Cache the last user block when asked (and caching is on at all).
+        auto_cache_last_user=cache_user and cache,
         log_dir=log_dir,
         cache_dir=_active_cache_dir(),
     )
@@ -686,10 +710,35 @@ def _resolve_provider(model: str) -> str:
     return PROVIDER
 
 
+def _normalize_system_blocks(
+    system_blocks: list[str | tuple[str, bool]],
+) -> list[tuple[str, bool]]:
+    """Coerce the public ``system_blocks`` shape to ``(text, cache)`` tuples.
+
+    A bare ``str`` item means "uncached"; a ``(text, cache)`` tuple sets the flag
+    explicitly. Converting here keeps ``SystemBlock`` an llmfacade detail of the
+    transport, never leaking into call sites.
+
+    Empty / whitespace-only items are dropped: the Anthropic API rejects an
+    empty text content block (and a ``cache_control`` marker on one), so a caller
+    that conditionally builds a block can pass "" without blowing up the request.
+    """
+    normalized: list[tuple[str, bool]] = []
+    for item in system_blocks:
+        if isinstance(item, str):
+            text, blk_cache = item, False
+        else:
+            text, blk_cache = str(item[0]), bool(item[1])
+        if not text.strip():
+            continue
+        normalized.append((text, blk_cache))
+    return normalized
+
+
 def generate_with_tool(
-    system_prompt: str,
-    user_prompt: str,
-    tool_schema: dict,
+    system_prompt: str = "",
+    user_prompt: str = "",
+    tool_schema: dict | None = None,
     model: str = "claude-sonnet-4-6",
     temperature: float = 1.0,
     max_tokens: int = 8192,
@@ -697,6 +746,9 @@ def generate_with_tool(
     cache: bool = True,
     log_dir: Any | None = None,
     repeat_penalty: float | None = None,
+    *,
+    system_blocks: list[str | tuple[str, bool]] | None = None,
+    cache_user: bool = False,
 ) -> dict:
     """Call an LLM with tool_use for structured JSON output.
 
@@ -728,11 +780,27 @@ def generate_with_tool(
     provider = _resolve_provider(model)
     # None → True keeps llmfacade's default-on logging (session dirs under cwd);
     # a Path routes the transcript to a caller-chosen directory.
+    if tool_schema is None:
+        raise ValueError("generate_with_tool requires a tool_schema")
+    if system_blocks is not None and system_prompt:
+        raise ValueError("Pass either system_prompt or system_blocks, not both.")
+
+    normalized_blocks = (
+        _normalize_system_blocks(system_blocks) if system_blocks is not None else None
+    )
+
     effective_log_dir = True if log_dir is None else log_dir
 
     if provider == "llamacpp":
+        # Caching is Anthropic-only: flatten the blocks to one system string and
+        # drop the cache flags (the joined order matches the Anthropic prefix).
+        flat_system = (
+            "\n\n".join(text for text, _ in normalized_blocks)
+            if normalized_blocks is not None
+            else system_prompt
+        )
         return _generate_llamacpp(
-            system_prompt=system_prompt,
+            system_prompt=flat_system,
             user_prompt=user_prompt,
             tool_schema=tool_schema,
             model=model,
@@ -752,6 +820,8 @@ def generate_with_tool(
         effort=effort,
         cache=cache,
         log_dir=effective_log_dir,
+        system_blocks=normalized_blocks,
+        cache_user=cache_user,
     )
 
 
@@ -1013,10 +1083,8 @@ def _consume_text_stream(convo: Any, user_prompt: str, model: str) -> Iterator[d
     finally:
         close = getattr(stream_iter, "close", None)
         if close is not None:
-            try:
+            with suppress(Exception):
                 close()
-            except Exception:
-                pass
 
     yield {
         "type": "complete",

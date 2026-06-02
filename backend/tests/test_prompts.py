@@ -233,23 +233,21 @@ def test_format_slot_specs_no_signpost_marker_when_absent() -> None:
 
 
 def test_build_user_prompt_asd_regression() -> None:
+    # build_user_prompt now holds ONLY the dynamic sections (existing-card
+    # context, cycle siblings, slot specs). The static set-flavor / mechanics /
+    # preventive-guidance content moved to build_static_set_context, so it must
+    # NOT appear here; the slot spec (incl. the theme-fallback archetype) does.
     prompt = prompts.build_user_prompt(
         [_wu_slot()],
         _mechanics(),
         existing_cards=[],
         theme=_asd_theme(),
     )
-    # Set-flavor section survives the migration.
-    assert "## Set: Anomalous Descent" in prompt
-    assert "Theme: Science-fantasy megadungeon" in prompt
-    assert "Denethix clings to order" in prompt
-    assert "Flavor text tone: Deadpan, darkly humorous." in prompt
-    # Mechanics + preventive guidance + slot spec all present.
-    assert "Custom Mechanics for This Set" in prompt
-    assert "Salvage" in prompt
-    assert "Preventive Design Checklist" in prompt
+    assert "## Set: Anomalous Descent" not in prompt
+    assert "Custom Mechanics for This Set" not in prompt
+    assert "Preventive Design Checklist" not in prompt
     assert "Generate exactly 1 card(s)" in prompt
-    # With no override, the theme's own archetype annotates the WU slot.
+    # With no override, the theme's own archetype annotates the WU slot spec.
     assert "Theme Skies: from the theme file" in prompt
 
 
@@ -362,8 +360,9 @@ def test_preventive_guidance_handles_no_mechanics() -> None:
 
 
 def test_build_user_prompt_includes_off_color_mechanics() -> None:
-    # A Black/Red mechanic must still appear in an all-White batch — the color
-    # filter that used to drop it (the "Seize Control" bug) is gone.
+    # A Black/Red mechanic must still appear in an all-White batch's STATIC
+    # context (the color filter that used to drop it -- the "Seize Control"
+    # bug -- is gone). The mechanic block lives in build_static_set_context now.
     mechanics = [
         {
             "name": "Seize Control",
@@ -375,31 +374,21 @@ def test_build_user_prompt_includes_off_color_mechanics() -> None:
             "design_notes": "Take control of target permanent.",
         }
     ]
-    white_slot = {
-        "slot_id": "001",
-        "color": "W",
-        "rarity": "common",
-        "card_type": "creature",
-        "cmc_target": 2,
-        "mechanic_tag": "evergreen",
-    }
-    prompt = prompts.build_user_prompt([white_slot], mechanics, existing_cards=[], theme=None)
+    ctx = prompts.build_static_set_context(mechanics, theme=None)
     # design_notes only appears in the mechanic block, so this proves the block
     # (not just the preventive-guidance name list) included the off-color mechanic.
-    assert "Take control of target permanent." in prompt
+    assert "Take control of target permanent." in ctx
 
 
-def test_build_user_prompt_has_archetypes_section() -> None:
+def test_build_static_set_context_has_archetypes_section() -> None:
     archetypes = [
         {"color_pair": "WU", "name": "Sky Patrol", "description": "win in the air"},
         {"color_pair": "BR", "name": "Aggro Sac", "description": "throw bodies at them"},
     ]
-    prompt = prompts.build_user_prompt(
-        [_wu_slot()], _mechanics(), existing_cards=[], theme=None, archetypes=archetypes
-    )
-    assert "## Draft Archetypes" in prompt
-    assert "WU — Sky Patrol: win in the air" in prompt
-    assert "BR — Aggro Sac: throw bodies at them" in prompt
+    ctx = prompts.build_static_set_context(_mechanics(), theme=None, archetypes=archetypes)
+    assert "## Draft Archetypes" in ctx
+    assert "WU — Sky Patrol: win in the air" in ctx
+    assert "BR — Aggro Sac: throw bodies at them" in ctx
 
 
 def test_format_archetypes_section_empty_when_none() -> None:
@@ -514,3 +503,56 @@ def test_format_mechanic_block_handles_missing_examples() -> None:
     block = prompts.format_mechanic_block(mechanics, set())
     assert "### Legacy" in block
     assert "Example cards" not in block
+
+
+# ---------------------------------------------------------------------------
+# build_static_set_context -- the cached prefix (static/dynamic split)
+# ---------------------------------------------------------------------------
+
+
+def test_build_static_set_context_contains_all_static_sections() -> None:
+    archetypes = [{"color_pair": "WU", "name": "Sky Patrol", "description": "win in the air"}]
+    ctx = prompts.build_static_set_context(_mechanics(), _asd_theme(), archetypes)
+    # Set flavor (setting prose)
+    assert "## Set: Anomalous Descent" in ctx
+    assert "Denethix clings to order" in ctx
+    # Custom mechanics
+    assert "Custom Mechanics for This Set" in ctx
+    assert "Salvage" in ctx
+    # Draft archetypes
+    assert "## Draft Archetypes" in ctx
+    assert "Sky Patrol" in ctx
+    # Preventive guidance
+    assert "Preventive Design Checklist" in ctx
+    # ...and NONE of the dynamic content (no slot specs / existing-card block).
+    assert "Generate exactly" not in ctx
+    assert "Cards already in the set" not in ctx
+
+
+def test_build_static_set_context_is_byte_identical_across_calls() -> None:
+    # The cached prefix MUST be deterministic across same-run calls or every
+    # batch would bust the cache. Two calls with the same inputs -> same string.
+    archetypes = [{"color_pair": "WU", "name": "Sky Patrol", "description": "win in the air"}]
+    a = prompts.build_static_set_context(_mechanics(), _asd_theme(), archetypes)
+    b = prompts.build_static_set_context(_mechanics(), _asd_theme(), archetypes)
+    assert a == b
+
+
+def test_build_user_prompt_excludes_static_sections() -> None:
+    # The complement of the static-context test: build_user_prompt must carry
+    # only dynamic content, never the four static sections (else they'd be
+    # double-sent AND uncached).
+    archetypes = [{"color_pair": "WU", "name": "Sky Patrol", "description": "win in the air"}]
+    prompt = prompts.build_user_prompt(
+        [_wu_slot()],
+        _mechanics(),
+        existing_cards=[],
+        theme=_asd_theme(),
+        archetypes=archetypes,
+    )
+    assert "## Set: Anomalous Descent" not in prompt
+    assert "Custom Mechanics for This Set" not in prompt
+    assert "## Draft Archetypes" not in prompt
+    assert "Preventive Design Checklist" not in prompt
+    # Dynamic content present.
+    assert "Generate exactly 1 card(s)" in prompt

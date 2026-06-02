@@ -135,10 +135,10 @@ def main() -> int:
     start = time.perf_counter()
 
     # Streaming loop detection: track the last N tokens of tail text.
-    # If the tail collapses to a single repeated word for >= LOOP_THRESHOLD
+    # If the tail collapses to a single repeated word for >= loop_threshold
     # occurrences, abort the HTTP stream early.
-    LOOP_THRESHOLD = 25
-    TAIL_BUDGET_CHARS = 500
+    loop_threshold = 25
+    tail_budget_chars = 500
     tokens_since_check: int = 0
 
     try:
@@ -167,8 +167,8 @@ def main() -> int:
                     tokens_since_check += 1
                     if tokens_since_check >= 10:
                         tokens_since_check = 0
-                        tail = "".join(chunks)[-TAIL_BUDGET_CHARS:]
-                        finding = detect_repetition(tail, min_repeats=LOOP_THRESHOLD)
+                        tail = "".join(chunks)[-tail_budget_chars:]
+                        finding = detect_repetition(tail, min_repeats=loop_threshold)
                         if finding:
                             aborted_reason = f"Streaming loop detected: {finding}"
                             print(f"\n[aborting: {aborted_reason}]", flush=True)
