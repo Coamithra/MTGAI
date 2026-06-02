@@ -31,8 +31,7 @@ from mtgai.settings.model_registry import get_registry
 
 OLLAMA_URL = "http://localhost:11434"
 PDF_PATH = Path(
-    "C:/Programming/MTGAI/Inspiration/"
-    "The Dark Sun Campaign Setting for Worlds Without Number.pdf"
+    "C:/Programming/MTGAI/Inspiration/The Dark Sun Campaign Setting for Worlds Without Number.pdf"
 )
 RESULTS_DIR = Path("C:/Programming/MTGAI/output/benchmarks")
 
@@ -136,10 +135,12 @@ def run_extraction(model_key: str, text: str) -> dict:
         if etype == "status":
             msg = event["message"]
             if last_status_time is not None:
-                section_times.append({
-                    "step": status_events[-1] if status_events else "start",
-                    "duration_s": round(now - last_status_time, 2),
-                })
+                section_times.append(
+                    {
+                        "step": status_events[-1] if status_events else "start",
+                        "duration_s": round(now - last_status_time, 2),
+                    }
+                )
             last_status_time = now
             status_events.append(msg)
             print(f"    [{now - start:.1f}s] {msg}")
@@ -233,6 +234,7 @@ def main():
     print(f"  Embedded images: {len(images)}")
 
     from mtgai.generation.token_utils import count_tokens
+
     tokens = count_tokens(text)
     print(f"  Approx tokens: {tokens}")
     print(f"\nModels to benchmark: {models_to_test}")
@@ -248,9 +250,9 @@ def main():
     for key in models_to_test:
         model_info = registry.get_llm(key)
         assert model_info is not None  # validated above
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"BENCHMARKING: {key} ({model_info.model_id})")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         unload_all_models()
         time.sleep(2)

@@ -33,8 +33,7 @@ from mtgai.settings.model_registry import get_registry
 
 OLLAMA_URL = "http://localhost:11434"
 PDF_PATH = Path(
-    "C:/Programming/MTGAI/Inspiration/"
-    "The Dark Sun Campaign Setting for Worlds Without Number.pdf"
+    "C:/Programming/MTGAI/Inspiration/The Dark Sun Campaign Setting for Worlds Without Number.pdf"
 )
 RESULTS_DIR = Path("C:/Programming/MTGAI/output/benchmarks")
 
@@ -114,7 +113,7 @@ def check_gpu_placement(model_id: str) -> str:
                     pct_cpu = 100 - pct_gpu
                     return (
                         f"{pct_gpu}% GPU / {pct_cpu}% CPU "
-                        f"({size_vram/1e9:.1f}/{size/1e9:.1f} GB)"
+                        f"({size_vram / 1e9:.1f}/{size / 1e9:.1f} GB)"
                     )
         return "unknown"
     except Exception:
@@ -191,10 +190,7 @@ def run_extraction(model_key: str, text: str) -> dict:
 
 def print_summary(results: list[dict], kv_mode: str, num_ctx: int):
     print("\n" + "=" * 100)
-    print(
-        f"TC-1f RESULTS - Dark Sun PDF, num_ctx={num_ctx}, "
-        f"OLLAMA_KV_CACHE_TYPE={kv_mode}"
-    )
+    print(f"TC-1f RESULTS - Dark Sun PDF, num_ctx={num_ctx}, OLLAMA_KV_CACHE_TYPE={kv_mode}")
     print("=" * 100)
     print(
         f"{'Model':<30} {'Load(s)':>8} {'Extract(s)':>11} "
@@ -265,9 +261,9 @@ def main():
     for key in models_to_test:
         model_info = registry.get_llm(key)
         assert model_info is not None
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"BENCHMARKING: {key} ({model_info.model_id})")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         force_num_ctx(key, args.num_ctx)
 

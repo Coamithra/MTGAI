@@ -128,11 +128,18 @@ def run_call(
                             resp.close()
                             break
                 if evt.get("done"):
-                    meta = {k: evt.get(k) for k in (
-                        "total_duration", "load_duration", "prompt_eval_count",
-                        "prompt_eval_duration", "eval_count", "eval_duration",
-                        "done_reason",
-                    )}
+                    meta = {
+                        k: evt.get(k)
+                        for k in (
+                            "total_duration",
+                            "load_duration",
+                            "prompt_eval_count",
+                            "prompt_eval_duration",
+                            "eval_count",
+                            "eval_duration",
+                            "done_reason",
+                        )
+                    }
                     break
     except Exception:
         exc_text = traceback.format_exc()
@@ -156,12 +163,23 @@ def main() -> int:
     p.add_argument("--num-predict", type=int, default=-1)
     p.add_argument("--repeat-penalty", type=float, default=None)
     p.add_argument("--trials", type=int, default=1, help="Number of sequential trials")
-    p.add_argument("--skip-precursor", action="store_true",
-                   help="Skip the theme-extraction call (isolates constraints)")
-    p.add_argument("--precursor-input", type=Path, default=DEFAULT_PRECURSOR_INPUT,
-                   help="Text fed to theme_extraction prompt (big doc to load cache)")
-    p.add_argument("--constraints-input", type=Path, default=DEFAULT_CONSTRAINTS_INPUT,
-                   help="Theme text fed to constraints prompt")
+    p.add_argument(
+        "--skip-precursor",
+        action="store_true",
+        help="Skip the theme-extraction call (isolates constraints)",
+    )
+    p.add_argument(
+        "--precursor-input",
+        type=Path,
+        default=DEFAULT_PRECURSOR_INPUT,
+        help="Text fed to theme_extraction prompt (big doc to load cache)",
+    )
+    p.add_argument(
+        "--constraints-input",
+        type=Path,
+        default=DEFAULT_CONSTRAINTS_INPUT,
+        help="Theme text fed to constraints prompt",
+    )
     p.add_argument("--run-name-prefix", default="sequence")
     args = p.parse_args()
 
@@ -292,7 +310,12 @@ def main() -> int:
             ]
             if precursor_result["exception"]:
                 lines += [
-                    "### Exception", "", "```", precursor_result["exception"].rstrip(), "```", ""
+                    "### Exception",
+                    "",
+                    "```",
+                    precursor_result["exception"].rstrip(),
+                    "```",
+                    "",
                 ]
 
         lines += [
@@ -315,21 +338,28 @@ def main() -> int:
             lines += ["### Parsed JSON", "", "```json", parsed_summary, "```", ""]
         if constraints_result["exception"]:
             lines += [
-                "### Exception", "", "```", constraints_result["exception"].rstrip(), "```", ""
+                "### Exception",
+                "",
+                "```",
+                constraints_result["exception"].rstrip(),
+                "```",
+                "",
             ]
 
         out_path.write_text("\n".join(lines), encoding="utf-8")
 
-        summary.append({
-            "trial": trial,
-            "precursor_wall_s": precursor_result["wall_s"] if precursor_result else None,
-            "precursor_chars": len(precursor_result["raw"]) if precursor_result else None,
-            "constraints_wall_s": constraints_result["wall_s"],
-            "constraints_chars": len(raw),
-            "parse_status": parse_status,
-            "loop": bool(loop),
-            "file": str(out_path),
-        })
+        summary.append(
+            {
+                "trial": trial,
+                "precursor_wall_s": precursor_result["wall_s"] if precursor_result else None,
+                "precursor_chars": len(precursor_result["raw"]) if precursor_result else None,
+                "constraints_wall_s": constraints_result["wall_s"],
+                "constraints_chars": len(raw),
+                "parse_status": parse_status,
+                "loop": bool(loop),
+                "file": str(out_path),
+            }
+        )
 
     # Final summary
     print("\n" + "=" * 60)

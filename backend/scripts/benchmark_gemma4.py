@@ -164,13 +164,9 @@ def run_benchmark(
     ttft = (first_token_time - start) if first_token_time else wall_clock
 
     # Ollama provides precise eval stats
-    eval_tok_per_sec = (
-        (eval_count / (eval_duration_ns / 1e9)) if eval_duration_ns > 0 else 0
-    )
+    eval_tok_per_sec = (eval_count / (eval_duration_ns / 1e9)) if eval_duration_ns > 0 else 0
     prompt_tok_per_sec = (
-        (prompt_eval_count / (prompt_eval_duration_ns / 1e9))
-        if prompt_eval_duration_ns > 0
-        else 0
+        (prompt_eval_count / (prompt_eval_duration_ns / 1e9)) if prompt_eval_duration_ns > 0 else 0
     )
 
     return {
@@ -261,9 +257,9 @@ def main():
     results = []
 
     for key, model_id in models_to_test.items():
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"BENCHMARKING: {model_id} (key: {key})")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Unload previous model to get clean VRAM
         unload_all_models()
@@ -281,10 +277,12 @@ def main():
             result = run_benchmark(model_id, system_prompt, user_prompt, args.num_ctx)
         except Exception as e:
             print(f"  FAILED: {e}")
-            results.append({
-                "model_id": model_id,
-                "error": str(e),
-            })
+            results.append(
+                {
+                    "model_id": model_id,
+                    "error": str(e),
+                }
+            )
             continue
 
         results.append(result)

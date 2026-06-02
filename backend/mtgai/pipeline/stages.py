@@ -771,6 +771,7 @@ def run_reprints(
         load_reprint_pool,
         select_reprints,
     )
+    from mtgai.runtime import ai_lock
 
     set_dir = _set_dir()
     skeleton_path = set_dir / "skeleton.json"
@@ -814,15 +815,35 @@ def run_reprints(
 
     import time as _time
 
-    # Spin up a poller so the activity banner shows a prompt-eval heartbeat
-    # + generation tok/s during the (potentially long) llamacpp call. make_poller
-    # no-ops (NullPoller) for Anthropic, which doesn't expose /slots.
-    with make_poller(
-        "reprints",
-        emitter.phase,
-        activity_prefix=f"Selecting reprints (pool={len(eligible_pool)})",
-    ):
-        result = select_reprints(skeleton_path=skeleton_path)
+    # Hold the app-wide AI lock for the LLM work (one AI action at a time). This
+    # is also what makes the Cancel button work for the engine-driven stage:
+    # ai_lock.request_cancel() is a no-op unless the lock is held, and
+    # select_reprints polls ai_lock.is_cancelled() between its passes/attempts.
+    with ai_lock.hold("Reprint selection") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+        # Spin up a poller so the activity banner shows a prompt-eval heartbeat
+        # + generation tok/s during the (potentially long) llamacpp call. make_poller
+        # no-ops (NullPoller) for Anthropic, which doesn't expose /slots.
+        with make_poller(
+            "reprints",
+            emitter.phase,
+            activity_prefix=f"Selecting reprints (pool={len(eligible_pool)})",
+        ):
+            result = select_reprints(skeleton_path=skeleton_path)
+
+        # A user Cancel makes select_reprints stop before the placement pass and
+        # return a selection with no AI placements — don't persist it. Fail the
+        # stage so the engine halts (mirrors run_skeleton / run_card_gen); the
+        # user re-rolls from the tab.
+        if ai_lock.is_cancelled():
+            return StageResult(
+                success=False,
+                error_message="Reprint selection cancelled by user.",
+            )
 
     count = len(result.selections)
     # Save selection result
@@ -875,6 +896,7 @@ def run_lands(
     import time as _time
 
     from mtgai.generation.land_generator import generate_lands
+    from mtgai.runtime import ai_lock
 
     emitter.init_sections(
         [
@@ -929,11 +951,32 @@ def run_lands(
     def _on_card_saved(card) -> None:
         saved_cards.append(card)
 
-    with make_poller("lands", emitter.phase, activity_prefix="Designing lands"):
-        result = generate_lands(
-            on_call_start=_on_call_start,
-            on_card_saved=_on_card_saved,
-        )
+    # Hold the app-wide AI lock for the LLM work (one AI action at a time). This
+    # is also what makes the Cancel button work for the engine-driven stage:
+    # ai_lock.request_cancel() is a no-op unless the lock is held, and
+    # generate_lands polls ai_lock.is_cancelled() between its two LLM calls.
+    with ai_lock.hold("Land generation") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+        with make_poller("lands", emitter.phase, activity_prefix="Designing lands"):
+            result = generate_lands(
+                on_call_start=_on_call_start,
+                on_card_saved=_on_card_saved,
+            )
+
+        # A user Cancel stops generate_lands at a call boundary (it returns a
+        # ``cancelled`` shape, keeping any basics already written). Fail the stage
+        # so the engine halts instead of marching on to card_gen with a partial
+        # land set; a Retry re-runs generate_lands from scratch over the dir.
+        if result.get("cancelled") or ai_lock.is_cancelled():
+            return StageResult(
+                success=False,
+                error_message="Land generation cancelled by user.",
+            )
+
     count = result.get("total_cards", 5)
     cost = result.get("cost_usd", 0.0)
 

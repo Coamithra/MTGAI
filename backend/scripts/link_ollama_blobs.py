@@ -112,10 +112,7 @@ def main():
         if dest.exists():
             existing_size = dest.stat().st_size
             if existing_size == size:
-                print(
-                    f"  [OK   ] {spec.dest_filename}  "
-                    f"already exists, {size_gb:.2f} GB matches"
-                )
+                print(f"  [OK   ] {spec.dest_filename}  already exists, {size_gb:.2f} GB matches")
                 continue
             print(
                 f"  [WARN ] {spec.dest_filename}  exists with different size "
@@ -130,10 +127,7 @@ def main():
                 os.link(str(blob), str(dest))
                 actual = dest.stat().st_size
                 if actual != size:
-                    print(
-                        f"          [WARN] post-link size mismatch: "
-                        f"{actual:,} vs {size:,}"
-                    )
+                    print(f"          [WARN] post-link size mismatch: {actual:,} vs {size:,}")
                 else:
                     print("          [OK] hard link created")
             except OSError as e:

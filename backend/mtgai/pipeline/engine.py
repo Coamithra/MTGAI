@@ -286,9 +286,7 @@ class PipelineEngine:
             # Run the stage. Stamp this instance's entry-pool pointer (its
             # immediate predecessor's output snapshot) so a later manual re-run
             # restores the right card pool before walking forward from here.
-            stage.entry_snapshot_id = (
-                self.state.stages[i - 1].instance_id if i > 0 else None
-            )
+            stage.entry_snapshot_id = self.state.stages[i - 1].instance_id if i > 0 else None
             self.state.current_instance_id = stage.instance_id
             stage.status = StageStatus.RUNNING
             stage.progress = StageProgress(started_at=datetime.now(UTC))
