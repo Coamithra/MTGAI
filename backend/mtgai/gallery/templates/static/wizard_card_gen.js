@@ -425,6 +425,7 @@
         })
         .finally(() => { local.bootstrapping = false; });
       W.bindRerunButton(root, stage);
+      setRefreshVisibility(root, isLatestInstance(state, instanceId));
       return;
     }
 
