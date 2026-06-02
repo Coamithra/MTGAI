@@ -35,7 +35,11 @@ from pathlib import Path
 
 from mtgai.generation.archetype_generator import load_archetypes
 from mtgai.generation.llm_client import calc_cost, cost_from_result, generate_with_tool
-from mtgai.generation.prompts import build_user_prompt, load_system_prompt
+from mtgai.generation.prompts import (
+    build_static_set_context,
+    build_user_prompt,
+    load_system_prompt,
+)
 from mtgai.generation.token_budgets import BATCH, STANDARD
 from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
@@ -310,6 +314,7 @@ def _retry_single_card(
         slot["slot_id"],
     )
     system_prompt = load_system_prompt()
+    static_ctx = build_static_set_context(mechanics, theme, archetypes)
     existing_dicts = [c.model_dump() if hasattr(c, "model_dump") else c for c in existing_cards]
     user_prompt = build_user_prompt([slot], mechanics, existing_dicts, theme, archetypes)
     user_prompt += (
@@ -322,10 +327,14 @@ def _retry_single_card(
     # Route llmfacade's transcript alongside the bespoke per-card logs. The
     # bespoke log still owns the post-generation validation/fix/cost detail
     # llmfacade can't see; this just co-locates the raw conversation HTML.
+    #
+    # The base instructions + static set-context go in cached system blocks so
+    # the ~6-7k-token prefix is read at ~0.1x across batches/retries instead of
+    # re-billed in the user message (caching is a no-op on the llamacpp path).
     try:
         t0 = time.time()
         result = generate_with_tool(
-            system_prompt=system_prompt,
+            system_blocks=[(system_prompt, True), (static_ctx, True)],
             user_prompt=user_prompt,
             tool_schema=CARD_TOOL_SCHEMA,
             model=model,
@@ -1249,7 +1258,18 @@ def generate_set(
 
     # Generate!
     system_prompt = load_system_prompt()
-    logger.info("System prompt loaded: %d chars", len(system_prompt))
+    # Static set-context (setting prose, mechanics, archetypes, preventive
+    # guidance) is a pure function of the run's inputs, so hoist it out of the
+    # batch loop and reuse one immutable string. It rides in a cached system
+    # block per batch (written once, read at ~0.1x thereafter); `effective_system`
+    # is the full base + static text, logged so the sidecars still show everything.
+    static_ctx = build_static_set_context(mechanics, theme, archetypes)
+    effective_system = f"{system_prompt}\n\n---\n\n{static_ctx}"
+    logger.info(
+        "System prompt loaded: %d chars base + %d chars static context",
+        len(system_prompt),
+        len(static_ctx),
+    )
     total_saved = 0
     cancelled = False
     start_time = time.time()
@@ -1323,10 +1343,10 @@ def generate_set(
             cycle_siblings=siblings_for_batch,
         )
         logger.info(
-            "Prompt built: %d chars (system) + %d chars (user) = %d total",
-            len(system_prompt),
+            "Prompt built: %d chars (system+static) + %d chars (user) = %d total",
+            len(effective_system),
             len(user_prompt),
-            len(system_prompt) + len(user_prompt),
+            len(effective_system) + len(user_prompt),
         )
 
         tool_schema = CARD_TOOL_SCHEMA if len(batch) == 1 else CARDS_BATCH_TOOL_SCHEMA
@@ -1340,7 +1360,7 @@ def generate_set(
         try:
             t0 = time.time()
             result = generate_with_tool(
-                system_prompt=system_prompt,
+                system_blocks=[(system_prompt, True), (static_ctx, True)],
                 user_prompt=user_prompt,
                 tool_schema=tool_schema,
                 model=active_model,
@@ -1428,7 +1448,7 @@ def generate_set(
             latency_s=api_latency,
             stop_reason=result.get("stop_reason", ""),
             user_prompt=user_prompt,
-            system_prompt=system_prompt,
+            system_prompt=effective_system,
             effort=active_effort,
         )
 
@@ -1457,7 +1477,7 @@ def generate_set(
             progress,
             set_code=set_code,
             user_prompt=user_prompt,
-            system_prompt=system_prompt,
+            system_prompt=effective_system,
             latency_s=api_latency,
             stop_reason=result.get("stop_reason", ""),
             effort=active_effort,

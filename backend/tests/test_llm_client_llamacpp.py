@@ -674,3 +674,105 @@ class TestInterruptLocalInference:
         from mtgai.runtime import ai_lock
 
         assert llm_client.interrupt_local_inference in ai_lock._cancel_hooks
+
+
+# Multi-block system + cached-user prefix (system_blocks / cache_user primitive)
+
+
+class TestSystemBlocks:
+    """Cover the ``system_blocks`` / ``cache_user`` transport primitive."""
+
+    def test_anthropic_builds_one_block_per_item_with_cache_flags(self):
+        resp = _make_response(
+            tool_calls=[_make_tool_call("generate_card", SAMPLE_CARD)],
+            finish_reason="tool_use",
+        )
+        provider, _ = _build_facade_provider_mock(resp)
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="anthropic"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            generate_with_tool(
+                user_prompt="Make a card.",
+                tool_schema=SAMPLE_TOOL,
+                model="claude-sonnet-4-6",
+                system_blocks=[("base instructions", True), ("static set context", True)],
+            )
+        blocks = model.new_conversation.call_args.kwargs["system_blocks"]
+        assert [b.text for b in blocks] == ["base instructions", "static set context"]
+        assert [b.cache for b in blocks] == [True, True]
+        # No cache_user requested -> the last user block stays uncached.
+        assert model.new_conversation.call_args.kwargs["auto_cache_last_user"] is False
+
+    def test_anthropic_cache_false_disables_block_cache(self):
+        """A bare str item is uncached; cache=False also forces every block off."""
+        resp = _make_response(tool_calls=[_make_tool_call("generate_card", SAMPLE_CARD)])
+        provider, _ = _build_facade_provider_mock(resp)
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="anthropic"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            generate_with_tool(
+                user_prompt="u",
+                tool_schema=SAMPLE_TOOL,
+                system_blocks=["plain", ("cached", True)],
+                cache=False,
+            )
+        blocks = model.new_conversation.call_args.kwargs["system_blocks"]
+        assert [b.cache for b in blocks] == [False, False]
+
+    def test_anthropic_cache_user_threads_auto_cache_last_user(self):
+        resp = _make_response(tool_calls=[_make_tool_call("generate_card", SAMPLE_CARD)])
+        provider, _ = _build_facade_provider_mock(resp)
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="anthropic"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+                cache_user=True,
+            )
+        assert model.new_conversation.call_args.kwargs["auto_cache_last_user"] is True
+
+    def test_llamacpp_flattens_system_blocks_to_one_string(self):
+        """Caching is Anthropic-only: blocks join to one system string and the
+        cache flags are dropped (cache stats stay 0)."""
+        resp = _make_response(
+            tool_calls=[_make_tool_call("generate_card", SAMPLE_CARD)],
+            usage=_make_usage(),
+        )
+        provider, _ = _build_facade_provider_mock(resp)
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            result = generate_with_tool(
+                user_prompt="Make a card.",
+                tool_schema=SAMPLE_TOOL,
+                model="vlad-gemma4-26b-dynamic",
+                system_blocks=[("base", True), ("static", True)],
+            )
+        blocks = model.new_conversation.call_args.kwargs["system_blocks"]
+        assert len(blocks) == 1
+        assert blocks[0].text == "base\n\nstatic"
+        assert result["cache_creation_input_tokens"] == 0
+        assert result["cache_read_input_tokens"] == 0
+
+    def test_system_prompt_and_system_blocks_together_raises(self):
+        with pytest.raises(ValueError, match="either system_prompt or system_blocks"):
+            generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+                system_blocks=["x"],
+            )
+
+    def test_missing_tool_schema_raises(self):
+        with pytest.raises(ValueError, match="requires a tool_schema"):
+            generate_with_tool(system_prompt="Sys", user_prompt="User")
