@@ -362,6 +362,61 @@ class TestSelectReprints:
         assert called["n"] == 0
 
 
+# ---------------------------------------------------------------------------
+# Prompt caching: static context (+ pool) -> cached system blocks, dynamic -> user
+# ---------------------------------------------------------------------------
+
+
+class TestPromptCaching:
+    def _capture(self, project_skeleton: Path) -> dict[str, dict]:
+        """Run a full select+place and capture each pass's generate_with_tool kwargs."""
+        seen: dict[str, dict] = {}
+
+        def stub(**kwargs):
+            name = kwargs["tool_schema"]["name"]
+            seen[name] = kwargs
+            if name == "select_reprints":
+                return {
+                    "result": {"selections": [{"card_name": "Murder", "reason": "x"}]},
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                }
+            return {
+                "result": {
+                    "assignments": [{"card_name": "Murder", "slot_id": "B-C-03", "reason": "x"}]
+                },
+                "input_tokens": 1,
+                "output_tokens": 1,
+            }
+
+        with patch("mtgai.generation.llm_client.generate_with_tool", stub):
+            select_reprints(project_skeleton, count=1)
+        return seen
+
+    def test_select_pass_pool_rides_in_cached_block(self, project_skeleton: Path):
+        kw = self._capture(project_skeleton)["select_reprints"]
+        assert not kw.get("system_prompt")
+        blocks = kw["system_blocks"]
+        assert len(blocks) == 2 and all(cache is True for _t, cache in blocks)
+        context_text = blocks[1][0]
+        assert "## Reprint pool" in context_text
+        assert "Murder" in context_text  # a real pool staple is listed in the cached block
+        # Trigger names the tool and does NOT duplicate the pool.
+        user = kw["user_prompt"]
+        assert "select_reprints" in user
+        assert "## Reprint pool" not in user
+
+    def test_place_pass_context_rides_in_cached_block(self, project_skeleton: Path):
+        kw = self._capture(project_skeleton)["place_reprints"]
+        assert not kw.get("system_prompt")
+        blocks = kw["system_blocks"]
+        assert len(blocks) == 2 and all(cache is True for _t, cache in blocks)
+        context_text = blocks[1][0]
+        assert "## Chosen reprints" in context_text
+        assert "## Skeleton slots" in context_text
+        assert "place_reprints" in kw["user_prompt"]
+
+
 class TestSelectReprintsPinned:
     """``pinned`` selections survive a re-roll; the AI fills only the remainder."""
 

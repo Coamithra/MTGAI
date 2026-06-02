@@ -53,34 +53,41 @@ BASICS = [
 # ---------------------------------------------------------------------------
 
 
-def _build_basics_prompt(set_config: dict, context: dict[str, str]) -> tuple[str, str]:
+def _build_basics_prompt(set_config: dict, context: dict[str, str]) -> tuple[str, str, str]:
+    """Return (system, context_block, user) for the basics call.
+
+    The static persona + output spec ride in system block #1; the set's setting +
+    constraints ride in a cached system block #2; a short trigger is the user turn.
+    Caching no-ops on llamacpp (the blocks flatten to one joined system string).
+    """
     system = (
         "You are a Magic: The Gathering creative writer and art director. You write "
-        "evocative, setting-appropriate basic-land art briefs and (sparingly) flavor text."
+        "evocative, setting-appropriate basic-land art briefs and (sparingly) flavor "
+        "text.\n\n"
+        "Modern sets print several ALTERNATE ARTS of each basic land - different "
+        "vistas of the same world. For EACH of the five basic land types (Plains, "
+        "Island, Swamp, Mountain, Forest), give:\n\n"
+        "1. art_scenes: exactly 4 DISTINCT one-sentence art briefs. Each is a "
+        "different location, landmark, weather, or time of day in THIS world and "
+        "becomes one alternate printing, so make them visually distinct from one "
+        "another. Panoramic and concrete, NO figures or characters, evoke a specific "
+        "place. Match the terrain to the type (Plains = open/flat, Island = "
+        "water/coast, Swamp = dark/decaying, Mountain = volcanic/rocky, Forest = "
+        "overgrown wilderness).\n"
+        "2. flavor_text: ONE short (1 sentence) flavor text for the type. Most "
+        "printings carry no flavor, so make this one quotable and in-world; use an "
+        "em-dash for attribution if quoting a character."
     )
     # The setting prose + constraints come from the shared context blocks (read from
-    # theme.json), NOT the skeleton config's legacy theme/flavor_description fields —
-    # those are empty for theme.json-driven sets, which left this prompt blank.
+    # theme.json), NOT the skeleton config's legacy theme/flavor_description fields
+    # (those are empty for theme.json-driven sets, which left this prompt blank).
+    context_block = f"## Setting\n{context['setting']}\n\n## Constraints\n{context['constraints']}"
     user = (
-        f"# Basic Lands for {set_config.get('name', 'Unknown')}\n\n"
-        "## Setting\n"
-        f"{context['setting']}\n\n"
-        "## Constraints\n"
-        f"{context['constraints']}\n\n"
-        "Modern sets print several ALTERNATE ARTS of each basic land — different vistas "
-        "of the same world. For EACH of the five basic land types (Plains, Island, Swamp, "
-        "Mountain, Forest), give:\n\n"
-        "1. **art_scenes** — exactly 4 DISTINCT one-sentence art briefs. Each is a "
-        "different location, landmark, weather, or time of day in THIS world and becomes "
-        "one alternate printing, so make them visually distinct from one another. "
-        "Panoramic and concrete, NO figures or characters, evoke a specific place. Match "
-        "the terrain to the type (Plains = open/flat, Island = water/coast, Swamp = "
-        "dark/decaying, Mountain = volcanic/rocky, Forest = overgrown wilderness).\n"
-        "2. **flavor_text** — ONE short (1 sentence) flavor text for the type. Most "
-        "printings carry no flavor, so make this one quotable and in-world; use an "
-        "em-dash for attribution if quoting a character.\n"
+        "Write the alternate-art briefs and one flavor text for each of the five basic "
+        f"land types of {set_config.get('name', 'Unknown')}, using the setting and "
+        "constraints provided above. Return them through the create_basic_lands tool."
     )
-    return system, user
+    return system, context_block, user
 
 
 def _build_basics_tool_schema() -> dict:
@@ -158,32 +165,35 @@ def _build_investigation_prompt(
     context: dict[str, str],
     slot_texts: list[dict[str, str]],
     reprint_summary: str,
-) -> tuple[str, str]:
-    """The set's full context + every unfilled slot + the chosen reprints → decide
-    whether to add ONE bonus rare dual land. Reuses the shared skeleton-block
-    formatters (via ``context``) so this judges the set the same way the relabel did.
-    Multicolor density is read from the slot prose, not stale structured fields."""
+) -> tuple[str, str, str]:
+    """Return (system, context_block, user) for the fixing investigation.
+
+    The static persona rides in system block #1; the set framing (setting /
+    mechanics / archetypes / constraints, reused from the shared skeleton-block
+    formatters so this judges the set the same way the relabel did) rides in a
+    cached system block #2; the per-run dynamic content (placed reprints + every
+    unfilled slot + the decision ask) is the user turn. Multicolor density is read
+    from the slot prose, not stale structured fields.
+    """
     system = (
         "You are a Magic: The Gathering set designer making the FINAL call on a set's "
         "mana fixing. Fixing in a set comes from three sources, in order: (1) reserved "
         "land/card CYCLES in the skeleton (e.g. a guildgate cycle), (2) mana-fixing "
         "REPRINTS chosen from a staple pool (Evolving Wilds, taplands, etc.), and (3) "
-        "you — a single bespoke BONUS land that tops up only if the first two left a "
+        "you - a single bespoke BONUS land that tops up only if the first two left a "
         "gap.\n\n"
         "Your job: look at the whole set and decide whether it needs ONE extra "
         "dual/fixing land. Add one ONLY IF a real multicolor-fixing gap remains after "
         "the cycles and reprints above, OR the set has a strong multicolor theme that "
         "justifies a marquee dual on top. If the set already has adequate fixing, or is "
-        "mostly mono-color, decline — do not add a redundant land.\n\n"
+        "mostly mono-color, decline - do not add a redundant land.\n\n"
         "If you add one, design it as a RARE: a premium, setting-appropriate dual that "
         "need NOT enter tapped (it is a deliberate bonus, not baseline Limited fixing). "
         "Give it a setting-appropriate but generic name (no character names) and a "
         "one-sentence flavor text. Return your decision through the tool only."
     )
 
-    slot_lines = "\n".join(f"{s['slot_id']}: {s['text']}" for s in slot_texts) or "(no slots)"
-    user = (
-        f"# Fixing investigation — {set_config.get('name', 'Unknown')}\n\n"
+    context_block = (
         "## Set theme\n"
         f"{context['setting']}\n\n"
         "## Mechanics\n"
@@ -191,9 +201,14 @@ def _build_investigation_prompt(
         "## Draft archetypes\n"
         f"{context['archetypes']}\n\n"
         "## Constraints\n"
-        f"{context['constraints']}\n\n"
+        f"{context['constraints']}"
+    )
+
+    slot_lines = "\n".join(f"{s['slot_id']}: {s['text']}" for s in slot_texts) or "(no slots)"
+    user = (
+        f"# Fixing investigation: {set_config.get('name', 'Unknown')}\n\n"
         "## Reprints already placed in this set\n"
-        "These staples already occupy skeleton slots — judge which of them (if any) "
+        "These staples already occupy skeleton slots; judge which of them (if any) "
         "supply mana fixing, and treat the rest as ordinary cards:\n"
         f"{reprint_summary}\n\n"
         f"## Unfilled skeleton slots ({len(slot_texts)})\n"
@@ -204,7 +219,7 @@ def _build_investigation_prompt(
         "Decide: does this set need one bonus rare dual land on top of the fixing "
         "above? If yes, design it."
     )
-    return system, user
+    return system, context_block, user
 
 
 def _build_investigation_tool_schema() -> dict:
@@ -371,12 +386,12 @@ def generate_lands(
     cost = 0.0
 
     # (1) Basic land flavor — one call.
-    system, user = _build_basics_prompt(set_config, context)
+    system, basics_context, user = _build_basics_prompt(set_config, context)
     if on_call_start is not None:
         on_call_start(model_id)
     try:
         response = generate_with_tool(
-            system_prompt=system,
+            system_blocks=[(system, True), (basics_context, True)],
             user_prompt=user,
             tool_schema=_build_basics_tool_schema(),
             model=model_id,
@@ -451,7 +466,7 @@ def generate_lands(
     # listed separately as "reprints placed"), so they're no longer unfilled.
     slot_texts = _load_slot_texts(skeleton_path, include_reprints=False)
     reprint_summary = _load_reprint_summary(set_dir)
-    inv_system, inv_user = _build_investigation_prompt(
+    inv_system, inv_context, inv_user = _build_investigation_prompt(
         set_config, context, slot_texts, reprint_summary
     )
     if on_call_start is not None:
@@ -459,7 +474,7 @@ def generate_lands(
     inv_result: dict = {}
     try:
         inv_response = generate_with_tool(
-            system_prompt=inv_system,
+            system_blocks=[(inv_system, True), (inv_context, True)],
             user_prompt=inv_user,
             tool_schema=_build_investigation_tool_schema(),
             model=model_id,

@@ -1,0 +1,41 @@
+## Setting
+
+{setting_block}
+
+## Named mechanics
+
+{mechanics_block}
+
+## Draft archetypes
+
+{archetypes_block}
+
+## Constraints
+
+{constraints_block}
+
+## Requested cards
+
+{card_requests}
+
+---
+
+## Tunable knobs (default → allowed range)
+
+{knob_listing}
+
+Rarity weights are expressed per ~277-card premier set; they are scaled to this
+set's size automatically. The multicolor / colorless / creature knobs are
+fractions of that rarity's cards. The non-creature bias knobs are relative weights
+(instant / sorcery / enchantment / artifact) that split each color's non-creature
+slots; raise artifact or enchantment to skew the type mix.
+
+## Cycle spans
+
+A cycle's `span` chooses how its members spread across colors:
+{cycle_spans}
+
+Each cycle needs: a short `id` (lowercase, no spaces), a `name`, a `rarity`, a
+`span`, a `card_type` (creature / instant / sorcery / enchantment / artifact /
+land), an optional `cmc_target` (0 for lands), and a one-line `template` — the
+shared design brief every member follows so the family reads as a set.

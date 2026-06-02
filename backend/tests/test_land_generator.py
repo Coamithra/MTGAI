@@ -17,6 +17,7 @@ import pytest
 
 import mtgai.generation.land_generator as land_gen
 from mtgai.generation.land_generator import (
+    _build_basics_prompt,
     _build_investigation_prompt,
     _load_reprint_summary,
     _make_nonbasic_card,
@@ -252,9 +253,27 @@ class TestInvestigationPrompt:
     def test_includes_context_slots_and_reprints(self):
         context = {"setting": "S", "mechanics": "M", "archetypes": "A", "constraints": "C"}
         slots = [{"slot_id": "1", "text": "White common creature"}]
-        system, user = _build_investigation_prompt(
+        system, ctx_block, user = _build_investigation_prompt(
             {"name": "Test"}, context, slots, "- Evolving Wilds (Land · fixing)"
         )
+        # Static persona -> system block #1; set framing -> cached context block #2;
+        # per-run dynamic content (slots + placed reprints) -> the user turn.
         assert "FINAL call" in system
+        assert "S" in ctx_block and "M" in ctx_block
         assert "White common creature" in user
         assert "Evolving Wilds" in user
+
+
+class TestBasicsPrompt:
+    def test_splits_static_context_from_trigger(self):
+        context = {"setting": "A drowned archipelago.", "constraints": "No planeswalkers."}
+        system, ctx_block, user = _build_basics_prompt({"name": "Atoll"}, context)
+        # Persona + output spec -> system block #1.
+        assert "art director" in system
+        assert "art_scenes" in system
+        # Setting + constraints -> cached context block #2.
+        assert "A drowned archipelago." in ctx_block
+        assert "No planeswalkers." in ctx_block
+        # User turn is a short trigger; the setting is not duplicated there.
+        assert "create_basic_lands" in user
+        assert "A drowned archipelago." not in user

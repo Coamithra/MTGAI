@@ -126,3 +126,51 @@ class TestTuneKnobs:
         )
         assert meta["defaulted"] is True
         assert knobs.multicolor_rare == 0.40  # pinned base kept on failure
+
+
+# ---------------------------------------------------------------------------
+# Prompt caching: static context -> one cached system block, dynamic -> user turn
+# ---------------------------------------------------------------------------
+
+
+class TestPromptCaching:
+    def _capture(self, monkeypatch) -> dict:
+        captured: dict = {}
+
+        def stub(**kwargs):
+            captured.update(kwargs)
+            return {"result": {"multicolor_rare": 0.3}, "input_tokens": 1, "output_tokens": 1}
+
+        monkeypatch.setattr(tuner, "generate_with_tool", stub)
+        monkeypatch.setattr(tuner, "cost_from_result", lambda _r: 0.0)
+        tuner.tune_knobs(
+            theme={"setting": "A guild-war city.", "card_requests": ["a legendary spider"]},
+            approved=[{"name": "Convoke", "colors": ["G"], "reminder_text": "tap creatures"}],
+            archetypes=[{"color_pair": "WU", "name": "Tempo", "description": "fly and counter"}],
+            set_name="Ravnica",
+            set_size=277,
+            model="stub",
+        )
+        return captured
+
+    def test_static_context_rides_in_cached_system_block(self, monkeypatch):
+        captured = self._capture(monkeypatch)
+        # No legacy single system_prompt; two cached system blocks instead.
+        assert not captured.get("system_prompt")
+        blocks = captured["system_blocks"]
+        assert len(blocks) == 2
+        assert all(cache is True for _text, cache in blocks)
+        base_text, context_text = blocks[0][0], blocks[1][0]
+        assert "set designer" in base_text.lower()
+        # The bulk static set context rides in the second (cached) block.
+        assert "A guild-war city." in context_text
+        assert "Convoke" in context_text
+        assert "Tempo" in context_text
+
+    def test_user_turn_is_short_trigger_not_bulk(self, monkeypatch):
+        captured = self._capture(monkeypatch)
+        user = captured["user_prompt"]
+        assert "submit_skeleton_knobs" in user
+        # The bulk context is not duplicated in the user turn.
+        assert "A guild-war city." not in user
+        assert "Convoke" not in user

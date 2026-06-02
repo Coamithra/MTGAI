@@ -139,11 +139,15 @@ def tune_knobs(
     restored after the AI tune so a re-roll respects them.
     """
     base = base or default_knobs()
+    # Base instructions (system block #1) + the bulk static set context (system
+    # block #2, cached) + a short dynamic trigger in the user turn. The two cached
+    # system blocks are byte-stable across this run's tune/re-tune calls so a
+    # re-roll within the 5-min TTL reads them at ~0.1x. No-op on llamacpp (the
+    # blocks flatten to one system string). See plans/prompt-caching-optimization.md.
     system_prompt = _read_template("skeleton_knobs_system.txt").format(
         set_name=set_name or "(unnamed set)",
     )
-    user_prompt = _read_template("skeleton_knobs_user.txt").format(
-        set_size=set_size,
+    context_block = _read_template("skeleton_knobs_context.txt").format(
         setting_block=format_setting_block(theme),
         mechanics_block=format_mechanics_block(approved),
         archetypes_block=format_archetypes_block(archetypes),
@@ -154,6 +158,7 @@ def tune_knobs(
         knob_listing=_knob_listing(),
         cycle_spans=_cycle_span_listing(),
     )
+    user_prompt = _read_template("skeleton_knobs_user.txt").format(set_size=set_size)
 
     from mtgai.settings.model_registry import get_registry
 
@@ -168,7 +173,7 @@ def tune_knobs(
     }
     try:
         response = generate_with_tool(
-            system_prompt=system_prompt,
+            system_blocks=[(system_prompt, True), (context_block, True)],
             user_prompt=user_prompt,
             tool_schema=build_tool_schema(),
             model=model,

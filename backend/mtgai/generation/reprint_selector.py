@@ -311,23 +311,12 @@ _PLACE_SYSTEM = (
 )
 
 
-def _build_select_user(
-    context: dict[str, str],
-    pool: list[ReprintCandidate],
-    count: int,
-    per_rarity: dict[str, int] | None = None,
-) -> str:
-    if per_rarity and any(v > 0 for v in per_rarity.values()):
-        mix = ", ".join(f"{per_rarity[r]} {r}" for r in RARITIES if per_rarity.get(r, 0) > 0)
-        head = (
-            f"Choose {count} reprints from the pool for this set, aiming for this "
-            f"rarity mix: {mix}."
-        )
-    else:
-        head = f"Choose exactly {count} reprints from the pool for this set."
+def _build_select_context(context: dict[str, str], pool: list[ReprintCandidate]) -> str:
+    """The static cached system block for the select pass: set framing + the full
+    ~350-card reprint pool. Byte-stable across this run's retries / re-rolls (the
+    only dynamic bit — count + rarity mix — rides in :func:`_build_select_trigger`),
+    so it reads from cache at ~0.1x within the 5-min TTL."""
     lines = [
-        head,
-        "",
         "## Set theme",
         context["setting"],
         "",
@@ -346,19 +335,41 @@ def _build_select_user(
     return "\n".join(lines)
 
 
-def _build_place_user(
+def _build_select_trigger(count: int, per_rarity: dict[str, int] | None = None) -> str:
+    """The dynamic user turn for the select pass — the only per-call-varying part."""
+    if per_rarity and any(v > 0 for v in per_rarity.values()):
+        mix = ", ".join(f"{per_rarity[r]} {r}" for r in RARITIES if per_rarity.get(r, 0) > 0)
+        return (
+            f"Choose {count} reprints from the pool above for this set, aiming for "
+            f"this rarity mix: {mix}. Use each card's exact name; no duplicates. "
+            "Return your picks through the select_reprints tool."
+        )
+    return (
+        f"Choose exactly {count} reprints from the pool above for this set. Use each "
+        "card's exact name; no duplicates. Return your picks through the "
+        "select_reprints tool."
+    )
+
+
+def _build_place_context(
     selected: list[tuple[ReprintCandidate, str]], slot_texts: list[dict[str, str]]
 ) -> str:
-    lines = [
-        f"Place each chosen reprint below onto the single best-fitting ordinary "
-        f"slot. Return all {len(selected)} assignments through the tool.",
-        "",
-        f"## Chosen reprints ({len(selected)})",
-    ]
+    """The static cached system block for the place pass: the chosen reprints + the
+    slot list. Built once and reused across the placement retries (and read from
+    cache on retries 2..N within the TTL)."""
+    lines = [f"## Chosen reprints ({len(selected)})"]
     lines += [f"- {format_candidate_tldr(c)}" for c, _ in selected]
     lines += ["", f"## Skeleton slots ({len(slot_texts)})"]
     lines += [f"{s['slot_id']}: {s['text']}" for s in slot_texts]
     return "\n".join(lines)
+
+
+def _build_place_trigger(selected: list[tuple[ReprintCandidate, str]]) -> str:
+    """The dynamic user turn for the place pass."""
+    return (
+        f"Place each chosen reprint listed above onto the single best-fitting ordinary "
+        f"slot. Return all {len(selected)} assignments through the place_reprints tool."
+    )
 
 
 _SELECT_TOOL = {
@@ -432,6 +443,10 @@ def _select_from_pool(
     if count <= 0 or not pool:
         return []
     by_name = {c.name.lower(): c for c in pool}
+    # Static set framing + the full pool ride in a cached system block (byte-stable
+    # across retries / re-rolls); only the count + rarity-mix trigger stays dynamic.
+    context_block = _build_select_context(context, pool)
+    trigger = _build_select_trigger(count, per_rarity)
     # A truncated local response is usually a repetition loop; a plain re-roll at
     # the same low temp reproduces it, so bump the temperature per retry (the
     # verified escape — see temperatures.RETRY_TEMP_STEP / gate_common).
@@ -441,8 +456,8 @@ def _select_from_pool(
             break
         try:
             response = generate_with_tool(
-                system_prompt=_SELECT_SYSTEM,
-                user_prompt=_build_select_user(context, pool, count, per_rarity),
+                system_blocks=[(_SELECT_SYSTEM, True), (context_block, True)],
+                user_prompt=trigger,
                 tool_schema=_SELECT_TOOL,
                 model=model,
                 temperature=temperature + temps.RETRY_TEMP_STEP * attempt,
@@ -505,8 +520,10 @@ def _place_reprints(
     text_by_id = {s["slot_id"]: s["text"] for s in slot_texts}
     valid = set(text_by_id)
 
-    system_prompt = _PLACE_SYSTEM
-    user_prompt = _build_place_user(selected, slot_texts)
+    # Chosen reprints + slot list ride in a cached system block (built once, read
+    # from cache on placement retries 2..N); the trigger stays in the user turn.
+    context_block = _build_place_context(selected, slot_texts)
+    trigger = _build_place_trigger(selected)
 
     pairs: list[SelectionPair] = []
     placed: set[str] = set()  # card names (lower) already placed
@@ -524,8 +541,8 @@ def _place_reprints(
             # Each re-ask is also perturbed off the base: it both fills the
             # remaining slots and escapes a same-temp repetition loop on local.
             response = generate_with_tool(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
+                system_blocks=[(_PLACE_SYSTEM, True), (context_block, True)],
+                user_prompt=trigger,
                 tool_schema=_PLACE_TOOL,
                 model=model,
                 temperature=temperature + temps.RETRY_TEMP_STEP * (attempt - 1),
