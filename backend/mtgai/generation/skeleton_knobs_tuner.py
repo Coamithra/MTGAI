@@ -143,7 +143,7 @@ def tune_knobs(
     # block #2, cached) + a short dynamic trigger in the user turn. The two cached
     # system blocks are byte-stable across this run's tune/re-tune calls so a
     # re-roll within the 5-min TTL reads them at ~0.1x. No-op on llamacpp (the
-    # blocks flatten to one system string). See plans/prompt-caching-optimization.md.
+    # blocks flatten to one system string). card_generator.py is the reference.
     system_prompt = _read_template("skeleton_knobs_system.txt").format(
         set_name=set_name or "(unnamed set)",
     )

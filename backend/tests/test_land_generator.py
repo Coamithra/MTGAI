@@ -117,6 +117,32 @@ class TestGenerateLands:
         assert data["is_reprint"] is False
         assert set(data["color_identity"]) == {"W", "U"}
 
+    def test_both_calls_use_two_cached_system_blocks(self, project_dir: Path, monkeypatch):
+        """Static context rides in cached system blocks for BOTH lands calls (cap: 2
+        blocks + tool = 3 markers, under Anthropic's 4)."""
+        _fixed_alternates(monkeypatch, 2)
+        seen: dict[str, dict] = {}
+
+        def stub(**kwargs):
+            name = kwargs["tool_schema"]["name"]
+            seen[name] = kwargs
+            if name == "create_basic_lands":
+                return {"result": _BASICS_RESULT, "input_tokens": 1, "output_tokens": 1}
+            return {
+                "result": {"needs_dual_land": False, "reasoning": "x"},
+                "input_tokens": 1,
+                "output_tokens": 1,
+            }
+
+        monkeypatch.setattr(land_gen, "generate_with_tool", stub)
+        monkeypatch.setattr(land_gen, "cost_from_result", lambda _r: 0.0)
+        generate_lands()
+        for tool in ("create_basic_lands", "investigate_fixing"):
+            kw = seen[tool]
+            assert not kw.get("system_prompt")
+            blocks = kw["system_blocks"]
+            assert len(blocks) == 2 and all(cache is True for _t, cache in blocks)
+
     def test_decline_writes_basics_only(self, project_dir: Path, monkeypatch):
         _fixed_alternates(monkeypatch, 3)
         monkeypatch.setattr(land_gen, "generate_with_tool", _llm_stub(needs_dual=False))
