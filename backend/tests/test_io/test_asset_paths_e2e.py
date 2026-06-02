@@ -77,12 +77,8 @@ def test_card_gen_clearer_targets_asset_folder(configured_project):
 
     cards_dir = asset_dir / "cards"
     cards_dir.mkdir(parents=True)
-    (cards_dir / "001_test.json").write_text(
-        '{"collector_number": "001"}', encoding="utf-8"
-    )
-    (cards_dir / "L-01_plains.json").write_text(
-        '{"collector_number": "L-01"}', encoding="utf-8"
-    )
+    (cards_dir / "001_test.json").write_text('{"collector_number": "001"}', encoding="utf-8")
+    (cards_dir / "L-01_plains.json").write_text('{"collector_number": "L-01"}', encoding="utf-8")
 
     stages_mod.clear_stage_artifacts("card_gen")
 

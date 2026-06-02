@@ -118,11 +118,18 @@ def run_call(
                             resp.close()
                             break
                 if evt.get("done"):
-                    meta = {k: evt.get(k) for k in (
-                        "total_duration", "load_duration", "prompt_eval_count",
-                        "prompt_eval_duration", "eval_count", "eval_duration",
-                        "done_reason",
-                    )}
+                    meta = {
+                        k: evt.get(k)
+                        for k in (
+                            "total_duration",
+                            "load_duration",
+                            "prompt_eval_count",
+                            "prompt_eval_duration",
+                            "eval_count",
+                            "eval_duration",
+                            "done_reason",
+                        )
+                    }
                     break
     except Exception:
         exc_text = traceback.format_exc()
@@ -160,8 +167,12 @@ def main() -> int:
     p.add_argument("--repeat-penalty", type=float, default=None)
     p.add_argument("--trials", type=int, default=3)
     p.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
-    p.add_argument("--theme", type=Path, default=DEFAULT_THEME,
-                   help="Pre-extracted theme (fed to constraints + suggestions)")
+    p.add_argument(
+        "--theme",
+        type=Path,
+        default=DEFAULT_THEME,
+        help="Pre-extracted theme (fed to constraints + suggestions)",
+    )
     p.add_argument("--run-name-prefix", default="longctx")
     args = p.parse_args()
 
@@ -218,8 +229,10 @@ def main() -> int:
             json_mode=False,
         )
         theme_loop = detect_repetition(theme_result["raw"])
-        print(f"  wall={theme_result['wall_s']:.1f}s  chars={len(theme_result['raw'])}  "
-              f"loop={'YES' if theme_loop else 'no'}  meta={json.dumps(theme_result['meta'])}")
+        print(
+            f"  wall={theme_result['wall_s']:.1f}s  chars={len(theme_result['raw'])}  "
+            f"loop={'YES' if theme_loop else 'no'}  meta={json.dumps(theme_result['meta'])}"
+        )
         if theme_loop:
             print(f"  LOOP: {theme_loop}")
         if theme_result["exception"]:
@@ -292,8 +305,9 @@ def main() -> int:
             "",
         ]
 
-        def _dump(section_title: str, result: dict, loop_reason: str | None,
-                  parsed: str | None = None) -> list[str]:
+        def _dump(
+            section_title: str, result: dict, loop_reason: str | None, parsed: str | None = None
+        ) -> list[str]:
             out = [
                 f"## {section_title}",
                 "",
@@ -324,36 +338,42 @@ def main() -> int:
 
         out_path.write_text("\n".join(lines), encoding="utf-8")
 
-        summary.append({
-            "trial": trial,
-            "theme_wall": theme_result["wall_s"],
-            "theme_chars": len(theme_result["raw"]),
-            "theme_loop": bool(theme_loop),
-            "constraints_wall": constraints_result["wall_s"],
-            "constraints_chars": len(constraints_result["raw"]),
-            "constraints_status": c_status,
-            "constraints_loop": bool(c_loop),
-            "suggestions_wall": suggestions_result["wall_s"],
-            "suggestions_chars": len(suggestions_result["raw"]),
-            "suggestions_status": s_status,
-            "suggestions_loop": bool(s_loop),
-            "file": str(out_path),
-        })
+        summary.append(
+            {
+                "trial": trial,
+                "theme_wall": theme_result["wall_s"],
+                "theme_chars": len(theme_result["raw"]),
+                "theme_loop": bool(theme_loop),
+                "constraints_wall": constraints_result["wall_s"],
+                "constraints_chars": len(constraints_result["raw"]),
+                "constraints_status": c_status,
+                "constraints_loop": bool(c_loop),
+                "suggestions_wall": suggestions_result["wall_s"],
+                "suggestions_chars": len(suggestions_result["raw"]),
+                "suggestions_status": s_status,
+                "suggestions_loop": bool(s_loop),
+                "file": str(out_path),
+            }
+        )
 
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    n_loop = sum(1 for s in summary
-                 if s["theme_loop"] or s["constraints_loop"] or s["suggestions_loop"])
-    n_fail = sum(1 for s in summary
-                 if "FAIL" in s["constraints_status"] or "FAIL" in s["suggestions_status"])
+    n_loop = sum(
+        1 for s in summary if s["theme_loop"] or s["constraints_loop"] or s["suggestions_loop"]
+    )
+    n_fail = sum(
+        1 for s in summary if "FAIL" in s["constraints_status"] or "FAIL" in s["suggestions_status"]
+    )
     print(f"Trials: {len(summary)}")
     print(f"Any-loop trials: {n_loop}")
     print(f"Parse-failure trials: {n_fail}")
     for s in summary:
         print(f"  trial {s['trial']}:")
-        print(f"    theme:       wall={s['theme_wall']:.1f}s  chars={s['theme_chars']}  "
-              f"loop={'YES' if s['theme_loop'] else 'no'}")
+        print(
+            f"    theme:       wall={s['theme_wall']:.1f}s  chars={s['theme_chars']}  "
+            f"loop={'YES' if s['theme_loop'] else 'no'}"
+        )
         print(
             f"    constraints: wall={s['constraints_wall']:.1f}s  chars={s['constraints_chars']}  "
             f"parse={s['constraints_status']}  loop={'YES' if s['constraints_loop'] else 'no'}"
