@@ -1168,6 +1168,14 @@ def generate_set(
         len(unfilled),
     )
 
+    # Progress denominator = the slots THIS run (re)creates, not the full set.
+    # On the first instance ``unfilled == all_slots``; on a review->regen
+    # instance the flagged cards were dropped from ``filled_slots`` above so they
+    # re-enter ``unfilled`` — making this exactly the regen count. ``completed``
+    # is already this-run-scoped (``total_saved``), so reporting ``len(all_slots)``
+    # as the total made a regen instance read "5 / 277" instead of "5 / 5".
+    run_target = len(unfilled)
+
     if not unfilled:
         logger.info("Nothing to generate — all slots filled or failed.")
         return {
@@ -1190,7 +1198,7 @@ def generate_set(
         progress_callback(
             "preparing",
             0,
-            len(all_slots),
+            run_target,
             f"Preparing to generate {len(unfilled)} cards…",
             0.0,
         )
@@ -1484,7 +1492,7 @@ def generate_set(
             progress_callback(
                 f"batch {batch_idx}/{len(batches)}",
                 total_saved,
-                len(all_slots),
+                run_target,
                 f"Batch {batch_idx}: {len(saved)}/{len(batch)} saved",
                 batch_cost,
             )
@@ -1539,7 +1547,11 @@ def generate_set(
         else f"Generated {total_saved} cards in {elapsed:.0f}s (${progress.total_cost_usd:.4f})"
     )
     return {
-        "total_slots": len(all_slots),
+        # ``total_slots`` is the progress denominator (-> StageResult.total_items
+        # -> the completed tab display), so it's the run target, not the full
+        # set — a regen instance shows "5 / 5", not "5 / 277". ``filled`` is the
+        # this-run saved count (the numerator), already correct.
+        "total_slots": run_target,
         "filled": total_saved,
         "failed": len(progress.failed_slots),
         "cost_usd": progress.total_cost_usd,

@@ -48,6 +48,8 @@ def test_card_tile_dict_from_card_model() -> None:
         "colors": ["W", "U"],
         "collector_number": "042",
         "status": "draft",
+        # Defaults to False — only the SSE stream / a regen-instance diff sets it.
+        "is_new": False,
         # No slots_by_id passed → slot_text is empty (the client renders nothing).
         "slot_text": "",
     }
@@ -87,6 +89,14 @@ def test_card_tile_dict_missing_fields_get_safe_defaults() -> None:
     assert tile["rarity"] == "common"
     assert tile["colors"] == []
     assert tile["status"] == ""
+
+
+def test_card_tile_dict_is_new_flows_into_shape() -> None:
+    """``is_new`` is always present (so SSE and /state shapes match) and reflects
+    the passed flag — the SSE stream passes True, /state derives it per card."""
+    assert card_tile_dict(_full_card())["is_new"] is False
+    assert card_tile_dict(_full_card(), is_new=True)["is_new"] is True
+    assert card_tile_dict({}, is_new=True)["is_new"] is True
 
 
 def test_card_tile_dict_rejects_unsupported_type() -> None:

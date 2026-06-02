@@ -236,7 +236,9 @@ def test_card_gen_hooks_emit_tile_and_reset() -> None:
     emit_card_gen_reset(emitter)
 
     evt = _only(bus, "card_gen_card")[0]
-    assert evt["card"] == card_tile_dict(card, slots_by_id)
+    # The SSE stream marks every streamed card is_new=True (it was just generated).
+    assert evt["card"] == card_tile_dict(card, slots_by_id, is_new=True)
+    assert evt["card"]["is_new"] is True
     assert evt["card"]["slot_text"] == "White CMC1 creature"
     assert _only(bus, "card_gen_reset") == [{"stage_id": "card_gen", "instance_id": "card_gen"}]
 
