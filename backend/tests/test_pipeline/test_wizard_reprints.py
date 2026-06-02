@@ -315,3 +315,136 @@ def test_refresh_409_when_ai_busy(client, isolated_output, monkeypatch):
         resp = client.post("/api/wizard/reprints/refresh", json={})
         assert resp.status_code == 409
         assert resp.json()["running_action"] == "Other action"
+
+
+def test_refresh_preserves_pinned_pick_no_ai(client, isolated_output, monkeypatch):
+    """A Refresh whose pins already cover the target keeps them verbatim and makes
+    no LLM call (ai_target == 0)."""
+    from mtgai.generation import llm_client
+
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _write_skeleton(asset)  # one slot B-C-03
+
+    def boom(**_kwargs):
+        raise AssertionError("LLM must not be called when pins cover the target")
+
+    monkeypatch.setattr(llm_client, "generate_with_tool", boom)
+    resp = client.post(
+        "/api/wizard/reprints/refresh",
+        json={
+            "knobs": {"common": 1, "uncommon": 0, "rare": 0, "mythic": 0, "jitter_pct": 0.0},
+            "pinned": [{"card_name": "Murder", "slot_id": "B-C-03", "reason": "mine"}],
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [s["candidate"]["name"] for s in data["selections"]] == ["Murder"]
+    assert data["selections"][0]["pinned"] is True
+    # Stamped into the skeleton like any placed reprint.
+    slot = json.loads((asset / "skeleton.json").read_text())["slots"][0]
+    assert slot["is_reprint_slot"] is True and "Murder" in slot["reprint_card"]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/wizard/reprints/pool
+# ---------------------------------------------------------------------------
+
+
+def test_pool_lists_candidates_and_open_slots(client, isolated_output):
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _write_skeleton(asset)
+    data = client.get("/api/wizard/reprints/pool").json()
+    assert isinstance(data["pool"], list) and len(data["pool"]) > 0
+    assert any(c["name"] == "Murder" for c in data["pool"])
+    assert data["open_slots"] == [{"slot_id": "B-C-03", "text": "Black common instant CMC3"}] or (
+        data["open_slots"] and data["open_slots"][0]["slot_id"] == "B-C-03"
+    )
+
+
+def test_pool_409_when_no_active_project(client):
+    resp = client.get("/api/wizard/reprints/pool")
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "no_active_project"
+
+
+# ---------------------------------------------------------------------------
+# POST /api/wizard/reprints/save
+# ---------------------------------------------------------------------------
+
+
+def test_save_persists_manual_selection_and_stamps_skeleton(client, isolated_output):
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _write_skeleton(asset)
+    resp = client.post(
+        "/api/wizard/reprints/save",
+        json={"selections": [{"card_name": "Murder", "slot_id": "B-C-03", "pinned": True}]},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["has_content"] is True
+    assert data["target_count"] == 1
+    assert data["selections"][0]["candidate"]["name"] == "Murder"
+    assert data["selections"][0]["pinned"] is True
+    assert "navigate_to" in data
+    # Written + stamped.
+    on_disk = json.loads((asset / "reprint_selection.json").read_text())
+    assert on_disk["selections"][0]["candidate"]["name"] == "Murder"
+    slot = json.loads((asset / "skeleton.json").read_text())["slots"][0]
+    assert slot["is_reprint_slot"] is True and "Murder" in slot["reprint_card"]
+
+
+def test_save_empty_selection_is_valid(client, isolated_output):
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _write_skeleton(asset)
+    resp = client.post("/api/wizard/reprints/save", json={"selections": []})
+    assert resp.status_code == 200
+    assert resp.json()["has_content"] is False
+    assert (asset / "reprint_selection.json").exists()
+
+
+def test_save_rejects_unknown_card(client, isolated_output):
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _write_skeleton(asset)
+    resp = client.post(
+        "/api/wizard/reprints/save",
+        json={"selections": [{"card_name": "Not A Real Card", "slot_id": "B-C-03"}]},
+    )
+    assert resp.status_code == 400
+    assert "Unknown reprint card" in resp.json()["error"]
+
+
+def test_save_rejects_unknown_slot(client, isolated_output):
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _write_skeleton(asset)
+    resp = client.post(
+        "/api/wizard/reprints/save",
+        json={"selections": [{"card_name": "Murder", "slot_id": "NOPE"}]},
+    )
+    assert resp.status_code == 400
+
+
+def test_save_rejects_duplicate_card(client, isolated_output):
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _write_skeleton(asset)
+    resp = client.post(
+        "/api/wizard/reprints/save",
+        json={
+            "selections": [
+                {"card_name": "Murder", "slot_id": "B-C-03"},
+                {"card_name": "Murder", "slot_id": "B-C-03"},
+            ]
+        },
+    )
+    assert resp.status_code == 400
+
+
+def test_save_409_when_no_active_project(client):
+    resp = client.post("/api/wizard/reprints/save", json={"selections": []})
+    assert resp.status_code == 409
