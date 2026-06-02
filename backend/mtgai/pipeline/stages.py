@@ -835,9 +835,10 @@ def run_reprints(
         ):
             result = select_reprints(skeleton_path=skeleton_path)
 
-        # A user Cancel makes select_reprints stop early and return a partial
-        # selection — don't persist it. Fail the stage so the engine halts
-        # (mirrors run_skeleton / run_card_gen); the user re-rolls from the tab.
+        # A user Cancel makes select_reprints stop before the placement pass and
+        # return a selection with no AI placements — don't persist it. Fail the
+        # stage so the engine halts (mirrors run_skeleton / run_card_gen); the
+        # user re-rolls from the tab.
         if ai_lock.is_cancelled():
             return StageResult(
                 success=False,
@@ -968,8 +969,8 @@ def run_lands(
 
         # A user Cancel stops generate_lands at a call boundary (it returns a
         # ``cancelled`` shape, keeping any basics already written). Fail the stage
-        # so the engine halts (mirrors run_skeleton / run_card_gen) instead of
-        # marching on to card_gen with a partial land set.
+        # so the engine halts instead of marching on to card_gen with a partial
+        # land set; a Retry re-runs generate_lands from scratch over the dir.
         if result.get("cancelled") or ai_lock.is_cancelled():
             return StageResult(
                 success=False,
