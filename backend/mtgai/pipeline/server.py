@@ -3657,7 +3657,9 @@ def _reprint_knobs_payload(asset: Path) -> dict:
     }
 
 
-def _resolve_selection_pairs(asset: Path, raw: Any, *, force_pinned: bool = False):
+def _resolve_selection_pairs(
+    asset: Path, raw: Any, *, force_pinned: bool = False
+) -> tuple[list, str | None]:
     """Rebuild authoritative ``SelectionPair``s from a client payload.
 
     ``raw`` is a list of ``{card_name, slot_id, reason?, pinned?}``. Each card is
@@ -3693,7 +3695,7 @@ def _resolve_selection_pairs(asset: Path, raw: Any, *, force_pinned: bool = Fals
         if cand is None:
             return [], f"Unknown reprint card: {name!r}"
         if not sid or sid not in text_by_id:
-            return [], f"Unknown or already-filled slot for {name!r}: {sid!r}"
+            return [], f"Unknown or unavailable slot for {name!r}: {sid!r}"
         if name.lower() in used_cards:
             return [], f"Duplicate reprint card: {name!r}"
         if sid in used_slots:

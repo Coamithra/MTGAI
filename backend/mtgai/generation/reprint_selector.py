@@ -637,11 +637,13 @@ def select_reprints(
         log_dir = asset / "reprints" / "logs"
 
     logger.info(
-        "Selecting %d reprints for %s (%d-card set); per-rarity=%s",
+        "Selecting %d reprints for %s (%d-card set); per-rarity=%s; %d pinned, %d from AI",
         total,
         set_code,
         set_size,
         per_rarity,
+        len(pinned),
+        ai_target,
     )
 
     selections: list[SelectionPair] = list(pinned)
@@ -668,7 +670,8 @@ def select_reprints(
     result = ReprintSelection(
         set_code=set_code,
         set_size=set_size,
-        target_reprint_count=total,
+        # Pins can exceed the resolved auto target; never report fewer than placed.
+        target_reprint_count=max(total, len(selections)),
         per_rarity_targets=per_rarity,
         selections=selections,
         all_candidates_considered=len(full_pool),
