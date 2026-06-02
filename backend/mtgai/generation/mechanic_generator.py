@@ -2313,7 +2313,7 @@ def pick_best_mechanics(
             user_prompt=user_prompt,
             tool_schema=MECHANIC_PICK_TOOL_SCHEMA,
             model=model_id,
-            temperature=0.4,
+            temperature=temps.FOCUSED,
             max_tokens=STANDARD,
             log_dir=log_dir,
         )

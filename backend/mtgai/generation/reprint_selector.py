@@ -449,6 +449,10 @@ def _select_from_pool(
         except OutputTruncatedError as exc:
             logger.warning("Reprint selection truncated (attempt %d): %s", attempt + 1, exc)
         except Exception:
+            # Only a loop/truncation is worth re-rolling. A non-truncation error
+            # (bad prompt, transport) recurs identically, and with nothing picked
+            # there's nothing to place — so bail (placement retries instead, as a
+            # partial place is still useful).
             logger.error("Reprint selection (pick) failed", exc_info=True)
             return []
     if response is None:

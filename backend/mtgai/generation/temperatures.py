@@ -67,8 +67,9 @@ conformance adherence check and the mechanic synthesizer's constrained
 in-place revision (it edits, it doesn't invent)."""
 
 FOCUSED = 0.4
-"""Mechanic-council review — a touch of variation across the independent
-reviewers without letting any one wander off the rules being checked."""
+"""Mechanic evaluation — the council review (a touch of variation across
+the independent reviewers without letting any one wander off the rules) and the
+best-of-N pick. Evaluative, lightly varied."""
 
 GROUNDED = 0.6
 """Art-prompt construction: more anchored than :data:`BALANCED` so the Flux
