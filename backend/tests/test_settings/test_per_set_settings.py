@@ -379,4 +379,8 @@ def test_save_profile_strips_debug():
 def test_to_ui_dict_includes_debug():
     s = ms.ModelSettings(debug=ms.DebugSettings(response_cache=True))
     ui = s.to_ui_dict()
-    assert ui["debug"] == {"response_cache": True}
+    assert ui["debug"] == {
+        "response_cache": True,
+        "use_prefab_cards": False,
+        "use_prefab_mechanics": False,
+    }

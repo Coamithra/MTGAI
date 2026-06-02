@@ -362,6 +362,71 @@ class TestSelectReprints:
         assert called["n"] == 0
 
 
+class TestSelectReprintsPinned:
+    """``pinned`` selections survive a re-roll; the AI fills only the remainder."""
+
+    def _pin(self, slot_id: str, name: str, rarity: str = "common") -> SelectionPair:
+        return SelectionPair(
+            slot=ReprintSlot(slot_id=slot_id, descriptor="d"),
+            candidate=_make_candidate(name=name, rarity=rarity),
+            reason="user pick",
+            pinned=True,
+        )
+
+    def test_pinned_preserved_and_ai_fills_remainder(self, project_skeleton: Path):
+        pinned = [self._pin("G-C-01", "Llanowar Elves")]
+        stub = _llm_stub(
+            ["Murder"], [{"card_name": "Murder", "slot_id": "B-C-03", "reason": "removal"}]
+        )
+        with patch("mtgai.generation.llm_client.generate_with_tool", stub):
+            result = select_reprints(project_skeleton, count=2, pinned=pinned)
+        names = {s.candidate.name for s in result.selections}
+        assert names == {"Llanowar Elves", "Murder"}
+        assert result.target_reprint_count == 2
+        by_name = {s.candidate.name: s for s in result.selections}
+        assert by_name["Llanowar Elves"].pinned is True
+        assert by_name["Murder"].pinned is False  # AI pick is unpinned
+
+    def test_ai_cannot_reuse_pinned_slot(self, project_skeleton: Path):
+        # The AI's only placement targets the pinned slot, which is withheld → dropped.
+        pinned = [self._pin("B-C-03", "Doom Blade")]
+        stub = _llm_stub(["Murder"], [{"card_name": "Murder", "slot_id": "B-C-03", "reason": "r"}])
+        with patch("mtgai.generation.llm_client.generate_with_tool", stub):
+            result = select_reprints(project_skeleton, count=2, pinned=pinned)
+        names = {s.candidate.name for s in result.selections}
+        assert "Doom Blade" in names
+        assert "Murder" not in names
+
+    def test_pinned_card_withheld_from_select_pool(self, project_skeleton: Path):
+        captured: dict = {}
+
+        def stub(**kwargs):
+            if kwargs["tool_schema"]["name"] == "select_reprints":
+                captured["user"] = kwargs["user_prompt"]
+                return {"result": {"selections": []}, "input_tokens": 1, "output_tokens": 1}
+            return {"result": {"assignments": []}, "input_tokens": 1, "output_tokens": 1}
+
+        # "Murder" is in the real curated pool; pinning it must drop it from the
+        # pool offered to the select pass (no duplicate pick).
+        pinned = [self._pin("G-C-01", "Murder")]
+        with patch("mtgai.generation.llm_client.generate_with_tool", stub):
+            select_reprints(project_skeleton, count=2, pinned=pinned)
+        assert "Murder" not in captured.get("user", "Murder")
+
+    def test_all_pinned_makes_no_ai_call(self, project_skeleton: Path):
+        called = {"n": 0}
+
+        def stub(**kwargs):
+            called["n"] += 1
+            return {"result": {}, "input_tokens": 0, "output_tokens": 0}
+
+        pinned = [self._pin("B-C-03", "Murder")]
+        with patch("mtgai.generation.llm_client.generate_with_tool", stub):
+            result = select_reprints(project_skeleton, count=1, pinned=pinned)
+        assert called["n"] == 0  # ai_target == 0 → no LLM
+        assert [s.candidate.name for s in result.selections] == ["Murder"]
+
+
 # ---------------------------------------------------------------------------
 # Retry temperature bump (local repetition-loop escape)
 # ---------------------------------------------------------------------------

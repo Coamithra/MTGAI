@@ -100,6 +100,10 @@ class SelectionPair(BaseModel):
     slot: ReprintSlot
     candidate: ReprintCandidate
     reason: str = ""
+    # True when the user hand-picked / hand-placed this reprint on the Reprints
+    # tab. A manual Refresh keeps pinned pairs verbatim and re-rolls only the
+    # unpinned (AI-chosen) ones around them. The engine path produces all-unpinned.
+    pinned: bool = False
 
 
 class ReprintSelection(BaseModel):
@@ -590,6 +594,7 @@ def select_reprints(
     log_dir: Path | None = None,
     knobs: ReprintKnobs | None = None,
     temperature: float = temps.ANALYTICAL,
+    pinned: list[SelectionPair] | None = None,
 ) -> ReprintSelection:
     """Select + place reprints for a set — main entry point.
 
@@ -605,8 +610,14 @@ def select_reprints(
     loop. A manual Refresh passes a higher value. Files
     (theme/knobs/logs) resolve relative to ``skeleton_path``'s directory; the LLM
     transcript lands in ``<asset>/reprints/logs``.
+
+    ``pinned`` are user-locked selections (from the Reprints tab) kept verbatim:
+    the AI re-rolls only the remaining ``total - len(pinned)`` picks, with the
+    pinned cards + slots withheld from both AI passes so there are no duplicate
+    picks or slot collisions. The result is ``pinned + ai_selections``.
     """
     asset = skeleton_path.parent
+    pinned = pinned or []
     cfg = set_config or extract_set_config(skeleton_path)
     set_size = int(cfg.get("set_size", 60))
     set_code = cfg.get("code", "???")
@@ -614,6 +625,15 @@ def select_reprints(
     slot_texts = _load_slot_texts(skeleton_path)
     full_pool = load_reprint_pool(pool_path)
     pool = [c for c in full_pool if c.setting_agnostic is not False]
+
+    # Withhold pinned cards + slots from the AI passes so a re-roll can't pick a
+    # pinned card again or collide with a pinned slot.
+    pinned_names = {p.candidate.name.lower() for p in pinned}
+    pinned_slot_ids = {p.slot.slot_id for p in pinned}
+    if pinned_names:
+        pool = [c for c in pool if c.name.lower() not in pinned_names]
+    if pinned_slot_ids:
+        slot_texts = [s for s in slot_texts if s["slot_id"] not in pinned_slot_ids]
 
     per_rarity: dict[str, int] | None = None
     if count is None:
@@ -625,19 +645,32 @@ def select_reprints(
     else:
         total = count
 
+    # The AI fills only the picks the pins don't already cover; subtract the
+    # pinned per-rarity counts from the soft mix told to the select pass.
+    ai_target = max(0, total - len(pinned))
+    ai_per_rarity = per_rarity
+    if per_rarity is not None and pinned:
+        ai_per_rarity = dict(per_rarity)
+        for p in pinned:
+            r = p.candidate.rarity
+            if r in ai_per_rarity:
+                ai_per_rarity[r] = max(0, ai_per_rarity[r] - 1)
+
     if log_dir is None:
         log_dir = asset / "reprints" / "logs"
 
     logger.info(
-        "Selecting %d reprints for %s (%d-card set); per-rarity=%s",
+        "Selecting %d reprints for %s (%d-card set); per-rarity=%s; %d pinned, %d from AI",
         total,
         set_code,
         set_size,
         per_rarity,
+        len(pinned),
+        ai_target,
     )
 
-    selections: list[SelectionPair] = []
-    if total > 0:
+    selections: list[SelectionPair] = list(pinned)
+    if ai_target > 0:
         try:
             from mtgai.runtime.active_project import require_active_project
 
@@ -648,19 +681,20 @@ def select_reprints(
         if model is not None:
             context = _load_set_context(asset, cfg)
             chosen = _select_from_pool(
-                context, pool, total, model, log_dir, temperature, per_rarity=per_rarity
+                context, pool, ai_target, model, log_dir, temperature, per_rarity=ai_per_rarity
             )
             # Honor a Cancel between the select and place passes (an in-flight
             # call can't be interrupted) — skip placement, keep no selections.
             if ai_lock.is_cancelled():
                 logger.warning("Reprint selection CANCELLED by user before placement")
             else:
-                selections = _place_reprints(chosen, slot_texts, model, log_dir, temperature)
+                selections += _place_reprints(chosen, slot_texts, model, log_dir, temperature)
 
     result = ReprintSelection(
         set_code=set_code,
         set_size=set_size,
-        target_reprint_count=total,
+        # Pins can exceed the resolved auto target; never report fewer than placed.
+        target_reprint_count=max(total, len(selections)),
         per_rarity_targets=per_rarity,
         selections=selections,
         all_candidates_considered=len(full_pool),
