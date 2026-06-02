@@ -3738,9 +3738,10 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
     """Persist any supplied knobs, then re-run reprint selection under the AI lock.
 
     Body (optional): ``{knobs: {...}}`` — persisted first so the run uses the
-    tab's current targets. Runs at a non-zero temperature so a manual re-roll
-    surfaces alternative picks (the engine stage stays deterministic at temp 0).
-    Writes ``reprint_selection.json`` and returns the same shape as ``/state``.
+    tab's current targets. Runs at a higher temperature so a manual re-roll
+    surfaces alternative picks (the engine stage uses a lower analytical base —
+    see ``temperatures.py``). Writes ``reprint_selection.json`` and returns the
+    same shape as ``/state``.
     """
     _require_active_project()
     body, err = await _read_request_json(request)
@@ -3756,6 +3757,7 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
     if isinstance(body, dict) and isinstance(body.get("knobs"), dict):
         _write_reprint_knobs(asset, body)
 
+    from mtgai.generation import temperatures as temps
     from mtgai.generation.reprint_selector import apply_selection_to_skeleton, select_reprints
 
     with guarded_ai("Reprint selection", stage_id="reprints") as guard:
@@ -3763,7 +3765,7 @@ async def wizard_reprints_refresh(request: Request) -> JSONResponse:
             return guard.busy_response
         with _bus_poller("reprints", activity_prefix="Selecting reprints"):
             result = await asyncio.to_thread(
-                select_reprints, skeleton_path=skeleton_path, temperature=0.7
+                select_reprints, skeleton_path=skeleton_path, temperature=temps.BALANCED
             )
         if ai_lock.is_cancelled():
             # A Cancel mid-run leaves `result` partial/empty — persisting it would

@@ -28,6 +28,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import generate_with_tool
 from mtgai.generation.token_budgets import BATCH
 from mtgai.skeleton.generator import render_slot_string
@@ -52,8 +53,8 @@ _FIND_MAX_ATTEMPTS = 3
 # A flat re-roll reproduces the identical loop, so mirroring the review gates'
 # generate_gate_tool, each attempt is perturbed off a low base by a fixed
 # step, the verified lever out of the loop (see learnings/gemma-repetition-loops.md).
-_BASE_TEMPERATURE = 0.3
-_TEMPERATURE_STEP = 0.2
+_BASE_TEMPERATURE = temps.ANALYTICAL
+_TEMPERATURE_STEP = temps.RETRY_TEMP_STEP
 
 _FIND_TOOL_SCHEMA: dict[str, Any] = {
     "name": "identify_cycles",

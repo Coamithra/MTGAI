@@ -363,6 +363,98 @@ class TestSelectReprints:
 
 
 # ---------------------------------------------------------------------------
+# Retry temperature bump (local repetition-loop escape)
+# ---------------------------------------------------------------------------
+
+
+class TestRetryTemperatureBump:
+    """Both passes start at the ANALYTICAL base and bump by RETRY_TEMP_STEP per
+    retry — a same-temp re-roll would reproduce a Gemma loop, so the escape is
+    the bump (see temperatures.py / gate_common)."""
+
+    def test_select_truncation_retries_with_bumped_temp(self, project_skeleton: Path):
+        from mtgai.generation import temperatures as temps
+        from mtgai.generation.token_utils import OutputTruncatedError
+
+        seen: list[float] = []
+
+        def stub(**kwargs):
+            if kwargs["tool_schema"]["name"] == "select_reprints":
+                seen.append(kwargs["temperature"])
+                if len(seen) == 1:  # first attempt loops/truncates
+                    raise OutputTruncatedError("looped", eval_count=8192, num_predict=8192)
+                return {
+                    "result": {"selections": [{"card_name": "Murder", "reason": "x"}]},
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                }
+            return {
+                "result": {
+                    "assignments": [{"card_name": "Murder", "slot_id": "B-C-03", "reason": "x"}]
+                },
+                "input_tokens": 1,
+                "output_tokens": 1,
+            }
+
+        with patch("mtgai.generation.llm_client.generate_with_tool", stub):
+            result = select_reprints(project_skeleton, count=1)
+
+        assert seen[0] == pytest.approx(temps.ANALYTICAL)  # attempt 0 at the base
+        assert seen[1] == pytest.approx(temps.ANALYTICAL + temps.RETRY_TEMP_STEP)
+        assert len(result.selections) == 1  # the bumped retry succeeded
+
+    def test_select_persistent_truncation_bails_bounded(self, project_skeleton: Path):
+        from mtgai.generation.reprint_selector import _PLACE_MAX_ATTEMPTS
+        from mtgai.generation.token_utils import OutputTruncatedError
+
+        calls = {"n": 0}
+
+        def stub(**kwargs):
+            if kwargs["tool_schema"]["name"] == "select_reprints":
+                calls["n"] += 1
+                raise OutputTruncatedError("looped", eval_count=8192, num_predict=8192)
+            return {"result": {"assignments": []}, "input_tokens": 1, "output_tokens": 1}
+
+        with patch("mtgai.generation.llm_client.generate_with_tool", stub):
+            result = select_reprints(project_skeleton, count=1)
+
+        assert result.selections == []
+        assert calls["n"] == _PLACE_MAX_ATTEMPTS  # bounded attempts, then bail
+
+    def test_place_retry_bumps_from_base(self, project_skeleton: Path):
+        # The place loop is 1-indexed; the bump uses (attempt - 1) so the first
+        # attempt is at the base, not already bumped.
+        from mtgai.generation import temperatures as temps
+
+        place_temps: list[float] = []
+
+        def stub(**kwargs):
+            if kwargs["tool_schema"]["name"] == "select_reprints":
+                return {
+                    "result": {"selections": [{"card_name": "Murder", "reason": "x"}]},
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                }
+            place_temps.append(kwargs["temperature"])
+            if len(place_temps) == 1:  # placed nothing → loop retries
+                return {"result": {"assignments": []}, "input_tokens": 1, "output_tokens": 1}
+            return {
+                "result": {
+                    "assignments": [{"card_name": "Murder", "slot_id": "B-C-03", "reason": "x"}]
+                },
+                "input_tokens": 1,
+                "output_tokens": 1,
+            }
+
+        with patch("mtgai.generation.llm_client.generate_with_tool", stub):
+            result = select_reprints(project_skeleton, count=1)
+
+        assert place_temps[0] == pytest.approx(temps.ANALYTICAL)  # attempt 1 at the base
+        assert place_temps[1] == pytest.approx(temps.ANALYTICAL + temps.RETRY_TEMP_STEP)
+        assert len(result.selections) == 1
+
+
+# ---------------------------------------------------------------------------
 # Card conversion
 # ---------------------------------------------------------------------------
 

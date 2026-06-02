@@ -18,6 +18,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool
 from mtgai.generation.skeleton_prompt_blocks import (
     format_archetypes_block,
@@ -171,7 +172,7 @@ def tune_knobs(
             user_prompt=user_prompt,
             tool_schema=build_tool_schema(),
             model=model,
-            temperature=0.7,
+            temperature=temps.BALANCED,
             max_tokens=STANDARD,
             log_dir=log_dir,
         )

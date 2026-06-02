@@ -503,6 +503,53 @@ def format_archetypes_section(
 # ---------------------------------------------------------------------------
 
 
+def build_static_set_context(
+    mechanics: list[dict],
+    theme: dict | None = None,
+    archetypes: list[dict] | None = None,
+) -> str:
+    """Assemble the set-wide STATIC context shared by every card_gen batch.
+
+    These four sections (set flavor / setting prose, custom mechanics, draft
+    archetypes, and the preventive-design checklist) are a pure function of
+    ``(mechanics, theme, archetypes)`` with no per-batch values, so they are
+    byte-identical across a whole run. card_gen places this in an
+    independently-cached system block (see ``card_generator``) so it is written
+    once and read at ~0.1x on every subsequent batch, instead of re-billed at
+    full price in the user message ~200-250x per set.
+
+    ``archetypes`` (the TC-3 ``archetypes.json`` list) overrides the theme's
+    ``draft_archetypes`` when provided. The preventive checklist is always
+    appended, so this never returns an empty string.
+    """
+    sections: list[str] = []
+
+    # Set flavor: setting prose, robust to any setting's theme.json shape.
+    if theme:
+        prose_block = format_setting_prose(theme)
+        if prose_block:
+            sections.append(prose_block)
+
+    # Custom mechanics: include ALL of the set's mechanics, not just those whose
+    # colors match the batch. There are only a handful, and the skeleton relabel
+    # can assign any mechanic to a slot regardless of the slot's default color, so
+    # color-filtering would drop the very definition the card needs. (An empty
+    # color set means "include all" in format_mechanic_block.)
+    mech_block = format_mechanic_block(mechanics, set())
+    if mech_block.strip():
+        sections.append(f"## Custom Mechanics for This Set\n\n{mech_block}")
+
+    # Draft archetypes: the set's strategic map (shown whenever available).
+    arch_block = format_archetypes_section(archetypes, theme)
+    if arch_block:
+        sections.append(arch_block)
+
+    # Preventive guidance: set-agnostic; names this set's own mechanics.
+    sections.append(format_preventive_guidance(mechanics))
+
+    return "\n\n---\n\n".join(sections)
+
+
 def build_user_prompt(
     slots: list[dict],
     mechanics: list[dict],
@@ -514,10 +561,13 @@ def build_user_prompt(
 ) -> str:
     """Assemble the complete user prompt for a batch generation call.
 
-    Includes: set flavor (setting prose from ``theme.json``), relevant
-    mechanics, preventive guidance, existing card context, and slot
-    specifications. ``archetypes`` (the TC-3 ``archetypes.json`` list)
-    overrides the theme's ``draft_archetypes`` when provided.
+    Holds only the per-batch DYNAMIC content (existing-card context, cycle
+    siblings, slot specs). The set-wide STATIC context (set flavor, mechanics,
+    archetypes, preventive guidance) moved to ``build_static_set_context`` and
+    is sent as a cached system block, so it is deliberately absent here.
+    ``mechanics`` is retained in the signature (unused) for call-shape
+    compatibility. ``archetypes`` (the TC-3 ``archetypes.json`` list) overrides
+    the theme's ``draft_archetypes`` when provided.
 
     ``cycle_siblings`` (optional, keyword-only) is the list of previously-saved
     members of THIS batch's cycle — passed by the card-gen loop when an oversized
@@ -526,30 +576,9 @@ def build_user_prompt(
     so later sub-batches design parallel cards rather than just being told
     "don't duplicate" by the generic existing-cards context.
     """
+    del mechanics  # retained for call-shape compatibility; static context moved out
+
     sections: list[str] = []
-
-    # Set flavor — setting prose, robust to any setting's theme.json shape
-    if theme:
-        prose_block = format_setting_prose(theme)
-        if prose_block:
-            sections.append(prose_block)
-
-    # Custom mechanics — include ALL of the set's mechanics, not just those whose
-    # colors match the batch. There are only a handful, and the skeleton relabel
-    # can assign any mechanic to a slot regardless of the slot's default color, so
-    # color-filtering would drop the very definition the card needs. (An empty
-    # color set means "include all" in format_mechanic_block.)
-    mech_block = format_mechanic_block(mechanics, set())
-    if mech_block.strip():
-        sections.append(f"## Custom Mechanics for This Set\n\n{mech_block}")
-
-    # Draft archetypes — the set's strategic map (shown whenever available).
-    arch_block = format_archetypes_section(archetypes, theme)
-    if arch_block:
-        sections.append(arch_block)
-
-    # Preventive guidance — set-agnostic; names this set's own mechanics.
-    sections.append(format_preventive_guidance(mechanics))
 
     # Existing card context
     ctx = format_set_context(existing_cards)
