@@ -358,13 +358,13 @@ class TestAnthropicGenerateWithTool:
         with (
             patch("mtgai.generation.llm_client._resolve_provider", return_value="anthropic"),
             patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+            pytest.raises(ValueError, match="max_tokens"),
         ):
-            with pytest.raises(ValueError, match="max_tokens"):
-                generate_with_tool(
-                    system_prompt="Sys",
-                    user_prompt="User",
-                    tool_schema=SAMPLE_TOOL,
-                )
+            generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+            )
 
     def test_no_tool_call_raises(self):
         resp = _make_response(tool_calls=[], finish_reason="end_turn")
@@ -373,13 +373,13 @@ class TestAnthropicGenerateWithTool:
         with (
             patch("mtgai.generation.llm_client._resolve_provider", return_value="anthropic"),
             patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+            pytest.raises(ValueError, match="No tool_use block"),
         ):
-            with pytest.raises(ValueError, match="No tool_use block"):
-                generate_with_tool(
-                    system_prompt="Sys",
-                    user_prompt="User",
-                    tool_schema=SAMPLE_TOOL,
-                )
+            generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+            )
 
 
 # ── llamacpp path ────────────────────────────────────────────────────
@@ -500,14 +500,14 @@ class TestLlamaCppGenerateWithTool:
         with (
             patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
             patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+            pytest.raises(ValueError, match="failed to produce valid tool output"),
         ):
-            with pytest.raises(ValueError, match="failed to produce valid tool output"):
-                generate_with_tool(
-                    system_prompt="Sys",
-                    user_prompt="User",
-                    tool_schema=SAMPLE_TOOL,
-                    model="vlad-gemma4-26b-dynamic",
-                )
+            generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+                model="vlad-gemma4-26b-dynamic",
+            )
 
     def test_wrong_named_tool_call_is_not_accepted(self, monkeypatch):
         """A tool_call whose name doesn't match the requested tool must NOT
@@ -525,14 +525,14 @@ class TestLlamaCppGenerateWithTool:
         with (
             patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
             patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+            pytest.raises(ValueError, match="failed to produce valid tool output"),
         ):
-            with pytest.raises(ValueError, match="failed to produce valid tool output"):
-                generate_with_tool(
-                    system_prompt="Sys",
-                    user_prompt="User",
-                    tool_schema=SAMPLE_TOOL,
-                    model="vlad-gemma4-26b-dynamic",
-                )
+            generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+                model="vlad-gemma4-26b-dynamic",
+            )
 
 
 # ── Free-text generation (generate_text) ─────────────────────────────

@@ -20,9 +20,11 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import ClassVar
 
 from PIL import Image, ImageChops, ImageDraw
 
@@ -139,11 +141,7 @@ def _draw_text_centered(
     draw.text((x, y), text, font=font, fill=color)
 
 
-# ---------------------------------------------------------------------------
 # MANA_SYMBOL_RE for inline symbol parsing in rules text
-# ---------------------------------------------------------------------------
-import re
-
 MANA_SYMBOL_RE = re.compile(r"\{([^}]+)\}")
 
 
@@ -259,7 +257,7 @@ class CardRenderer:
     # ------------------------------------------------------------------
 
     # Map color identity to crown filename (wingedsheep naming convention)
-    CROWN_KEY_MAP: dict[str, str] = {
+    CROWN_KEY_MAP: ClassVar[dict[str, str]] = {
         "W": "W",
         "U": "U",
         "B": "B",
@@ -270,7 +268,7 @@ class CardRenderer:
         "L": "Land",
     }
     # Two-color pairs
-    CROWN_PAIR_MAP: dict[tuple[str, ...], str] = {
+    CROWN_PAIR_MAP: ClassVar[dict[tuple[str, ...], str]] = {
         ("U", "W"): "WU",
         ("B", "W"): "WB",
         ("R", "W"): "WR",
@@ -789,10 +787,8 @@ class CardRenderer:
         left_text = f"{rarity_char} \u2022 {cn}/{total_cards} {card.set_code} \u2022 EN"
         lbbox = draw.textbbox((0, 0), left_text, font=coll_font)
         lh = lbbox[3] - lbbox[1]
-        if has_pt:
-            ly = box.top + (box.height - lh) // 2 - lbbox[1]
-        else:
-            ly = box.top + 8 - lbbox[1]  # near top edge of collector bar
+        # creatures center in the bar; non-creatures hug the top edge (8px down)
+        ly = box.top + (box.height - lh) // 2 - lbbox[1] if has_pt else box.top + 8 - lbbox[1]
 
         # Left side: rarity • collector number / total • set code • EN
         draw.text(

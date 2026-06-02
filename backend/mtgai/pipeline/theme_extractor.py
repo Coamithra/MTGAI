@@ -10,6 +10,7 @@ Single-extraction model: only one extraction can run at a time.
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import json as _json
 import logging
@@ -494,7 +495,7 @@ def _clean_pdf_text(text: str) -> str:
     text = text.replace("‌", " ")  # zero-width non-joiner
     text = text.replace("‍", " ")  # zero-width joiner
     text = text.replace("﻿", "")  # BOM
-    text = text.replace(" ", " ")  # non-breaking space
+    text = text.replace(" ", " ")  # noqa: RUF001 (deliberate non-breaking space)
     text = re.sub(r" {2,}", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     text = "\n".join(line.rstrip() for line in text.split("\n"))
@@ -576,10 +577,7 @@ def analyze_extraction(text: str, model_key: str) -> ExtractionPlan:
     fits = token_count <= available
 
     chunk_token_budget = model_info.context_window // 2
-    if fits:
-        chunk_count = 1
-    else:
-        chunk_count = max(1, math.ceil(token_count / max(chunk_token_budget, 1)))
+    chunk_count = 1 if fits else max(1, math.ceil(token_count / max(chunk_token_budget, 1)))
 
     if fits:
         total_input_tokens = token_count
@@ -1545,10 +1543,8 @@ def _stream_llamacpp_call(
             # happy.
             close = getattr(stream_iter, "close", None)
             if close is not None:
-                try:
+                with contextlib.suppress(Exception):
                     close()
-                except Exception:
-                    pass
 
         if loop_err:
             logger.info(

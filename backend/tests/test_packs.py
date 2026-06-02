@@ -329,7 +329,9 @@ class TestColorBalance:
         pool = _make_colored_pool()
         for seed in range(50):
             pack = generate_booster_pack(pool, seed=seed)
-            commons = [c for c in pack if c.rarity == Rarity.COMMON and "Basic Land" not in c.type_line]
+            commons = [
+                c for c in pack if c.rarity == Rarity.COMMON and "Basic Land" not in c.type_line
+            ]
             colors_present = {
                 c.color_identity[0].value for c in commons if c.color_identity
             }
@@ -342,7 +344,9 @@ class TestColorBalance:
         pool = _make_colored_pool()
         for seed in range(50):
             pack = generate_booster_pack(pool, seed=seed)
-            commons = [c for c in pack if c.rarity == Rarity.COMMON and "Basic Land" not in c.type_line]
+            commons = [
+                c for c in pack if c.rarity == Rarity.COMMON and "Basic Land" not in c.type_line
+            ]
             counts: dict[str, int] = {}
             for c in commons:
                 ci = c.color_identity[0].value if c.color_identity else "C"
@@ -378,7 +382,9 @@ class TestColorBalance:
         n_packs = 100
         for seed in range(n_packs):
             pack = generate_booster_pack(pool, seed=seed)
-            commons = [c for c in pack if c.rarity == Rarity.COMMON and "Basic Land" not in c.type_line]
+            commons = [
+                c for c in pack if c.rarity == Rarity.COMMON and "Basic Land" not in c.type_line
+            ]
             for c in commons:
                 ci = c.color_identity[0].value if c.color_identity else "C"
                 total_by_color[ci] = total_by_color.get(ci, 0) + 1

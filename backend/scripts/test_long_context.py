@@ -82,8 +82,8 @@ def run_call(
     http_status: int | None = None
     start = time.perf_counter()
 
-    LOOP_THRESHOLD = 25
-    TAIL_BUDGET_CHARS = 500
+    loop_threshold = 25
+    tail_budget_chars = 500
     tokens_since_check = 0
 
     try:
@@ -111,8 +111,8 @@ def run_call(
                     tokens_since_check += 1
                     if tokens_since_check >= 10:
                         tokens_since_check = 0
-                        tail = "".join(chunks)[-TAIL_BUDGET_CHARS:]
-                        finding = detect_repetition(tail, min_repeats=LOOP_THRESHOLD)
+                        tail = "".join(chunks)[-tail_budget_chars:]
+                        finding = detect_repetition(tail, min_repeats=loop_threshold)
                         if finding:
                             aborted_reason = f"Streaming loop detected: {finding}"
                             resp.close()
@@ -238,8 +238,10 @@ def main() -> int:
         )
         c_status, c_parsed = analyze_json_call(constraints_result, "constraints")
         c_loop = detect_repetition(constraints_result["raw"])
-        print(f"  wall={constraints_result['wall_s']:.1f}s  chars={len(constraints_result['raw'])}  "
-              f"parse={c_status}  loop={'YES' if c_loop else 'no'}")
+        print(
+            f"  wall={constraints_result['wall_s']:.1f}s  chars={len(constraints_result['raw'])}  "
+            f"parse={c_status}  loop={'YES' if c_loop else 'no'}"
+        )
         if c_loop:
             print(f"  LOOP: {c_loop}")
 
@@ -256,8 +258,10 @@ def main() -> int:
         )
         s_status, s_parsed = analyze_json_call(suggestions_result, "card_suggestions")
         s_loop = detect_repetition(suggestions_result["raw"])
-        print(f"  wall={suggestions_result['wall_s']:.1f}s  chars={len(suggestions_result['raw'])}  "
-              f"parse={s_status}  loop={'YES' if s_loop else 'no'}")
+        print(
+            f"  wall={suggestions_result['wall_s']:.1f}s  chars={len(suggestions_result['raw'])}  "
+            f"parse={s_status}  loop={'YES' if s_loop else 'no'}"
+        )
         if s_loop:
             print(f"  LOOP: {s_loop}")
 
@@ -350,10 +354,14 @@ def main() -> int:
         print(f"  trial {s['trial']}:")
         print(f"    theme:       wall={s['theme_wall']:.1f}s  chars={s['theme_chars']}  "
               f"loop={'YES' if s['theme_loop'] else 'no'}")
-        print(f"    constraints: wall={s['constraints_wall']:.1f}s  chars={s['constraints_chars']}  "
-              f"parse={s['constraints_status']}  loop={'YES' if s['constraints_loop'] else 'no'}")
-        print(f"    suggestions: wall={s['suggestions_wall']:.1f}s  chars={s['suggestions_chars']}  "
-              f"parse={s['suggestions_status']}  loop={'YES' if s['suggestions_loop'] else 'no'}")
+        print(
+            f"    constraints: wall={s['constraints_wall']:.1f}s  chars={s['constraints_chars']}  "
+            f"parse={s['constraints_status']}  loop={'YES' if s['constraints_loop'] else 'no'}"
+        )
+        print(
+            f"    suggestions: wall={s['suggestions_wall']:.1f}s  chars={s['suggestions_chars']}  "
+            f"parse={s['suggestions_status']}  loop={'YES' if s['suggestions_loop'] else 'no'}"
+        )
     return 1 if (n_loop > 0 or n_fail > 0) else 0
 
 

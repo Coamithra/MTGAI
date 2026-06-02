@@ -10,8 +10,11 @@ and a substantial input document.
 
 Usage:
   python -m scripts.test_sequence --model vlad-gemma4-26b-dynamic
-  python -m scripts.test_sequence --model vlad-gemma4-26b-dynamic --skip-precursor  # constraints only
-  python -m scripts.test_sequence --model vlad-gemma4-26b-dynamic --precursor-input path/to/bigdoc.txt
+  # constraints only:
+  python -m scripts.test_sequence --model vlad-gemma4-26b-dynamic --skip-precursor
+  # with a precursor doc:
+  python -m scripts.test_sequence --model vlad-gemma4-26b-dynamic \
+      --precursor-input path/to/bigdoc.txt
   python -m scripts.test_sequence --trials 10  # batch runs
 """
 
@@ -85,8 +88,8 @@ def run_call(
     http_status: int | None = None
     start = time.perf_counter()
 
-    LOOP_THRESHOLD = 25
-    TAIL_BUDGET_CHARS = 500
+    loop_threshold = 25
+    tail_budget_chars = 500
     tokens_since_check = 0
 
     try:
@@ -116,8 +119,8 @@ def run_call(
                     tokens_since_check += 1
                     if tokens_since_check >= 10:
                         tokens_since_check = 0
-                        tail = "".join(chunks)[-TAIL_BUDGET_CHARS:]
-                        finding = detect_repetition(tail, min_repeats=LOOP_THRESHOLD)
+                        tail = "".join(chunks)[-tail_budget_chars:]
+                        finding = detect_repetition(tail, min_repeats=loop_threshold)
                         if finding:
                             aborted_reason = f"Streaming loop detected: {finding}"
                             if print_stream:
@@ -209,7 +212,11 @@ def main() -> int:
                 json_mode=False,  # theme extraction doesn't use JSON mode
                 print_stream=False,
             )
-            print(f"  wall={precursor_result['wall_s']:.1f}s  chars={len(precursor_result['raw'])}  meta={json.dumps(precursor_result['meta'])}")
+            print(
+                f"  wall={precursor_result['wall_s']:.1f}s  "
+                f"chars={len(precursor_result['raw'])}  "
+                f"meta={json.dumps(precursor_result['meta'])}"
+            )
             if precursor_result["exception"]:
                 print(f"  EXCEPTION: {precursor_result['exception'].splitlines()[-1]}")
 
@@ -237,7 +244,10 @@ def main() -> int:
             parse_status = f"FAIL - {e.msg} at pos {e.pos}"
             parsed_summary = ""
 
-        print(f"  wall={constraints_result['wall_s']:.1f}s  chars={len(raw)}  parse={parse_status}  loop={'YES' if loop else 'no'}")
+        print(
+            f"  wall={constraints_result['wall_s']:.1f}s  chars={len(raw)}  "
+            f"parse={parse_status}  loop={'YES' if loop else 'no'}"
+        )
         if loop:
             print(f"  LOOP: {loop}")
 
@@ -281,7 +291,9 @@ def main() -> int:
                 "",
             ]
             if precursor_result["exception"]:
-                lines += ["### Exception", "", "```", precursor_result["exception"].rstrip(), "```", ""]
+                lines += [
+                    "### Exception", "", "```", precursor_result["exception"].rstrip(), "```", ""
+                ]
 
         lines += [
             "## Constraints call",
@@ -302,7 +314,9 @@ def main() -> int:
         if parsed_summary:
             lines += ["### Parsed JSON", "", "```json", parsed_summary, "```", ""]
         if constraints_result["exception"]:
-            lines += ["### Exception", "", "```", constraints_result["exception"].rstrip(), "```", ""]
+            lines += [
+                "### Exception", "", "```", constraints_result["exception"].rstrip(), "```", ""
+            ]
 
         out_path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -327,7 +341,10 @@ def main() -> int:
     print(f"Loops detected: {n_loop}")
     print(f"Parse failures: {n_fail}")
     for s in summary:
-        print(f"  trial {s['trial']}: constraints_wall={s['constraints_wall_s']:.1f}s  parse={s['parse_status']}  loop={'YES' if s['loop'] else 'no'}")
+        print(
+            f"  trial {s['trial']}: constraints_wall={s['constraints_wall_s']:.1f}s  "
+            f"parse={s['parse_status']}  loop={'YES' if s['loop'] else 'no'}"
+        )
     return 1 if (n_loop > 0 or n_fail > 0) else 0
 
 

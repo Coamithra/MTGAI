@@ -107,7 +107,10 @@ def check_gpu_placement(model_id: str) -> str:
                 if size > 0:
                     pct_gpu = round(size_vram / size * 100)
                     pct_cpu = 100 - pct_gpu
-                    return f"{pct_gpu}% GPU / {pct_cpu}% CPU ({size_vram/1e9:.1f}/{size/1e9:.1f} GB)"
+                    return (
+                        f"{pct_gpu}% GPU / {pct_cpu}% CPU "
+                        f"({size_vram / 1e9:.1f}/{size / 1e9:.1f} GB)"
+                    )
         return "unknown"
     except Exception:
         return "unknown"

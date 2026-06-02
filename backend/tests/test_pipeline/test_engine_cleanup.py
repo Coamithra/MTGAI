@@ -61,7 +61,7 @@ def _state_with_running_stage(set_code: str, stage_id: str) -> PipelineState:
 
 
 def test_demotes_running_stage_to_failed(project_with_state):
-    asset_dir, write_state = project_with_state
+    _asset_dir, write_state = project_with_state
     state = _state_with_running_stage("AAA", "card_gen")
     path = write_state(state)
 
@@ -82,7 +82,7 @@ def test_demotes_overall_status_when_no_running_stage(project_with_state):
     This shouldn't happen in normal operation but the helper should
     leave consistent state on disk regardless of what it finds.
     """
-    asset_dir, write_state = project_with_state
+    _asset_dir, write_state = project_with_state
     state = create_pipeline_state(PipelineConfig(set_code="BBB", set_name="Test", set_size=20))
     state.overall_status = PipelineStatus.RUNNING
     path = write_state(state)
@@ -95,7 +95,7 @@ def test_demotes_overall_status_when_no_running_stage(project_with_state):
 
 
 def test_leaves_completed_state_alone(project_with_state):
-    asset_dir, write_state = project_with_state
+    _asset_dir, write_state = project_with_state
     state = create_pipeline_state(PipelineConfig(set_code="CCC", set_name="Test", set_size=20))
     state.overall_status = PipelineStatus.COMPLETED
     path = write_state(state)
@@ -137,7 +137,7 @@ def test_loads_legacy_state_with_skip_stages_field(project_with_state):
     so a future ``model_config = ConfigDict(extra='forbid')`` can't
     silently break the open path for users with existing projects.
     """
-    asset_dir, write_state = project_with_state
+    asset_dir, _write_state = project_with_state
     state = create_pipeline_state(PipelineConfig(set_code="LEG", set_name="Test", set_size=20))
     raw = state.model_dump(mode="json")
     raw["config"]["skip_stages"] = ["lands", "rendering"]
@@ -154,7 +154,7 @@ def test_loads_legacy_state_with_skip_stages_field(project_with_state):
 
 def test_skips_unparseable_state_file(project_with_state):
     """A corrupt state file shouldn't crash the open path."""
-    asset_dir, write_state = project_with_state
+    asset_dir, _write_state = project_with_state
     (asset_dir / "pipeline-state.json").write_text("{not valid json", encoding="utf-8")
 
     demoted = engine_mod.cleanup_orphan_running_stages()
@@ -170,7 +170,7 @@ def test_load_state_reorders_legacy_stage_order(project_with_state):
     are all present but in the old order must come back canonical, with
     each existing StageState (and its persisted status) preserved.
     """
-    asset_dir, write_state = project_with_state
+    _asset_dir, write_state = project_with_state
     state = create_pipeline_state(PipelineConfig(set_code="OLD", set_name="Test", set_size=20))
     # Simulate the legacy on-disk order: pull visual_refs out of its
     # canonical slot and reinsert it right after archetypes, marking it

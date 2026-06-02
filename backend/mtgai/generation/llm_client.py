@@ -27,7 +27,7 @@ import re
 import threading
 import uuid
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 
@@ -1013,10 +1013,8 @@ def _consume_text_stream(convo: Any, user_prompt: str, model: str) -> Iterator[d
     finally:
         close = getattr(stream_iter, "close", None)
         if close is not None:
-            try:
+            with suppress(Exception):
                 close()
-            except Exception:
-                pass
 
     yield {
         "type": "complete",

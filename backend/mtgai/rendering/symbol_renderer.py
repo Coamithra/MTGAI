@@ -199,7 +199,6 @@ def _rasterize_svg_pycairo(
 
     try:
         import cairo
-        from svg.path import parse_path
     except ImportError:
         return None
 

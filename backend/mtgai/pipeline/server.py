@@ -11,7 +11,7 @@ import asyncio
 import json
 import logging
 import threading
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -212,7 +212,7 @@ def guarded_ai(label: str, *, stage_id: str | None = None, heal: bool = True):
         ai_lock.release()
 
 
-class _NoActiveProject(Exception):
+class _NoActiveProjectError(Exception):
     """Sentinel raised by :func:`_require_active_project` when no project is open.
 
     Endpoints catch this and return :func:`_no_active_project_response`. Using
@@ -223,10 +223,10 @@ class _NoActiveProject(Exception):
 
 
 def _require_active_project() -> active_project.ProjectState:
-    """Return the active project; raise :class:`_NoActiveProject` if none is open."""
+    """Return the active project; raise :class:`_NoActiveProjectError` if none is open."""
     project = active_project.read_active_project()
     if project is None:
-        raise _NoActiveProject
+        raise _NoActiveProjectError
     return project
 
 
@@ -247,7 +247,7 @@ def read_theme_or_none() -> Any:
 def register_exception_handlers(app: FastAPI) -> None:
     """Register the wizard's 409 guard handlers on the FastAPI ``app``.
 
-    Endpoints let :class:`_NoActiveProject` / :class:`NoAssetFolderError`
+    Endpoints let :class:`_NoActiveProjectError` / :class:`NoAssetFolderError`
     propagate instead of each wrapping the guard in a ``try/except`` — these
     handlers centralize the translation, so the duplicated guard prologue
     collapses to a single inline ``_require_active_project()`` /
@@ -256,8 +256,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     nest it under ``detail``.
     """
 
-    @app.exception_handler(_NoActiveProject)
-    async def _handle_no_active_project(request: Request, exc: _NoActiveProject) -> JSONResponse:
+    @app.exception_handler(_NoActiveProjectError)
+    async def _handle_no_active_project(
+        request: Request, exc: _NoActiveProjectError
+    ) -> JSONResponse:
         return _no_active_project_response()
 
     @app.exception_handler(NoAssetFolderError)
@@ -718,7 +720,7 @@ def _start_extraction_worker(
     # bus so the Theme tab can stream tokens into its textarea
     # in real time. Restricted set of types so we don't flood
     # subscribers with internals.
-    _BUS_EVENTS = {
+    bus_events = {
         "theme_chunk",
         "constraints",
         "card_suggestions",
@@ -732,11 +734,9 @@ def _start_extraction_worker(
 
     def _bus_mirror(event: dict) -> None:
         etype = event.get("type")
-        if etype in _BUS_EVENTS:
-            try:
+        if etype in bus_events:
+            with suppress(Exception):
                 event_bus.publish(f"theme_{etype}", event)
-            except Exception:
-                pass
 
     def worker() -> None:
         theme_parts: list[str] = []
@@ -753,10 +753,8 @@ def _start_extraction_worker(
             # strip (which tails /api/pipeline/events) shows the run.
             def _phase_dual_emit(event: dict) -> None:
                 extraction_run.append_event(event)
-                try:
+                with suppress(Exception):
                     event_bus.publish("phase", event)
-                except Exception:
-                    pass
 
             set_phase_emitter(_phase_dual_emit)
 
@@ -1071,16 +1069,14 @@ def _stream_section_refresh(theme_text: str, kind: str, model_key: str):
     )
 
     q: _queue.Queue = _queue.Queue()
-    DONE = object()
+    done_sentinel = object()
 
     def push_event(event: dict) -> None:
         q.put(event)
         # Mirror to the global event bus so the wizard's progress strip
         # tracks section refreshes the same way it tracks full extractions.
-        try:
+        with suppress(Exception):
             event_bus.publish("phase", event)
-        except Exception:
-            pass
 
     def worker() -> None:
         try:
@@ -1099,23 +1095,19 @@ def _stream_section_refresh(theme_text: str, kind: str, model_key: str):
                     "suggestions_error",
                     "done",
                 ):
-                    try:
+                    with suppress(Exception):
                         event_bus.publish(f"section_{etype}", event)
-                    except Exception:
-                        pass
         except Exception as e:
             logger.error("Section refresh (%s) failed: %s", kind, e, exc_info=True)
             q.put({"type": "error", "message": str(e)})
-            try:
+            with suppress(Exception):
                 event_bus.publish("section_done", {"type": "done"})
-            except Exception:
-                pass
         finally:
             clear_phase_emitter()
-            q.put(DONE)
+            q.put(done_sentinel)
 
     threading.Thread(target=worker, name=f"section-refresh-{kind}", daemon=True).start()
-    return q, DONE
+    return q, done_sentinel
 
 
 @api_router.post("/theme/extract-section")
@@ -1147,7 +1139,7 @@ async def extract_section_endpoint(request: Request):
     if (resp := _reject_if_busy()) is not None:
         return resp
 
-    q, DONE = _stream_section_refresh(theme_text, kind, model_key)
+    q, done_sentinel = _stream_section_refresh(theme_text, kind, model_key)
 
     async def generate():
         import queue as _queue
@@ -1161,7 +1153,7 @@ async def extract_section_endpoint(request: Request):
                 except _queue.Empty:
                     yield ": keepalive\n\n"
                     continue
-                if event is DONE:
+                if event is done_sentinel:
                     break
                 yield _sse_format(event.get("type", "message"), event)
         except Exception as e:
