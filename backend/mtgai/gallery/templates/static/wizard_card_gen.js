@@ -632,7 +632,11 @@
     // Group. Only a review->regen instance highlights new-vs-carried-over —
     // on the first card_gen every card is "new", so the distinction is noise.
     const highlightNew = !!local.isRegenInstance;
-    const legend = highlightNew
+    // Suppress the legend until at least one regenerated card is present: a
+    // /state poll early in the run (before any card re-saved) would otherwise
+    // show the legend over a grid with nothing highlighted.
+    const anyNew = highlightNew && local.cards.some(c => c.is_new);
+    const legend = anyNew
       ? `<div class="wiz-cardgen-legend">
            <span class="wiz-cardgen-legend-swatch"></span>
            Highlighted cards were regenerated this round; the rest carried over.

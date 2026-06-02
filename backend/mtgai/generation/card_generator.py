@@ -1178,6 +1178,10 @@ def generate_set(
 
     if not unfilled:
         logger.info("Nothing to generate — all slots filled or failed.")
+        # No run executes here, so this is the all-done view, not a regen view:
+        # full-pool total + full-pool filled (e.g. "277/277"), internally
+        # consistent. The run-scoped denominator (run_target) only applies to the
+        # main return below, where a regen instance reports its flagged count.
         return {
             "total_slots": len(all_slots),
             "filled": len(progress.filled_slots),
