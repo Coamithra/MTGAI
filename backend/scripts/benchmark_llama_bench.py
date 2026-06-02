@@ -45,11 +45,16 @@ def run_one(gguf: Path, ngl: int, pp: int, tg: int, timeout_s: int) -> dict:
 
     cmd = [
         str(LLAMA_BENCH),
-        "-m", str(gguf),
-        "-p", str(pp),
-        "-n", str(tg),
-        "-ngl", str(ngl),
-        "-o", "json",
+        "-m",
+        str(gguf),
+        "-p",
+        str(pp),
+        "-n",
+        str(tg),
+        "-ngl",
+        str(ngl),
+        "-o",
+        "json",
     ]
     print(f"  $ {' '.join(cmd)}")
     start = time.perf_counter()
@@ -100,9 +105,7 @@ def fmt_summary(results: list[dict]) -> None:
         tg = next((row for row in r["rows"] if row.get("n_gen", 0) > 0), {})
         pp_ts = pp.get("avg_ts", 0)
         tg_ts = tg.get("avg_ts", 0)
-        print(
-            f"{name:<40} {pp_ts:>14.1f} {tg_ts:>14.1f} {r['wall_s']:>8.1f}"
-        )
+        print(f"{name:<40} {pp_ts:>14.1f} {tg_ts:>14.1f} {r['wall_s']:>8.1f}")
     print("=" * 100)
 
 
@@ -127,9 +130,7 @@ def main():
         default=600,
         help="Per-model timeout in seconds (default: 600)",
     )
-    parser.add_argument(
-        "--tag", default="phase-c-raw", help="Result-dir tag"
-    )
+    parser.add_argument("--tag", default="phase-c-raw", help="Result-dir tag")
     args = parser.parse_args()
 
     if not LLAMA_BENCH.is_file():
@@ -149,9 +150,7 @@ def main():
         r = run_one(gguf, args.ngl, args.pp, args.tg, args.timeout)
         results.append(r)
         # Persist running summary
-        (run_dir / "results.json").write_text(
-            json.dumps(results, indent=2), encoding="utf-8"
-        )
+        (run_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
 
     fmt_summary(results)
     print(f"\nResults: {run_dir}")

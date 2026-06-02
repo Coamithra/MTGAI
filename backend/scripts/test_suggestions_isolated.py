@@ -64,10 +64,10 @@ def detect_phrase_repetition(
     for plen in range(2, max_phrase_len + 1):
         if plen * min_repeats > n:
             break
-        phrase = text[n - plen:]
+        phrase = text[n - plen :]
         ok = True
         for i in range(1, min_repeats):
-            if text[n - plen * (i + 1):n - plen * i] != phrase:
+            if text[n - plen * (i + 1) : n - plen * i] != phrase:
                 ok = False
                 break
         if ok:
@@ -160,19 +160,27 @@ def run_call(
                     if tokens_since_check >= 10:
                         tokens_since_check = 0
                         tail = "".join(chunks)[-tail_budget_chars:]
-                        finding = (detect_repetition(tail, min_repeats=loop_threshold)
-                                   or detect_phrase_repetition(tail))
+                        finding = detect_repetition(
+                            tail, min_repeats=loop_threshold
+                        ) or detect_phrase_repetition(tail)
                         if finding:
                             aborted_reason = f"Streaming loop detected: {finding}"
                             print(f"    [ABORT: {aborted_reason}]", flush=True)
                             resp.close()
                             break
                 if evt.get("done"):
-                    meta = {k: evt.get(k) for k in (
-                        "total_duration", "load_duration", "prompt_eval_count",
-                        "prompt_eval_duration", "eval_count", "eval_duration",
-                        "done_reason",
-                    )}
+                    meta = {
+                        k: evt.get(k)
+                        for k in (
+                            "total_duration",
+                            "load_duration",
+                            "prompt_eval_count",
+                            "prompt_eval_duration",
+                            "eval_count",
+                            "eval_duration",
+                            "done_reason",
+                        )
+                    }
                     break
     except Exception:
         exc_text = traceback.format_exc()
@@ -200,8 +208,12 @@ def main() -> int:
     p.add_argument("--trials", type=int, default=6)
     p.add_argument("--theme", type=Path, default=DEFAULT_THEME)
     p.add_argument("--run-name-prefix", default="suggonly")
-    p.add_argument("--max-call-seconds", type=float, default=600.0,
-                   help="Abort a single call after this wall-clock budget")
+    p.add_argument(
+        "--max-call-seconds",
+        type=float,
+        default=600.0,
+        help="Abort a single call after this wall-clock budget",
+    )
     args = p.parse_args()
 
     suggestions_system = (PROMPTS_DIR / "card_suggestions_system.txt").read_text(encoding="utf-8")
@@ -236,9 +248,14 @@ def main() -> int:
         sys.stdout.flush()
 
         stream_path = OUT_DIR / f"{name}.stream.txt"
-        result = run_call(args.model, suggestions_system, user_msg, dict(base_options),
-                          stream_log_path=stream_path,
-                          max_call_seconds=args.max_call_seconds)
+        result = run_call(
+            args.model,
+            suggestions_system,
+            user_msg,
+            dict(base_options),
+            stream_log_path=stream_path,
+            max_call_seconds=args.max_call_seconds,
+        )
         raw = result["raw"]
         loop = detect_repetition(raw)
         try:
@@ -254,8 +271,10 @@ def main() -> int:
             parse_status = f"FAIL - {e.msg} at pos {e.pos}"
             parsed_summary = ""
 
-        print(f"  wall={result['wall_s']:.1f}s  chars={len(raw)}  parse={parse_status}  "
-              f"loop={'YES' if loop else 'no'}  meta={json.dumps(result['meta'])}")
+        print(
+            f"  wall={result['wall_s']:.1f}s  chars={len(raw)}  parse={parse_status}  "
+            f"loop={'YES' if loop else 'no'}  meta={json.dumps(result['meta'])}"
+        )
         if loop:
             print(f"  LOOP: {loop}")
         if result["aborted_reason"]:
@@ -300,14 +319,16 @@ def main() -> int:
 
         out_path.write_text("\n".join(lines), encoding="utf-8")
 
-        summary.append({
-            "trial": trial,
-            "wall_s": result["wall_s"],
-            "chars": len(raw),
-            "parse_status": parse_status,
-            "loop": bool(loop),
-            "meta": result["meta"],
-        })
+        summary.append(
+            {
+                "trial": trial,
+                "wall_s": result["wall_s"],
+                "chars": len(raw),
+                "parse_status": parse_status,
+                "loop": bool(loop),
+                "meta": result["meta"],
+            }
+        )
 
     print("\n" + "=" * 60)
     print("SUMMARY")
@@ -319,9 +340,11 @@ def main() -> int:
     print(f"Parse failures: {n_fail}")
     for s in summary:
         prompt_eval = s["meta"].get("prompt_eval_count", "?") if s["meta"] else "?"
-        print(f"  trial {s['trial']}: wall={s['wall_s']:.1f}s  chars={s['chars']}  "
-              f"prompt_tokens={prompt_eval}  parse={s['parse_status']}  "
-              f"loop={'YES' if s['loop'] else 'no'}")
+        print(
+            f"  trial {s['trial']}: wall={s['wall_s']:.1f}s  chars={s['chars']}  "
+            f"prompt_tokens={prompt_eval}  parse={s['parse_status']}  "
+            f"loop={'YES' if s['loop'] else 'no'}"
+        )
     return 1 if (n_loop > 0 or n_fail > 0) else 0
 
 

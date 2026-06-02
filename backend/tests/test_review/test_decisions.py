@@ -274,9 +274,7 @@ class TestDispatch:
         cards_dir.mkdir()
         d = _make_decisions()
         dispatch_decisions(d, base_dir=tmp_path)
-        queue = json.loads(
-            (tmp_path / "remake-queue.json").read_text(encoding="utf-8")
-        )
+        queue = json.loads((tmp_path / "remake-queue.json").read_text(encoding="utf-8"))
         # Should be parseable as ISO datetime
         parsed = datetime.fromisoformat(queue["timestamp"])
         assert parsed.year == 2026
@@ -342,9 +340,7 @@ class TestProgressTracking:
 
     def test_all_complete_empty(self):
         """All-OK decisions produce an empty progress, which is vacuously complete."""
-        d = _make_decisions(
-            decisions={"W-C-01": CardDecision(action=ReviewAction.OK)}
-        )
+        d = _make_decisions(decisions={"W-C-01": CardDecision(action=ReviewAction.OK)})
         progress = init_progress(d)
         assert progress.all_complete
 

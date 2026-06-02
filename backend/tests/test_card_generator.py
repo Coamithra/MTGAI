@@ -211,12 +211,14 @@ def test_card_one_liner_tolerates_none_oracle_text() -> None:
 def test_card_one_liner_preserves_full_card_shape() -> None:
     """Sanity check that the happy-path output didn't regress after the
     defensive coercion (None → "" for every str field)."""
-    out = _card_one_liner({
-        "name": "Lightning Bolt",
-        "mana_cost": "{R}",
-        "type_line": "Instant",
-        "oracle_text": "Lightning Bolt deals 3 damage to any target.",
-    })
+    out = _card_one_liner(
+        {
+            "name": "Lightning Bolt",
+            "mana_cost": "{R}",
+            "type_line": "Instant",
+            "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+        }
+    )
     assert "Lightning Bolt" in out
     assert "{R}" in out
     assert "Instant" in out

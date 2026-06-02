@@ -176,7 +176,16 @@ class TestCycleExpansion:
         assert {m["cycle_member"] for m in mono} == {"W", "U", "B", "R", "G"}
         pairs = _expand_cycle(Cycle(id="p", name="P", span=CycleSpan.PAIRS10))
         assert {m["cycle_member"] for m in pairs} == {
-            "WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"
+            "WU",
+            "WB",
+            "WR",
+            "WG",
+            "UB",
+            "UR",
+            "UG",
+            "BR",
+            "BG",
+            "RG",
         }
         shards = _expand_cycle(Cycle(id="s", name="S", span=CycleSpan.SHARDS5))
         assert {m["cycle_member"] for m in shards} == {"WUB", "UBR", "BRG", "RGW", "GWU"}

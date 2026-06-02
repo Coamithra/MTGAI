@@ -381,6 +381,7 @@ def cycle_options_payload() -> dict:
         ],
     }
 
+
 # Color-pair groupings (canonical COLOR_PAIRS ordering). Allied = neighbors on the
 # W-U-B-R-G wheel; enemy = the rest. Their union is all 10 pairs.
 ALLIED_PAIRS: list[str] = ["WU", "UB", "BR", "RG", "WG"]
