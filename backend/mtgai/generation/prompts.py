@@ -519,7 +519,8 @@ def build_static_set_context(
     full price in the user message ~200-250x per set.
 
     ``archetypes`` (the TC-3 ``archetypes.json`` list) overrides the theme's
-    ``draft_archetypes`` when provided. Returns "" when every section is empty.
+    ``draft_archetypes`` when provided. The preventive checklist is always
+    appended, so this never returns an empty string.
     """
     sections: list[str] = []
 

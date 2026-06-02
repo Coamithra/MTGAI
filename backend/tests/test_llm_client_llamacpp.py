@@ -776,3 +776,50 @@ class TestSystemBlocks:
     def test_missing_tool_schema_raises(self):
         with pytest.raises(ValueError, match="requires a tool_schema"):
             generate_with_tool(system_prompt="Sys", user_prompt="User")
+
+    def test_card_gen_shape_stays_within_four_marker_cap(self):
+        """The production card_gen call shape (two cached system blocks, default
+        cache=True, no cache_user) must yield exactly 2 cached system blocks +
+        auto_cache_tools=True + auto_cache_last_user=False = 3 cache_control
+        markers, comfortably under Anthropic's cap of 4."""
+        resp = _make_response(tool_calls=[_make_tool_call("generate_card", SAMPLE_CARD)])
+        provider, _ = _build_facade_provider_mock(resp)
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="anthropic"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            generate_with_tool(
+                user_prompt="dynamic batch content",
+                tool_schema=SAMPLE_TOOL,
+                model="claude-sonnet-4-6",
+                system_blocks=[("base instructions", True), ("static set context", True)],
+            )
+        kwargs = model.new_conversation.call_args.kwargs
+        blocks = kwargs["system_blocks"]
+        cached_blocks = sum(1 for b in blocks if b.cache)
+        markers = (
+            cached_blocks + int(kwargs["auto_cache_tools"]) + int(kwargs["auto_cache_last_user"])
+        )
+        assert cached_blocks == 2
+        assert kwargs["auto_cache_tools"] is True
+        assert kwargs["auto_cache_last_user"] is False
+        assert markers <= 4
+
+    def test_empty_system_block_is_dropped(self):
+        """An empty / whitespace-only block must not reach the provider as a
+        cached SystemBlock (the Anthropic API rejects empty text content)."""
+        resp = _make_response(tool_calls=[_make_tool_call("generate_card", SAMPLE_CARD)])
+        provider, _ = _build_facade_provider_mock(resp)
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="anthropic"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            generate_with_tool(
+                user_prompt="u",
+                tool_schema=SAMPLE_TOOL,
+                system_blocks=[("kept", True), ("", True), ("   ", False)],
+            )
+        blocks = model.new_conversation.call_args.kwargs["system_blocks"]
+        assert [b.text for b in blocks] == ["kept"]

@@ -1177,7 +1177,8 @@ def council_review(
                     log_dir=log_dir,
                     # The 3 same-round reviewers receive a byte-identical user
                     # prompt (the rendered mechanic block); cache it so reviewers
-                    # 2 & 3 read it at ~0.1x. No-op on the llamacpp path.
+                    # 2 & 3 read it from cache when it clears the provider's
+                    # min-cacheable size. No-op on the llamacpp path.
                     cache_user=True,
                 )
             except Exception as exc:

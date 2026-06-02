@@ -433,7 +433,9 @@ def _generate_anthropic(
     historical single-block path. ``cache_user`` requests an ephemeral marker on
     the last user block (used by the mechanics council so same-round reviewers
     read an identical user prompt from cache). Anthropic caps a request at 4
-    ``cache_control`` markers — callers keep static context to one block.
+    ``cache_control`` markers — the tool schema, every cached system block, and
+    an optional cached last-user block all count, so callers bundle their static
+    context into ONE block (card_gen uses 3: tools + base + static).
     """
     provider = _get_provider("anthropic")
     facade_model = provider.new_model(model)
@@ -716,14 +718,20 @@ def _normalize_system_blocks(
     A bare ``str`` item means "uncached"; a ``(text, cache)`` tuple sets the flag
     explicitly. Converting here keeps ``SystemBlock`` an llmfacade detail of the
     transport, never leaking into call sites.
+
+    Empty / whitespace-only items are dropped: the Anthropic API rejects an
+    empty text content block (and a ``cache_control`` marker on one), so a caller
+    that conditionally builds a block can pass "" without blowing up the request.
     """
     normalized: list[tuple[str, bool]] = []
     for item in system_blocks:
         if isinstance(item, str):
-            normalized.append((item, False))
+            text, blk_cache = item, False
         else:
-            text, blk_cache = item
-            normalized.append((str(text), bool(blk_cache)))
+            text, blk_cache = str(item[0]), bool(item[1])
+        if not text.strip():
+            continue
+        normalized.append((text, blk_cache))
     return normalized
 
 
