@@ -27,17 +27,29 @@ from mtgai.models.card import Card
 from mtgai.validation import ValidationError, ValidationSeverity
 from mtgai.validation.rules_text import _is_keyword_only_line, _strip_reminder
 
+# Keywords whose ability conventionally templates at the **bottom** of the
+# textbox, not the top: Equip (on Equipment) and Enchant (on Auras). A line
+# carrying one is excluded from the top-hoist so we don't move it above the
+# card's other abilities, where MTG never puts it.
+_BOTTOM_KEYWORDS = ("equip", "enchant")
+
 
 def _is_keyword_line(line: str) -> bool:
-    """True if ``line`` is a standalone keyword-ability line (reminder ignored).
+    """True if ``line`` is a top-of-textbox keyword-ability line (reminder ignored).
 
     A keyword line is one whose every comma-separated segment is a recognized
     keyword (evergreen or custom), e.g. ``"Flying, vigilance"`` or
     ``"Ward {2}"``. Reminder text is stripped before the check so a keyword line
     carrying an injected ``(reminder)`` still classifies as a keyword line.
+
+    Lines carrying a bottom-templated keyword (Equip / Enchant) are excluded —
+    those abilities render below the card's other abilities, so hoisting them
+    would be wrong.
     """
     bare = _strip_reminder(line).strip()
     if not bare:
+        return False
+    if any(seg.strip().lower().startswith(_BOTTOM_KEYWORDS) for seg in bare.split(",")):
         return False
     return _is_keyword_only_line(bare)
 

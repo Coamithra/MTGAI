@@ -741,6 +741,19 @@ class TestKeywordOrdering:
         errors = _errors_by_validator(validate_card(card), "keyword_ordering")
         assert _has_error(errors, validator="keyword_ordering", severity="AUTO")
 
+    def test_equip_at_bottom_not_flagged(self):
+        # Equip templates at the bottom of the textbox, not the top.
+        card = _make_card(
+            type_line="Artifact — Equipment",
+            card_types=["Artifact"],
+            subtypes=["Equipment"],
+            power=None,
+            toughness=None,
+            oracle_text="Equipped creature gets +1/+1.\nEquip {2}",
+        )
+        errors = _errors_by_validator(validate_card(card), "keyword_ordering")
+        assert errors == []
+
     # ---- Fixer ----
 
     def test_fix_reorders_keyword_above_complex(self):
