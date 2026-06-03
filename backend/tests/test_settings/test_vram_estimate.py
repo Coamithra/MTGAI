@@ -541,6 +541,14 @@ class TestCheckVramRisk:
         ve._vram_cache = VramInfo(12 * GIB, 12 * GIB)
         assert check_vram_risk({"local": model}) == []
 
+    def test_ignores_internal_tier_twins(self, sized_gguf):
+        # Context-tier twins clone their base's all-GPU geometry but are
+        # flagged internal; estimating them double-counts the base's check.
+        gguf = sized_gguf(22 * GIB)
+        twin = _llamacpp_model(str(gguf), internal=True)
+        ve._vram_cache = VramInfo(12 * GIB, 12 * GIB)
+        assert check_vram_risk({"local-48k": twin}) == []
+
     def test_ignores_anthropic_entries(self):
         anthropic = LLMModel(
             key="opus",

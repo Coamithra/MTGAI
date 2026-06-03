@@ -188,7 +188,7 @@
         try {
           const data = await W.editFlow.accept({ from_stage: tab.id });
           W.editFlow.clearDraft(tab.id);
-          if (data.warning) W.MTGAIWizard.toast(data.warning, 'warn');
+          if (data.warning) W.toast(data.warning, 'warn');
           // Hard-reload so the wizard rebuilds the tab strip + state
           // from the freshly-cleared pipeline-state.json. Soft repaint
           // would work but reload keeps the bootstrap payload as the
@@ -198,9 +198,9 @@
           accept.disabled = false;
           accept.textContent = original;
           if (err.status === 409) {
-            W.MTGAIWizard.toast(err.message, 'warn');
+            W.toast(err.message, 'warn');
           } else {
-            W.MTGAIWizard.toast('Accept failed: ' + err.message, 'error');
+            W.toast('Accept failed: ' + err.message, 'error');
           }
         }
       };

@@ -534,6 +534,11 @@ def check_vram_risk(models: dict[str, LLMModel]) -> list[VramEstimate]:
     for model in models.values():
         if model.provider != "llamacpp" or model.n_gpu_layers != -1:
             continue
+        if model.internal:
+            # Context-tier twins clone their base's geometry (inheriting
+            # n_gpu_layers=-1); estimating them re-runs the same check the base
+            # already covers, so skip to avoid double VRAM-check INFO logs.
+            continue
         est = estimate_model_load(model)
         estimates.append(est)
         if est.verdict not in (Verdict.WARN, Verdict.REFUSE):

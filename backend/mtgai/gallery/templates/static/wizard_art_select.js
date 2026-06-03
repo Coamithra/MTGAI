@@ -330,7 +330,7 @@
       return;
     }
 
-    const isPast = isPastTab(state);
+    const isPast = W.isPastTab(STAGE_ID, state);
     slot.innerHTML = local.cards.map(card => selectionTileHtml(card, isPast)).join('');
     if (!isPast) bindOverrideButtons(slot);
   }
@@ -497,18 +497,6 @@
     return root && root.querySelector('[data-role="footer"]');
   }
 
-  function isPastTab(state) {
-    return !!state && state.latestTabId !== STAGE_ID;
-  }
-
-  function escHtml(text) {
-    if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  }
-
-  function escAttr(text) {
-    return escHtml(text).replace(/"/g, '&quot;');
-  }
+  const escHtml = W.escHtml;
+  const escAttr = W.escAttr;
 })();

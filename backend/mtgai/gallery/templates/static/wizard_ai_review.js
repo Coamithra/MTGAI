@@ -471,14 +471,6 @@
     return root && root.querySelector('[data-role="footer"]');
   }
 
-  function escHtml(text) {
-    if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  }
-
-  function escAttr(text) {
-    return escHtml(text).replace(/"/g, '&quot;');
-  }
+  const escHtml = W.escHtml;
+  const escAttr = W.escAttr;
 })();

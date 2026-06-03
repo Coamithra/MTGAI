@@ -238,6 +238,7 @@ def check_conformance(
     findings: list[ConformanceFinding] = []
     total_cost = 0.0
     passed = 0
+    pre_flagged_seen = 0
     for idx, (slot_id, card, spec) in enumerate(pairs, 1):
         if should_cancel is not None and should_cancel():
             logger.warning("Conformance cancelled after %d/%d cards", idx - 1, len(pairs))
@@ -245,7 +246,10 @@ def check_conformance(
 
         if slot_id in pre_flagged:
             # Duplicate flagged upstream — already an X; skip the LLM call and
-            # record it (with the duplicate reason) as non-conforming.
+            # record it (with the duplicate reason) as non-conforming. It never
+            # ran the conformance check, so it's excluded from the summary
+            # denominator (a duplicate finding, not a conformance failure).
+            pre_flagged_seen += 1
             reason = pre_flagged[slot_id]
             findings.append(ConformanceFinding(slot_id=slot_id, card_name=card.name, reason=reason))
             if on_card is not None:
@@ -308,11 +312,15 @@ def check_conformance(
                 }
             )
 
-    analysis = f"{passed}/{len(pairs)} cards conform."
+    # Pre-flagged duplicates skip the LLM check entirely — they're duplicate
+    # findings, not conformance failures — so drop them from the denominator
+    # rather than counting them against the conformance rate.
+    checked = len(pairs) - pre_flagged_seen
+    analysis = f"{passed}/{checked} cards conform."
     logger.info(
         "Conformance: %d/%d conform, %d flagged, $%.4f",
         passed,
-        len(pairs),
+        checked,
         len(findings),
         total_cost,
     )
