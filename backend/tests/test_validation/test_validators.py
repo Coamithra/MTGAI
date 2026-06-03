@@ -638,7 +638,7 @@ class TestRulesText:
     # must not rewrite, anything inside parentheses (CLAUDE.md: "Validators
     # that touch oracle text must skip parenthesized text").
 
-    def test_etb_only_in_reminder_not_flagged(self):
+    def test_etb_only_in_reminder_not_flagged(self, custom_keywords_salvage):
         card = _make_card(
             oracle_text="Salvage 2 (When ~ enters the battlefield, return a card.)",
         )
@@ -682,7 +682,7 @@ class TestRulesText:
         result = auto_fix_card(card, validate_card(card))
         assert result.card.oracle_text == "~ can't be blocked. Creatures can't block ~."
 
-    def test_fix_etb_mixed_inside_and_outside_parens(self):
+    def test_fix_etb_mixed_inside_and_outside_parens(self, custom_keywords_salvage):
         # Keyword line kept on top so this exercises only ETB paren-preservation,
         # not the keyword_ordering reorder.
         card = _make_card(
@@ -837,8 +837,12 @@ class TestCustomKeywordResolution:
     """
 
     @pytest.fixture
-    def project_with_mechanics(self, tmp_path, monkeypatch):
-        """Pin an active project whose approved.json names one custom mechanic."""
+    def project_with_mechanics(self, tmp_path):
+        """Pin an active project whose approved.json names one custom mechanic.
+
+        Each test gets a unique ``tmp_path``, so the resolver's ``(path, ...)``
+        cache can't bleed between tests — no manual cache reset is needed.
+        """
         import json
 
         from mtgai.runtime import active_project
@@ -857,10 +861,8 @@ class TestCustomKeywordResolution:
             )
         )
         rules_text.set_custom_keywords(None)  # ensure active-project resolution
-        rules_text._approved_cache = None  # drop any cross-test cache entry
         yield asset
         rules_text.set_custom_keywords(None)
-        rules_text._approved_cache = None
         active_project.clear_active_project()
 
     def test_approved_mechanic_recognized_as_keyword(self, project_with_mechanics):
@@ -886,6 +888,84 @@ class TestCustomKeywordResolution:
         assert rules_text.custom_keywords() == frozenset()
         assert "frostbite" not in rules_text.all_keywords()
         assert "flying" in rules_text.all_keywords()
+
+    def _open_with_mechanics(self, tmp_path, mechanics):
+        import json
+
+        from mtgai.runtime import active_project
+        from mtgai.settings import model_settings as ms
+        from mtgai.validation import rules_text
+
+        asset = tmp_path / "proj"
+        (asset / "mechanics").mkdir(parents=True)
+        body = mechanics if isinstance(mechanics, str) else json.dumps(mechanics)
+        (asset / "mechanics" / "approved.json").write_text(body, encoding="utf-8")
+        active_project.write_active_project(
+            active_project.ProjectState(
+                set_code="TST", settings=ms.ModelSettings(asset_folder=str(asset))
+            )
+        )
+        rules_text.set_custom_keywords(None)
+
+    def test_only_keyword_ability_mechanics_recognized(self, tmp_path):
+        """Ability words and keyword actions never classify a line as keyword-only."""
+        from mtgai.runtime import active_project
+        from mtgai.validation import rules_text
+
+        try:
+            self._open_with_mechanics(
+                tmp_path,
+                [
+                    {"name": "Frostbite", "keyword_type": "keyword_ability"},
+                    {"name": "Landfall", "keyword_type": "ability_word"},
+                    {"name": "Investigate", "keyword_type": "keyword_action"},
+                    {"name": "Untyped"},  # missing keyword_type defaults to ability
+                ],
+            )
+            kws = rules_text.custom_keywords()
+            assert "frostbite" in kws
+            assert "untyped" in kws  # missing keyword_type treated as keyword_ability
+            assert "landfall" not in kws
+            assert "investigate" not in kws
+        finally:
+            rules_text.set_custom_keywords(None)
+            active_project.clear_active_project()
+
+    def test_malformed_approved_json_falls_back_to_empty(self, tmp_path):
+        from mtgai.runtime import active_project
+        from mtgai.validation import rules_text
+
+        try:
+            self._open_with_mechanics(tmp_path, "{ not valid json")
+            assert rules_text.custom_keywords() == frozenset()
+        finally:
+            rules_text.set_custom_keywords(None)
+            active_project.clear_active_project()
+
+    def test_set_custom_keywords_strips_and_lowercases(self):
+        from mtgai.validation import rules_text
+
+        try:
+            rules_text.set_custom_keywords([" Salvage ", "OVERCLOCK", "", "  "])
+            assert rules_text.custom_keywords() == frozenset({"salvage", "overclock"})
+        finally:
+            rules_text.set_custom_keywords(None)
+
+    def test_empty_override_suppresses_approved_json(self, tmp_path):
+        """An explicit empty override wins over active-project resolution."""
+        from mtgai.runtime import active_project
+        from mtgai.validation import rules_text
+
+        try:
+            self._open_with_mechanics(
+                tmp_path, [{"name": "Frostbite", "keyword_type": "keyword_ability"}]
+            )
+            rules_text.set_custom_keywords([])  # explicit empty, not None
+            assert rules_text.custom_keywords() == frozenset()
+            assert "frostbite" not in rules_text.all_keywords()
+        finally:
+            rules_text.set_custom_keywords(None)
+            active_project.clear_active_project()
 
 
 # ===========================================================================

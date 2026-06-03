@@ -96,12 +96,21 @@ LOYALTY_ABILITY = re.compile(r"^[+\-\u2212]?\d+: .+\.$", re.MULTILINE)
 # custom keywords as valid keyword-only lines. Resolution order:
 #   1. an explicit override set via ``set_custom_keywords`` — the seam for tests
 #      and callers that want to pass the vocabulary in directly; else
-#   2. the active project's ``mechanics/approved.json`` mechanic names; else
+#   2. the active project's ``mechanics/approved.json`` keyword-ability names; else
 #   3. empty (evergreen-only).
-# The approved.json read is cached by ``(path, mtime)`` so the hot validator
-# loop doesn't stat + parse the file on every line.
+# The parsed result is cached by ``(path, mtime_ns, size)``; a cache hit still
+# stats the file (cheap) but skips the read + JSON parse. The cache tuple is
+# immutable and swapped atomically; readers snapshot it into a local before
+# indexing, so a concurrent write can't tear a read (worst case: two threads
+# recompute the same value, which is idempotent).
 _custom_keywords_override: frozenset[str] | None = None
-_approved_cache: tuple[str, float, frozenset[str]] | None = None
+_approved_cache: tuple[str, tuple[int, int], frozenset[str]] | None = None
+
+# Only keyword-ability mechanics template as standalone keyword-only lines
+# (e.g. "Frostbite 2"). Ability words and keyword actions appear inside ability
+# text, so they must not classify a line as keyword-only. reminder_injector
+# defaults a missing keyword_type to this same value.
+_KEYWORD_ABILITY_TYPE = "keyword_ability"
 
 
 def set_custom_keywords(keywords: Iterable[str] | None) -> None:
@@ -122,29 +131,32 @@ def set_custom_keywords(keywords: Iterable[str] | None) -> None:
 def _active_custom_keywords() -> frozenset[str]:
     """Resolve custom keywords from the active project's approved mechanics.
 
-    Reads ``<asset_folder>/mechanics/approved.json`` and returns the mechanic
-    ``name`` values lowercased. Returns an empty set when no project is open,
+    Reads ``<asset_folder>/mechanics/approved.json`` and returns the lowercased
+    ``name`` of each keyword-ability mechanic. Returns an empty set when no
+    project is open,
     the file is missing, or it can't be parsed — the validators then fall back
-    to evergreen-only recognition. Cached by ``(path, mtime)``.
+    to evergreen-only recognition. Cached by ``(path, mtime_ns, size)``.
     """
     global _approved_cache
 
-    try:
-        from mtgai.io.asset_paths import set_artifact_dir
+    from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
 
+    try:
         path = set_artifact_dir() / "mechanics" / "approved.json"
-    except Exception:
+    except NoAssetFolderError:
         return frozenset()
 
     try:
-        mtime = path.stat().st_mtime
+        st = path.stat()
     except OSError:
         _approved_cache = None
         return frozenset()
 
     key = str(path)
-    if _approved_cache is not None and _approved_cache[0] == key and _approved_cache[1] == mtime:
-        return _approved_cache[2]
+    stamp = (st.st_mtime_ns, st.st_size)
+    cache = _approved_cache  # snapshot once: atomic read of an immutable tuple
+    if cache is not None and cache[0] == key and cache[1] == stamp:
+        return cache[2]
 
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -154,9 +166,12 @@ def _active_custom_keywords() -> frozenset[str]:
     names = frozenset(
         m["name"].strip().lower()
         for m in data
-        if isinstance(m, dict) and isinstance(m.get("name"), str) and m["name"].strip()
+        if isinstance(m, dict)
+        and m.get("keyword_type", _KEYWORD_ABILITY_TYPE) == _KEYWORD_ABILITY_TYPE
+        and isinstance(m.get("name"), str)
+        and m["name"].strip()
     )
-    _approved_cache = (key, mtime, names)
+    _approved_cache = (key, stamp, names)
     return names
 
 
