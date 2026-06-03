@@ -178,6 +178,7 @@ def _draw_svg_path_data(ctx, d: str) -> None:
         elif isinstance(seg, Close):
             ctx.close_path()
         elif isinstance(seg, Arc):
+            ctx.move_to(seg.start.real, seg.start.imag)
             for t in range(1, 21):
                 pt = seg.point(t / 20.0)
                 ctx.line_to(pt.real, pt.imag)

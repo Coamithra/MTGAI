@@ -54,45 +54,56 @@ Your job is to pick the BEST version based on these criteria (in priority order)
 
 If ALL versions have serious artifacts or are unusable, say so — don't force a pick."""
 
-TOOL_SCHEMA = {
-    "name": "art_selection",
-    "description": "Select the best art version for a card.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "pick": {
-                "type": "string",
-                "enum": ["v1", "v2", "v3", "none"],
-                "description": "Which version to use, or 'none' if all are unusable.",
-            },
-            "confidence": {
-                "type": "string",
-                "enum": ["high", "medium", "low"],
-                "description": "How confident you are in this pick.",
-            },
-            "reasoning": {
-                "type": "string",
-                "description": (
-                    "2-3 sentences explaining the pick. Mention specific artifacts "
-                    "found in rejected versions and what makes the pick better."
-                ),
-            },
-            "artifacts_found": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "version": {"type": "string"},
-                        "issue": {"type": "string"},
-                    },
-                    "required": ["version", "issue"],
+
+def _build_tool_schema(version_count: int) -> dict:
+    """Build the art-selection tool schema with a ``pick`` enum sized to the
+    number of versions actually shown to the model.
+
+    Hardcoding ``v1``-``v3`` would make a ``v4`` (or higher) pick fail Anthropic
+    tool-use validation whenever a card has 4+ versions, all of which are sent
+    to the model. The enum is derived per-call so the schema and the images
+    shown always stay in sync.
+    """
+    versions = [f"v{i}" for i in range(1, version_count + 1)]
+    return {
+        "name": "art_selection",
+        "description": "Select the best art version for a card.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pick": {
+                    "type": "string",
+                    "enum": [*versions, "none"],
+                    "description": "Which version to use, or 'none' if all are unusable.",
                 },
-                "description": "List of artifact issues found in any version.",
+                "confidence": {
+                    "type": "string",
+                    "enum": ["high", "medium", "low"],
+                    "description": "How confident you are in this pick.",
+                },
+                "reasoning": {
+                    "type": "string",
+                    "description": (
+                        "2-3 sentences explaining the pick. Mention specific artifacts "
+                        "found in rejected versions and what makes the pick better."
+                    ),
+                },
+                "artifacts_found": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "version": {"type": "string"},
+                            "issue": {"type": "string"},
+                        },
+                        "required": ["version", "issue"],
+                    },
+                    "description": "List of artifact issues found in any version.",
+                },
             },
+            "required": ["pick", "confidence", "reasoning", "artifacts_found"],
         },
-        "required": ["pick", "confidence", "reasoning", "artifacts_found"],
-    },
-}
+    }
 
 
 def _build_message_content(
@@ -139,12 +150,13 @@ def select_best_version(
     if model is None:
         model = require_active_project().settings.get_llm_model_id("art_select")
 
+    tool_schema = _build_tool_schema(len(image_paths))
     provider = _get_provider("anthropic")
     facade_model = provider.new_model(model)
     convo = facade_model.new_conversation(
         system_blocks=[SYSTEM_PROMPT],
-        tools=[_make_tool(TOOL_SCHEMA)],
-        tool_choice=TOOL_SCHEMA["name"],
+        tools=[_make_tool(tool_schema)],
+        tool_choice=tool_schema["name"],
         log_dir=False,
     )
     convo.add_user_message(

@@ -234,6 +234,13 @@ def start_comfyui(log_dir: Path | None = None) -> subprocess.Popen:
     # Stash the log handle on the proc so we can close it later
     proc._log_handle = log_handle  # type: ignore[attr-defined]
 
+    # On every failure exit below, kill_comfyui (which closes the log handle) is
+    # never reached, so close it here to avoid leaking it (mirror kill_comfyui).
+    def _close_log_handle() -> None:
+        if log_handle is not None:
+            with contextlib.suppress(Exception):
+                log_handle.close()
+
     # Wait for server to become responsive
     for i in range(60):
         time.sleep(2)
@@ -241,8 +248,10 @@ def start_comfyui(log_dir: Path | None = None) -> subprocess.Popen:
             logger.info("ComfyUI ready after %ds", (i + 1) * 2)
             return proc
         if proc.poll() is not None:
+            _close_log_handle()
             raise RuntimeError("ComfyUI process exited unexpectedly")
 
+    _close_log_handle()
     proc.kill()
     raise TimeoutError("ComfyUI failed to start within 120 seconds")
 
@@ -403,7 +412,7 @@ def _download_image(filename: str, subfolder: str = "") -> bytes:
     params = f"filename={filename}"
     if subfolder:
         params += f"&subfolder={subfolder}"
-    resp = urllib.request.urlopen(f"{COMFYUI_URL}/view?{params}")
+    resp = urllib.request.urlopen(f"{COMFYUI_URL}/view?{params}", timeout=120)
     return resp.read()
 
 
