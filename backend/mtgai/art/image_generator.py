@@ -17,6 +17,7 @@ import argparse
 import contextlib
 import json
 import logging
+import os
 import random
 import subprocess
 import time
@@ -26,14 +27,15 @@ from pathlib import Path
 
 from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card
-from mtgai.io.paths import card_slug
+from mtgai.io.paths import card_slug, output_root
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
-COMFYUI_ROOT = Path("C:/Programming/ComfyUI")
+OUTPUT_ROOT = output_root()
+# External tool root; machine-specific. Override with the COMFYUI_ROOT env var.
+COMFYUI_ROOT = Path(os.environ.get("COMFYUI_ROOT", "C:/Programming/ComfyUI"))
 COMFYUI_URL = "http://127.0.0.1:8188"
-WORKFLOW_PATH = Path("C:/Programming/MTGAI/backend/mtgai/art/workflows/flux_dev_gguf.json")
+WORKFLOW_PATH = Path(__file__).resolve().parent / "workflows" / "flux_dev_gguf.json"
 
 # Generation defaults
 DEFAULT_STEPS = 30

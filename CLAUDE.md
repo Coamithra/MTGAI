@@ -24,6 +24,7 @@
 - Card schema is the single source of truth: `mtgai/models/card.py`. Field names match Scryfall (`oracle_text`, not `rules_text`).
 - Card data: JSON files in `output/sets/<SET_CODE>/cards/`.
 - Naming: `<collector_number>_<card_name_slug>.json`; art: `..._v<attempt>.png`; render: `....png`.
+- **Repo-relative paths**: never hardcode an absolute path like `Path("C:/Programming/MTGAI/...")` — it breaks on any other checkout / CI. `mtgai/io/paths.py` is the canonical seam: `repo_root()` (the repo root, via `Path(__file__).resolve().parents[3]` from `mtgai/io/`) and `output_root()` (`repo_root()/"output"`, the gitignored sibling of `backend/`). Library code imports these; standalone `backend/scripts/*.py` (not on the package path) inline `Path(__file__).resolve().parents[2]`. A file's own bundled assets (prompt dirs, art workflows) use `Path(__file__).resolve().parent / ...`. External tool roots stay machine-specific but read from env where trivial (e.g. `COMFYUI_ROOT` env var, default `C:/Programming/ComfyUI`).
 
 ## Architecture overview
 

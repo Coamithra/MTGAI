@@ -15,17 +15,19 @@ import urllib.request
 from pathlib import Path
 
 from mtgai.art.image_generator import (
+    COMFYUI_ROOT,
     COMFYUI_URL,
     ensure_comfyui,
     flush_comfyui,
     kill_comfyui,
 )
+from mtgai.io.paths import output_root
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
-COMFYUI_INPUT_DIR = Path("C:/Programming/ComfyUI/input")
-WORKFLOW_PATH = Path("C:/Programming/MTGAI/backend/mtgai/art/workflows/flux_pulid_gguf.json")
+OUTPUT_ROOT = output_root()
+COMFYUI_INPUT_DIR = COMFYUI_ROOT / "input"
+WORKFLOW_PATH = Path(__file__).resolve().parent / "workflows" / "flux_pulid_gguf.json"
 
 TEST_CARDS = [
     {

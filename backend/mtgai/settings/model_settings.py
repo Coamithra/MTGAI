@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Literal
 from pydantic import BaseModel, Field
 
 from mtgai.io.atomic import atomic_write_text
+from mtgai.io.paths import output_root
 from mtgai.settings.model_registry import get_registry
 
 if TYPE_CHECKING:
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
+OUTPUT_ROOT = output_root()
 SETTINGS_DIR = OUTPUT_ROOT / "settings"
 
 GLOBAL_TOML = SETTINGS_DIR / "global.toml"

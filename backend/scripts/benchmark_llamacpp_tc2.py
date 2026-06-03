@@ -39,11 +39,14 @@ from mtgai.pipeline.theme_extractor import (
 )
 from mtgai.settings.model_registry import LLMModel, get_registry
 
-PDF_PATH = Path(
-    "C:/Programming/MTGAI/Inspiration/The Dark Sun Campaign Setting for Worlds Without Number.pdf"
+# Script lives at <repo>/backend/scripts/, so two parents up is the repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+PDF_PATH = (
+    _REPO_ROOT / "Inspiration" / "The Dark Sun Campaign Setting for Worlds Without Number.pdf"
 )
-ASD_THEME_PATH = Path("C:/Programming/MTGAI/output/sets/ASD/theme.txt")
-RESULTS_DIR = Path("C:/Programming/MTGAI/output/benchmarks")
+ASD_THEME_PATH = _REPO_ROOT / "output" / "sets" / "ASD" / "theme.txt"
+RESULTS_DIR = _REPO_ROOT / "output" / "benchmarks"
 
 
 @dataclasses.dataclass(frozen=True)

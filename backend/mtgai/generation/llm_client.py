@@ -34,6 +34,8 @@ from typing import Any
 from llmfacade import LLM, Provider, SystemBlock, Tool
 from llmfacade.exceptions import LLMError
 
+from mtgai.io.paths import repo_root
+
 logger = logging.getLogger(__name__)
 
 # Load .env file from project root.
@@ -43,7 +45,7 @@ logger = logging.getLogger(__name__)
 # (e.g. ANTHROPIC_API_KEY="" exported by the shell — common on Windows)
 # counts as "present", so setdefault keeps the blank and llmfacade then
 # reports "No API key for 'anthropic'" despite a valid key sitting in .env.
-_ENV_PATH = Path("C:/Programming/MTGAI/.env")
+_ENV_PATH = repo_root() / ".env"
 if _ENV_PATH.exists():
     for line in _ENV_PATH.read_text().splitlines():
         line = line.strip()

@@ -25,8 +25,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-LLAMA_BENCH = Path("C:/Tools/llama.cpp/llama-bench.exe")
-RESULTS_DIR = Path("C:/Programming/MTGAI/output/benchmarks")
+LLAMA_BENCH = Path("C:/Tools/llama.cpp/llama-bench.exe")  # external tool, machine-specific
+# Script lives at <repo>/backend/scripts/, so two parents up is the repo root.
+RESULTS_DIR = Path(__file__).resolve().parents[2] / "output" / "benchmarks"
 
 # Curated default list - small, fast models first so failures show early.
 DEFAULT_GGUFS: list[Path] = [

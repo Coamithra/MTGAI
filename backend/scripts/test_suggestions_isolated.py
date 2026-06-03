@@ -20,7 +20,8 @@ from pathlib import Path
 
 import requests
 
-ROOT = Path("C:/Programming/MTGAI")
+# Script lives at <repo>/backend/scripts/, so two parents up is the repo root.
+ROOT = Path(__file__).resolve().parents[2]
 PROMPTS_DIR = ROOT / "backend/mtgai/pipeline/prompts"
 DEFAULT_THEME = ROOT / "output/sets/DARKSUN/athas_theme.txt"
 OUT_DIR = ROOT / "tmp/constraints_tests"
