@@ -360,7 +360,7 @@ def test_check_conformance_pre_flagged_seeds_x_and_skips_llm(project, monkeypatc
 
     started: list[list[dict]] = []
     streamed: list[dict] = []
-    findings, _analysis, _cost = conf_mod.check_conformance(
+    findings, analysis, _cost = conf_mod.check_conformance(
         cards,
         slots,
         pre_flagged={"W-C-02": "Functionally identical to Card W-C-01 (ignoring mana cost)."},
@@ -370,6 +370,9 @@ def test_check_conformance_pre_flagged_seeds_x_and_skips_llm(project, monkeypatc
 
     # Only the non-duplicate card hit the LLM; the duplicate skipped it.
     assert calls["n"] == 1
+    # The summary denominator excludes the pre-flagged duplicate (it never ran
+    # the conformance check): 1 checked, 1 conforms — not "1/2".
+    assert analysis == "1/1 cards conform."
     # The duplicate is seeded in the up-front list as conforms=False (an X) + reason.
     by_slot = {c["slot_id"]: c for c in started[0]}
     assert by_slot["W-C-02"]["conforms"] is False

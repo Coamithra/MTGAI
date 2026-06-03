@@ -142,7 +142,7 @@
   function paintSummary(root, state) {
     const slot = root.querySelector('[data-role="vr-summary"]');
     if (!slot) return;
-    const isPast = isPastTab(state);
+    const isPast = W.isPastTab(STAGE_ID, state);
 
     // Compute counts from refs
     let entityCount = 0;
@@ -312,7 +312,7 @@
       const resp = await W.postJSON('/api/wizard/visual_refs/generate', {});
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        reportError(resp, data, 'Extraction failed');
+        W.reportError(resp, data, 'Extraction failed');
         return;
       }
       local.refs       = data.refs || null;
@@ -423,30 +423,8 @@
     return root && root.querySelector('[data-role="footer"]');
   }
 
-  function isPastTab(state) {
-    return !!state && state.latestTabId !== STAGE_ID;
-  }
-
-  function reportError(resp, data, fallback) {
-    if (resp.status === 409 && data.running_action) {
-      W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
-    } else if (resp.status === 409 && data.code === 'no_asset_folder') {
-      W.toast('No asset folder configured — open Project Settings and pick one.', 'error');
-    } else {
-      W.toast(data.error || `${fallback} (${resp.status})`, 'error');
-    }
-  }
-
-  function escHtml(text) {
-    if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  }
-
-  function escAttr(text) {
-    return escHtml(text).replace(/"/g, '&quot;');
-  }
+  const escHtml = W.escHtml;
+  const escAttr = W.escAttr;
 
   // ---------------------------------------------------------------------------
   // Scoped styles — injected once (dark-theme palette from wizard.css)

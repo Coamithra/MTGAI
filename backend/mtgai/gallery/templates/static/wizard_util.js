@@ -191,6 +191,8 @@
   W.reportError = function (resp, data, fallback) {
     if (resp.status === 409 && data && data.running_action) {
       W.toast(`${data.running_action} is in progress — try again when it finishes.`, 'error');
+    } else if (resp.status === 409 && data && data.code === 'no_asset_folder') {
+      W.toast('No asset folder configured — open Project Settings and pick one.', 'error');
     } else {
       W.toast((data && data.error) || `${fallback} (${resp.status})`, 'error');
     }
