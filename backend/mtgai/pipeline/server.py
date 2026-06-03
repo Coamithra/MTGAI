@@ -4434,6 +4434,41 @@ def _apply_finalize_card_edits(card_json: dict, fields: dict) -> dict:
     return Card.model_validate(merged).model_dump(mode="json")
 
 
+def _card_paths_by_cn(cards_dir: Path) -> dict[str, Path]:
+    """Map ``collector_number -> on-disk file path`` for the card-gen pool.
+
+    The filename is name-derived (``<cn>_<name-slug>.json``), so a card edit that
+    changes the name would otherwise fork a second file. Persisting an edit needs
+    the card's *current* file to overwrite/rename it, not just its JSON — that's
+    what this resolves. Skips the Lands tab's ``L-*`` like the sibling loader.
+    """
+    out: dict[str, Path] = {}
+    if not cards_dir.is_dir():
+        return out
+    for path in sorted(cards_dir.glob("*.json")):
+        card = _read_json(path, None)
+        if not isinstance(card, dict) or _is_land_stage_card(card):
+            continue
+        out[card.get("collector_number") or path.stem] = path
+    return out
+
+
+def _persist_finalize_edit(asset: Path, updated: dict, old_path: Path) -> None:
+    """Write an edited card back, renaming its file if the name (slug) changed.
+
+    ``save_card`` writes to ``<cn>_<name-slug>.json``; when the user edits the
+    name the slug changes, so the new file would sit *beside* the stale one,
+    duplicating the card in the pool. Save through the model, then delete the old
+    file if it differs from the freshly-written path.
+    """
+    from mtgai.io.card_io import save_card
+    from mtgai.models.card import Card
+
+    new_path = save_card(Card.model_validate(updated), set_dir=asset)
+    if old_path != new_path and old_path.exists():
+        old_path.unlink()
+
+
 def _finalize_report(asset: Path) -> dict | None:
     """Read the finalize JSON report sidecar, or None if the stage hasn't run."""
     report = _read_json(asset / "reports" / "finalize-report.json", None)
@@ -4574,7 +4609,9 @@ async def wizard_finalize_save_card(request: Request) -> JSONResponse:
         )
 
     asset = set_artifact_dir()
-    view_cards = _load_card_gen_cards(asset / "cards")
+    cards_dir = asset / "cards"
+    view_cards = _load_card_gen_cards(cards_dir)
+    paths = _card_paths_by_cn(cards_dir)
     if cn not in view_cards:
         return JSONResponse({"error": f"No card {cn!r} in the current pool"}, status_code=404)
 
@@ -4585,10 +4622,7 @@ async def wizard_finalize_save_card(request: Request) -> JSONResponse:
     except Exception as exc:  # Pydantic ValidationError, etc.
         return JSONResponse({"error": f"Invalid card edit: {exc}"}, status_code=400)
 
-    from mtgai.io.card_io import save_card
-    from mtgai.models.card import Card
-
-    save_card(Card.model_validate(updated), set_dir=asset)
+    _persist_finalize_edit(asset, updated, paths[cn])
     _mark_finalize_user_edit(asset, cn)
     _heal_failed_stage("finalize")
 
@@ -4617,11 +4651,13 @@ async def wizard_finalize_save(request: Request) -> JSONResponse:
         return JSONResponse({"error": "cards must be a list"}, status_code=400)
 
     asset = set_artifact_dir()
-    view_cards = _load_card_gen_cards(asset / "cards")
+    cards_dir = asset / "cards"
+    view_cards = _load_card_gen_cards(cards_dir)
+    paths = _card_paths_by_cn(cards_dir)
 
-    from mtgai.io.card_io import save_card
-    from mtgai.models.card import Card
-
+    # Validate + apply every edit up front so a single bad card rejects the whole
+    # batch without half-writing the pool, then persist them.
+    to_write: list[tuple[str, dict]] = []
     for edit in edits:
         if not isinstance(edit, dict):
             return JSONResponse({"error": "each card edit must be an object"}, status_code=400)
@@ -4639,7 +4675,10 @@ async def wizard_finalize_save(request: Request) -> JSONResponse:
             return JSONResponse({"error": str(exc)}, status_code=400)
         except Exception as exc:
             return JSONResponse({"error": f"Invalid card edit ({cn}): {exc}"}, status_code=400)
-        save_card(Card.model_validate(updated), set_dir=asset)
+        to_write.append((cn, updated))
+
+    for cn, updated in to_write:
+        _persist_finalize_edit(asset, updated, paths[cn])
         _mark_finalize_user_edit(asset, cn)
 
     _heal_failed_stage("finalize")
