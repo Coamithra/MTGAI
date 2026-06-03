@@ -1505,23 +1505,23 @@ def run_art_select(progress_cb: ProgressCallback | None, emitter: StageEmitter) 
                 should_cancel=ai_lock.is_cancelled,
             )
 
-    selected = result.get("reviewed", 0)
+    reviewed = result.get("reviewed", 0)
     if result.get("cancelled"):
         emitter.phase("done", "Art selection cancelled")
         return StageResult(
             success=False,
-            total_items=selected,
-            completed_items=selected,
+            total_items=reviewed,
+            completed_items=reviewed,
             cost_usd=result.get("estimated_cost_usd", 0.0),
             error_message="Art selection cancelled by user.",
         )
 
-    emitter.phase("done", f"Selected art for {selected} cards")
+    emitter.phase("done", f"Selected art for {reviewed} cards")
     return StageResult(
-        total_items=selected,
-        completed_items=selected,
+        total_items=reviewed,
+        completed_items=reviewed,
         cost_usd=result.get("estimated_cost_usd", 0.0),
-        detail=f"Selected art for {selected} cards",
+        detail=f"Selected art for {reviewed} cards",
     )
 
 
