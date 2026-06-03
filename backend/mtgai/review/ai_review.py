@@ -1195,6 +1195,7 @@ def review_set(
     skip_lands: bool = True,
     skip_reprints: bool = True,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> list[CardReviewResult]:
     """Run AI design review on all cards in the active project.
 
@@ -1205,6 +1206,9 @@ def review_set(
         skip_reprints: Skip reprint cards (already designed).
         progress_callback: Optional callback(slot_id, completed, total, message, cost)
             invoked after each card is reviewed.
+        should_cancel: Optional predicate polled at each card boundary; when it
+            returns True the loop stops early and returns the reviews completed
+            so far (each already saved to ``reviews/``, so a resume skips them).
 
     Returns list of CardReviewResult.
     """
@@ -1312,6 +1316,14 @@ def review_set(
     start_time = time.time()
 
     for i, card in enumerate(cards, 1):
+        # Poll at the card boundary so the progress strip's Cancel button halts
+        # the (potentially long) council loop between cards. Reviews completed so
+        # far are already saved to reviews_dir, so the partial output is kept and
+        # a resume skips them.
+        if should_cancel is not None and should_cancel():
+            logger.info("Review cancelled by user after %d card(s)", len(reviews))
+            break
+
         tier = _select_tier(card)
         cn = card.get("collector_number", "?")
         logger.info(
@@ -1412,18 +1424,22 @@ def review_set(
 def review_all_cards(
     *,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict:
     """Run AI design review on all cards in the active project, returning a summary dict.
 
     This is the pipeline orchestration entry point. It delegates to ``review_set``
-    and returns a dict with keys ``reviewed``, ``revised``, ``cost_usd``, and
-    ``summary``.
+    and returns a dict with keys ``reviewed``, ``revised``, ``cost_usd``,
+    ``unfixable``, ``cancelled``, and ``summary``.
 
     Args:
         progress_callback: Optional callback(slot_id, completed, total, message, cost)
             invoked after each card is reviewed.
+        should_cancel: Optional predicate threaded into ``review_set`` and polled
+            at each card boundary so the AI-lock Cancel button halts the loop.
     """
-    reviews = review_set(progress_callback=progress_callback)
+    reviews = review_set(progress_callback=progress_callback, should_cancel=should_cancel)
+    cancelled = should_cancel is not None and should_cancel()
     reviewed = len(reviews)
     revised = sum(1 for r in reviews if r.card_was_changed)
     cost_usd = sum(r.total_cost_usd for r in reviews)
@@ -1453,6 +1469,7 @@ def review_all_cards(
         "revised": revised,
         "cost_usd": cost_usd,
         "unfixable": unfixable,
+        "cancelled": cancelled,
         "summary": summary,
     }
 

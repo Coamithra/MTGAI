@@ -1253,6 +1253,15 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
                 on_card=_on_conf_card,
                 should_cancel=ai_lock.is_cancelled,
             )
+            # check_conformance breaks its per-card loop early on cancel and
+            # returns partial findings. Halt here before the whole-set
+            # interactions LLM call (and before any flagging), so a mid-gate
+            # Cancel is a clean stop — never partial conformance + full
+            # interactions stamped onto cards (matches run_card_gen /
+            # run_skeleton / run_reprints cancel semantics).
+            if ai_lock.is_cancelled():
+                emitter.phase("done", "Conformance & Interactions cancelled")
+                return StageResult(success=False, error_message="Conformance cancelled")
             conf_pairs = [(f.slot_id, f.reason) for f in conf_findings]
             conf_step = {
                 "id": "conformance",
@@ -1327,13 +1336,42 @@ def run_ai_review(progress_cb: ProgressCallback | None, emitter: StageEmitter) -
     regen. The loop is the overflow path, not the primary one.
     """
     from mtgai.review.ai_review import review_all_cards
+    from mtgai.runtime import ai_lock
 
     emitter.phase("running", "Reviewing cards")
-    with make_poller("ai_review", emitter.phase, activity_prefix="Reviewing cards"):
-        result = review_all_cards(progress_callback=progress_cb)
+    # Hold the app-wide AI lock for the whole council loop (one AI action at a
+    # time) — this is also what makes the progress strip's Cancel button work:
+    # request_cancel() is a no-op unless the lock is held, and review_all_cards
+    # polls ai_lock.is_cancelled() at each card boundary. Mirrors run_card_gen.
+    with ai_lock.hold("AI design review") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+        with make_poller("ai_review", emitter.phase, activity_prefix="Reviewing cards"):
+            result = review_all_cards(
+                progress_callback=progress_cb,
+                should_cancel=ai_lock.is_cancelled,
+            )
+
     reviewed = result.get("reviewed", 0)
     revised = result.get("revised", 0)
     unfixable = result.get("unfixable", []) or []
+
+    # A user Cancel halts the loop mid-set, so the unfixable list is partial —
+    # don't flag from it. Fail the stage so the engine stops (matches
+    # run_card_gen / run_conformance); the per-card reviews completed so far stay
+    # saved, so a Retry resumes. Best in-place revisions already applied persist.
+    if result.get("cancelled"):
+        emitter.phase("done", "AI review cancelled")
+        return StageResult(
+            success=False,
+            total_items=reviewed,
+            completed_items=reviewed,
+            cost_usd=result.get("cost_usd", 0.0),
+            error_message="AI review cancelled by user.",
+        )
 
     flagged = _flag_cards_for_regen([(u["slot_id"], u["reason"]) for u in unfixable], "ai_review")
     detail = f"AI review complete — {reviewed} reviewed, {revised} revised"
@@ -1379,12 +1417,35 @@ def run_human_card_review(
 def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Generate art prompts for all cards."""
     from mtgai.art.prompt_builder import generate_prompts_for_set
+    from mtgai.runtime import ai_lock
 
     emitter.phase("running", "Writing art prompts")
-    with make_poller("art_prompts", emitter.phase, activity_prefix="Writing art prompts"):
-        result = generate_prompts_for_set(progress_callback=progress_cb)
+    # Hold the app-wide AI lock for the whole loop (one AI action at a time) and
+    # thread the cancel hook so the Cancel button halts at the next card boundary
+    # (request_cancel() is a no-op unless the lock is held). Mirrors run_card_gen.
+    with ai_lock.hold("Art prompt generation") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+        with make_poller("art_prompts", emitter.phase, activity_prefix="Writing art prompts"):
+            result = generate_prompts_for_set(
+                progress_callback=progress_cb,
+                should_cancel=ai_lock.is_cancelled,
+            )
 
     processed = result.get("processed", 0)
+    if result.get("cancelled"):
+        emitter.phase("done", "Art prompt generation cancelled")
+        return StageResult(
+            success=False,
+            total_items=processed + result.get("skipped", 0),
+            completed_items=processed,
+            cost_usd=result.get("cost_usd", 0.0),
+            error_message="Art prompt generation cancelled by user.",
+        )
+
     emitter.phase("done", f"Generated {processed} art prompts")
     return StageResult(
         total_items=processed + result.get("skipped", 0),
@@ -1426,10 +1487,36 @@ def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
 def run_art_select(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Select best art version per card via Haiku vision."""
     from mtgai.art.art_selector import select_art_for_set
+    from mtgai.runtime import ai_lock
 
-    result = select_art_for_set(progress_callback=progress_cb)
+    emitter.phase("running", "Selecting art")
+    # Hold the app-wide AI lock for the whole loop (one AI action at a time) and
+    # thread the cancel hook so the Cancel button halts at the next card boundary
+    # (request_cancel() is a no-op unless the lock is held). Mirrors run_card_gen.
+    with ai_lock.hold("Art selection") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+        with make_poller("art_select", emitter.phase, activity_prefix="Selecting art"):
+            result = select_art_for_set(
+                progress_callback=progress_cb,
+                should_cancel=ai_lock.is_cancelled,
+            )
 
     selected = result.get("selected", 0)
+    if result.get("cancelled"):
+        emitter.phase("done", "Art selection cancelled")
+        return StageResult(
+            success=False,
+            total_items=selected,
+            completed_items=selected,
+            cost_usd=result.get("cost_usd", 0.0),
+            error_message="Art selection cancelled by user.",
+        )
+
+    emitter.phase("done", f"Selected art for {selected} cards")
     return StageResult(
         total_items=selected,
         completed_items=selected,
@@ -1708,6 +1795,30 @@ def clear_card_gen() -> None:
     clear_card_gen_cards()
 
 
+def clear_lands() -> None:
+    """Delete the lands stage's ``L-*`` cards and its LLM transcripts.
+
+    The lands stage writes its basics/dual printings into the shared ``cards/``
+    dir with ``L-*`` collector numbers — the exact cards :func:`clear_card_gen_cards`
+    *preserves* (because lands, not card_gen, owns them). So a cascade that clears a
+    stage at/before lands must drop them here, or a partial/failed lands re-run leaves
+    stale land cards behind (a successful re-run overwrites them, a failed one does not).
+    Uses the shared :func:`_is_land_stage_card` predicate so the L-* convention lives in
+    one place. Also wipes the ``lands/`` log directory (``land_generator`` transcripts).
+    """
+    set_dir = _set_dir()
+    cards_dir = set_dir / "cards"
+    if cards_dir.exists():
+        for path in cards_dir.glob("*.json"):
+            try:
+                card = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(card, dict) and _is_land_stage_card(card):
+                path.unlink(missing_ok=True)
+    _remove_path(set_dir / "lands")
+
+
 def clear_char_portraits() -> None:
     """Delete the character reference portraits.
 
@@ -1733,7 +1844,7 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
     "archetypes": clear_archetypes,
     "skeleton": clear_skeleton,
     "reprints": clear_reprints,
-    "lands": _no_artifacts,
+    "lands": clear_lands,
     "card_gen": clear_card_gen,
     "conformance": _no_artifacts,
     "ai_review": _no_artifacts,

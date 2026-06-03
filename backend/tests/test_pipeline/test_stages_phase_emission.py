@@ -223,9 +223,7 @@ def test_run_reprints_returns_busy_when_lock_held(monkeypatch, tmp_path) -> None
     (tmp_path / "skeleton.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(stages, "_set_dir", lambda: tmp_path)
     monkeypatch.setattr("mtgai.generation.reprint_selector.load_reprint_pool", lambda: [])
-    monkeypatch.setattr(
-        "mtgai.generation.reprint_selector._load_slot_texts", lambda *_a, **_k: []
-    )
+    monkeypatch.setattr("mtgai.generation.reprint_selector._load_slot_texts", lambda *_a, **_k: [])
     called: list[int] = []
     monkeypatch.setattr(
         "mtgai.generation.reprint_selector.select_reprints",
@@ -248,9 +246,7 @@ def test_run_reprints_halts_on_cancel(monkeypatch, tmp_path) -> None:
     (tmp_path / "skeleton.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(stages, "_set_dir", lambda: tmp_path)
     monkeypatch.setattr("mtgai.generation.reprint_selector.load_reprint_pool", lambda: [])
-    monkeypatch.setattr(
-        "mtgai.generation.reprint_selector._load_slot_texts", lambda *_a, **_k: []
-    )
+    monkeypatch.setattr("mtgai.generation.reprint_selector._load_slot_texts", lambda *_a, **_k: [])
 
     persisted: list[str] = []
     monkeypatch.setattr(
@@ -307,3 +303,144 @@ def test_run_lands_halts_on_cancel(monkeypatch) -> None:
 
     assert result.success is False
     assert "cancelled" in (result.error_message or "").lower()
+
+
+# ---------------------------------------------------------------------------
+# AI-lock holding + cancel for the ai_review + art LLM engine stages.
+#
+# Same contract as reprints/lands above: each must wrap its LLM work in
+# ``ai_lock.hold(...)`` (so a second AI action can't start concurrently and so
+# the UI Cancel button, which only signals when the lock is held, actually
+# halts the loop) and bail/halt cleanly without flagging or persisting a
+# partial pass.
+# ---------------------------------------------------------------------------
+
+
+def test_run_ai_review_returns_busy_when_lock_held(monkeypatch) -> None:
+    """When another AI action holds the lock, ``run_ai_review`` must bail busy
+    and never invoke the review loop."""
+    from mtgai.runtime import ai_lock
+
+    called: list[int] = []
+    monkeypatch.setattr(
+        "mtgai.review.ai_review.review_all_cards",
+        lambda **_k: called.append(1),
+    )
+
+    assert ai_lock.try_acquire("Other action") is not None
+    spy = _SpyEmitter()
+    result = stages.run_ai_review(progress_cb=None, emitter=spy)
+
+    assert result.success is False
+    assert "holds the lock" in (result.error_message or "")
+    assert called == [], "review loop ran despite the lock being held"
+
+
+def test_run_ai_review_threads_cancel_hook(monkeypatch) -> None:
+    """The runner must thread a cancel hook into ``review_all_cards`` so the
+    loop can poll it — and that hook is ``ai_lock.is_cancelled``."""
+    from mtgai.runtime import ai_lock
+
+    seen: dict[str, object] = {}
+
+    def fake_review(**kwargs):
+        seen["should_cancel"] = kwargs.get("should_cancel")
+        return {"reviewed": 1, "revised": 0, "unfixable": [], "cost_usd": 0.0, "cancelled": False}
+
+    monkeypatch.setattr("mtgai.review.ai_review.review_all_cards", fake_review)
+    monkeypatch.setattr(stages, "_flag_cards_for_regen", lambda *_a, **_k: [])
+
+    spy = _SpyEmitter()
+    result = stages.run_ai_review(progress_cb=None, emitter=spy)
+
+    assert result.success is True
+    assert seen["should_cancel"] is ai_lock.is_cancelled
+
+
+def test_run_ai_review_halts_on_cancel(monkeypatch) -> None:
+    """A user Cancel mid-review (partial ``unfixable``) must fail the stage and
+    skip flagging — otherwise a partial pass stamps regen flags."""
+    flagged: list[int] = []
+    monkeypatch.setattr(
+        "mtgai.review.ai_review.review_all_cards",
+        lambda **_k: {
+            "reviewed": 3,
+            "revised": 1,
+            "unfixable": [{"slot_id": "001", "reason": "x"}],
+            "cost_usd": 0.0,
+            "cancelled": True,
+        },
+    )
+    monkeypatch.setattr(stages, "_flag_cards_for_regen", lambda *_a, **_k: flagged.append(1) or [])
+
+    spy = _SpyEmitter()
+    result = stages.run_ai_review(progress_cb=None, emitter=spy)
+
+    assert result.success is False
+    assert "cancelled" in (result.error_message or "").lower()
+    assert flagged == [], "cards were flagged from a partial (cancelled) review"
+    assert "done" in [name for name, _ in spy.calls]
+
+
+def test_run_art_prompts_returns_busy_when_lock_held(monkeypatch) -> None:
+    from mtgai.runtime import ai_lock
+
+    called: list[int] = []
+    monkeypatch.setattr(
+        "mtgai.art.prompt_builder.generate_prompts_for_set",
+        lambda **_k: called.append(1),
+    )
+
+    assert ai_lock.try_acquire("Other action") is not None
+    spy = _SpyEmitter()
+    result = stages.run_art_prompts(progress_cb=None, emitter=spy)
+
+    assert result.success is False
+    assert "holds the lock" in (result.error_message or "")
+    assert called == [], "art-prompt generator ran despite the lock being held"
+
+
+def test_run_art_prompts_halts_on_cancel(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "mtgai.art.prompt_builder.generate_prompts_for_set",
+        lambda **_k: {"processed": 2, "skipped": 0, "cost_usd": 0.0, "cancelled": True},
+    )
+
+    spy = _SpyEmitter()
+    result = stages.run_art_prompts(progress_cb=None, emitter=spy)
+
+    assert result.success is False
+    assert "cancelled" in (result.error_message or "").lower()
+    assert "done" in [name for name, _ in spy.calls]
+
+
+def test_run_art_select_returns_busy_when_lock_held(monkeypatch) -> None:
+    from mtgai.runtime import ai_lock
+
+    called: list[int] = []
+    monkeypatch.setattr(
+        "mtgai.art.art_selector.select_art_for_set",
+        lambda **_k: called.append(1),
+    )
+
+    assert ai_lock.try_acquire("Other action") is not None
+    spy = _SpyEmitter()
+    result = stages.run_art_select(progress_cb=None, emitter=spy)
+
+    assert result.success is False
+    assert "holds the lock" in (result.error_message or "")
+    assert called == [], "art selector ran despite the lock being held"
+
+
+def test_run_art_select_halts_on_cancel(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "mtgai.art.art_selector.select_art_for_set",
+        lambda **_k: {"selected": 1, "cost_usd": 0.0, "cancelled": True},
+    )
+
+    spy = _SpyEmitter()
+    result = stages.run_art_select(progress_cb=None, emitter=spy)
+
+    assert result.success is False
+    assert "cancelled" in (result.error_message or "").lower()
+    assert "done" in [name for name, _ in spy.calls]

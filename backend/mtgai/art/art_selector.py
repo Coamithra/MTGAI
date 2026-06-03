@@ -170,8 +170,13 @@ def select_art_for_set(
     card_filter: str | None = None,
     dry_run: bool = False,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict:
     """Run art selection for all cards in the active project with multiple versions.
+
+    ``should_cancel`` is an optional predicate polled at each card boundary; when
+    it returns True the loop stops early (per-card selection logs written so far
+    are kept, so a resume skips them) and ``summary["cancelled"]`` is set.
 
     Returns summary dict.
     """
@@ -196,7 +201,13 @@ def select_art_for_set(
     results = []
     skipped = 0
 
+    cancelled = False
     for card_file in card_files:
+        if should_cancel is not None and should_cancel():
+            logger.info("Art selection cancelled by user after %d card(s)", len(results))
+            cancelled = True
+            break
+
         card = load_card(card_file)
         cn = card.collector_number
         slug = card_slug(cn, card.name)
@@ -284,6 +295,7 @@ def select_art_for_set(
         "total_output_tokens": total_output_tokens,
         "estimated_cost_usd": round(est_cost, 4),
         "dry_run": dry_run,
+        "cancelled": cancelled,
     }
 
     summary_path = log_dir / "summary.json"

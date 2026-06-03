@@ -360,6 +360,7 @@ def generate_prompts_for_set(
     dry_run: bool = False,
     force: bool = False,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict:
     """Generate art prompts for all cards in the active project.
 
@@ -367,6 +368,9 @@ def generate_prompts_for_set(
         card_filter: Optional collector number to process a single card.
         dry_run: If True, generate prompts but don't save to card JSON.
         force: If True, regenerate even if art_prompt already exists.
+        should_cancel: Optional predicate polled at each card boundary; when it
+            returns True the loop stops early. Prompts written so far stay saved
+            on their cards, so a resume skips them. Sets ``summary["cancelled"]``.
 
     Returns summary dict with stats.
     """
@@ -398,7 +402,13 @@ def generate_prompts_for_set(
 
     logger.info("Generating art prompts for %d cards in %s", len(card_files), set_code)
 
+    cancelled = False
     for card_file in card_files:
+        if should_cancel is not None and should_cancel():
+            logger.info("Art-prompt generation cancelled by user after %d card(s)", processed)
+            cancelled = True
+            break
+
         card = load_card(card_file)
 
         # Skip cards that already have prompts (resumable) unless forced
@@ -479,6 +489,7 @@ def generate_prompts_for_set(
         "total_output_tokens": total_output_tokens,
         "estimated_cost_usd": round(est_cost, 4),
         "dry_run": dry_run,
+        "cancelled": cancelled,
     }
 
     # Save summary
