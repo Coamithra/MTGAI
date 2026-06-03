@@ -455,6 +455,10 @@
   margin: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* grid-auto-flow: column + the per-paint grid-template-rows (set inline in
+     renderBreakPointsSection) makes the numbers run 1..N down the left
+     column, then continue down the right. */
+  grid-auto-flow: column;
   gap: 0.3rem 1.25rem;
 }
 
@@ -472,7 +476,17 @@
   cursor: pointer;
 }
 
+.wiz-bp-num {
+  flex: 0 0 auto;
+  min-width: 1.4rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  color: #888;
+}
+
 .wiz-bp-row--checked label { color: #fff; font-weight: 600; }
+.wiz-bp-row--checked .wiz-bp-num { color: #bbb; }
 
 /* Debug toggles — same checkbox affordance as break points, but stacked
    vertically with a description under each label (rather than the 2-col

@@ -220,7 +220,6 @@ STAGE_DEFINITIONS: list[dict] = [
     },
     {"stage_id": "ai_review", "display_name": "AI Design Review", "review_eligible": True},
     {"stage_id": "finalize", "display_name": "Finalization", "review_eligible": False},
-    {"stage_id": "human_card_review", "display_name": "Card Review", "review_eligible": True},
     # visual_refs feeds only the art stages (prompt_builder + character_portraits),
     # so it sits here — right before art_prompts — not pre-skeleton.
     {"stage_id": "visual_refs", "display_name": "Visual References", "review_eligible": True},

@@ -985,7 +985,11 @@
   // ------------------------------------------------------------------
 
   function renderBreakPointsSection(data) {
-    const rows = data.break_points.map(bp => {
+    // The list arrives in pipeline-execution order (theme extraction first,
+    // then STAGE_DEFINITIONS), so the row's 1-based position IS its stage
+    // number. Deriving the number from the index keeps it correct when a
+    // stage is added to or removed from the registry; never hardcode a count.
+    const rows = data.break_points.map((bp, idx) => {
       const structural = !!bp.structural;
       const title = structural
         ? ' title="Required — the wizard tab is the only producer of this stage\'s output."'
@@ -993,21 +997,26 @@
       return `
       <li class="wiz-bp-row${bp.review ? ' wiz-bp-row--checked' : ''}${structural ? ' wiz-bp-row--structural' : ''}"${title}>
         <label>
+          <span class="wiz-bp-num">${idx + 1}</span>
           <input type="checkbox" data-stage-id="${escAttr(bp.stage_id)}" ${bp.review ? 'checked' : ''} ${structural ? 'disabled' : ''}>
           Break after ${escHtml(bp.display_name)}${structural ? ' (required)' : ''}
         </label>
       </li>
     `;
     }).join('');
+    // Column-major fill so the numbers read 1..N down the left column then
+    // continue down the right (1 sits beside its column-2 sibling, per the
+    // card mockup). Pin the row count to half the (dynamic) stage count.
+    const rowCount = Math.max(1, Math.ceil(data.break_points.length / 2));
     return `
       <section class="wiz-proj-section">
         <h3>Break points</h3>
-        <p class="wiz-proj-desc">After these stages finish, the wizard pauses and waits for you to click "Next step".</p>
+        <p class="wiz-proj-desc">Stages are numbered in pipeline order. After a checked stage finishes, the wizard pauses and waits for you to click "Next step".</p>
         <div class="wiz-bp-controls">
           <button type="button" class="wiz-btn-secondary" id="wiz-bp-all">Select all</button>
           <button type="button" class="wiz-btn-secondary" id="wiz-bp-none">Select none</button>
         </div>
-        <ul class="wiz-bp-list">${rows}</ul>
+        <ul class="wiz-bp-list" style="grid-template-rows: repeat(${rowCount}, auto);">${rows}</ul>
       </section>
     `;
   }
