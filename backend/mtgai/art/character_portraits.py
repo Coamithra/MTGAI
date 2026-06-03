@@ -18,7 +18,6 @@ import logging
 import re
 import time
 import traceback
-from pathlib import Path
 
 from mtgai.art.image_generator import (
     ensure_comfyui,
@@ -27,11 +26,13 @@ from mtgai.art.image_generator import (
     kill_comfyui,
 )
 from mtgai.io.atomic import atomic_write_text
+from mtgai.io.paths import output_root
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
-VISUAL_REFS_PATH = Path("C:/Programming/MTGAI/output/sets/ASD/art-direction/visual-references.json")
+OUTPUT_ROOT = output_root()
+# Legacy ASD path (ASD is dead per CLAUDE.md); kept relative for portability only.
+VISUAL_REFS_PATH = OUTPUT_ROOT / "sets" / "ASD" / "art-direction" / "visual-references.json"
 
 # Portrait settings — taller than wide for headshots
 PORTRAIT_WIDTH = 768

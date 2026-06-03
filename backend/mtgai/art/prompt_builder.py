@@ -20,7 +20,6 @@ import json
 import logging
 import time
 from collections.abc import Callable
-from pathlib import Path
 
 from mtgai.art.visual_reference import (
     detect_named_characters,
@@ -32,11 +31,12 @@ from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import generate_with_tool
 from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
+from mtgai.io.paths import output_root
 from mtgai.models.card import Card
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
+OUTPUT_ROOT = output_root()
 
 # ---------------------------------------------------------------------------
 # Style lines — composition + palette per color, plus a set-wide motif suffix

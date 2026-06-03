@@ -30,7 +30,8 @@ from pathlib import Path
 
 import requests
 
-ROOT = Path("C:/Programming/MTGAI")
+# Script lives at <repo>/backend/scripts/, so two parents up is the repo root.
+ROOT = Path(__file__).resolve().parents[2]
 PROMPTS_DIR = ROOT / "backend/mtgai/pipeline/prompts"
 DEFAULT_PRECURSOR_INPUT = ROOT / "output/sets/DARKSUN/darksun_source.txt"
 DEFAULT_CONSTRAINTS_INPUT = ROOT / "output/sets/DARKSUN/athas_theme.txt"

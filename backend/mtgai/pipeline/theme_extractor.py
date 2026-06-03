@@ -28,6 +28,7 @@ from mtgai.generation import temperatures as temps
 from mtgai.generation.phase_poller import NullPoller, PromptEvalPoller
 from mtgai.generation.token_budgets import HEAVY, STANDARD
 from mtgai.io.atomic import atomic_write_text
+from mtgai.io.paths import output_root
 from mtgai.runtime import ai_lock
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ _OUTPUT_BUDGET = HEAVY
 # Fallback log root, used only when no project is open (e.g. a standalone
 # script / test driving the extractor directly). When a project IS open the
 # run dir lands under the asset folder instead — see _log_base_dir().
-_LOG_DIR = Path("C:/Programming/MTGAI/output/extraction_logs")
+_LOG_DIR = output_root() / "extraction_logs"
 
 # Cap how many lines of each message llmfacade dumps into its JSONL/HTML logs.
 # Theme extraction sends the entire source PDF as the user message; without

@@ -19,8 +19,11 @@ from pathlib import Path
 
 import requests
 
+# Script lives at <repo>/backend/scripts/, so two parents up is the repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
 OLLAMA_URL = "http://localhost:11434"
-RESULTS_DIR = Path("C:/Programming/MTGAI/output/benchmarks")
+RESULTS_DIR = _REPO_ROOT / "output" / "benchmarks"
 
 # Models to benchmark (registry key -> ollama model_id)
 MODELS = {
@@ -31,8 +34,8 @@ MODELS = {
 }
 
 # Source document
-THEME_FILE = Path("C:/Programming/MTGAI/output/sets/ASD/theme.txt")
-PROMPTS_DIR = Path("C:/Programming/MTGAI/backend/mtgai/pipeline/prompts")
+THEME_FILE = _REPO_ROOT / "output" / "sets" / "ASD" / "theme.txt"
+PROMPTS_DIR = _REPO_ROOT / "backend" / "mtgai" / "pipeline" / "prompts"
 
 
 def load_prompts() -> tuple[str, str]:

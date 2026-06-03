@@ -33,6 +33,7 @@ from mtgai.generation.prompts import format_mechanic_block
 from mtgai.generation.token_budgets import HEAVY
 from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
+from mtgai.io.paths import output_root
 from mtgai.models.card import Card
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 DEFAULT_SET_CODE = "ASD"
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
+OUTPUT_ROOT = output_root()
 MECHANICS_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "mechanics" / "approved.json"
 POINTED_Q_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "mechanics" / "pointed-questions.json"
 THEME_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "theme.json"

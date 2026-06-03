@@ -30,11 +30,14 @@ import httpx
 from mtgai.generation.token_utils import count_tokens
 from mtgai.pipeline.theme_extractor import extract_file_content
 
-PDF_PATH = Path(
-    "C:/Programming/MTGAI/Inspiration/The Dark Sun Campaign Setting for Worlds Without Number.pdf"
+# Script lives at <repo>/backend/scripts/, so two parents up is the repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+PDF_PATH = (
+    _REPO_ROOT / "Inspiration" / "The Dark Sun Campaign Setting for Worlds Without Number.pdf"
 )
-PROMPTS_DIR = Path("C:/Programming/MTGAI/backend/mtgai/pipeline/prompts")
-LLAMA_SERVER = Path("C:/Tools/llama.cpp/llama-server.exe")
+PROMPTS_DIR = _REPO_ROOT / "backend" / "mtgai" / "pipeline" / "prompts"
+LLAMA_SERVER = Path("C:/Tools/llama.cpp/llama-server.exe")  # external tool, machine-specific
 PORT = 5801  # offset from llmfacade's typical 5800 to avoid collision
 
 

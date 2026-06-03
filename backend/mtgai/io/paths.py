@@ -13,6 +13,23 @@ import re
 from pathlib import Path
 
 
+def repo_root() -> Path:
+    """Return the repository root directory.
+
+    This module lives at ``<repo>/backend/mtgai/io/paths.py``, so three parents
+    up (io -> mtgai -> backend -> repo) lands at the repo root. Use this instead
+    of hardcoding ``Path("C:/Programming/MTGAI/...")`` so paths resolve correctly
+    on any machine / CI checkout. Mirrors the ``Path(__file__).resolve().parent...``
+    pattern in :mod:`mtgai.runtime.runtime_state` and :mod:`mtgai.generation.slot_grouper`.
+    """
+    return Path(__file__).resolve().parents[3]
+
+
+def output_root() -> Path:
+    """Return the gitignored ``<repo>/output`` directory (sibling of ``backend/``)."""
+    return repo_root() / "output"
+
+
 def card_slug(collector_number: str, card_name: str) -> str:
     """Generate a filesystem-safe slug from collector number and card name.
 

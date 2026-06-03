@@ -25,19 +25,22 @@ import urllib.request
 from pathlib import Path
 
 from mtgai.art.image_generator import (
+    COMFYUI_ROOT,
     COMFYUI_URL,
     ensure_comfyui,
     flush_comfyui,
     kill_comfyui,
 )
+from mtgai.io.paths import output_root
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
-COMFYUI_INPUT_DIR = Path("C:/Programming/ComfyUI/input")
+OUTPUT_ROOT = output_root()
+COMFYUI_INPUT_DIR = COMFYUI_ROOT / "input"
 
-WORKFLOW_KONTEXT = Path("C:/Programming/MTGAI/backend/mtgai/art/workflows/flux_kontext_gguf.json")
-WORKFLOW_BASELINE = Path("C:/Programming/MTGAI/backend/mtgai/art/workflows/flux_dev_gguf.json")
+_WORKFLOWS_DIR = Path(__file__).resolve().parent / "workflows"
+WORKFLOW_KONTEXT = _WORKFLOWS_DIR / "flux_kontext_gguf.json"
+WORKFLOW_BASELINE = _WORKFLOWS_DIR / "flux_dev_gguf.json"
 
 # Cards that depict legendary characters in their art
 SAMPLE_CARDS = [

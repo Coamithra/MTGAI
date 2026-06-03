@@ -12,8 +12,10 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-ART_DIR = Path("C:/Programming/MTGAI/output/sets/ASD/art")
-PROGRESS_PATH = Path("C:/Programming/MTGAI/output/sets/ASD/art-generation-logs/progress.json")
+# Script lives at <repo>/backend/scripts/, so two parents up is the repo root.
+_OUTPUT_ROOT = Path(__file__).resolve().parents[2] / "output"
+ART_DIR = _OUTPUT_ROOT / "sets" / "ASD" / "art"
+PROGRESS_PATH = _OUTPUT_ROOT / "sets" / "ASD" / "art-generation-logs" / "progress.json"
 VERSIONS_NEEDED = 3
 
 # Pattern: collector_number_slug_vN.png

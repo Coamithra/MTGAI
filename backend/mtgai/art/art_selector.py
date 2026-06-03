@@ -21,11 +21,12 @@ from llmfacade import ImageBlock, TextBlock
 
 from mtgai.generation import temperatures as temps
 from mtgai.io.atomic import atomic_write_text
+from mtgai.io.paths import repo_root
 
 logger = logging.getLogger(__name__)
 
 # Load .env
-_ENV_PATH = Path("C:/Programming/MTGAI/.env")
+_ENV_PATH = repo_root() / ".env"
 if _ENV_PATH.exists():
     for line in _ENV_PATH.read_text().splitlines():
         line = line.strip()

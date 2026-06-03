@@ -8,14 +8,15 @@ folded into the generation prompt as preventive design guidance.
 from __future__ import annotations
 
 import re
-from pathlib import Path
+
+from mtgai.io.paths import repo_root
 
 # ---------------------------------------------------------------------------
 # System prompt — loaded once from the markdown file, with the fenced block
 # extracted so we don't send the design-notes section to the LLM.
 # ---------------------------------------------------------------------------
 
-_SYSTEM_PROMPT_PATH = Path("C:/Programming/MTGAI/research/prompt-templates/system-prompt-v1.md")
+_SYSTEM_PROMPT_PATH = repo_root() / "research" / "prompt-templates" / "system-prompt-v1.md"
 _SYSTEM_PROMPT_CACHE: str | None = None
 
 

@@ -29,11 +29,14 @@ import requests
 from mtgai.pipeline.theme_extractor import extract_file_content, stream_theme_extraction
 from mtgai.settings.model_registry import get_registry
 
+# Script lives at <repo>/backend/scripts/, so two parents up is the repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
 OLLAMA_URL = "http://localhost:11434"
-PDF_PATH = Path(
-    "C:/Programming/MTGAI/Inspiration/The Dark Sun Campaign Setting for Worlds Without Number.pdf"
+PDF_PATH = (
+    _REPO_ROOT / "Inspiration" / "The Dark Sun Campaign Setting for Worlds Without Number.pdf"
 )
-RESULTS_DIR = Path("C:/Programming/MTGAI/output/benchmarks")
+RESULTS_DIR = _REPO_ROOT / "output" / "benchmarks"
 
 # Registry keys for models to benchmark
 DEFAULT_MODELS = [

@@ -19,7 +19,7 @@ from mtgai.art.image_generator import (
     kill_comfyui,
 )
 from mtgai.io.card_io import load_card
-from mtgai.io.paths import art_path
+from mtgai.io.paths import art_path, output_root
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,7 +28,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-OUTPUT_ROOT = Path("C:/Programming/MTGAI/output")
+OUTPUT_ROOT = output_root()
 VERSIONS_PER_CARD = 3
 
 
