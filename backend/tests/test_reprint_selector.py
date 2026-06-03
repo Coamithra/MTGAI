@@ -632,7 +632,7 @@ class TestConvertToCard:
         cand = _make_candidate(
             name="Murder", mana_cost="{1}{B}{B}", cmc=3.0, type_line="Instant", colors=["B"]
         )
-        card = convert_to_card(cand, "B-C-03", "ASD", "61")
+        card = convert_to_card(cand, "B-C-03", "TST", "61")
         assert card.name == "Murder"
         assert card.is_reprint is True
         assert card.slot_id == "B-C-03"
@@ -648,6 +648,6 @@ class TestConvertToCard:
             power="1",
             toughness="1",
         )
-        card = convert_to_card(cand, "G-C-01", "ASD", "62")
+        card = convert_to_card(cand, "G-C-01", "TST", "62")
         assert "Elf" in card.subtypes and "Druid" in card.subtypes
         assert "Creature" in card.card_types

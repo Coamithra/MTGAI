@@ -552,7 +552,7 @@ def _format_setting_block(theme: dict) -> str:
     """The setting prose for the prompt's single 'Setting' field.
 
     Handles both schemas: the current toolchain writes the world document to
-    ``setting``; legacy ASD themes use a short ``theme`` one-liner plus a
+    ``setting``; legacy short-form themes use a short ``theme`` one-liner plus a
     ``flavor_description`` prose blob. We surface the one-liner (if any) then
     the prose, so neither schema loses content — and there's no dead
     "(no flavor description provided)" subsection when only ``setting`` exists.
@@ -570,7 +570,7 @@ def _format_archetypes_block(archetypes: list[Any]) -> str:
     section rather than print a misleading placeholder. In the toolchain
     pipeline mechanics are designed *before* archetypes exist (archetypes are
     derived from the mechanics downstream), so this is empty for new sets;
-    legacy ASD themes that carry ``draft_archetypes`` still render here.
+    legacy themes that carry ``draft_archetypes`` still render here.
     """
     lines: list[str] = []
     for arch in archetypes or []:

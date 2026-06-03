@@ -12,7 +12,7 @@ Flux prompt best practices (from BFL docs):
 - Structure: Subject + Action + Style + Context
 
 CLI usage:
-    python -m mtgai.art.prompt_builder --set ASD [--card W-C-01] [--dry-run]
+    python -m mtgai.art.prompt_builder --mtg path/to/project.mtg [--card W-C-01] [--dry-run]
 """
 
 import argparse

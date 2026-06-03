@@ -50,7 +50,7 @@ def test_apply_settings_updates_active_project_settings():
     so subsequent ``get_active_settings`` calls see the new value."""
     initial = ms.ModelSettings(asset_folder="D:/old")
     active_project.write_active_project(
-        active_project.ProjectState(set_code="ASD", settings=initial)
+        active_project.ProjectState(set_code="TST", settings=initial)
     )
     updated = initial.model_copy(update={"asset_folder": "D:/new"})
 
@@ -59,7 +59,7 @@ def test_apply_settings_updates_active_project_settings():
     assert ms.get_active_settings().asset_folder == "D:/new"
     proj = active_project.read_active_project()
     assert proj is not None
-    assert proj.set_code == "ASD"  # set_code is preserved
+    assert proj.set_code == "TST"  # set_code is preserved
 
 
 # ---------------------------------------------------------------------------

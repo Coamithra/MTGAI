@@ -8,9 +8,10 @@ Methods tested:
   - index: moderate reference influence
   - index_timestep_zero: weakest, reference only at initial timestep
 
-Output: output/sets/ASD/art-direction/kontext-samples/ab-test/
+Output: output/sets/<CODE>/art-direction/kontext-samples/ab-test/
 
-CLI: python -m mtgai.art.kontext_ab_test --set ASD
+CLI (legacy A/B tooling, not migrated to the .mtg flow):
+    python -m mtgai.art.kontext_ab_test --set <CODE>
 """
 
 import json

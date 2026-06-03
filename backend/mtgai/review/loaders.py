@@ -30,12 +30,13 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent.parent
 
 
-def _set_dir(set_code: str) -> Path:
-    """Return the artifact directory for ``set_code``.
+def _set_dir(set_code: str | None = None) -> Path:
+    """Return the active project's artifact directory.
 
-    Routes through :func:`mtgai.io.asset_paths.set_artifact_dir` so reads
-    follow the project's configured ``asset_folder`` when one is set,
-    otherwise the legacy ``output/sets/<CODE>/`` location.
+    Routes through :func:`mtgai.io.asset_paths.set_artifact_dir`, so reads
+    always follow the open project's configured ``asset_folder``. The
+    ``set_code`` argument is a vestigial label kept for call-site
+    compatibility — it does not influence the resolved path.
     """
     from mtgai.io.asset_paths import set_artifact_dir
 
@@ -47,7 +48,7 @@ def _set_dir(set_code: str) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def load_skeleton(set_code: str = "ASD") -> SkeletonResult:
+def load_skeleton(set_code: str | None = None) -> SkeletonResult:
     """Load skeleton.json and parse it into a SkeletonResult.
 
     Raises FileNotFoundError if the skeleton file doesn't exist.
@@ -79,7 +80,7 @@ def load_skeleton(set_code: str = "ASD") -> SkeletonResult:
     )
 
 
-def load_theme(set_code: str = "ASD") -> dict | None:
+def load_theme(set_code: str | None = None) -> dict | None:
     """Load theme.json if it exists. Returns the parsed dict or None."""
     theme_path = _set_dir(set_code) / "theme.json"
     if not theme_path.exists():
@@ -92,7 +93,7 @@ def load_theme(set_code: str = "ASD") -> dict | None:
 # ---------------------------------------------------------------------------
 
 
-def load_cards_raw(set_code: str = "ASD") -> list[dict]:
+def load_cards_raw(set_code: str | None = None) -> list[dict]:
     """Load generated card JSON files as raw dicts.
 
     Backward-compatible loader for code that expects dicts with .get() access.
@@ -110,7 +111,7 @@ def load_cards_raw(set_code: str = "ASD") -> list[dict]:
 
 
 def load_cards(
-    set_code: str = "ASD",
+    set_code: str | None = None,
     cards_dir: Path | None = None,
 ) -> list[Card]:
     """Load generated card JSON files as Card models.

@@ -72,7 +72,10 @@ KEYWORD_ACTIONS = {
     "venture",
 }
 
-# Custom mechanics for the Anomalous Descent (ASD) set
+# Custom-mechanic keywords the rules-text validators recognize as valid keyword
+# lines. These are currently a static seed (the original dev set's mechanics);
+# a follow-up will feed the active project's approved mechanics in dynamically
+# so the validator recognizes any set's custom keywords, not just these.
 CUSTOM_KEYWORDS = {"salvage", "malfunction", "overclock"}
 
 MANA_SYM_VALID = re.compile(r"\{(\d+|[WUBRGCXSTQ](?:/[WUBRGP])?)\}")

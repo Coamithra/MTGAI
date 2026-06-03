@@ -9,7 +9,7 @@ identity reference, not card art. 3 versions per character for selection.
 Output: output/sets/<SET>/art-direction/character-refs/<slug>_v<N>.png
 
 CLI usage:
-    python -m mtgai.art.character_portraits --set ASD [--char feretha] [--dry-run]
+    python -m mtgai.art.character_portraits --mtg path/to/project.mtg [--char feretha] [--dry-run]
 """
 
 import argparse
@@ -26,13 +26,8 @@ from mtgai.art.image_generator import (
     kill_comfyui,
 )
 from mtgai.io.atomic import atomic_write_text
-from mtgai.io.paths import output_root
 
 logger = logging.getLogger(__name__)
-
-OUTPUT_ROOT = output_root()
-# Legacy ASD path (ASD is dead per CLAUDE.md); kept relative for portability only.
-VISUAL_REFS_PATH = OUTPUT_ROOT / "sets" / "ASD" / "art-direction" / "visual-references.json"
 
 # Portrait settings — taller than wide for headshots
 PORTRAIT_WIDTH = 768

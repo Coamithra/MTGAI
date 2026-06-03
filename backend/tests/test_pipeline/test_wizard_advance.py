@@ -111,7 +111,7 @@ def _seed_state(code: str, *, overall_status: PipelineStatus) -> PipelineState:
 
 
 def test_build_config_uses_set_params_and_break_points():
-    _make_set("ASD")
+    _make_set("TST")
     settings = ms.get_active_settings()
     new = settings.model_copy(
         update={
@@ -123,8 +123,8 @@ def test_build_config_uses_set_params_and_break_points():
     )
     ms.apply_settings(new)
 
-    config = pipeline_server._build_pipeline_config_from_settings("ASD")
-    assert config.set_code == "ASD"
+    config = pipeline_server._build_pipeline_config_from_settings("TST")
+    assert config.set_code == "TST"
     assert config.set_name == "Astro Drift"
     assert config.set_size == 35
     # card_gen explicit review; human stages default to review; auto omitted.
@@ -149,11 +149,11 @@ def test_build_config_falls_back_to_set_code_when_name_blank():
 
 
 def test_kickoff_creates_state_and_spawns_engine(no_thread_start):
-    _make_set("ASD")
-    state, err = pipeline_server._kickoff_pipeline_engine("ASD")
+    _make_set("TST")
+    state, err = pipeline_server._kickoff_pipeline_engine("TST")
     assert err is None
     assert state is not None
-    assert state.config.set_code == "ASD"
+    assert state.config.set_code == "TST"
     assert pipeline_server._engine is not None
     assert pipeline_server._engine.state is state
     # Persisted to disk so a server restart can pick it up.
@@ -161,7 +161,7 @@ def test_kickoff_creates_state_and_spawns_engine(no_thread_start):
 
     reloaded = load_state()
     assert reloaded is not None
-    assert reloaded.config.set_code == "ASD"
+    assert reloaded.config.set_code == "TST"
     assert len(no_thread_start) == 1
 
 
@@ -172,13 +172,13 @@ def test_kickoff_refuses_paused_state(no_thread_start):
     The advance endpoint routes PAUSED to the resume branch; the helper
     itself rejects it as a defence-in-depth.
     """
-    _make_set("ASD")
-    seeded = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _make_set("TST")
+    seeded = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
     seeded.stages[0].status = StageStatus.COMPLETED
     seeded.stages[1].status = StageStatus.PAUSED_FOR_REVIEW
     save_state(seeded)
 
-    state, err = pipeline_server._kickoff_pipeline_engine("ASD")
+    state, err = pipeline_server._kickoff_pipeline_engine("TST")
     assert state is None
     assert err is not None
     assert "paused" in err.lower()
@@ -186,13 +186,13 @@ def test_kickoff_refuses_paused_state(no_thread_start):
 
 
 def test_kickoff_reuses_existing_failed_state(no_thread_start):
-    _make_set("ASD")
-    seeded = _seed_state("ASD", overall_status=PipelineStatus.FAILED)
+    _make_set("TST")
+    seeded = _seed_state("TST", overall_status=PipelineStatus.FAILED)
     seeded.stages[0].status = StageStatus.COMPLETED
     seeded.stages[1].status = StageStatus.FAILED
     save_state(seeded)
 
-    state, err = pipeline_server._kickoff_pipeline_engine("ASD")
+    state, err = pipeline_server._kickoff_pipeline_engine("TST")
     assert err is None
     assert state is not None
     # First stage stays COMPLETED — we didn't create a fresh state on top.
@@ -213,25 +213,25 @@ class _BusyEngine:
 
     def __init__(self) -> None:
         self.state = create_pipeline_state(
-            PipelineConfig(set_code="ASD", set_name="ASD", set_size=20),
+            PipelineConfig(set_code="TST", set_name="TST", set_size=20),
         )
 
 
 def test_kickoff_blocked_when_engine_already_running(monkeypatch):
-    _make_set("ASD")
+    _make_set("TST")
     monkeypatch.setattr(pipeline_server, "_engine", _BusyEngine())
 
-    state, err = pipeline_server._kickoff_pipeline_engine("ASD")
+    state, err = pipeline_server._kickoff_pipeline_engine("TST")
     assert state is None
     assert err == "A pipeline is already running"
 
 
 def test_kickoff_refuses_orphan_running_disk_state(no_thread_start):
     """A persisted RUNNING with no live engine = orphan; refuse."""
-    _make_set("ASD")
-    _seed_state("ASD", overall_status=PipelineStatus.RUNNING)
+    _make_set("TST")
+    _seed_state("TST", overall_status=PipelineStatus.RUNNING)
 
-    state, err = pipeline_server._kickoff_pipeline_engine("ASD")
+    state, err = pipeline_server._kickoff_pipeline_engine("TST")
     assert state is None
     assert err is not None
     assert "RUNNING" in err
@@ -243,8 +243,8 @@ def test_kickoff_refuses_orphan_running_disk_state(no_thread_start):
 
 
 def test_advance_kicks_off_when_no_state(client, no_thread_start):
-    _make_set("ASD")
-    resp = client.post("/api/wizard/advance", json={"set_code": "ASD"})
+    _make_set("TST")
+    resp = client.post("/api/wizard/advance", json={"set_code": "TST"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True
@@ -257,8 +257,8 @@ def test_advance_kicks_off_when_no_state(client, no_thread_start):
 
 def test_advance_resumes_when_paused(client, no_thread_start, monkeypatch):
     """PAUSED → ``engine.resume`` is scheduled; no navigate_to."""
-    _make_set("ASD")
-    state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _make_set("TST")
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
     state.stages[0].status = StageStatus.COMPLETED
     state.stages[1].status = StageStatus.PAUSED_FOR_REVIEW
     state.current_instance_id = state.stages[1].instance_id
@@ -276,7 +276,7 @@ def test_advance_resumes_when_paused(client, no_thread_start, monkeypatch):
 
     monkeypatch.setattr(pipeline_server.asyncio, "to_thread", _capture_to_thread)
 
-    resp = client.post("/api/wizard/advance", json={"set_code": "ASD"})
+    resp = client.post("/api/wizard/advance", json={"set_code": "TST"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True
@@ -297,35 +297,35 @@ def test_advance_paused_refuses_when_engine_already_running(client, monkeypatch)
     transition would replace ``_engine`` mid-flight, orphaning the
     previous daemon thread.
     """
-    _make_set("ASD")
-    state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _make_set("TST")
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
     state.stages[0].status = StageStatus.PAUSED_FOR_REVIEW
     save_state(state)
 
     monkeypatch.setattr(pipeline_server, "_engine", _BusyEngine())
 
-    resp = client.post("/api/wizard/advance", json={"set_code": "ASD"})
+    resp = client.post("/api/wizard/advance", json={"set_code": "TST"})
     assert resp.status_code == 409
     assert "already running" in resp.json()["error"].lower()
 
 
 def test_advance_400s_when_failed(client):
-    _make_set("ASD")
-    state = _seed_state("ASD", overall_status=PipelineStatus.FAILED)
+    _make_set("TST")
+    state = _seed_state("TST", overall_status=PipelineStatus.FAILED)
     state.stages[0].status = StageStatus.FAILED
     save_state(state)
 
-    resp = client.post("/api/wizard/advance", json={"set_code": "ASD"})
+    resp = client.post("/api/wizard/advance", json={"set_code": "TST"})
     assert resp.status_code == 400
     assert "failed" in resp.json()["error"].lower()
 
 
 def test_advance_400s_when_completed(client):
-    _make_set("ASD")
-    state = _seed_state("ASD", overall_status=PipelineStatus.COMPLETED)
+    _make_set("TST")
+    state = _seed_state("TST", overall_status=PipelineStatus.COMPLETED)
     save_state(state)
 
-    resp = client.post("/api/wizard/advance", json={"set_code": "ASD"})
+    resp = client.post("/api/wizard/advance", json={"set_code": "TST"})
     assert resp.status_code == 400
 
 
@@ -343,7 +343,7 @@ def test_advance_accepts_lowercase_set_code(client, no_thread_start):
     not rejected. Lock that in so a future stricter validator doesn't
     silently break links the user might have bookmarked.
     """
-    _make_set("ASD")
+    _make_set("TST")
     resp = client.post("/api/wizard/advance", json={"set_code": "asd"})
     assert resp.status_code == 200
     assert resp.json()["next_stage_id"] == "mechanics"
@@ -356,7 +356,7 @@ def test_advance_accepts_lowercase_set_code(client, no_thread_start):
 
 def test_first_pending_skips_completed_and_skipped():
     state = create_pipeline_state(
-        PipelineConfig(set_code="ASD", set_name="Test", set_size=20),
+        PipelineConfig(set_code="TST", set_name="Test", set_size=20),
     )
     state.stages[0].status = StageStatus.COMPLETED
     state.stages[1].status = StageStatus.SKIPPED
@@ -366,7 +366,7 @@ def test_first_pending_skips_completed_and_skipped():
 
 def test_first_pending_returns_none_when_all_done():
     state = create_pipeline_state(
-        PipelineConfig(set_code="ASD", set_name="Test", set_size=20),
+        PipelineConfig(set_code="TST", set_name="Test", set_size=20),
     )
     for stage in state.stages:
         stage.status = StageStatus.COMPLETED

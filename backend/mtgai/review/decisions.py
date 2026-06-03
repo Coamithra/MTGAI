@@ -116,7 +116,7 @@ def save_decisions(
 
     Args:
         decisions: The decisions to save.
-        set_code: Set code (e.g. "ASD").
+        set_code: Set code label (e.g. "AVR").
         base_dir: Override the set directory (useful for testing).
 
     Returns:

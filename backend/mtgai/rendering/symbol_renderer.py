@@ -482,7 +482,8 @@ def get_mana_symbol(symbol: str, size: int) -> Image.Image:
 
 
 # ---------------------------------------------------------------------------
-# Set symbol rendering — ASD "Descending Vortex" via pycairo
+# Set symbol rendering — placeholder "Descending Vortex" via pycairo (the
+# default symbol every set renders with until per-project symbols exist)
 # ---------------------------------------------------------------------------
 _set_symbol_cache: dict[tuple[str, int], Image.Image] = {}
 
@@ -516,10 +517,10 @@ _SET_SYMBOL_COLORS: dict[str, dict[str, tuple[int, int, int] | tuple[float, ...]
 
 
 def _make_pycairo_set_symbol(rarity: str, size: int) -> Image.Image | None:
-    """Draw the ASD set symbol (descending vortex triangle) with pycairo.
+    """Draw the placeholder set symbol (descending vortex triangle) with pycairo.
 
-    A downward-pointing triangle with three spiral arms converging
-    to a central point — representing the "Anomalous Descent."
+    A downward-pointing triangle with three spiral arms converging to a
+    central point. The default symbol every set renders with for now.
     """
     try:
         import cairo
@@ -640,14 +641,14 @@ def _make_fallback_set_symbol(rarity: str, size: int) -> Image.Image:
 def get_set_symbol(rarity: str, size: int) -> Image.Image:
     """Get a rendered set symbol for the given rarity at the given size.
 
-    Tries pycairo (drawn ASD vortex symbol), then SVG rasterization,
-    then Pillow fallback hexagon.
+    Tries pycairo (the drawn placeholder vortex symbol), then SVG
+    rasterization, then Pillow fallback hexagon.
     """
     cache_key = (rarity.upper(), size)
     if cache_key in _set_symbol_cache:
         return _set_symbol_cache[cache_key]
 
-    # 1. Try pycairo-drawn ASD set symbol
+    # 1. Try pycairo-drawn placeholder set symbol
     result = _make_pycairo_set_symbol(rarity, size)
 
     # 2. Try SVG rasterization (cairosvg only — pycairo can't handle
