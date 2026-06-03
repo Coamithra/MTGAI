@@ -4424,10 +4424,11 @@ def _apply_finalize_card_edits(card_json: dict, fields: dict) -> dict:
         raise ValueError(f"Not editable: {', '.join(sorted(unknown))}")
     merged = {**card_json}
     for key, value in fields.items():
-        # Normalize empty strings on the optional text fields back to None so
-        # the model's ``str | None`` fields stay clean (an empty flavor box
-        # means "no flavor", not the literal empty string).
-        if key in ("flavor_text", "power", "toughness", "loyalty") and value == "":
+        # Normalize empty strings on the nullable fields back to None so the
+        # model's ``str | None`` fields stay clean (an empty flavor / mana box
+        # means "none", not the literal empty string — and a no-mana-cost card
+        # the user never touched must round-trip as ``null``, not ``""``).
+        if key in ("mana_cost", "flavor_text", "power", "toughness", "loyalty") and value == "":
             value = None
         merged[key] = value
     return Card.model_validate(merged).model_dump(mode="json")

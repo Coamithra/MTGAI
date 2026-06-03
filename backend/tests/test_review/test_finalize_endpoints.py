@@ -49,12 +49,15 @@ def test_applies_editable_fields():
 
 def test_empty_optional_text_becomes_none():
     out = _apply_finalize_card_edits(
-        _card_json(power="3", toughness="3", flavor_text="x"),
-        {"flavor_text": "", "power": "", "toughness": ""},
+        _card_json(power="3", toughness="3", flavor_text="x", mana_cost="{1}{G}"),
+        {"flavor_text": "", "power": "", "toughness": "", "mana_cost": ""},
     )
     assert out["flavor_text"] is None
     assert out["power"] is None
     assert out["toughness"] is None
+    # A cleared mana box round-trips as null, not "" — so a no-cost card the user
+    # edits elsewhere doesn't get its mana_cost rewritten from null to "".
+    assert out["mana_cost"] is None
 
 
 def test_rejects_non_editable_field():
