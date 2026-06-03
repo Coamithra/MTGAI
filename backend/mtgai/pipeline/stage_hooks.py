@@ -323,3 +323,54 @@ def emit_card_gen_reset(emitter: StageEmitter) -> None:
     Only the refresh endpoint (which wiped ``cards/``) fires it.
     """
     emitter.event("card_gen_reset")
+
+
+# ---------------------------------------------------------------------------
+# AI design review stream hooks
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class AiReviewStreamHooks:
+    """The ``review_set`` per-card design-review streaming callbacks.
+
+    Mirrors the mechanics council stream so the AI Design Review tab can show
+    each card moving through review live: a card enters review (``on_card_start``),
+    its council reports round-by-round (``on_council`` — same payload shape the
+    mechanics council emits), then the verdict tile lands (``on_card_done``).
+    """
+
+    on_reset: Callable[[], None]
+    on_card_start: Callable[[dict], None]
+    on_council: Callable[[str, dict], None]
+    on_card_done: Callable[[dict], None]
+
+
+def build_ai_review_hooks(emitter: StageEmitter) -> AiReviewStreamHooks:
+    """Build the design-review streaming hooks shared by the engine
+    (``run_ai_review``) and any future refresh path.
+
+    Owns the canonical ``ai_review_reset`` / ``ai_review_card_start`` /
+    ``ai_review_council`` / ``ai_review_card_done`` payloads. Each card-scoped
+    event carries the ``collector_number`` so the tab routes it to the right
+    tile; the council ``event`` payload (round/verdicts/synth) rides along
+    untouched, exactly as the mechanics council does.
+    """
+
+    def on_reset() -> None:
+        emitter.event("ai_review_reset")
+
+    def on_card_start(card_meta: dict) -> None:
+        emitter.event("ai_review_card_start", **card_meta)
+
+    def on_council(collector_number: str, event: dict) -> None:
+        emitter.event(
+            "ai_review_council",
+            collector_number=collector_number,
+            event=event,
+        )
+
+    def on_card_done(tile: dict) -> None:
+        emitter.event("ai_review_card_done", tile=tile)
+
+    return AiReviewStreamHooks(on_reset, on_card_start, on_council, on_card_done)

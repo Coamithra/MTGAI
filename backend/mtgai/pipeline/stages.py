@@ -1335,10 +1335,15 @@ def run_ai_review(progress_cb: ProgressCallback | None, emitter: StageEmitter) -
     (``flagged_by="ai_review"``) and bounces to ``card_gen`` for a from-scratch
     regen. The loop is the overflow path, not the primary one.
     """
+    from mtgai.pipeline.stage_hooks import build_ai_review_hooks
     from mtgai.review.ai_review import review_all_cards
     from mtgai.runtime import ai_lock
 
     emitter.phase("running", "Reviewing cards")
+    # Live-review stream hooks drive the AI Design Review tab's per-card council
+    # (thumbs) and stamps. The reset fires once at stage start so a re-run clears
+    # the prior run's live council state on any mounted tab.
+    hooks = build_ai_review_hooks(emitter)
     # Hold the app-wide AI lock for the whole council loop (one AI action at a
     # time) — this is also what makes the progress strip's Cancel button work:
     # request_cancel() is a no-op unless the lock is held, and review_all_cards
@@ -1353,6 +1358,7 @@ def run_ai_review(progress_cb: ProgressCallback | None, emitter: StageEmitter) -
             result = review_all_cards(
                 progress_callback=progress_cb,
                 should_cancel=ai_lock.is_cancelled,
+                hooks=hooks,
             )
 
     reviewed = result.get("reviewed", 0)

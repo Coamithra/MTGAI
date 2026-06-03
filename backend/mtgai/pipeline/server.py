@@ -4385,6 +4385,326 @@ async def wizard_card_gen_refresh() -> JSONResponse:
     return await wizard_card_gen_state()
 
 
+# ---------------------------------------------------------------------------
+# AI Design Review tab
+# ---------------------------------------------------------------------------
+
+
+def _ai_review_load(instance_id: str | None = None) -> tuple[Path, dict[str, dict], dict, dict]:
+    """Load the AI Design Review tab's inputs: cards, AI reviews, user decisions.
+
+    Returns ``(asset, view_cards, reviews_by_cn, decisions)`` where ``view_cards``
+    is the instance's card-gen pool (lands excluded), ``reviews_by_cn`` maps a
+    collector number to its persisted ``CardReviewResult`` JSON (from
+    ``reviews/<cn>.json``), and ``decisions`` is the user-decisions sidecar.
+    """
+    from mtgai.review.ai_review import CardReviewResult, load_decisions
+
+    asset = set_artifact_dir()
+    cards_dir = _resolve_view_cards_dir(instance_id, asset)
+    view_cards = _load_card_gen_cards(cards_dir)
+
+    reviews_by_cn: dict[str, dict] = {}
+    reviews_dir = asset / "reviews"
+    if reviews_dir.is_dir():
+        for rp in sorted(reviews_dir.glob("*.json")):
+            if rp.name == "decisions.json":
+                continue
+            try:
+                review = CardReviewResult.model_validate_json(rp.read_text(encoding="utf-8"))
+            except Exception:
+                logger.warning("Could not parse review %s for ai_review tab", rp)
+                continue
+            reviews_by_cn[review.collector_number] = review.model_dump()
+    return asset, view_cards, reviews_by_cn, load_decisions(asset)
+
+
+def _ai_review_tiles(
+    view_cards: dict[str, dict], reviews_by_cn: dict[str, dict], decisions: dict
+) -> list[dict]:
+    """Build the per-card review tiles, sorted by collector number.
+
+    Each tile = card display fields + AI verdict/issues/council (from the review
+    JSON) + the effective decision (user override > AI verdict > pending) + a
+    ``flagged`` flag (the card carries a ``regen_reason``, i.e. it's bound for a
+    from-scratch regeneration).
+    """
+    from mtgai.review.ai_review import CardReviewResult, review_tile
+
+    tiles: list[dict] = []
+    for cn in sorted(view_cards):
+        card = view_cards[cn]
+        review_dict = reviews_by_cn.get(cn)
+        review = CardReviewResult.model_validate(review_dict) if review_dict else None
+        tile = review_tile(card, review)
+        decision = decisions.get(cn)
+        flagged = bool(card.get("regen_reason"))
+        tile["flagged"] = flagged
+        tile["effective"] = _effective_decision(tile, decision, flagged)
+        tiles.append(tile)
+    return tiles
+
+
+def _effective_decision(tile: dict, decision: dict | None, flagged: bool) -> dict:
+    """Resolve a card's effective review state for the stamp.
+
+    Precedence: an explicit user decision wins; else a flagged card (bound for
+    regen) is "rejected"; else a reviewed card maps OK→approved / REVISE→rejected;
+    else "pending" (not yet reviewed). ``reason`` is the rejection blurb shown
+    under the card.
+    """
+    if isinstance(decision, dict) and decision.get("verdict") in ("approved", "rejected"):
+        return {
+            "verdict": decision["verdict"],
+            "reason": decision.get("reason") or "",
+            "source": decision.get("source") or "user",
+        }
+    if flagged:
+        return {"verdict": "rejected", "reason": "Flagged for regeneration.", "source": "ai"}
+    if not tile.get("reviewed"):
+        return {"verdict": "pending", "reason": "", "source": ""}
+    if tile.get("verdict") == "OK":
+        return {"verdict": "approved", "reason": "", "source": "ai"}
+    issues = tile.get("issues") or []
+    reason = "; ".join(i.get("description", "") for i in issues if i.get("description"))
+    return {"verdict": "rejected", "reason": reason, "source": "ai"}
+
+
+def _ai_review_summary(tiles: list[dict]) -> dict:
+    """Headline counts for the summary bar."""
+    reviewed = sum(1 for t in tiles if t.get("reviewed"))
+    revised = sum(1 for t in tiles if t.get("card_was_changed"))
+    approved = sum(1 for t in tiles if t["effective"]["verdict"] == "approved")
+    rejected = sum(1 for t in tiles if t["effective"]["verdict"] == "rejected")
+    pending = sum(1 for t in tiles if t["effective"]["verdict"] == "pending")
+    return {
+        "reviewed": reviewed,
+        "revised": revised,
+        "approved": approved,
+        "rejected": rejected,
+        "pending": pending,
+        "total": len(tiles),
+    }
+
+
+@router.get("/api/wizard/ai_review/state")
+async def wizard_ai_review_state(instance_id: str | None = None) -> JSONResponse:
+    """First-paint state for the AI Design Review tab.
+
+    Merges the instance's card-gen pool (lands excluded) with each card's AI
+    review (``reviews/<cn>.json``) and the user-decisions sidecar into the tab's
+    per-card tiles, plus a summary headline and the stage status. The stage emits
+    live council + stamp events over SSE while running; this is the durable source
+    the tab bootstraps from on reload.
+    """
+    project = _require_active_project()
+    settings = project.settings
+    _asset, view_cards, reviews_by_cn, decisions = _ai_review_load(instance_id)
+    tiles = _ai_review_tiles(view_cards, reviews_by_cn, decisions)
+    return JSONResponse(
+        {
+            "cards": tiles,
+            "has_content": bool(tiles),
+            "summary": _ai_review_summary(tiles),
+            **_stage_state_base("ai_review", settings),
+        }
+    )
+
+
+def _ai_review_card_path(asset: Path, collector_number: str) -> Path | None:
+    """Locate a card's JSON file in the live pool by collector number."""
+    cards_dir = asset / "cards"
+    if not cards_dir.is_dir():
+        return None
+    for path in sorted(cards_dir.glob("*.json")):
+        if path.stem.startswith(collector_number):
+            return path
+    return None
+
+
+def _ai_review_single_tile(asset: Path, collector_number: str) -> dict | None:
+    """Re-read one card + its review + decision into a fresh tile (for action responses)."""
+    from mtgai.review.ai_review import CardReviewResult, load_decisions
+
+    path = _ai_review_card_path(asset, collector_number)
+    if path is None:
+        return None
+    card = _read_json(path, None)
+    if not isinstance(card, dict):
+        return None
+    review_path = asset / "reviews" / f"{collector_number}.json"
+    review = None
+    if review_path.exists():
+        try:
+            review = CardReviewResult.model_validate_json(review_path.read_text(encoding="utf-8"))
+        except Exception:
+            review = None
+    from mtgai.review.ai_review import review_tile
+
+    tile = review_tile(card, review)
+    flagged = bool(card.get("regen_reason"))
+    tile["flagged"] = flagged
+    tile["effective"] = _effective_decision(
+        tile, load_decisions(asset).get(collector_number), flagged
+    )
+    return tile
+
+
+def _clear_card_regen_flag(asset: Path, collector_number: str) -> None:
+    """Drop a card's ``regen_reason`` / ``flagged_by`` stamp (un-reject it)."""
+    from mtgai.io.card_io import load_card, save_card
+
+    path = _ai_review_card_path(asset, collector_number)
+    if path is None:
+        return
+    try:
+        card = load_card(path)
+    except Exception:
+        logger.warning("Could not load %s to clear regen flag", path)
+        return
+    if not (card.regen_reason or card.flagged_by):
+        return
+    save_card(card.model_copy(update={"regen_reason": None, "flagged_by": None}), set_dir=asset)
+
+
+@router.post("/api/wizard/ai_review/approve")
+async def wizard_ai_review_approve(request: Request) -> JSONResponse:
+    """Manually approve a card. Records the user's decision; un-flags any regen.
+
+    Body: ``{collector_number: str}``. No LLM — a synchronous decision write.
+    Clears the card's ``regen_reason``/``flagged_by`` so an approved card no
+    longer bounces back to card_gen, then heals the stage so Save & Continue
+    re-appears. Returns the updated tile.
+    """
+    from mtgai.review.ai_review import save_decision
+
+    _require_active_project()
+    asset = set_artifact_dir()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    cn = body.get("collector_number") if isinstance(body, dict) else None
+    if not isinstance(cn, str) or not cn:
+        return JSONResponse({"error": "collector_number (str) required"}, status_code=400)
+    if _ai_review_card_path(asset, cn) is None:
+        return JSONResponse({"error": f"No card found for {cn}"}, status_code=404)
+
+    _clear_card_regen_flag(asset, cn)
+    save_decision(asset, cn, {"verdict": "approved", "reason": "", "source": "user"})
+    _heal_failed_stage("ai_review")
+    return JSONResponse({"tile": _ai_review_single_tile(asset, cn)})
+
+
+@router.post("/api/wizard/ai_review/revise")
+async def wizard_ai_review_revise(request: Request) -> JSONResponse:
+    """Manually revise a card in place per the user's instructions (mirrors the council).
+
+    Body: ``{collector_number: str, instructions: str}``. Runs ONE LLM revision
+    under the AI lock, applies it to the card JSON, records an approved decision
+    (the user's revision is their accepted version — they can revise again), and
+    returns the updated tile. Refuses with 409 if another AI action holds the lock.
+    """
+    from mtgai.review.ai_review import (
+        _apply_revision,
+        _review_effort,
+        _review_model,
+        revise_card_in_place,
+        save_decision,
+    )
+
+    _require_active_project()
+    asset = set_artifact_dir()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    cn = body.get("collector_number") if isinstance(body, dict) else None
+    instructions = body.get("instructions") if isinstance(body, dict) else None
+    if not isinstance(cn, str) or not cn:
+        return JSONResponse({"error": "collector_number (str) required"}, status_code=400)
+    if not isinstance(instructions, str) or not instructions.strip():
+        return JSONResponse({"error": "instructions (non-empty str) required"}, status_code=400)
+    card_path = _ai_review_card_path(asset, cn)
+    if card_path is None:
+        return JSONResponse({"error": f"No card found for {cn}"}, status_code=404)
+
+    mechanics: list[dict] = []
+    mech_path = asset / "mechanics" / "approved.json"
+    if mech_path.exists():
+        loaded = _read_json(mech_path, [])
+        if isinstance(loaded, list):
+            mechanics = loaded
+    pointed_questions: list[dict] = []
+    pq_path = asset / "mechanics" / "pointed-questions.json"
+    if pq_path.exists():
+        loaded_pq = _read_json(pq_path, [])
+        if isinstance(loaded_pq, list):
+            pointed_questions = loaded_pq
+
+    from mtgai.io.card_io import load_card, save_card
+
+    with guarded_ai("AI review revise", stage_id="ai_review") as guard:
+        if guard.busy:
+            return guard.busy_response
+        review_model = _review_model()
+        review_effort = _review_effort()
+        card = load_card(card_path)
+        revised = await asyncio.to_thread(
+            revise_card_in_place,
+            card.model_dump(mode="json"),
+            instructions,
+            mechanics,
+            pointed_questions,
+            review_model,
+            review_effort,
+            log_dir=asset / "ai_review" / "logs",
+        )
+        if revised is None:
+            raise AIActionError("The model did not return a revised card; nothing changed.")
+        updated = _apply_revision(card, revised)
+        # A user-directed revision is an accepted card: clear any regen flag so it
+        # stops bouncing to card_gen, and record the approval (revisable again).
+        updated = updated.model_copy(update={"regen_reason": None, "flagged_by": None})
+        save_card(updated, set_dir=asset)
+        save_decision(
+            asset,
+            cn,
+            {"verdict": "approved", "reason": "Revised by reviewer.", "source": "user"},
+        )
+
+    return JSONResponse({"tile": _ai_review_single_tile(asset, cn)})
+
+
+@router.post("/api/wizard/ai_review/regenerate")
+async def wizard_ai_review_regenerate(request: Request) -> JSONResponse:
+    """Flag a card to be regenerated from scratch by card_gen.
+
+    Body: ``{collector_number: str}``. No LLM — stamps ``regen_reason`` /
+    ``flagged_by="ai_review"`` (status→DRAFT) so the engine's review→regen loop
+    rebuilds the slot when it next walks card_gen, and records a rejected
+    decision. Returns the updated tile.
+    """
+    from mtgai.pipeline.stages import _flag_cards_for_regen
+    from mtgai.review.ai_review import save_decision
+
+    _require_active_project()
+    asset = set_artifact_dir()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    cn = body.get("collector_number") if isinstance(body, dict) else None
+    if not isinstance(cn, str) or not cn:
+        return JSONResponse({"error": "collector_number (str) required"}, status_code=400)
+    if _ai_review_card_path(asset, cn) is None:
+        return JSONResponse({"error": f"No card found for {cn}"}, status_code=404)
+
+    reason = "User requested a from-scratch regeneration in design review."
+    flagged = _flag_cards_for_regen([(cn, reason)], "ai_review")
+    if not flagged:
+        return JSONResponse({"error": f"Could not flag {cn}"}, status_code=404)
+    save_decision(asset, cn, {"verdict": "rejected", "reason": reason, "source": "user"})
+    return JSONResponse({"tile": _ai_review_single_tile(asset, cn)})
+
+
 @router.get("/api/wizard/skeleton/state")
 async def wizard_skeleton_state() -> JSONResponse:
     """First-paint state for the Skeleton tab.

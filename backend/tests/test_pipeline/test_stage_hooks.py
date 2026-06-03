@@ -14,6 +14,7 @@ import json
 
 from mtgai.pipeline.events import EventBus, StageEmitter
 from mtgai.pipeline.stage_hooks import (
+    build_ai_review_hooks,
     build_card_gen_hooks,
     build_mechanic_hooks,
     build_skeleton_hooks,
@@ -288,3 +289,35 @@ def test_slots_by_id_from_skeleton_missing_or_bad_returns_empty(tmp_path) -> Non
     arr = tmp_path / "arr.json"
     arr.write_text("[]", encoding="utf-8")
     assert slots_by_id_from_skeleton(arr) == {}
+
+
+# ---------------------------------------------------------------------------
+# AI design review
+# ---------------------------------------------------------------------------
+
+
+def test_ai_review_hooks_emit_canonical_payloads() -> None:
+    bus = EventBus()
+    hooks = build_ai_review_hooks(_emitter(bus, "ai_review"))
+
+    hooks.on_reset()
+    hooks.on_card_start(
+        {
+            "collector_number": "W-C-01",
+            "card_name": "Bear",
+            "rarity": "common",
+            "review_tier": "single",
+        }
+    )
+    hooks.on_council("W-C-01", {"kind": "round", "round": 1, "verdicts": ["ok"]})
+    hooks.on_card_done({"collector_number": "W-C-01", "verdict": "OK"})
+
+    assert _only(bus, "ai_review_reset")
+    start = _only(bus, "ai_review_card_start")[0]
+    assert start["collector_number"] == "W-C-01"
+    assert start["review_tier"] == "single"
+    council = _only(bus, "ai_review_council")[0]
+    assert council["collector_number"] == "W-C-01"
+    assert council["event"]["verdicts"] == ["ok"]
+    done = _only(bus, "ai_review_card_done")[0]
+    assert done["tile"]["verdict"] == "OK"

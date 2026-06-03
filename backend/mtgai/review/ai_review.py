@@ -55,6 +55,21 @@ TEMPERATURE = temps.CREATIVE  # open design-council review (see temperatures.py)
 MAX_ITERATIONS = 5
 
 
+def _safe_council(on_council, event):
+    """Emit a live-council event for the wizard, swallowing hook errors."""
+    if on_council is None:
+        return
+    try:
+        on_council(event)
+    except Exception:
+        logger.exception("ai_review on_council hook raised; continuing")
+
+
+def _verdict_glyph(verdict):
+    """Map an LLM verdict string to the council slot state the wizard renders."""
+    return "ok" if verdict == "OK" else "revise"
+
+
 def _review_model() -> str:
     """Get the review model from the active project's settings."""
     from mtgai.runtime.active_project import require_active_project
@@ -542,12 +557,18 @@ def _review_single(
     review_model: str,
     review_effort: str | None,
     max_iterations: int = MAX_ITERATIONS,
+    on_council: Callable[[dict], None] | None = None,
 ) -> CardReviewResult:
     """Single Opus reviewer + iteration loop for C/U cards.
 
     ``review_model`` / ``review_effort`` are resolved once by the caller
     (``review_set``) before the per-card loop starts so a mid-run settings
     change can't swap the model between cards.
+
+    ``on_council`` (optional) reports live progress for the wizard tab: each
+    iteration is a one-reviewer "round" with a single verdict slot, so a card
+    being reviewed shows the same 👍/👎 timeline the council tier does. It is
+    best-effort — a hook raising never breaks the review.
     """
     collector_number = card.get("collector_number", card.get("slot_id", "???"))
     card_name = card.get("name", "???")
@@ -567,6 +588,11 @@ def _review_single(
     for iteration in range(1, max_iterations + 1):
         logger.info("    Iteration %d/%d...", iteration, max_iterations)
 
+        # Live council: a single-reviewer iteration is one "round" with one
+        # verdict slot. Announce the reviewer reading (no verdict yet) so the
+        # tab's spinner shows, then fill the slot once the verdict lands.
+        _safe_council(on_council, {"kind": "round", "round": iteration, "verdicts": []})
+
         t0 = time.time()
         try:
             result = generate_with_tool(
@@ -580,6 +606,7 @@ def _review_single(
             )
         except Exception:
             logger.exception("    API call failed on iteration %d", iteration)
+            _safe_council(on_council, {"kind": "round", "round": iteration, "verdicts": ["error"]})
             break
 
         latency = time.time() - t0
@@ -597,6 +624,11 @@ def _review_single(
         verdict_data = result["result"]
         verdict = verdict_data.get("verdict", "OK")
         issues = [ReviewIssue(**i) for i in verdict_data.get("issues", [])]
+
+        _safe_council(
+            on_council,
+            {"kind": "round", "round": iteration, "verdicts": [_verdict_glyph(verdict)]},
+        )
 
         logger.info(
             "    Verdict: %s (%d issues), $%.4f, %.1fs",
@@ -698,12 +730,18 @@ def _review_council(
     review_effort: str | None,
     num_reviewers: int = 3,
     max_iterations: int = MAX_ITERATIONS,
+    on_council: Callable[[dict], None] | None = None,
 ) -> CardReviewResult:
     """Full council (3 independent reviewers + synthesizer) + iteration for R/M cards.
 
     ``review_model`` / ``review_effort`` are resolved once by the caller
     (``review_set``) before the per-card loop starts so a mid-run settings
     change can't swap the model between cards.
+
+    ``on_council`` (optional) streams live progress for the wizard tab: round 1
+    is the independent panel (one verdict slot per reviewer, filled as each
+    returns); subsequent rounds are the synthesis iterations. Best-effort — a
+    hook raising never breaks the review.
     """
     collector_number = card.get("collector_number", card.get("slot_id", "???"))
     card_name = card.get("name", "???")
@@ -726,8 +764,12 @@ def _review_council(
 
     user_prompt = _build_review_prompt(card, mechanics, pointed_questions)
 
-    # Phase 1: Independent reviews
+    # Phase 1: Independent reviews. Round 1 of the live council panel: one
+    # verdict slot per reviewer, filled as each returns (an errored reviewer
+    # gets an "error" slot so the count still resolves).
     all_ok = True
+    panel_verdicts: list[str] = []
+    _safe_council(on_council, {"kind": "round", "round": 1, "verdicts": []})
     for member_id in range(1, num_reviewers + 1):
         logger.info("    Reviewer %d/%d...", member_id, num_reviewers)
 
@@ -744,6 +786,10 @@ def _review_council(
             )
         except Exception:
             logger.exception("    Reviewer %d API call failed", member_id)
+            panel_verdicts.append("error")
+            _safe_council(
+                on_council, {"kind": "round", "round": 1, "verdicts": list(panel_verdicts)}
+            )
             continue
 
         latency = time.time() - t0
@@ -773,6 +819,9 @@ def _review_council(
 
         if verdict != "OK":
             all_ok = False
+
+        panel_verdicts.append(_verdict_glyph(verdict))
+        _safe_council(on_council, {"kind": "round", "round": 1, "verdicts": list(panel_verdicts)})
 
         council_reviews.append(
             CouncilMemberReview(
@@ -848,8 +897,20 @@ def _review_council(
 
     iterations: list[ReviewIteration] = []
 
+    # The synthesizer is combining the panel's feedback into a revision —
+    # surface that on round 1's synth state so the tab shows "Combining feedback…".
+    _safe_council(
+        on_council,
+        {"kind": "round", "round": 1, "verdicts": list(panel_verdicts), "synth": "running"},
+    )
+
     for iteration in range(1, max_iterations + 1):
         logger.info("    Synthesis iteration %d/%d...", iteration, max_iterations)
+
+        # Each synthesis iteration past the first is the synth re-reviewing its
+        # own revision: a fresh round with a single verdict slot.
+        if iteration > 1:
+            _safe_council(on_council, {"kind": "round", "round": iteration, "verdicts": []})
 
         t0 = time.time()
         try:
@@ -871,6 +932,11 @@ def _review_council(
             )
         except Exception:
             logger.exception("    Synthesis API call failed on iteration %d", iteration)
+            if iteration > 1:
+                _safe_council(
+                    on_council,
+                    {"kind": "round", "round": iteration, "verdicts": ["error"]},
+                )
             break
 
         latency = time.time() - t0
@@ -888,6 +954,25 @@ def _review_council(
         verdict_data = result["result"]
         verdict = verdict_data.get("verdict", "OK")
         issues = [ReviewIssue(**i) for i in verdict_data.get("issues", [])]
+
+        # Round 1 is the synthesis of the panel (its slot is the synth, not a
+        # reviewer verdict): mark its synth "done". Round N>1 is the synth's own
+        # re-review: fill its single verdict slot.
+        if iteration == 1:
+            _safe_council(
+                on_council,
+                {
+                    "kind": "round",
+                    "round": 1,
+                    "verdicts": list(panel_verdicts),
+                    "synth": "done",
+                },
+            )
+        else:
+            _safe_council(
+                on_council,
+                {"kind": "round", "round": iteration, "verdicts": [_verdict_glyph(verdict)]},
+            )
 
         logger.info(
             "    Synthesis verdict: %s (%d issues), $%.4f, %.1fs",
@@ -1030,6 +1115,208 @@ def _apply_revision(original_card: Card, revised_data: dict) -> Card:
             update[field] = revised_data[field]
     update["updated_at"] = datetime.now(UTC)
     return original_card.model_copy(update=update)
+
+
+# ---------------------------------------------------------------------------
+# Wizard review tile + live-stream hooks
+# ---------------------------------------------------------------------------
+
+# Fields the AI Design Review tab renders per card. Built from the live (post-
+# revision) card so the tile reflects what's on disk, merged with the AI verdict.
+_TILE_CARD_FIELDS = (
+    "name",
+    "mana_cost",
+    "type_line",
+    "oracle_text",
+    "flavor_text",
+    "rarity",
+    "power",
+    "toughness",
+    "loyalty",
+    "colors",
+    "collector_number",
+)
+
+
+def review_tile(card: dict, review: CardReviewResult | None) -> dict:
+    """Build the AI Design Review tab's per-card tile.
+
+    ``card`` is the current on-disk card dict (post-revision — the council saves
+    revisions in place). ``review`` is the card's ``CardReviewResult`` (the AI
+    verdict), or ``None`` when the card hasn't been reviewed yet. The tile merges
+    the card's display fields with a compact view of the verdict + council so the
+    tab renders the stamp, the issues, and the council summary without re-loading
+    the full review JSON.
+
+    Single source of the tile shape so the per-card SSE stream and the ``/state``
+    endpoint emit byte-identical payloads.
+    """
+    tile: dict = {f: card.get(f) for f in _TILE_CARD_FIELDS}
+    cn = card.get("collector_number") or (review.collector_number if review else "") or ""
+    tile["collector_number"] = cn
+    tile["reviewed"] = review is not None
+    if review is None:
+        tile["verdict"] = None
+        tile["issues"] = []
+        tile["card_was_changed"] = False
+        tile["review_tier"] = ""
+        tile["council"] = []
+        return tile
+    tile["verdict"] = review.final_verdict
+    tile["issues"] = [i.model_dump() for i in review.final_issues]
+    tile["card_was_changed"] = review.card_was_changed
+    tile["review_tier"] = review.review_tier
+    # Compact per-reviewer summary for the (resolved) council panel: verdict +
+    # issue count, no full transcript (that stays in reviews/<cn>.json).
+    tile["council"] = [
+        {"member_id": cr.member_id, "verdict": cr.verdict, "issues": len(cr.issues)}
+        for cr in review.council_reviews
+    ]
+    return tile
+
+
+def _safe_hook(hooks: object | None, name: str, *args: object) -> None:
+    """Call ``hooks.<name>(*args)`` if present, swallowing errors (best-effort)."""
+    if hooks is None:
+        return
+    fn = getattr(hooks, name, None)
+    if fn is None:
+        return
+    try:
+        fn(*args)
+    except Exception:
+        logger.exception("ai_review %s hook raised; continuing", name)
+
+
+def _emit_card_start(hooks: object | None, card: dict, tier: str) -> None:
+    """Tell the tab a card has entered review (tile shows a 'reviewing' badge)."""
+    _safe_hook(
+        hooks,
+        "on_card_start",
+        {
+            "collector_number": card.get("collector_number") or card.get("slot_id") or "",
+            "card_name": card.get("name") or "",
+            "rarity": card.get("rarity") or "",
+            "review_tier": tier,
+        },
+    )
+
+
+def _card_council_emitter(
+    hooks: object | None, collector_number: str
+) -> Callable[[dict], None] | None:
+    """An ``on_council(event)`` callable bound to one card's stream, or None.
+
+    Adapts the per-card ``_review_single`` / ``_review_council`` council callback
+    (which only knows the round event) to the card-scoped ``on_council(cn, event)``
+    stream hook by closing over the collector number.
+    """
+    if hooks is None or getattr(hooks, "on_council", None) is None:
+        return None
+
+    def emit(event: dict) -> None:
+        _safe_hook(hooks, "on_council", collector_number, event)
+
+    return emit
+
+
+def _emit_card_done(hooks: object | None, review: CardReviewResult, card: dict) -> None:
+    """Push the resolved per-card review tile so the tab stamps the card."""
+    _safe_hook(hooks, "on_card_done", review_tile(card, review))
+
+
+# ---------------------------------------------------------------------------
+# User review decisions (manual approve / revise / regenerate)
+# ---------------------------------------------------------------------------
+
+# Sidecar holding the user's manual review decisions, keyed by collector_number.
+# Each value is {verdict: "approved"|"rejected", reason: str, source: "user"}.
+# The /state endpoint merges this over the AI verdict so a reload keeps the
+# user's call (the AI verdict alone lives in reviews/<cn>.json).
+DECISIONS_FILENAME = "decisions.json"
+
+
+def decisions_path(set_dir: Path) -> Path:
+    """Path to the user-decisions sidecar under a set's ``reviews/`` dir."""
+    return set_dir / "reviews" / DECISIONS_FILENAME
+
+
+def load_decisions(set_dir: Path) -> dict[str, dict]:
+    """Load the user-decisions sidecar (empty dict if missing / malformed)."""
+    path = decisions_path(set_dir)
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.warning("Could not read review decisions sidecar %s", path)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_decision(set_dir: Path, collector_number: str, decision: dict) -> None:
+    """Record one card's user review decision, merging into the sidecar."""
+    decisions = load_decisions(set_dir)
+    decisions[collector_number] = decision
+    path = decisions_path(set_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(path, json.dumps(decisions, indent=2, ensure_ascii=False))
+
+
+def clear_decision(set_dir: Path, collector_number: str) -> None:
+    """Drop a card's user decision (e.g. it was re-flagged), if present."""
+    decisions = load_decisions(set_dir)
+    if decisions.pop(collector_number, None) is None:
+        return
+    atomic_write_text(decisions_path(set_dir), json.dumps(decisions, indent=2, ensure_ascii=False))
+
+
+def revise_card_in_place(
+    card: dict,
+    instructions: str,
+    mechanics: list[dict],
+    pointed_questions: list[dict],
+    review_model: str,
+    review_effort: str | None,
+    *,
+    log_dir: Path | None = None,
+) -> dict | None:
+    """Run a single user-directed revision of ``card`` (mirrors council revise-in-place).
+
+    Builds a review prompt from the current card plus the user's free-text
+    ``instructions``, runs ONE ``generate_with_tool`` call with the review tool
+    schema, and returns the revised-card dict the LLM produced (or ``None`` if it
+    declined to change anything / the call failed). The caller applies it via
+    :func:`_apply_revision` and saves. This is the manual-review analogue of the
+    council's in-place revision — one targeted call, no iteration loop.
+    """
+    base_prompt = _build_review_prompt(card, mechanics, pointed_questions)
+    user_prompt = (
+        f"{base_prompt}\n\n---\n\n"
+        f"## Reviewer's Requested Change\n\n"
+        f"A human reviewer asked for this specific change:\n\n{instructions.strip()}\n\n"
+        f"Apply it. Set verdict to REVISE and return the COMPLETE revised card with "
+        f"ALL fields, keeping everything else intact and templating clean. Only set "
+        f"verdict OK (with no revised_card) if the request is already satisfied or "
+        f"cannot be applied without breaking the card."
+    )
+    try:
+        result = generate_with_tool(
+            system_prompt=REVIEW_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            tool_schema=REVIEW_TOOL_SCHEMA,
+            model=review_model,
+            temperature=TEMPERATURE,
+            max_tokens=HEAVY,
+            effort=review_effort,
+            log_dir=log_dir,
+        )
+    except Exception:
+        logger.exception("Manual revise-in-place call failed")
+        return None
+    verdict_data = result.get("result", {})
+    revised = verdict_data.get("revised_card")
+    return revised if isinstance(revised, dict) else None
 
 
 # ---------------------------------------------------------------------------
@@ -1318,6 +1605,7 @@ def review_set(
     skip_reprints: bool = True,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    hooks: object | None = None,
 ) -> list[CardReviewResult]:
     """Run AI design review on all cards in the active project.
 
@@ -1331,6 +1619,11 @@ def review_set(
         should_cancel: Optional predicate polled at each card boundary; when it
             returns True the loop stops early and returns the reviews completed
             so far (each already saved to ``reviews/``, so a resume skips them).
+        hooks: Optional live-review stream hooks (an ``AiReviewStreamHooks`` from
+            ``pipeline.stage_hooks``, or any duck-typed object exposing
+            ``on_card_start(meta)`` / ``on_council(cn, event)`` /
+            ``on_card_done(tile)``). Drives the wizard tab's live council + stamps.
+            Every call is best-effort — a hook raising never aborts a review.
 
     Returns list of CardReviewResult.
     """
@@ -1437,6 +1730,11 @@ def review_set(
     reviews: list[CardReviewResult] = []
     start_time = time.time()
 
+    # Tell the tab a fresh review run is starting (clears any prior live council
+    # state). Resumes (which skip already-reviewed cards above) still reset — the
+    # tab re-hydrates completed verdicts from /state on its next paint.
+    _safe_hook(hooks, "on_reset")
+
     for i, card in enumerate(cards, 1):
         # Poll at the card boundary so the progress strip's Cancel button halts
         # the (potentially long) council loop between cards. Reviews completed so
@@ -1456,12 +1754,30 @@ def review_set(
             tier,
         )
 
+        # Live council: announce this card entering review (the tab marks its
+        # tile "reviewing" + readies the council panel), and route the per-round
+        # council events into the card-scoped stream.
+        _emit_card_start(hooks, card, tier)
+        card_council = _card_council_emitter(hooks, cn)
+
         if tier == "council":
             result = _review_council(
-                card, mechanics, pointed_questions, review_model, review_effort
+                card,
+                mechanics,
+                pointed_questions,
+                review_model,
+                review_effort,
+                on_council=card_council,
             )
         else:
-            result = _review_single(card, mechanics, pointed_questions, review_model, review_effort)
+            result = _review_single(
+                card,
+                mechanics,
+                pointed_questions,
+                review_model,
+                review_effort,
+                on_council=card_council,
+            )
 
         reviews.append(result)
 
@@ -1477,7 +1793,10 @@ def review_set(
             log_path.name,
         )
 
-        # Apply revision to card JSON if changed
+        # Apply revision to card JSON if changed. ``current_card`` tracks the
+        # on-disk card the tile should reflect (the revision when one was saved,
+        # else the original input dict) so the wizard tile shows the live card.
+        current_card: dict = card
         if result.card_was_changed and result.revised_card:
             try:
                 # Find the original card file
@@ -1490,9 +1809,15 @@ def review_set(
                     original_card = load_card(original_path)
                     updated_card = _apply_revision(original_card, result.revised_card)
                     save_card(updated_card, set_dir=set_dir)
+                    current_card = updated_card.model_dump(mode="json")
                     logger.info("  [%s] Card JSON updated: %s", cn, original_path.name)
             except Exception:
                 logger.exception("  [%s] Failed to apply revision to card JSON", cn)
+
+        # Live council: the verdict is in — push the per-card result tile so the
+        # tab stamps the card approved / rejected (rejected = flagged for regen,
+        # decided by the runner; the tile carries the AI verdict + issues).
+        _emit_card_done(hooks, result, current_card)
 
         # Notify progress callback
         if progress_callback is not None:
@@ -1547,6 +1872,7 @@ def review_all_cards(
     *,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    hooks: object | None = None,
 ) -> dict:
     """Run AI design review on all cards in the active project, returning a summary dict.
 
@@ -1559,8 +1885,12 @@ def review_all_cards(
             invoked after each card is reviewed.
         should_cancel: Optional predicate threaded into ``review_set`` and polled
             at each card boundary so the AI-lock Cancel button halts the loop.
+        hooks: Optional live-review stream hooks threaded into ``review_set`` to
+            drive the wizard tab's live council + per-card stamps.
     """
-    reviews = review_set(progress_callback=progress_callback, should_cancel=should_cancel)
+    reviews = review_set(
+        progress_callback=progress_callback, should_cancel=should_cancel, hooks=hooks
+    )
     cancelled = should_cancel is not None and should_cancel()
     reviewed = len(reviews)
     revised = sum(1 for r in reviews if r.card_was_changed)

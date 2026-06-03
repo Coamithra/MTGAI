@@ -519,6 +519,19 @@
       });
     });
 
+    // AI Design Review streaming. Mirrors the mechanics council: a card enters
+    // review (ai_review_card_start → tile shows a "Reviewing…" badge + council
+    // panel), the council reports round-by-round (ai_review_council — 👍/👎
+    // thumbs), then the verdict tile lands (ai_review_card_done → stamp). A
+    // single ai_review_reset fires at the start of a run. The AI Design Review
+    // tab listens via the W.onAiReviewStream bridge.
+    ['ai_review_reset', 'ai_review_card_start', 'ai_review_council', 'ai_review_card_done'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onAiReviewStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     // Mechanics generation streaming: each accepted draft pops onto the
     // Mechanics tab (mechanic_candidate_drafted, pre-review); the council loop
     // then reports live (mechanic_council_update — reviewer thumbs + synth
