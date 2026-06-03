@@ -786,6 +786,29 @@ def _review_council(
             )
         )
 
+    # Every reviewer errored: synthesis would run against an empty reviewer list
+    # and could return a vacuous OK with no real review behind it. Flag REVISE/error
+    # instead of trusting that synthesis, mirroring the empty-iterations handling.
+    if not council_reviews:
+        logger.error(
+            "  [%s] All %d council reviewers failed — flagging REVISE instead of "
+            "trusting a review-less synthesis",
+            collector_number,
+            num_reviewers,
+        )
+        return _error_review_result(
+            card,
+            "council",
+            review_model,
+            collector_number,
+            card_name,
+            rarity,
+            total_input_tokens=total_in,
+            total_output_tokens=total_out,
+            total_cost_usd=total_cost,
+            total_latency_s=total_latency,
+        )
+
     # Skip synthesis if all reviewers say OK
     if all_ok and len(council_reviews) == num_reviewers:
         logger.info("    All %d reviewers say OK -- skipping synthesis", num_reviewers)
