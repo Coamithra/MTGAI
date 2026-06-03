@@ -219,7 +219,11 @@ STAGE_DEFINITIONS: list[dict] = [
         "review_eligible": True,
     },
     {"stage_id": "ai_review", "display_name": "AI Design Review", "review_eligible": True},
-    {"stage_id": "finalize", "display_name": "Finalization", "review_eligible": False},
+    # Finalization auto-runs (reminder injection + auto-fix), but the user can
+    # opt to "Stop after this step" to manually edit any finalized card before
+    # continuing — review_eligible surfaces that intent (break-point defaults
+    # off; the pause is wired through review_mode independent of this flag).
+    {"stage_id": "finalize", "display_name": "Finalization", "review_eligible": True},
     {"stage_id": "human_card_review", "display_name": "Card Review", "review_eligible": True},
     # visual_refs feeds only the art stages (prompt_builder + character_portraits),
     # so it sits here — right before art_prompts — not pre-skeleton.

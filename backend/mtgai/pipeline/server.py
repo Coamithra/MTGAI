@@ -4385,6 +4385,266 @@ async def wizard_card_gen_refresh() -> JSONResponse:
     return await wizard_card_gen_state()
 
 
+# ---------------------------------------------------------------------------
+# Finalization tab — per-card editing of finalized text (card 6a209cc7)
+# ---------------------------------------------------------------------------
+
+# The card fields the Finalization tab lets the user edit by hand. Anything not
+# in this set is rejected so an edit can't touch pipeline state / identity / art
+# paths. ``mana_cost`` and the P/T/loyalty/oracle/flavor text are the meaningful
+# manual surfaces; the renderer re-parses ``mana_cost`` into the symbol fields at
+# render time, so we don't try to recompute ``mana_cost_parsed``/``cmc`` here.
+_FINALIZE_EDITABLE_FIELDS: frozenset[str] = frozenset(
+    {
+        "name",
+        "mana_cost",
+        "type_line",
+        "oracle_text",
+        "flavor_text",
+        "power",
+        "toughness",
+        "loyalty",
+    }
+)
+
+
+def _apply_finalize_card_edits(card_json: dict, fields: dict) -> dict:
+    """Overlay an edit payload onto a card's on-disk JSON, validated.
+
+    Pure function (no IO) so it's unit-testable. Only keys in
+    ``_FINALIZE_EDITABLE_FIELDS`` are applied; an unknown key raises
+    ``ValueError``. The merged dict round-trips through :class:`Card` so an
+    illegal value (wrong type, etc.) raises rather than corrupting the file.
+    Returns the validated card's JSON dict ready to write back.
+    """
+    from mtgai.models.card import Card
+
+    unknown = set(fields) - _FINALIZE_EDITABLE_FIELDS
+    if unknown:
+        raise ValueError(f"Not editable: {', '.join(sorted(unknown))}")
+    merged = {**card_json}
+    for key, value in fields.items():
+        # Normalize empty strings on the optional text fields back to None so
+        # the model's ``str | None`` fields stay clean (an empty flavor box
+        # means "no flavor", not the literal empty string).
+        if key in ("flavor_text", "power", "toughness", "loyalty") and value == "":
+            value = None
+        merged[key] = value
+    return Card.model_validate(merged).model_dump(mode="json")
+
+
+def _finalize_report(asset: Path) -> dict | None:
+    """Read the finalize JSON report sidecar, or None if the stage hasn't run."""
+    report = _read_json(asset / "reports" / "finalize-report.json", None)
+    return report if isinstance(report, dict) else None
+
+
+def _finalize_user_edits_path(asset: Path) -> Path:
+    return asset / "reports" / "finalize-user-edits.json"
+
+
+def _load_finalize_user_edits(asset: Path) -> set[str]:
+    """Collector numbers the user manually edited on the Finalization tab.
+
+    Persisted (separately from the auto-generated finalize report) so the
+    "edited" badge survives a reload — the report only records what the
+    *stage* changed, not subsequent manual edits.
+    """
+    raw = _read_json(_finalize_user_edits_path(asset), [])
+    return {str(cn) for cn in raw} if isinstance(raw, list) else set()
+
+
+def _mark_finalize_user_edit(asset: Path, collector_number: str) -> None:
+    edits = _load_finalize_user_edits(asset)
+    edits.add(str(collector_number))
+    atomic_write_text(
+        _finalize_user_edits_path(asset),
+        json.dumps(sorted(edits), indent=2, ensure_ascii=False),
+    )
+
+
+def _finalize_card_view(
+    card: dict, report_by_cn: dict[str, dict], user_edited: set[str], slots_by_id: dict[str, dict]
+) -> dict:
+    """Editable-card shape the Finalization tab renders for one card.
+
+    Carries every field the tab edits plus finalize provenance: ``auto_edited``
+    + ``fixes_applied`` + ``original_oracle_text`` from the finalize report, and
+    ``user_edited`` from the persisted manual-edit marker. ``slot_text`` (the
+    relabeled slot brief) is shown read-only for context, same as card_gen.
+    """
+    cn = card.get("collector_number") or ""
+    entry = report_by_cn.get(cn, {})
+    slot = slots_by_id.get(cn) if slots_by_id else None
+    slot_text = ""
+    if slot:
+        from mtgai.skeleton.generator import render_slot_string
+
+        slot_text = (slot.get("tweaked_text") or "").strip() or render_slot_string(slot)
+    return {
+        "collector_number": cn,
+        "name": card.get("name") or "",
+        "mana_cost": card.get("mana_cost") or "",
+        "type_line": card.get("type_line") or "",
+        "oracle_text": card.get("oracle_text") or "",
+        "flavor_text": card.get("flavor_text") or "",
+        "power": card.get("power"),
+        "toughness": card.get("toughness"),
+        "loyalty": card.get("loyalty"),
+        "rarity": card.get("rarity") or "common",
+        "colors": card.get("colors") or [],
+        "slot_text": slot_text,
+        "auto_edited": bool(entry.get("fixes_applied")) or bool(entry.get("original_oracle_text")),
+        "fixes_applied": entry.get("fixes_applied") or [],
+        "original_oracle_text": entry.get("original_oracle_text"),
+        "manual_errors": entry.get("manual_errors") or [],
+        "user_edited": cn in user_edited,
+    }
+
+
+@router.get("/api/wizard/finalize/state")
+async def wizard_finalize_state() -> JSONResponse:
+    """First-paint state for the Finalization tab.
+
+    Reads every card-gen card (skips the Lands tab's ``L-*`` and basic lands —
+    finalize skips basics) from the live ``cards/`` pool into the tab's editable
+    shape, merging in the finalize report's per-card provenance (auto-fixes +
+    before/after oracle text) and the persisted manual-edit markers. The report
+    summary rides along for the header strip. The stage runs automatically, then
+    pauses here only if the user toggled "Stop after this step".
+    """
+    project = _require_active_project()
+    settings = project.settings
+    asset = set_artifact_dir()
+
+    report = _finalize_report(asset)
+    report_cards = (report or {}).get("cards") or []
+    report_by_cn = {str(c.get("collector_number")): c for c in report_cards if isinstance(c, dict)}
+    user_edited = _load_finalize_user_edits(asset)
+    slots_by_id = slots_by_id_from_skeleton(asset / "skeleton.json")
+
+    view_cards = _load_card_gen_cards(asset / "cards")
+    cards = [
+        _finalize_card_view(view_cards[cn], report_by_cn, user_edited, slots_by_id)
+        for cn in sorted(view_cards)
+    ]
+
+    summary = None
+    if report is not None:
+        summary = {
+            "total_cards": report.get("total_cards", 0),
+            "cards_modified": report.get("cards_modified", 0),
+            "total_auto_fixes": report.get("total_auto_fixes", 0),
+            "total_manual_errors": report.get("total_manual_errors", 0),
+            "timestamp": report.get("timestamp"),
+        }
+
+    return JSONResponse(
+        {
+            "cards": cards,
+            "has_content": bool(cards),
+            "report": summary,
+            **_stage_state_base("finalize", settings),
+        }
+    )
+
+
+@router.post("/api/wizard/finalize/save-card")
+async def wizard_finalize_save_card(request: Request) -> JSONResponse:
+    """Persist a single manual card edit from the Finalization tab.
+
+    Body: ``{collector_number, fields: {name, mana_cost, oracle_text, ...}}``.
+    Applies only the editable fields, validates through :class:`Card`, writes the
+    card JSON back, marks the card as user-edited (so its badge survives reload),
+    and heals a stuck FAILED finalize stage. No AI lock — a pure local edit.
+    """
+    _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+
+    cn = str(body.get("collector_number") or "").strip()
+    fields = body.get("fields")
+    if not cn or not isinstance(fields, dict):
+        return JSONResponse(
+            {"error": "collector_number and fields object are required"}, status_code=400
+        )
+
+    asset = set_artifact_dir()
+    view_cards = _load_card_gen_cards(asset / "cards")
+    if cn not in view_cards:
+        return JSONResponse({"error": f"No card {cn!r} in the current pool"}, status_code=404)
+
+    try:
+        updated = _apply_finalize_card_edits(view_cards[cn], fields)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:  # Pydantic ValidationError, etc.
+        return JSONResponse({"error": f"Invalid card edit: {exc}"}, status_code=400)
+
+    from mtgai.io.card_io import save_card
+    from mtgai.models.card import Card
+
+    save_card(Card.model_validate(updated), set_dir=asset)
+    _mark_finalize_user_edit(asset, cn)
+    _heal_failed_stage("finalize")
+
+    return JSONResponse({"success": True, "collector_number": cn})
+
+
+@router.post("/api/wizard/finalize/save")
+async def wizard_finalize_save(request: Request) -> JSONResponse:
+    """Bulk-persist the Finalization tab's pending edits, for Save & Continue.
+
+    Body: ``{cards: [{collector_number, fields}]}``. Applies each edit (same
+    validation as the per-card endpoint), heals the stage, and returns the
+    ``navigate_to`` for the next stage. The client follows up with
+    ``POST /api/wizard/advance`` (engine resume) when the stage is paused — the
+    standard review-gated Save & Continue flow.
+    """
+    _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+
+    edits = body.get("cards") or []
+    if not isinstance(edits, list):
+        return JSONResponse({"error": "cards must be a list"}, status_code=400)
+
+    asset = set_artifact_dir()
+    view_cards = _load_card_gen_cards(asset / "cards")
+
+    from mtgai.io.card_io import save_card
+    from mtgai.models.card import Card
+
+    for edit in edits:
+        if not isinstance(edit, dict):
+            return JSONResponse({"error": "each card edit must be an object"}, status_code=400)
+        cn = str(edit.get("collector_number") or "").strip()
+        fields = edit.get("fields")
+        if not cn or not isinstance(fields, dict):
+            return JSONResponse(
+                {"error": "each edit needs collector_number + fields"}, status_code=400
+            )
+        if cn not in view_cards:
+            return JSONResponse({"error": f"No card {cn!r} in the current pool"}, status_code=404)
+        try:
+            updated = _apply_finalize_card_edits(view_cards[cn], fields)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except Exception as exc:
+            return JSONResponse({"error": f"Invalid card edit ({cn}): {exc}"}, status_code=400)
+        save_card(Card.model_validate(updated), set_dir=asset)
+        _mark_finalize_user_edit(asset, cn)
+
+    _heal_failed_stage("finalize")
+    return JSONResponse({"success": True, "navigate_to": _next_stage_nav("finalize")})
+
+
 @router.get("/api/wizard/skeleton/state")
 async def wizard_skeleton_state() -> JSONResponse:
     """First-paint state for the Skeleton tab.

@@ -497,6 +497,17 @@ stale, downstream handlers may consume it.
   per `CLAUDE.md`. Theme.json + pipeline-state.json + .mtg are the
   canonical project artifacts — render from them, don't store
   duplicate state in localStorage.
+* **Card text symbol preview**: card text stores mana / tap symbols as
+  the canonical `{T}` / `{W}` / `{2}` tokens (the on-disk Scryfall form
+  the renderer's `symbol_renderer.parse_mana_cost` consumes). A tab that
+  *displays* that text should render the tokens as inline badges, not show
+  raw braces — `wizard_finalize.js`'s `symbolizeHtml(text)` is the template:
+  escape first, then replace each `{...}` with a `.wiz-sym .wiz-sym-<code>`
+  span (the per-color palette mirrors the renderer's `MANA_COLORS`). A tab
+  that *edits* the text keeps the raw tokens in the textarea and shows a
+  live `symbolizeHtml` preview beneath it, plus a one-line helper at the top
+  documenting the `{T}` etc. syntax. Display-only — the stored text always
+  keeps the tokens.
 
 ## 13. Section-level Refresh AI button
 
