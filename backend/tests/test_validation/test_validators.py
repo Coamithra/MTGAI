@@ -665,16 +665,131 @@ class TestRulesText:
         assert result.card.oracle_text == "~ can't be blocked. Creatures can't block ~."
 
     def test_fix_etb_mixed_inside_and_outside_parens(self):
+        # Keyword line kept on top so this exercises only ETB paren-preservation,
+        # not the keyword_ordering reorder.
         card = _make_card(
             oracle_text=(
-                "When ~ enters the battlefield, scry 1.\n"
-                "Salvage (When ~ enters the battlefield, return it.)"
+                "Salvage (When ~ enters the battlefield, return it.)\n"
+                "When ~ enters the battlefield, scry 1."
             ),
         )
         result = auto_fix_card(card, validate_card(card))
         assert result.card.oracle_text == (
-            "When ~ enters, scry 1.\nSalvage (When ~ enters the battlefield, return it.)"
+            "Salvage (When ~ enters the battlefield, return it.)\nWhen ~ enters, scry 1."
         )
+
+
+# ===========================================================================
+# Keyword ordering
+# ===========================================================================
+
+
+class TestKeywordOrdering:
+    """Keyword abilities must sit above complex abilities (MTG templating)."""
+
+    def test_in_order_is_ok(self):
+        card = _make_card(
+            oracle_text="Flying\nWhen ~ enters, draw a card.",
+        )
+        errors = _errors_by_validator(validate_card(card), "keyword_ordering")
+        assert errors == []
+
+    def test_keyword_below_complex_is_flagged(self):
+        card = _make_card(
+            oracle_text="When ~ enters, draw a card.\nFlying",
+        )
+        errors = _errors_by_validator(validate_card(card), "keyword_ordering")
+        assert _has_error(errors, validator="keyword_ordering", severity="AUTO")
+        assert any(e.error_code == "keyword_ordering.misplaced" for e in errors)
+
+    def test_keyword_sandwiched_is_flagged(self):
+        card = _make_card(
+            oracle_text=(
+                "Whenever another creature dies, you may pay {B}.\n"
+                "Shroud\n"
+                "When ~ dies, look at the top three cards of your library."
+            ),
+        )
+        errors = _errors_by_validator(validate_card(card), "keyword_ordering")
+        assert _has_error(errors, validator="keyword_ordering", severity="AUTO")
+
+    def test_multiple_keyword_lines_in_order_ok(self):
+        card = _make_card(
+            oracle_text="Flying, vigilance\nWard {2}\nWhen ~ enters, gain 2 life.",
+        )
+        errors = _errors_by_validator(validate_card(card), "keyword_ordering")
+        assert errors == []
+
+    def test_keywords_only_ok(self):
+        card = _make_card(oracle_text="Flying\nTrample")
+        errors = _errors_by_validator(validate_card(card), "keyword_ordering")
+        assert errors == []
+
+    def test_single_line_never_flagged(self):
+        # A keyword that's part of a complex sentence isn't a keyword line.
+        card = _make_card(
+            oracle_text="When a creature with flying attacks, draw a card.",
+        )
+        errors = _errors_by_validator(validate_card(card), "keyword_ordering")
+        assert errors == []
+
+    def test_custom_keyword_ordering(self):
+        card = _make_card(
+            oracle_text="When ~ enters, scry 1.\nSalvage 2",
+            mechanic_tags=["salvage"],
+        )
+        errors = _errors_by_validator(validate_card(card), "keyword_ordering")
+        assert _has_error(errors, validator="keyword_ordering", severity="AUTO")
+
+    # ---- Fixer ----
+
+    def test_fix_reorders_keyword_above_complex(self):
+        card = _make_card(oracle_text="When ~ enters, draw a card.\nFlying")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "Flying\n\nWhen ~ enters, draw a card."
+
+    def test_fix_reorders_sandwiched_keyword(self):
+        card = _make_card(
+            oracle_text=(
+                "Whenever another creature dies, you may pay {B}.\n"
+                "Shroud\n"
+                "When ~ dies, look at the top three cards."
+            ),
+        )
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == (
+            "Shroud\n\n"
+            "Whenever another creature dies, you may pay {B}.\n"
+            "When ~ dies, look at the top three cards."
+        )
+
+    def test_fix_preserves_keyword_relative_order(self):
+        card = _make_card(
+            oracle_text="When ~ enters, gain 2 life.\nFlying, vigilance\nWard {2}",
+        )
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == (
+            "Flying, vigilance\nWard {2}\n\nWhen ~ enters, gain 2 life."
+        )
+
+    def test_fix_preserves_reminder_text_on_keyword_line(self):
+        # Reminder text rides on the moved keyword line, untouched.
+        card = _make_card(
+            oracle_text=(
+                "When ~ enters, draw a card.\n"
+                "Flying (This creature can't be blocked except by fliers.)"
+            ),
+        )
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == (
+            "Flying (This creature can't be blocked except by fliers.)\n\n"
+            "When ~ enters, draw a card."
+        )
+
+    def test_in_order_card_fix_is_noop(self):
+        card = _make_card(oracle_text="Flying\nWhen ~ enters, draw a card.")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "Flying\nWhen ~ enters, draw a card."
 
 
 # ===========================================================================
