@@ -43,7 +43,7 @@ def test_dump_then_parse_round_trips_all_fields():
             kind="pdf", filename="src.pdf", upload_id="abc", char_count=2048
         ),
         asset_folder="C:/proj/round-trip",
-        break_points={"human_card_review": "auto"},
+        break_points={"human_art_review": "auto"},
         effort_overrides={"card_gen": "high"},
     )
     text = ms.dump_project_toml("RT", settings)

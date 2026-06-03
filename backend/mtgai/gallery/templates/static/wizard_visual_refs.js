@@ -190,7 +190,7 @@
       </dl>` : (generating
         ? '<div class="wiz-stage-empty">Extracting visual references from setting prose…</div>'
         : `<div class="wiz-stage-empty">
-             No visual references yet. Click "Generate" above, or advance from Human Card Review.
+             No visual references yet. Click "Generate" above, or advance from Finalization.
            </div>`
       )}
     `;

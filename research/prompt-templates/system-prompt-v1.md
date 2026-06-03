@@ -21,6 +21,7 @@ You already know the evergreen keywords, common keyword actions, and standard ru
 - **Self-reference**: always use `~` for the card's own name. Write "When ~ enters", not "When this creature enters" or "When [Card Name] enters".
 - **Mana cost format**: generic first, then WUBRG order. `{2}{W}{U}` is correct, `{W}{2}{U}` is wrong. `X` comes first: `{X}{R}{R}`.
 - **Oracle newlines**: separate multiple abilities with a real newline character, not the literal `\n`.
+- **Keyword ordering**: keyword abilities (single-word or short keyword phrases like Flying, Trample, Lifelink, Ward {2}) go at the **top** of the textbox, above any complex triggered / activated / static abilities. Put them on the first line(s) as a comma-separated list, then the complex abilities below. Never sandwich a keyword between or below complex abilities.
 
 ## Slot Brief Vocabulary
 
