@@ -60,6 +60,12 @@ _POOL_PATH = Path(__file__).parent / "reprint_pool.json"
 # chosen cards. Retry, accumulating placements (dedup by card + slot).
 _PLACE_MAX_ATTEMPTS = 3
 
+# Pass 1 (select) retries only on a truncation/repetition loop; bump temperature
+# per retry to escape it (see temperatures.RETRY_TEMP_STEP). Same budget as the
+# placement pass today, but a separate constant so the two retry policies can
+# diverge without one silently changing the other.
+_SELECT_MAX_ATTEMPTS = 3
+
 
 # ---------------------------------------------------------------------------
 # Data models
@@ -354,9 +360,9 @@ def _build_select_trigger(count: int, per_rarity: dict[str, int] | None = None) 
 def _build_place_context(
     selected: list[tuple[ReprintCandidate, str]], slot_texts: list[dict[str, str]]
 ) -> str:
-    """The static cached system block for the place pass: the chosen reprints + the
-    slot list. Built once and reused across the placement retries (and read from
-    cache on retries 2..N within the TTL)."""
+    """The cached system block for the place pass: the chosen reprints + the slot
+    list. Rebuilt per placement attempt from only the still-unplaced cards and
+    still-open slots, so a retry never re-sends already-placed work."""
     lines = [f"## Chosen reprints ({len(selected)})"]
     lines += [f"- {format_candidate_tldr(c)}" for c, _ in selected]
     lines += ["", f"## Skeleton slots ({len(slot_texts)})"]
@@ -451,7 +457,7 @@ def _select_from_pool(
     # the same low temp reproduces it, so bump the temperature per retry (the
     # verified escape — see temperatures.RETRY_TEMP_STEP / gate_common).
     response = None
-    for attempt in range(_PLACE_MAX_ATTEMPTS):
+    for attempt in range(_SELECT_MAX_ATTEMPTS):
         if attempt and ai_lock.is_cancelled():
             break
         try:
@@ -520,11 +526,6 @@ def _place_reprints(
     text_by_id = {s["slot_id"]: s["text"] for s in slot_texts}
     valid = set(text_by_id)
 
-    # Chosen reprints + slot list ride in a cached system block (built once, read
-    # from cache on placement retries 2..N); the trigger stays in the user turn.
-    context_block = _build_place_context(selected, slot_texts)
-    trigger = _build_place_trigger(selected)
-
     pairs: list[SelectionPair] = []
     placed: set[str] = set()  # card names (lower) already placed
     used: set[str] = set()  # slot_ids already taken
@@ -537,6 +538,15 @@ def _place_reprints(
         if ai_lock.is_cancelled():
             logger.warning("Reprint placement CANCELLED by user after %d placed", len(placed))
             break
+        # Rebuild the prompt each attempt from ONLY the still-unplaced cards and the
+        # still-open slots, so a retry asks for exactly the remaining work instead of
+        # re-sending already-placed cards or re-offering taken slots. (Costs the
+        # system block's cache reuse across retries, but the retry path is the rare
+        # case and the correctness/leanness win dominates.)
+        remaining = [(c, reason) for c, reason in selected if c.name.lower() not in placed]
+        open_slots = [s for s in slot_texts if s["slot_id"] not in used]
+        context_block = _build_place_context(remaining, open_slots)
+        trigger = _build_place_trigger(remaining)
         try:
             # Each re-ask is also perturbed off the base: it both fills the
             # remaining slots and escapes a same-temp repetition loop on local.
