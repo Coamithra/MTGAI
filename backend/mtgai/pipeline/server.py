@@ -4512,12 +4512,17 @@ async def wizard_ai_review_state(instance_id: str | None = None) -> JSONResponse
 
 
 def _ai_review_card_path(asset: Path, collector_number: str) -> Path | None:
-    """Locate a card's JSON file in the live pool by collector number."""
+    """Locate a card's JSON file in the live pool by collector number.
+
+    Filenames are ``<collector_number>_<slug>.json``, so match the stem on the
+    ``<cn>_`` prefix (or an exact ``<cn>`` stem) rather than a bare prefix — a
+    bare prefix would mis-match e.g. ``W-C-01`` against ``W-C-011_...``.
+    """
     cards_dir = asset / "cards"
     if not cards_dir.is_dir():
         return None
     for path in sorted(cards_dir.glob("*.json")):
-        if path.stem.startswith(collector_number):
+        if path.stem == collector_number or path.stem.startswith(collector_number + "_"):
             return path
     return None
 
@@ -4591,6 +4596,10 @@ async def wizard_ai_review_approve(request: Request) -> JSONResponse:
 
     _clear_card_regen_flag(asset, cn)
     save_decision(asset, cn, {"verdict": "approved", "reason": "", "source": "user"})
+    # The manual approval rewrote the live pool (cleared the flag) without going
+    # through the engine; re-snapshot this stage's tip so a later rerun_instance
+    # restores the approved pool, not the stale pre-approval one.
+    _resnapshot_stage_tip("ai_review")
     _heal_failed_stage("ai_review")
     return JSONResponse({"tile": _ai_review_single_tile(asset, cn)})
 
@@ -4671,6 +4680,10 @@ async def wizard_ai_review_revise(request: Request) -> JSONResponse:
             {"verdict": "approved", "reason": "Revised by reviewer.", "source": "user"},
         )
 
+    # The revision rewrote the live pool without going through the engine;
+    # re-snapshot this stage's tip so a later rerun_instance restores the revised
+    # pool, not the stale pre-revision one (matches the card_gen refresh path).
+    _resnapshot_stage_tip("ai_review")
     return JSONResponse({"tile": _ai_review_single_tile(asset, cn)})
 
 
@@ -4702,6 +4715,10 @@ async def wizard_ai_review_regenerate(request: Request) -> JSONResponse:
     if not flagged:
         return JSONResponse({"error": f"Could not flag {cn}"}, status_code=404)
     save_decision(asset, cn, {"verdict": "rejected", "reason": reason, "source": "user"})
+    # The flag stamped the live pool (regen_reason/DRAFT) without going through the
+    # engine; re-snapshot this stage's tip so a later rerun_instance restores the
+    # flagged pool, not the stale pre-flag one.
+    _resnapshot_stage_tip("ai_review")
     return JSONResponse({"tile": _ai_review_single_tile(asset, cn)})
 
 

@@ -184,6 +184,18 @@ def test_approve_unknown_card_404(client, isolated_output, tmp_path):
     assert resp.status_code == 404
 
 
+def test_approve_does_not_prefix_collide(client, isolated_output, tmp_path):
+    """``W-C-01`` must not resolve to ``W-C-011`` (filename is ``<cn>_<slug>``)."""
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(
+        asset, collector_number="W-C-011", name="Eleven", regen_reason="x", flagged_by="ai_review"
+    )
+
+    resp = client.post("/api/wizard/ai_review/approve", json={"collector_number": "W-C-01"})
+    assert resp.status_code == 404  # no W-C-01 card; must not match W-C-011
+
+
 # ---------------------------------------------------------------------------
 # POST /api/wizard/ai_review/regenerate
 # ---------------------------------------------------------------------------
