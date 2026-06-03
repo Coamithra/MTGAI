@@ -34,6 +34,7 @@ from mtgai.pipeline.models import (
     PipelineState,
     PipelineStatus,
     StageReviewMode,
+    StageState,
     StageStatus,
     create_pipeline_state,
 )
@@ -2346,7 +2347,8 @@ def _apply_cascade_clear(state: PipelineState, start_idx: int) -> None:
     from mtgai.pipeline.stages import clear_stage_artifacts
 
     try:
-        for stage in state.stages[start_idx:]:
+        cleared = list(state.stages[start_idx:])
+        for stage in cleared:
             # Drop this instance's card-pool snapshot — it describes now-discarded
             # output and would mislead per-instance viewing / tip-detection on the
             # re-run. (The dedicated /instance/rerun path restores entry snapshots;
@@ -2381,10 +2383,19 @@ def _apply_cascade_clear(state: PipelineState, start_idx: int) -> None:
                 }
             )
 
-        if state.current_instance_id is not None:
-            cleared_ids = {s.instance_id for s in state.stages[start_idx:]}
-            if state.current_instance_id in cleared_ids:
-                state.current_instance_id = None
+        cleared_ids = {s.instance_id for s in cleared}
+        if state.current_instance_id is not None and state.current_instance_id in cleared_ids:
+            state.current_instance_id = None
+
+        # Drop the regen-inserted duplicate instances (``card_gen.2``,
+        # ``conformance.2``, …) in the cleared range, keeping only each stage's
+        # backbone (``instance_id == stage_id``). Mirrors ``engine.rerun_instance``'s
+        # ``del state.stages[idx + 1:]`` truncation: the engine's ``_run_loop`` is an
+        # index-driven walk that would otherwise re-run these leftovers as stale
+        # duplicate rounds (extra LLM cost + confusing duplicate tabs). Their
+        # ``history/`` snapshots were already dropped by the clear loop above.
+        del state.stages[start_idx:]
+        state.stages.extend(s for s in cleared if s.instance_id == s.stage_id)
 
         # After cascade, overall_status is one of:
         #   - NOT_STARTED — at least one stage left non-completed
@@ -2731,15 +2742,29 @@ def _theme_summary(theme: dict | None) -> str:
     return text[:600] + ("…" if len(text) > 600 else "")
 
 
+def _resolve_stage_instance(state: PipelineState, stage_id: str) -> StageState | None:
+    """Return the most relevant ``StageState`` for ``stage_id``.
+
+    During a review->regen loop a stage_id has several instances (the backbone
+    ``card_gen`` plus inserted ``card_gen.2``, …). The status the tab cares about
+    and the instance worth healing is the *active* one, so prefer the instance
+    pointed at by ``state.current_instance_id`` when it belongs to this stage_id;
+    fall back to the backbone instance (``instance_id == stage_id``) otherwise.
+    Returns ``None`` if the stage_id has no instance at all.
+    """
+    current = state.current_stage()
+    if current is not None and current.stage_id == stage_id:
+        return current
+    return next((s for s in state.stages if s.instance_id == stage_id), None)
+
+
 def _stage_status_in_state(stage_id: str) -> str:
     """Return the current stage status string ("pending" if no state)."""
     state = _get_current_state()
     if state is None:
         return "pending"
-    for s in state.stages:
-        if s.stage_id == stage_id:
-            return s.status.value
-    return "pending"
+    stage = _resolve_stage_instance(state, stage_id)
+    return stage.status.value if stage is not None else "pending"
 
 
 def _stage_state_base(stage_id: str, settings: Any) -> dict:
@@ -4086,7 +4111,7 @@ def _heal_failed_stage(stage_id: str) -> None:
     state = _get_current_state()
     if state is None:
         return
-    stage = next((s for s in state.stages if s.stage_id == stage_id), None)
+    stage = _resolve_stage_instance(state, stage_id)
     changed = False
     if stage is not None and stage.status == StageStatus.FAILED:
         stage.status = StageStatus.PAUSED_FOR_REVIEW
