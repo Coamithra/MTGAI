@@ -26,6 +26,7 @@ from mtgai.pipeline.models import (
     PipelineConfig,
     PipelineState,
     PipelineStatus,
+    StageState,
     StageStatus,
     create_pipeline_state,
 )
@@ -506,3 +507,126 @@ def test_resolve_edit_point_raises_for_unknown_stage():
     )
     with pytest.raises(ValueError):
         pipeline_server._resolve_edit_point("garbage", state)
+
+
+# ---------------------------------------------------------------------------
+# _apply_cascade_clear — regen-instance truncation
+# ---------------------------------------------------------------------------
+
+
+def _loop_state(code: str) -> PipelineState:
+    """A run that bounced once: a regen span (card_gen.2, conformance.2) was
+    inserted after the backbone loop, mirroring the engine's review->regen
+    insertion. ``lands`` precedes the loop so there is an untouched prefix."""
+    order = [
+        ("lands", "lands", "Land Generation"),
+        ("card_gen", "card_gen", "Card Generation"),
+        ("conformance", "conformance", "Conformance & Interactions"),
+        ("ai_review", "ai_review", "AI Design Review"),
+        ("card_gen", "card_gen.2", "Card Generation 2"),
+        ("conformance", "conformance.2", "Conformance & Interactions 2"),
+        ("ai_review", "ai_review.2", "AI Design Review 2"),
+    ]
+    stages = [
+        StageState(
+            stage_id=sid,
+            instance_id=iid,
+            display_name=dn,
+            status=StageStatus.COMPLETED,
+        )
+        for sid, iid, dn in order
+    ]
+    return PipelineState(
+        config=PipelineConfig(set_code=code, set_name=code, set_size=20),
+        stages=stages,
+        current_instance_id="ai_review.2",
+    )
+
+
+def test_cascade_clear_drops_regen_inserted_instances():
+    _make_set("ASD")
+    state = _loop_state("ASD")
+    # Cascade from the backbone card_gen (index 1) — clears card_gen onward.
+    pipeline_server._apply_cascade_clear(state, 1)
+
+    ids = [s.instance_id for s in state.stages]
+    # The untouched prefix survives; only backbone instances of each cleared
+    # stage_id remain (the regen-inserted .2 duplicates are gone), so the engine
+    # can't re-run them as stale duplicate rounds.
+    assert ids == ["lands", "card_gen", "conformance", "ai_review"]
+    # Cleared backbones reset to PENDING; the prefix is untouched.
+    by_id = {s.instance_id: s for s in state.stages}
+    assert by_id["lands"].status == StageStatus.COMPLETED
+    assert by_id["card_gen"].status == StageStatus.PENDING
+    assert by_id["conformance"].status == StageStatus.PENDING
+    assert by_id["ai_review"].status == StageStatus.PENDING
+    # current_instance_id pointed at a now-removed instance -> dropped.
+    assert state.current_instance_id is None
+    assert state.overall_status == PipelineStatus.NOT_STARTED
+
+
+def test_cascade_clear_keeps_full_prefix_when_start_is_zero():
+    _make_set("ASD")
+    state = _loop_state("ASD")
+    pipeline_server._apply_cascade_clear(state, 0)
+    ids = [s.instance_id for s in state.stages]
+    assert ids == ["lands", "card_gen", "conformance", "ai_review"]
+    assert all(s.status == StageStatus.PENDING for s in state.stages)
+
+
+# ---------------------------------------------------------------------------
+# _resolve_stage_instance / status + heal prefer the active regen instance
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_stage_instance_prefers_current_instance():
+    state = _loop_state("ASD")
+    state.current_instance_id = "card_gen.2"
+    state.stages[4].status = StageStatus.RUNNING  # card_gen.2
+    resolved = pipeline_server._resolve_stage_instance(state, "card_gen")
+    assert resolved is not None
+    assert resolved.instance_id == "card_gen.2"
+
+
+def test_resolve_stage_instance_falls_back_to_backbone():
+    state = _loop_state("ASD")
+    # current_instance_id belongs to a *different* stage_id -> use the backbone.
+    state.current_instance_id = "conformance.2"
+    resolved = pipeline_server._resolve_stage_instance(state, "card_gen")
+    assert resolved is not None
+    assert resolved.instance_id == "card_gen"
+
+
+def test_resolve_stage_instance_none_for_unknown_stage():
+    state = _loop_state("ASD")
+    assert pipeline_server._resolve_stage_instance(state, "nope") is None
+
+
+def test_stage_status_prefers_active_regen_instance():
+    _make_set("ASD")
+    state = _loop_state("ASD")
+    state.current_instance_id = "card_gen.2"
+    state.stages[1].status = StageStatus.COMPLETED  # backbone card_gen
+    state.stages[4].status = StageStatus.RUNNING  # card_gen.2
+    save_state(state)
+    # Reports the active instance's RUNNING, not the backbone's COMPLETED.
+    assert pipeline_server._stage_status_in_state("card_gen") == "running"
+
+
+def test_heal_failed_stage_heals_active_regen_instance():
+    _make_set("ASD")
+    state = _loop_state("ASD")
+    state.current_instance_id = "card_gen.2"
+    state.stages[1].status = StageStatus.COMPLETED  # backbone card_gen
+    state.stages[4].status = StageStatus.FAILED  # card_gen.2
+    state.overall_status = PipelineStatus.FAILED
+    save_state(state)
+
+    pipeline_server._heal_failed_stage("card_gen")
+
+    healed = load_state()
+    by_id = {s.instance_id: s for s in healed.stages}
+    # The active failed instance was demoted; the backbone is untouched.
+    assert by_id["card_gen.2"].status == StageStatus.PAUSED_FOR_REVIEW
+    assert by_id["card_gen"].status == StageStatus.COMPLETED
+    assert healed.overall_status == PipelineStatus.PAUSED
