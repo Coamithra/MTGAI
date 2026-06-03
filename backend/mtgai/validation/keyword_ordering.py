@@ -11,9 +11,9 @@ line and emits an AUTO finding; :func:`fix_keyword_ordering` deterministically
 hoists every keyword-only line to the top of the oracle text, preserving the
 relative order within each group (a stable partition).
 
-The classification of a line reuses :data:`rules_text.ALL_KEYWORDS` /
+The classification of a line reuses :func:`rules_text.all_keywords` /
 :func:`rules_text._is_keyword_only_line`, so the keyword vocabulary (evergreen +
-the set's custom mechanics) stays defined in one place.
+the active project's custom mechanics) stays defined in one place.
 
 Reminder text (parenthesized spans, injected programmatically — never
 LLM-generated) is preserved byte-for-byte: lines are moved whole, so any

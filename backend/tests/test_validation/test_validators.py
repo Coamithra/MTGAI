@@ -13,6 +13,8 @@ but call the validator directly rather than going through ``validate_card``.
 
 from __future__ import annotations
 
+import pytest
+
 from mtgai.models.card import Card, ManaCost
 from mtgai.models.enums import Color, Rarity
 from mtgai.validation import (
@@ -67,6 +69,22 @@ def _has_error(errors: list[ValidationError], *, validator: str, severity: str |
         if e.validator == validator and (severity is None or e.severity == severity):
             return True
     return False
+
+
+@pytest.fixture
+def custom_keywords_salvage():
+    """Supply a set's custom mechanics to the rules-text validators.
+
+    Custom keywords are normally resolved from the active project's
+    ``mechanics/approved.json``; tests with no on-disk project pin them via
+    ``set_custom_keywords``. Resets the override afterwards so it can't bleed
+    into other tests.
+    """
+    from mtgai.validation import rules_text
+
+    rules_text.set_custom_keywords(["salvage", "malfunction", "overclock"])
+    yield
+    rules_text.set_custom_keywords(None)
 
 
 # ===========================================================================
@@ -733,7 +751,7 @@ class TestKeywordOrdering:
         errors = _errors_by_validator(validate_card(card), "keyword_ordering")
         assert errors == []
 
-    def test_custom_keyword_ordering(self):
+    def test_custom_keyword_ordering(self, custom_keywords_salvage):
         card = _make_card(
             oracle_text="When ~ enters, scry 1.\nSalvage 2",
             mechanic_tags=["salvage"],
@@ -803,6 +821,71 @@ class TestKeywordOrdering:
         card = _make_card(oracle_text="Flying\nWhen ~ enters, draw a card.")
         result = auto_fix_card(card, validate_card(card))
         assert result.card.oracle_text == "Flying\nWhen ~ enters, draw a card."
+
+
+# ===========================================================================
+# Custom-keyword resolution (active project → mechanics/approved.json)
+# ===========================================================================
+
+
+class TestCustomKeywordResolution:
+    """The validators recognize the active project's custom mechanics as keywords.
+
+    The vocabulary is no longer a hardcoded seed: ``rules_text.custom_keywords``
+    resolves the active project's ``mechanics/approved.json`` mechanic names so
+    any set's keywords classify as valid keyword-only lines.
+    """
+
+    @pytest.fixture
+    def project_with_mechanics(self, tmp_path, monkeypatch):
+        """Pin an active project whose approved.json names one custom mechanic."""
+        import json
+
+        from mtgai.runtime import active_project
+        from mtgai.settings import model_settings as ms
+        from mtgai.validation import rules_text
+
+        asset = tmp_path / "proj"
+        (asset / "mechanics").mkdir(parents=True)
+        (asset / "mechanics" / "approved.json").write_text(
+            json.dumps([{"name": "Frostbite", "keyword_type": "keyword_ability"}]),
+            encoding="utf-8",
+        )
+        active_project.write_active_project(
+            active_project.ProjectState(
+                set_code="FRZ", settings=ms.ModelSettings(asset_folder=str(asset))
+            )
+        )
+        rules_text.set_custom_keywords(None)  # ensure active-project resolution
+        rules_text._approved_cache = None  # drop any cross-test cache entry
+        yield asset
+        rules_text.set_custom_keywords(None)
+        rules_text._approved_cache = None
+        active_project.clear_active_project()
+
+    def test_approved_mechanic_recognized_as_keyword(self, project_with_mechanics):
+        from mtgai.validation import rules_text
+
+        assert "frostbite" in rules_text.custom_keywords()
+        assert "frostbite" in rules_text.all_keywords()
+
+    def test_custom_keyword_line_flagged_when_below_complex(self, project_with_mechanics):
+        # "Frostbite 2" is a keyword-only line for this project, so ordering it
+        # below a complex ability is an AUTO keyword_ordering finding.
+        card = _make_card(oracle_text="When ~ enters, scry 1.\nFrostbite 2")
+        errors = _errors_by_validator(validate_card(card), "keyword_ordering")
+        assert _has_error(errors, validator="keyword_ordering", severity="AUTO")
+
+    def test_no_project_falls_back_to_evergreen_only(self):
+        from mtgai.runtime import active_project
+        from mtgai.validation import rules_text
+
+        active_project.clear_active_project()
+        rules_text.set_custom_keywords(None)
+        # No project open → only evergreen keywords; an unknown word isn't one.
+        assert rules_text.custom_keywords() == frozenset()
+        assert "frostbite" not in rules_text.all_keywords()
+        assert "flying" in rules_text.all_keywords()
 
 
 # ===========================================================================

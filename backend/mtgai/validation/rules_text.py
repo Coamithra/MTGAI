@@ -7,7 +7,9 @@ keyword formatting, planeswalker ability structure, and set-specific nonbos.
 
 from __future__ import annotations
 
+import json
 import re
+from collections.abc import Iterable
 
 from mtgai.models.card import Card
 from mtgai.validation import ValidationError, ValidationSeverity
@@ -73,12 +75,6 @@ KEYWORD_ACTIONS = {
     "venture",
 }
 
-# Custom-mechanic keywords the rules-text validators recognize as valid keyword
-# lines. These are currently a static seed (the original dev set's mechanics);
-# a follow-up will feed the active project's approved mechanics in dynamically
-# so the validator recognizes any set's custom keywords, not just these.
-CUSTOM_KEYWORDS = {"salvage", "malfunction", "overclock"}
-
 MANA_SYM_VALID = re.compile(r"\{(\d+|[WUBRGCXSTQ](?:/[WUBRGP])?)\}")
 MANA_SYM_ANY = re.compile(r"\{[^}]+\}")
 
@@ -95,7 +91,86 @@ SELF_REF_BAD = re.compile(
 )
 LOYALTY_ABILITY = re.compile(r"^[+\-\u2212]?\d+: .+\.$", re.MULTILINE)
 
-ALL_KEYWORDS = EVERGREEN_KEYWORDS | CUSTOM_KEYWORDS
+# Custom-mechanic keywords (the active set's named mechanics) are resolved per
+# call rather than hardcoded, so the rules-text validators recognize ANY set's
+# custom keywords as valid keyword-only lines. Resolution order:
+#   1. an explicit override set via ``set_custom_keywords`` — the seam for tests
+#      and callers that want to pass the vocabulary in directly; else
+#   2. the active project's ``mechanics/approved.json`` mechanic names; else
+#   3. empty (evergreen-only).
+# The approved.json read is cached by ``(path, mtime)`` so the hot validator
+# loop doesn't stat + parse the file on every line.
+_custom_keywords_override: frozenset[str] | None = None
+_approved_cache: tuple[str, float, frozenset[str]] | None = None
+
+
+def set_custom_keywords(keywords: Iterable[str] | None) -> None:
+    """Override the custom-keyword vocabulary the validators recognize.
+
+    Pass an iterable of mechanic names to pin them (lowercased); pass ``None``
+    to clear the override and fall back to active-project resolution. The seam
+    lets callers feed keywords in directly and lets tests supply a set's
+    mechanics without an on-disk project.
+    """
+    global _custom_keywords_override
+    if keywords is None:
+        _custom_keywords_override = None
+    else:
+        _custom_keywords_override = frozenset(k.strip().lower() for k in keywords if k.strip())
+
+
+def _active_custom_keywords() -> frozenset[str]:
+    """Resolve custom keywords from the active project's approved mechanics.
+
+    Reads ``<asset_folder>/mechanics/approved.json`` and returns the mechanic
+    ``name`` values lowercased. Returns an empty set when no project is open,
+    the file is missing, or it can't be parsed — the validators then fall back
+    to evergreen-only recognition. Cached by ``(path, mtime)``.
+    """
+    global _approved_cache
+
+    try:
+        from mtgai.io.asset_paths import set_artifact_dir
+
+        path = set_artifact_dir() / "mechanics" / "approved.json"
+    except Exception:
+        return frozenset()
+
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        _approved_cache = None
+        return frozenset()
+
+    key = str(path)
+    if _approved_cache is not None and _approved_cache[0] == key and _approved_cache[1] == mtime:
+        return _approved_cache[2]
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return frozenset()
+
+    names = frozenset(
+        m["name"].strip().lower()
+        for m in data
+        if isinstance(m, dict) and isinstance(m.get("name"), str) and m["name"].strip()
+    )
+    _approved_cache = (key, mtime, names)
+    return names
+
+
+def custom_keywords() -> frozenset[str]:
+    """Return the active set's custom-mechanic keywords (override or approved.json)."""
+    if _custom_keywords_override is not None:
+        return _custom_keywords_override
+    return _active_custom_keywords()
+
+
+def all_keywords() -> set[str]:
+    """Return every keyword the validators recognize: evergreen + custom."""
+    return EVERGREEN_KEYWORDS | custom_keywords()
+
 
 # Parenthesized spans hold reminder text (injected programmatically by
 # ``reminder_injector``, never LLM-generated). Validators that scan or rewrite
@@ -168,7 +243,8 @@ def _is_keyword_line(line: str) -> bool:
     if any(ch in line for ch in ".:\u2014"):
         return False
     parts = [p.strip().lower() for p in line.split(",")]
-    return any(any(p == kw or p.startswith(kw + " ") for kw in ALL_KEYWORDS) for p in parts)
+    kws = all_keywords()
+    return any(any(p == kw or p.startswith(kw + " ") for kw in kws) for p in parts)
 
 
 def _is_keyword_only_line(line: str) -> bool:
@@ -182,13 +258,14 @@ def _is_keyword_only_line(line: str) -> bool:
         return False
 
     parts = [p.strip() for p in stripped.split(",")]
+    kws = all_keywords()
     for part in parts:
         if not part:
             return False
         # Extract the base keyword: first word(s) that match a known keyword
         part_lower = part.lower()
         matched = False
-        for kw in ALL_KEYWORDS:
+        for kw in kws:
             if (
                 part_lower == kw
                 or part_lower.startswith(kw + " ")
@@ -365,7 +442,7 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
             continue  # Already has commas, skip
         words_lower = stripped.lower()
         found_keywords: list[str] = []
-        for kw in ALL_KEYWORDS:
+        for kw in all_keywords():
             if re.search(rf"\b{re.escape(kw)}\b", words_lower):
                 found_keywords.append(kw)
         if len(found_keywords) >= 2:
@@ -422,6 +499,7 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
     # ------------------------------------------------------------------
     # 14. Keyword capitalization — AUTO
     # ------------------------------------------------------------------
+    kws = all_keywords()
     for line in lines:
         if not _is_keyword_line(line):
             continue
@@ -429,7 +507,7 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
         for part in parts[1:]:
             if not part:
                 continue
-            if part[0].isupper() and part.lower() in ALL_KEYWORDS:
+            if part[0].isupper() and part.lower() in kws:
                 errors.append(
                     _auto(
                         "oracle_text",
@@ -536,7 +614,7 @@ def fix_keyword_commas(card: Card, error: ValidationError) -> Card:
         # Find all keyword matches in this line
         words_lower = stripped.lower()
         found_keywords: list[tuple[int, int, str]] = []
-        for kw in ALL_KEYWORDS:
+        for kw in all_keywords():
             for m in re.finditer(rf"\b{re.escape(kw)}\b", words_lower):
                 found_keywords.append((m.start(), m.end(), kw))
 
@@ -586,6 +664,7 @@ def fix_keyword_capitalization(card: Card, error: ValidationError) -> Card:
     if not card.oracle_text:
         return card
 
+    kws = all_keywords()
     new_lines = []
     for line in card.oracle_text.split("\n"):
         if not _is_keyword_line(line):
@@ -594,7 +673,7 @@ def fix_keyword_capitalization(card: Card, error: ValidationError) -> Card:
         parts = [p.strip() for p in line.split(",")]
         fixed_parts = [parts[0]]  # Keep first keyword's case
         for part in parts[1:]:
-            if part and part[0].isupper() and part.lower() in ALL_KEYWORDS:
+            if part and part[0].isupper() and part.lower() in kws:
                 fixed_parts.append(part[0].lower() + part[1:])
             else:
                 fixed_parts.append(part)
