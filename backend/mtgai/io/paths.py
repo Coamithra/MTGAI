@@ -4,9 +4,8 @@ These build the *legacy* ``output_root/sets/<CODE>/...`` layout from
 explicit arguments — they do not consult ``settings.toml`` or honour
 the project's ``asset_folder``. Production stage runners go through
 :func:`mtgai.io.asset_paths.set_artifact_dir` instead. The helpers here
-are kept for legacy CLI scripts (``backend/scripts/generate_all_art.py``,
-``mtgai/art/kontext_*.py``, ``mtgai/art/pulid_test.py``) and as the
-canonical definition of the on-disk slug / subdirectory shape.
+are kept as the canonical definition of the on-disk slug / subdirectory
+shape (and for any ad-hoc scripts still using the legacy layout).
 """
 
 import re
