@@ -8,7 +8,7 @@ default-on-failure.
 from __future__ import annotations
 
 import mtgai.generation.skeleton_knobs_tuner as tuner
-from mtgai.skeleton.knobs import KNOB_SPECS, SkeletonKnobs
+from mtgai.skeleton.knobs import KNOB_SPECS, Cycle, CycleSpan, SkeletonKnobs
 
 
 def _tool_stub(result: dict | None):
@@ -127,6 +127,37 @@ class TestTuneKnobs:
         assert meta["defaulted"] is True
         assert knobs.multicolor_rare == 0.40  # pinned base kept on failure
 
+    def test_failure_preserves_base_cycles_without_pins(self, monkeypatch):
+        # Card 6a1ff25f: an unpinned base with user cycles must keep them on failure
+        # (the old `base if base.pinned else default_knobs()` dropped them).
+        def boom(**kwargs):
+            raise RuntimeError("down")
+
+        monkeypatch.setattr(tuner, "generate_with_tool", boom)
+        cyc = Cycle(id="gates", name="Gates", span=CycleSpan.PAIRS10, card_type="land")
+        base = SkeletonKnobs(cycles=[cyc])  # cycles but NO pinned scalar knob
+        knobs, meta = tuner.tune_knobs(
+            theme={}, approved=[], archetypes=[], set_name="T", set_size=277, model="m", base=base
+        )
+        assert meta["defaulted"] is True
+        assert [c.id for c in knobs.cycles] == ["gates"]
+
+    def test_no_tool_result_preserves_base_cycles(self, monkeypatch):
+        cyc = Cycle(id="gates", name="Gates", span=CycleSpan.PAIRS10, card_type="land")
+        base = SkeletonKnobs(cycles=[cyc])
+        knobs, meta = _tune(monkeypatch, None, base=base)
+        assert meta["defaulted"] is True
+        assert [c.id for c in knobs.cycles] == ["gates"]
+
+    def test_successful_tune_carries_over_base_cycles(self, monkeypatch):
+        # The AI re-tunes scalars but proposes no cycle; the user's cycle survives.
+        cyc = Cycle(id="gates", name="Gates", span=CycleSpan.PAIRS10, card_type="land")
+        base = SkeletonKnobs(cycles=[cyc])
+        knobs, meta = _tune(monkeypatch, {"multicolor_rare": 0.30}, base=base)
+        assert meta["defaulted"] is False
+        assert knobs.multicolor_rare == 0.30
+        assert [c.id for c in knobs.cycles] == ["gates"]
+
 
 # ---------------------------------------------------------------------------
 # Prompt caching: static context -> one cached system block, dynamic -> user turn
@@ -174,3 +205,32 @@ class TestPromptCaching:
         # The bulk context is not duplicated in the user turn.
         assert "A guild-war city." not in user
         assert "Convoke" not in user
+
+    def test_existing_cycles_listed_in_context(self, monkeypatch):
+        # Card 6a1ff25f: the AI is shown the carried-over cycles so it doesn't fight
+        # them or re-propose duplicates.
+        captured: dict = {}
+
+        def stub(**kwargs):
+            captured.update(kwargs)
+            return {"result": {"multicolor_rare": 0.3}, "input_tokens": 1, "output_tokens": 1}
+
+        monkeypatch.setattr(tuner, "generate_with_tool", stub)
+        monkeypatch.setattr(tuner, "cost_from_result", lambda _r: 0.0)
+        cyc = Cycle(id="gates", name="Guildgates", span=CycleSpan.PAIRS10, card_type="land")
+        tuner.tune_knobs(
+            theme={"setting": "City."},
+            approved=[],
+            archetypes=[],
+            set_name="R",
+            set_size=277,
+            model="stub",
+            base=SkeletonKnobs(cycles=[cyc]),
+        )
+        context_text = captured["system_blocks"][1][0]
+        assert "Guildgates" in context_text
+
+    def test_no_existing_cycles_context_says_none(self, monkeypatch):
+        captured = self._capture(monkeypatch)
+        context_text = captured["system_blocks"][1][0]
+        assert "none" in context_text.lower()

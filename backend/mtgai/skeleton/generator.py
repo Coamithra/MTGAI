@@ -382,14 +382,18 @@ def _build_color_slots(
     multi: int,
     colorless: int,
     *,
-    multi_start: int = 0,
+    covered_pairs: list[str] | None = None,
 ) -> list[dict]:
     """Build the per-slot color dicts for a (mono, multi, colorless) budget.
 
     Mono slots spread evenly across WUBRG; at common any remainder that would
-    break the ±0 balance is moved to colorless. Multicolor slots cycle through
-    the pairs starting at ``multi_start`` so scalar multis fill pairs not already
-    covered by a cycle. Returns dicts: {"color", "color_pair"}.
+    break the per-color balance is moved to colorless. Multicolor slots fill the
+    least-covered pairs first, where ``covered_pairs`` lists the pairs already
+    taken by this rarity's cycle members (an allied-5 / enemy-5 / pairs-10 cycle
+    each reserve specific pairs). This keeps *total* per-pair coverage even
+    instead of always restarting scalar multis at ``COLOR_PAIRS[0]`` and doubling
+    up on the early pairs while leaving cycle-covered pairs with only their lone
+    cycle member. Returns dicts: {"color", "color_pair"}.
     """
     slots: list[dict] = []
     per_color = mono_total // 5
@@ -401,9 +405,21 @@ def _build_color_slots(
     for i, c in enumerate(COLORS):
         for _ in range(per_color + (1 if i < remainder else 0)):
             slots.append({"color": c, "color_pair": None})
-    for i in range(multi):
-        pair = COLOR_PAIRS[(multi_start + i) % len(COLOR_PAIRS)]
+
+    # Seed each pair's running count with its cycle coverage, then hand each
+    # scalar multi to whichever pair is currently least covered (ties broken by
+    # COLOR_PAIRS order for determinism). The result: cycle + scalar coverage is
+    # as even across the ten pairs as the counts allow.
+    coverage = {pair: 0 for pair in COLOR_PAIRS}
+    for pair in covered_pairs or []:
+        if pair in coverage:
+            coverage[pair] += 1
+    order = {pair: idx for idx, pair in enumerate(COLOR_PAIRS)}
+    for _ in range(multi):
+        pair = min(COLOR_PAIRS, key=lambda p: (coverage[p], order[p]))
+        coverage[pair] += 1
         slots.append({"color": "multicolor", "color_pair": pair})
+
     for _ in range(colorless):
         slots.append({"color": "colorless", "color_pair": None})
     return slots
@@ -1337,7 +1353,18 @@ def generate_skeleton(
         scalar_multi = min(multi_goal, scalar_total)
         scalar_cl = min(max(0, cl_t - cyc_cl), scalar_total - scalar_multi)
         scalar_mono = scalar_total - scalar_multi - scalar_cl
-        color_assignments = _build_color_slots(rarity, scalar_mono, scalar_multi, scalar_cl)
+        # The pairs this rarity's cycle members already occupy, so the scalar
+        # multis fill the gaps (an allied-5 / enemy-5 cycle covers a non-contiguous
+        # set of pairs, so a flat start-offset can't avoid them — feed the actual
+        # covered pairs and let _build_color_slots level the per-pair coverage).
+        cyc_covered_pairs = [m["color_pair"] for m in cyc if m["color"] == "multicolor"]
+        color_assignments = _build_color_slots(
+            rarity,
+            scalar_mono,
+            scalar_multi,
+            scalar_cl,
+            covered_pairs=cyc_covered_pairs,
+        )
 
         # Group by color for block-level type / mechanic assignment
         blocks: dict[str, list[dict]] = {}

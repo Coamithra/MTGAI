@@ -11,9 +11,11 @@ from __future__ import annotations
 import pytest
 
 from mtgai.skeleton.generator import (
+    COLOR_PAIRS,
     SetConfig,
     SlotCardType,
     _assign_card_types,
+    _build_color_slots,
     _distribute_colors,
     _expand_cycle,
     _place_planeswalkers,
@@ -21,7 +23,14 @@ from mtgai.skeleton.generator import (
     _scale_rarity,
     generate_skeleton,
 )
-from mtgai.skeleton.knobs import Cycle, CycleSpan, SkeletonKnobs, default_knobs
+from mtgai.skeleton.knobs import (
+    ALLIED_PAIRS,
+    ENEMY_PAIRS,
+    Cycle,
+    CycleSpan,
+    SkeletonKnobs,
+    default_knobs,
+)
 
 
 def _cfg(set_size: int = 277, **kw) -> SetConfig:
@@ -272,6 +281,61 @@ class TestCycleReservation:
         assert len(members["rare"]) == 5
         assert kept[0].id == "t"
         assert warnings == []
+
+
+class TestMulticolorPairCoverage:
+    """Card 6a1ff27f: scalar multis fill the pairs a cycle didn't cover, so per-pair
+    multicolor coverage stays even instead of doubling up on COLOR_PAIRS[0..]."""
+
+    def test_covered_pairs_filled_last(self):
+        # 5 pairs pre-covered by a cycle; 5 scalar multis must land on the OTHER 5.
+        covered = ALLIED_PAIRS  # WU UB BR RG WG
+        slots = _build_color_slots("rare", 0, 5, 0, covered_pairs=covered)
+        scalar_pairs = [s["color_pair"] for s in slots if s["color"] == "multicolor"]
+        assert sorted(scalar_pairs) == sorted(ENEMY_PAIRS)
+
+    def test_total_coverage_is_even(self):
+        # Cycle covers the 5 allied pairs once each (5 pairs at 1, 5 at 0). 15
+        # scalar multis level the 5 zeros to 1 then add one to all 10, so every
+        # pair ends at 1 (cycle) + scalar = 2 — perfectly even.
+        slots = _build_color_slots("rare", 0, 15, 0, covered_pairs=ALLIED_PAIRS)
+        scalar_pairs = [s["color_pair"] for s in slots if s["color"] == "multicolor"]
+        coverage = {p: ALLIED_PAIRS.count(p) for p in COLOR_PAIRS}
+        for p in scalar_pairs:
+            coverage[p] += 1
+        assert set(coverage.values()) == {2}
+
+    def test_partial_fill_levels_least_covered_first(self):
+        # With only 5 scalar multis they all go to the 5 uncovered (enemy) pairs,
+        # so coverage is as even as 5 extras allow (every pair at 1).
+        slots = _build_color_slots("rare", 0, 5, 0, covered_pairs=ALLIED_PAIRS)
+        coverage = {p: ALLIED_PAIRS.count(p) for p in COLOR_PAIRS}
+        for s in slots:
+            if s["color"] == "multicolor":
+                coverage[s["color_pair"]] += 1
+        assert set(coverage.values()) == {1}
+
+    def test_no_cycle_still_round_robins_evenly(self):
+        slots = _build_color_slots("rare", 0, 10, 0)
+        scalar_pairs = [s["color_pair"] for s in slots if s["color"] == "multicolor"]
+        # One per pair when count == number of pairs, no covered pairs.
+        assert sorted(scalar_pairs) == sorted(COLOR_PAIRS)
+
+    def test_generate_skeleton_even_pair_coverage_with_allied_cycle(self):
+        # End-to-end: an allied5 rare creature cycle reserves the 5 allied pairs;
+        # the rare multicolor coverage across all 10 pairs must be even (max-min<=1).
+        k = SkeletonKnobs(
+            multicolor_rare=0.30,
+            cycles=[Cycle(id="a", name="Allies", span=CycleSpan.ALLIED5, rarity="rare")],
+        )
+        r = generate_skeleton(_cfg(277), knobs=k)
+        assert r.balance_report.all_hard_passed is True
+        per_pair = {p: 0 for p in COLOR_PAIRS}
+        for s in r.slots:
+            if s.rarity == "rare" and s.color == "multicolor" and s.color_pair:
+                per_pair[s.color_pair] += 1
+        counts = list(per_pair.values())
+        assert max(counts) - min(counts) <= 1, per_pair
 
 
 class TestPlacePlaneswalkers:
