@@ -561,7 +561,19 @@ def _process_batch_result(
     display_model = get_registry().public_model_id(model)
 
     for i, raw in enumerate(raw_cards):
-        slot = slots[i] if i < len(slots) else slots[-1]
+        if i >= len(slots):
+            # More cards than slots (a misbehaving batch at BATCH_SIZE>1): drop the
+            # extras rather than reuse slots[-1], which would stamp duplicate
+            # collector_numbers onto every overflow card.
+            logger.warning(
+                "  Batch returned %d cards for %d slots; skipping extra card %d (%s)",
+                len(raw_cards),
+                len(slots),
+                i,
+                raw.get("name", "UNKNOWN"),
+            )
+            continue
+        slot = slots[i]
         slot_id = slot["slot_id"]
 
         # Log the raw card as received from LLM
