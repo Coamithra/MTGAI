@@ -2,7 +2,7 @@
 
 The most important validator — catches rules text grammar issues that LLMs
 commonly produce: self-references, outdated phrasing, invalid mana symbols,
-keyword formatting, planeswalker ability structure, and set-specific nonbos.
+keyword formatting, planeswalker ability structure, and rules nonbos.
 """
 
 from __future__ import annotations
@@ -192,6 +192,10 @@ def all_keywords() -> set[str]:
 # oracle text must skip these spans byte-for-byte — a reminder may legitimately
 # contain phrases the fixers target ("enters the battlefield", "can't"/"cannot").
 _PAREN_SPAN_RE = re.compile(r"\([^)]*\)")
+
+# A permanent that enters tapped negates haste — a set-agnostic rules nonbo.
+_ENTERS_TAPPED_RE = re.compile(r"enters (the battlefield )?tapped", re.IGNORECASE)
+_HASTE_RE = re.compile(r"\bhaste\b", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
@@ -492,22 +496,22 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
             )
 
     # ------------------------------------------------------------------
-    # 13. Haste + Malfunction nonbo — MANUAL
+    # 13. Haste + enters-tapped nonbo — MANUAL
     # ------------------------------------------------------------------
-    oracle_lower = oracle.lower()
-    has_malfunction = "malfunction" in oracle_lower or "malfunction" in [
-        t.lower() for t in card.mechanic_tags
-    ]
-    has_haste = "haste" in oracle_lower
+    # Scan outside reminder text: a reminder may legitimately describe entering
+    # tapped (e.g. a custom mechanic's reminder) without being a real nonbo.
+    oracle_body = _strip_reminder(oracle)
+    has_haste = bool(_HASTE_RE.search(oracle_body))
+    enters_tapped = bool(_ENTERS_TAPPED_RE.search(oracle_body))
 
-    if has_malfunction and has_haste:
+    if has_haste and enters_tapped:
         errors.append(
             _manual(
                 "oracle_text",
-                "Haste is a nonbo with Malfunction — the creature enters "
-                "tapped, so haste is negated",
-                "Remove haste or remove Malfunction from this card.",
-                error_code="rules_text.haste_malfunction_nonbo",
+                "Haste is a nonbo with entering tapped — the permanent "
+                "enters tapped, so haste is negated",
+                "Remove haste, or remove the enters-tapped clause.",
+                error_code="rules_text.haste_enters_tapped_nonbo",
             )
         )
 

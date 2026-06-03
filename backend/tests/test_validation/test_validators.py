@@ -587,20 +587,26 @@ class TestRulesText:
         errors = _errors_by_validator(validate_card(card), "rules_text")
         assert _has_error(errors, validator="rules_text", severity="MANUAL")
 
-    def test_haste_malfunction_nonbo(self):
+    def test_haste_enters_tapped_nonbo(self):
         card = _make_card(
-            oracle_text="Haste\nMalfunction 2",
-            mechanic_tags=["malfunction"],
+            oracle_text="Haste\nThis creature enters tapped.",
         )
         errors = _errors_by_validator(validate_card(card), "rules_text")
         assert _has_error(errors, validator="rules_text", severity="MANUAL")
         assert any("nonbo" in e.message.lower() for e in errors)
 
-    def test_malfunction_without_haste_is_ok(self):
+    def test_enters_tapped_without_haste_is_ok(self):
         card = _make_card(
-            oracle_text="Malfunction 2",
-            mechanic_tags=["malfunction"],
-            reminder_text="(This permanent enters tapped with 2 malfunction counters.)",
+            oracle_text="This creature enters tapped.",
+        )
+        errors = _errors_by_validator(validate_card(card), "rules_text")
+        assert not any("nonbo" in e.message.lower() for e in errors)
+
+    def test_haste_with_enters_tapped_only_in_reminder_is_ok(self):
+        # A reminder describing entering tapped (e.g. a custom mechanic) is not
+        # itself a nonbo — only an enters-tapped clause in the rules text is.
+        card = _make_card(
+            oracle_text="Haste\nMalfunction 2 (This permanent enters tapped with 2 counters.)",
         )
         errors = _errors_by_validator(validate_card(card), "rules_text")
         assert not any("nonbo" in e.message.lower() for e in errors)
