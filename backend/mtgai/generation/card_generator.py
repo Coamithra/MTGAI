@@ -9,9 +9,10 @@ final-QA time — they don't ride along on the saved card.
 Two things trigger an LLM retry (capped at ``MAX_RETRIES``):
 
 * Schema parse failure — the card can't be parsed as a ``Card`` at all.
-* Text overflow — oracle text / type line / flavor / name exceeds the
-  character limits. Overflow usually means the LLM lost the plot; regenerate
-  rather than ship a card that won't fit on the frame.
+* A regen-trigger validation finding (text overflow, a malformed P/T, or a
+  non-land with no mana cost; see ``mtgai.validation._REGEN_TRIGGER_CODES``).
+  These usually mean the LLM lost the plot; regenerate rather than ship a card
+  that won't fit on the frame or can't be cast.
 
 Validation surfaces these as a single ``regen_required`` flag from
 :func:`mtgai.validation.validate_card_from_raw`, so this module reacts to one
@@ -47,7 +48,11 @@ from mtgai.io.card_io import load_card, save_card
 from mtgai.models.card import Card, GenerationAttempt
 from mtgai.models.enums import CardStatus
 from mtgai.validation import ValidationError as VError
-from mtgai.validation import format_validation_feedback, validate_card_from_raw
+from mtgai.validation import (
+    _is_regen_trigger,
+    format_validation_feedback,
+    validate_card_from_raw,
+)
 from mtgai.validation.mana import derive_mana_fields
 
 logger = logging.getLogger(__name__)
@@ -630,9 +635,10 @@ def _process_batch_result(
             stop_reason=stop_reason,
         )
 
-        # Regen-trigger — schema parse failure (card is None) or text overflow.
-        # Both signal "this card can't ship as-is; regenerate." We use the same
-        # retry loop and the same per-attempt cap regardless of which tripped.
+        # Regen-trigger: schema parse failure (card is None) or a regen-trigger
+        # validation finding (text overflow / bad P-T / missing cost, see
+        # _REGEN_TRIGGER_CODES). Both signal "this card can't ship as-is;
+        # regenerate." Same retry loop + per-attempt cap regardless of which tripped.
         if regen_required:
             if card is None:
                 logger.warning(
@@ -644,17 +650,15 @@ def _process_batch_result(
                 # header; the errors list is already the LLM-friendly summary.
                 feedback = str(errors)
             else:
-                overflow_errors = [
-                    e for e in errors if e.error_code and e.error_code.startswith("text_overflow.")
-                ]
+                regen_errors = [e for e in errors if _is_regen_trigger(e)]
                 logger.warning(
-                    "  [%s] TEXT OVERFLOW — %d field(s) over limit, regenerating",
+                    "  [%s] REGEN TRIGGER: %d field(s) need regeneration",
                     slot_id,
-                    len(overflow_errors),
+                    len(regen_errors),
                 )
                 feedback = format_validation_feedback(
                     card_name,
-                    overflow_errors,
+                    regen_errors,
                     slot_color=slot.get("color", ""),
                     slot_rarity=slot.get("rarity", ""),
                     slot_type=slot.get("card_type", ""),
@@ -833,22 +837,20 @@ def _retry_card(
                 card.name,
             )
             return card
-        # Either schema still failed (card is None) or text overflow still
-        # trips the regen flag — rebuild the feedback for the next attempt.
+        # Either schema still failed (card is None) or a regen-trigger validation
+        # finding still trips the regen flag; rebuild feedback for the next attempt.
         logger.warning(
             "    Retry %d FAILED: %s",
             attempt,
-            "still can't parse" if card is None else "text still overflows",
+            "still can't parse" if card is None else "still trips a regen trigger",
         )
         if card is None:
             error_msg = str(errors)
         else:
-            overflow_errors = [
-                e for e in errors if e.error_code and e.error_code.startswith("text_overflow.")
-            ]
+            regen_errors = [e for e in errors if _is_regen_trigger(e)]
             error_msg = format_validation_feedback(
                 card.name,
-                overflow_errors,
+                regen_errors,
                 slot_color=slot.get("color", ""),
                 slot_rarity=slot.get("rarity", ""),
                 slot_type=slot.get("card_type", ""),

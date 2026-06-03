@@ -920,6 +920,8 @@ def _blocking_issues(reviews: list[dict]) -> list[dict]:
     """
     out: list[dict] = []
     for r in reviews:
+        if _effective_verdict(r) == "OK":
+            continue
         for iss in r.get("issues") or []:
             if (
                 iss.get("category") in MECHANIC_BLOCKING_CATEGORIES

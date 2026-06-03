@@ -871,6 +871,25 @@ def test_blocking_issues_and_scope_helpers() -> None:
     assert mg._all_example_scoped([]) is False
 
 
+def test_blocking_issues_skips_ok_voting_reviewers() -> None:
+    """`_blocking_issues` ignores issues from a reviewer whose *effective* verdict is
+    OK (voted OK, or REVISE without any major blocking defect), mirroring
+    `_open_issue_reasons` — a stray major issue from an OK voter must not skew scope."""
+    ex = {"category": "playable", "severity": "major", "scope": "example", "description": "x"}
+    stray = {"category": "wording", "severity": "major", "scope": "mechanic", "description": "y"}
+    advisory = {"category": "elegant", "severity": "major", "scope": "example", "description": "e"}
+
+    reviews = [
+        {"verdict": "REVISE", "issues": [ex]},  # genuinely blocking
+        {"verdict": "OK", "issues": [stray]},  # OK vote: its issue must be ignored
+        {"verdict": "REVISE", "issues": [advisory]},  # REVISE but no major blocking -> OK
+    ]
+    # Only the truly-blocking reviewer's example-scoped issue survives, so the loop
+    # routes to the example-only fix instead of a full mechanic revise.
+    assert mg._blocking_issues(reviews) == [ex]
+    assert mg._all_example_scoped(mg._blocking_issues(reviews)) is True
+
+
 def test_council_review_example_only_routes_to_example_fix(monkeypatch) -> None:
     """When EVERY blocking issue is example-scoped the loop fixes ONLY the examples
     (submit_mechanic_examples), never the synth, and the mechanic's definition is

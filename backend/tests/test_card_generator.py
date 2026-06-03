@@ -15,6 +15,12 @@ from __future__ import annotations
 
 from mtgai.generation.card_generator import _card_one_liner, group_slots_into_batches
 from mtgai.generation.prompts import build_user_prompt, format_cycle_siblings
+from mtgai.validation import (
+    ValidationError,
+    ValidationSeverity,
+    _is_regen_trigger,
+    format_validation_feedback,
+)
 
 
 def _slot(slot_id: str, *, cycle_id: str | None = None, **extra) -> dict:
@@ -223,3 +229,41 @@ def test_card_one_liner_preserves_full_card_shape() -> None:
     assert "{R}" in out
     assert "Instant" in out
     assert "deals 3 damage" in out
+
+
+def _verr(code: str, message: str) -> ValidationError:
+    return ValidationError(
+        validator="t",
+        severity=ValidationSeverity.MANUAL,
+        field="f",
+        message=message,
+        error_code=code,
+    )
+
+
+def test_regen_feedback_includes_all_regen_triggers_not_just_overflow() -> None:
+    """Card-gen's retry feedback must carry EVERY regen-trigger error, not only
+    ``text_overflow.*``. A non-overflow trigger (e.g. ``nonland_missing_cost``)
+    used to be filtered out, handing ``format_validation_feedback`` zero errors so
+    the LLM retried blind. Mirrors card_generator's inline filter idiom."""
+    errors = [
+        _verr("type_check.nonland_missing_cost", "Non-land has no mana cost"),
+        _verr("type_check.pt_slash", "Power and toughness in one field"),
+        _verr("color_pie.off_color", "Off-color effect"),  # NOT a regen trigger
+    ]
+
+    regen_errors = [e for e in errors if _is_regen_trigger(e)]
+
+    # The non-overflow triggers survive; the non-trigger finding is dropped.
+    codes = {e.error_code for e in regen_errors}
+    assert codes == {"type_check.nonland_missing_cost", "type_check.pt_slash"}
+
+    feedback = format_validation_feedback("Test Card", regen_errors)
+    assert "no mana cost" in feedback
+    assert "Power and toughness" in feedback
+
+    # The old overflow-only filter would have produced empty feedback here.
+    overflow_only = [
+        e for e in errors if e.error_code and e.error_code.startswith("text_overflow.")
+    ]
+    assert overflow_only == []

@@ -327,8 +327,10 @@ def _merge_text_responses(responses: list[dict], model: str) -> dict:
     return {
         "input_tokens": sum(r.get("input_tokens", 0) for r in responses),
         "output_tokens": sum(r.get("output_tokens", 0) for r in responses),
-        "cache_creation_input_tokens": 0,
-        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": sum(
+            r.get("cache_creation_input_tokens", 0) for r in responses
+        ),
+        "cache_read_input_tokens": sum(r.get("cache_read_input_tokens", 0) for r in responses),
         "stop_reason": responses[-1].get("stop_reason", "") if responses else "",
         "model": responses[-1].get("model", model) if responses else model,
     }
@@ -532,8 +534,10 @@ def _merge_assign_responses(responses: list[dict], assignments: list[dict], mode
         "result": {"assignments": assignments},
         "input_tokens": sum(r.get("input_tokens", 0) for r in responses),
         "output_tokens": sum(r.get("output_tokens", 0) for r in responses),
-        "cache_creation_input_tokens": 0,
-        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": sum(
+            r.get("cache_creation_input_tokens", 0) for r in responses
+        ),
+        "cache_read_input_tokens": sum(r.get("cache_read_input_tokens", 0) for r in responses),
         "stop_reason": responses[-1].get("stop_reason", "") if responses else "",
         "model": responses[-1].get("model", model) if responses else model,
     }

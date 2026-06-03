@@ -573,6 +573,54 @@ class TestRetryTemperatureBump:
         assert place_temps[1] == pytest.approx(temps.ANALYTICAL + temps.RETRY_TEMP_STEP)
         assert len(result.selections) == 1
 
+    def test_place_retry_rebuilds_prompt_from_unplaced_only(self, project_skeleton: Path):
+        # After a partial placement, the next attempt's prompt must ask only for the
+        # still-unplaced card and must not re-offer the slot already taken.
+        place_prompts: list[str] = []
+        place_contexts: list[str] = []
+
+        def stub(**kwargs):
+            if kwargs["tool_schema"]["name"] == "select_reprints":
+                return {
+                    "result": {
+                        "selections": [
+                            {"card_name": "Murder", "reason": "x"},
+                            {"card_name": "Cancel", "reason": "x"},
+                        ]
+                    },
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                }
+            place_prompts.append(kwargs["user_prompt"])
+            place_contexts.append(kwargs["system_blocks"][1][0])
+            if len(place_prompts) == 1:  # place only the first card on attempt 1
+                return {
+                    "result": {
+                        "assignments": [{"card_name": "Murder", "slot_id": "B-C-03", "reason": "x"}]
+                    },
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                }
+            return {
+                "result": {
+                    "assignments": [{"card_name": "Cancel", "slot_id": "G-C-01", "reason": "x"}]
+                },
+                "input_tokens": 1,
+                "output_tokens": 1,
+            }
+
+        with patch("mtgai.generation.llm_client.generate_with_tool", stub):
+            result = select_reprints(project_skeleton, count=2)
+
+        # Attempt 1 asks for both; attempt 2 (after Murder placed) asks for just 1.
+        assert "2 assignments" in place_prompts[0]
+        assert "1 assignment" in place_prompts[1]
+        # The retry context no longer lists the placed card or offers the taken slot.
+        assert "Murder" not in place_contexts[1]
+        assert "B-C-03" not in place_contexts[1]
+        assert "Cancel" in place_contexts[1]
+        assert {s.candidate.name for s in result.selections} == {"Murder", "Cancel"}
+
 
 # ---------------------------------------------------------------------------
 # Card conversion
