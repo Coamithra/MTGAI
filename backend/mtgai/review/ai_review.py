@@ -469,6 +469,67 @@ def _build_council_synthesis_prompt(
 
 
 # ---------------------------------------------------------------------------
+# Empty-iterations error result
+# ---------------------------------------------------------------------------
+
+# Verdict used when a card could not be reviewed at all (every LLM call errored).
+# It rides the existing "REVISE" channel so ``review_all_cards`` collects the card
+# into ``unfixable`` and the runner flags it for human attention / regen, rather
+# than the card silently passing as OK.
+_REVIEW_FAILED_VERDICT = "REVISE"
+_REVIEW_FAILED_ISSUE = ReviewIssue(
+    severity="FAIL",
+    category="review_error",
+    description=(
+        "Card could not be reviewed: every LLM review call failed. Flagged for "
+        "manual attention instead of being accepted as OK."
+    ),
+)
+
+
+def _error_review_result(
+    card: dict,
+    review_tier: str,
+    review_model: str,
+    collector_number: str,
+    card_name: str,
+    rarity: str,
+    *,
+    council_reviews: list[CouncilMemberReview] | None = None,
+    total_input_tokens: int = 0,
+    total_output_tokens: int = 0,
+    total_cost_usd: float = 0.0,
+    total_latency_s: float = 0.0,
+) -> CardReviewResult:
+    """Build a non-OK review result for a card that could not be reviewed.
+
+    Used when the review loop produced zero iterations because every LLM call
+    raised. The card is **not** changed (no trustworthy revision exists) but its
+    verdict is REVISE with an explanatory ``review_error`` issue, so the caller's
+    flagging contract treats it like an unfixable card.
+    """
+    return CardReviewResult(
+        collector_number=collector_number,
+        card_name=card_name,
+        rarity=rarity,
+        review_tier=review_tier,
+        model=review_model,
+        original_card=card,
+        final_verdict=_REVIEW_FAILED_VERDICT,
+        final_issues=[_REVIEW_FAILED_ISSUE],
+        revised_card=None,
+        card_was_changed=False,
+        iterations=[],
+        council_reviews=council_reviews or [],
+        total_input_tokens=total_input_tokens,
+        total_output_tokens=total_output_tokens,
+        total_cost_usd=total_cost_usd,
+        total_latency_s=total_latency_s,
+        timestamp=datetime.now(UTC).isoformat(),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Single-reviewer review (C/U tier)
 # ---------------------------------------------------------------------------
 
@@ -567,14 +628,29 @@ def _review_single(
             user_prompt = _build_iteration_prompt(verdict_data)
         # else: loop ends, we keep the last REVISE verdict
 
-    # Final result
-    last = iterations[-1] if iterations else None
-    final_verdict = last.verdict if last else "OK"
-    final_issues = last.issues if last else []
-    revised_card = last.response.get("revised_card") if last and final_verdict == "OK" else None
+    # Final result. If every LLM call failed (``iterations`` empty), the card was
+    # never actually reviewed — surface a REVISE/error verdict so the runner flags
+    # it for human attention rather than silently passing it as OK (the bug this
+    # guards against). The exception itself was already logged via
+    # ``logger.exception`` above; log the empty-iterations outcome explicitly so
+    # the silent-pass cause is observable in the review log.
+    if not iterations:
+        logger.error(
+            "  [%s] Review produced no iterations (all LLM calls failed) — "
+            "flagging REVISE instead of defaulting OK",
+            collector_number,
+        )
+        return _error_review_result(
+            card, "single", review_model, collector_number, card_name, rarity
+        )
+
+    last = iterations[-1]
+    final_verdict = last.verdict
+    final_issues = last.issues
+    revised_card = last.response.get("revised_card") if final_verdict == "OK" else None
 
     # If the last iteration was REVISE, we accept the revision
-    if final_verdict == "REVISE" and last:
+    if final_verdict == "REVISE":
         revised_card = last.response.get("revised_card")
 
     # Check if any iteration produced a revision (even if final is OK,
@@ -586,7 +662,7 @@ def _review_single(
             # Track the latest revision
             revised_card = it.response.get("revised_card")
 
-    effective_model = iterations[0].model if iterations else review_model
+    effective_model = iterations[0].model
 
     return CardReviewResult(
         collector_number=collector_number,
@@ -818,10 +894,34 @@ def _review_council(
         if iteration >= max_iterations:
             break
 
-    # Final result
-    last = iterations[-1] if iterations else None
-    final_verdict = last.verdict if last else "OK"
-    final_issues = last.issues if last else []
+    # Final result. Reaching here with no synthesis iterations means every
+    # synthesis LLM call failed (and the all-OK early-return above didn't fire) —
+    # the council never produced a verdict, so flag REVISE/error rather than
+    # silently passing OK (the bug this guards against). Exceptions were logged
+    # via ``logger.exception`` above; log the empty-iterations outcome explicitly.
+    if not iterations:
+        logger.error(
+            "  [%s] Council synthesis produced no iterations (all LLM calls failed) — "
+            "flagging REVISE instead of defaulting OK",
+            collector_number,
+        )
+        return _error_review_result(
+            card,
+            "council",
+            review_model,
+            collector_number,
+            card_name,
+            rarity,
+            council_reviews=council_reviews,
+            total_input_tokens=total_in,
+            total_output_tokens=total_out,
+            total_cost_usd=total_cost,
+            total_latency_s=total_latency,
+        )
+
+    last = iterations[-1]
+    final_verdict = last.verdict
+    final_issues = last.issues
 
     card_was_changed = False
     revised_card = None
@@ -830,9 +930,7 @@ def _review_council(
             card_was_changed = True
             revised_card = it.response.get("revised_card")
 
-    # Use model from synthesis iterations if available, else from council reviews
-    if iterations:
-        effective_model = iterations[0].model
+    effective_model = iterations[0].model
 
     return CardReviewResult(
         collector_number=collector_number,
