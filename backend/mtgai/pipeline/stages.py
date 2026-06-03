@@ -449,7 +449,7 @@ def run_visual_refs(
 ) -> StageResult:
     """Extract the set's visual reference sheet from setting prose.
 
-    Runs just before the art stages (between ``human_card_review`` and
+    Runs just before the art stages (between ``finalize`` and
     ``art_prompts``): ``art_prompts`` + ``char_portraits`` are its only
     consumers, and nothing from ``skeleton`` through ``card_gen`` needs
     it, so there's no reason to generate it pre-skeleton. Reads
@@ -1403,17 +1403,6 @@ def run_finalize(progress_cb: ProgressCallback | None, emitter: StageEmitter) ->
     )
 
 
-def run_human_card_review(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
-    """Human card review — this is a pause point, not an automated stage.
-
-    The engine pauses here when the stage's review_mode is REVIEW (the
-    default for ``human_*`` stages). This function is a no-op.
-    """
-    return StageResult(detail="Awaiting human card review via gallery UI")
-
-
 def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Generate art prompts for all cards."""
     from mtgai.art.prompt_builder import generate_prompts_for_set
@@ -1628,7 +1617,6 @@ STAGE_RUNNERS = {
     "conformance": run_conformance,
     "ai_review": run_ai_review,
     "finalize": run_finalize,
-    "human_card_review": run_human_card_review,
     "visual_refs": run_visual_refs,
     "art_prompts": run_art_prompts,
     "char_portraits": run_char_portraits,
@@ -1849,7 +1837,6 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
     "conformance": _no_artifacts,
     "ai_review": _no_artifacts,
     "finalize": _no_artifacts,
-    "human_card_review": _no_artifacts,
     "visual_refs": clear_visual_refs,
     "art_prompts": _no_artifacts,
     "char_portraits": clear_char_portraits,

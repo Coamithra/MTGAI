@@ -117,7 +117,6 @@ DEFAULT_BREAK_POINTS: dict[str, str] = {
     # Pause after Skeleton Generation so the user reviews the relabeled skeleton
     # (default vs tweaked) before reprints/card-gen consume it. Auto-toggleable.
     "skeleton": "review",
-    "human_card_review": "review",
     "human_art_review": "review",
     "human_final_review": "review",
 }

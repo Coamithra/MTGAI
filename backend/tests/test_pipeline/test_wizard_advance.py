@@ -129,7 +129,6 @@ def test_build_config_uses_set_params_and_break_points():
     assert config.set_size == 35
     # card_gen explicit review; human stages default to review; auto omitted.
     assert config.stage_review_modes["card_gen"] == StageReviewMode.REVIEW
-    assert config.stage_review_modes["human_card_review"] == StageReviewMode.REVIEW
     assert config.stage_review_modes["human_art_review"] == StageReviewMode.REVIEW
     assert config.stage_review_modes["human_final_review"] == StageReviewMode.REVIEW
     assert "skeleton" not in config.stage_review_modes
