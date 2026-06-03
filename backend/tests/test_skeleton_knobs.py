@@ -194,10 +194,58 @@ class TestMergePins:
         assert merged.provenance["multicolor_rare"] == "user"
         assert merged.pinned == ["multicolor_rare"]
 
-    def test_no_pins_returns_self(self):
+    def test_no_pins_no_cycles_returns_self(self):
         base = SkeletonKnobs()
         retuned = SkeletonKnobs(multicolor_rare=0.40)
         assert retuned.merge_pins_from(base) is retuned
+
+    def test_base_cycles_preserved_with_no_pins(self):
+        # Card 6a1ff25f: a user-defined cycle must survive an AI re-tune even when
+        # the AI dropped it and no scalar knob is pinned.
+        cyc = Cycle(id="gates", name="Guildgates", span=CycleSpan.PAIRS10, card_type="land")
+        base = SkeletonKnobs(cycles=[cyc])
+        retuned = SkeletonKnobs(multicolor_rare=0.40)  # AI proposed no cycles
+        merged = retuned.merge_pins_from(base)
+        assert [c.id for c in merged.cycles] == ["gates"]
+        # AI's scalar move is otherwise honored (nothing pinned).
+        assert merged.multicolor_rare == 0.40
+
+    def test_base_cycles_preserved_with_pins(self):
+        cyc = Cycle(id="gates", name="Guildgates", span=CycleSpan.PAIRS10, card_type="land")
+        base = SkeletonKnobs(multicolor_rare=0.40, pinned=["multicolor_rare"], cycles=[cyc])
+        base = base.model_copy(update={"provenance": {"multicolor_rare": "user"}})
+        retuned = SkeletonKnobs(multicolor_rare=0.15)  # AI moved + dropped the cycle
+        merged = retuned.merge_pins_from(base)
+        assert [c.id for c in merged.cycles] == ["gates"]
+        assert merged.multicolor_rare == 0.40
+        assert merged.provenance["multicolor_rare"] == "user"
+
+    def test_ai_added_cycle_kept_alongside_base(self):
+        # A new AI cycle (distinct id) rides on top of the carried-over user cycle.
+        user_cyc = Cycle(id="gates", name="Guildgates", span=CycleSpan.PAIRS10, card_type="land")
+        ai_cyc = Cycle(id="titans", name="Titans", span=CycleSpan.MONO5, card_type="creature")
+        base = SkeletonKnobs(cycles=[user_cyc])
+        retuned = SkeletonKnobs(cycles=[ai_cyc])
+        merged = retuned.merge_pins_from(base)
+        assert [c.id for c in merged.cycles] == ["gates", "titans"]
+
+    def test_ai_recycled_id_does_not_duplicate(self):
+        # If the AI re-proposes a cycle with the same id, the user's version wins
+        # and there's no duplicate.
+        user_cyc = Cycle(id="gates", name="User Gates", span=CycleSpan.PAIRS10, card_type="land")
+        ai_dupe = Cycle(id="gates", name="AI Gates", span=CycleSpan.MONO5, card_type="creature")
+        base = SkeletonKnobs(cycles=[user_cyc])
+        retuned = SkeletonKnobs(cycles=[ai_dupe])
+        merged = retuned.merge_pins_from(base)
+        assert [c.id for c in merged.cycles] == ["gates"]
+        assert merged.cycles[0].name == "User Gates"
+
+    def test_ai_cycles_kept_when_base_has_none(self):
+        ai_cyc = Cycle(id="titans", name="Titans", span=CycleSpan.MONO5, card_type="creature")
+        base = SkeletonKnobs()
+        retuned = SkeletonKnobs(cycles=[ai_cyc])
+        merged = retuned.merge_pins_from(base)
+        assert [c.id for c in merged.cycles] == ["titans"]
 
 
 # ---------------------------------------------------------------------------

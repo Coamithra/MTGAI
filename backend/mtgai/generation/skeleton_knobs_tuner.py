@@ -121,6 +121,24 @@ def _cycle_span_listing() -> str:
     )
 
 
+def _existing_cycles_listing(base: SkeletonKnobs) -> str:
+    """Describe the user's pre-defined cycles so the AI doesn't re-propose or fight them.
+
+    These cycles are carried over verbatim by ``merge_pins_from`` after the tune, so
+    the prompt tells the AI to treat them as fixed and only propose *additional*
+    cycles the theme wants alongside them.
+    """
+    if not base.cycles:
+        return "(none — propose cycles only if the theme genuinely wants a family.)"
+    lines = ["These cycles are already defined and will be KEPT — do not re-propose them:"]
+    for c in base.cycles:
+        cmc = f", cmc {c.cmc_target}" if c.cmc_target else ""
+        tmpl = f" — {c.template}" if c.template else ""
+        lines.append(f"- {c.name} ({c.span}, {c.rarity} {c.card_type}{cmc}){tmpl}")
+    lines.append("Propose only ADDITIONAL cycles the theme wants beyond these.")
+    return "\n".join(lines)
+
+
 def tune_knobs(
     *,
     theme: dict,
@@ -157,6 +175,7 @@ def tune_knobs(
         card_requests=format_card_requests(theme.get("card_requests") or []),
         knob_listing=_knob_listing(),
         cycle_spans=_cycle_span_listing(),
+        existing_cycles=_existing_cycles_listing(base),
     )
     user_prompt = _read_template("skeleton_knobs_user.txt").format(set_size=set_size)
 
@@ -182,19 +201,21 @@ def tune_knobs(
             log_dir=log_dir,
         )
     except Exception as exc:  # default-on-failure, never a hard error
-        logger.warning("Skeleton knob tuning failed; using defaults: %s", exc)
-        knobs = base if base.pinned else default_knobs()
+        logger.warning("Skeleton knob tuning failed; keeping the base knobs: %s", exc)
+        # Fall back to `base`, not `default_knobs()`: `base` already carries the
+        # user's pinned knobs AND their defined cycles (a fresh project's `base`
+        # IS default_knobs()), so an AI failure can't silently discard them.
         meta["defaulted"] = True
-        return knobs, meta
+        return base, meta
 
     result = response.get("result")
     meta["input_tokens"] = response.get("input_tokens", 0)
     meta["output_tokens"] = response.get("output_tokens", 0)
     meta["cost_usd"] = cost_from_result(response)
     if not isinstance(result, dict):
-        logger.warning("Skeleton knob tuning returned no tool result; using defaults")
+        logger.warning("Skeleton knob tuning returned no tool result; keeping the base knobs")
         meta["defaulted"] = True
-        return (base if base.pinned else default_knobs()), meta
+        return base, meta  # `base` keeps the user's pinned knobs + cycles
 
     knobs, warnings = SkeletonKnobs.from_payload(result, source="ai")
     knobs = knobs.merge_pins_from(base)

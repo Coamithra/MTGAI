@@ -583,14 +583,27 @@ class SkeletonKnobs(BaseModel):
         return cls.model_validate(payload), warnings
 
     def merge_pins_from(self, base: SkeletonKnobs) -> SkeletonKnobs:
-        """Return a copy with ``base``'s pinned knob values restored.
+        """Return a copy with ``base``'s pinned knob values and cycles restored.
 
         Used by the phase-0 re-tune: the AI re-tunes everything, then the user's
         pinned knobs are forced back to their pinned values (and provenance), so a
         re-roll respects "you handle the rest, but multicolor stays at 24%".
+
+        ``base.cycles`` (user-defined structural cycles) are **always** carried
+        over when non-empty — a re-tune restores the user's cycles regardless of
+        whether the AI re-proposed them, since cycles are not scalar knobs the
+        ``pinned`` list can cover. Any *new* cycle the AI proposed (one whose ``id``
+        isn't already in ``base``) is kept alongside them, so the re-tune can still
+        add a theme-driven family on top of the user's. If the user defined no
+        cycles, the AI's proposed cycles (``self.cycles``) are kept as-is.
         """
+        if base.cycles:
+            base_ids = {c.id for c in base.cycles}
+            cycles = list(base.cycles) + [c for c in self.cycles if c.id not in base_ids]
+        else:
+            cycles = self.cycles
         if not base.pinned:
-            return self
+            return self if cycles is self.cycles else self.model_copy(update={"cycles": cycles})
         updates: dict[str, float] = {}
         provenance = dict(self.provenance)
         for key in base.pinned:
@@ -598,7 +611,12 @@ class SkeletonKnobs(BaseModel):
                 updates[key] = getattr(base, key)
                 provenance[key] = base.provenance.get(key, "user")
         return self.model_copy(
-            update={**updates, "provenance": provenance, "pinned": list(base.pinned)}
+            update={
+                **updates,
+                "cycles": cycles,
+                "provenance": provenance,
+                "pinned": list(base.pinned),
+            }
         )
 
 

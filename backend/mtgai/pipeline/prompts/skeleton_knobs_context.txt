@@ -39,3 +39,7 @@ Each cycle needs: a short `id` (lowercase, no spaces), a `name`, a `rarity`, a
 `span`, a `card_type` (creature / instant / sorcery / enchantment / artifact /
 land), an optional `cmc_target` (0 for lands), and a one-line `template` — the
 shared design brief every member follows so the family reads as a set.
+
+## Existing cycles (kept regardless)
+
+{existing_cycles}
