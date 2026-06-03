@@ -99,6 +99,33 @@ def test_clear_card_gen_preserves_lands(fake_output_root: Path) -> None:
     assert not (set_dir / "generation_progress.json").exists(), "progress should be cleared"
 
 
+def test_clear_lands_removes_land_cards_and_logs(fake_output_root: Path) -> None:
+    """The lands clearer drops its ``L-*`` cards (the ones card_gen preserves)
+    plus its log dir, and leaves card_gen's ordinary cards untouched.
+
+    Without this, a cascade clearing a stage at/before lands left stale ``L-*``
+    cards behind: clear_card_gen_cards preserves them (lands owns them), and a
+    partial/failed lands re-run never overwrites them.
+    """
+    set_dir = fake_output_root / "sets" / "TST"
+    cards_dir = set_dir / "cards"
+    cards_dir.mkdir(parents=True)
+    (cards_dir / "L-01_plains.json").write_text('{"collector_number": "L-01"}', encoding="utf-8")
+    (cards_dir / "L-06_dual.json").write_text('{"collector_number": "L-06"}', encoding="utf-8")
+    (cards_dir / "001_foo.json").write_text('{"collector_number": "001"}', encoding="utf-8")
+    logs = set_dir / "lands" / "logs"
+    logs.mkdir(parents=True)
+    (logs / "basics.json").write_text("{}", encoding="utf-8")
+    _open_test_project("TST", set_dir)
+
+    stages_mod.clear_stage_artifacts("lands")
+
+    assert not (cards_dir / "L-01_plains.json").exists(), "lands L-* card should be gone"
+    assert not (cards_dir / "L-06_dual.json").exists(), "lands dual should be gone"
+    assert (cards_dir / "001_foo.json").exists(), "card_gen card must survive a lands clear"
+    assert not (set_dir / "lands").exists(), "lands log dir should be cleared"
+
+
 def test_clear_char_portraits_targets_real_output_dir(fake_output_root: Path) -> None:
     """Path must match what character_portraits.py actually writes to.
 

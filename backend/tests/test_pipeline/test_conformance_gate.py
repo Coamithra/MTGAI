@@ -273,6 +273,51 @@ def test_check_conformance_honors_cancel(project, monkeypatch):
     assert calls["n"] == 1
 
 
+def test_run_conformance_cancel_halts_before_interactions(project, monkeypatch):
+    """A user Cancel during the per-card conformance pass must stop before the
+    whole-set interactions LLM call and before flagging — otherwise a partial
+    conformance pass + a full interactions pass stamp regen flags on a cancelled
+    run (the opposite of the clean halt the other gates give)."""
+    from mtgai.io.card_io import load_card, save_card
+    from mtgai.runtime import ai_lock
+
+    ai_lock.reset_for_tests()
+    save_card(_make_card("W-C-01"), set_dir=project)
+
+    def fake_conformance(cards, slots, **kw):
+        # The user hits Cancel mid-pass; check_conformance breaks its loop and
+        # returns whatever it found so far (here, a partial flag).
+        ai_lock.request_cancel()
+        return (
+            [ConformanceFinding(slot_id="W-C-01", card_name="Card W-C-01", reason="partial")],
+            "partial analysis",
+            0.01,
+        )
+
+    interaction_calls: list[int] = []
+
+    def fake_interactions(cards, mechanics):
+        interaction_calls.append(1)
+        return ([], "pool clean", 0.0)
+
+    monkeypatch.setattr("mtgai.analysis.conformance.check_conformance", fake_conformance)
+    monkeypatch.setattr("mtgai.analysis.interactions.analyze_interactions", fake_interactions)
+    monkeypatch.setattr(stages_mod, "make_poller", lambda *a, **k: contextlib.nullcontext())
+
+    result = stages_mod.run_conformance(None, _Emitter())
+
+    assert result.success is False
+    assert "cancelled" in (result.error_message or "").lower()
+    # The interactions LLM call never ran.
+    assert interaction_calls == []
+    # No card was flagged (the partial conformance finding was discarded).
+    card = load_card(next((project / "cards").glob("*.json")))
+    assert card.flagged_by is None
+    assert card.regen_reason is None
+
+    ai_lock.reset_for_tests()
+
+
 def test_run_conformance_clean_pass_advances(project, monkeypatch):
     from mtgai.io.card_io import save_card
 
