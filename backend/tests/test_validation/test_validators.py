@@ -614,6 +614,68 @@ class TestRulesText:
         assert _has_error(errors, validator="rules_text", severity="AUTO")
         assert any("lowercase" in e.message.lower() for e in errors)
 
+    # ---- Reminder-text protection (parenthesized spans) ----
+    # Reminder text is injected programmatically and may legitimately contain
+    # phrases the AUTO fixers target. The scans must not flag, and the fixers
+    # must not rewrite, anything inside parentheses (CLAUDE.md: "Validators
+    # that touch oracle text must skip parenthesized text").
+
+    def test_etb_only_in_reminder_not_flagged(self):
+        card = _make_card(
+            oracle_text="Salvage 2 (When ~ enters the battlefield, return a card.)",
+        )
+        errors = _errors_by_validator(validate_card(card), "rules_text")
+        assert not any("enters the battlefield" in e.message.lower() for e in errors)
+
+    def test_fix_etb_preserves_reminder_text(self):
+        """Genuine ETB outside parens is rewritten; reminder text inside is untouched."""
+        original = (
+            "When ~ enters the battlefield, draw a card. "
+            "(Whenever this enters the battlefield, you may scry.)"
+        )
+        card = _make_card(oracle_text=original)
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == (
+            "When ~ enters, draw a card. (Whenever this enters the battlefield, you may scry.)"
+        )
+
+    def test_cannot_only_in_reminder_not_flagged(self):
+        card = _make_card(
+            oracle_text="Flying (This creature cannot be blocked except by fliers.)",
+        )
+        errors = _errors_by_validator(validate_card(card), "rules_text")
+        assert not any(e.error_code == "rules_text.cannot" for e in errors)
+
+    def test_fix_cannot_preserves_reminder_text(self):
+        original = "~ cannot attack. (Defenders cannot attack and can not be sacrificed.)"
+        card = _make_card(oracle_text=original)
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == (
+            "~ can't attack. (Defenders cannot attack and can not be sacrificed.)"
+        )
+
+    def test_fix_etb_still_rewrites_genuine_oracle(self):
+        card = _make_card(oracle_text="When ~ enters the battlefield, draw a card.")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "When ~ enters, draw a card."
+
+    def test_fix_cannot_still_rewrites_genuine_oracle(self):
+        card = _make_card(oracle_text="~ cannot be blocked. Creatures can not block ~.")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "~ can't be blocked. Creatures can't block ~."
+
+    def test_fix_etb_mixed_inside_and_outside_parens(self):
+        card = _make_card(
+            oracle_text=(
+                "When ~ enters the battlefield, scry 1.\n"
+                "Salvage (When ~ enters the battlefield, return it.)"
+            ),
+        )
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == (
+            "When ~ enters, scry 1.\nSalvage (When ~ enters the battlefield, return it.)"
+        )
+
 
 # ===========================================================================
 # Power level

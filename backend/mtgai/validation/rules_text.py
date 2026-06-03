@@ -93,10 +93,42 @@ LOYALTY_ABILITY = re.compile(r"^[+\-\u2212]?\d+: .+\.$", re.MULTILINE)
 
 ALL_KEYWORDS = EVERGREEN_KEYWORDS | CUSTOM_KEYWORDS
 
+# Parenthesized spans hold reminder text (injected programmatically by
+# ``reminder_injector``, never LLM-generated). Validators that scan or rewrite
+# oracle text must skip these spans byte-for-byte — a reminder may legitimately
+# contain phrases the fixers target ("enters the battlefield", "can't"/"cannot").
+_PAREN_SPAN_RE = re.compile(r"\([^)]*\)")
+
 
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+
+def _strip_reminder(text: str) -> str:
+    """Return ``text`` with parenthesized reminder spans removed.
+
+    Used by scans so a phrase that only appears inside reminder text isn't
+    reported as an error.
+    """
+    return _PAREN_SPAN_RE.sub("", text)
+
+
+def _sub_outside_parens(pattern: re.Pattern[str], repl: str, text: str) -> str:
+    """Apply ``pattern.sub(repl, ...)`` only to the spans *outside* parentheses.
+
+    Parenthesized reminder text is preserved verbatim, so a fixer can't
+    silently rewrite injected reminder phrasing. Reassembles the original
+    string with non-paren segments transformed and paren segments untouched.
+    """
+    out: list[str] = []
+    last = 0
+    for m in _PAREN_SPAN_RE.finditer(text):
+        out.append(pattern.sub(repl, text[last : m.start()]))
+        out.append(m.group())
+        last = m.end()
+    out.append(pattern.sub(repl, text[last:]))
+    return "".join(out)
 
 
 def _manual(
@@ -236,7 +268,8 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
     # ------------------------------------------------------------------
     # 4. "enters the battlefield" (outdated post-MOM 2023) — AUTO
     # ------------------------------------------------------------------
-    if "enters the battlefield" in oracle.lower():
+    oracle_no_reminder_lower = _strip_reminder(oracle).lower()
+    if "enters the battlefield" in oracle_no_reminder_lower:
         errors.append(
             _auto(
                 "oracle_text",
@@ -405,8 +438,7 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
     # ------------------------------------------------------------------
     # 15. "cannot" / "can not" → "can't" — AUTO
     # ------------------------------------------------------------------
-    oracle_lower_stripped = oracle.lower()
-    if "can not" in oracle_lower_stripped or "cannot" in oracle_lower_stripped:
+    if "can not" in oracle_no_reminder_lower or "cannot" in oracle_no_reminder_lower:
         errors.append(
             _auto(
                 "oracle_text",
@@ -466,11 +498,14 @@ def fix_card_name_in_oracle(card: Card, error: ValidationError) -> Card:
     return card.model_copy(update={"oracle_text": new_oracle})
 
 
+_ETB_RE = re.compile(r"enters the battlefield", re.IGNORECASE)
+
+
 def fix_enters_the_battlefield(card: Card, error: ValidationError) -> Card:
-    """Replace 'enters the battlefield' with 'enters'."""
+    """Replace 'enters the battlefield' with 'enters' outside reminder text."""
     if not card.oracle_text:
         return card
-    new_oracle = re.sub(r"enters the battlefield", "enters", card.oracle_text, flags=re.IGNORECASE)
+    new_oracle = _sub_outside_parens(_ETB_RE, "enters", card.oracle_text)
     return card.model_copy(update={"oracle_text": new_oracle})
 
 
@@ -565,12 +600,16 @@ def fix_keyword_capitalization(card: Card, error: ValidationError) -> Card:
     return card.model_copy(update={"oracle_text": new_oracle})
 
 
+_CANNOT_RE = re.compile(r"\bcannot\b", re.IGNORECASE)
+_CAN_NOT_RE = re.compile(r"\bcan not\b", re.IGNORECASE)
+
+
 def fix_cannot(card: Card, error: ValidationError) -> Card:
-    """Replace "cannot" / "can not" with "can't" in oracle text."""
+    """Replace "cannot" / "can not" with "can't" outside reminder text."""
     if not card.oracle_text:
         return card
-    new_oracle = re.sub(r"\bcannot\b", "can't", card.oracle_text, flags=re.IGNORECASE)
-    new_oracle = re.sub(r"\bcan not\b", "can't", new_oracle, flags=re.IGNORECASE)
+    new_oracle = _sub_outside_parens(_CANNOT_RE, "can't", card.oracle_text)
+    new_oracle = _sub_outside_parens(_CAN_NOT_RE, "can't", new_oracle)
     return card.model_copy(update={"oracle_text": new_oracle})
 
 
