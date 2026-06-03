@@ -1442,7 +1442,7 @@ def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter)
             success=False,
             total_items=processed + result.get("skipped", 0),
             completed_items=processed,
-            cost_usd=result.get("cost_usd", 0.0),
+            cost_usd=result.get("estimated_cost_usd", 0.0),
             error_message="Art prompt generation cancelled by user.",
         )
 
@@ -1450,7 +1450,7 @@ def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter)
     return StageResult(
         total_items=processed + result.get("skipped", 0),
         completed_items=processed,
-        cost_usd=result.get("cost_usd", 0.0),
+        cost_usd=result.get("estimated_cost_usd", 0.0),
         detail=f"Generated {processed} art prompts",
     )
 
@@ -1505,14 +1505,14 @@ def run_art_select(progress_cb: ProgressCallback | None, emitter: StageEmitter) 
                 should_cancel=ai_lock.is_cancelled,
             )
 
-    selected = result.get("selected", 0)
+    selected = result.get("reviewed", 0)
     if result.get("cancelled"):
         emitter.phase("done", "Art selection cancelled")
         return StageResult(
             success=False,
             total_items=selected,
             completed_items=selected,
-            cost_usd=result.get("cost_usd", 0.0),
+            cost_usd=result.get("estimated_cost_usd", 0.0),
             error_message="Art selection cancelled by user.",
         )
 
@@ -1520,7 +1520,7 @@ def run_art_select(progress_cb: ProgressCallback | None, emitter: StageEmitter) 
     return StageResult(
         total_items=selected,
         completed_items=selected,
-        cost_usd=result.get("cost_usd", 0.0),
+        cost_usd=result.get("estimated_cost_usd", 0.0),
         detail=f"Selected art for {selected} cards",
     )
 
