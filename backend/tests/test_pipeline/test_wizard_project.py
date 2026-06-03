@@ -81,7 +81,7 @@ def test_get_project_payload_shape(client):
     assert data["theme_input"]["kind"] == "none"
     # Break points: every stage rendered; human review stages default to checked-on.
     by_id = {bp["stage_id"]: bp for bp in data["break_points"]}
-    for sid in ("human_card_review", "human_art_review", "human_final_review"):
+    for sid in ("human_art_review", "human_final_review"):
         assert by_id[sid]["review"] is True
     # No always_review field is exposed any more.
     assert "always_review" not in data["break_points"][0]
@@ -241,11 +241,11 @@ def test_save_break_human_review_stage_can_be_unchecked(client):
     _open_project("TST")
     resp = client.post(
         "/api/wizard/project/breaks",
-        json={"set_code": "TST", "stage_id": "human_card_review", "review": False},
+        json={"set_code": "TST", "stage_id": "human_art_review", "review": False},
     )
     assert resp.status_code == 200
     assert (
-        active_project.require_active_project().settings.break_points["human_card_review"] == "auto"
+        active_project.require_active_project().settings.break_points["human_art_review"] == "auto"
     )
 
 

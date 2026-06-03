@@ -421,7 +421,7 @@ stage but it has the same review semantics).
 
 Default-on stages come from `DEFAULT_BREAK_POINTS` in
 `mtgai/settings/model_settings.py` — currently `theme_extract`,
-`human_card_review`, `human_art_review`, `human_final_review`. The
+`mechanics`, `skeleton`, `human_art_review`, `human_final_review`. The
 wizard bootstrap (`break_point_states` in `pipeline/models.py`)
 resolves every stage + the `theme_extract` virtual entry to a bool
 so each tab's checkbox can read its initial state without a second
@@ -497,6 +497,17 @@ stale, downstream handlers may consume it.
   per `CLAUDE.md`. Theme.json + pipeline-state.json + .mtg are the
   canonical project artifacts — render from them, don't store
   duplicate state in localStorage.
+* **Card text symbol preview**: card text stores mana / tap symbols as
+  the canonical `{T}` / `{W}` / `{2}` tokens (the on-disk Scryfall form
+  the renderer's `symbol_renderer.parse_mana_cost` consumes). A tab that
+  *displays* that text should render the tokens as inline badges, not show
+  raw braces — `wizard_finalize.js`'s `symbolizeHtml(text)` is the template:
+  escape first, then replace each `{...}` with a `.wiz-sym .wiz-sym-<code>`
+  span (the per-color palette mirrors the renderer's `MANA_COLORS`). A tab
+  that *edits* the text keeps the raw tokens in the textarea and shows a
+  live `symbolizeHtml` preview beneath it, plus a one-line helper at the top
+  documenting the `{T}` etc. syntax. Display-only — the stored text always
+  keeps the tokens.
 
 ## 13. Section-level Refresh AI button
 

@@ -135,6 +135,12 @@ def finalize_set(
             "collector_number": card.collector_number,
             "name": card.name,
             "fixes_applied": fixes,
+            # The pre-finalize oracle text, kept only when finalize actually
+            # rewrote it, so the Finalization tab can show a before/after diff of
+            # what the stage changed (reminder injection + auto-fixes).
+            "original_oracle_text": (
+                original_oracle if finalized.oracle_text != original_oracle else None
+            ),
             "manual_errors": [
                 {
                     "code": e.error_code,
@@ -190,6 +196,7 @@ def finalize_set(
     # Write report
     if not dry_run:
         _write_report(summary)
+        _write_report_json(summary)
 
     logger.info(
         "Finalization complete: %d cards, %d modified, %d auto-fixes, %d MANUAL errors",
@@ -263,4 +270,22 @@ def _write_report(summary: dict) -> Path:
     report_text = "\n".join(lines)
     atomic_write_text(report_path, report_text)
     logger.info("Report written to %s", report_path)
+    return report_path
+
+
+def _write_report_json(summary: dict) -> Path:
+    """Write the finalize summary as JSON for the Finalization wizard tab.
+
+    The markdown report is for humans reading a file; the JSON sidecar is the
+    durable source the ``/api/wizard/finalize/state`` endpoint reads back so the
+    tab can badge auto-edited cards and show the before/after of what finalize
+    changed without re-running the stage.
+    """
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    reports_dir = set_artifact_dir() / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    report_path = reports_dir / "finalize-report.json"
+    atomic_write_text(report_path, json.dumps(summary, indent=2, ensure_ascii=False))
+    logger.debug("Finalize JSON report written to %s", report_path)
     return report_path

@@ -18,8 +18,9 @@ Validators owned by this module:
     2. mana           — CMC / color / color_identity consistency (AUTO-fixable)
     3. type_check     — Creature P/T, planeswalker loyalty, aura/equipment
     4. rules_text     — Self-reference, keyword caps, mana symbols (AUTO-fixable)
-    5. text_overflow  — Character count limits (REGEN trigger)
-    6. uniqueness     — Collector-number collision (AUTO-fixable)
+    5. keyword_ordering — Keyword abilities above complex abilities (AUTO-fixable)
+    6. text_overflow  — Character count limits (REGEN trigger)
+    7. uniqueness     — Collector-number collision (AUTO-fixable)
 
 Design-judgment validators (consumed by analysis.heuristic_checks):
     - power_level
@@ -88,6 +89,7 @@ def validate_card(
     :func:`mtgai.analysis.heuristic_checks.check_card_heuristics` and are called
     by the council reviewer / final QA, not the gen pipeline.
     """
+    from mtgai.validation.keyword_ordering import validate_keyword_ordering
     from mtgai.validation.mana import validate_mana_consistency
     from mtgai.validation.rules_text import validate_rules_text
     from mtgai.validation.text_overflow import validate_text_overflow
@@ -99,6 +101,7 @@ def validate_card(
     errors += validate_mana_consistency(card)
     errors += validate_type_consistency(card)
     errors += validate_rules_text(card)
+    errors += validate_keyword_ordering(card)
     errors += validate_text_overflow(card)
 
     if existing_cards is not None:
@@ -187,6 +190,7 @@ def _register_auto_fixers() -> None:
     if _AUTO_FIX_REGISTRY:
         return  # already populated
 
+    from mtgai.validation.keyword_ordering import fix_keyword_ordering
     from mtgai.validation.mana import (
         fix_cmc,
         fix_color_identity_from_cost,
@@ -230,6 +234,7 @@ def _register_auto_fixers() -> None:
             "rules_text.cannot": fix_cannot,
             "rules_text.modal_asterisk_bullet": fix_modal_asterisk_bullet,
             "rules_text.oracle_type_prefix": fix_oracle_type_prefix,
+            "keyword_ordering.misplaced": fix_keyword_ordering,
             "uniqueness.collector_number_collision": fix_collector_number,
             "type_check.enchantment_artifact": fix_enchantment_artifact,
         }

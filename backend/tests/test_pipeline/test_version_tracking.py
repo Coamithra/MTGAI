@@ -218,7 +218,7 @@ def test_rerun_missing_entry_snapshot_degrades(project: Path) -> None:
     assert entry == "conformance.2"  # predecessor pointer, even with no snapshot file
     ar = next(s for s in state.stages if s.instance_id == "ai_review")
     assert ar.status == StageStatus.PENDING
-    # forward path after ai_review starts with finalize, then human_card_review.
+    # forward path after ai_review starts with finalize, then visual_refs.
     ids = [s.instance_id for s in state.stages]
     after = ids[ids.index("ai_review") + 1 :]
-    assert after[:2] == ["finalize", "human_card_review"]
+    assert after[:2] == ["finalize", "visual_refs"]

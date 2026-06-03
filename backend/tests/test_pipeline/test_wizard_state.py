@@ -229,7 +229,6 @@ def test_serialize_round_trips_visible_tabs(sets_root):
     # break_points is keyed by stage_id; human review stages default to checked
     # so the per-tab checkbox can render them on without a second fetch.
     assert isinstance(blob["break_points"], dict)
-    assert blob["break_points"]["human_card_review"] is True
     assert blob["break_points"]["human_art_review"] is True
     assert blob["break_points"]["human_final_review"] is True
     assert blob["break_points"]["card_gen"] is False  # default off
@@ -249,7 +248,7 @@ def test_break_points_reflect_settings_toggle(sets_root):
     ws = build_wizard_state(requested_tab=None)
     assert ws.break_points["card_gen"] is True
     assert ws.break_points["reprints"] is False  # untouched stays off
-    assert ws.break_points["human_card_review"] is True  # default still on
+    assert ws.break_points["human_art_review"] is True  # default still on
 
 
 def test_break_points_human_stage_can_be_overridden_off(sets_root):
@@ -260,9 +259,9 @@ def test_break_points_human_stage_can_be_overridden_off(sets_root):
     set_dir.mkdir()
     _open_project("TST", set_dir)
     settings = ms.get_active_settings()
-    new = settings.model_copy(update={"break_points": {"human_card_review": "auto"}})
+    new = settings.model_copy(update={"break_points": {"human_art_review": "auto"}})
     ms.apply_settings(new)
 
     ws = build_wizard_state(requested_tab=None)
-    assert ws.break_points["human_card_review"] is False
-    assert ws.break_points["human_art_review"] is True  # other defaults intact
+    assert ws.break_points["human_art_review"] is False
+    assert ws.break_points["human_final_review"] is True  # other defaults intact
