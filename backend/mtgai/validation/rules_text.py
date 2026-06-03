@@ -31,6 +31,7 @@ EVERGREEN_KEYWORDS = {
     "lifelink",
     "menace",
     "reach",
+    "shroud",
     "trample",
     "vigilance",
     "ward",

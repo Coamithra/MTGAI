@@ -421,7 +421,7 @@ stage but it has the same review semantics).
 
 Default-on stages come from `DEFAULT_BREAK_POINTS` in
 `mtgai/settings/model_settings.py` — currently `theme_extract`,
-`human_card_review`, `human_art_review`, `human_final_review`. The
+`mechanics`, `skeleton`, `human_art_review`, `human_final_review`. The
 wizard bootstrap (`break_point_states` in `pipeline/models.py`)
 resolves every stage + the `theme_extract` virtual entry to a bool
 so each tab's checkbox can read its initial state without a second

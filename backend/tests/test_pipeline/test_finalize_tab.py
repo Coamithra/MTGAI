@@ -162,7 +162,11 @@ def test_bulk_save_returns_next_stage_nav(client, project: Path) -> None:
     )
     assert resp.status_code == 200
     data = resp.json()
-    # finalize is followed by human_card_review in STAGE_DEFINITIONS.
-    assert data["navigate_to"] == "/pipeline/human_card_review"
+    # nav points to whatever stage follows finalize in STAGE_DEFINITIONS.
+    from mtgai.pipeline.models import STAGE_DEFINITIONS
+
+    ids = [d["stage_id"] for d in STAGE_DEFINITIONS]
+    expected_next = ids[ids.index("finalize") + 1]
+    assert data["navigate_to"] == f"/pipeline/{expected_next}"
     saved = json.loads((project / "cards" / "001_alpha_prime.json").read_text(encoding="utf-8"))
     assert saved["name"] == "Alpha Prime"
