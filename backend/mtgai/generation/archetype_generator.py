@@ -120,7 +120,7 @@ def _format_setting_block(theme: dict) -> str:
     """The setting prose for the prompt's single 'Setting' field.
 
     Handles both schemas: the current toolchain writes the world document to
-    ``setting``; legacy ASD themes use a short ``theme`` one-liner plus a
+    ``setting``; legacy short-form themes use a short ``theme`` one-liner plus a
     ``flavor_description`` prose blob. We surface the one-liner (if any) then
     the prose, so neither schema loses content — and there's no dead
     "(no flavor description provided)" subsection when only ``setting`` exists.

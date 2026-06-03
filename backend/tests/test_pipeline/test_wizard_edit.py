@@ -103,8 +103,8 @@ def _seed_state(code: str, *, overall_status: PipelineStatus) -> PipelineState:
 
 
 def test_preview_lists_completed_downstream_stages(client):
-    _make_set("ASD", theme={"code": "ASD", "name": "Test"})
-    state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _make_set("TST", theme={"code": "TST", "name": "Test"})
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
     # Post-reorder: mechanics[0], archetypes[1]; skeleton/reprints/lands
     # are stages[2..4] (visual_refs moved down to just before art_prompts).
     state.stages[2].status = StageStatus.COMPLETED
@@ -117,7 +117,7 @@ def test_preview_lists_completed_downstream_stages(client):
 
     resp = client.post(
         "/api/wizard/edit/preview",
-        json={"set_code": "ASD", "from_stage": "skeleton"},
+        json={"set_code": "TST", "from_stage": "skeleton"},
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -131,8 +131,8 @@ def test_preview_lists_completed_downstream_stages(client):
 
 
 def test_preview_skips_pending_stages(client):
-    _make_set("ASD", theme={"code": "ASD"})
-    state = _seed_state("ASD", overall_status=PipelineStatus.NOT_STARTED)
+    _make_set("TST", theme={"code": "TST"})
+    state = _seed_state("TST", overall_status=PipelineStatus.NOT_STARTED)
     # Mark skeleton (stages[2] post-reorder) COMPLETED; mechanics +
     # archetypes + downstream stay PENDING and excluded from the cleared list.
     state.stages[2].status = StageStatus.COMPLETED
@@ -140,7 +140,7 @@ def test_preview_skips_pending_stages(client):
 
     resp = client.post(
         "/api/wizard/edit/preview",
-        json={"set_code": "ASD", "from_stage": "theme"},
+        json={"set_code": "TST", "from_stage": "theme"},
     )
     data = resp.json()
     # Only the one COMPLETED stage shows up; PENDING ones are skipped.
@@ -149,35 +149,35 @@ def test_preview_skips_pending_stages(client):
 
 def test_preview_clear_theme_json_reflects_disk(client):
     """``clear_theme_json`` only flips on when theme.json actually exists."""
-    _make_set("ASD")  # No theme.json
+    _make_set("TST")  # No theme.json
     resp = client.post(
         "/api/wizard/edit/preview",
-        json={"set_code": "ASD", "from_stage": "project", "clear_theme_json": True},
+        json={"set_code": "TST", "from_stage": "project", "clear_theme_json": True},
     )
     data = resp.json()
     assert data["clear_theme_json"] is False  # nothing on disk to clear
 
-    _make_set("ASD", theme={"code": "ASD"})  # Now theme.json exists
+    _make_set("TST", theme={"code": "TST"})  # Now theme.json exists
     resp = client.post(
         "/api/wizard/edit/preview",
-        json={"set_code": "ASD", "from_stage": "project", "clear_theme_json": True},
+        json={"set_code": "TST", "from_stage": "project", "clear_theme_json": True},
     )
     assert resp.json()["clear_theme_json"] is True
 
 
 def test_preview_400_for_unknown_stage(client):
-    _make_set("ASD")
-    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _make_set("TST")
+    _seed_state("TST", overall_status=PipelineStatus.PAUSED)
     resp = client.post(
         "/api/wizard/edit/preview",
-        json={"set_code": "ASD", "from_stage": "nonexistent"},
+        json={"set_code": "TST", "from_stage": "nonexistent"},
     )
     assert resp.status_code == 400
 
 
 def test_preview_400_for_missing_from_stage(client):
-    _make_set("ASD")
-    resp = client.post("/api/wizard/edit/preview", json={"set_code": "ASD"})
+    _make_set("TST")
+    resp = client.post("/api/wizard/edit/preview", json={"set_code": "TST"})
     assert resp.status_code == 400
 
 
@@ -188,14 +188,14 @@ def test_preview_400_for_missing_from_stage(client):
 
 def test_accept_cascades_artifacts_and_resets_stages(client, no_thread_start):
     """Accepting a Skeleton edit clears skeleton.json, card_gen cards, art/, etc."""
-    set_dir = _make_set("ASD", theme={"code": "ASD"})
+    set_dir = _make_set("TST", theme={"code": "TST"})
     (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
     (set_dir / "reprint_selection.json").write_text("{}", encoding="utf-8")
     cards = set_dir / "cards"
     cards.mkdir()
     (cards / "001_foo.json").write_text("{}", encoding="utf-8")
 
-    state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
     # Post-reorder: mechanics[0], archetypes[1], skeleton[2], reprints[3],
     # lands[4], card_gen[5]. (visual_refs moved down to before art_prompts,
     # so it's no longer upstream of skeleton.)
@@ -209,7 +209,7 @@ def test_accept_cascades_artifacts_and_resets_stages(client, no_thread_start):
 
     resp = client.post(
         "/api/wizard/edit/accept",
-        json={"set_code": "ASD", "from_stage": "skeleton"},
+        json={"set_code": "TST", "from_stage": "skeleton"},
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -238,16 +238,16 @@ def test_accept_cascades_artifacts_and_resets_stages(client, no_thread_start):
 
 
 def test_accept_from_theme_resets_all_pipeline_stages(client, no_thread_start):
-    set_dir = _make_set("ASD", theme={"code": "ASD"})
+    set_dir = _make_set("TST", theme={"code": "TST"})
     (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
 
-    state = _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
     state.stages[2].status = StageStatus.COMPLETED  # skeleton (post-reorder ordering)
     save_state(state)
 
     resp = client.post(
         "/api/wizard/edit/accept",
-        json={"set_code": "ASD", "from_stage": "theme"},
+        json={"set_code": "TST", "from_stage": "theme"},
     )
     assert resp.status_code == 200
     # Cascade from "theme" resets every pipeline stage; the engine's
@@ -258,16 +258,16 @@ def test_accept_from_theme_resets_all_pipeline_stages(client, no_thread_start):
 
 
 def test_accept_from_theme_persists_payload(client, no_thread_start):
-    set_dir = _make_set("ASD", theme={"code": "ASD", "name": "Old"})
+    set_dir = _make_set("TST", theme={"code": "TST", "name": "Old"})
     new_theme = {
-        "code": "ASD",
+        "code": "TST",
         "name": "Renamed",
         "constraints": [{"text": "no dragons", "source": "human"}],
     }
     resp = client.post(
         "/api/wizard/edit/accept",
         json={
-            "set_code": "ASD",
+            "set_code": "TST",
             "from_stage": "theme",
             "theme_payload": new_theme,
         },
@@ -280,14 +280,14 @@ def test_accept_from_theme_persists_payload(client, no_thread_start):
 
 def test_accept_clear_theme_json_returns_to_project(client, no_thread_start):
     """Theme-input change wipes theme.json; user is sent back to /pipeline/project."""
-    set_dir = _make_set("ASD", theme={"code": "ASD"})
+    set_dir = _make_set("TST", theme={"code": "TST"})
     (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
-    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _seed_state("TST", overall_status=PipelineStatus.PAUSED)
 
     resp = client.post(
         "/api/wizard/edit/accept",
         json={
-            "set_code": "ASD",
+            "set_code": "TST",
             "from_stage": "project",
             "clear_theme_json": True,
         },
@@ -307,13 +307,13 @@ def test_accept_clear_theme_json_returns_to_project(client, no_thread_start):
 
 
 def test_accept_persists_set_params_patch(client, no_thread_start):
-    _make_set("ASD", theme={"code": "ASD"})
-    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _make_set("TST", theme={"code": "TST"})
+    _seed_state("TST", overall_status=PipelineStatus.PAUSED)
 
     resp = client.post(
         "/api/wizard/edit/accept",
         json={
-            "set_code": "ASD",
+            "set_code": "TST",
             "from_stage": "project",
             "set_params_patch": {"set_size": 80},
         },
@@ -324,14 +324,14 @@ def test_accept_persists_set_params_patch(client, no_thread_start):
 
 
 def test_accept_persists_theme_input_patch(client, no_thread_start):
-    set_dir = _make_set("ASD", theme={"code": "ASD"})
+    set_dir = _make_set("TST", theme={"code": "TST"})
     (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
-    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _seed_state("TST", overall_status=PipelineStatus.PAUSED)
 
     resp = client.post(
         "/api/wizard/edit/accept",
         json={
-            "set_code": "ASD",
+            "set_code": "TST",
             "from_stage": "project",
             "clear_theme_json": True,
             "theme_input": {
@@ -350,9 +350,9 @@ def test_accept_persists_theme_input_patch(client, no_thread_start):
 
 
 def test_accept_409_when_engine_running(client, monkeypatch):
-    set_dir = _make_set("ASD", theme={"code": "ASD"})
+    set_dir = _make_set("TST", theme={"code": "TST"})
     (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
-    seeded = _seed_state("ASD", overall_status=PipelineStatus.RUNNING)
+    seeded = _seed_state("TST", overall_status=PipelineStatus.RUNNING)
     seeded.stages[0].status = StageStatus.COMPLETED
     seeded.stages[0].progress.completed_items = 60
     save_state(seeded)
@@ -363,14 +363,14 @@ def test_accept_409_when_engine_running(client, monkeypatch):
 
         def __init__(self) -> None:
             self.state = create_pipeline_state(
-                PipelineConfig(set_code="ASD", set_name="ASD", set_size=20),
+                PipelineConfig(set_code="TST", set_name="TST", set_size=20),
             )
 
     monkeypatch.setattr(pipeline_server, "_engine", _BusyEngine())
 
     resp = client.post(
         "/api/wizard/edit/accept",
-        json={"set_code": "ASD", "from_stage": "skeleton"},
+        json={"set_code": "TST", "from_stage": "skeleton"},
     )
     assert resp.status_code == 409
     assert "running" in resp.json()["error"].lower()
@@ -384,27 +384,27 @@ def test_accept_409_when_engine_running(client, monkeypatch):
 def test_accept_409_when_extraction_running(client):
     """A mid-flight theme extraction also blocks Accept — a new theme.json
     write would race the cascade clear."""
-    _make_set("ASD", theme={"code": "ASD"})
-    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _make_set("TST", theme={"code": "TST"})
+    _seed_state("TST", overall_status=PipelineStatus.PAUSED)
     extraction_run.start_run("upload-xyz")
 
     resp = client.post(
         "/api/wizard/edit/accept",
-        json={"set_code": "ASD", "from_stage": "skeleton"},
+        json={"set_code": "TST", "from_stage": "skeleton"},
     )
     assert resp.status_code == 409
     assert "extraction" in resp.json()["error"].lower()
 
 
 def test_accept_400_for_invalid_set_size(client):
-    _make_set("ASD", theme={"code": "ASD"})
-    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _make_set("TST", theme={"code": "TST"})
+    _seed_state("TST", overall_status=PipelineStatus.PAUSED)
 
     for bad in (-3, 0, "abc", None):
         resp = client.post(
             "/api/wizard/edit/accept",
             json={
-                "set_code": "ASD",
+                "set_code": "TST",
                 "from_stage": "project",
                 "set_params_patch": {"set_size": bad},
             },
@@ -413,12 +413,12 @@ def test_accept_400_for_invalid_set_size(client):
 
 
 def test_accept_400_for_negative_mechanic_count(client):
-    _make_set("ASD", theme={"code": "ASD"})
-    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _make_set("TST", theme={"code": "TST"})
+    _seed_state("TST", overall_status=PipelineStatus.PAUSED)
     resp = client.post(
         "/api/wizard/edit/accept",
         json={
-            "set_code": "ASD",
+            "set_code": "TST",
             "from_stage": "project",
             "set_params_patch": {"mechanic_count": -1},
         },
@@ -427,12 +427,12 @@ def test_accept_400_for_negative_mechanic_count(client):
 
 
 def test_accept_400_for_non_dict_patch(client):
-    _make_set("ASD", theme={"code": "ASD"})
-    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _make_set("TST", theme={"code": "TST"})
+    _seed_state("TST", overall_status=PipelineStatus.PAUSED)
     resp = client.post(
         "/api/wizard/edit/accept",
         json={
-            "set_code": "ASD",
+            "set_code": "TST",
             "from_stage": "project",
             "set_params_patch": [1, 2, 3],
         },
@@ -441,27 +441,27 @@ def test_accept_400_for_non_dict_patch(client):
 
 
 def test_accept_400_for_unknown_stage(client):
-    _make_set("ASD", theme={"code": "ASD"})
+    _make_set("TST", theme={"code": "TST"})
     resp = client.post(
         "/api/wizard/edit/accept",
-        json={"set_code": "ASD", "from_stage": "nonexistent"},
+        json={"set_code": "TST", "from_stage": "nonexistent"},
     )
     assert resp.status_code == 400
 
 
 def test_accept_400_for_missing_from_stage(client):
-    _make_set("ASD", theme={"code": "ASD"})
-    resp = client.post("/api/wizard/edit/accept", json={"set_code": "ASD"})
+    _make_set("TST", theme={"code": "TST"})
+    resp = client.post("/api/wizard/edit/accept", json={"set_code": "TST"})
     assert resp.status_code == 400
 
 
 def test_accept_400_for_invalid_theme_input_kind(client):
-    _make_set("ASD", theme={"code": "ASD"})
-    _seed_state("ASD", overall_status=PipelineStatus.PAUSED)
+    _make_set("TST", theme={"code": "TST"})
+    _seed_state("TST", overall_status=PipelineStatus.PAUSED)
     resp = client.post(
         "/api/wizard/edit/accept",
         json={
-            "set_code": "ASD",
+            "set_code": "TST",
             "from_stage": "project",
             "theme_input": {"kind": "garbage"},
         },
@@ -474,10 +474,10 @@ def test_accept_idempotent_when_no_state_on_disk(client, no_thread_start):
     by writing settings + bouncing to /pipeline/project. Mostly a guard
     against a stale wizard tab calling Accept after the user wiped the
     set folder; the endpoint should not 500."""
-    _make_set("ASD")  # no theme.json, no pipeline-state.json
+    _make_set("TST")  # no theme.json, no pipeline-state.json
     resp = client.post(
         "/api/wizard/edit/accept",
-        json={"set_code": "ASD", "from_stage": "project"},
+        json={"set_code": "TST", "from_stage": "project"},
     )
     assert resp.status_code == 200
     assert resp.json()["navigate_to"] == "/pipeline/project"
@@ -485,7 +485,7 @@ def test_accept_idempotent_when_no_state_on_disk(client, no_thread_start):
 
 def test_resolve_edit_point_zero_for_project_and_theme():
     state = create_pipeline_state(
-        PipelineConfig(set_code="ASD", set_name="ASD", set_size=20),
+        PipelineConfig(set_code="TST", set_name="TST", set_size=20),
     )
     assert pipeline_server._resolve_edit_point("project", state) == 0
     assert pipeline_server._resolve_edit_point("theme", state) == 0
@@ -493,7 +493,7 @@ def test_resolve_edit_point_zero_for_project_and_theme():
 
 def test_resolve_edit_point_returns_stage_index():
     state = create_pipeline_state(
-        PipelineConfig(set_code="ASD", set_name="ASD", set_size=20),
+        PipelineConfig(set_code="TST", set_name="TST", set_size=20),
     )
     # card_gen is the 6th stage (index 5) per STAGE_DEFINITIONS post-reorder:
     # mechanics, archetypes, skeleton, reprints, lands, card_gen
@@ -503,7 +503,7 @@ def test_resolve_edit_point_returns_stage_index():
 
 def test_resolve_edit_point_raises_for_unknown_stage():
     state = create_pipeline_state(
-        PipelineConfig(set_code="ASD", set_name="ASD", set_size=20),
+        PipelineConfig(set_code="TST", set_name="TST", set_size=20),
     )
     with pytest.raises(ValueError):
         pipeline_server._resolve_edit_point("garbage", state)
@@ -544,8 +544,8 @@ def _loop_state(code: str) -> PipelineState:
 
 
 def test_cascade_clear_drops_regen_inserted_instances():
-    _make_set("ASD")
-    state = _loop_state("ASD")
+    _make_set("TST")
+    state = _loop_state("TST")
     # Cascade from the backbone card_gen (index 1) — clears card_gen onward.
     pipeline_server._apply_cascade_clear(state, 1)
 
@@ -566,8 +566,8 @@ def test_cascade_clear_drops_regen_inserted_instances():
 
 
 def test_cascade_clear_keeps_full_prefix_when_start_is_zero():
-    _make_set("ASD")
-    state = _loop_state("ASD")
+    _make_set("TST")
+    state = _loop_state("TST")
     pipeline_server._apply_cascade_clear(state, 0)
     ids = [s.instance_id for s in state.stages]
     assert ids == ["lands", "card_gen", "conformance", "ai_review"]
@@ -580,7 +580,7 @@ def test_cascade_clear_keeps_full_prefix_when_start_is_zero():
 
 
 def test_resolve_stage_instance_prefers_current_instance():
-    state = _loop_state("ASD")
+    state = _loop_state("TST")
     state.current_instance_id = "card_gen.2"
     state.stages[4].status = StageStatus.RUNNING  # card_gen.2
     resolved = pipeline_server._resolve_stage_instance(state, "card_gen")
@@ -589,7 +589,7 @@ def test_resolve_stage_instance_prefers_current_instance():
 
 
 def test_resolve_stage_instance_falls_back_to_backbone():
-    state = _loop_state("ASD")
+    state = _loop_state("TST")
     # current_instance_id belongs to a *different* stage_id -> use the backbone.
     state.current_instance_id = "conformance.2"
     resolved = pipeline_server._resolve_stage_instance(state, "card_gen")
@@ -598,13 +598,13 @@ def test_resolve_stage_instance_falls_back_to_backbone():
 
 
 def test_resolve_stage_instance_none_for_unknown_stage():
-    state = _loop_state("ASD")
+    state = _loop_state("TST")
     assert pipeline_server._resolve_stage_instance(state, "nope") is None
 
 
 def test_stage_status_prefers_active_regen_instance():
-    _make_set("ASD")
-    state = _loop_state("ASD")
+    _make_set("TST")
+    state = _loop_state("TST")
     state.current_instance_id = "card_gen.2"
     state.stages[1].status = StageStatus.COMPLETED  # backbone card_gen
     state.stages[4].status = StageStatus.RUNNING  # card_gen.2
@@ -614,8 +614,8 @@ def test_stage_status_prefers_active_regen_instance():
 
 
 def test_heal_failed_stage_heals_active_regen_instance():
-    _make_set("ASD")
-    state = _loop_state("ASD")
+    _make_set("TST")
+    state = _loop_state("TST")
     state.current_instance_id = "card_gen.2"
     state.stages[1].status = StageStatus.COMPLETED  # backbone card_gen
     state.stages[4].status = StageStatus.FAILED  # card_gen.2

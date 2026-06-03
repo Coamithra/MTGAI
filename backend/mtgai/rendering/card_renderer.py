@@ -7,13 +7,13 @@ at native resolution (2010x2814), then scaling to print resolution
 Usage::
 
     renderer = CardRenderer(assets_root, output_root)
-    img = renderer.render_card(card, "ASD")
-    renderer.render_and_save(card, "ASD")
-    renderer.render_set("ASD")
+    img = renderer.render_card(card)
+    renderer.render_and_save(card)
+    renderer.render_set()
 
 CLI::
 
-    python -m mtgai.rendering --set ASD [--card W-C-01] [--dry-run] [--force]
+    python -m mtgai.rendering --mtg path/to/project.mtg [--card W-C-01] [--dry-run] [--force]
 """
 
 from __future__ import annotations

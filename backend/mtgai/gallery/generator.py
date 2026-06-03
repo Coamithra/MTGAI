@@ -132,7 +132,7 @@ def export_cards_json(
     gallery JavaScript needs for client-side filtering and display.
 
     Args:
-        set_code: The set code (e.g. ``"ASD"``).
+        set_code: The set code label (e.g. ``"AVR"``).
         output_dir: The gallery output directory. The JSON file is written to
             ``output_dir/data/cards.json``.
         cards: Optional pre-loaded card list. If *None*, cards are loaded
@@ -202,7 +202,7 @@ def build_gallery(
     copies static assets, and renders Jinja2 templates.
 
     Args:
-        set_code: The set code (e.g. ``"ASD"``).
+        set_code: The set code label (e.g. ``"AVR"``).
         output_dir: Override gallery output directory. Defaults to
             ``output/sets/<SET_CODE>/gallery/``.
         open_browser: If *True*, open the gallery ``index.html`` in the

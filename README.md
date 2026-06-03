@@ -4,19 +4,14 @@ Build complete custom Magic: The Gathering sets from scratch — from set design
 
 ## Current State
 
-**Dev set "Anomalous Descent" (ASD)** — 66-card development set (60 main + 6 lands) through the full pipeline:
+The toolchain is **set-agnostic**: you drive it from a setting prose document through the wizard's per-project `.mtg` flow (the user picks an asset folder; all artifacts land there). A run takes a setting all the way through the full pipeline:
 
-- **Set Design** — skeleton generator with slot allocation matrix, 10 draft archetypes, 3 custom mechanics
-- **Card Generation** — Opus 4.8 with validation library (8 validators, 18 auto-fixers), tiered AI review (council + iteration)
+- **Set Design** — theme extraction, mechanic design (council-reviewed), archetypes, skeleton generator with slot allocation matrix, reprint selection
+- **Card Generation** — Opus 4.8 with validation library (8 validators, 18 auto-fixers), tiered AI review (council + iteration), conformance & interactions gate
 - **Art Generation** — Flux.1-dev via local ComfyUI, Haiku vision-based art selection, PuLID character identity
 - **Card Rendering** — M15 frame compositing with SVG mana symbols, dynamic text sizing, bold fonts, shrink-to-fit
 
-### Custom Mechanics
-| Mechanic | Colors | Description |
-|----------|--------|-------------|
-| **Salvage X** | W/U/G | Look at the top X cards of your library, put an artifact into your hand |
-| **Malfunction N** | W/U/R | Enters with malfunction counters, can't attack/block until removed |
-| **Overclock** | U/R/B | Exile a card from hand as additional cost for a bonus effect |
+> The original hand-built prototype set "Anomalous Descent" (ASD) lives under `output/sets/ASD/` purely as a historical artefact. It is **not** an active default or example — don't build on it or cite it.
 
 ### Pipeline Phases
 | Phase | Status | Description |
@@ -50,11 +45,11 @@ MTGAI/
 │   ├── fonts/              # Cinzel, EB Garamond, Montserrat, Beleren, MPlantin
 │   ├── frames/m15/         # M15 frame PNGs (2010x2814 RGBA, from Card Conjurer)
 │   └── symbols/            # Mana SVGs, set symbol
-├── output/sets/ASD/        # Generated content for dev set
+├── output/sets/ASD/        # Historical prototype set (tracked, not active)
 │   ├── cards/              # Card JSON files (version-controlled)
 │   ├── art/                # AI-generated art (gitignored)
 │   ├── renders/            # Rendered card images (gitignored)
-│   └── reports/            # HTML comparison pages, balance reports
+│   └── reports/            # HTML comparison pages, finalize reports
 ├── research/               # Set design research, LLM strategy, experiments
 ├── learnings/              # Per-phase learnings documents
 ├── plans/                  # Phase plans (task tracking on Trello; TRACKER.md deprecated)
@@ -76,14 +71,14 @@ pytest
 # Lint
 ruff check . && ruff format .
 
-# Render all cards
-python -m mtgai.rendering --set ASD --force
+# Start the wizard (pick New / Open project, then walk the pipeline)
+python -m mtgai.review serve --open
 
-# Run balance analysis
-python -m mtgai.review balance --set ASD
+# Render all cards for a project
+python -m mtgai.rendering --mtg path/to/project.mtg --force
 
-# Run AI review
-python -m mtgai.review ai-review --set ASD
+# Run AI review (operates on the open project)
+python -m mtgai.review ai-review
 ```
 
 ## Architecture

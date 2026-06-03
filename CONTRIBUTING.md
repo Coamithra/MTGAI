@@ -102,8 +102,8 @@ Dig into the problem before proposing solutions. Use `/research` for topics that
 19. **Manual smoke for pipeline / LLM / art changes** — Unit tests don't cover everything:
     - Pipeline / dashboard changes: `python -m mtgai.review serve --open` and walk the affected stage
     - LLM client / theme extractor changes: a real `generate_with_tool(...)` round-trip on a small model, or a theme extraction on a known corpus; check `output/extraction_logs/` for the per-call meta sidecars
-    - Renderer / art changes: render one card via `python -m mtgai.rendering --set ASD --card <id> --force` and eyeball the PNG
-    - Validation / finalize changes: `python -m mtgai.review finalize --dry-run --set ASD`
+    - Renderer / art changes: render one card via `python -m mtgai.rendering --mtg <project.mtg> --card <id> --force` and eyeball the PNG
+    - Validation / finalize changes: open a project in the wizard (or pin a `.mtg`), then `python -m mtgai.review finalize --dry-run`
     - Document the steps in the plan's "Verification" section
 20. **Spot-check the diff** — Read through one more time for typos, off-by-ones, missing `await`, dict keys that don't exist, and `# removed` / dead-code residue
 21. **Flag what needs manual testing** — Leave a note for the user of anything that can't be unit-tested (e.g. "verify the new mechanic renders correctly with reminder text on a sample card")

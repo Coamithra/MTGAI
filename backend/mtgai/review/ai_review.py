@@ -33,7 +33,6 @@ from mtgai.generation.prompts import format_mechanic_block
 from mtgai.generation.token_budgets import HEAVY
 from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
-from mtgai.io.paths import output_root
 from mtgai.models.card import Card
 
 logger = logging.getLogger(__name__)
@@ -42,13 +41,8 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_SET_CODE = "ASD"
-OUTPUT_ROOT = output_root()
-MECHANICS_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "mechanics" / "approved.json"
-POINTED_Q_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "mechanics" / "pointed-questions.json"
-THEME_PATH = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "theme.json"
-REVIEWS_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reviews"
-REPORTS_DIR = OUTPUT_ROOT / "sets" / DEFAULT_SET_CODE / "reports"
+# Artifact dirs are resolved per-call from the active project's asset folder
+# (``set_artifact_dir``); there are no module-level per-set path constants.
 
 # LLM settings — model + effort come from per-set model_settings at runtime.
 TEMPERATURE = temps.CREATIVE  # open design-council review (see temperatures.py)
@@ -306,8 +300,8 @@ COUNCIL_SYNTHESIS_TOOL_SCHEMA = {
 
 REVIEW_SYSTEM_PROMPT = """\
 You are a senior Magic: The Gathering card designer and rules expert. You are \
-reviewing custom cards for a set called "Anomalous Descent" (set code ASD), a \
-60-card dev set with a post-apocalyptic megadungeon theme.
+reviewing custom cards for a Magic set. The set's custom mechanics are supplied \
+with each card; treat those definitions as authoritative.
 
 Your job is to review each card for design quality and correctness. Be thorough \
 but fair. Focus on real issues, not nitpicks.
@@ -322,7 +316,8 @@ Do NOT flag:
 - JSON metadata issues (e.g., keywords field) -- that's a data format concern
 - Missing reminder text -- it is added programmatically after review
 - Balance concerns where the card has a meaningful drawback that compensates
-- Malfunction cards being above-rate -- malfunction IS the drawback, the delay is the point
+- A card being above-rate when a custom mechanic embeds an inherent drawback that \
+compensates -- the drawback IS the cost
 - Vanilla/french vanilla creatures being simple -- that's intentional at common"""
 
 
@@ -1326,7 +1321,7 @@ def revise_card_in_place(
 
 def _save_review_log(
     review: CardReviewResult,
-    reviews_dir: Path = REVIEWS_DIR,
+    reviews_dir: Path,
 ) -> Path:
     """Save per-card review as JSON (machine) + markdown (human-readable)."""
     reviews_dir.mkdir(parents=True, exist_ok=True)

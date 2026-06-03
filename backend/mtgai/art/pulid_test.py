@@ -2,9 +2,10 @@
 
 Generates 2 cards at 2 weight levels to evaluate identity vs style balance.
 
-Output: output/sets/ASD/art-direction/kontext-samples/pulid-test/
+Output: output/sets/<CODE>/art-direction/kontext-samples/pulid-test/
 
-CLI: python -m mtgai.art.pulid_test --set ASD
+CLI (legacy A/B tooling, not migrated to the .mtg flow):
+    python -m mtgai.art.pulid_test --set <CODE>
 """
 
 import json

@@ -70,11 +70,11 @@ def _open_project(
 
 
 def test_get_project_payload_shape(client):
-    _open_project("ASD")
-    resp = client.get("/api/wizard/project?set_code=ASD")
+    _open_project("TST")
+    resp = client.get("/api/wizard/project?set_code=ZZZ")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["set_code"] == "ASD"
+    assert data["set_code"] == "TST"
     # Default seed: empty name, default size (277, the standard MTG
     # set), theme_input=none.
     assert data["set_params"]["set_size"] == 277
@@ -111,10 +111,10 @@ def test_get_project_payload_409_when_no_project_open(client):
 
 
 def test_save_params_live_applies_name_and_mechanic_count(client):
-    _open_project("ASD")
+    _open_project("TST")
     resp = client.post(
         "/api/wizard/project/params",
-        json={"set_code": "ASD", "set_name": "Avoria", "mechanic_count": 4},
+        json={"set_code": "TST", "set_name": "Avoria", "mechanic_count": 4},
     )
     assert resp.status_code == 200
     settings = active_project.require_active_project().settings
@@ -123,10 +123,10 @@ def test_save_params_live_applies_name_and_mechanic_count(client):
 
 
 def test_save_params_rejects_negative_mechanic_count(client):
-    _open_project("ASD")
+    _open_project("TST")
     resp = client.post(
         "/api/wizard/project/params",
-        json={"set_code": "ASD", "mechanic_count": -1},
+        json={"set_code": "TST", "mechanic_count": -1},
     )
     assert resp.status_code == 400
 
@@ -140,36 +140,36 @@ def test_save_params_rejects_mechanic_count_above_max(client):
     """
     from mtgai.generation.mechanic_generator import MAX_MECHANIC_COUNT
 
-    _open_project("ASD")
+    _open_project("TST")
     resp = client.post(
         "/api/wizard/project/params",
-        json={"set_code": "ASD", "mechanic_count": MAX_MECHANIC_COUNT + 1},
+        json={"set_code": "TST", "mechanic_count": MAX_MECHANIC_COUNT + 1},
     )
     assert resp.status_code == 400
     assert "maximum mechanics" in resp.json()["error"]
     # Boundary: exactly MAX_MECHANIC_COUNT is allowed.
     resp = client.post(
         "/api/wizard/project/params",
-        json={"set_code": "ASD", "mechanic_count": MAX_MECHANIC_COUNT},
+        json={"set_code": "TST", "mechanic_count": MAX_MECHANIC_COUNT},
     )
     assert resp.status_code == 200
 
 
 def test_save_params_blocks_set_size_change_post_pipeline(client):
     """set_size lives behind the cascade-clear gate once a pipeline-state.json exists."""
-    _open_project("ASD")
+    _open_project("TST")
     asset_dir = active_project.require_active_project().settings.asset_folder
     (Path(asset_dir) / "pipeline-state.json").write_text("{}", encoding="utf-8")
 
     resp = client.post(
         "/api/wizard/project/params",
-        json={"set_code": "ASD", "set_size": 99},
+        json={"set_code": "TST", "set_size": 99},
     )
     assert resp.status_code == 409
     # set_name change is still allowed in the same call.
     resp_ok = client.post(
         "/api/wizard/project/params",
-        json={"set_code": "ASD", "set_name": "Updated"},
+        json={"set_code": "TST", "set_name": "Updated"},
     )
     assert resp_ok.status_code == 200
 
@@ -180,11 +180,11 @@ def test_save_params_blocks_set_size_change_post_pipeline(client):
 
 
 def test_save_theme_input_pdf(client):
-    _open_project("ASD")
+    _open_project("TST")
     resp = client.post(
         "/api/wizard/project/theme-input",
         json={
-            "set_code": "ASD",
+            "set_code": "TST",
             "kind": "pdf",
             "upload_id": "abcd1234",
             "filename": "pitch.pdf",
@@ -199,18 +199,18 @@ def test_save_theme_input_pdf(client):
 
 
 def test_save_theme_input_blocks_kind_change_post_pipeline(client):
-    _open_project("ASD")
+    _open_project("TST")
     asset_dir = active_project.require_active_project().settings.asset_folder
     (Path(asset_dir) / "pipeline-state.json").write_text("{}", encoding="utf-8")
     # First commit: existing — works (matches seeded default).
     client.post(
         "/api/wizard/project/theme-input",
-        json={"set_code": "ASD", "kind": "none"},
+        json={"set_code": "TST", "kind": "none"},
     )
     # Now try to swap kinds — gated.
     resp = client.post(
         "/api/wizard/project/theme-input",
-        json={"set_code": "ASD", "kind": "existing"},
+        json={"set_code": "TST", "kind": "existing"},
     )
     assert resp.status_code == 409
 
@@ -221,27 +221,27 @@ def test_save_theme_input_blocks_kind_change_post_pipeline(client):
 
 
 def test_save_break_toggles_on_and_off(client):
-    _open_project("ASD")
+    _open_project("TST")
     resp_on = client.post(
         "/api/wizard/project/breaks",
-        json={"set_code": "ASD", "stage_id": "card_gen", "review": True},
+        json={"set_code": "TST", "stage_id": "card_gen", "review": True},
     )
     assert resp_on.status_code == 200
     assert active_project.require_active_project().settings.break_points == {"card_gen": "review"}
 
     resp_off = client.post(
         "/api/wizard/project/breaks",
-        json={"set_code": "ASD", "stage_id": "card_gen", "review": False},
+        json={"set_code": "TST", "stage_id": "card_gen", "review": False},
     )
     assert resp_off.status_code == 200
     assert active_project.require_active_project().settings.break_points == {}
 
 
 def test_save_break_human_review_stage_can_be_unchecked(client):
-    _open_project("ASD")
+    _open_project("TST")
     resp = client.post(
         "/api/wizard/project/breaks",
-        json={"set_code": "ASD", "stage_id": "human_art_review", "review": False},
+        json={"set_code": "TST", "stage_id": "human_art_review", "review": False},
     )
     assert resp.status_code == 200
     assert (
@@ -254,17 +254,17 @@ def test_save_break_mechanics_can_be_unchecked(client):
     best candidates and writes ``approved.json`` itself, so it can
     auto-continue. Unchecking its pause is allowed.
     """
-    _open_project("ASD")
+    _open_project("TST")
     # Setting it back to review is fine (it's the default).
     resp_on = client.post(
         "/api/wizard/project/breaks",
-        json={"set_code": "ASD", "stage_id": "mechanics", "review": True},
+        json={"set_code": "TST", "stage_id": "mechanics", "review": True},
     )
     assert resp_on.status_code == 200
     # Unchecking now succeeds — the AI picker makes the stage self-sufficient.
     resp_off = client.post(
         "/api/wizard/project/breaks",
-        json={"set_code": "ASD", "stage_id": "mechanics", "review": False},
+        json={"set_code": "TST", "stage_id": "mechanics", "review": False},
     )
     assert resp_off.status_code == 200
     assert active_project.require_active_project().settings.break_points["mechanics"] == "auto"
@@ -272,7 +272,7 @@ def test_save_break_mechanics_can_be_unchecked(client):
 
 def test_break_points_payload_marks_no_structural_rows(client):
     """No stage is structural today — the AI picker freed ``mechanics``."""
-    _open_project("ASD")
+    _open_project("TST")
     resp = client.get("/api/wizard/project")
     by_id = {bp["stage_id"]: bp for bp in resp.json()["break_points"]}
     assert by_id["mechanics"]["structural"] is False
@@ -285,24 +285,24 @@ def test_break_points_payload_marks_no_structural_rows(client):
 
 
 def test_save_model_llm(client):
-    _open_project("ASD")
+    _open_project("TST")
     resp = client.post(
         "/api/wizard/project/models",
-        json={"set_code": "ASD", "kind": "llm", "stage_id": "card_gen", "value": "haiku"},
+        json={"set_code": "TST", "kind": "llm", "stage_id": "card_gen", "value": "haiku"},
     )
     assert resp.status_code == 200
     assert active_project.require_active_project().settings.llm_assignments["card_gen"] == "haiku"
 
 
 def test_save_model_effort_clears_on_empty_value(client):
-    _open_project("ASD")
+    _open_project("TST")
     # Default has card_gen effort = max
     assert (
         active_project.require_active_project().settings.effort_overrides.get("card_gen") == "max"
     )
     resp = client.post(
         "/api/wizard/project/models",
-        json={"set_code": "ASD", "kind": "effort", "stage_id": "card_gen", "value": ""},
+        json={"set_code": "TST", "kind": "effort", "stage_id": "card_gen", "value": ""},
     )
     assert resp.status_code == 200
     assert "card_gen" not in active_project.require_active_project().settings.effort_overrides
@@ -317,14 +317,14 @@ def test_apply_preset_replaces_models_and_breaks_only(client):
     """Built-in presets travel with model + break-point changes; per-set
     set_params and theme_input are kept."""
     _open_project(
-        "ASD",
+        "TST",
         set_params=ms.SetParams(set_name="MySet", set_size=80),
         theme_input=ms.ThemeInputSource(kind="pdf", filename="x.pdf"),
     )
 
     resp = client.post(
         "/api/wizard/project/preset/apply",
-        json={"set_code": "ASD", "name": "all-haiku"},
+        json={"set_code": "TST", "name": "all-haiku"},
     )
     assert resp.status_code == 200
     after = active_project.require_active_project().settings
@@ -336,17 +336,17 @@ def test_apply_preset_replaces_models_and_breaks_only(client):
 
 
 def test_apply_preset_rejects_unknown_name(client):
-    _open_project("ASD")
+    _open_project("TST")
     resp = client.post(
         "/api/wizard/project/preset/apply",
-        json={"set_code": "ASD", "name": "does-not-exist"},
+        json={"set_code": "TST", "name": "does-not-exist"},
     )
     assert resp.status_code == 400
 
 
 def test_save_profile_excludes_set_params_and_theme_input(client):
     _open_project(
-        "ASD",
+        "TST",
         set_params=ms.SetParams(set_name="MySet", set_size=80),
         theme_input=ms.ThemeInputSource(kind="pdf", filename="x.pdf"),
     )
@@ -356,7 +356,7 @@ def test_save_profile_excludes_set_params_and_theme_input(client):
 
     resp = client.post(
         "/api/wizard/project/preset/save",
-        json={"set_code": "ASD", "name": "my-template"},
+        json={"set_code": "TST", "name": "my-template"},
     )
     assert resp.status_code == 200
     import tomllib
@@ -375,15 +375,15 @@ def test_save_profile_excludes_set_params_and_theme_input(client):
 
 
 def test_start_with_no_input_returns_400(client):
-    _open_project("ASD")
-    resp = client.post("/api/wizard/project/start", json={"set_code": "ASD"})
+    _open_project("TST")
+    resp = client.post("/api/wizard/project/start", json={"set_code": "TST"})
     assert resp.status_code == 400
 
 
 def test_start_with_existing_skips_extraction(client):
     """kind=existing already has theme.json on disk — Start just navigates."""
-    _open_project("ASD", theme_input=ms.ThemeInputSource(kind="existing"))
-    resp = client.post("/api/wizard/project/start", json={"set_code": "ASD"})
+    _open_project("TST", theme_input=ms.ThemeInputSource(kind="existing"))
+    resp = client.post("/api/wizard/project/start", json={"set_code": "TST"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["extraction_started"] is False
@@ -392,19 +392,19 @@ def test_start_with_existing_skips_extraction(client):
 
 def test_start_with_pdf_needs_live_upload(client):
     """If theme_input.upload_id has expired from cache, return 410."""
-    _open_project("ASD")
+    _open_project("TST")
     # Save a theme-input pointing at a non-existent upload_id.
     client.post(
         "/api/wizard/project/theme-input",
         json={
-            "set_code": "ASD",
+            "set_code": "TST",
             "kind": "pdf",
             "upload_id": "ghosted0",
             "filename": "x.pdf",
             "char_count": 100,
         },
     )
-    resp = client.post("/api/wizard/project/start", json={"set_code": "ASD"})
+    resp = client.post("/api/wizard/project/start", json={"set_code": "TST"})
     assert resp.status_code == 410
 
 
@@ -415,7 +415,7 @@ def test_malformed_body_returns_400_not_500(client):
     then the body parse — a malformed payload short-circuits with 400 instead of
     bubbling up as a 500.
     """
-    _open_project("ASD")
+    _open_project("TST")
     resp = client.post("/api/wizard/project/breaks", content=b"this is not json")
     assert resp.status_code == 400
     assert "valid JSON" in resp.json()["error"]

@@ -9,11 +9,11 @@ Runs after the AI review pipeline completes.  For every card in the set:
 5. Save the card back to disk
 6. Collect remaining MANUAL errors for human review
 
-Produces a markdown report in ``output/sets/<SET>/reports/finalize-report.md``
+Produces a markdown report in the active project's ``reports/finalize-report.md``
 listing all MANUAL errors the human reviewer should check.
 
 Usage:
-    python -m mtgai.review finalize [--set ASD] [--dry-run]
+    python -m mtgai.review finalize [--dry-run]
 """
 
 from __future__ import annotations

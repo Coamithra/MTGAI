@@ -38,6 +38,24 @@ app = typer.Typer(
 
 console = Console()
 
+# The review CLI is set-agnostic: artifact paths resolve through the active
+# project's asset_folder (``set_artifact_dir``), so ``--set`` is only the
+# display label. When omitted it falls back to the active project's set_code,
+# then to a neutral placeholder — never a hardcoded example set.
+SetOption = Annotated[
+    str | None,
+    typer.Option("--set", "-s", help="Set code label (defaults to the active project)."),
+]
+
+
+def _resolve_set_code(set_code: str | None) -> str:
+    """Resolve the display set code from the flag, the active project, or a placeholder."""
+    if set_code:
+        return set_code
+    from mtgai.runtime.runtime_state import resolve_active_set_code
+
+    return resolve_active_set_code() or "SET"
+
 
 # ---------------------------------------------------------------------------
 # review list
@@ -46,7 +64,7 @@ console = Console()
 
 @app.command("list")
 def list_slots(
-    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code to review.")] = "ASD",
+    set_code: SetOption = None,
     color: Annotated[
         str | None,
         typer.Option(
@@ -168,9 +186,10 @@ def list_slots(
 @app.command("show")
 def show_slot(
     slot_id: Annotated[str, typer.Argument(help="Slot ID to show (e.g., W-C-01).")],
-    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code to review.")] = "ASD",
+    set_code: SetOption = None,
 ) -> None:
     """Show detail for a single skeleton slot or generated card."""
+    set_code = _resolve_set_code(set_code)
     try:
         result = load_skeleton(set_code)
     except FileNotFoundError as e:
@@ -214,12 +233,13 @@ def show_slot(
 
 @app.command("stats")
 def show_stats(
-    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code to review.")] = "ASD",
+    set_code: SetOption = None,
     detailed: Annotated[
         bool, typer.Option("--detailed", "-d", help="Show per-color breakdown.")
     ] = False,
 ) -> None:
     """Show set-level statistics dashboard."""
+    set_code = _resolve_set_code(set_code)
     try:
         result = load_skeleton(set_code)
     except FileNotFoundError as e:
@@ -317,7 +337,6 @@ def _print_per_color_breakdown(result: SkeletonResult) -> None:
 
 @app.command("ai-review")
 def ai_review(
-    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code to review.")] = "ASD",
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Show plan without calling LLM.")
     ] = False,
@@ -336,7 +355,6 @@ def ai_review(
     from mtgai.review.ai_review import review_set
 
     review_set(
-        set_code=set_code,
         dry_run=dry_run,
         card_filter=card,
         skip_lands=not include_lands,
@@ -351,7 +369,6 @@ def ai_review(
 
 @app.command("finalize")
 def finalize(
-    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code.")] = "ASD",
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Show what would change without saving.")
     ] = False,
@@ -363,11 +380,12 @@ def finalize(
     """Post-review finalization: inject reminder text, re-validate, auto-fix."""
     import logging
 
+    from mtgai.io.asset_paths import set_artifact_dir
     from mtgai.review.finalize import finalize_set
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    summary = finalize_set(set_code, dry_run=dry_run, card_filter=card)
+    summary = finalize_set(dry_run=dry_run, card_filter=card)
 
     # Rich summary
     console.print()
@@ -384,7 +402,7 @@ def finalize(
         console.print()
         console.print(
             f"[yellow]MANUAL errors found — see "
-            f"output/sets/{set_code}/reports/finalize-report.md[/yellow]"
+            f"{set_artifact_dir() / 'reports' / 'finalize-report.md'}[/yellow]"
         )
 
 
@@ -395,24 +413,23 @@ def finalize(
 
 @app.command("serve")
 def serve(
-    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code.")] = "ASD",
     port: Annotated[int, typer.Option("--port", "-p", help="Server port.")] = 8080,
     open_browser: Annotated[bool, typer.Option("--open", help="Open browser on startup.")] = False,
 ) -> None:
-    """Start the local review server (FastAPI + uvicorn)."""
-    import os
+    """Start the local review server (FastAPI + uvicorn).
+
+    The active project is chosen in the wizard (New / Open), not on the CLI;
+    artifact paths resolve from the open project's asset folder.
+    """
     import threading
     import webbrowser
 
     import uvicorn
 
-    # Set the set_code for the server via environment variable
-    os.environ["MTGAI_REVIEW_SET"] = set_code
-
     if open_browser:
         threading.Timer(1.5, lambda: webbrowser.open(f"http://localhost:{port}")).start()
 
-    console.print(f"[bold]Starting MTGAI server for {set_code} on port {port}...[/bold]")
+    console.print(f"[bold]Starting MTGAI server on port {port}...[/bold]")
     console.print(f"  Wizard:   http://localhost:{port}/pipeline")
     console.print(f"  Settings: http://localhost:{port}/settings")
     console.print("[dim]Press Ctrl+C to stop.[/dim]")
@@ -455,7 +472,7 @@ def _load_cards_for_export(set_code: str):
 
 @export_app.command("csv")
 def export_csv_cmd(
-    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code to export.")] = "ASD",
+    set_code: SetOption = None,
     out: Annotated[str, typer.Option("--out", "-o", help="Output CSV file path.")] = "cards.csv",
 ) -> None:
     """Export cards to a flat CSV spreadsheet (one row per card, key fields)."""
@@ -463,6 +480,7 @@ def export_csv_cmd(
 
     from mtgai.review.exporters import export_csv
 
+    set_code = _resolve_set_code(set_code)
     cards = _load_cards_for_export(set_code)
     if not cards:
         console.print(f"[yellow]No cards found for set {set_code}; nothing to export.[/yellow]")
@@ -475,7 +493,7 @@ def export_csv_cmd(
 
 @export_app.command("json")
 def export_json_cmd(
-    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code to export.")] = "ASD",
+    set_code: SetOption = None,
     out: Annotated[str, typer.Option("--out", "-o", help="Output JSON file path.")] = "cards.json",
 ) -> None:
     """Export full card data to a single JSON file (list of card objects)."""
@@ -483,6 +501,7 @@ def export_json_cmd(
 
     from mtgai.review.exporters import export_json
 
+    set_code = _resolve_set_code(set_code)
     cards = _load_cards_for_export(set_code)
     if not cards:
         console.print(f"[yellow]No cards found for set {set_code}; nothing to export.[/yellow]")
@@ -495,7 +514,7 @@ def export_json_cmd(
 
 @export_app.command("print")
 def export_print_cmd(
-    set_code: Annotated[str, typer.Option("--set", "-s", help="Set code to export.")] = "ASD",
+    set_code: SetOption = None,
     out: Annotated[
         str, typer.Option("--out", "-o", help="Output directory for copied renders.")
     ] = "print/",
@@ -506,6 +525,7 @@ def export_print_cmd(
     from mtgai.io.asset_paths import NoAssetFolderError, set_artifact_dir
     from mtgai.review.exporters import export_print
 
+    set_code = _resolve_set_code(set_code)
     cards = _load_cards_for_export(set_code)
     if not cards:
         console.print(f"[yellow]No cards found for set {set_code}; nothing to export.[/yellow]")

@@ -431,13 +431,13 @@ def format_setting_prose(theme: dict | None) -> str:
     """Build the set-flavor section from ``theme.json`` setting prose.
 
     Reads the prose fields the theme extractor writes, tolerating any
-    setting's shape (no hardcoded ASD structure, no required keys):
+    setting's shape (no hardcoded legacy structure, no required keys):
 
     * ``name`` — display name (optional)
-    * ``theme`` — a one-line premise (optional; older ASD-style themes)
+    * ``theme`` — a one-line premise (optional; older short-form themes)
     * ``setting`` / ``flavor_description`` — the multi-paragraph setting prose.
       The pipeline (``_persist_extraction_to_theme_json``) writes the full
-      world document to ``setting``; ASD-style themes use ``flavor_description``.
+      world document to ``setting``; short-form themes use ``flavor_description``.
     * ``flavor_text_guidelines.tone`` — flavor-text tone hint (optional)
 
     Returns an empty string when no prose is present, so the caller can

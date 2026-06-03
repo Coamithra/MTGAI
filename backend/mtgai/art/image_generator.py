@@ -10,7 +10,7 @@ Prerequisites:
     - Art prompts already generated on card JSONs (see prompt_builder.py)
 
 CLI usage:
-    python -m mtgai.art.image_generator --set ASD [--card W-C-01] [--dry-run]
+    python -m mtgai.art.image_generator --mtg path/to/project.mtg [--card W-C-01] [--dry-run]
 """
 
 import argparse

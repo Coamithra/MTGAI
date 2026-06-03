@@ -1267,7 +1267,7 @@ class TextEngine:
     ) -> None:
         """Render collector info text in the bottom bar.
 
-        Format: ``"W-C-01/66 ASD * C"`` (using bullet separator).
+        Format: ``"W-C-01/66 AVR * C"`` (using bullet separator).
 
         Args:
             img: PIL Image to draw on.

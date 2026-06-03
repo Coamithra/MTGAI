@@ -1,6 +1,6 @@
 # MTGAI Project Conventions
 
-> **ASD is legacy — do not use it.** ASD was the original hand-built set and the project's first target; the toolchain is now set-agnostic and ASD is not used for anything. It survives only as the default `--set`/`set_code` value, the pre-existing tracked files under `output/sets/ASD/` (`cards/`, `mechanics/`, `reports/`), and incidental references in code/docs. Treat all of it as dead weight: don't build on it, don't generate into it, and don't cite it as the example set. New work uses the wizard's per-project `.mtg` flow with the user-picked asset folder.
+> **ASD is legacy — do not use it.** ASD was the original hand-built set and the project's first target; the toolchain is now set-agnostic and ASD is not used for anything. It is no longer a default `--set`/`set_code` value anywhere in the app (the CLI resolves the set code from the active project; artifact paths come from the project's `asset_folder`). It survives only as the pre-existing tracked files under `output/sets/ASD/` (`cards/`, `mechanics/`, `reports/`) — kept purely as a historical artefact — plus a few incidental mentions in standalone dev scripts and historical docs/learnings. Treat all of it as dead weight: don't build on it, don't generate into it, and don't cite it as the example set. New work uses the wizard's per-project `.mtg` flow with the user-picked asset folder.
 
 ## Trello Board
 - **Board**: [MTGAI](https://trello.com/b/Am3RvaZM) — id `69f86a83`

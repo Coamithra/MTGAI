@@ -6,7 +6,7 @@ based on prompt adherence, visual quality, and absence of AI artifacts.
 Uses Haiku vision (cheap + fast) to evaluate images.
 
 CLI usage:
-    python -m mtgai.art.art_selector --set ASD [--card W-C-01] [--dry-run]
+    python -m mtgai.art.art_selector --mtg path/to/project.mtg [--card W-C-01] [--dry-run]
 """
 
 import argparse
@@ -425,7 +425,7 @@ def generate_selection_report() -> Path:
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>ASD Art Selection Report — AI Review</title>
+<title>Art Selection Report — AI Review</title>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{
@@ -499,7 +499,7 @@ def generate_selection_report() -> Path:
 </head>
 <body>
 
-<h1>ASD Art Selection Report — AI Review</h1>
+<h1>Art Selection Report — AI Review</h1>
 <p class="subtitle">{subtitle}</p>
 
 {"".join(cards_html)}

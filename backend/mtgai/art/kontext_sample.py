@@ -11,8 +11,8 @@ This allows side-by-side comparison to evaluate character consistency.
 
 Output: output/sets/<SET>/art-direction/kontext-samples/
 
-CLI usage:
-    python -m mtgai.art.kontext_sample --set ASD [--dry-run]
+CLI usage (legacy A/B tooling, not migrated to the .mtg flow):
+    python -m mtgai.art.kontext_sample --set <CODE> [--dry-run]
 """
 
 import argparse

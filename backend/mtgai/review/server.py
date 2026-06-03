@@ -1,7 +1,7 @@
 """FastAPI server for the MTGAI wizard. Localhost-only, no auth, no CORS.
 
 Start via CLI:
-    python -m mtgai.review serve --set ASD --port 8080
+    python -m mtgai.review serve --port 8080
 
 Or directly:
     uvicorn mtgai.review.server:app --host 127.0.0.1 --port 8080
