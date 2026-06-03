@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -90,38 +89,9 @@ def _rarity_letter(rarity_value: str) -> str:
 # ---------------------------------------------------------------------------
 # Text rendering helpers (standalone, no TextEngine dependency)
 #
-# These provide basic text layout directly. When text_engine.py is
-# ready, CardRenderer can delegate to it instead.
+# Oracle/flavor text-box rendering is delegated to TextEngine; this helper
+# only handles simple centered labels (e.g. the P/T box).
 # ---------------------------------------------------------------------------
-
-
-def _wrap_text(
-    text: str,
-    font,
-    max_width: int,
-) -> list[str]:
-    """Word-wrap text to fit within max_width pixels.
-
-    Splits on spaces and builds lines greedily.
-    """
-    words = text.split(" ")
-    lines: list[str] = []
-    current_line = ""
-
-    for word in words:
-        if not word:
-            continue
-        test = f"{current_line} {word}".strip()
-        if font.getlength(test) <= max_width:
-            current_line = test
-        else:
-            if current_line:
-                lines.append(current_line)
-            current_line = word
-    if current_line:
-        lines.append(current_line)
-
-    return lines if lines else [""]
 
 
 def _draw_text_centered(
@@ -139,10 +109,6 @@ def _draw_text_centered(
     x = box.left + (box.width - tw) // 2
     y = box.top + (box.height - th) // 2 - bbox[1] + y_offset
     draw.text((x, y), text, font=font, fill=color)
-
-
-# MANA_SYMBOL_RE for inline symbol parsing in rules text
-MANA_SYMBOL_RE = re.compile(r"\{([^}]+)\}")
 
 
 # ---------------------------------------------------------------------------
@@ -642,96 +608,6 @@ class CardRenderer:
             NATIVE_TEXT_BOX,
             has_pt=has_pt,
         )
-
-    def _render_text_with_symbols(
-        self,
-        canvas: Image.Image,
-        draw: ImageDraw.ImageDraw,
-        text: str,
-        font,
-        bold_font,
-        x: int,
-        y: int,
-        max_width: int,
-        color: tuple[int, int, int],
-        line_spacing: int,
-        sym_size: int,
-    ) -> int:
-        """Render a single ability line with inline mana symbols.
-
-        Returns the Y position after the last line.
-        """
-        # Check if this is a simple keyword (single word, no symbols)
-        words_check = text.split()
-        is_keyword = (
-            len(words_check) == 1
-            and not MANA_SYMBOL_RE.search(text)
-            and words_check[0][0].isupper()
-        )
-
-        if not MANA_SYMBOL_RE.search(text):
-            # Plain text — use bold for keywords
-            use_font = bold_font if is_keyword else font
-            wrapped = _wrap_text(text, use_font, max_width)
-            for line in wrapped:
-                draw.text((x, y), line, font=use_font, fill=color)
-                lbbox = use_font.getbbox(line)
-                lh = lbbox[3] - lbbox[1] if lbbox else sym_size
-                y += lh + line_spacing
-            return y
-
-        # Parse into segments: text and symbol runs
-        segments: list[tuple[str, str]] = []
-        last_end = 0
-        for match in MANA_SYMBOL_RE.finditer(text):
-            if match.start() > last_end:
-                segments.append(("text", text[last_end : match.start()]))
-            segments.append(("symbol", match.group(1)))
-            last_end = match.end()
-        if last_end < len(text):
-            segments.append(("text", text[last_end:]))
-
-        cur_x = x
-        cur_y = y
-        line_height = sym_size + 4
-        sym_gap = round(3 * NATIVE_SCALE)
-
-        for seg_type, content in segments:
-            if seg_type == "symbol":
-                sym_img = get_mana_symbol(content, sym_size)
-                if cur_x + sym_size > x + max_width and cur_x > x:
-                    cur_x = x
-                    cur_y += line_height + line_spacing
-                canvas.paste(sym_img, (cur_x, cur_y), sym_img)
-                cur_x += sym_size + sym_gap
-            else:
-                words = content.split(" ")
-                for word in words:
-                    if not word:
-                        cur_x += round(font.getlength(" "))
-                        continue
-                    word_w = font.getlength(word)
-                    space_w = font.getlength(" ")
-                    if cur_x > x:
-                        total_w = space_w + word_w
-                        prefix = " "
-                    else:
-                        total_w = word_w
-                        prefix = ""
-                    if cur_x + total_w > x + max_width and cur_x > x:
-                        cur_x = x
-                        cur_y += line_height + line_spacing
-                        prefix = ""
-                    draw.text(
-                        (cur_x, cur_y),
-                        prefix + word,
-                        font=font,
-                        fill=color,
-                    )
-                    cur_x = round(cur_x + font.getlength(prefix + word))
-
-        cur_y += line_height + line_spacing
-        return cur_y
 
     def _render_pt_box(
         self,

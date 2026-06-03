@@ -157,7 +157,7 @@ def _download_image(filename: str, subfolder: str = "") -> bytes:
     params = f"filename={filename}"
     if subfolder:
         params += f"&subfolder={subfolder}"
-    resp = urllib.request.urlopen(f"{COMFYUI_URL}/view?{params}")
+    resp = urllib.request.urlopen(f"{COMFYUI_URL}/view?{params}", timeout=120)
     return resp.read()
 
 

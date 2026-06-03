@@ -446,7 +446,7 @@ def generate_prompts_for_set(
             atomic_write_text(log_path, json.dumps(log_entry, indent=2))
 
             if not dry_run:
-                card.art_prompt = full_prompt
+                card = card.model_copy(update={"art_prompt": full_prompt})
                 save_card(card, set_dir=set_dir)
 
             processed += 1
