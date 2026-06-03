@@ -37,6 +37,15 @@ class EventBus:
         # /pipeline (a common race during the redirect) are lost — and
         # short stages like skeleton could complete entirely in that gap.
         self._buffer: list[dict[str, Any]] = []
+        # The event loop the SSE consumers await on. Captured at first
+        # subscribe() rather than in __init__, which runs at module import
+        # before uvicorn's loop exists. publish() (called from the engine's
+        # daemon thread) must hand events to the queues via this loop:
+        # asyncio.Queue is NOT thread-safe — put_nowait wakes a pending
+        # getter through loop.call_soon, which must run on the loop thread,
+        # so a raw cross-thread put_nowait can fail to wake a consumer
+        # blocked in ``await queue.get()``.
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     def reset_buffer(self) -> None:
         """Drop the replay buffer. Call when a fresh pipeline run starts."""
@@ -49,11 +58,23 @@ class EventBus:
         New subscribers receive the full event log (subject to
         ``_MAX_BUFFERED_EVENTS``) before tailing live events, so a
         late-attaching browser still sees everything the engine emitted.
+
+        Captures the running event loop on first call — this is the loop the
+        SSE consumers ``await queue.get()`` on, and the one ``publish()`` must
+        schedule queue writes onto. Must be called from within the loop
+        (it is: the ``/events`` endpoint is an async coroutine).
         """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:  # pragma: no cover - subscribe is always called from the loop
+            loop = None
         q: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=10_240)
         with self._lock:
+            if loop is not None:
+                self._loop = loop
             # Replay first so historical events arrive in order, then
-            # the queue tails live ones.
+            # the queue tails live ones. Replay runs on the loop thread
+            # (subscribe is awaited there), so a direct put_nowait is safe.
             for past in self._buffer:
                 try:
                     q.put_nowait(past)
@@ -76,6 +97,16 @@ class EventBus:
 
         Also appends to the replay buffer so late-attaching subscribers
         get the full run history.
+
+        Delivery to each subscriber queue is scheduled onto the captured
+        event loop via ``loop.call_soon_threadsafe`` — this is the only
+        thread-safe way to feed an ``asyncio.Queue``, and it works whether
+        the caller is on the loop thread or a worker/daemon thread.
+        ``call_soon_threadsafe`` preserves submission order (FIFO on the
+        loop's ready queue), so per-publisher event ordering holds. If no
+        loop has been captured yet (a publish before any subscriber ever
+        attached) there is nothing to deliver to — the buffer still holds
+        the event for replay — so we degrade silently rather than crash.
         """
         event = {"type": event_type, "data": data}
         with self._lock:
@@ -84,12 +115,22 @@ class EventBus:
                 # Trim oldest in chunks so we don't pop one-by-one for every event.
                 excess = len(self._buffer) - self._MAX_BUFFERED_EVENTS
                 del self._buffer[:excess]
-            for q in self._subscribers:
-                try:
-                    q.put_nowait(event)
-                except asyncio.QueueFull:
-                    # Drop events if a client can't keep up — better than blocking
-                    logger.warning("SSE queue full, dropping event: %s", event_type)
+            loop = self._loop
+            subscribers = list(self._subscribers)
+
+        if loop is None:
+            return
+        for q in subscribers:
+            loop.call_soon_threadsafe(self._deliver, q, event)
+
+    @staticmethod
+    def _deliver(q: asyncio.Queue[dict[str, Any]], event: dict[str, Any]) -> None:
+        """Put an event on a subscriber queue. Runs on the loop thread."""
+        try:
+            q.put_nowait(event)
+        except asyncio.QueueFull:
+            # Drop events if a client can't keep up — better than blocking.
+            logger.warning("SSE queue full, dropping event: %s", event.get("type"))
 
     # -- Convenience publishers for common event types --
 
