@@ -106,6 +106,11 @@ models have no such pathology and keep their precise low temperature. Apply via
 def floor_for_local(base: float, model_id: str | None) -> float:
     """Raise ``base`` to :data:`LOCAL_REASONING_FLOOR` for a local reasoning model.
 
+    "Reasoning model" is the common case (every local registry entry today is an
+    adaptive-thinking Gemma), but the gate is simply ``provider == "llamacpp"``:
+    the near-greedy verbatim-loop is a *decode* pathology, not a thinking-only
+    one, so every local model is floored regardless of its ``thinking`` setting.
+
     Returns ``base`` unchanged when it is already at/above the floor, when no
     ``model_id`` is known, or when the model resolves to a non-local (Anthropic)
     model — so cloud objective stages keep their precise low temperature. The

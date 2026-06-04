@@ -102,6 +102,27 @@ def test_stream_flag_batch_keeps_cloud_base(monkeypatch):
     assert captured == [temps.PRECISE]
 
 
+def test_generate_gate_tool_floors_base_on_local(monkeypatch):
+    # The non-streaming gate wrapper floors its base the same way as the streamed
+    # one (caller-less today, but kept symmetric for future tool-call gates).
+    captured: list[float] = []
+
+    def fake_generate(**kwargs):
+        captured.append(kwargs.get("temperature"))
+        return {"result": {}}
+
+    monkeypatch.setattr(gate_common, "generate_with_tool", fake_generate)
+    gate_common.generate_gate_tool(
+        base_temperature=temps.PRECISE,
+        retries=0,
+        model=LOCAL_MODEL,
+        system_prompt="s",
+        user_prompt="u",
+        tool_schema={"name": "t", "input_schema": {}},
+    )
+    assert captured == [temps.LOCAL_REASONING_FLOOR]
+
+
 def test_gate_batch_sizes_are_small():
     # Small batches keep each call's reasoning space tractable so the local model
     # terminates instead of looping over a large combinatorial check.
