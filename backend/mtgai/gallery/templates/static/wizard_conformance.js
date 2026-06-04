@@ -191,13 +191,11 @@
         + '</div>';
     }
 
-    const pausedNote = (status === 'paused_for_review' && (result.flagged || []).length)
-      ? '<p class="wiz-gate-paused">These cards are left flagged for you '
-        + 'to edit or accept by hand before continuing.</p>'
-      : '';
-
+    // A flagging gate bounces straight to card_gen (no round cap), so it never
+    // pauses here with cards still flagged — the only pause left is a clean-pass
+    // break-point, which has nothing flagged to note.
     const checking = status === 'running' || (local && local.streaming);
-    return pausedNote + cardsHtml(rows, checking);
+    return cardsHtml(rows, checking);
   }
 
   // ---- source resolution (live stream overrides stale authoritative mid-run) --

@@ -459,8 +459,7 @@ class PipelineEngine:
         """Fresh PENDING instances for the canonical stage span ``rerun_from..gate_sid``.
 
         Each gets the next free ordinal for its stage_id and an AUTO review_mode
-        so the inserted span runs without pausing — only a re-flag bounces again
-        or, at the cap, pauses.
+        so the inserted span runs without pausing — only a re-flag bounces again.
         """
         canonical = [d["stage_id"] for d in STAGE_DEFINITIONS]
         defn_by_id = {d["stage_id"]: d for d in STAGE_DEFINITIONS}

@@ -87,7 +87,7 @@ _SPAN = ["card_gen", "conformance", "ai_review", "finalize"]
 
 
 # ----------------------------------------------------------------------
-# Engine insertion + exhaustion
+# Engine insertion + uncapped loop
 # ----------------------------------------------------------------------
 
 
