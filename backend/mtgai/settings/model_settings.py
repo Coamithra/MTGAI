@@ -62,6 +62,11 @@ LLM_STAGE_NAMES: dict[str, str] = {
     # appears in the per-stage Settings picker (the Art Generation rework card
     # decides its final shape).
     "art_select": "Art Selection",
+    # char_portraits ("Character References") needs BOTH an LLM (recurring-entity
+    # detection) and an image model (the neutral reference gen) — it appears in
+    # IMAGE_STAGE_NAMES too. The LLM key drives the detection call's model
+    # resolution (get_llm_model_id) + its per-stage Settings picker.
+    "char_portraits": "Character References (entity detection)",
 }
 
 IMAGE_STAGE_NAMES: dict[str, str] = {

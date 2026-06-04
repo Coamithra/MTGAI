@@ -505,6 +505,17 @@
       });
     });
 
+    // Art-prompt streaming: each card pops onto the Art Prompts tab as its
+    // LLM-authored prompt lands (art_prompt_card), with a reset before a forced
+    // re-run so the tab drops its prior local list (art_prompt_reset). Mirrors
+    // the card_gen stream; the Art Prompts tab listens via W.onArtPromptsStream.
+    ['art_prompt_card', 'art_prompt_reset'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onArtPromptsStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     // Conformance & Interactions streaming. The gate's two internal LLM steps
     // each emit a conformance_step the instant they return, so the tab's two
     // sections fill in independently rather than waiting for the whole stage.
@@ -540,6 +551,19 @@
     ['art_gen_reset', 'art_gen_card'].forEach(name => {
       state.eventSource.addEventListener(name, (e) => {
         const handler = (window.MTGAIWizard || {}).onArtGenStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
+    // Character References streaming. Each recurring entity pops onto the
+    // Character References tab as its image generation starts (char_refs_entity
+    // — tile + attached-cards list + a "generating" badge), then each saved
+    // version's image lands (char_refs_image — routes to the entity's tile). A
+    // single char_refs_reset fires before a from-scratch run. The Character
+    // References tab listens via the W.onCharPortraitsStream bridge.
+    ['char_refs_reset', 'char_refs_entity', 'char_refs_image'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onCharPortraitsStream;
         if (handler) handler(name, JSON.parse(e.data));
       });
     });
