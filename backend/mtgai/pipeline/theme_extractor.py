@@ -65,6 +65,11 @@ _LLAMACPP_STOP_SEQUENCES = [
 _JSON_SUBCALL_CONSTRAINTS_MAX_TOKENS = STANDARD
 _JSON_SUBCALL_SUGGESTIONS_MAX_TOKENS = STANDARD
 
+# Assistant-prefill seed for Anthropic json_mode subcalls: seeding the reply
+# with an open brace forces a bare JSON object and makes a ```json fence
+# structurally impossible (Anthropic has no response_format toggle).
+_JSON_PREFILL = "{"
+
 # Per-attempt repeat_penalty escalation for the JSON subcall retry loop.
 # Index = attempt-1. None means "use provider default" (1.1).
 #
@@ -1218,6 +1223,7 @@ def _stream_single_call(
             system_prompt,
             model_info,
             stream_to_ui,
+            json_mode=json_mode,
             step_label=step_label,
         )
     elif model_info.provider == "llamacpp":
@@ -1276,6 +1282,7 @@ def _stream_anthropic_call(
     system_prompt: str,
     model_info,
     stream_to_ui: bool,
+    json_mode: bool = False,
     step_label: str | None = None,
 ) -> Generator[dict, None, None]:
     """Single Anthropic streaming call via llmfacade.
@@ -1284,6 +1291,15 @@ def _stream_anthropic_call(
     auto_cache_tools=True (no tools here, but harmless). The cached prefix
     survives across calls within the 5-minute TTL window, so per-section
     multi-chunk runs share the system-block discount.
+
+    ``json_mode`` forces a JSON object reply via assistant **prefill**: a
+    seed ``{`` assistant turn is appended so the model continues *inside* an
+    object and structurally cannot wrap its output in a ```` ```json ````
+    fence (Anthropic has no ``response_format`` knob, and llmfacade's
+    Anthropic provider treats ``output_format`` as a no-op, so prefill is the
+    enforcement path). Anthropic does not echo the prefill, so the leading
+    ``{`` is prepended back onto the streamed text before it is returned.
+    The ``_strip_json_fence`` parse-time backstop stays as belt-and-braces.
     """
     from mtgai.generation.llm_client import _get_provider, calc_cost
 
@@ -1298,6 +1314,14 @@ def _stream_anthropic_call(
         log_max_message_lines=_LOG_MAX_MESSAGE_LINES,
     )
 
+    # Prefill an open brace so the reply is forced to be a bare JSON object.
+    # stream(prompt=None) below then continues from the seeded assistant turn.
+    stream_prompt: str | None = user_msg
+    if json_mode:
+        convo.add_user_message(user_msg)
+        convo.add_assistant_message(_JSON_PREFILL)
+        stream_prompt = None
+
     theme_text = ""
     last_usage = None
     cost = 0.0
@@ -1311,7 +1335,7 @@ def _stream_anthropic_call(
     }
     try:
         try:
-            for ev in convo.stream(user_msg):
+            for ev in convo.stream(stream_prompt):
                 if ai_lock.is_cancelled():
                     meta["outcome"] = "cancelled"
                     raise _CancelledError("cancelled mid-stream")
@@ -1323,6 +1347,11 @@ def _stream_anthropic_call(
                         yield {"type": "theme_chunk", "text": ev.text_delta}
                 if ev.usage is not None:
                     last_usage = ev.usage
+            # Anthropic omits the prefilled `{` from the reply; restore it so
+            # the caller parses a complete object. Guard against the rare case
+            # where the model echoed it anyway.
+            if json_mode and not theme_text.lstrip().startswith("{"):
+                theme_text = _JSON_PREFILL + theme_text
         except _CancelledError:
             raise
         except Exception as e:
@@ -1730,6 +1759,21 @@ def _detect_repetition_loop(text: str) -> str | None:
 # =============================================================================
 
 
+def _strip_json_fence(text: str) -> str:
+    """Strip a leading/trailing Markdown code fence around a JSON payload.
+
+    Even in json_mode, Anthropic models (notably Haiku) routinely wrap their
+    output in ```json ... ``` fences, which makes ``json.loads`` fail at pos 0.
+    Pull out the fenced body when present; otherwise return the trimmed text
+    unchanged so a bare-JSON response is left intact.
+    """
+    stripped = text.strip()
+    fence_match = re.search(r"```(?:json)?\s*\n?(.*?)```", stripped, re.DOTALL)
+    if fence_match:
+        return fence_match.group(1).strip()
+    return stripped
+
+
 def _attempt_json_subcall(
     theme_text: str,
     model_info,
@@ -1783,7 +1827,7 @@ def _attempt_json_subcall(
         return [], loop_err, raw
 
     try:
-        parsed = _json.loads(raw)
+        parsed = _json.loads(_strip_json_fence(raw))
     except _json.JSONDecodeError as exc:
         return [], f"Malformed JSON output ({exc.msg} at pos {exc.pos})", raw
 
