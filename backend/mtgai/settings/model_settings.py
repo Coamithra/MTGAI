@@ -43,30 +43,36 @@ LEGACY_CURRENT_TOML = SETTINGS_DIR / "current.toml"
 # Stage definitions — which stages use LLMs / image-gen
 # ---------------------------------------------------------------------------
 
-# stage_id -> human-readable name (only stages that use models)
+# stage_id -> human-readable name (only stages that use models). Ordered to
+# match the pipeline (STAGE_DEFINITIONS, with theme_extract first since it runs
+# before the engine) so every model-picker that iterates this dict renders the
+# rows in run order. This is the single source of truth for the per-stage LLM
+# picker in BOTH the cross-set /settings page and the wizard's Project Settings
+# tab (served verbatim in the /api/wizard/project payload); keep it complete so
+# new stages can't drift out of the picker.
 LLM_STAGE_NAMES: dict[str, str] = {
     "theme_extract": "Theme Extraction",
     "mechanics": "Mechanic Generation",
     "archetypes": "Archetype Generation",
     "skeleton": "Skeleton Generation",
-    "visual_refs": "Visual References & Artists",
     "reprints": "Reprint Selection",
     "lands": "Land Generation",
     "card_gen": "Card Generation",
     "conformance": "Conformance & Interactions",
     "ai_review": "AI Design Review",
+    "visual_refs": "Visual References & Artists",
     "art_prompts": "Art Prompt Generation",
+    # char_portraits ("Character References") needs BOTH an LLM (recurring-entity
+    # detection) and an image model (the neutral reference gen) — it appears in
+    # IMAGE_STAGE_NAMES too. The LLM key drives the detection call's model
+    # resolution (get_llm_model_id) + its per-stage Settings picker.
+    "char_portraits": "Character References (entity detection)",
     # art_select is no longer a standalone STAGE_DEFINITIONS stage (folded into
     # the merged art_gen). Its model-assignment key is intentionally KEPT so the
     # best-of-N selection sub-step inside run_art_gen still resolves a model and
     # appears in the per-stage Settings picker (the Art Generation rework card
     # decides its final shape).
     "art_select": "Art Selection",
-    # char_portraits ("Character References") needs BOTH an LLM (recurring-entity
-    # detection) and an image model (the neutral reference gen) — it appears in
-    # IMAGE_STAGE_NAMES too. The LLM key drives the detection call's model
-    # resolution (get_llm_model_id) + its per-stage Settings picker.
-    "char_portraits": "Character References (entity detection)",
 }
 
 IMAGE_STAGE_NAMES: dict[str, str] = {
@@ -117,6 +123,10 @@ DEFAULT_LLM_ASSIGNMENTS: dict[str, str] = {
     "conformance": _LOCAL_DEFAULT,
     "ai_review": _LOCAL_DEFAULT,
     "art_prompts": _LOCAL_DEFAULT,
+    # char_portraits' LLM key drives its recurring-entity detection call
+    # (get_llm_model_id("char_portraits")); without a default it fell back to
+    # cloud sonnet, silently breaking the local-by-default policy.
+    "char_portraits": _LOCAL_DEFAULT,
     "art_select": _LOCAL_DEFAULT,
 }
 
@@ -172,10 +182,12 @@ PRESETS: dict[str, dict] = {
             "skeleton": "sonnet",
             "visual_refs": "sonnet",
             "reprints": "haiku",
+            "lands": "haiku",
             "card_gen": "opus",
             "conformance": "sonnet",
             "ai_review": "opus",
             "art_prompts": "haiku",
+            "char_portraits": "haiku",
             "art_select": "haiku",
         },
         "image": {

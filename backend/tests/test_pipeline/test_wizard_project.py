@@ -93,6 +93,27 @@ def test_get_project_payload_shape(client):
     assert data["extraction_active"] is False
 
 
+def test_project_payload_serves_full_per_stage_model_lists(client):
+    """The model-assignment table is server-driven (llm_stages / image_stages),
+    mirroring LLM_STAGE_NAMES / IMAGE_STAGE_NAMES so the picker can't drift out
+    of sync with the stage registry. Both lists carry {id, label} rows, and the
+    formerly-missing stages (visual_refs, char_portraits) are present."""
+    from mtgai.settings.model_settings import IMAGE_STAGE_NAMES, LLM_STAGE_NAMES
+
+    _open_project("TST")
+    data = client.get("/api/wizard/project").json()
+
+    llm_ids = [row["id"] for row in data["llm_stages"]]
+    image_ids = [row["id"] for row in data["image_stages"]]
+    assert llm_ids == list(LLM_STAGE_NAMES)
+    assert image_ids == list(IMAGE_STAGE_NAMES)
+    # The bug this card fixed: these were absent from the picker.
+    assert "visual_refs" in llm_ids
+    assert "char_portraits" in llm_ids
+    # Every row has a non-empty label.
+    assert all(row["label"] for row in data["llm_stages"] + data["image_stages"])
+
+
 def test_get_project_payload_409_when_no_project_open(client):
     """Endpoint reads from the active project — 409 ``no_active_project`` when none is open.
 
