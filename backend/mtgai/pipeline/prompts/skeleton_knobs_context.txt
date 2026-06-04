@@ -36,7 +36,12 @@ The recurring ones (equipment, vehicles, auras, artifact creatures) are counts p
 theme wants more equipment; a sci-fi theme more artifact creatures; an enchantments
 theme more auras). `irregular_subtype_count` is how many deciduous "specials"
 (Sagas, Classes, Shrines, enchantment creatures) to weave in — most sets carry 0-2,
-so keep it small unless the theme is built on one. `subtype_jitter` randomizes the
+so keep it small unless the theme is built on one. Use `irregular_subtypes` to name
+WHICH ones fit the setting, most-fitting first (a myth/history theme → saga; a
+devotion/temple theme → shrine; an eerie/enchantment theme → enchantment_creature;
+a colored-artifact theme → colored_artifact), and set `irregular_subtype_count` to
+match how many you listed. Leave `irregular_subtypes` empty when the theme has no
+real preference — a seeded RNG then picks for you. `subtype_jitter` randomizes the
 counts a little; leave `subtype_seed` alone.
 
 ## Cycle spans

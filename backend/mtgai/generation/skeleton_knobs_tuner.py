@@ -55,10 +55,13 @@ def _fmt_num(v: float, kind: KnobKind) -> str:
 def build_tool_schema() -> dict:
     """Build the ``submit_skeleton_knobs`` tool schema from the knob specs.
 
-    One numeric property per scalar knob (range echoed in its description) plus a
-    ``cycles`` array. Generated from :data:`KNOB_SPECS` so the schema can never
-    drift from the validation bounds.
+    One numeric property per scalar knob (range echoed in its description), an
+    ``irregular_subtypes`` enum array (which deciduous specials the theme wants),
+    plus a ``cycles`` array. Generated from :data:`KNOB_SPECS` + the irregular
+    bucket so the schema can never drift from the validation bounds.
     """
+    from mtgai.skeleton.generator import IRREGULAR_SUBTYPE_NAMES
+
     properties: dict[str, Any] = {}
     for spec in KNOB_SPECS:
         properties[spec.key] = {
@@ -69,6 +72,17 @@ def build_tool_schema() -> dict:
                 + (f" {spec.help}" if spec.help else "")
             ),
         }
+    properties["irregular_subtypes"] = {
+        "type": "array",
+        "description": (
+            "WHICH deciduous 'special' subtypes the theme wants, most-fitting first "
+            "(e.g. a myth/history theme -> saga; a devotion/temple theme -> shrine; "
+            "an eerie/enchantment theme -> enchantment_creature). Pick up to "
+            "irregular_subtype_count of them and set that knob to match. Leave EMPTY "
+            "when the theme has no preference — a seeded RNG then picks for you."
+        ),
+        "items": {"type": "string", "enum": list(IRREGULAR_SUBTYPE_NAMES)},
+    }
     properties["cycles"] = {
         "type": "array",
         "description": "Structural cycles the theme calls for (often empty).",

@@ -1856,7 +1856,25 @@
   border-radius: 8px;
 }
 .wiz-skel-knob-prov.ai { color: #8fd3c4; background: #173029; }
+.wiz-skel-knob-prov.user { color: #d8c48f; background: #2e2717; }
 .wiz-skel-knob-prov.default { color: #999; background: #2a2a2c; }
+/* Irregular-subtype picker (Step 1) — which deciduous specials the theme weaves in. */
+.wiz-skel-irr-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.wiz-skel-irr-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  color: #ccc;
+  background: #15151f;
+  border: 1px solid #2a2a3e;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.wiz-skel-irr-pick.is-on { border-color: #4a9eff; background: #14202e; color: #eee; }
+.wiz-skel-irr-pick input { accent-color: #4a9eff; }
+.wiz-skel-irr-rank { color: #8fb6ff; font-size: 0.72rem; font-weight: 600; }
 .wiz-skel-knob-groups {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

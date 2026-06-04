@@ -58,6 +58,9 @@
     // Dropdown option lists for the cycle editor (spans / rarities / card_types),
     // from the backend (single source of truth); populated by bootstrap.
     cycleOptions: null,
+    // The irregular-subtype bucket the picker offers ({value,label}); the chosen
+    // members live on `knobs.irregular_subtypes` (theme-driven, RNG fills the rest).
+    irregularSubtypeOptions: [],
     knobsDefaulted: false,
     knobWarnings: [],
     // True once a knob is hand-edited but not yet applied: knob edits only rebuild
@@ -142,6 +145,9 @@
       local.knobSpecs = Array.isArray(data.knob_specs) ? data.knob_specs : [];
       local.cycles = Array.isArray(data.cycles) ? data.cycles : [];
       if (data.cycle_options) local.cycleOptions = data.cycle_options;
+      if (Array.isArray(data.irregular_subtype_options)) {
+        local.irregularSubtypeOptions = data.irregular_subtype_options;
+      }
       local.knobsDefaulted = !!data.knobs_defaulted;
       local.knobWarnings = Array.isArray(data.knob_warnings) ? data.knob_warnings : [];
       // Re-apply any provisional slots that streamed in before this fetch landed
@@ -204,6 +210,7 @@
       <p class="wiz-theme-section-desc">Theme-tuned structure for the skeleton — the AI proposes within research-derived ranges, you adjust. Pin a knob to keep it on a re-tune. Hand-edits take effect when you Refresh the skeleton (Step 2); "Refresh with AI" re-tunes them and rebuilds the skeleton for you.</p>
       ${warnHtml}
       <div class="wiz-skel-knob-groups" data-role="skel-knob-grid"></div>
+      <fieldset class="wiz-skel-cycle-box" data-role="irregular-picks"></fieldset>
       <fieldset class="wiz-skel-cycle-box">
         <legend>Cycles</legend>
         <p class="wiz-skel-cycle-blurb">Balance-preserving card families — one member per colour, pair, or trio, sharing a template. They're carved out of the rarity budget first. Add or edit them here; changes apply on the next Refresh.</p>
@@ -214,6 +221,7 @@
         Knob/cycle edits pending — Refresh the skeleton (Step 2) to rebuild from them.
       </div>`;
     renderKnobGrid(slot, disabled);
+    paintIrregularPicks(slot, disabled);
     const refresh = slot.querySelector('[data-role="knob-refresh"]');
     if (refresh) refresh.onclick = onKnobsRefresh;
     paintCycleList(slot, disabled);
@@ -252,6 +260,54 @@
         if (checked) local.knobs.pinned.push(key);
       },
     });
+  }
+
+  // Irregular-subtype picker: WHICH deciduous specials (saga/class/shrine/…) the
+  // theme weaves in. The order a member is checked is its preference order; the
+  // `irregular_subtype_count` knob caps how many actually apply, and an empty list
+  // hands the choice back to the seeded RNG. A hand-edit stamps 'user' provenance
+  // and flags the grid dirty, exactly like a knob edit (rebuild on next Refresh).
+  function paintIrregularPicks(slot, disabled) {
+    const box = slot.querySelector('[data-role="irregular-picks"]');
+    if (!box) return;
+    const opts = local.irregularSubtypeOptions || [];
+    if (!opts.length) { box.innerHTML = ''; box.hidden = true; return; }
+    box.hidden = false;
+    const picks = Array.isArray(local.knobs.irregular_subtypes)
+      ? local.knobs.irregular_subtypes : [];
+    const prov = (local.knobs.provenance || {}).irregular_subtypes || 'default';
+    const provLabel = prov === 'ai' ? 'AI' : (prov === 'user' ? 'edited' : 'auto');
+    const rows = opts.map(o => {
+      const rank = picks.indexOf(o.value);
+      const checked = rank >= 0;
+      const order = checked ? `<span class="wiz-skel-irr-rank">#${rank + 1}</span>` : '';
+      return `
+        <label class="wiz-skel-irr-pick${checked ? ' is-on' : ''}">
+          <input type="checkbox" data-role="irr-pick" value="${escAttr(o.value)}"
+                 ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}>
+          <span class="wiz-skel-irr-name">${escHtml(o.label)}</span>${order}
+        </label>`;
+    }).join('');
+    box.innerHTML = `
+      <legend>Irregular subtype picks <span class="wiz-skel-knob-prov ${prov}">${provLabel}</span></legend>
+      <p class="wiz-skel-cycle-blurb">Which deciduous "specials" the theme weaves in — saga, class, shrine, enchantment creature, colored artifact. Check those that fit (the order you check them is the preference order). The "Irregular subtypes" count above caps how many actually apply; leave all unchecked to let chance pick.</p>
+      <div class="wiz-skel-irr-list">${rows}</div>`;
+    box.querySelectorAll('[data-role="irr-pick"]').forEach(cb => {
+      cb.onchange = () => onIrregularToggle(cb.value, cb.checked, slot, disabled);
+    });
+  }
+
+  // Toggle one irregular-subtype pick, preserving check-order as preference order.
+  function onIrregularToggle(value, on, slot, disabled) {
+    let picks = Array.isArray(local.knobs.irregular_subtypes)
+      ? local.knobs.irregular_subtypes.slice() : [];
+    picks = picks.filter(v => v !== value);
+    if (on) picks.push(value);
+    local.knobs.irregular_subtypes = picks;
+    local.knobs.provenance = local.knobs.provenance || {};
+    local.knobs.provenance.irregular_subtypes = 'user';
+    setKnobsDirty(true);
+    paintIrregularPicks(slot, disabled);  // refresh the #rank badges
   }
 
   // ----------------------------------------------------------------------
@@ -375,6 +431,10 @@
   function knobValuesPayload() {
     const values = {};
     local.knobSpecs.forEach(s => { values[s.key] = local.knobs[s.key]; });
+    // Carry the theme-driven irregular-subtype picks inside `knobs` so a
+    // deterministic rebuild (/skeleton/knobs) preserves the choice instead of
+    // dropping it (an AI re-tune re-decides them regardless).
+    values.irregular_subtypes = local.knobs.irregular_subtypes || [];
     return {
       knobs: values,
       cycles: collectCycles(),
@@ -424,6 +484,9 @@
     if (Array.isArray(data.knob_specs)) local.knobSpecs = data.knob_specs;
     if (Array.isArray(data.cycles)) local.cycles = data.cycles;
     if (data.cycle_options) local.cycleOptions = data.cycle_options;
+    if (Array.isArray(data.irregular_subtype_options)) {
+      local.irregularSubtypeOptions = data.irregular_subtype_options;
+    }
     local.knobsDefaulted = !!data.knobs_defaulted;
     local.knobWarnings = Array.isArray(data.warnings) ? data.warnings : [];
     local.hasTweaked = local.slots.some(s => isChanged(s));
@@ -856,6 +919,7 @@
         '.wiz-skel-tweak', '[data-role="skel-refresh"]', '[data-role="knob-refresh"]',
         'input[data-knob]', 'input[data-knob-pin]', '[data-role="cycle-add"]',
         '.wiz-skel-cycle-item input', '.wiz-skel-cycle-item select', '.wiz-skel-cycle-item button',
+        '[data-role="irr-pick"]',
       ],
       footerSelector: '[data-role="skel-save-advance"]',
     });

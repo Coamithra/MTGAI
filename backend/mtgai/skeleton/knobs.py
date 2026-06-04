@@ -584,6 +584,13 @@ class SkeletonKnobs(BaseModel):
     irregular_subtype_count: int = 1
     subtype_jitter: float = 0.30
     subtype_seed: int = 0
+    # WHICH deciduous specials the theme wants (subtype values from the irregular
+    # bucket, in preference order). The AI tuner sets it; ``_assign_subtypes`` takes
+    # the first ``irregular_subtype_count`` and fills any remainder by seeded RNG, so
+    # an empty list = pure chance (the historical behaviour). Validated against the
+    # bucket in the generator (knobs.py can't import it — circular), so this stays a
+    # plain string list here; from_payload only normalizes shape, not membership.
+    irregular_subtypes: list[str] = Field(default_factory=list)
     # cycles
     cycles: list[Cycle] = Field(default_factory=list)
     # metadata (not clamped knobs)
@@ -678,6 +685,22 @@ class SkeletonKnobs(BaseModel):
             except Exception:  # drop malformed cycle, keep the rest
                 warnings.append("Dropped a malformed cycle entry")
 
+        # Theme-driven irregular-subtype picks: normalize shape only (lowercase,
+        # strip, dedupe, drop blanks/non-strings). Bucket membership is enforced
+        # later in the generator (knobs.py can't import the bucket). Stamp a single
+        # "irregular_subtypes" provenance key so the UI can badge the picks.
+        irregular_subtypes: list[str] = []
+        seen_subtypes: set[str] = set()
+        for item in data.get("irregular_subtypes") or []:
+            if not isinstance(item, str):
+                continue
+            norm = item.strip().lower()
+            if norm and norm not in seen_subtypes:
+                irregular_subtypes.append(norm)
+                seen_subtypes.add(norm)
+        if source and irregular_subtypes:
+            provenance["irregular_subtypes"] = source
+
         pinned = [
             k for k in (data.get("pinned") or []) if isinstance(k, str) and k in KNOB_SPEC_BY_KEY
         ]
@@ -685,10 +708,11 @@ class SkeletonKnobs(BaseModel):
         prov_override = data.get("provenance")
         if isinstance(prov_override, dict):
             for k, v in prov_override.items():
-                if k in KNOB_SPEC_BY_KEY and isinstance(v, str):
+                if (k in KNOB_SPEC_BY_KEY or k == "irregular_subtypes") and isinstance(v, str):
                     provenance[k] = v
 
         payload["cycles"] = cycles
+        payload["irregular_subtypes"] = irregular_subtypes
         payload["provenance"] = provenance
         payload["pinned"] = pinned
         return cls.model_validate(payload), warnings
@@ -707,24 +731,47 @@ class SkeletonKnobs(BaseModel):
         isn't already in ``base``) is kept alongside them, so the re-tune can still
         add a theme-driven family on top of the user's. If the user defined no
         cycles, the AI's proposed cycles (``self.cycles``) are kept as-is.
+
+        ``irregular_subtypes`` (theme-driven bucket picks) follow the same defensive
+        rule as cycles' structured nature: the AI's fresh picks win, but if it
+        returned none we fall back to ``base``'s so a re-roll can't silently wipe a
+        prior/hand-edited choice. (A re-tune is *meant* to re-decide them, so unlike
+        cycles a non-empty AI list fully replaces the base one.)
         """
         if base.cycles:
             base_ids = {c.id for c in base.cycles}
             cycles = list(base.cycles) + [c for c in self.cycles if c.id not in base_ids]
         else:
             cycles = self.cycles
+        # Only fall back to base's picks when the AI returned none AND base had some
+        # — so a both-empty re-tune still returns ``self`` unchanged below. Carry the
+        # picks' provenance too, else a carried 'user'/'ai' choice gets badged 'auto'.
+        carried_irregular = not self.irregular_subtypes and bool(base.irregular_subtypes)
+        irregular = base.irregular_subtypes if carried_irregular else self.irregular_subtypes
+        carried_prov = carried_irregular and "irregular_subtypes" in base.provenance
         if not base.pinned:
-            return self if cycles is self.cycles else self.model_copy(update={"cycles": cycles})
+            if cycles is self.cycles and not carried_irregular:
+                return self
+            update: dict[str, Any] = {"cycles": cycles, "irregular_subtypes": irregular}
+            if carried_prov:
+                update["provenance"] = {
+                    **self.provenance,
+                    "irregular_subtypes": base.provenance["irregular_subtypes"],
+                }
+            return self.model_copy(update=update)
         updates: dict[str, float] = {}
         provenance = dict(self.provenance)
         for key in base.pinned:
             if key in KNOB_SPEC_BY_KEY:
                 updates[key] = getattr(base, key)
                 provenance[key] = base.provenance.get(key, "user")
+        if carried_prov:
+            provenance["irregular_subtypes"] = base.provenance["irregular_subtypes"]
         return self.model_copy(
             update={
                 **updates,
                 "cycles": cycles,
+                "irregular_subtypes": irregular,
                 "provenance": provenance,
                 "pinned": list(base.pinned),
             }
