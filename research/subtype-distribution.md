@@ -55,6 +55,9 @@ count within its typical range:
 | Class | enchantment (colored) | 2–4 |
 | Shrine | enchantment (colored) | 1–5 |
 | Enchantment Creature | creature | 4–12 |
+| Colored (non-creature) Artifact | colored non-creature pool | 3–8 |
+
+**Colored artifacts** (colored non-creature artifacts) are an irregular special, not a standing dimension. A separate Scryfall pass over the same 12 sets counted them per set: ~0–11 in a normal set (FDN 1, OTJ 3, BLB 4, TDM/SPM 5, DSK 8, MKM 11) but spiking to 29–45 when artifacts are the theme (DFT 45, FIN 31, EOE 29). So the bucket delivers the occasional handful (3–8, drawn from the colored non-creature / enchantment slot pool and relabelled), while the `noncreature_artifact` bias knob remains the lever for a deliberate artifact-matters set.
 
 **Exclude:** Room, Case — each appeared in exactly one set with a set-bespoke
 identity. Per the card's rule ("if a type only exists in one set, it's special to

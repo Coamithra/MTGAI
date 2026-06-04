@@ -239,6 +239,43 @@ class TestIrregularBucket:
         _assign_subtypes(slots, knobs, set_size=277, set_code="TST")
         assert all(s.card_subtype not in _IRREGULAR for s in slots)
 
+    def test_colored_artifact_is_an_irregular_special(self):
+        spec = next(
+            (s for s in IRREGULAR_SUBTYPES if s.subtype == SlotCardSubtype.COLORED_ARTIFACT), None
+        )
+        assert spec is not None, "colored_artifact should be in the irregular bucket"
+        assert spec.colored is True  # colored non-creature pool only
+        assert spec.subtype not in {
+            SlotCardSubtype.EQUIPMENT,
+            SlotCardSubtype.VEHICLE,
+            SlotCardSubtype.AURA,
+            SlotCardSubtype.ARTIFACT_CREATURE,
+        }
+
+    def test_colored_artifact_never_lands_on_colorless_slots(self):
+        # Across many seeds, whenever colored_artifact is picked it must only label
+        # colored slots drawn from the (colored) non-creature pool, never colorless
+        # artifact slots.
+        seen = False
+        for seed in range(40):
+            slots = [_slot(f"a{i}", "colorless", "artifact") for i in range(20)]
+            slots += [_slot(f"e{i}", "R", "enchantment") for i in range(20)]
+            knobs = _knobs(
+                equipment_count=0,
+                vehicle_count=0,
+                aura_count=0,
+                artifact_creature_count=0,
+                irregular_subtype_count=3,
+                subtype_jitter=0.0,
+                subtype_seed=seed,
+            )
+            _assign_subtypes(slots, knobs, set_size=277, set_code="TST")
+            ca = [s for s in slots if s.card_subtype == SlotCardSubtype.COLORED_ARTIFACT]
+            if ca:
+                seen = True
+                assert all(s.color != "colorless" for s in ca)
+        assert seen, "colored_artifact should be picked for at least one seed"
+
 
 class TestRenderLabel:
     def test_render_slot_string_shows_subtype_label(self):
@@ -253,3 +290,7 @@ class TestRenderLabel:
     def test_subtype_label_falls_back_to_value(self):
         assert subtype_label("equipment") == "equipment"
         assert subtype_label("artifact_creature") == "artifact creature"
+
+    def test_colored_artifact_label(self):
+        slot = _slot("x", "R", "enchantment", card_subtype="colored_artifact").model_dump()
+        assert "colored artifact" in render_slot_string(slot)

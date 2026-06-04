@@ -77,7 +77,7 @@ class SlotCardSubtype(StrEnum):
     type. See ``research/subtype-distribution.md`` for the distribution it models.
 
     The first four are *recurring* (a few in nearly every set, knob-driven counts);
-    the last four are the *irregular bucket* (deciduous specials, 0-2 per set).
+    the rest are the *irregular bucket* (deciduous specials, 0-2 per set).
     """
 
     # recurring (standing count knobs)
@@ -90,6 +90,7 @@ class SlotCardSubtype(StrEnum):
     CLASS = "class"
     SHRINE = "shrine"
     ENCHANTMENT_CREATURE = "enchantment_creature"
+    COLORED_ARTIFACT = "colored_artifact"
 
 
 # Human-readable label for each subtype, shown in ``render_slot_string`` so the
@@ -99,6 +100,7 @@ _SUBTYPE_LABELS: dict[str, str] = {
     SlotCardSubtype.AURA: "aura (local enchantment)",
     SlotCardSubtype.ARTIFACT_CREATURE: "artifact creature",
     SlotCardSubtype.ENCHANTMENT_CREATURE: "enchantment creature",
+    SlotCardSubtype.COLORED_ARTIFACT: "colored artifact",
 }
 
 
@@ -126,6 +128,11 @@ class IrregularSubtype(BaseModel):
 # reuses across sets but only 0-2 at a time. ``irregular_subtype_count`` says how
 # many to include; the seeded RNG picks which. One-set-exclusive types (DSK Rooms,
 # MKM Cases) are deliberately absent - a theme that wants them uses card_requests.
+# `colored_artifact` is here too: colored non-creature artifacts run ~0-11 in a
+# normal set but spike to 30-45 when they're the theme, so the bucket delivers the
+# occasional special handful (drawn from the colored non-creature / enchantment
+# pool) while the `noncreature_artifact` bias knob stays the lever for a full
+# artifact-matters set.
 IRREGULAR_SUBTYPES: list[IrregularSubtype] = [
     IrregularSubtype(subtype=SlotCardSubtype.SAGA, parent="enchantment", colored=True, lo=2, hi=5),
     IrregularSubtype(subtype=SlotCardSubtype.CLASS, parent="enchantment", colored=True, lo=2, hi=4),
@@ -133,6 +140,9 @@ IRREGULAR_SUBTYPES: list[IrregularSubtype] = [
         subtype=SlotCardSubtype.SHRINE, parent="enchantment", colored=True, lo=1, hi=5
     ),
     IrregularSubtype(subtype=SlotCardSubtype.ENCHANTMENT_CREATURE, parent="creature", lo=4, hi=12),
+    IrregularSubtype(
+        subtype=SlotCardSubtype.COLORED_ARTIFACT, parent="enchantment", colored=True, lo=3, hi=8
+    ),
 ]
 
 
