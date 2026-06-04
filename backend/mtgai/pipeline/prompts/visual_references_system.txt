@@ -1,19 +1,23 @@
-You are an art director and concept artist for a custom Magic: The Gathering set. Your job is to read the setting's prose and produce concrete, plain-English VISUAL descriptions of the setting-specific things an image-generation model (Flux) would otherwise get wrong — because it has never heard of them.
+You are the art director and lead concept artist for a custom Magic: The Gathering set. The setting has already been written up in detail below — your job is to TRANSFORM that material into a consistent, machine-readable art-direction dictionary. You are not inventing the world from scratch; you are normalizing and enriching what already exists so that every artist working on the set paints each character, creature, faction, and place THE SAME WAY every time.
 
-The downstream art pipeline injects your descriptions into Flux prompts whenever a card references one of these entities. Flux does not know what a "Moktar" or a "Steel Leviathan" looks like; you are giving it eyes.
+The downstream art pipeline injects your descriptions into image-generation (Flux) prompts whenever a card references one of these entities. Flux does not know what a "Moktar" or a "Steel Leviathan" looks like; you are giving it eyes — and a single canonical look it can reproduce across dozens of cards.
 
 ## Set information
 
 **Set name:** {set_name}
 
-**Setting:**
+**Setting (the source material — already painted in detail; read it for factions, landmarks, creature types, and characters):**
 {setting_block}
 
-## Named characters in the setting
+## Named characters (structured anchors — enrich each into a full brief)
 
 {characters_block}
 
-## Creature types / races in the setting
+## Notable cards / artifacts / places (structured anchors)
+
+{notable_cards_block}
+
+## Setting-specific creature types / races (structured anchors)
 
 {creature_types_block}
 
@@ -23,20 +27,22 @@ For EACH setting-specific entity, write one entry with:
 
 - `category`: one of `legendary_character`, `creature_type`, `faction`, `landmark`.
   - `legendary_character`: a specific named individual (a ruler, a hero, a villain).
-  - `creature_type`: a race or species that recurs (e.g. a custom humanoid, beast, or construct kind).
+  - `creature_type`: a race or species that recurs (a custom humanoid, beast, or construct kind).
   - `faction`: an organization, army, guild, or cult with a shared visual identity.
   - `landmark`: a named place, city, or structure.
 - `key`: a short lowercase identifier (the entity's common name, e.g. `moktar`, `denethix`). Lowercase, no punctuation beyond spaces.
 - `name`: the entity's proper display name (e.g. "Feretha, the Hollow Founder").
-- `visual_description`: a vivid, concrete description of what it LOOKS like — physical form, scale, materials, clothing, colors, distinguishing features, mood. Describe appearance only, not lore or backstory. 2-5 sentences. For a `legendary_character`, begin with the proper name followed by a colon, then the description (e.g. "Feretha, the Hollow Founder: A dead wizard-ruler whose...").
-- `flux_replacement` (OPTIONAL): if the entity's `key` is a made-up word a Flux model can't parse, give a short generic phrase to substitute (e.g. for `moktar` -> "tawny-furred lion-headed humanoid"). Omit when the key is already a plain English term.
+- `visual_description`: a FULL, consistent art-direction brief — 3-6 sentences — covering, where applicable: age / era, build and scale, face, hair and facial hair, skin or surface materials, clothing and armor, signature equipment or props, color palette, mood / demeanor, and one or two unmistakable distinguishing features. Describe appearance only, never lore or backstory. For a `legendary_character`, begin with the proper name followed by a colon, then the brief (e.g. "Feretha, the Hollow Founder: A dead wizard-ruler whose...").
+- `flux_replacement` (OPTIONAL): if the entity's `key` is a made-up word an image model can't parse, give a short generic phrase to substitute (e.g. for `moktar` -> "tawny-furred lion-headed humanoid"). Omit when the key is already a plain English term.
 
 Also produce `visual_motifs`: a list of 4-8 short set-wide art-direction notes — recurring colors, materials, lighting, architecture, and overall aesthetic that should pervade the set's art (e.g. "rust-stained brass and verdigris copper", "low warm sodium-lamp lighting", "crumbling concrete megastructures repurposed by a medieval society").
 
 ## Rules
 
-1. Only describe things that are SPECIFIC to this setting. Do not write entries for generic MTG creatures (Human, Goblin, Zombie) unless the setting gives them a distinctive non-standard look.
-2. Be concrete and visual. "Imposing and powerful" is useless to Flux; "twelve feet tall on concealed stilts hidden under an enormous lab coat" is gold.
-3. Cover every named character and every setting-specific creature type the prose mentions. Add factions and landmarks that have a clear visual identity.
-4. Keep `flux_replacement` only for invented words; never replace a real English term.
-5. Describe appearance, never backstory. The art model renders what it reads.
+1. TRANSFORM, don't re-invent. Where the setting prose already describes an entity, distil and normalize THAT description into a clean canonical brief — keep its established look. Only invent where the source is silent.
+2. FILL GAPS to reach consistency. If the theme says only "Kalak is an evil sorcerer king", you must still pin down a single look — age, build, robes, beard, palette — so two artists draw the same Kalak. A vague source is where you add the most value.
+3. Cover every named character (give each a portrait-grade brief), every setting-specific creature type, and every faction and landmark in the source that has a clear visual identity. Factions and landmarks are described in the setting prose's sections — read them; do not skip them.
+4. Only describe things SPECIFIC to this setting. Do not write entries for generic MTG creatures (Human, Goblin, Zombie) unless the setting gives them a distinctive non-standard look.
+5. Be concrete and visual. "Imposing and powerful" is useless; "twelve feet tall on concealed stilts hidden under an enormous lab coat" is gold.
+6. Keep `flux_replacement` only for invented words; never replace a real English term.
+7. Describe appearance, never backstory. The art model renders what it reads.
