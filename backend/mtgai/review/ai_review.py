@@ -933,6 +933,9 @@ def _run_synth(
     )
     logger.info("    Round %d synthesis revised the card, $%.4f, %.1fs", round_no, cost, latency)
     revised = verdict_data.get("revised_card")
+    # ``iteration`` is the round whose panel this synth revised (synth N revises the
+    # card the round-N panel just flagged), so in a saved log iteration N sits between
+    # the round-N and round-(N+1) panels.
     iteration = ReviewIteration(
         iteration=round_no,
         prompt=synthesis_prompt,
@@ -1058,6 +1061,18 @@ def _review_council(
                 total_cost_usd=total_cost,
                 total_latency_s=total_latency,
             )
+
+        # A *later* round's panel fully collapsed (every reviewer errored) while an
+        # earlier round succeeded: don't synthesize against zero feedback or flag with
+        # an empty reason. Stop and let the post-loop fallback flag REVISE carrying the
+        # last real panel's issues.
+        if not reviews:
+            logger.error(
+                "  [%s] Round %d panel fully collapsed — flagging from the last real panel",
+                collector_number,
+                round_no,
+            )
+            break
 
         if ai_lock.is_cancelled():
             break
@@ -2113,11 +2128,12 @@ def review_all_cards(
     cost_usd = sum(r.total_cost_usd for r in reviews)
     ok_count = sum(1 for r in reviews if r.final_verdict == "OK")
 
-    # Hybrid escape hatch: in-place council
-    # revision is the primary action (applied + saved above), but a card the
-    # council still rated REVISE after MAX_ITERATIONS is *unfixable in place* —
-    # surface it so the runner can flag it for a from-scratch regen via the loop.
-    # The best in-place attempt stays saved; the regen archives + replaces it.
+    # Hybrid escape hatch: in-place council revision is the primary action (applied +
+    # saved above), but a card still rated REVISE after the council-round budget
+    # (MAX_COUNCIL_ROUNDS fresh councils for the council tier, MAX_ITERATIONS for the
+    # C/U single-reviewer tier) is *unfixable in place* — surface it so the runner can
+    # flag it for a from-scratch regen via the loop. The best in-place attempt stays
+    # saved; the regen archives + replaces it.
     unfixable: list[dict] = []
     for r in reviews:
         if r.final_verdict != "REVISE":

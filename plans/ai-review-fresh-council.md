@@ -84,10 +84,15 @@ initial panel (round 1, 3 reviewers on the original card)
   - `test_synth_self_ok_is_ignored` — synth returns verdict OK but a fresh council
     still flags → loop does NOT trust the synth verdict.
 
+## Cancellation (added per user request)
+- `_review_council` polls `ai_lock.is_cancelled()` at every round/reviewer/synth
+  boundary so Cancel halts mid-card (a problematic R/M card now costs up to ~15 LLM
+  calls — 4×3 reviewers + 3 synth — so card-boundary-only cancel was too coarse).
+- `review_set` leaves a cut-short card **unrecorded** in `reviewed.json` so a resume
+  re-reviews it fully rather than treating the partial pass as done.
+
 ## Out of scope
 - `_review_single` (C/U single-reviewer loop) is untouched.
-- No new cancellation points inside `_review_council` (card-boundary cancel stays);
-  noted: a problematic R/M card now costs up to ~15 LLM calls (4×3 + 3 synth).
 
 ## Verification
 - `ruff check . && ruff format .`; `python -c "import mtgai"`; `pytest tests/test_review/`.

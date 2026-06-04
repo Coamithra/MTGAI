@@ -270,3 +270,54 @@ class TestReviewCouncilFreshLoop:
         # The synth claimed OK every time, but the loop never trusted it.
         assert result.iterations and all(it.verdict == "OK" for it in result.iterations)
         assert script.synth_count == ai_review.MAX_COUNCIL_ROUNDS
+
+    def test_synth_declining_to_revise_flags_immediately(self, monkeypatch):
+        """A synth that produces no revised card on a consensus-flagged card → regen.
+
+        Nothing changed, so re-running a fresh council would only re-flag it; the loop
+        flags for regen right away (it does NOT burn the remaining council rounds).
+        """
+        script = _CouncilScript([["REVISE", "REVISE", "REVISE"]] * 4, synth_revises=False)
+        monkeypatch.setattr(ai_review, "generate_with_tool", script)
+
+        result = ai_review._review_council(
+            _CARD, _MECHANICS, _POINTED_QUESTIONS, "test-model", None
+        )
+
+        assert result.final_verdict == "REVISE"
+        assert result.card_was_changed is False
+        assert result.revised_card is None
+        assert len(result.iterations) == 1  # the one (no-op) synth call
+        assert script.synth_count == 1  # stopped after the first declined revision
+        assert len(result.council_reviews) == 3  # only the initial panel ran
+        assert any(i.category == "design" for i in result.final_issues)
+
+    def test_collapsed_later_panel_flags_from_last_real_panel(self, monkeypatch):
+        """A later round whose whole panel errors flags from the last real panel.
+
+        Round 1 flags + the synth revises; round 2's reviewers all fail. The loop must
+        not synthesize against zero feedback or flag with an empty reason — it stops
+        and flags REVISE carrying round 1's issues.
+        """
+        calls = {"n": 0}
+
+        def stub(**kwargs):
+            calls["n"] += 1
+            name = kwargs["tool_schema"]["name"]
+            if name == "submit_synthesis":
+                return _verdict_payload("REVISE", revised=dict(_REVISED_CARD))
+            if calls["n"] <= 3:  # round 1 reviewers
+                return _verdict_payload("REVISE")
+            raise RuntimeError("round 2 reviewer down")  # round 2 panel collapses
+
+        monkeypatch.setattr(ai_review, "generate_with_tool", stub)
+
+        result = ai_review._review_council(
+            _CARD, _MECHANICS, _POINTED_QUESTIONS, "test-model", None
+        )
+
+        assert result.final_verdict == "REVISE"
+        assert len(result.iterations) == 1  # the round-1 synth ran
+        assert result.card_was_changed is True  # round-1 revision kept
+        assert len(result.council_reviews) == 3  # only round 1 produced reviews
+        assert any(i.category == "design" for i in result.final_issues)
