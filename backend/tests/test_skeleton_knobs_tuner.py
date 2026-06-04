@@ -55,6 +55,14 @@ class TestToolSchema:
         span_enum = cycles["items"]["properties"]["span"]["enum"]
         assert "pairs10" in span_enum and "mono5" in span_enum
 
+    def test_irregular_subtypes_enum_from_bucket(self):
+        from mtgai.skeleton.generator import IRREGULAR_SUBTYPE_NAMES
+
+        prop = tuner.build_tool_schema()["input_schema"]["properties"]["irregular_subtypes"]
+        assert prop["type"] == "array"
+        assert prop["items"]["enum"] == list(IRREGULAR_SUBTYPE_NAMES)
+        assert "saga" in prop["items"]["enum"]
+
 
 # ---------------------------------------------------------------------------
 # tune_knobs
@@ -91,6 +99,14 @@ class TestTuneKnobs:
         )
         assert len(knobs.cycles) == 1
         assert knobs.cycles[0].card_type == "land"
+
+    def test_parses_irregular_subtype_picks(self, monkeypatch):
+        knobs, _ = _tune(
+            monkeypatch,
+            {"irregular_subtypes": ["saga", "shrine"], "irregular_subtype_count": 2},
+        )
+        assert knobs.irregular_subtypes == ["saga", "shrine"]
+        assert knobs.provenance["irregular_subtypes"] == "ai"
 
     def test_respects_pins(self, monkeypatch):
         base = SkeletonKnobs(multicolor_rare=0.40, pinned=["multicolor_rare"])

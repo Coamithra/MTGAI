@@ -252,6 +252,80 @@ class TestIrregularBucket:
             SlotCardSubtype.ARTIFACT_CREATURE,
         }
 
+    def test_theme_pick_overrides_rng_choice(self):
+        # `irregular_subtypes` names which specials the theme wants; with count=1 it
+        # must win over whatever the seeded RNG would have rolled, every seed.
+        for seed in range(8):
+            slots = [_slot(f"e{i}", "B", "enchantment") for i in range(40)]
+            slots += [_slot(f"c{i}", "G", "creature") for i in range(40)]
+            knobs = _knobs(
+                equipment_count=0,
+                vehicle_count=0,
+                aura_count=0,
+                artifact_creature_count=0,
+                irregular_subtype_count=1,
+                subtype_jitter=0.0,
+                subtype_seed=seed,
+                irregular_subtypes=["shrine"],
+            )
+            _assign_subtypes(slots, knobs, set_size=277, set_code="TST")
+            present = {s.card_subtype for s in slots if s.card_subtype}
+            assert present == {SlotCardSubtype.SHRINE}
+
+    def test_count_caps_theme_picks(self):
+        # Two picks but count=1 → only the first (preference order) is applied.
+        slots = [_slot(f"e{i}", "B", "enchantment") for i in range(40)]
+        knobs = _knobs(
+            equipment_count=0,
+            vehicle_count=0,
+            aura_count=0,
+            artifact_creature_count=0,
+            irregular_subtype_count=1,
+            subtype_jitter=0.0,
+            irregular_subtypes=["class", "saga"],
+        )
+        _assign_subtypes(slots, knobs, set_size=277, set_code="TST")
+        present = {s.card_subtype for s in slots if s.card_subtype}
+        assert present == {SlotCardSubtype.CLASS}
+
+    def test_picks_below_count_are_filled_by_rng(self):
+        # One theme pick but room for two → the pick is honored and the RNG fills
+        # the remaining slot with a *different* valid bucket member.
+        slots = [_slot(f"e{i}", "B", "enchantment") for i in range(40)]
+        slots += [_slot(f"c{i}", "G", "creature") for i in range(40)]
+        knobs = _knobs(
+            equipment_count=0,
+            vehicle_count=0,
+            aura_count=0,
+            artifact_creature_count=0,
+            irregular_subtype_count=2,
+            subtype_jitter=0.0,
+            irregular_subtypes=["saga"],
+        )
+        _assign_subtypes(slots, knobs, set_size=277, set_code="TST")
+        present = {s.card_subtype for s in slots if s.card_subtype}
+        assert SlotCardSubtype.SAGA in present
+        assert present <= _IRREGULAR and len(present) == 2
+
+    def test_unknown_pick_names_are_ignored(self):
+        # A bogus name (not in the bucket) is dropped; the RNG still fills the count,
+        # so a valid special appears rather than the run silently picking nothing.
+        # Both enchantment + creature slots so whichever member the RNG rolls fits.
+        slots = [_slot(f"e{i}", "B", "enchantment") for i in range(40)]
+        slots += [_slot(f"c{i}", "G", "creature") for i in range(40)]
+        knobs = _knobs(
+            equipment_count=0,
+            vehicle_count=0,
+            aura_count=0,
+            artifact_creature_count=0,
+            irregular_subtype_count=1,
+            subtype_jitter=0.0,
+            irregular_subtypes=["not_a_real_subtype"],
+        )
+        _assign_subtypes(slots, knobs, set_size=277, set_code="TST")
+        present = {s.card_subtype for s in slots if s.card_subtype}
+        assert 0 < len(present) <= 1 and present <= _IRREGULAR
+
     def test_colored_artifact_never_lands_on_colorless_slots(self):
         # Across many seeds, whenever colored_artifact is picked it must only label
         # colored slots drawn from the (colored) non-creature pool, never colorless

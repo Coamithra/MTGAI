@@ -1132,6 +1132,12 @@ def council_review(
     """
     from mtgai.runtime import ai_lock
 
+    # Lift the reviewer + synth temps off the near-greedy floor for a local
+    # reasoning model so each call terminates instead of looping its CoT (see
+    # temperatures.floor_for_local). Cloud models keep their precise low temps.
+    review_temp = temps.floor_for_local(review_temp, model_id)
+    synth_temp = temps.floor_for_local(synth_temp, model_id)
+
     # Standalone call gets its own budget; the generator passes its run-shared one.
     budget = budget or _EscalatingBudget()
 
@@ -2320,7 +2326,9 @@ def pick_best_mechanics(
             user_prompt=user_prompt,
             tool_schema=MECHANIC_PICK_TOOL_SCHEMA,
             model=model_id,
-            temperature=temps.FOCUSED,
+            # Floored off the near-greedy base for a local reasoning model so the
+            # pick call terminates instead of looping (see floor_for_local).
+            temperature=temps.floor_for_local(temps.FOCUSED, model_id),
             max_tokens=STANDARD,
             log_dir=log_dir,
         )

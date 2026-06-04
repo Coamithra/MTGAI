@@ -1246,6 +1246,78 @@ _TILE_CARD_FIELDS = (
 )
 
 
+# Design fields a review may change (mirrors ``_apply_revision``), each with a
+# human label for the "what changed" box. Order = display order in the tab.
+_REVISION_FIELD_LABELS: tuple[tuple[str, str], ...] = (
+    ("name", "Name"),
+    ("mana_cost", "Mana cost"),
+    ("type_line", "Type"),
+    ("oracle_text", "Rules text"),
+    ("flavor_text", "Flavor"),
+    ("power", "Power"),
+    ("toughness", "Toughness"),
+    ("loyalty", "Loyalty"),
+    ("rarity", "Rarity"),
+    ("colors", "Colors"),
+    ("color_identity", "Color identity"),
+    ("cmc", "Mana value"),
+    ("design_notes", "Design notes"),
+)
+
+
+def _render_field_value(value: object) -> str:
+    """Display string for a card field (lists joined, None/empty → em dash)."""
+    if value is None:
+        return "—"
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value) if value else "—"
+    text = str(value).strip()
+    return text if text else "—"
+
+
+def _norm_field_value(value: object) -> object:
+    """Comparison key that ignores cosmetic differences (list order, None vs ''/[])."""
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return sorted(str(v) for v in value) if value else ""
+    return str(value).strip()
+
+
+def summarize_revision(original: dict, revised: dict) -> list[dict]:
+    """Field-level before/after diff of the design fields a review changed.
+
+    ``original`` is the card as it entered review (``CardReviewResult.original_card``);
+    ``revised`` is the review's ``revised_card`` (the AI's applied revision — the
+    fields it actually returned). Returns one ``{field, label, before, after}``
+    entry per design field the revision changed, in display order — the data behind
+    the tab's "what changed" box. A field the revision did not return is skipped
+    (``_apply_revision`` only applies provided fields, so its absence means "not
+    changed"); diffing the AI's revision rather than the live card keeps the diff
+    AI-attributed even after a later manual edit. Cosmetic-only differences (colour
+    list reordering, ``None`` vs ``""``/``[]``) are not reported. Empty list when
+    nothing design-relevant differs, in which case the tab shows a bare "tweaked"
+    mark.
+    """
+    changes: list[dict] = []
+    for field, label in _REVISION_FIELD_LABELS:
+        if field not in revised:
+            continue
+        before = original.get(field)
+        after = revised.get(field)
+        if _norm_field_value(before) == _norm_field_value(after):
+            continue
+        changes.append(
+            {
+                "field": field,
+                "label": label,
+                "before": _render_field_value(before),
+                "after": _render_field_value(after),
+            }
+        )
+    return changes
+
+
 def review_tile(card: dict, review: CardReviewResult | None) -> dict:
     """Build the AI Design Review tab's per-card tile.
 
@@ -1267,12 +1339,22 @@ def review_tile(card: dict, review: CardReviewResult | None) -> dict:
         tile["verdict"] = None
         tile["issues"] = []
         tile["card_was_changed"] = False
+        tile["changes"] = []
         tile["review_tier"] = ""
         tile["council"] = []
         return tile
     tile["verdict"] = review.final_verdict
     tile["issues"] = [i.model_dump() for i in review.final_issues]
     tile["card_was_changed"] = review.card_was_changed
+    # What the review changed: diff the pre-review snapshot against the review's own
+    # revised_card (the AI's applied revision), not the live card — so a later manual
+    # edit can't masquerade as an AI tweak. Only computed when the review revised the
+    # card (the council saves revisions in place).
+    tile["changes"] = (
+        summarize_revision(review.original_card, review.revised_card)
+        if review.card_was_changed and review.revised_card
+        else []
+    )
     tile["review_tier"] = review.review_tier
     # Compact per-reviewer summary for the (resolved) council panel: verdict +
     # issue count, no full transcript (that stays in reviews/<cn>.json). With the

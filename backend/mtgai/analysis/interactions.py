@@ -55,7 +55,10 @@ TEMPERATURE = temps.ANALYTICAL  # analytical scan (see temperatures.py)
 # Flag-only output is short; a large ceiling is just truncation insurance.
 MAX_TOKENS = HEAVY
 # New cards checked per streamed call (existing cards ride along as context).
-BATCH_SIZE = 40
+# Kept small (20) so the local model's reasoning over each batch's new-vs-pool
+# combinations stays tractable and terminates instead of looping (the demonstrated
+# "Tame Gemma 4 local overthinking" failure was this step at batch 40).
+BATCH_SIZE = 20
 
 # An ``AVOID: <constraint>`` line inside a flagged block — the replacement
 # constraint the regenerated enabler must satisfy. Case-insensitive.

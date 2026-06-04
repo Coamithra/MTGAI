@@ -4,6 +4,7 @@ decode with the launch knobs downstream code (``_llamacpp_new_model``) expects."
 from mtgai.settings.model_registry import get_registry
 from mtgai.settings.model_settings import (
     DEFAULT_LLM_ASSIGNMENTS,
+    LLM_STAGE_NAMES,
     PRESETS,
     ModelSettings,
 )
@@ -33,6 +34,23 @@ def test_local_default_assignments_point_at_vlad_updated():
     """DEFAULT_LLM_ASSIGNMENTS (every fresh project's local default) resolves to
     the vlad-updated entry (the local default after the model-registry prune)."""
     assert set(DEFAULT_LLM_ASSIGNMENTS.values()) == {"gemma4-26b-vlad-updated"}
+
+
+def test_every_llm_stage_has_a_local_default():
+    """Every model-using LLM stage must have a DEFAULT_LLM_ASSIGNMENTS entry.
+
+    A stage in LLM_STAGE_NAMES but missing here silently falls back to cloud
+    ``sonnet`` (get_assigned_model_id's last-resort default), breaking the
+    local-by-default policy — exactly the char_portraits bug this guards."""
+    missing = set(LLM_STAGE_NAMES) - set(DEFAULT_LLM_ASSIGNMENTS)
+    assert not missing, f"LLM stages with no local default: {sorted(missing)}"
+
+
+def test_recommended_preset_covers_every_llm_stage():
+    """The recommended (all-cloud) preset must assign every LLM stage, so applying
+    it can't leave a stage silently on the local Gemma default (the lands gap)."""
+    missing = set(LLM_STAGE_NAMES) - set(PRESETS["recommended"]["llm"])
+    assert not missing, f"LLM stages missing from recommended preset: {sorted(missing)}"
 
 
 def test_ctx_tier_twin_is_a_48k_clone_of_the_carrier():

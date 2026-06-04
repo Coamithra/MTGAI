@@ -72,6 +72,10 @@ def generate_gate_tool(
     ``generate_with_tool`` verbatim (it must NOT include ``temperature`` — this
     helper owns it).
     """
+    # Lift the base off the near-greedy floor for a local reasoning model so the
+    # decode terminates instead of looping; the per-retry bump still stacks on
+    # top of the floored base (see temperatures.floor_for_local).
+    base_temperature = temps.floor_for_local(base_temperature, kwargs.get("model"))
     last_exc: OutputTruncatedError | None = None
     for attempt in range(retries + 1):
         if attempt and ai_lock.is_cancelled():
@@ -176,6 +180,10 @@ def stream_flag_batch(
     "unknown" rather than silently passed.
     """
     by_int = {int(s): s for s in valid_ids if s.isdigit()}
+    # Lift the base off the near-greedy floor for a local reasoning model so the
+    # decode terminates instead of looping; the per-retry bump still stacks on
+    # top of the floored base (see temperatures.floor_for_local).
+    base_temperature = temps.floor_for_local(base_temperature, model)
     cost = 0.0
     for attempt in range(1, MAX_BATCH_ATTEMPTS + 1):
         if attempt > 1 and ai_lock.is_cancelled():
