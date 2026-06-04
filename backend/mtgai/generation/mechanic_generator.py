@@ -950,6 +950,7 @@ def _call_synth(
     model_id: str,
     temperature: float,
     log_dir: Path | None,
+    thinking: str | None = None,
 ) -> dict | None:
     """Up to two synthesis calls at the HEAVY budget; ``None`` on failure / empty output.
 
@@ -978,6 +979,7 @@ def _call_synth(
                 temperature=temperature,
                 max_tokens=HEAVY,
                 log_dir=log_dir,
+                thinking=thinking,
             )
         except Exception as exc:
             logger.warning(
@@ -1001,6 +1003,7 @@ def _call_example_fix(
     model_id: str,
     temperature: float,
     log_dir: Path | None,
+    thinking: str | None = None,
 ) -> dict | None:
     """One narrow example-fix call; ``None`` on failure / not exactly two examples.
 
@@ -1021,6 +1024,7 @@ def _call_example_fix(
             temperature=temperature,
             max_tokens=HEAVY,
             log_dir=log_dir,
+            thinking=thinking,
         )
     except Exception as exc:
         logger.warning("Council example-fix failed: %s: %s", type(exc).__name__, exc)
@@ -1069,6 +1073,7 @@ def council_review(
     on_event: CouncilHook | None = None,
     budget: _EscalatingBudget | None = None,
     skip_final_synth: bool = False,
+    thinking: str | None = None,
 ) -> dict:
     """Council + revise-in-place loop for one draft mechanic (theme-free).
 
@@ -1184,6 +1189,7 @@ def council_review(
                     model=model_id,
                     temperature=review_temp,
                     log_dir=log_dir,
+                    thinking=thinking,
                     # The 3 same-round reviewers receive a byte-identical user
                     # prompt (the rendered mechanic block); cache it so reviewers
                     # 2 & 3 read it from cache when it clears the provider's
@@ -1274,7 +1280,7 @@ def council_review(
         blocking = _blocking_issues(reviews)
         if _all_example_scoped(blocking):
             _emit({"kind": "synth_start", "round": _round})
-            fresp = _call_example_fix(mechanic, blocking, model_id, synth_temp, log_dir)
+            fresp = _call_example_fix(mechanic, blocking, model_id, synth_temp, log_dir, thinking)
             if fresp is None:
                 verdict = "REVISE"
                 break
@@ -1303,7 +1309,7 @@ def council_review(
         # Phase 2 -- synthesis (consensus filter + revise-in-place), for a
         # mechanic-scoped defect: re-emit the whole improved mechanic.
         _emit({"kind": "synth_start", "round": _round})
-        sresp = _call_synth(mechanic, reviews, model_id, synth_temp, log_dir)
+        sresp = _call_synth(mechanic, reviews, model_id, synth_temp, log_dir, thinking)
         if sresp is None:
             verdict = "REVISE"
             break
@@ -1813,6 +1819,7 @@ def generate_mechanic_candidates(
     settings = project.settings
     sp = settings.set_params
     model_id = settings.get_llm_model_id("mechanics")
+    thinking = settings.get_thinking("mechanics")
     # Base id for provenance/display (model_id above is the effective ctx twin).
     display_model_id = settings.get_assigned_model_id("mechanics")
     # llmfacade writes each call's JSONL+HTML transcript here (named after the
@@ -1939,6 +1946,7 @@ def generate_mechanic_candidates(
                         model=model_id,
                         temperature=MECHANIC_GEN_TEMP,
                         log_dir=log_dir,
+                        thinking=thinking,
                     )
                 except Exception as exc:
                     last_error = f"{type(exc).__name__}: {exc}"
@@ -2024,6 +2032,7 @@ def generate_mechanic_candidates(
                 model_id=model_id,
                 log_dir=log_dir,
                 budget=budget,
+                thinking=thinking,
                 # A regen still to come (regen < MAX) means a still-REVISE result
                 # gets re-drafted from scratch, discarding the final-round synth --
                 # so skip that wasted call. On the last attempt the synth's
@@ -2267,6 +2276,7 @@ def pick_best_mechanics(
     settings = project.settings
     sp = settings.set_params
     model_id = settings.get_llm_model_id("mechanics")
+    thinking = settings.get_thinking("mechanics")
     # Base id for provenance/display (model_id above is the effective ctx twin).
     display_model_id = settings.get_assigned_model_id("mechanics")
     log_dir = set_artifact_dir() / "mechanics" / "logs"
@@ -2331,6 +2341,7 @@ def pick_best_mechanics(
             temperature=temps.floor_for_local(temps.FOCUSED, model_id),
             max_tokens=STANDARD,
             log_dir=log_dir,
+            thinking=thinking,
         )
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"

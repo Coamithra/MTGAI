@@ -215,6 +215,7 @@ def detect_recurring_entities(
     *,
     model_id: str,
     log_dir: Path | None = None,
+    thinking: str | None = None,
 ) -> tuple[list[dict], float]:
     """LLM-detect entities that appear on more than one card.
 
@@ -232,6 +233,7 @@ def detect_recurring_entities(
         user_prompt=user,
         tool_schema=_build_detection_tool_schema(),
         model=model_id,
+        thinking=thinking,
         # Floored off the near-greedy base for a local reasoning model so the
         # whole-pool entity scan terminates instead of looping (see
         # temperatures.floor_for_local).
@@ -481,11 +483,12 @@ def generate_character_refs(
     log_dir.mkdir(parents=True, exist_ok=True)
 
     model_id = project.settings.get_llm_model_id("char_portraits")
+    thinking = project.settings.get_thinking("char_portraits")
 
     # Step 1 — detect recurring entities.
     logger.info("Detecting recurring entities across %d cards...", len(cards))
     entities, cost = detect_recurring_entities(
-        cards, visual_refs, model_id=model_id, log_dir=log_dir
+        cards, visual_refs, model_id=model_id, log_dir=log_dir, thinking=thinking
     )
     logger.info("Found %d recurring entities", len(entities))
     for e in entities:

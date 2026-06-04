@@ -307,6 +307,7 @@ def _retry_single_card(
     attempt: int,
     *,
     effort: str | None = None,
+    thinking: str | None = None,
     archetypes: list[dict] | None = None,
 ) -> dict | None:
     """Retry generating a single card that failed to parse.
@@ -347,6 +348,7 @@ def _retry_single_card(
             temperature=TEMPERATURE,
             max_tokens=STANDARD,
             effort=effort,
+            thinking=thinking,
             log_dir=_card_gen_log_dir(),
         )
         latency = time.time() - t0
@@ -523,6 +525,13 @@ def _select_effort() -> str | None:
     return require_active_project().settings.get_effort("card_gen")
 
 
+def _select_thinking() -> str | None:
+    """Return the per-stage thinking override ("disabled" or None) from settings."""
+    from mtgai.runtime.active_project import require_active_project
+
+    return require_active_project().settings.get_thinking("card_gen")
+
+
 def _process_batch_result(
     raw_cards: list[dict],
     slots: list[dict],
@@ -540,6 +549,7 @@ def _process_batch_result(
     latency_s: float = 0.0,
     stop_reason: str = "",
     effort: str | None = None,
+    thinking: str | None = None,
     set_dir: Path | None = None,
     archetypes: list[dict] | None = None,
     card_saved_callback: Callable[[Card], None] | None = None,
@@ -685,6 +695,7 @@ def _process_batch_result(
                 progress,
                 set_code=set_code,
                 effort=effort,
+                thinking=thinking,
                 archetypes=archetypes,
             )
             if card is None:
@@ -766,6 +777,7 @@ def _retry_card(
     *,
     set_code: str,
     effort: str | None = None,
+    thinking: str | None = None,
     archetypes: list[dict] | None = None,
 ) -> Card | None:
     """Retry a card that hit a regen trigger (schema parse failure or text overflow).
@@ -784,6 +796,7 @@ def _retry_card(
             model,
             attempt,
             effort=effort,
+            thinking=thinking,
             archetypes=archetypes,
         )
         if result is None:
@@ -1045,10 +1058,12 @@ def generate_set(
     logger.info("=" * 70)
     active_model = _select_model()
     active_effort = _select_effort()
+    active_thinking = _select_thinking()
     logger.info(
-        "Model: %s | Effort: %s | Temp: %s | Batch size: %d",
+        "Model: %s | Effort: %s | Thinking: %s | Temp: %s | Batch size: %d",
         active_model,
         active_effort or "default",
+        active_thinking or "default",
         TEMPERATURE,
         BATCH_SIZE,
     )
@@ -1394,6 +1409,7 @@ def generate_set(
                 temperature=TEMPERATURE,
                 max_tokens=BATCH,
                 effort=active_effort,
+                thinking=active_thinking,
                 log_dir=log_dir,
             )
             api_latency = time.time() - t0
@@ -1508,6 +1524,7 @@ def generate_set(
             latency_s=api_latency,
             stop_reason=result.get("stop_reason", ""),
             effort=active_effort,
+            thinking=active_thinking,
             set_dir=set_dir,
             archetypes=archetypes,
             card_saved_callback=card_saved_callback,

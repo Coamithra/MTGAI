@@ -1208,11 +1208,23 @@
           ${effortOptionsHtml(levels, effort)}
         </select>
       ` : '<span class="wiz-effort-na">—</span>';
+      // Thinking toggle: only for a thinking-capable local reasoning model.
+      // "" (selected when not disabled) = reasoning on (model default); "disabled"
+      // = off for speed. Non-thinking models (Anthropic / non-reasoning) show '—'.
+      const supportsThinking = !!(model && model.supports_thinking);
+      const thinkingOff = (data.thinking_overrides[stage.id] || '') === 'disabled';
+      const thinkingCell = supportsThinking ? `
+        <select data-thinking-stage="${escAttr(stage.id)}" class="wiz-effort-select">
+          <option value="" ${thinkingOff ? '' : 'selected'}>On</option>
+          <option value="disabled" ${thinkingOff ? 'selected' : ''}>Off</option>
+        </select>
+      ` : '<span class="wiz-effort-na">—</span>';
       return `
         <tr>
           <td>${escHtml(stage.label)}</td>
           <td><select data-llm-stage="${escAttr(stage.id)}">${opts}</select></td>
           <td>${effortCell}</td>
+          <td>${thinkingCell}</td>
         </tr>
       `;
     }).join('');
@@ -1225,7 +1237,7 @@
       return `
         <tr>
           <td>${escHtml(stage.label)}</td>
-          <td colspan="2"><select data-image-stage="${escAttr(stage.id)}">${opts}</select></td>
+          <td colspan="3"><select data-image-stage="${escAttr(stage.id)}">${opts}</select></td>
         </tr>
       `;
     }).join('');
@@ -1235,7 +1247,7 @@
         <h3>Model assignments</h3>
         ${renderPresetControls(data)}
         <table class="wiz-models-table">
-          <thead><tr><th>Stage</th><th>Model</th><th>Effort</th></tr></thead>
+          <thead><tr><th>Stage</th><th>Model</th><th>Effort</th><th>Thinking</th></tr></thead>
           <tbody>
             ${llmRows}
             ${imageRows}
@@ -1281,6 +1293,9 @@
     document.querySelectorAll('select[data-effort-stage]').forEach(sel => {
       sel.addEventListener('change', () => saveModel(state, 'effort', sel.dataset.effortStage, sel.value));
     });
+    document.querySelectorAll('select[data-thinking-stage]').forEach(sel => {
+      sel.addEventListener('change', () => saveModel(state, 'thinking', sel.dataset.thinkingStage, sel.value));
+    });
   }
 
   // Changing the model can change which effort levels are valid, so persist the
@@ -1297,6 +1312,12 @@
       delete local.data.effort_overrides[stageId];
       saveModel(state, 'effort', stageId, '');  // persist the drop (best-effort)
     }
+    // Drop a now-irrelevant thinking override if the new model isn't a
+    // thinking-capable reasoning model (mirrors the effort drop above).
+    if (local.data.thinking_overrides[stageId] && !(model && model.supports_thinking)) {
+      delete local.data.thinking_overrides[stageId];
+      saveModel(state, 'thinking', stageId, '');  // persist the drop (best-effort)
+    }
     rerenderModelAssignments(state);
   }
 
@@ -1312,6 +1333,10 @@
     const applyLocal = () => {
       if (kind === 'llm') local.data.llm_assignments[stageId] = value;
       else if (kind === 'image') local.data.image_assignments[stageId] = value;
+      else if (kind === 'thinking') {
+        if (value) local.data.thinking_overrides[stageId] = value;
+        else delete local.data.thinking_overrides[stageId];
+      }
       else if (value) local.data.effort_overrides[stageId] = value;
       else delete local.data.effort_overrides[stageId];
     };

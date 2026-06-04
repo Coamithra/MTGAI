@@ -336,6 +336,14 @@ class ModelSettings(BaseModel):
         default_factory=lambda: dict(DEFAULT_IMAGE_ASSIGNMENTS)
     )
     effort_overrides: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_EFFORT))
+    # Per-stage "disable thinking" overrides (stage_id -> "disabled"). Only
+    # meaningful for a stage whose assigned model is a local reasoning model
+    # (registry ``thinking`` = "adaptive"/"adaptive_summarized"); absent = use the
+    # model's registry default (thinking ON). Mirrors ``effort_overrides`` — a
+    # separate per-stage dict, persisted the same way — and lets the user trade
+    # reasoning depth for speed on a per-phase basis (a thinking model can spend
+    # its whole output budget on chain-of-thought). Resolved by ``get_thinking``.
+    thinking_overrides: dict[str, str] = Field(default_factory=dict)
     # Per-stage break-point overrides (stage_id -> "auto" | "review").
     # Stays empty until the Project Settings tab toggles a checkbox.
     # Locked-on `human_*` stages are NOT written here — the engine
@@ -436,6 +444,29 @@ class ModelSettings(BaseModel):
         # Unsupported level for this model — clamp to its highest (last) level.
         return model.effort_levels[-1]
 
+    def get_thinking(self, stage_id: str) -> str | None:
+        """Resolve the ``thinking`` value to pass to the LLM call, or None.
+
+        Returns ``"disabled"`` ONLY when the user has toggled thinking off for
+        this stage AND the assigned model is a thinking-capable local reasoning
+        model (registry ``thinking`` in adaptive / adaptive_summarized). In every
+        other case returns None, meaning "send no thinking override — use the
+        model's registry default" — so a stage on an Anthropic model (no thinking
+        concept), a non-reasoning local model, or simply an un-toggled stage keeps
+        its default behaviour (reasoning on). Mirrors :meth:`get_effort`; callers
+        pass the result as ``generate_with_tool(..., thinking=...)`` (a no-op on
+        the Anthropic path and on a model whose template doesn't gate thinking).
+        """
+        if self.thinking_overrides.get(stage_id) != "disabled":
+            return None
+        key = self.llm_assignments.get(stage_id, DEFAULT_LLM_ASSIGNMENTS.get(stage_id))
+        if not key:
+            return None
+        model = get_registry().get_llm(key)
+        if model is None or model.thinking not in ("adaptive", "adaptive_summarized"):
+            return None
+        return "disabled"
+
     def to_toml_doc(self, *, profile_only: bool = False) -> TOMLDocument:
         """Build a tomlkit document for this settings instance.
 
@@ -457,6 +488,12 @@ class ModelSettings(BaseModel):
         if any(self.effort_overrides.values()):
             doc.add(tomlkit.nl())
             doc.add("effort_overrides", {k: v for k, v in self.effort_overrides.items() if v})
+        if any(self.thinking_overrides.values()):
+            doc.add(tomlkit.nl())
+            doc.add(
+                "thinking_overrides",
+                {k: v for k, v in self.thinking_overrides.items() if v},
+            )
         if self.break_points:
             doc.add(tomlkit.nl())
             doc.add("break_points", dict(self.break_points))
@@ -521,6 +558,7 @@ class ModelSettings(BaseModel):
             llm_assignments=data.get("llm_assignments", {}),
             image_assignments=data.get("image_assignments", {}),
             effort_overrides=data.get("effort_overrides", {}),
+            thinking_overrides=data.get("thinking_overrides", {}),
             break_points=data.get("break_points", {}),
             set_params=SetParams(**data.get("set_params", {})),
             theme_input=ThemeInputSource(**data.get("theme_input", {})),
@@ -548,6 +586,7 @@ class ModelSettings(BaseModel):
                 llm_assignments=dict(preset["llm"]),
                 image_assignments=dict(preset["image"]),
                 effort_overrides=dict(preset.get("effort", {})),
+                thinking_overrides=dict(preset.get("thinking", {})),
             )
         # Fall back to saved profile
         profile_path = SETTINGS_DIR / f"{preset_name}.toml"
@@ -572,6 +611,12 @@ class ModelSettings(BaseModel):
                     "model_key": key or "",
                     "model_name": model.name if model else "Unknown",
                     "effort": self.effort_overrides.get(stage_id, ""),
+                    "thinking": self.thinking_overrides.get(stage_id, ""),
+                    # Whether this stage's assigned model is a thinking-capable
+                    # local reasoning model — the toggle only applies when True.
+                    "supports_thinking": bool(
+                        model and model.thinking in ("adaptive", "adaptive_summarized")
+                    ),
                 }
             )
 
@@ -592,6 +637,7 @@ class ModelSettings(BaseModel):
             "llm_stages": llm_stages,
             "image_stages": image_stages,
             "effort_overrides": dict(self.effort_overrides),
+            "thinking_overrides": dict(self.thinking_overrides),
             "break_points": dict(self.break_points),
             "set_params": self.set_params.model_dump(),
             "theme_input": self.theme_input.model_dump(mode="json"),
@@ -831,6 +877,7 @@ def parse_project_toml(text: str) -> tuple[str, ModelSettings]:
         llm_assignments=data.get("llm_assignments", {}),
         image_assignments=data.get("image_assignments", {}),
         effort_overrides=data.get("effort_overrides", {}),
+        thinking_overrides=data.get("thinking_overrides", {}),
         break_points=data.get("break_points", {}),
         set_params=SetParams(**data.get("set_params", {})),
         theme_input=ThemeInputSource(**data.get("theme_input", {})),

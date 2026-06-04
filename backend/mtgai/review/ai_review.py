@@ -87,6 +87,13 @@ def _review_effort() -> str | None:
     return require_active_project().settings.get_effort("ai_review")
 
 
+def _review_thinking() -> str | None:
+    """Get the per-stage thinking override ("disabled" or None) from settings."""
+    from mtgai.runtime.active_project import require_active_project
+
+    return require_active_project().settings.get_thinking("ai_review")
+
+
 # ---------------------------------------------------------------------------
 # Pydantic models for review results
 # ---------------------------------------------------------------------------
@@ -567,6 +574,7 @@ def _review_single(
     review_effort: str | None,
     max_iterations: int = MAX_ITERATIONS,
     on_council: Callable[[dict], None] | None = None,
+    review_thinking: str | None = None,
 ) -> CardReviewResult:
     """Single Opus reviewer + iteration loop for C/U cards.
 
@@ -612,6 +620,7 @@ def _review_single(
                 temperature=TEMPERATURE,
                 max_tokens=HEAVY,
                 effort=review_effort,
+                thinking=review_thinking,
             )
         except Exception:
             logger.exception("    API call failed on iteration %d", iteration)
@@ -800,6 +809,7 @@ def _run_council_panel(
     round_no: int,
     on_council: Callable[[dict], None] | None,
     should_cancel: Callable[[], bool] | None,
+    review_thinking: str | None = None,
 ) -> tuple[list[CouncilMemberReview], _CostAcc, list[str]]:
     """Run one fresh independent panel on ``card`` and stream it as council ``round``.
 
@@ -828,6 +838,7 @@ def _run_council_panel(
                 temperature=TEMPERATURE,
                 max_tokens=HEAVY,
                 effort=review_effort,
+                thinking=review_thinking,
             )
         except Exception:
             logger.exception("    Round %d reviewer %d API call failed", round_no, member_id)
@@ -880,6 +891,7 @@ def _run_synth(
     round_no: int,
     on_council: Callable[[dict], None] | None,
     panel_verdicts: list[str],
+    review_thinking: str | None = None,
 ) -> tuple[ReviewIteration | None, _CostAcc, dict | None]:
     """One synthesizer revise-in-place call against ``reviews`` of ``card``.
 
@@ -914,6 +926,7 @@ def _run_synth(
             temperature=TEMPERATURE,
             max_tokens=HEAVY,
             effort=review_effort,
+            thinking=review_thinking,
         )
     except Exception:
         logger.exception("    Round %d synthesis (revise) call failed", round_no)
@@ -960,6 +973,7 @@ def _review_council(
     num_reviewers: int = 3,
     max_rounds: int = MAX_COUNCIL_ROUNDS,
     on_council: Callable[[dict], None] | None = None,
+    review_thinking: str | None = None,
 ) -> CardReviewResult:
     """Fresh-council-per-revision loop for R/M + planeswalker/saga cards.
 
@@ -1033,6 +1047,7 @@ def _review_council(
             round_no,
             on_council,
             ai_lock.is_cancelled,
+            review_thinking=review_thinking,
         )
         _fold(acc)
         council_reviews.extend(reviews)
@@ -1111,6 +1126,7 @@ def _review_council(
             round_no,
             on_council,
             panel_verdicts,
+            review_thinking=review_thinking,
         )
         _fold(sacc)
         if iteration is None:
@@ -1566,6 +1582,7 @@ def revise_card_in_place(
     review_effort: str | None,
     *,
     log_dir: Path | None = None,
+    review_thinking: str | None = None,
 ) -> dict | None:
     """Run a single user-directed revision of ``card`` (mirrors council revise-in-place).
 
@@ -1595,6 +1612,7 @@ def revise_card_in_place(
             temperature=TEMPERATURE,
             max_tokens=HEAVY,
             effort=review_effort,
+            thinking=review_thinking,
             log_dir=log_dir,
         )
     except Exception:
@@ -1935,14 +1953,16 @@ def review_set(
     # guarantee in CLAUDE.md (`Model Settings`).
     review_model = _review_model()
     review_effort = _review_effort()
+    review_thinking = _review_thinking()
 
     logger.info("=" * 70)
     logger.info("MTGAI AI Design Review Pipeline -- Phase 4B")
     logger.info("=" * 70)
     logger.info(
-        "Model: %s | Effort: %s | C/U iterations: %d | council rounds: %d",
+        "Model: %s | Effort: %s | Thinking: %s | C/U iterations: %d | council rounds: %d",
         review_model,
         review_effort or "default",
+        review_thinking or "default",
         MAX_ITERATIONS,
         MAX_COUNCIL_ROUNDS,
     )
@@ -2072,6 +2092,7 @@ def review_set(
                 review_model,
                 review_effort,
                 on_council=card_council,
+                review_thinking=review_thinking,
             )
         else:
             result = _review_single(
@@ -2081,6 +2102,7 @@ def review_set(
                 review_model,
                 review_effort,
                 on_council=card_council,
+                review_thinking=review_thinking,
             )
 
         reviews.append(result)

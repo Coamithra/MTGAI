@@ -375,6 +375,7 @@ def generate_lands(
     # so each judges the same set framing the skeleton relabel saw.
     context = _load_set_context(set_dir, set_config)
     model_id = project.settings.get_llm_model_id("lands")
+    thinking = project.settings.get_thinking("lands")
     # Route both LLM transcripts (JSONL + HTML) beside the stage artifacts, like
     # every other stage (mechanics/logs, reprints/logs, …) — omitting log_dir
     # would dump them into llmfacade's session dirs under backend/logs/.
@@ -395,6 +396,7 @@ def generate_lands(
             user_prompt=user,
             tool_schema=_build_basics_tool_schema(),
             model=model_id,
+            thinking=thinking,
             temperature=temps.BALANCED,
             # 5 land types x (4 one-sentence art briefs + 1 flavor) is a lot of JSON;
             # at 2048 the (often verbose, local) model truncated mid-output
@@ -478,6 +480,7 @@ def generate_lands(
             user_prompt=inv_user,
             tool_schema=_build_investigation_tool_schema(),
             model=model_id,
+            thinking=thinking,
             temperature=temps.BALANCED,
             # Smaller output (one dual + reasoning), but a truncated tool-call JSON
             # fails to parse just the same — give the same headroom as the basics call.

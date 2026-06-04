@@ -163,6 +163,7 @@ def stream_flag_batch(
     name: str,
     valid_ids: set[str],
     on_block: Callable[[str, str], None],
+    thinking: str | None = None,
 ) -> tuple[bool, float]:
     """Stream a flag-only free-text gate reply, retrying on truncation.
 
@@ -203,6 +204,7 @@ def stream_flag_batch(
                 max_tokens=max_tokens,
                 log_dir=log_dir,
                 name=name,
+                thinking=thinking,
             ):
                 if ev.get("type") == "text_delta":
                     buf += ev.get("text", "")

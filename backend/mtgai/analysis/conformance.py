@@ -176,6 +176,7 @@ def _check_batch(
     model: str,
     log_dir,
     on_card: Callable[[dict], None] | None,
+    thinking: str | None = None,
 ) -> tuple[dict[str, str], set[str], list[str], float]:
     """Stream-check one batch. Returns ``(flagged, resolved, unknown, cost)``.
 
@@ -241,6 +242,7 @@ def _check_batch(
         name="check_conformance",
         valid_ids=valid_ids,
         on_block=_on_block,
+        thinking=thinking,
     )
 
     if completed:
@@ -347,6 +349,7 @@ def check_conformance(
     except Exception:
         log_dir = None
     model = settings.get_llm_model_id("conformance")
+    thinking = settings.get_thinking("conformance")
 
     findings: list[ConformanceFinding] = []
     total_cost = 0.0
@@ -388,7 +391,7 @@ def check_conformance(
         if on_progress is not None:
             on_progress(f"Checking cards — batch {bi}/{len(batches)}")
         flagged, resolved, unknown, cost = _check_batch(
-            batch, model=model, log_dir=log_dir, on_card=on_card
+            batch, model=model, log_dir=log_dir, on_card=on_card, thinking=thinking
         )
         total_cost += cost
         unknown_total += len(unknown)

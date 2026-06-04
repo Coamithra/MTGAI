@@ -1470,7 +1470,20 @@ def _stream_llamacpp_call(
     )
 
     provider = _get_provider("llamacpp")
-    facade_model = _llamacpp_new_model(provider, model_info.model_id)
+    # Per-stage "disable thinking" override for theme extraction (best-effort: a
+    # failed active-project lookup must never block extraction — fall back to the
+    # model's registry default). Mirrors the get_thinking() threading every other
+    # local stage does through generate_with_tool.
+    thinking_override = None
+    try:
+        from mtgai.settings.model_settings import get_active_settings
+
+        thinking_override = get_active_settings().get_thinking("theme_extract")
+    except Exception:
+        thinking_override = None
+    facade_model = _llamacpp_new_model(
+        provider, model_info.model_id, thinking_override=thinking_override
+    )
     log_path = _build_call_log_path(step_label, "llamacpp-call")
     effective_temperature = (
         temperature_override if temperature_override is not None else temps.BALANCED

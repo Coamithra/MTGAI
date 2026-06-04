@@ -163,6 +163,7 @@ def tune_knobs(
     model: str,
     base: SkeletonKnobs | None = None,
     log_dir: Path | None = None,
+    thinking: str | None = None,
 ) -> tuple[SkeletonKnobs, dict]:
     """Run phase 0. Returns (knobs, meta).
 
@@ -213,6 +214,7 @@ def tune_knobs(
             temperature=temps.BALANCED,
             max_tokens=STANDARD,
             log_dir=log_dir,
+            thinking=thinking,
         )
     except Exception as exc:  # default-on-failure, never a hard error
         logger.warning("Skeleton knob tuning failed; keeping the base knobs: %s", exc)
@@ -266,6 +268,7 @@ def tune_skeleton_knobs(
     project = require_active_project()
     settings = project.settings
     model_id = settings.get_llm_model_id("skeleton")
+    thinking = settings.get_thinking("skeleton")
     asset_dir = set_artifact_dir()
     log_dir = asset_dir / "skeleton" / "logs"
 
@@ -294,4 +297,5 @@ def tune_skeleton_knobs(
         model=model_id,
         base=base,
         log_dir=log_dir,
+        thinking=thinking,
     )

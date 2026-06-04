@@ -349,6 +349,7 @@ def relabel_slots(
     on_progress: ProgressHook | None = None,
     on_slot: SlotHook | None = None,
     on_reset: ResetHook | None = None,
+    thinking: str | None = None,
 ) -> tuple[dict[str, str], dict]:
     """Run Pass 1. Returns (tweaked, response) where tweaked maps every
     slot_id to its rewritten descriptor, and ``response`` carries summed token
@@ -426,6 +427,7 @@ def relabel_slots(
                 log_dir=log_dir,
                 repeat_penalty=RELABEL_TEXT_REPEAT_PENALTY,
                 name="relabel_skeleton",
+                thinking=thinking,
             ):
                 if ev.get("type") == "text_delta":
                     buf += ev.get("text", "")
@@ -552,6 +554,7 @@ def assign_requests(
     log_dir: Path | None = None,
     on_progress: ProgressHook | None = None,
     on_slot: SlotHook | None = None,
+    thinking: str | None = None,
 ) -> tuple[dict[str, str], dict[str, str], dict | None]:
     """Run Pass 2. Returns (tweaked, reserved, response): the (possibly updated)
     per-slot descriptors, a slot_id→request map for placed cards, and the merged
@@ -617,6 +620,7 @@ def assign_requests(
                 max_tokens=BATCH,
                 log_dir=log_dir,
                 repeat_penalty=_repeat_penalty_for(attempt),
+                thinking=thinking,
             )
         except Exception as exc:
             logger.warning("Assign attempt %d/%d failed: %s", attempt, ASSIGN_MAX_ATTEMPTS, exc)
@@ -702,6 +706,7 @@ def relabel_skeleton(
     project = require_active_project()
     settings = project.settings
     model_id = settings.get_llm_model_id("skeleton")
+    thinking = settings.get_thinking("skeleton")
     asset_dir = set_artifact_dir()
     log_dir = asset_dir / "skeleton" / "logs"
 
@@ -746,6 +751,7 @@ def relabel_skeleton(
         on_progress=on_progress,
         on_slot=on_slot,
         on_reset=on_reset,
+        thinking=thinking,
     )
     tweaked, reserved, assign_resp = assign_requests(
         slots=slots,
@@ -755,6 +761,7 @@ def relabel_skeleton(
         log_dir=log_dir,
         on_progress=on_progress,
         on_slot=on_slot,
+        thinking=thinking,
     )
 
     input_tokens = relabel_resp.get("input_tokens", 0)

@@ -276,6 +276,7 @@ def analyze_interactions(
     except Exception:
         log_dir = None
     model = settings.get_llm_model_id("conformance")
+    thinking = settings.get_thinking("conformance")
 
     batches = [to_check[i : i + BATCH_SIZE] for i in range(0, len(to_check), BATCH_SIZE)]
     logger.info(
@@ -327,6 +328,7 @@ def analyze_interactions(
             name="report_interactions",
             valid_ids=valid_ids,  # an enabler may be an existing card
             on_block=_on_block,
+            thinking=thinking,
         )
         total_cost += cost
         # Every new card not flagged as an enabler is interaction-checked: ✓ on a

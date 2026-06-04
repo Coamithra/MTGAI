@@ -336,11 +336,13 @@ def generate_art_prompt(
 
     from mtgai.runtime.active_project import require_active_project
 
+    _settings = require_active_project().settings
     result = generate_with_tool(
         system_prompt=SYSTEM_PROMPT,
         user_prompt=user_message,
         tool_schema=TOOL_SCHEMA,
-        model=require_active_project().settings.get_llm_model_id("art_prompts"),
+        model=_settings.get_llm_model_id("art_prompts"),
+        thinking=_settings.get_thinking("art_prompts"),
         temperature=temps.GROUNDED,
         max_tokens=640,
         log_dir=log_dir,

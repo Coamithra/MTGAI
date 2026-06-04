@@ -1262,6 +1262,11 @@ def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
             "tier": m.tier,
             "supports_effort": m.supports_effort,
             "effort_levels": list(m.effort_levels),
+            # A thinking-capable local reasoning model (registry thinking =
+            # adaptive/adaptive_summarized) — the per-phase "disable thinking"
+            # toggle is offered only for these. Anthropic models / non-reasoning
+            # locals have thinking unset and get no toggle.
+            "supports_thinking": m.thinking in ("adaptive", "adaptive_summarized"),
         }
         for m in registry.list_llm()
     ]
@@ -1279,6 +1284,7 @@ def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
         "llm_assignments": dict(settings.llm_assignments),
         "image_assignments": dict(settings.image_assignments),
         "effort_overrides": dict(settings.effort_overrides),
+        "thinking_overrides": dict(settings.thinking_overrides),
         "debug": settings.debug.model_dump(),
         "llm_models": llm_models,
         "image_models": image_models,
@@ -1553,11 +1559,13 @@ async def wizard_project_save_break(request: Request) -> JSONResponse:
 
 @router.post("/api/wizard/project/models")
 async def wizard_project_save_model(request: Request) -> JSONResponse:
-    """Live-apply a single model assignment (or effort override).
+    """Live-apply a single model assignment (or effort / thinking override).
 
-    Body: ``{set_code, kind: "llm" | "image" | "effort", stage_id, value}``.
-    The wizard's dropdowns POST one of these per change so we don't have
-    to round-trip the entire ``ModelSettings`` shape on every keystroke.
+    Body: ``{set_code, kind: "llm" | "image" | "effort" | "thinking",
+    stage_id, value}``. The wizard's dropdowns POST one of these per change
+    so we don't have to round-trip the entire ``ModelSettings`` shape on
+    every keystroke. For ``thinking`` the only meaningful value is
+    ``"disabled"``; an empty value clears the override (reasoning on).
     """
     from mtgai.settings.model_settings import apply_settings
 
@@ -1570,8 +1578,10 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
     kind = body.get("kind")
     stage_id = body.get("stage_id")
     value = body.get("value")
-    if kind not in ("llm", "image", "effort"):
-        return JSONResponse({"error": "kind must be llm | image | effort"}, status_code=400)
+    if kind not in ("llm", "image", "effort", "thinking"):
+        return JSONResponse(
+            {"error": "kind must be llm | image | effort | thinking"}, status_code=400
+        )
     if not isinstance(stage_id, str) or not stage_id:
         return JSONResponse({"error": "stage_id required"}, status_code=400)
     if not isinstance(value, str):
@@ -1585,6 +1595,13 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
         new_map = dict(settings.image_assignments)
         new_map[stage_id] = value
         new = settings.model_copy(update={"image_assignments": new_map})
+    elif kind == "thinking":
+        new_map = dict(settings.thinking_overrides)
+        if value:
+            new_map[stage_id] = value
+        else:
+            new_map.pop(stage_id, None)
+        new = settings.model_copy(update={"thinking_overrides": new_map})
     else:  # effort
         new_map = dict(settings.effort_overrides)
         if value:
@@ -1627,6 +1644,7 @@ async def wizard_project_apply_preset(request: Request) -> JSONResponse:
             "llm_assignments": dict(preset.llm_assignments),
             "image_assignments": dict(preset.image_assignments),
             "effort_overrides": dict(preset.effort_overrides),
+            "thinking_overrides": dict(preset.thinking_overrides),
             "break_points": dict(preset.break_points),
         }
     )
@@ -5340,6 +5358,7 @@ async def wizard_ai_review_revise(request: Request) -> JSONResponse:
         _apply_revision,
         _review_effort,
         _review_model,
+        _review_thinking,
         revise_card_in_place,
         save_decision,
     )
@@ -5379,6 +5398,7 @@ async def wizard_ai_review_revise(request: Request) -> JSONResponse:
             return guard.busy_response
         review_model = _review_model()
         review_effort = _review_effort()
+        review_thinking = _review_thinking()
         card = load_card(card_path)
         revised = await asyncio.to_thread(
             revise_card_in_place,
@@ -5389,6 +5409,7 @@ async def wizard_ai_review_revise(request: Request) -> JSONResponse:
             review_model,
             review_effort,
             log_dir=asset / "ai_review" / "logs",
+            review_thinking=review_thinking,
         )
         if revised is None:
             raise AIActionError("The model did not return a revised card; nothing changed.")

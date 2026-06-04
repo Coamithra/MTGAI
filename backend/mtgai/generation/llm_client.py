@@ -374,7 +374,7 @@ def _make_tool(tool_schema: dict) -> Tool:
     )
 
 
-def _llamacpp_new_model(provider: Provider, model_id: str):
+def _llamacpp_new_model(provider: Provider, model_id: str, thinking_override: str | None = None):
     """Build an llmfacade Model for a registered llamacpp entry.
 
     Threads the registry's launch knobs (gguf_path, context_window,
@@ -389,6 +389,14 @@ def _llamacpp_new_model(provider: Provider, model_id: str):
     same turn because the tool path keeps ``tool_choice`` unforced. Models
     not in the registry get a minimal default launch (no gguf path → the
     call will fail at supervisor.register() time with a clear error).
+
+    ``thinking_override`` (a per-call value resolved from the project's per-stage
+    ``thinking_overrides`` — e.g. ``"disabled"``) supersedes the registry's
+    ``thinking`` for THIS call. llmfacade applies ``thinking`` as a per-request
+    ``chat_template_kwargs={"enable_thinking": bool}``, not a server-launch flag,
+    so the same backend serves both thinking-on and thinking-off calls — no extra
+    llama-server. ``None`` keeps the registry default (reasoning on), so a caller
+    that doesn't thread thinking is unaffected.
     """
     from mtgai.settings.model_registry import get_registry
 
@@ -413,8 +421,9 @@ def _llamacpp_new_model(provider: Provider, model_id: str):
     # fit is a real bool (default True) — always forward it so the registry,
     # not llmfacade's provider default, is the source of truth for --fit on/off.
     launch_kwargs["fit"] = info.fit
-    if info.thinking is not None:
-        launch_kwargs["thinking"] = info.thinking
+    thinking = thinking_override if thinking_override is not None else info.thinking
+    if thinking is not None:
+        launch_kwargs["thinking"] = thinking
     if info.thinking_style is not None:
         launch_kwargs["thinking_style"] = info.thinking_style
     return provider.new_model(**launch_kwargs)
@@ -575,6 +584,7 @@ def _generate_llamacpp(
     max_tokens: int,
     log_dir: Any = True,
     repeat_penalty: float | None = None,
+    thinking: str | None = None,
 ) -> dict:
     """Call a local model through llmfacade's llamacpp provider.
 
@@ -623,7 +633,7 @@ def _generate_llamacpp(
     )
 
     provider = _get_provider("llamacpp")
-    facade_model = _llamacpp_new_model(provider, model)
+    facade_model = _llamacpp_new_model(provider, model, thinking_override=thinking)
     convo_kwargs: dict[str, Any] = {
         "name": _convo_name(tool_schema),
         "system_blocks": [SystemBlock(text=system_prompt)],
@@ -777,6 +787,7 @@ def generate_with_tool(
     cache: bool = True,
     log_dir: Any | None = None,
     repeat_penalty: float | None = None,
+    thinking: str | None = None,
     *,
     system_blocks: list[str | tuple[str, bool]] | None = None,
     cache_user: bool = False,
@@ -807,6 +818,11 @@ def generate_with_tool(
 
     ``repeat_penalty`` (llamacpp only; ignored on Anthropic) overrides the
     provider-default repeat penalty for this call — see :func:`_generate_llamacpp`.
+
+    ``thinking`` (llamacpp only; ignored on Anthropic) overrides the assigned
+    model's registry ``thinking`` for this call — pass ``"disabled"`` to turn off
+    reasoning for speed. Stages resolve it per-phase via
+    ``ModelSettings.get_thinking(stage_id)``. ``None`` keeps the model default.
     """
     provider = _resolve_provider(model)
     # None → True keeps llmfacade's default-on logging (session dirs under cwd);
@@ -839,6 +855,7 @@ def generate_with_tool(
             max_tokens=max_tokens,
             log_dir=effective_log_dir,
             repeat_penalty=repeat_penalty,
+            thinking=thinking,
         )
 
     return _generate_anthropic(
@@ -873,6 +890,7 @@ def _generate_text_llamacpp(
     log_dir: Any,
     repeat_penalty: float | None,
     name: str,
+    thinking: str | None = None,
 ) -> dict:
     """Plain (no-tool) local generation. Returns the raw text + usage.
 
@@ -890,7 +908,7 @@ def _generate_text_llamacpp(
     check_pre_call(model, legacy_messages, tools=None, output_reserve=max_tokens)
 
     provider = _get_provider("llamacpp")
-    facade_model = _llamacpp_new_model(provider, model)
+    facade_model = _llamacpp_new_model(provider, model, thinking_override=thinking)
     convo_kwargs: dict[str, Any] = {
         "name": _text_convo_name(name),
         "system_blocks": [SystemBlock(text=system_prompt)],
@@ -971,6 +989,7 @@ def generate_text(
     log_dir: Any | None = None,
     repeat_penalty: float | None = None,
     name: str = "generate_text",
+    thinking: str | None = None,
 ) -> dict:
     """Free-text generation — the no-tool counterpart to :func:`generate_with_tool`.
 
@@ -997,6 +1016,7 @@ def generate_text(
             log_dir=effective_log_dir,
             repeat_penalty=repeat_penalty,
             name=name,
+            thinking=thinking,
         )
 
     return _generate_text_anthropic(
@@ -1024,6 +1044,7 @@ def _stream_text_llamacpp(
     log_dir: Any,
     repeat_penalty: float | None,
     name: str,
+    thinking: str | None = None,
 ) -> Iterator[dict]:
     """Streaming local generation. Yields ``text_delta`` events, then one
     ``complete`` event carrying the full text + usage.
@@ -1044,7 +1065,7 @@ def _stream_text_llamacpp(
     check_pre_call(model, legacy_messages, tools=None, output_reserve=max_tokens)
 
     provider = _get_provider("llamacpp")
-    facade_model = _llamacpp_new_model(provider, model)
+    facade_model = _llamacpp_new_model(provider, model, thinking_override=thinking)
     convo_kwargs: dict[str, Any] = {
         "name": _text_convo_name(name),
         "system_blocks": [SystemBlock(text=system_prompt)],
@@ -1143,6 +1164,7 @@ def stream_text(
     log_dir: Any | None = None,
     repeat_penalty: float | None = None,
     name: str = "stream_text",
+    thinking: str | None = None,
 ) -> Iterator[dict]:
     """Streaming free-text generation — the streaming counterpart to
     :func:`generate_text`.
@@ -1173,6 +1195,7 @@ def stream_text(
             log_dir=effective_log_dir,
             repeat_penalty=repeat_penalty,
             name=name,
+            thinking=thinking,
         )
         return
 

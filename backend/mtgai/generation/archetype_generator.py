@@ -360,6 +360,7 @@ def generate_archetypes(
     settings = project.settings
     sp = settings.set_params
     model_id = settings.get_llm_model_id("archetypes")
+    thinking = settings.get_thinking("archetypes")
 
     asset_dir = set_artifact_dir()
     # llmfacade writes each call's JSONL+HTML transcript here (named after the
@@ -417,6 +418,7 @@ def generate_archetypes(
         temperature=temps.CREATIVE,
         max_tokens=BATCH,
         log_dir=log_dir,
+        thinking=thinking,
     )
 
     raw = response["result"].get("archetypes") or []

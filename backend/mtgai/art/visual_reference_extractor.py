@@ -543,6 +543,7 @@ def generate_visual_references(*, theme: dict | None = None) -> dict:
     settings = project.settings
     sp = settings.set_params
     model_id = settings.get_llm_model_id("visual_refs")
+    thinking = settings.get_thinking("visual_refs")
 
     asset_dir = set_artifact_dir()
     log_dir = asset_dir / "art-direction" / "logs"
@@ -559,6 +560,7 @@ def generate_visual_references(*, theme: dict | None = None) -> dict:
         user_prompt=user_prompt,
         tool_schema=VISUAL_REF_TOOL_SCHEMA,
         model=model_id,
+        thinking=thinking,
         temperature=temps.CREATIVE,
         max_tokens=STANDARD,
         log_dir=log_dir,
@@ -602,6 +604,7 @@ def generate_artists(*, theme: dict | None = None, count: int | None = None) -> 
     settings = project.settings
     sp = settings.set_params
     model_id = settings.get_llm_model_id("visual_refs")
+    thinking = settings.get_thinking("visual_refs")
 
     asset_dir = set_artifact_dir()
     log_dir = asset_dir / "art-direction" / "logs"
@@ -623,6 +626,7 @@ def generate_artists(*, theme: dict | None = None, count: int | None = None) -> 
         user_prompt=user_prompt,
         tool_schema=ARTIST_DIRECTORY_TOOL_SCHEMA,
         model=model_id,
+        thinking=thinking,
         temperature=temps.CREATIVE,
         max_tokens=STANDARD,
         log_dir=log_dir,
@@ -656,6 +660,7 @@ def generate_set_art_direction(*, theme: dict | None = None) -> dict:
     settings = project.settings
     sp = settings.set_params
     model_id = settings.get_llm_model_id("visual_refs")
+    thinking = settings.get_thinking("visual_refs")
 
     asset_dir = set_artifact_dir()
     log_dir = asset_dir / "art-direction" / "logs"
@@ -672,6 +677,7 @@ def generate_set_art_direction(*, theme: dict | None = None) -> dict:
         user_prompt=user_prompt,
         tool_schema=SET_ART_DIRECTION_TOOL_SCHEMA,
         model=model_id,
+        thinking=thinking,
         temperature=temps.CREATIVE,
         max_tokens=STANDARD,
         log_dir=log_dir,
