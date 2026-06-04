@@ -1135,6 +1135,73 @@ _TILE_CARD_FIELDS = (
 )
 
 
+# Design fields a review may change (mirrors ``_apply_revision``), each with a
+# human label for the "what changed" box. Order = display order in the tab.
+_REVISION_FIELD_LABELS: tuple[tuple[str, str], ...] = (
+    ("name", "Name"),
+    ("mana_cost", "Mana cost"),
+    ("type_line", "Type"),
+    ("oracle_text", "Rules text"),
+    ("flavor_text", "Flavor"),
+    ("power", "Power"),
+    ("toughness", "Toughness"),
+    ("loyalty", "Loyalty"),
+    ("rarity", "Rarity"),
+    ("colors", "Colors"),
+    ("color_identity", "Color identity"),
+    ("cmc", "Mana value"),
+    ("design_notes", "Design notes"),
+)
+
+
+def _render_field_value(value: object) -> str:
+    """Display string for a card field (lists joined, None/empty → em dash)."""
+    if value is None:
+        return "—"
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value) if value else "—"
+    text = str(value).strip()
+    return text if text else "—"
+
+
+def _norm_field_value(value: object) -> object:
+    """Comparison key that ignores cosmetic differences (list order, None vs '')."""
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return sorted(str(v) for v in value)
+    return str(value).strip()
+
+
+def summarize_revision(original: dict, current: dict) -> list[dict]:
+    """Field-level before/after diff of the design fields a review may change.
+
+    ``original`` is the card as it entered review (``CardReviewResult.original_card``);
+    ``current`` is the card on disk after the council revised it in place. Returns
+    one ``{field, label, before, after}`` entry per design field whose value
+    actually changed, in display order — the data behind the tab's "what changed"
+    box. Cosmetic-only differences (colour list reordering, ``None`` vs ``""``) are
+    not reported. Empty list when nothing design-relevant differs (e.g. the review
+    revised then reverted a field), in which case the tab shows a bare "tweaked"
+    mark.
+    """
+    changes: list[dict] = []
+    for field, label in _REVISION_FIELD_LABELS:
+        before = original.get(field)
+        after = current.get(field)
+        if _norm_field_value(before) == _norm_field_value(after):
+            continue
+        changes.append(
+            {
+                "field": field,
+                "label": label,
+                "before": _render_field_value(before),
+                "after": _render_field_value(after),
+            }
+        )
+    return changes
+
+
 def review_tile(card: dict, review: CardReviewResult | None) -> dict:
     """Build the AI Design Review tab's per-card tile.
 
@@ -1156,12 +1223,19 @@ def review_tile(card: dict, review: CardReviewResult | None) -> dict:
         tile["verdict"] = None
         tile["issues"] = []
         tile["card_was_changed"] = False
+        tile["changes"] = []
         tile["review_tier"] = ""
         tile["council"] = []
         return tile
     tile["verdict"] = review.final_verdict
     tile["issues"] = [i.model_dump() for i in review.final_issues]
     tile["card_was_changed"] = review.card_was_changed
+    # What the review changed: diff the pre-review snapshot against the live card
+    # so the tab can show a per-field before/after. Only computed when the review
+    # actually revised the card (the council saves revisions in place).
+    tile["changes"] = (
+        summarize_revision(review.original_card, card) if review.card_was_changed else []
+    )
     tile["review_tier"] = review.review_tier
     # Compact per-reviewer summary for the (resolved) council panel: verdict +
     # issue count, no full transcript (that stays in reviews/<cn>.json).

@@ -81,6 +81,89 @@ class TestReviewTile:
         ]
         assert tile["review_tier"] == "council"
 
+    def test_unchanged_card_has_empty_changes(self):
+        review = CardReviewResult(
+            collector_number="W-C-01",
+            card_name="Test Bear",
+            rarity="common",
+            review_tier="single",
+            original_card=_CARD,
+            final_verdict="OK",
+            card_was_changed=False,
+        )
+        tile = ai_review.review_tile(_CARD, review)
+        assert tile["card_was_changed"] is False
+        assert tile["changes"] == []
+
+    def test_unreviewed_card_has_empty_changes(self):
+        tile = ai_review.review_tile(_CARD, None)
+        assert tile["card_was_changed"] is False
+        assert tile["changes"] == []
+
+    def test_revised_card_carries_field_diff(self):
+        # The current (on-disk) card reflects the council's in-place revision.
+        current = {**_CARD, "oracle_text": "Vigilance, trample", "power": "3"}
+        review = CardReviewResult(
+            collector_number="W-C-01",
+            card_name="Test Bear",
+            rarity="common",
+            review_tier="single",
+            original_card=_CARD,  # pre-review snapshot
+            final_verdict="OK",
+            card_was_changed=True,
+        )
+        tile = ai_review.review_tile(current, review)
+        assert tile["card_was_changed"] is True
+        by_field = {c["field"]: c for c in tile["changes"]}
+        assert set(by_field) == {"oracle_text", "power"}
+        assert by_field["oracle_text"]["before"] == "Vigilance"
+        assert by_field["oracle_text"]["after"] == "Vigilance, trample"
+        assert by_field["oracle_text"]["label"] == "Rules text"
+        assert by_field["power"]["before"] == "2"
+        assert by_field["power"]["after"] == "3"
+
+
+# ---------------------------------------------------------------------------
+# summarize_revision
+# ---------------------------------------------------------------------------
+
+
+class TestSummarizeRevision:
+    def test_no_changes(self):
+        assert ai_review.summarize_revision(_CARD, _CARD) == []
+
+    def test_added_field_reported(self):
+        current = {**_CARD, "flavor_text": "A hungry bear."}
+        changes = ai_review.summarize_revision(_CARD, current)
+        assert len(changes) == 1
+        assert changes[0]["field"] == "flavor_text"
+        assert changes[0]["before"] == "—"  # was absent
+        assert changes[0]["after"] == "A hungry bear."
+
+    def test_changes_follow_display_order(self):
+        current = {**_CARD, "power": "3", "name": "Grizzly", "oracle_text": "Trample"}
+        fields = [c["field"] for c in ai_review.summarize_revision(_CARD, current)]
+        # name precedes oracle_text precedes power per _REVISION_FIELD_LABELS.
+        assert fields == ["name", "oracle_text", "power"]
+
+    def test_list_reorder_is_not_a_change(self):
+        original = {**_CARD, "colors": ["W", "U"]}
+        current = {**_CARD, "colors": ["U", "W"]}
+        assert ai_review.summarize_revision(original, current) == []
+
+    def test_none_vs_empty_is_not_a_change(self):
+        original = {**_CARD, "flavor_text": None}
+        current = {**_CARD, "flavor_text": ""}
+        assert ai_review.summarize_revision(original, current) == []
+
+    def test_list_value_change_is_reported(self):
+        original = {**_CARD, "colors": ["W"]}
+        current = {**_CARD, "colors": ["W", "U"]}
+        changes = ai_review.summarize_revision(original, current)
+        assert len(changes) == 1
+        assert changes[0]["field"] == "colors"
+        assert changes[0]["after"] == "W, U"
+
 
 # ---------------------------------------------------------------------------
 # decisions sidecar
