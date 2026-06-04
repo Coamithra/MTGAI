@@ -744,19 +744,29 @@ class SkeletonKnobs(BaseModel):
         else:
             cycles = self.cycles
         # Only fall back to base's picks when the AI returned none AND base had some
-        # — so a both-empty re-tune still returns ``self`` unchanged below.
+        # — so a both-empty re-tune still returns ``self`` unchanged below. Carry the
+        # picks' provenance too, else a carried 'user'/'ai' choice gets badged 'auto'.
         carried_irregular = not self.irregular_subtypes and bool(base.irregular_subtypes)
         irregular = base.irregular_subtypes if carried_irregular else self.irregular_subtypes
+        carried_prov = carried_irregular and "irregular_subtypes" in base.provenance
         if not base.pinned:
             if cycles is self.cycles and not carried_irregular:
                 return self
-            return self.model_copy(update={"cycles": cycles, "irregular_subtypes": irregular})
+            update: dict[str, Any] = {"cycles": cycles, "irregular_subtypes": irregular}
+            if carried_prov:
+                update["provenance"] = {
+                    **self.provenance,
+                    "irregular_subtypes": base.provenance["irregular_subtypes"],
+                }
+            return self.model_copy(update=update)
         updates: dict[str, float] = {}
         provenance = dict(self.provenance)
         for key in base.pinned:
             if key in KNOB_SPEC_BY_KEY:
                 updates[key] = getattr(base, key)
                 provenance[key] = base.provenance.get(key, "user")
+        if carried_prov:
+            provenance["irregular_subtypes"] = base.provenance["irregular_subtypes"]
         return self.model_copy(
             update={
                 **updates,

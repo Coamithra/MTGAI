@@ -281,19 +281,24 @@ class TestMergePins:
         assert merged.irregular_subtypes == ["shrine", "class"]
 
     def test_empty_ai_irregular_subtypes_fall_back_to_base(self):
-        # If the AI returned none, a prior/hand-edited pick must not be silently lost.
-        base = SkeletonKnobs(irregular_subtypes=["saga"])
+        # If the AI returned none, a prior/hand-edited pick (and its provenance
+        # badge) must not be silently lost.
+        base = SkeletonKnobs(irregular_subtypes=["saga"]).model_copy(
+            update={"provenance": {"irregular_subtypes": "user"}}
+        )
         retuned = SkeletonKnobs(multicolor_rare=0.40)  # AI proposed no picks
         merged = retuned.merge_pins_from(base)
         assert merged.irregular_subtypes == ["saga"]
+        assert merged.provenance["irregular_subtypes"] == "user"
 
     def test_empty_ai_irregular_subtypes_carry_with_pins(self):
         base = SkeletonKnobs(
             multicolor_rare=0.40, pinned=["multicolor_rare"], irregular_subtypes=["shrine"]
-        )
+        ).model_copy(update={"provenance": {"irregular_subtypes": "user"}})
         retuned = SkeletonKnobs(multicolor_rare=0.15)
         merged = retuned.merge_pins_from(base)
         assert merged.irregular_subtypes == ["shrine"]
+        assert merged.provenance["irregular_subtypes"] == "user"
         assert merged.multicolor_rare == 0.40
 
 
