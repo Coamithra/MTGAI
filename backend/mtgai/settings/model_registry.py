@@ -86,6 +86,10 @@ class ImageModel:
     key: str
     name: str
     provider: str  # "comfyui", "gemini", "openai"
+    # Provider-side model id passed to llmfacade's generate_image (e.g.
+    # "gpt-image-1", "gemini-2.5-flash-image"). None for the local ComfyUI
+    # path, which loads its model from the bundled workflow, not by id.
+    model_id: str | None = None
     cost_per_image: float = 0.0
     implemented: bool = False
 
@@ -212,6 +216,7 @@ class ModelRegistry:
                 key=key,
                 name=raw["name"],
                 provider=raw["provider"],
+                model_id=raw.get("model_id"),
                 cost_per_image=raw.get("cost_per_image", 0.0),
                 implemented=raw.get("implemented", False),
             )
