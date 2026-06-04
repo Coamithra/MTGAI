@@ -1478,57 +1478,6 @@ async def wizard_project_save_theme_input(request: Request) -> JSONResponse:
     return JSONResponse({"success": True, "theme_input": new.theme_input.model_dump(mode="json")})
 
 
-def _propagate_break_point_to_state(stage_id: str, breaks: dict[str, str], set_code: str) -> None:
-    """Live-apply a break-point toggle onto the running/persisted pipeline state.
-
-    The engine decides whether to pause by reading ``StageState.review_mode``
-    off its own in-memory state, which is frozen at kickoff from
-    ``settings.break_points`` (via ``build_stages``). Toggling a break point
-    later only mutated ``settings`` — the running engine (and the on-disk state
-    a later resume reloads) never saw the change, so "Stop after this step"
-    silently did nothing. Mirror the build-time resolution
-    (:func:`_resolve_break_point`, same DEFAULT fallback ``build_stages`` uses)
-    onto every not-yet-finished instance of the toggled stage so the next time
-    that stage completes it honours the toggle.
-
-    Writes through the live engine's state only when that engine is actually
-    running the active project (it reads review_mode off that object, and
-    ``save_state`` persists it); otherwise edits the on-disk state for the
-    active project. Both avoid pushing a stale/other-project state through
-    ``save_state``, which always targets the active project's path.
-    """
-    from mtgai.pipeline.engine import load_state, save_state
-    from mtgai.pipeline.models import StageReviewMode, StageStatus, _resolve_break_point
-
-    mode = (
-        StageReviewMode.REVIEW
-        if _resolve_break_point(stage_id, breaks)
-        else StageReviewMode.AUTO
-    )
-
-    if _engine is not None and _engine.is_running and _engine.state.config.set_code == set_code:
-        state = _engine.state
-    else:
-        state = load_state()
-    if state is None:
-        return
-
-    terminal = (StageStatus.COMPLETED, StageStatus.SKIPPED)
-    changed = False
-    # Snapshot the list: the engine thread may be inserting a regen-loop
-    # instance into the live ``state.stages`` concurrently. The stage objects
-    # are shared, so mutating ``review_mode`` on them still lands on the real
-    # state — we only need to avoid iterating a list that changes size.
-    for stage in list(state.stages):
-        if stage.stage_id != stage_id or stage.status in terminal:
-            continue
-        if stage.review_mode != mode:
-            stage.review_mode = mode
-            changed = True
-    if changed:
-        save_state(state)
-
-
 @router.post("/api/wizard/project/breaks")
 async def wizard_project_save_break(request: Request) -> JSONResponse:
     """Toggle one break point on or off (live-apply).
@@ -1596,9 +1545,9 @@ async def wizard_project_save_break(request: Request) -> JSONResponse:
 
     new = settings.model_copy(update={"break_points": breaks})
     apply_settings(new)
-    # Push the toggle onto the live/persisted pipeline state — settings alone
-    # never reach the engine, which reads review_mode off its frozen state.
-    _propagate_break_point_to_state(stage_id, breaks, project.set_code)
+    # No need to push onto the pipeline state: the engine re-reads the live
+    # break points at each stage's completion (engine._live_break_point), so a
+    # toggle in settings is honoured on the next stage boundary.
     return JSONResponse({"success": True, "break_points": breaks})
 
 

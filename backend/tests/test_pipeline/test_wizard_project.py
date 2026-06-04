@@ -284,47 +284,6 @@ def test_save_break_toggles_on_and_off(client):
     assert active_project.require_active_project().settings.break_points == {}
 
 
-def test_save_break_propagates_to_persisted_pipeline_state(client):
-    """Toggling a break point must reach the persisted pipeline state's
-    ``review_mode`` — not just ``settings``.
-
-    The engine decides whether to pause by reading ``StageState.review_mode``
-    off its own state (frozen at kickoff). If the toggle only updates settings,
-    a "Stop after this step" checked after kickoff is silently ignored. This
-    pins the propagation that fixes that.
-    """
-    from mtgai.pipeline.engine import load_state, save_state
-    from mtgai.pipeline.models import (
-        PipelineConfig,
-        StageReviewMode,
-        create_pipeline_state,
-    )
-
-    def card_gen_mode() -> StageReviewMode:
-        state = load_state()
-        assert state is not None
-        return next(s for s in state.stages if s.stage_id == "card_gen").review_mode
-
-    _open_project("TST")
-    # Seed a persisted state where card_gen is AUTO (not a default break point).
-    save_state(create_pipeline_state(PipelineConfig(set_code="TST", set_name="Test")))
-    assert card_gen_mode() == StageReviewMode.AUTO
-
-    resp_on = client.post(
-        "/api/wizard/project/breaks",
-        json={"set_code": "TST", "stage_id": "card_gen", "review": True},
-    )
-    assert resp_on.status_code == 200
-    assert card_gen_mode() == StageReviewMode.REVIEW
-
-    resp_off = client.post(
-        "/api/wizard/project/breaks",
-        json={"set_code": "TST", "stage_id": "card_gen", "review": False},
-    )
-    assert resp_off.status_code == 200
-    assert card_gen_mode() == StageReviewMode.AUTO
-
-
 def test_save_break_human_review_stage_can_be_unchecked(client):
     _open_project("TST")
     resp = client.post(
