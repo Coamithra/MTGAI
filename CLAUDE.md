@@ -14,6 +14,7 @@
 
 ## Development
 - Python 3.12+ (uv-managed). Lint: `ruff check .` / `ruff format .` from `backend/`. Tests: `pytest` from `backend/`.
+- **Before starting the server, pull latest `master` first.** Whenever the user asks to start/run the server (`python -m mtgai.review serve --open`, the `/run` skill, etc.), run `git pull` (fast-forward) on `master` *before* launching — fixes land on `master` from parallel worktree branches, so a stale local checkout makes the user re-report bugs that are already fixed. If the pull isn't clean (diverged / uncommitted WIP that would conflict), say so and let the user decide rather than force it.
 
 ## Code Style
 - Pydantic v2 for all data structures. StrEnum for enumerations.
