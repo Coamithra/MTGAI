@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 from mtgai.generation.phase_poller import make_poller
 from mtgai.io.atomic import atomic_write_text
 from mtgai.pipeline.stage_hooks import (
+    build_art_prompt_hooks,
     build_card_gen_hooks,
     build_mechanic_hooks,
     build_skeleton_hooks,
@@ -1458,6 +1459,13 @@ def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter)
     from mtgai.runtime import ai_lock
 
     emitter.phase("running", "Writing art prompts")
+
+    # Stream each freshly-prompted card to the Art Prompts tab as it lands (same
+    # byte-identical tile shape /state emits), so the grid pops in one card at a
+    # time. The engine path does NOT emit a reset — a first run starts empty and a
+    # resume must keep already-prompted cards visible (mirrors run_card_gen).
+    ap_hooks = build_art_prompt_hooks(emitter)
+
     # Hold the app-wide AI lock for the whole loop (one AI action at a time) and
     # thread the cancel hook so the Cancel button halts at the next card boundary
     # (request_cancel() is a no-op unless the lock is held). Mirrors run_card_gen.
@@ -1471,6 +1479,7 @@ def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter)
             result = generate_prompts_for_set(
                 progress_callback=progress_cb,
                 should_cancel=ai_lock.is_cancelled,
+                card_saved_callback=ap_hooks.on_card_saved,
             )
 
     processed = result.get("processed", 0)
