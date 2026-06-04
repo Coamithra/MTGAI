@@ -1,0 +1,3 @@
+Write the set-wide art direction for this set as `set_art_direction`: 2-4 paragraphs covering overall aesthetic, palette strategy, lighting, recurring materials and textures, and mood.
+
+Be specific and committed, ground it in the setting, and keep it within MTG's painterly fantasy house style — interesting but never gimmicky.

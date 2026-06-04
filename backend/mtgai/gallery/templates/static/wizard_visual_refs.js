@@ -1,25 +1,35 @@
 /**
- * Wizard Visual References tab — displays the per-project visual dictionary
- * extracted from setting prose into ``<asset>/art-direction/visual-references.json``.
+ * Wizard Visual References & Artists tab (stage_id ``visual_refs``).
  *
- * Shape of that file (from visual_reference_extractor.py / CLAUDE.md):
- *   legendary_characters  { name_key: "appearance description…" }
- *   creature_types        { name_key: "…" }
- *   factions              { name_key: "…" }
- *   landmarks             { name_key: "…" }
- *   flux_term_replacements { term: "replacement" }
- *   visual_motifs         [ "short note", … ]
+ * A fully editable art-direction surface, built on the standard stage shell
+ * (``W.registerStageRenderer`` → wizard_stage.js owns the header: status pill,
+ * break-point toggle, Edit-cascade). Three sections:
+ *
+ *   1. Art-Direction Dictionary — four entity categories, each a 2-column table
+ *      (entry name | art-direction prose), one row per entity. Keys and prose
+ *      are editable and the user can ADD their own rows. Below it: the Flux term
+ *      replacements table, the visual motifs list, and the set-wide art
+ *      direction textarea.
+ *   2. Artist Directory — rows of (made-up artist name | style description),
+ *      re-rollable as a set + manually editable + add/remove rows.
+ *
+ * Files (frozen contracts — plans/art-render-contracts.md):
+ *   art-direction/visual-references.json: { legendary_characters, creature_types,
+ *     factions, landmarks (each {slug:prose}), flux_term_replacements {term:repl},
+ *     visual_motifs [str], set_art_direction str }
+ *   art-direction/artists.json: { artists: [{name, style_prompt}] }
  *
  * Conventions:
- *   §1  footer: latest + paused_for_review → Save & Continue; else wiz-footer-note
- *   §3  form lock while AI gen in flight (read-only display, no interactive elements today)
- *   §6  past-tab view is read-only; edit cascade via wizard_stage.js
- *   §8  status pill driven by stage state (wizard_stage.js)
- *   §9  "Stop after this step" toggle handled by wizard_stage.js
- *   §13 Refresh AI button always rendered (initial generate + re-extract)
+ *   §1  one primary "Save & Continue" footer (when paused for review)
+ *   §3  form lock during AI gen
+ *   §6  past-tab edits route through the Edit cascade (read-only grid)
+ *   §8  status pill flows from stage state
+ *   §9  "Stop after this step" — handled by wizard_stage.js
+ *   §13 section-level Refresh AI buttons, always rendered on the latest tab
  *
- * Registers via ``W.registerStageRenderer('visual_refs', render)`` — the standard
- * wizard_stage.js shell owns the header; we paint content + footer.
+ * The stage is AUTO by default; the full review experience is reached by ticking
+ * "Stop after this step" (the stage then pauses and the Save & Continue footer
+ * appears).
  */
 
 (function () {
@@ -28,30 +38,35 @@
   const W = (window.MTGAIWizard = window.MTGAIWizard || {});
   const STAGE_ID = 'visual_refs';
 
-  // Ordered display config for the four entity-category dicts.
   const ENTITY_CATEGORIES = [
-    { key: 'legendary_characters', label: 'Legendary Characters', icon: '★' },
-    { key: 'creature_types',       label: 'Creature Types',       icon: '☽' },
-    { key: 'factions',             label: 'Factions',             icon: '⚑' },
-    { key: 'landmarks',            label: 'Landmarks',            icon: '◆' },
+    { key: 'legendary_characters', label: 'Legendary Characters' },
+    { key: 'creature_types',       label: 'Creature Types' },
+    { key: 'factions',             label: 'Factions' },
+    { key: 'landmarks',            label: 'Landmarks' },
   ];
 
   const local = {
-    initialized:  false,
-    refs:         null,   // the parsed visual-references.json, or null
-    hasContent:   false,
-    setName:      '',
-    modelId:      '',
-    stageStatus:  'pending',
-    locked:       false,
+    initialized: false,
+    // entities: { <cat>: [{key, description}] }
+    entities: {},
+    flux: [],        // [{term, replacement}]
+    motifs: [],      // [str]
+    setArtDirection: '',
+    artists: [],     // [{name, style_prompt}]
+    hasContent: false,
+    artistTarget: 0,
+    setParams: { set_name: '', set_size: 0 },
+    modelId: '',
+    stageStatus: 'pending',
+    locked: false,
     bootstrapping: false,
   };
 
   W.registerStageRenderer(STAGE_ID, render);
 
-  // ---------------------------------------------------------------------------
-  // Top-level render — called by wizard_stage.js on mount and each SSE repaint
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------------------
+  // Top-level render
+  // ----------------------------------------------------------------------
 
   function render({ root, state, stage, content, footer }) {
     if (!local.initialized) {
@@ -64,9 +79,6 @@
       paintFooter(footer, state);
       return;
     }
-
-    // Re-render path — keep footer reactive; don't repaint the body
-    // (no user-editable fields here, but guard anyway for consistency).
     const prevStatus = local.stageStatus;
     if (stage) local.stageStatus = stage.status;
 
@@ -85,6 +97,7 @@
       return;
     }
     paintFooter(footer, state);
+    setLocked(local.locked);
   }
 
   function mountShellHtml() {
@@ -96,251 +109,397 @@
     `;
   }
 
-  // ---------------------------------------------------------------------------
-  // Bootstrap — fetch state from server (graceful degradation; tab renders
-  // without a backend and just shows an empty-state placeholder).
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------------------
+  // Bootstrap from server
+  // ----------------------------------------------------------------------
 
   async function bootstrap(root, state) {
-    let data = null;
-    try {
-      // TODO: implement GET /api/wizard/visual_refs/state on the server
-      // Expected response shape:
-      //   { has_content, refs, set_name, model_id, stage_status, cost_usd, entity_count }
-      const resp = await fetch('/api/wizard/visual_refs/state');
-      if (resp.ok) {
-        data = await resp.json().catch(() => null);
-      } else if (resp.status === 404) {
-        // Endpoint not yet implemented — silently degrade to empty state
-        data = null;
-      } else {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP ${resp.status}`);
-      }
-    } catch (err) {
-      // Network error or endpoint not yet wired — show empty placeholder
-      data = null;
-    }
-
-    if (data) {
-      local.refs        = data.refs || null;
-      local.hasContent  = !!data.has_content;
-      local.setName     = data.set_name || '';
-      local.modelId     = data.model_id || '';
-      local.stageStatus = data.stage_status || local.stageStatus;
-    }
-
+    const data = await W.fetchStageState(STAGE_ID);
+    if (data) applyState(data);
     paintSummary(root, state);
     paintBody(root, state);
     paintFooter(getFooter(root), state);
   }
 
-  // ---------------------------------------------------------------------------
-  // Summary header — entity count, term replacements, motifs + Refresh AI
-  // ---------------------------------------------------------------------------
+  function applyState(data) {
+    const ents = (data && data.entities) || {};
+    local.entities = {};
+    ENTITY_CATEGORIES.forEach(cat => {
+      const rows = Array.isArray(ents[cat.key]) ? ents[cat.key] : [];
+      local.entities[cat.key] = rows.map(r => ({
+        key: String((r && r.key) || ''),
+        description: String((r && r.description) || ''),
+      }));
+    });
+    const flux = (data && data.flux_term_replacements) || {};
+    local.flux = Object.keys(flux).map(term => ({ term, replacement: String(flux[term] || '') }));
+    local.motifs = Array.isArray(data && data.visual_motifs)
+      ? data.visual_motifs.map(m => String(m || ''))
+      : [];
+    local.setArtDirection = String((data && data.set_art_direction) || '');
+    local.artists = Array.isArray(data && data.artists)
+      ? data.artists.map(a => ({
+          name: String((a && a.name) || ''),
+          style_prompt: String((a && a.style_prompt) || ''),
+        }))
+      : [];
+    local.hasContent = !!(data && data.has_content);
+    local.artistTarget = (data && data.artist_count_target) || 0;
+    local.setParams = (data && data.set_params) || local.setParams;
+    local.modelId = (data && data.model_id) || '';
+    local.stageStatus = (data && data.stage_status) || local.stageStatus;
+  }
+
+  // ----------------------------------------------------------------------
+  // Summary
+  // ----------------------------------------------------------------------
 
   function paintSummary(root, state) {
     const slot = root.querySelector('[data-role="vr-summary"]');
     if (!slot) return;
-    const isPast = W.isPastTab(STAGE_ID, state);
-
-    // Compute counts from refs
-    let entityCount = 0;
-    let replacementCount = 0;
-    let motifCount = 0;
-    if (local.refs) {
-      ENTITY_CATEGORIES.forEach(cat => {
-        const dict = local.refs[cat.key];
-        if (dict && typeof dict === 'object') entityCount += Object.keys(dict).length;
-      });
-      const fr = local.refs.flux_term_replacements;
-      replacementCount = (fr && typeof fr === 'object') ? Object.keys(fr).length : 0;
-      const vm = local.refs.visual_motifs;
-      motifCount = Array.isArray(vm) ? vm.length : 0;
-    }
-
-    const generating = local.stageStatus === 'running' || local.locked;
-    const refreshLabel = local.hasContent ? 'Refresh AI…' : 'Generate';
-    const refreshTitle = isPast
-      ? 'Use Edit above to regenerate past visual references.'
-      : local.hasContent
-        ? 'Re-extract visual references from setting prose (overwrites all existing).'
-        : 'Extract visual references from the theme setting prose now.';
-
-    // §13: Refresh button always rendered; disabled on a past tab.
+    const sp = local.setParams;
+    const entityCount = ENTITY_CATEGORIES.reduce(
+      (n, c) => n + (local.entities[c.key] || []).length, 0);
     slot.innerHTML = `
-      <div class="wiz-theme-section-header-row">
-        <h3 style="margin:0">Visual Dictionary</h3>
-        <button type="button" class="wiz-btn-secondary wiz-refresh-btn"
-                data-role="vr-refresh"
-                title="${escAttr(refreshTitle)}"
-                ${(isPast || generating) ? 'disabled' : ''}>${escHtml(refreshLabel)}</button>
-      </div>
+      <h3 style="margin:0 0 0.4rem">Visual References &amp; Artists</h3>
       <p class="wiz-vr-blurb">
-        Per-project appearance descriptions for every setting-specific entity —
-        used by the art pipeline to keep character and creature visuals consistent.
+        A transform of the theme into consistent art direction — a full visual
+        brief per entity (so the same character always paints the same way), a
+        roster of made-up artists, and the set-wide aesthetic. All editable below.
       </p>
-      ${local.hasContent ? `
-      <dl class="wiz-stage-summary">
-        <dt>Entities</dt><dd>${escHtml(String(entityCount))}</dd>
-        <dt>Term replacements</dt><dd>${escHtml(String(replacementCount))}</dd>
-        <dt>Visual motifs</dt><dd>${escHtml(String(motifCount))}</dd>
-        ${local.modelId ? `<dt>Model</dt><dd>${escHtml(local.modelId)}</dd>` : ''}
-        ${local.setName ? `<dt>Set</dt><dd>${escHtml(local.setName)}</dd>` : ''}
-      </dl>` : (generating
-        ? '<div class="wiz-stage-empty">Extracting visual references from setting prose…</div>'
-        : `<div class="wiz-stage-empty">
-             No visual references yet. Click "Generate" above, or advance from Finalization.
-           </div>`
-      )}
+      <dl class="wiz-vr-context">
+        <dt>Set</dt><dd>${escHtml(sp.set_name || '(unnamed)')}</dd>
+        <dt>Size</dt><dd>${escHtml(String(sp.set_size || 0))} cards</dd>
+        <dt>Entities</dt><dd>${entityCount}</dd>
+        <dt>Artists</dt><dd>${local.artists.length}</dd>
+        <dt>Model</dt><dd>${escHtml(local.modelId || '?')}</dd>
+      </dl>
     `;
-    const btn = slot.querySelector('[data-role="vr-refresh"]');
-    if (btn) btn.onclick = () => onRefresh();
   }
 
-  // ---------------------------------------------------------------------------
-  // Body — categorized entity sections + term replacements + motifs
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------------------
+  // Body — dictionary + flux + motifs + set direction + artists
+  // ----------------------------------------------------------------------
 
   function paintBody(root, state) {
     const slot = root.querySelector('[data-role="vr-body"]');
     if (!slot) return;
-    if (!local.hasContent || !local.refs) {
-      slot.innerHTML = '';
+    const isPast = isPastTab(state);
+    const ro = isPast ? 'disabled' : '';
+
+    if (!local.hasContent) {
+      slot.innerHTML = `
+        ${dictHeaderHtml(isPast)}
+        ${W.emptyStatePanel({
+          generating: aiBusy(),
+          generatingMsg: 'Transforming the theme into art direction…',
+          emptyMsg: 'No visual references yet. Click "Generate" above, or advance from Finalization.',
+          className: 'wiz-vr-empty',
+        })}
+      `;
+      bindDictHeader(slot);
       return;
     }
 
-    const refs = local.refs;
-    const parts = [];
-
-    // Four entity-category <details> sections
-    ENTITY_CATEGORIES.forEach(cat => {
-      const dict = refs[cat.key];
-      if (!dict || typeof dict !== 'object') return;
-      const entries = Object.entries(dict);
-      if (entries.length === 0) return;
-      parts.push(entitySectionHtml(cat, entries));
-    });
-
-    // Flux term replacements table
-    const fr = refs.flux_term_replacements;
-    if (fr && typeof fr === 'object' && Object.keys(fr).length > 0) {
-      parts.push(termReplacementsHtml(fr));
-    }
-
-    // Visual motifs chips
-    const vm = refs.visual_motifs;
-    if (Array.isArray(vm) && vm.length > 0) {
-      parts.push(visualMotifsHtml(vm));
-    }
-
-    slot.innerHTML = parts.join('');
+    slot.innerHTML = `
+      ${dictHeaderHtml(isPast)}
+      ${ENTITY_CATEGORIES.map(cat => entityTableHtml(cat, ro)).join('')}
+      ${fluxTableHtml(ro)}
+      ${motifsHtml(ro)}
+      ${setDirectionHtml(ro)}
+      ${artistsSectionHtml(isPast, ro)}
+    `;
+    bindDictHeader(slot);
+    if (!isPast) bindBody(slot);
   }
 
-  function entitySectionHtml(cat, entries) {
-    const rows = entries.map(([key, desc]) => `
-      <div class="wiz-vr-entry">
-        <div class="wiz-vr-entry-key">${escHtml(key)}</div>
-        <div class="wiz-vr-entry-desc">${escHtml(String(desc))}</div>
+  function dictHeaderHtml(isPast) {
+    const refreshLabel = local.hasContent ? 'Refresh AI…' : 'Generate';
+    const title = isPast
+      ? 'Use Edit above to regenerate past visual references.'
+      : local.hasContent
+        ? 'Re-transform the dictionary + set art direction from the theme (overwrites AI fields).'
+        : 'Generate the art-direction dictionary from the theme now.';
+    return `
+      <div class="wiz-theme-section-header-row">
+        <h3 style="margin:0">Art-Direction Dictionary</h3>
+        <button type="button" class="wiz-btn-secondary wiz-refresh-btn"
+                data-role="vr-refresh-dict"
+                title="${escAttr(title)}" ${isPast ? 'disabled' : ''}>${escHtml(refreshLabel)}</button>
       </div>
+    `;
+  }
+
+  function entityTableHtml(cat, ro) {
+    const rows = (local.entities[cat.key] || []).map((r, i) => `
+      <tr data-cat="${escAttr(cat.key)}" data-i="${i}">
+        <td class="wiz-vr-key-cell">
+          <input type="text" class="wiz-vr-key" data-role="vr-key"
+                 placeholder="entity name" value="${escAttr(r.key)}" ${ro}>
+        </td>
+        <td class="wiz-vr-desc-cell">
+          <textarea class="wiz-vr-desc" data-role="vr-desc" rows="3"
+                    placeholder="Full art-direction brief…" ${ro}>${escHtml(r.description)}</textarea>
+        </td>
+        <td class="wiz-vr-rm-cell">
+          ${ro ? '' : `<button type="button" class="wiz-vr-rm" data-role="vr-rm" title="Remove row">×</button>`}
+        </td>
+      </tr>
     `).join('');
     return `
       <details class="wiz-vr-section" open>
         <summary class="wiz-vr-section-summary">
-          <span class="wiz-vr-section-icon">${cat.icon}</span>
           ${escHtml(cat.label)}
-          <span class="wiz-vr-count">${entries.length}</span>
+          <span class="wiz-vr-count">${(local.entities[cat.key] || []).length}</span>
         </summary>
-        <div class="wiz-vr-entries">${rows}</div>
+        <table class="wiz-vr-table">
+          <thead><tr><th>Entry</th><th>Art direction</th><th></th></tr></thead>
+          <tbody data-role="vr-tbody" data-cat="${escAttr(cat.key)}">${rows}</tbody>
+        </table>
+        ${ro ? '' : `<button type="button" class="wiz-btn-secondary wiz-vr-add"
+                 data-role="vr-add" data-cat="${escAttr(cat.key)}">+ Add ${escHtml(cat.label.replace(/s$/, ''))}</button>`}
       </details>
     `;
   }
 
-  function termReplacementsHtml(fr) {
-    const rows = Object.entries(fr).map(([term, replacement]) => `
-      <tr>
-        <td class="wiz-vr-tr-term">${escHtml(term)}</td>
+  function fluxTableHtml(ro) {
+    const rows = local.flux.map((r, i) => `
+      <tr data-i="${i}">
+        <td><input type="text" class="wiz-vr-flux-term" data-role="vr-flux-term"
+                   placeholder="invented word" value="${escAttr(r.term)}" ${ro}></td>
         <td class="wiz-vr-tr-arrow">→</td>
-        <td class="wiz-vr-tr-replacement">${escHtml(String(replacement))}</td>
+        <td><input type="text" class="wiz-vr-flux-repl" data-role="vr-flux-repl"
+                   placeholder="renderable phrase" value="${escAttr(r.replacement)}" ${ro}></td>
+        <td class="wiz-vr-rm-cell">${ro ? '' : `<button type="button" class="wiz-vr-rm" data-role="vr-flux-rm" title="Remove">×</button>`}</td>
       </tr>
     `).join('');
     return `
       <details class="wiz-vr-section">
         <summary class="wiz-vr-section-summary">
-          <span class="wiz-vr-section-icon">⇄</span>
           Flux Term Replacements
-          <span class="wiz-vr-count">${Object.keys(fr).length}</span>
+          <span class="wiz-vr-count">${local.flux.length}</span>
         </summary>
-        <p class="wiz-vr-section-note">
-          Setting-specific words Flux doesn't recognise — swapped for renderable generic phrases before prompts are sent.
-        </p>
-        <table class="wiz-vr-tr-table">${rows}</table>
+        <p class="wiz-vr-section-note">Invented words swapped for renderable generic phrases before prompts are sent.</p>
+        <table class="wiz-vr-table"><tbody data-role="vr-flux-tbody">${rows}</tbody></table>
+        ${ro ? '' : `<button type="button" class="wiz-btn-secondary wiz-vr-add" data-role="vr-flux-add">+ Add replacement</button>`}
       </details>
     `;
   }
 
-  function visualMotifsHtml(vm) {
-    const chips = vm.map(m => `<span class="wiz-vr-motif-chip">${escHtml(m)}</span>`).join('');
+  function motifsHtml(ro) {
+    const rows = local.motifs.map((m, i) => `
+      <div class="wiz-vr-motif-row" data-i="${i}">
+        <input type="text" class="wiz-vr-motif" data-role="vr-motif"
+               placeholder="set-wide art note" value="${escAttr(m)}" ${ro}>
+        ${ro ? '' : `<button type="button" class="wiz-vr-rm" data-role="vr-motif-rm" title="Remove">×</button>`}
+      </div>
+    `).join('');
     return `
       <details class="wiz-vr-section">
         <summary class="wiz-vr-section-summary">
-          <span class="wiz-vr-section-icon">◎</span>
           Visual Motifs
-          <span class="wiz-vr-count">${vm.length}</span>
+          <span class="wiz-vr-count">${local.motifs.length}</span>
         </summary>
         <p class="wiz-vr-section-note">Set-wide art-direction notes applied to every prompt.</p>
-        <div class="wiz-vr-motifs">${chips}</div>
+        <div data-role="vr-motifs">${rows}</div>
+        ${ro ? '' : `<button type="button" class="wiz-btn-secondary wiz-vr-add" data-role="vr-motif-add">+ Add motif</button>`}
       </details>
     `;
   }
 
-  // ---------------------------------------------------------------------------
-  // Refresh / initial generate action
-  // ---------------------------------------------------------------------------
-
-  async function onRefresh() {
-    if (local.locked) return;
-    if (local.hasContent) {
-      if (!confirm('Re-extract all visual references from setting prose? This will overwrite the current dictionary.')) return;
-    }
-    setLocked(true);
-    if (W.showBusy) W.showBusy('Extracting visual references…');
-    const root = bodyRoot();
-
-    try {
-      // TODO: implement POST /api/wizard/visual_refs/generate on the server
-      const resp = await W.postJSON('/api/wizard/visual_refs/generate', {});
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        W.reportError(resp, data, 'Extraction failed');
-        return;
-      }
-      local.refs       = data.refs || null;
-      local.hasContent = !!(data.refs && Object.keys(data.refs.legendary_characters || {}).length
-        + Object.keys(data.refs.creature_types || {}).length
-        + Object.keys(data.refs.factions || {}).length
-        + Object.keys(data.refs.landmarks || {}).length > 0);
-      local.modelId    = data.model_id || local.modelId;
-      paintSummary(root, W.getState());
-      paintBody(root, W.getState());
-      paintFooter(getFooter(root), W.getState());
-      W.toast('Visual references extracted.', 'success');
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-    } finally {
-      if (W.clearBusy) W.clearBusy();
-      setLocked(false);
-    }
+  function setDirectionHtml(ro) {
+    return `
+      <details class="wiz-vr-section" open>
+        <summary class="wiz-vr-section-summary">Set-Wide Art Direction</summary>
+        <p class="wiz-vr-section-note">The overall aesthetic, palette, lighting, and mood for the whole set.</p>
+        <textarea class="wiz-vr-setdir" data-role="vr-setdir" rows="8"
+                  placeholder="Set-wide art direction prose…" ${ro}>${escHtml(local.setArtDirection)}</textarea>
+      </details>
+    `;
   }
 
-  // ---------------------------------------------------------------------------
-  // Footer — §1: latest + paused_for_review → "Next step: …" advance button
-  // ---------------------------------------------------------------------------
+  function artistsSectionHtml(isPast, ro) {
+    const rows = local.artists.map((a, i) => `
+      <tr data-i="${i}">
+        <td class="wiz-vr-key-cell">
+          <input type="text" class="wiz-vr-artist-name" data-role="vr-artist-name"
+                 placeholder="Artist name" value="${escAttr(a.name)}" ${ro}>
+        </td>
+        <td class="wiz-vr-desc-cell">
+          <textarea class="wiz-vr-artist-style" data-role="vr-artist-style" rows="2"
+                    placeholder="Style description…" ${ro}>${escHtml(a.style_prompt)}</textarea>
+        </td>
+        <td class="wiz-vr-rm-cell">${ro ? '' : `<button type="button" class="wiz-vr-rm" data-role="vr-artist-rm" title="Remove">×</button>`}</td>
+      </tr>
+    `).join('');
+    const refreshTitle = isPast
+      ? 'Use Edit above to regenerate past artists.'
+      : 'Re-roll the whole artist directory via AI (overwrites all rows).';
+    return `
+      <details class="wiz-vr-section" open>
+        <summary class="wiz-vr-section-summary">
+          Artist Directory
+          <span class="wiz-vr-count">${local.artists.length}</span>
+        </summary>
+        <div class="wiz-theme-section-header-row" style="margin:0.4rem 0">
+          <p class="wiz-vr-section-note" style="margin:0">
+            Made-up illustrators, each with a signature style. Target ~${local.artistTarget} for this set.
+          </p>
+          <button type="button" class="wiz-btn-secondary wiz-refresh-btn"
+                  data-role="vr-refresh-artists"
+                  title="${escAttr(refreshTitle)}" ${isPast ? 'disabled' : ''}>Re-roll all</button>
+        </div>
+        <table class="wiz-vr-table">
+          <thead><tr><th>Artist</th><th>Style</th><th></th></tr></thead>
+          <tbody data-role="vr-artist-tbody">${rows}</tbody>
+        </table>
+        ${ro ? '' : `<button type="button" class="wiz-btn-secondary wiz-vr-add" data-role="vr-artist-add">+ Add artist</button>`}
+      </details>
+    `;
+  }
+
+  // ----------------------------------------------------------------------
+  // Event binding
+  // ----------------------------------------------------------------------
+
+  function bindDictHeader(slot) {
+    const dictBtn = slot.querySelector('[data-role="vr-refresh-dict"]');
+    if (dictBtn) dictBtn.onclick = () => onRefreshDict();
+  }
+
+  function bindBody(slot) {
+    // Entity tables
+    ENTITY_CATEGORIES.forEach(cat => {
+      const tbody = slot.querySelector(`[data-role="vr-tbody"][data-cat="${cssEsc(cat.key)}"]`);
+      if (tbody) {
+        tbody.querySelectorAll('tr').forEach(tr => {
+          const i = parseInt(tr.dataset.i, 10);
+          const keyEl = tr.querySelector('[data-role="vr-key"]');
+          const descEl = tr.querySelector('[data-role="vr-desc"]');
+          const rmEl = tr.querySelector('[data-role="vr-rm"]');
+          if (keyEl) keyEl.addEventListener('input', () => { local.entities[cat.key][i].key = keyEl.value; });
+          if (descEl) descEl.addEventListener('input', () => { local.entities[cat.key][i].description = descEl.value; });
+          if (rmEl) rmEl.onclick = () => { local.entities[cat.key].splice(i, 1); repaintBody(); };
+        });
+      }
+      const addBtn = slot.querySelector(`[data-role="vr-add"][data-cat="${cssEsc(cat.key)}"]`);
+      if (addBtn) addBtn.onclick = () => { local.entities[cat.key].push({ key: '', description: '' }); repaintBody(); };
+    });
+
+    // Flux replacements
+    const fluxBody = slot.querySelector('[data-role="vr-flux-tbody"]');
+    if (fluxBody) {
+      fluxBody.querySelectorAll('tr').forEach(tr => {
+        const i = parseInt(tr.dataset.i, 10);
+        const t = tr.querySelector('[data-role="vr-flux-term"]');
+        const r = tr.querySelector('[data-role="vr-flux-repl"]');
+        const rm = tr.querySelector('[data-role="vr-flux-rm"]');
+        if (t) t.addEventListener('input', () => { local.flux[i].term = t.value; });
+        if (r) r.addEventListener('input', () => { local.flux[i].replacement = r.value; });
+        if (rm) rm.onclick = () => { local.flux.splice(i, 1); repaintBody(); };
+      });
+    }
+    bindClick(slot, 'vr-flux-add', () => { local.flux.push({ term: '', replacement: '' }); repaintBody(); });
+
+    // Motifs
+    slot.querySelectorAll('.wiz-vr-motif-row').forEach(row => {
+      const i = parseInt(row.dataset.i, 10);
+      const inp = row.querySelector('[data-role="vr-motif"]');
+      const rm = row.querySelector('[data-role="vr-motif-rm"]');
+      if (inp) inp.addEventListener('input', () => { local.motifs[i] = inp.value; });
+      if (rm) rm.onclick = () => { local.motifs.splice(i, 1); repaintBody(); };
+    });
+    bindClick(slot, 'vr-motif-add', () => { local.motifs.push(''); repaintBody(); });
+
+    // Set art direction
+    const setdir = slot.querySelector('[data-role="vr-setdir"]');
+    if (setdir) setdir.addEventListener('input', () => { local.setArtDirection = setdir.value; });
+
+    // Artists
+    const artBody = slot.querySelector('[data-role="vr-artist-tbody"]');
+    if (artBody) {
+      artBody.querySelectorAll('tr').forEach(tr => {
+        const i = parseInt(tr.dataset.i, 10);
+        const n = tr.querySelector('[data-role="vr-artist-name"]');
+        const s = tr.querySelector('[data-role="vr-artist-style"]');
+        const rm = tr.querySelector('[data-role="vr-artist-rm"]');
+        if (n) n.addEventListener('input', () => { local.artists[i].name = n.value; });
+        if (s) s.addEventListener('input', () => { local.artists[i].style_prompt = s.value; });
+        if (rm) rm.onclick = () => { local.artists.splice(i, 1); repaintBody(); };
+      });
+    }
+    bindClick(slot, 'vr-artist-add', () => { local.artists.push({ name: '', style_prompt: '' }); repaintBody(); });
+    bindClick(slot, 'vr-refresh-artists', () => onRefreshArtists());
+  }
+
+  function bindClick(slot, role, fn) {
+    const el = slot.querySelector(`[data-role="${role}"]`);
+    if (el) el.onclick = fn;
+  }
+
+  // Re-render the body in place (a structural add/remove changed the row set).
+  function repaintBody() {
+    const root = bodyRoot();
+    if (!root) return;
+    paintBody(root, W.getState());
+    setLocked(local.locked);
+  }
+
+  // ----------------------------------------------------------------------
+  // AI refresh actions (§7, §13)
+  // ----------------------------------------------------------------------
+
+  async function onRefreshDict() {
+    await W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked,
+      confirm: () => (local.hasContent
+        ? 'Re-transform the dictionary + set art direction from the theme? AI fields are overwritten.'
+        : ''),
+      busyLabel: 'Generating art direction…',
+      run: async ({ post }) => {
+        repaintBody();
+        const data = await post('/api/wizard/visual_refs/refresh', {}, 'Refresh failed');
+        if (!data) return;
+        applyState(data);
+        const root = bodyRoot();
+        paintSummary(root, W.getState());
+        paintBody(root, W.getState());
+        paintFooter(getFooter(root), W.getState());
+        W.toast('Art direction generated.', 'success');
+      },
+    });
+  }
+
+  async function onRefreshArtists() {
+    await W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked,
+      confirm: () => (local.artists.length
+        ? 'Re-roll the whole artist directory? All current artists are replaced.'
+        : ''),
+      busyLabel: 'Generating artists…',
+      run: async ({ post }) => {
+        const data = await post('/api/wizard/visual_refs/refresh-artists', {}, 'Refresh failed');
+        if (!data) return;
+        applyState(data);
+        const root = bodyRoot();
+        paintSummary(root, W.getState());
+        paintBody(root, W.getState());
+        paintFooter(getFooter(root), W.getState());
+        W.toast('Artist directory regenerated.', 'success');
+      },
+    });
+  }
+
+  // ----------------------------------------------------------------------
+  // Footer: Save & Continue
+  // ----------------------------------------------------------------------
 
   function paintFooter(footer, state) {
     if (!footer) return;
-    const isLatest  = !state || state.latestTabId === STAGE_ID;
-    const isPaused  = local.stageStatus === 'paused_for_review';
+    const isLatest = !state || state.latestTabId === STAGE_ID;
+    const isPaused = local.stageStatus === 'paused_for_review';
     const isCompleted = local.stageStatus === 'completed';
     const next = W.nextStageEntryAfter(STAGE_ID);
     const nextName = next ? next.name : 'the next stage';
@@ -351,237 +510,127 @@
     } else if (isCompleted) {
       html = `<span class="wiz-footer-note">Visual references saved. Engine is on ${escHtml(nextName)} — switch tabs to follow.</span>`;
     } else if (!isPaused) {
-      // AUTO stage — only pauses if "Stop after this step" is ticked
       html = `<span class="wiz-footer-note">This stage runs automatically. Tick "Stop after this step" above to review here before continuing.</span>`;
     } else {
-      // Paused for review
       html = `
-        <button type="button" class="wiz-btn-primary" data-role="vr-advance" ${!local.locked ? '' : 'disabled'}>
-          Next step: ${escHtml(nextName)}
+        <button type="button" class="wiz-btn-primary" data-role="vr-save-advance" ${local.locked ? 'disabled' : ''}>
+          Save &amp; Continue: ${escHtml(nextName)}
         </button>
-        <span class="wiz-footer-note">Review the visual dictionary above, then continue.</span>
+        <span class="wiz-footer-note">Review the art direction above, then continue.</span>
       `;
     }
-    if (footer.dataset.lastFooter !== html) {
-      footer.innerHTML = html;
-      footer.dataset.lastFooter = html;
-    }
-    const btn = footer.querySelector('[data-role="vr-advance"]');
-    if (btn) btn.onclick = onAdvance;
+    W.paintFooter(footer, html, { role: 'vr-save-advance', onClick: onSaveAndAdvance });
   }
 
-  async function onAdvance() {
-    if (local.locked) return;
-    setLocked(true);
-    const root = bodyRoot();
-    const footer = getFooter(root);
-    const btn = footer && footer.querySelector('[data-role="vr-advance"]');
-    const original = btn ? btn.textContent : '';
-    if (btn) { btn.disabled = true; btn.textContent = 'Advancing…'; }
-    try {
-      const resp = await W.postJSON('/api/wizard/advance', {});
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        W.toast(data.error || `Advance failed (${resp.status})`, 'error');
-        if (btn) { btn.disabled = false; btn.textContent = original; }
-        return;
-      }
-      const next = W.nextStageEntryAfter(STAGE_ID);
-      const nextHref = next ? `/pipeline/${next.id}` : '/pipeline';
-      window.location.assign(data.navigate_to || nextHref);
-    } catch (err) {
-      W.toast('Network error: ' + err.message, 'error');
-      if (btn) { btn.disabled = false; btn.textContent = original; }
-    } finally {
-      setLocked(false);
-    }
+  function onSaveAndAdvance() {
+    return W.saveAndAdvance({
+      stageId: STAGE_ID,
+      isLocked: () => local.locked,
+      setLocked,
+      btnRole: 'vr-save-advance',
+      validate: () => null,
+      saveUrl: '/api/wizard/visual_refs/save',
+      payload: () => savePayload(),
+    });
   }
 
-  // ---------------------------------------------------------------------------
-  // Form lock (§3) — display-only tab; only the Refresh button + advance btn
-  // ---------------------------------------------------------------------------
+  function savePayload() {
+    const entities = {};
+    ENTITY_CATEGORIES.forEach(cat => { entities[cat.key] = local.entities[cat.key] || []; });
+    const flux = {};
+    local.flux.forEach(r => { if ((r.term || '').trim()) flux[r.term.trim()] = r.replacement; });
+    return {
+      entities,
+      flux_term_replacements: flux,
+      visual_motifs: local.motifs,
+      set_art_direction: local.setArtDirection,
+      artists: local.artists,
+    };
+  }
+
+  // ----------------------------------------------------------------------
+  // Form lock (§3)
+  // ----------------------------------------------------------------------
+
+  function aiBusy() {
+    return local.locked || local.stageStatus === 'running';
+  }
 
   function setLocked(locked) {
     local.locked = !!locked;
-    const root = bodyRoot();
-    if (!root) return;
-    root.classList.toggle('wiz-vr-locked', !!locked);
-    root.querySelectorAll('[data-role="vr-refresh"]').forEach(el => { el.disabled = !!locked; });
-    const advBtn = root.querySelector('[data-role="vr-advance"]');
-    if (advBtn) advBtn.disabled = !!locked;
+    W.setTabLocked(bodyRoot(), aiBusy(), {
+      lockClass: 'wiz-vr-locked',
+      selectors: [
+        '.wiz-vr-body input',
+        '.wiz-vr-body textarea',
+        '.wiz-vr-body button',
+      ],
+      footerSelector: '[data-role="vr-save-advance"]',
+    });
   }
 
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------------------
   // Helpers
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------------------
 
-  function bodyRoot() {
-    return document.querySelector(`.wiz-tab-body[data-tab-id="${STAGE_ID}"]`);
-  }
-
-  function getFooter(root) {
-    return root && root.querySelector('[data-role="footer"]');
-  }
-
+  const bodyRoot = () => W.tabRoot(STAGE_ID);
+  const getFooter = (root) => W.tabFooter(root);
+  const isPastTab = (state) => W.isPastTab(STAGE_ID, state);
   const escHtml = W.escHtml;
   const escAttr = W.escAttr;
+  const cssEsc = W.cssEsc;
 
-  // ---------------------------------------------------------------------------
-  // Scoped styles — injected once (dark-theme palette from wizard.css)
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------------------
+  // Scoped styles
+  // ----------------------------------------------------------------------
 
   (function injectStyles() {
     if (document.getElementById('wiz-visual_refs-styles')) return;
     const style = document.createElement('style');
     style.id = 'wiz-visual_refs-styles';
     style.textContent = `
-      .wiz-vr-blurb {
-        font-size: 0.82rem;
-        color: #888;
-        margin: 0.4rem 0 0.75rem;
-      }
+      .wiz-vr-blurb { font-size: 0.82rem; color: #888; margin: 0.3rem 0 0.6rem; }
+      .wiz-vr-context { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.75rem;
+        font-size: 0.82rem; margin: 0 0 0.6rem; }
+      .wiz-vr-context dt { color: #888; }
+      .wiz-vr-context dd { margin: 0; color: #ccc; }
 
-      /* ---- Section <details> ---- */
-      .wiz-vr-section {
-        border: 1px solid #1f2540;
-        border-radius: 6px;
-        margin-bottom: 0.75rem;
-        background: #0f1729;
-        overflow: hidden;
-      }
-
-      .wiz-vr-section-summary {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.6rem 0.85rem;
-        cursor: pointer;
-        user-select: none;
-        font-size: 0.88rem;
-        font-weight: 600;
-        color: #ccc;
-        list-style: none;
-        background: #12193a;
-      }
-
+      .wiz-vr-section { border: 1px solid #1f2540; border-radius: 6px; margin-bottom: 0.75rem;
+        background: #0f1729; overflow: hidden; padding-bottom: 0.5rem; }
+      .wiz-vr-section-summary { display: flex; align-items: center; gap: 0.5rem;
+        padding: 0.6rem 0.85rem; cursor: pointer; user-select: none; font-size: 0.88rem;
+        font-weight: 600; color: #ccc; list-style: none; background: #12193a; }
       .wiz-vr-section-summary::-webkit-details-marker { display: none; }
+      .wiz-vr-count { margin-left: auto; font-size: 0.72rem; background: #4a9eff22; color: #4a9eff;
+        border-radius: 3px; padding: 1px 6px; font-weight: 400; }
+      .wiz-vr-section-note { font-size: 0.78rem; color: #888; margin: 0.5rem 0.85rem 0; }
 
-      .wiz-vr-section[open] .wiz-vr-section-summary {
-        border-bottom: 1px solid #1f2540;
-      }
+      .wiz-vr-table { width: 100%; border-collapse: collapse; font-size: 0.82rem;
+        margin: 0.4rem 0; }
+      .wiz-vr-table th { text-align: left; color: #888; font-weight: 500; font-size: 0.74rem;
+        padding: 0.2rem 0.85rem; }
+      .wiz-vr-table td { padding: 0.25rem 0.85rem; vertical-align: top; }
+      .wiz-vr-key-cell { width: 26%; }
+      .wiz-vr-rm-cell { width: 1.8rem; text-align: center; }
+      .wiz-vr-key, .wiz-vr-flux-term, .wiz-vr-flux-repl, .wiz-vr-artist-name, .wiz-vr-motif {
+        width: 100%; background: #0b1120; border: 1px solid #1f2540; border-radius: 4px;
+        color: #e0e0e0; padding: 0.3rem 0.45rem; font-size: 0.82rem; box-sizing: border-box; }
+      .wiz-vr-desc, .wiz-vr-artist-style, .wiz-vr-setdir { width: 100%; background: #0b1120;
+        border: 1px solid #1f2540; border-radius: 4px; color: #e0e0e0; padding: 0.3rem 0.45rem;
+        font-size: 0.82rem; line-height: 1.4; resize: vertical; box-sizing: border-box; }
+      .wiz-vr-setdir { margin: 0.4rem 0.85rem; width: calc(100% - 1.7rem); }
+      .wiz-vr-tr-arrow { color: #555; width: 1.4rem; text-align: center; }
 
-      .wiz-vr-section-icon {
-        font-size: 0.8rem;
-        color: #4a9eff;
-        flex: 0 0 auto;
-      }
+      .wiz-vr-rm { background: none; border: none; color: #a05; cursor: pointer; font-size: 1rem;
+        line-height: 1; padding: 0.2rem 0.3rem; }
+      .wiz-vr-rm:hover { color: #f47; }
+      .wiz-vr-add { margin: 0.2rem 0.85rem 0; font-size: 0.78rem; }
 
-      .wiz-vr-count {
-        margin-left: auto;
-        font-size: 0.72rem;
-        background: #4a9eff22;
-        color: #4a9eff;
-        border-radius: 3px;
-        padding: 1px 6px;
-        font-weight: 400;
-      }
+      .wiz-vr-motif-row { display: flex; gap: 0.4rem; align-items: center; padding: 0.15rem 0.85rem; }
 
-      .wiz-vr-section-note {
-        font-size: 0.78rem;
-        color: #888;
-        margin: 0.5rem 0.85rem 0;
-      }
-
-      /* ---- Entity entries ---- */
-      .wiz-vr-entries {
-        padding: 0.5rem 0.85rem 0.75rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.6rem;
-      }
-
-      .wiz-vr-entry {
-        display: grid;
-        grid-template-columns: minmax(120px, 18%) 1fr;
-        gap: 0.35rem 1rem;
-        align-items: baseline;
-      }
-
-      .wiz-vr-entry-key {
-        font-size: 0.8rem;
-        font-weight: 600;
-        color: #a0c4ff;
-        text-transform: capitalize;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .wiz-vr-entry-desc {
-        font-size: 0.82rem;
-        color: #ccc;
-        line-height: 1.45;
-      }
-
-      /* ---- Flux term replacements table ---- */
-      .wiz-vr-tr-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.82rem;
-        margin: 0.5rem 0 0.75rem;
-        padding: 0 0.85rem;
-        display: block;
-      }
-
-      .wiz-vr-tr-table tr {
-        border-bottom: 1px solid #1f2540;
-      }
-
-      .wiz-vr-tr-table tr:last-child { border-bottom: none; }
-
-      .wiz-vr-tr-table td {
-        padding: 0.3rem 0.85rem;
-        vertical-align: top;
-      }
-
-      .wiz-vr-tr-term {
-        color: #a0c4ff;
-        font-weight: 600;
-        white-space: nowrap;
-        width: 22%;
-      }
-
-      .wiz-vr-tr-arrow {
-        color: #555;
-        width: 1.5rem;
-        text-align: center;
-      }
-
-      .wiz-vr-tr-replacement { color: #ccc; }
-
-      /* ---- Visual motifs chips ---- */
-      .wiz-vr-motifs {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.4rem;
-        padding: 0.6rem 0.85rem 0.85rem;
-      }
-
-      .wiz-vr-motif-chip {
-        font-size: 0.78rem;
-        background: #1a1a3e;
-        border: 1px solid #2a2a5e;
-        border-radius: 4px;
-        padding: 0.25rem 0.6rem;
-        color: #c8c8ff;
-        line-height: 1.3;
-      }
-
-      /* ---- Locked state ---- */
-      .wiz-vr-locked [data-role="vr-refresh"],
-      .wiz-vr-locked [data-role="vr-advance"] {
-        cursor: not-allowed;
-      }
+      .wiz-vr-locked .wiz-vr-body input,
+      .wiz-vr-locked .wiz-vr-body textarea,
+      .wiz-vr-locked .wiz-vr-body button { cursor: not-allowed; }
     `;
     document.head.appendChild(style);
   }());
