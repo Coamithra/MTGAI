@@ -30,7 +30,12 @@ def client():
 
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    asset_dir = tmp_path / "asset"
+    # Path subclass so the render-call log can be stashed as an attribute for
+    # assertions (plain WindowsPath/PosixPath use __slots__ and reject this).
+    class _AssetDir(type(tmp_path)):
+        pass
+
+    asset_dir = _AssetDir(tmp_path / "asset")
     (asset_dir / "cards").mkdir(parents=True)
     active_project.write_active_project(
         active_project.ProjectState(

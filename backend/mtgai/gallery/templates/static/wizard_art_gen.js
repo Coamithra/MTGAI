@@ -1,24 +1,20 @@
 /**
- * Wizard Art Generation tab — live progress block + card art attempt grid.
+ * Wizard Art Generation tab — merged generate + best-of-N judge + human review.
  *
- * Registers via ``W.registerStageRenderer('art_gen', ...)`` so the standard
- * wizard_stage.js shell still owns the header (status pill, break-point
- * toggle, Edit-cascade button).
+ * One cohesive surface (the old art_select + human_art_review folded in):
+ *   - art streams in live per card as it is generated + judged (art_gen_card),
+ *   - each card shows its N versions with the LLM judge's auto-pick highlighted
+ *     and the judge's reasoning,
+ *   - the user can (re)pick the best version (override the auto-pick), reroll
+ *     (regenerate a card's art), and upload their own image.
  *
- * Generates card art via ComfyUI + Flux into ``<asset>/art/<slug>_v<N>.png``.
- * Multiple attempt versions per card (typically 3).
- * Result shape from stages.py: ``{ generated: N, skipped: N, failed: N }``
+ * Built from the shared helpers (plans/wizard-tab-conventions.md §17), not by
+ * forking a stage tab: W.registerStageRenderer / fetchStageState / paintFooter /
+ * advanceStage / runAiAction / setTabLocked / registerStream / rarityPill.
  *
- * IMPORTANT: art_gen is NOT review_eligible — it never pauses for human
- * review. Footer is always a ``wiz-footer-note`` only.
- *
- * Conventions:
- *   §3  form lock during AI gen (no interactive controls here, but honour the pattern)
- *   §8  status pill flows from stage state
- *   §9  Stop after this step — handled by wizard_stage.js
- *   §10 live progress block updates reactively from stage.progress on each SSE rerender
- *   §12 lazy mount; idempotent rerender — progress block updates in place, grid only
- *       rebuilt when content count changes (avoid full repaint every SSE tick)
+ * Backend: /api/wizard/art_gen/{state,refresh,reroll,repick,upload} +
+ * /api/wizard/art_gen/image/<filename>. SSE: art_gen_reset / art_gen_card via
+ * W.onArtGenStream.
  */
 
 (function () {
@@ -26,177 +22,117 @@
 
   const W = (window.MTGAIWizard = window.MTGAIWizard || {});
   const STAGE_ID = 'art_gen';
+  const escHtml = W.escHtml;
+  const escAttr = W.escAttr;
 
-  // ── Scoped styles (injected once) ──────────────────────────────────────────
+  // ── Scoped styles ──────────────────────────────────────────────────────────
 
   if (!document.getElementById('wiz-art_gen-styles')) {
     const style = document.createElement('style');
     style.id = 'wiz-art_gen-styles';
     style.textContent = `
-      /* Art Generation tab — live progress + image-grid layout */
+      .wiz-ag-blurb { color: #888; font-size: 0.82rem; margin: 0.25rem 0 0.75rem 0; }
+      .wiz-ag-context {
+        display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1rem;
+        font-size: 0.82rem; margin: 0 0 1rem 0;
+      }
+      .wiz-ag-context dt { color: #888; }
+      .wiz-ag-context dd { margin: 0; color: #ddd; }
 
-      .wiz-art_gen-summary {
-        margin-bottom: 1rem;
+      .wiz-ag-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 1rem; margin-top: 0.75rem;
       }
+      .wiz-ag-card {
+        background: #0f1729; border: 1px solid #1f2540; border-radius: 8px;
+        padding: 0.6rem; display: flex; flex-direction: column; gap: 0.4rem;
+      }
+      .wiz-ag-card.is-streaming { border-color: #4a9eff66; }
+      .wiz-ag-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.4rem; }
+      .wiz-ag-card-name { font-size: 0.82rem; font-weight: 600; color: #e8d5b5;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .wiz-ag-card-cn { font-size: 0.68rem; color: #666; }
 
-      .wiz-art_gen-context {
-        display: grid;
-        grid-template-columns: max-content 1fr;
-        gap: 0.3rem 1rem;
-        font-size: 0.82rem;
-        margin: 0.5rem 0 0 0;
+      .wiz-ag-versions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+      .wiz-ag-version {
+        position: relative; width: 84px; cursor: pointer; border-radius: 5px;
+        overflow: hidden; border: 2px solid transparent; background: #12192e;
       }
-      .wiz-art_gen-context dt { color: #888; }
-      .wiz-art_gen-context dd { margin: 0; color: #ddd; }
-
-      .wiz-art_gen-blurb {
-        color: #888;
-        font-size: 0.82rem;
-        margin: 0.25rem 0 0.5rem 0;
-      }
-
-      /* Live progress block — reactive, not rebuilt on every tick */
-      .wiz-art_gen-progress {
-        background: #0f1729;
-        border: 1px solid #1f2540;
-        border-radius: 6px;
-        padding: 0.75rem 0.9rem;
-        margin-bottom: 1rem;
-      }
-      .wiz-art_gen-progress-label {
-        font-size: 0.82rem;
-        color: #ccc;
-        margin-bottom: 0.4rem;
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-      .wiz-art_gen-progress-label .wiz-art_gen-pct {
-        font-variant-numeric: tabular-nums;
-        color: #4a9eff;
-        font-weight: 600;
-      }
-      .wiz-art_gen-progress-label .wiz-art_gen-failed {
-        color: #ff4757;
-      }
-      .wiz-art_gen-progress-label .wiz-art_gen-current {
-        color: #888;
-        font-style: italic;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        flex: 1 1 0;
-        min-width: 0;
-      }
-      .wiz-art_gen-bar {
-        height: 6px;
-        background: #1a1a2e;
-        border-radius: 3px;
-        overflow: hidden;
-      }
-      .wiz-art_gen-bar-fill {
-        height: 100%;
-        background: #4a9eff;
-        border-radius: 3px;
-        transition: width 0.3s ease;
-      }
-
-      /* Image grid shared shape — identical in char_portraits / art_gen / art_select */
-      .wiz-art_gen-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-        gap: 0.75rem;
-        margin-top: 0.75rem;
-      }
-
-      /* Thumbnail tile — shared shape (duplicated identically in char_portraits + art_select) */
-      .wiz-art_gen-tile {
-        background: #0f1729;
-        border: 1px solid #1f2540;
-        border-radius: 6px;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-      }
-      .wiz-art_gen-tile-img {
-        width: 100%;
-        aspect-ratio: 4 / 3;   /* landscape art orientation */
+      .wiz-ag-version.picked { border-color: #4ade80; }
+      .wiz-ag-version .wiz-ag-thumb {
+        width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block;
         background: #12192e;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.7rem;
-        color: #444;
-        text-align: center;
-        padding: 0.4rem;
-        box-sizing: border-box;
-        word-break: break-all;
-        border-bottom: 1px solid #1f2540;
-        position: relative;
-        overflow: hidden;
       }
-      .wiz-art_gen-tile-img img {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
+      .wiz-ag-version .wiz-ag-vlabel {
+        font-size: 0.62rem; text-align: center; padding: 1px 0; color: #aaa;
+        background: #0b1120;
       }
-      .wiz-art_gen-tile-name {
-        padding: 0.35rem 0.5rem;
-        font-size: 0.75rem;
-        color: #ccc;
-        font-weight: 600;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+      .wiz-ag-version.picked .wiz-ag-vlabel { color: #4ade80; font-weight: 600; }
+      .wiz-ag-pickbadge {
+        position: absolute; top: 2px; left: 2px; font-size: 0.6rem; line-height: 1;
+        padding: 1px 3px; border-radius: 3px; background: #1a3a2a; color: #4ade80;
       }
-      .wiz-art_gen-tile-sub {
-        padding: 0 0.5rem 0.35rem;
-        font-size: 0.68rem;
-        color: #666;
-      }
-      .wiz-art_gen-tile-attempts {
-        display: flex;
-        gap: 2px;
-        padding: 0 0.5rem 0.35rem;
-        flex-wrap: wrap;
-      }
-      .wiz-art_gen-attempt-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #4a9eff44;
-        border: 1px solid #4a9eff66;
-        flex: 0 0 auto;
-        title: '';
-      }
-      .wiz-art_gen-attempt-dot.done { background: #00d4aa55; border-color: #00d4aa; }
-      .wiz-art_gen-attempt-dot.failed { background: #ff475744; border-color: #ff4757; }
 
-      /* Locked-state visual cue */
-      .wiz-art_gen-locked .wiz-art_gen-grid {
-        opacity: 0.7;
-        pointer-events: none;
+      .wiz-ag-reason {
+        font-size: 0.72rem; color: #9aa; line-height: 1.35; margin: 0;
+        border-left: 2px solid #2a3550; padding-left: 0.5rem;
       }
+      .wiz-ag-reason .wiz-ag-src { color: #4a9eff; }
+      .wiz-ag-reason .wiz-ag-src.user { color: #c084fc; }
+
+      .wiz-ag-actions { display: flex; gap: 0.35rem; margin-top: 0.2rem; }
+      .wiz-ag-btn-sm {
+        font-size: 0.7rem; padding: 0.22rem 0.5rem; border-radius: 4px;
+        background: #1a2138; border: 1px solid #2a3550; color: #cdd; cursor: pointer;
+      }
+      .wiz-ag-btn-sm:hover { background: #232c4a; }
+      .wiz-ag-empty-thumb {
+        width: 84px; aspect-ratio: 4 / 3; display: flex; align-items: center;
+        justify-content: center; font-size: 0.62rem; color: #555; background: #12192e;
+        border-radius: 5px;
+      }
+      .wiz-ag-locked .wiz-ag-grid { opacity: 0.7; pointer-events: none; }
     `;
     document.head.appendChild(style);
   }
 
-  // ── Module-local state ─────────────────────────────────────────────────────
+  // ── Module-local state ───────────────────────────────────────────────────────
 
   const local = {
     initialized: false,
-    cards: [],          // [{name, collector_number, versions: [{filename, attempt, done}]}]
+    cards: [],            // [{collector_number, name, versions:[{filename,url}], pick, pick_source, reasoning, ...}]
+    byCn: {},             // collector_number -> card (for fast stream patching)
+    streaming: {},        // collector_number -> phase ("generated"|"judged") for live highlight
     hasContent: false,
+    versionsPerCard: 3,
+    judgeModel: '',
+    provider: '',
     stageStatus: 'pending',
     locked: false,
     bootstrapping: false,
-    lastGridHash: '',   // avoid full grid repaint on every progress SSE tick
   };
 
   W.registerStageRenderer(STAGE_ID, render);
+
+  // ── SSE stream (art_gen_reset / art_gen_card) ───────────────────────────────
+
+  W.onArtGenStream = function (name, data) {
+    if (name === 'art_gen_reset') {
+      local.streaming = {};
+      const root = bodyRoot();
+      if (root) paintGrid(root);
+      return;
+    }
+    if (name === 'art_gen_card') {
+      const cn = data && data.collector_number;
+      if (!cn) return;
+      local.streaming[cn] = data.phase || 'generated';
+      const root = bodyRoot();
+      // A judged card's pick may have changed on disk — re-bootstrap lazily once
+      // the stage finishes; mid-stream we just mark the tile as active.
+      if (root) markStreaming(root, cn);
+    }
+  };
 
   // ── Top-level render ────────────────────────────────────────────────────────
 
@@ -205,9 +141,9 @@
       local.initialized = true;
       local.stageStatus = stage ? stage.status : 'pending';
       content.innerHTML = mountShellHtml();
-      bootstrap(root, state).catch(err => {
-        W.toast('Failed to load art generation state: ' + err.message, 'error');
-      });
+      bootstrap(root, state).catch((err) =>
+        W.toast('Failed to load art generation state: ' + err.message, 'error'),
+      );
       paintFooter(footer, state);
       return;
     }
@@ -215,221 +151,296 @@
     const prevStatus = local.stageStatus;
     if (stage) local.stageStatus = stage.status;
 
-    // Always update the live progress block reactively (cheap DOM update).
-    paintProgressBlock(root, stage);
-
-    // Only rebuild grid when stage transitions out of running (new content landed).
+    // When the stage finishes (running -> not running), re-fetch so the picks +
+    // version files land from disk.
     const justFinished =
-      stage
-      && prevStatus !== local.stageStatus
-      && local.stageStatus !== 'pending'
-      && local.stageStatus !== 'running'
-      && !local.bootstrapping;
+      stage &&
+      prevStatus !== local.stageStatus &&
+      local.stageStatus !== 'pending' &&
+      local.stageStatus !== 'running' &&
+      !local.bootstrapping;
     if (justFinished) {
       local.bootstrapping = true;
       bootstrap(root, state)
-        .catch(err => W.toast('Failed to refresh art generation state: ' + err.message, 'error'))
-        .finally(() => { local.bootstrapping = false; });
+        .catch((err) => W.toast('Failed to refresh: ' + err.message, 'error'))
+        .finally(() => {
+          local.bootstrapping = false;
+        });
       return;
     }
 
     paintFooter(footer, state);
-    setLocked(local.locked);
+    setLocked(root, local.locked);
   }
 
   function mountShellHtml() {
     return `
-      <div class="wiz-art_gen-summary" data-role="ag-summary">
-        <div class="wiz-stage-empty">Loading art generation state…</div>
-      </div>
-      <div class="wiz-art_gen-progress" data-role="ag-progress" hidden>
-        <div class="wiz-art_gen-progress-label" data-role="ag-progress-label">Waiting…</div>
-        <div class="wiz-art_gen-bar">
-          <div class="wiz-art_gen-bar-fill" data-role="ag-bar-fill" style="width:0%"></div>
-        </div>
-      </div>
-      <div class="wiz-art_gen-grid" data-role="ag-grid"></div>
+      <div data-role="ag-summary"><div class="wiz-stage-empty">Loading art generation…</div></div>
+      <div class="wiz-ag-grid" data-role="ag-grid"></div>
     `;
   }
 
-  // ── Bootstrap (fetch state from server) ────────────────────────────────────
+  // ── Bootstrap ────────────────────────────────────────────────────────────────
 
   async function bootstrap(root, state) {
-    // TODO: implement GET /api/wizard/art_gen/state
-    // Expected response: { cards: [{name, collector_number, versions:[{filename,attempt}]}],
-    //                      has_content, stage_status }
-    let data = null;
-    try {
-      const resp = await fetch('/api/wizard/art_gen/state');
-      if (resp.ok) {
-        data = await resp.json();
-      }
-    } catch (_) {
-      // Backend not yet wired — degrade gracefully.
-    }
-
+    const data = await W.fetchStageState(STAGE_ID);
     if (data) {
       local.cards = Array.isArray(data.cards) ? data.cards : [];
+      local.byCn = {};
+      local.cards.forEach((c) => { local.byCn[c.collector_number] = c; });
       local.hasContent = !!data.has_content;
+      local.versionsPerCard = data.versions_per_card || local.versionsPerCard;
+      local.judgeModel = data.judge_model || '';
+      local.provider = data.provider || '';
       local.stageStatus = data.stage_status || local.stageStatus;
     }
-
     paintSummary(root, state);
     paintGrid(root);
     paintFooter(getFooter(root), state);
+    setLocked(root, local.locked);
   }
 
-  // ── Summary block ───────────────────────────────────────────────────────────
+  // ── Summary ──────────────────────────────────────────────────────────────────
 
   function paintSummary(root) {
     const slot = root.querySelector('[data-role="ag-summary"]');
     if (!slot) return;
-    const count = local.cards.length;
+    const withArt = local.cards.filter((c) => c.versions && c.versions.length).length;
     slot.innerHTML = `
       <div class="wiz-theme-section-header-row">
-        <h3 style="margin:0">Card art generation</h3>
+        <h3 style="margin:0">Art generation &amp; review</h3>
+        <button type="button" class="wiz-refresh-btn" data-role="ag-refresh-all">
+          ${local.hasContent ? 'Regenerate all…' : 'Generate art'}
+        </button>
       </div>
-      <p class="wiz-art_gen-blurb">
-        Generates art for all cards via ComfyUI + Flux.1-dev.
-        Multiple attempts per card — the best version is selected in the next stage.
+      <p class="wiz-ag-blurb">
+        Generates best-of-N art per card, the judge auto-picks the best, and you re-pick,
+        reroll, or upload your own here.
       </p>
-      <dl class="wiz-art_gen-context">
-        <dt>Cards</dt><dd>${count > 0 ? count : '—'}</dd>
-        <dt>Output</dt><dd>art/ (&lt;slug&gt;_v&lt;N&gt;.png)</dd>
+      <dl class="wiz-ag-context">
+        <dt>Cards with art</dt><dd>${withArt} / ${local.cards.length || '—'}</dd>
+        <dt>Versions per card</dt><dd>${local.versionsPerCard}</dd>
+        <dt>Judge model</dt><dd>${escHtml(local.judgeModel || '—')}</dd>
+        <dt>Provider</dt><dd>${escHtml(local.provider || '—')}</dd>
       </dl>
     `;
+    const refreshBtn = slot.querySelector('[data-role="ag-refresh-all"]');
+    if (refreshBtn) refreshBtn.onclick = onRefreshAll;
   }
 
-  // ── Live progress block (reactive — updated cheaply in place) ───────────────
-
-  function paintProgressBlock(root, stage) {
-    if (!stage) return;
-    const block = root.querySelector('[data-role="ag-progress"]');
-    const labelEl = root.querySelector('[data-role="ag-progress-label"]');
-    const fillEl = root.querySelector('[data-role="ag-bar-fill"]');
-    if (!block || !labelEl || !fillEl) return;
-
-    const progress = stage.progress || {};
-    const total = progress.total_items || 0;
-    const completed = progress.completed_items || 0;
-    const failed = progress.failed_items || 0;
-    const isActive = stage.status === 'running' || total > 0;
-
-    if (!isActive && stage.status === 'pending') {
-      block.hidden = true;
-      return;
-    }
-    block.hidden = false;
-
-    const pct = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
-    const current = progress.current_item || progress.detail || '';
-
-    const failedHtml = failed > 0
-      ? `<span class="wiz-art_gen-failed">${failed} failed</span>`
-      : '';
-    const currentHtml = current
-      ? `<span class="wiz-art_gen-current">${escHtml(current)}</span>`
-      : '';
-
-    labelEl.innerHTML =
-      `<span>${completed}/${total} cards · <span class="wiz-art_gen-pct">${pct}%</span></span>`
-      + failedHtml
-      + currentHtml;
-    fillEl.style.width = pct + '%';
-  }
-
-  // ── Image grid ──────────────────────────────────────────────────────────────
+  // ── Grid ─────────────────────────────────────────────────────────────────────
 
   function paintGrid(root) {
     const slot = root.querySelector('[data-role="ag-grid"]');
     if (!slot) return;
 
     const generating = local.stageStatus === 'running' || local.locked;
-    const hash = local.cards.length + ':' + local.stageStatus;
-    if (slot.dataset.gridHash === hash) return;  // avoid thrashing during SSE ticks
-    slot.dataset.gridHash = hash;
-
     if (!local.hasContent || local.cards.length === 0) {
       slot.innerHTML = `
         <div class="wiz-stage-empty">
           ${generating
-            ? 'Generating art… thumbnails will appear when the stage completes.'
-            : 'No art generated yet. Run the Art Generation stage to generate card art.'}
-        </div>
-      `;
+            ? 'Generating art… tiles appear as each card finishes.'
+            : 'No art generated yet. Click Generate art above (or run the stage).'}
+        </div>`;
       return;
     }
-
-    slot.innerHTML = local.cards.map(card => artTileHtml(card)).join('');
+    slot.innerHTML = local.cards.map(cardHtml).join('');
+    bindCardActions(slot);
   }
 
-  /**
-   * Thumbnail tile — one card with its art attempt(s).
-   * Shared shape: same structure as char_portraits + art_select tiles.
-   */
-  function artTileHtml(card) {
-    const name = card.name || card.collector_number || '(unknown)';
+  function cardHtml(card) {
     const versions = Array.isArray(card.versions) ? card.versions : [];
-    const v1 = versions[0];
+    const versionsHtml = versions.length
+      ? versions.map((v, i) => versionHtml(card, v, i + 1)).join('')
+      : '<div class="wiz-ag-empty-thumb">(no art)</div>';
 
-    // TODO: implement image serving route for card art
-    // Suggested route: GET /api/art/image?path=<relative_path_under_asset>
-    const imgHtml = v1
-      ? `<div class="wiz-art_gen-tile-img">
-           ${escHtml(v1.filename || '')}
-           <!-- TODO: <img src="/api/art/image?path=${escAttr(v1.filename || '')}" alt="${escAttr(name)}" onerror="this.style.display='none'"> -->
-         </div>`
-      : `<div class="wiz-art_gen-tile-img">(no art)</div>`;
-
-    const dotsHtml = versions.length > 0
-      ? `<div class="wiz-art_gen-tile-attempts">${versions.map((v, i) =>
-          `<div class="wiz-art_gen-attempt-dot done" title="v${i + 1}: ${escAttr(v.filename || '')}"></div>`
-        ).join('')}</div>`
+    const src = card.pick_source === 'user' ? 'You picked' : card.pick_source ? 'AI picked' : '';
+    const reasonHtml = card.reasoning
+      ? `<p class="wiz-ag-reason">${src ? `<span class="wiz-ag-src ${card.pick_source === 'user' ? 'user' : ''}">${escHtml(src)}:</span> ` : ''}${escHtml(card.reasoning)}</p>`
       : '';
 
     return `
-      <div class="wiz-art_gen-tile">
-        ${imgHtml}
-        <div class="wiz-art_gen-tile-name" title="${escAttr(name)}">${escHtml(name)}</div>
-        ${versions.length > 1
-          ? `<div class="wiz-art_gen-tile-sub">${versions.length} attempts</div>`
-          : ''}
-        ${dotsHtml}
-      </div>
-    `;
+      <div class="wiz-ag-card" data-cn="${escAttr(card.collector_number)}">
+        <div class="wiz-ag-card-head">
+          <span class="wiz-ag-card-name" title="${escAttr(card.name)}">${escHtml(card.name)}</span>
+          <span class="wiz-ag-card-cn">${escHtml(card.collector_number)}</span>
+        </div>
+        <div class="wiz-ag-versions">${versionsHtml}</div>
+        ${reasonHtml}
+        <div class="wiz-ag-actions">
+          <button type="button" class="wiz-ag-btn-sm" data-act="reroll">Reroll</button>
+          <button type="button" class="wiz-ag-btn-sm" data-act="upload">Upload…</button>
+        </div>
+        <input type="file" accept="image/*" data-role="ag-file" style="display:none">
+      </div>`;
   }
 
-  // ── Footer — art_gen is NOT review_eligible, never pauses ──────────────────
+  function versionHtml(card, v, num) {
+    const label = 'v' + num;
+    const isPicked = card.pick === label;
+    return `
+      <div class="wiz-ag-version ${isPicked ? 'picked' : ''}" data-pick="${escAttr(label)}"
+           title="Click to pick ${label}">
+        ${isPicked ? '<span class="wiz-ag-pickbadge">PICK</span>' : ''}
+        <img class="wiz-ag-thumb" src="${escAttr(v.url)}" alt="${escAttr(label)}"
+             onerror="this.style.visibility='hidden'">
+        <div class="wiz-ag-vlabel">${label}</div>
+      </div>`;
+  }
+
+  function bindCardActions(slot) {
+    slot.querySelectorAll('.wiz-ag-card').forEach((cardEl) => {
+      const cn = cardEl.getAttribute('data-cn');
+      cardEl.querySelectorAll('.wiz-ag-version').forEach((vEl) => {
+        vEl.onclick = () => onRepick(cn, vEl.getAttribute('data-pick'));
+      });
+      const rerollBtn = cardEl.querySelector('[data-act="reroll"]');
+      if (rerollBtn) rerollBtn.onclick = () => onReroll(cn);
+      const uploadBtn = cardEl.querySelector('[data-act="upload"]');
+      const fileInput = cardEl.querySelector('[data-role="ag-file"]');
+      if (uploadBtn && fileInput) {
+        uploadBtn.onclick = () => fileInput.click();
+        fileInput.onchange = () => {
+          if (fileInput.files && fileInput.files[0]) onUpload(cn, fileInput.files[0]);
+        };
+      }
+    });
+  }
+
+  function markStreaming(root, cn) {
+    const el = root.querySelector(`.wiz-ag-card[data-cn="${W.cssEsc ? W.cssEsc(cn) : cn}"]`);
+    if (el) el.classList.add('is-streaming');
+  }
+
+  // ── Actions ──────────────────────────────────────────────────────────────────
+
+  function onRefreshAll() {
+    W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked: (l) => setLocked(bodyRoot(), l),
+      confirm: () => (local.hasContent ? 'Regenerate art for the whole set? Existing versions are kept; new ones are added.' : ''),
+      busyLabel: 'Generating art…',
+      url: '/api/wizard/art_gen/refresh',
+      body: () => ({}),
+      fallback: 'Art generation failed',
+      onResult: (data) => applyState(data),
+    });
+  }
+
+  function onReroll(cn) {
+    W.runAiAction({
+      isLocked: () => local.locked,
+      setLocked: (l) => setLocked(bodyRoot(), l),
+      confirm: () => `Reroll art for ${cn}? Its current versions are replaced.`,
+      busyLabel: 'Rerolling art…',
+      url: '/api/wizard/art_gen/reroll',
+      body: () => ({ collector_number: cn }),
+      fallback: 'Reroll failed',
+      onResult: (data) => applyState(data),
+    });
+  }
+
+  async function onRepick(cn, pick) {
+    // Re-pick is a pure (no-AI) override — post directly, no AI lock dance.
+    try {
+      const resp = await fetch('/api/wizard/art_gen/repick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collector_number: cn, pick }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        W.toast(data.error || 'Re-pick failed', 'error');
+        return;
+      }
+      applyState(data);
+    } catch (e) {
+      W.toast('Re-pick failed: ' + e.message, 'error');
+    }
+  }
+
+  async function onUpload(cn, file) {
+    try {
+      const form = new FormData();
+      form.append('collector_number', cn);
+      form.append('file', file);
+      const resp = await fetch('/api/wizard/art_gen/upload', { method: 'POST', body: form });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        W.toast(data.error || 'Upload failed', 'error');
+        return;
+      }
+      W.toast('Uploaded art for ' + cn, 'success');
+      applyState(data);
+    } catch (e) {
+      W.toast('Upload failed: ' + e.message, 'error');
+    }
+  }
+
+  function applyState(data) {
+    if (!data) return;
+    if (Array.isArray(data.cards)) {
+      local.cards = data.cards;
+      local.byCn = {};
+      local.cards.forEach((c) => { local.byCn[c.collector_number] = c; });
+      local.hasContent = !!data.has_content;
+    }
+    if (data.stage_status) local.stageStatus = data.stage_status;
+    const root = bodyRoot();
+    if (root) {
+      paintSummary(root);
+      paintGrid(root);
+      paintFooter(getFooter(root), null);
+      setLocked(root, local.locked);
+    }
+  }
+
+  // ── Footer (art_gen is review_eligible — pauses for human review) ────────────
 
   function paintFooter(footer, state) {
     if (!footer) return;
+    const isLatest = !state || state.latestTabId === STAGE_ID;
+    const status = local.stageStatus;
     const next = W.nextStageEntryAfter(STAGE_ID);
     const nextName = next ? next.name : 'the next stage';
 
     let html;
-    if (local.stageStatus === 'running') {
-      html = `<span class="wiz-footer-note">Art generation is running — this stage completes automatically, no review step.</span>`;
-    } else if (local.stageStatus === 'completed') {
-      html = `<span class="wiz-footer-note">Art generation complete. Engine continues to ${escHtml(nextName)} automatically.</span>`;
-    } else if (local.stageStatus === 'failed') {
-      html = `<span class="wiz-footer-note">Stage failed — check the error above. Retry support lands in a follow-up card.</span>`;
+    if (!isLatest) {
+      html = `<span class="wiz-footer-note">Art review completed — read-only on a past tab.</span>`;
+    } else if (status === 'paused_for_review') {
+      html = `<button type="button" class="wiz-btn-primary" data-role="ag-advance">Next step: ${escHtml(nextName)}</button>`;
+    } else if (status === 'running') {
+      html = `<span class="wiz-footer-note">Art generation is in progress…</span>`;
+    } else if (status === 'failed') {
+      html = `<span class="wiz-footer-note">Stage failed — see the error above; regenerate or fix a card to recover.</span>`;
     } else {
-      html = `<span class="wiz-footer-note">Art generation runs automatically; no manual review step for this stage.</span>`;
+      html = `<span class="wiz-footer-note">Continue appears once art is ready for your sign-off.</span>`;
     }
+    W.paintFooter(footer, html, { role: 'ag-advance', onClick: onAdvance });
+  }
 
-    if (footer.dataset.lastFooter !== html) {
-      footer.innerHTML = html;
-      footer.dataset.lastFooter = html;
-    }
+  function onAdvance() {
+    return W.advanceStage({ stageId: STAGE_ID, btnRole: 'ag-advance', navigate: false });
   }
 
   // ── Form lock (§3) ──────────────────────────────────────────────────────────
 
-  function setLocked(locked) {
+  function aiBusy() {
+    return local.locked || local.stageStatus === 'running';
+  }
+
+  function setLocked(root, locked) {
     local.locked = !!locked;
-    const root = bodyRoot();
     if (!root) return;
-    root.classList.toggle('wiz-art_gen-locked', !!locked);
+    W.setTabLocked(root, aiBusy(), {
+      lockClass: 'wiz-ag-locked',
+      selectors: [
+        '[data-role="ag-refresh-all"]',
+        '.wiz-ag-btn-sm',
+        '.wiz-ag-version',
+      ],
+      footerSelector: '[data-role="ag-advance"]',
+    });
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -440,16 +451,5 @@
 
   function getFooter(root) {
     return root && root.querySelector('[data-role="footer"]');
-  }
-
-  function escHtml(text) {
-    if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  }
-
-  function escAttr(text) {
-    return escHtml(text).replace(/"/g, '&quot;');
   }
 })();

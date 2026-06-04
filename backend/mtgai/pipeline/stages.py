@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 from mtgai.generation.phase_poller import make_poller
 from mtgai.io.atomic import atomic_write_text
 from mtgai.pipeline.stage_hooks import (
+    build_art_prompt_hooks,
     build_card_gen_hooks,
     build_mechanic_hooks,
     build_skeleton_hooks,
@@ -447,21 +448,30 @@ def run_visual_refs(
     progress_cb: ProgressCallback | None,
     emitter: StageEmitter,
 ) -> StageResult:
-    """Extract the set's visual reference sheet from setting prose.
+    """Build the set's art-direction dictionary + artist directory from theme.json.
 
     Runs just before the art stages (between ``finalize`` and
     ``art_prompts``): ``art_prompts`` + ``char_portraits`` are its only
-    consumers, and nothing from ``skeleton`` through ``card_gen`` needs
-    it, so there's no reason to generate it pre-skeleton. Reads
-    ``theme.json``, asks the LLM for concrete appearance descriptions of
-    every setting-specific entity (characters, creature types, factions,
-    landmarks) plus set-wide visual motifs, and writes them to
-    ``<set>/art-direction/visual-references.json`` — the per-project file
-    the art pipeline (``art/visual_reference.py``,
-    ``art/character_portraits.py``) already consumes. AUTO stage (no
-    break point) — the engine advances straight to ``art_prompts``.
+    consumers, and nothing from ``skeleton`` through ``card_gen`` needs it.
+    This is a **transform** over data ``theme.json`` already holds, in three
+    LLM steps under one AI-lock hold:
+
+    1. The keyed art-direction dictionary — a consistent, full visual brief
+       per setting-specific entity (characters, creature types, factions,
+       landmarks) plus set-wide visual motifs + Flux term replacements.
+    2. The set-wide ``set_art_direction`` prose, merged into the same file.
+    3. The made-up artist directory, written to ``art-direction/artists.json``.
+
+    Outputs land under ``<set>/art-direction/`` — the per-project files the
+    art pipeline (``art/visual_reference.py``, ``art/character_portraits.py``,
+    ``art_prompts``) consumes. AUTO stage (no break point) — the engine
+    advances straight to ``art_prompts``.
     """
-    from mtgai.art.visual_reference_extractor import generate_visual_references
+    from mtgai.art.visual_reference_extractor import (
+        generate_artists,
+        generate_set_art_direction,
+        generate_visual_references,
+    )
     from mtgai.runtime import ai_lock
 
     set_dir = _set_dir()
@@ -471,7 +481,7 @@ def run_visual_refs(
             success=False,
             error_message=(
                 f"theme.json not found: {theme_path}. "
-                "Run theme extraction (Theme tab) before visual-reference extraction."
+                "Run theme extraction (Theme tab) before the visual-references stage."
             ),
         )
 
@@ -479,21 +489,27 @@ def run_visual_refs(
         [
             {
                 "section_id": "overview",
-                "title": "Visual References",
+                "title": "Visual References & Artists",
                 "content_type": "kv",
                 "status": "running",
             },
             {
                 "section_id": "categories",
-                "title": "Extracted Entities",
+                "title": "Art-Direction Entities",
+                "content_type": "table",
+                "status": "pending",
+            },
+            {
+                "section_id": "artists",
+                "title": "Artist Directory",
                 "content_type": "table",
                 "status": "pending",
             },
         ]
     )
-    emitter.phase("running", "Calling LLM for visual references")
+    emitter.phase("running", "Transforming theme into art direction")
 
-    with ai_lock.hold("Visual-reference extraction") as acquired:
+    with ai_lock.hold("Visual-reference generation") as acquired:
         if not acquired:
             return StageResult(
                 success=False,
@@ -502,20 +518,30 @@ def run_visual_refs(
 
         try:
             with make_poller(
-                "visual_refs", emitter.phase, activity_prefix="Extracting visual references"
+                "visual_refs", emitter.phase, activity_prefix="Generating art direction"
             ):
-                response = generate_visual_references()
+                ref_response = generate_visual_references()
+                references = ref_response["references"]
+                if ai_lock.is_cancelled():
+                    return StageResult(success=False, error_message="Cancelled.")
+                set_response = generate_set_art_direction()
+                references["set_art_direction"] = set_response["set_art_direction"]
+                if ai_lock.is_cancelled():
+                    return StageResult(success=False, error_message="Cancelled.")
+                artist_response = generate_artists()
         except Exception as exc:
-            logger.exception("Visual-reference extraction failed")
+            logger.exception("Visual-reference generation failed")
             return StageResult(success=False, error_message=str(exc))
 
-        references = response["references"]
         art_dir = set_dir / "art-direction"
         art_dir.mkdir(parents=True, exist_ok=True)
-        refs_path = art_dir / "visual-references.json"
         atomic_write_text(
-            refs_path,
+            art_dir / "visual-references.json",
             json.dumps(references, indent=2, ensure_ascii=False),
+        )
+        atomic_write_text(
+            art_dir / "artists.json",
+            json.dumps({"artists": artist_response["artists"]}, indent=2, ensure_ascii=False),
         )
 
     category_labels: list[tuple[str, str]] = [
@@ -533,8 +559,24 @@ def run_visual_refs(
         rows.append([label, str(len(entries)), names])
     emitter.update("categories", status="done", content={"rows": rows, "scrollable": True})
 
+    artists = artist_response["artists"]
+    artist_rows: list[list[str]] = [["Artist", "Style"]]
+    for a in artists:
+        artist_rows.append([a["name"], a["style_prompt"]])
+    emitter.update("artists", status="done", content={"rows": artist_rows, "scrollable": True})
+
     motifs = references.get("visual_motifs") or []
     replacements = references.get("flux_term_replacements") or {}
+    total_in = (
+        ref_response.get("input_tokens", 0)
+        + set_response.get("input_tokens", 0)
+        + artist_response.get("input_tokens", 0)
+    )
+    total_out = (
+        ref_response.get("output_tokens", 0)
+        + set_response.get("output_tokens", 0)
+        + artist_response.get("output_tokens", 0)
+    )
     emitter.update(
         "overview",
         status="done",
@@ -542,18 +584,20 @@ def run_visual_refs(
             "Entities": str(total_entities),
             "Flux term replacements": str(len(replacements)),
             "Visual motifs": str(len(motifs)),
-            "Model": response.get("model_id", "?"),
-            "Tokens": (
-                f"{response.get('input_tokens', 0)} in / {response.get('output_tokens', 0)} out"
-            ),
+            "Artists": str(len(artists)),
+            "Set art direction": "set" if references.get("set_art_direction") else "(none)",
+            "Model": ref_response.get("model_id", "?"),
+            "Tokens": f"{total_in} in / {total_out} out",
         },
     )
-    emitter.phase("done", f"Extracted {total_entities} visual references")
+    emitter.phase(
+        "done", f"Generated {total_entities} art-direction entities + {len(artists)} artists"
+    )
 
     return StageResult(
         total_items=total_entities,
         completed_items=total_entities,
-        detail=f"Extracted {total_entities} visual references",
+        detail=f"Generated {total_entities} art-direction entities + {len(artists)} artists",
     )
 
 
@@ -1415,6 +1459,13 @@ def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter)
     from mtgai.runtime import ai_lock
 
     emitter.phase("running", "Writing art prompts")
+
+    # Stream each freshly-prompted card to the Art Prompts tab as it lands (same
+    # byte-identical tile shape /state emits), so the grid pops in one card at a
+    # time. The engine path does NOT emit a reset — a first run starts empty and a
+    # resume must keep already-prompted cards visible (mirrors run_card_gen).
+    ap_hooks = build_art_prompt_hooks(emitter)
+
     # Hold the app-wide AI lock for the whole loop (one AI action at a time) and
     # thread the cancel hook so the Cancel button halts at the next card boundary
     # (request_cancel() is a no-op unless the lock is held). Mirrors run_card_gen.
@@ -1428,6 +1479,7 @@ def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter)
             result = generate_prompts_for_set(
                 progress_callback=progress_cb,
                 should_cancel=ai_lock.is_cancelled,
+                card_saved_callback=ap_hooks.on_card_saved,
             )
 
     processed = result.get("processed", 0)
@@ -1451,73 +1503,147 @@ def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter)
 
 
 def run_char_portraits(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Generate character reference portraits."""
-    from mtgai.art.character_portraits import generate_character_portraits
+    """Detect recurring entities, generate neutral reference images, attach refs.
 
-    result = generate_character_portraits()
-
-    generated = result.get("generated", 0)
-    return StageResult(
-        total_items=generated,
-        completed_items=generated,
-        detail=f"Generated portraits for {generated} characters",
-    )
-
-
-def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Generate art for all cards, then select the best version per card.
-
-    MERGED stage (topology reorg): chains the existing
-    ``generate_art_for_set`` (ComfyUI + Flux) and ``select_art_for_set``
-    (Haiku vision best-of-N pick) so the retired ``art_select`` /
-    ``human_art_review`` stages still run end-to-end. The downstream Art
-    Generation rework card swaps these internals (new gen+select+review UI)
-    without touching the stage registry. The select pass still resolves its
-    own model assignment via the ``art_select`` key.
+    The reworked Character References stage (card 6a20aa84): it reads each card's
+    ``art_prompt`` (so it runs after ``art_prompts``), LLM-detects the named
+    characters/locations that appear on more than one card, generates a neutral
+    canonical reference image per entity (ComfyUI/Flux), and writes
+    ``art_character_refs`` back onto the relevant cards for the Art Generation
+    stage to consume (PuLID/IP-Adapter). Holds the app-wide AI lock for the LLM
+    detection + image loop and threads the cancel hook so the Cancel button halts
+    at the next entity/image boundary; entities stream live to the tab.
     """
-    from mtgai.art.art_selector import select_art_for_set
-    from mtgai.art.image_generator import generate_art_for_set
+    from mtgai.art.character_portraits import generate_character_refs
+    from mtgai.pipeline.stage_hooks import build_char_refs_hooks
     from mtgai.runtime import ai_lock
 
-    gen_result = generate_art_for_set(progress_callback=progress_cb)
-    generated = gen_result.get("generated", 0)
-
-    # Best-of-N selection (folded in from the old art_select stage). Hold the
-    # app-wide AI lock for the whole loop (one AI action at a time) and thread
-    # the cancel hook so the Cancel button halts at the next card boundary
-    # (request_cancel() is a no-op unless the lock is held). Mirrors run_card_gen.
-    emitter.phase("running", "Selecting art")
-    with ai_lock.hold("Art selection") as acquired:
+    emitter.phase("running", "Finding recurring entities")
+    hooks = build_char_refs_hooks(emitter)
+    with ai_lock.hold("Character references") as acquired:
         if not acquired:
             return StageResult(
                 success=False,
                 error_message="Another AI action holds the lock; try again later.",
             )
-        with make_poller("art_select", emitter.phase, activity_prefix="Selecting art"):
+        with make_poller("char_portraits", emitter.phase, activity_prefix="Finding entities"):
+            result = generate_character_refs(
+                should_cancel=ai_lock.is_cancelled,
+                on_reset=hooks.on_reset,
+                on_entity_start=hooks.on_entity_start,
+                on_entity_image=hooks.on_entity_image,
+            )
+
+    generated = result.get("generated", 0)
+    entities = result.get("entities", 0)
+    modified = result.get("cards_modified", 0)
+    if result.get("cancelled"):
+        emitter.phase("done", "Character references cancelled")
+        return StageResult(
+            success=False,
+            total_items=entities,
+            completed_items=generated,
+            cost_usd=result.get("cost_usd", 0.0),
+            error_message="Character references cancelled by user.",
+        )
+
+    emitter.phase("done", f"Referenced {entities} recurring entities ({modified} cards updated)")
+    return StageResult(
+        total_items=entities,
+        completed_items=generated,
+        failed_items=result.get("failed", 0),
+        cost_usd=result.get("cost_usd", 0.0),
+        detail=f"Generated references for {entities} entities; attached to {modified} cards",
+    )
+
+
+def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+    """Merged Art Generation stage: generate best-of-N, judge, human review.
+
+    One cohesive stage (the old ``art_select`` + ``human_art_review`` are folded
+    in): for every card it generates ``SetParams.art_versions_per_card`` candidate
+    images (provider from the ``art_gen`` image assignment — local Flux/ComfyUI
+    direct, OpenAI/Google stubbed), conditions on ``Card.art_character_refs``
+    (PuLID/IP-Adapter), then the LLM judge (the ``art_select`` model assignment)
+    auto-picks the best per card. The merged Art Generation tab then lets the user
+    re-pick / reroll / upload over the auto-pick (its ``review`` break-point is on
+    by default).
+
+    The whole span (generate + judge) runs under ONE app-wide AI-lock hold so the
+    Cancel button halts it at a card boundary (kept partial output is resumable).
+    Per-card art lands stream to the tab as ``art_gen_card`` events; a single
+    ``art_gen_reset`` fires at the start.
+    """
+    from mtgai.art.art_selector import select_art_for_set
+    from mtgai.art.image_generator import generate_art_for_set
+    from mtgai.runtime import ai_lock
+
+    emitter.event("art_gen_reset")
+
+    def gen_progress(cn, completed, total, message, cost):
+        # Mirror the upstream progress to the stage strip AND stream a per-card
+        # tile to the merged Art Generation tab so art shows up live, labeled.
+        if progress_cb is not None:
+            progress_cb(cn, completed, total, message, cost)
+        emitter.event("art_gen_card", collector_number=cn, phase="generated", detail=message)
+
+    def judge_progress(cn, completed, total, message, cost):
+        if progress_cb is not None:
+            progress_cb(cn, completed, total, message, cost)
+        emitter.event("art_gen_card", collector_number=cn, phase="judged", detail=message)
+
+    with ai_lock.hold("Art generation") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+
+        emitter.phase("running", "Generating art")
+        with make_poller("art_gen", emitter.phase, activity_prefix="Generating art"):
+            gen_result = generate_art_for_set(
+                progress_callback=gen_progress,
+                should_cancel=ai_lock.is_cancelled,
+            )
+        generated = gen_result.get("generated", 0)
+
+        if gen_result.get("cancelled"):
+            emitter.phase("done", "Art generation cancelled")
+            return StageResult(
+                success=False,
+                total_items=generated + gen_result.get("skipped", 0),
+                completed_items=generated,
+                error_message="Art generation cancelled by user.",
+            )
+
+        # Best-of-N judge (folded in from the old art_select stage). Same lock
+        # hold — one AI action at a time. Resolves the ``art_select`` model.
+        emitter.phase("running", "Judging art")
+        with make_poller("art_select", emitter.phase, activity_prefix="Judging art"):
             sel_result = select_art_for_set(
-                progress_callback=progress_cb,
+                progress_callback=judge_progress,
                 should_cancel=ai_lock.is_cancelled,
             )
 
     reviewed = sel_result.get("reviewed", 0)
     sel_cost = sel_result.get("estimated_cost_usd", 0.0)
     if sel_result.get("cancelled"):
-        emitter.phase("done", "Art selection cancelled")
+        emitter.phase("done", "Art judging cancelled")
         return StageResult(
             success=False,
             total_items=generated + gen_result.get("skipped", 0),
             completed_items=generated,
             cost_usd=sel_cost,
-            error_message="Art selection cancelled by user.",
+            error_message="Art judging cancelled by user.",
         )
 
-    emitter.phase("done", f"Generated art for {generated} cards, selected {reviewed}")
+    emitter.phase("done", f"Generated art for {generated} cards, judged {reviewed}")
     return StageResult(
         total_items=generated + gen_result.get("skipped", 0),
         completed_items=generated,
         failed_items=gen_result.get("failed", 0),
         cost_usd=sel_cost,
-        detail=f"Generated art for {generated} cards, selected {reviewed}",
+        detail=f"Generated art for {generated} cards, judged {reviewed}",
     )
 
 
@@ -1785,9 +1911,16 @@ def clear_char_portraits() -> None:
     ``<set>/art-direction/character-refs``. The surrounding
     ``art-direction/`` folder also holds visual-references.json,
     which is an upstream input — only the ``character-refs``
-    subdirectory belongs to this stage.
+    subdirectory belongs to this stage. The stage ALSO writes
+    ``art_character_refs`` onto the cards, so a cascade/edit re-run must clear
+    those too (else stale refs survive a regenerated entity set).
     """
-    _remove_path(_set_dir() / "art-direction" / "character-refs")
+    from mtgai.art.character_portraits import clear_refs_on_cards
+
+    set_dir = _set_dir()
+    _remove_path(set_dir / "art-direction" / "character-refs")
+    _remove_path(set_dir / "char_portraits")
+    clear_refs_on_cards(set_dir / "cards")
 
 
 def clear_art_gen() -> None:

@@ -165,7 +165,17 @@ class TestPlanRenumber:
         assert "B-C-02" not in remap
 
     def test_double_digit_rollover(self):
-        remaining = ["B-C-01", "B-C-02", "B-C-04", "B-C-05", "B-C-06", "B-C-07", "B-C-08", "B-C-09", "B-C-10"]
+        remaining = [
+            "B-C-01",
+            "B-C-02",
+            "B-C-04",
+            "B-C-05",
+            "B-C-06",
+            "B-C-07",
+            "B-C-08",
+            "B-C-09",
+            "B-C-10",
+        ]
         remap = plan_renumber(remaining, "B-C-03")
         # 04..10 each shift down one; the rollover 10→09 stays 2-wide.
         assert remap["B-C-10"] == "B-C-09"

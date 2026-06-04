@@ -1,12 +1,12 @@
-Read the setting prose above and extract the visual reference sheet for this set.
+Transform the setting material above into the art-direction dictionary for this set.
 
 Produce one entry per setting-specific entity (named characters, custom creature types/races, factions with a shared look, and notable landmarks), each with:
 - `category`: legendary_character | creature_type | faction | landmark
 - `key`: short lowercase identifier
 - `name`: proper display name
-- `visual_description`: 2-5 sentences of concrete, renderable appearance (no backstory). Legendary characters start with "Name: " then the description.
+- `visual_description`: a FULL, consistent art-direction brief (3-6 sentences) — age/era, build, scale, face, hair/facial hair, skin/materials, clothing/armor, equipment, palette, mood, distinguishing features. Appearance only, no backstory. Legendary characters start with "Name: " then the brief.
 - `flux_replacement`: optional short generic phrase, only for invented words.
 
 Then produce `visual_motifs`: 4-8 short set-wide art-direction notes (colors, materials, lighting, architecture, overall aesthetic).
 
-Cover every named character and every setting-specific creature type the prose mentions. Be vivid and concrete — the art model renders exactly what you write.
+Where the source already describes an entity, normalize THAT look — keep it consistent. Where it is thin, fill the gaps so the same entity always paints the same way. Cover every named character, every setting-specific creature type, and the factions and landmarks the setting prose describes. Be vivid and concrete — the art model renders exactly what you write.
