@@ -1202,13 +1202,15 @@ def _flag_cards_for_regen(flags: list[tuple[str, str]], flagged_by: str) -> list
 def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Merged review gate — conformance + interactions in one stage (stage_id ``conformance``).
 
-    Runs two whole-set LLM steps back-to-back under one AI-lock hold and one
-    tok/s poller (both resolve the shared ``conformance`` model assignment):
+    Runs two batched, flag-only, streamed LLM steps back-to-back under one
+    AI-lock hold and one tok/s poller (both resolve the shared ``conformance``
+    model assignment), each driving one of the tab's two per-card checkboxes:
 
     1. **Conformance** (``analysis.conformance.check_conformance``) — each card
        vs. its slot spec.
     2. **Interaction Check** (``analysis.interactions.analyze_interactions``) —
-       whole-pool degenerate-combo scan, flagging each combo's enabler.
+       degenerate-combo scan over cumulative-context batches (each batch checks
+       its ~40 new cards against all prior cards), flagging each combo's enabler.
 
     Cards are flagged for regeneration only after *both* steps succeed (a card
     flagged by both gets its reasons joined), so a persistent truncation in
@@ -1273,18 +1275,29 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
         dup_findings, _dup_analysis = find_duplicates(cards)
         dup_by_slot = {f.slot_id: f.reason for f in dup_findings}
 
-        # Conformance runs one LLM call per card and streams a live checklist:
-        # the full card list up front (conformance_cards), then a verdict per
-        # card as it returns (conformance_card). conf_cards accumulates those
-        # verdicts for the authoritative step snapshot (reload / buffer-cleared).
+        # Conformance scans the pool in streamed batches (one call per ~40 cards)
+        # and fills a live checklist: the full card list up front
+        # (conformance_cards), then a verdict per card as the stream resolves it
+        # (conformance_card). conf_by_slot holds the latest verdict per slot for
+        # the authoritative step snapshot (reload / buffer-cleared); keying by
+        # slot_id dedupes a card that re-fires when its batch is retried, while
+        # preserving first-seen (listing) order. Seeded from the start list so the
+        # snapshot carries every card even if a batch is cancelled mid-run.
         # Duplicates (dup_by_slot) are seeded as failed rows and skip the call.
-        conf_cards: list[dict] = []
+        conf_by_slot: dict[str, dict] = {}
 
         def _on_conf_start(card_list: list[dict]) -> None:
+            for c in card_list:
+                conf_by_slot[c["slot_id"]] = {
+                    "slot_id": c["slot_id"],
+                    "card_name": c.get("card_name", ""),
+                    "conforms": c.get("conforms"),
+                    "reason": c.get("reason", ""),
+                }
             emitter.event("conformance_cards", cards=card_list)
 
         def _on_conf_card(rec: dict) -> None:
-            conf_cards.append(rec)
+            conf_by_slot[rec["slot_id"]] = rec
             emitter.event("conformance_card", **rec)
 
         with make_poller("conformance", emitter.phase, activity_prefix="Reviewing cards"):
@@ -1295,9 +1308,10 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
                 pre_flagged=dup_by_slot,
                 on_start=_on_conf_start,
                 on_card=_on_conf_card,
+                on_progress=lambda msg: emitter.phase("running", msg),
                 should_cancel=ai_lock.is_cancelled,
             )
-            # check_conformance breaks its per-card loop early on cancel and
+            # check_conformance breaks its batch loop early on cancel and
             # returns partial findings. Halt here before the whole-set
             # interactions LLM call (and before any flagging), so a mid-gate
             # Cancel is a clean stop — never partial conformance + full
@@ -1313,12 +1327,43 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
                 "flagged": _display(conf_pairs),
                 "analysis": conf_analysis,
                 "passed": not conf_pairs,
-                "cards": conf_cards,
+                "cards": list(conf_by_slot.values()),
             }
             emitter.event("conformance_step", step=conf_step)
 
             emitter.phase("running", "Scanning the pool for degenerate interactions")
-            inter_flags, inter_analysis, inter_cost = analyze_interactions(cards, mechanics)
+            # The interaction step streams the same way as conformance: the full
+            # card list up front (interaction_cards), then a per-card verdict as
+            # each batch resolves it (interaction_card) — driving the tab's second
+            # checkbox per card. inter_by_slot dedupes/keeps the latest verdict per
+            # card for the authoritative step snapshot, seeded from the start list.
+            inter_by_slot: dict[str, dict] = {}
+
+            def _on_inter_start(card_list: list[dict]) -> None:
+                for c in card_list:
+                    inter_by_slot[c["slot_id"]] = {
+                        "slot_id": c["slot_id"],
+                        "card_name": c.get("card_name", ""),
+                        "interacts": c.get("interacts"),
+                        "reason": c.get("reason", ""),
+                    }
+                emitter.event("interaction_cards", cards=card_list)
+
+            def _on_inter_card(rec: dict) -> None:
+                inter_by_slot[rec["slot_id"]] = rec
+                emitter.event("interaction_card", **rec)
+
+            inter_flags, inter_analysis, inter_cost = analyze_interactions(
+                cards,
+                mechanics,
+                on_start=_on_inter_start,
+                on_card=_on_inter_card,
+                on_progress=lambda msg: emitter.phase("running", msg),
+                should_cancel=ai_lock.is_cancelled,
+            )
+            if ai_lock.is_cancelled():
+                emitter.phase("done", "Conformance & Interactions cancelled")
+                return StageResult(success=False, error_message="Interactions cancelled")
             # The interaction reason threads diagnosis + replacement constraint
             # into the regen prompt (vs. the conformance reason, used as-is).
             inter_pairs = [
@@ -1337,6 +1382,7 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
                 "flagged": _display(inter_pairs),
                 "analysis": inter_analysis,
                 "passed": not inter_pairs,
+                "cards": list(inter_by_slot.values()),
             }
             emitter.event("conformance_step", step=inter_step)
 

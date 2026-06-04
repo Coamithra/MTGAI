@@ -121,7 +121,7 @@ def test_run_conformance_merges_both_steps(project, monkeypatch):
     )
     monkeypatch.setattr(
         "mtgai.analysis.interactions.analyze_interactions",
-        lambda cards, mechanics: (
+        lambda cards, mechanics, **kw: (
             [
                 InteractionFlag(
                     enabler_slot_id="W-C-02",
@@ -173,8 +173,40 @@ def test_run_conformance_merges_both_steps(project, monkeypatch):
         assert card.regen_reason
 
 
-def test_check_conformance_is_per_card_and_streams(project, monkeypatch):
-    """check_conformance makes one call per card and streams a live checklist."""
+def _fake_stream(flag_map: dict[str, str], *, stop_reason: str = "stop"):
+    """A ``stream_text`` stand-in for the batched conformance scan.
+
+    Emits a ``--CARD <id>--`` block (with its reason) for each slot in
+    ``flag_map`` that appears in the batch's user prompt, then one ``complete``
+    event carrying ``stop_reason`` (use ``"length"`` to simulate truncation).
+    Counts invocations on the returned function's ``calls`` attribute.
+    """
+
+    def stream_text(**kwargs):
+        user_prompt = kwargs.get("user_prompt", "")
+        stream_text.calls += 1
+        text = "".join(
+            f"--CARD {sid}--\n{reason}\n"
+            for sid, reason in flag_map.items()
+            if f"--SLOT {sid}--" in user_prompt
+        )
+        if text:
+            yield {"type": "text_delta", "text": text}
+        yield {
+            "type": "complete",
+            "text": text,
+            "stop_reason": stop_reason,
+            "input_tokens": 5,
+            "output_tokens": 5,
+            "model": kwargs.get("model", "m"),
+        }
+
+    stream_text.calls = 0
+    return stream_text
+
+
+def test_check_conformance_batches_and_streams(project, monkeypatch):
+    """check_conformance streams batched flag-only blocks into a live checklist."""
     from mtgai.analysis import conformance as conf_mod
 
     cards = [_make_card("W-C-01"), _make_card("W-C-02"), _make_card("W-C-03")]
@@ -182,20 +214,10 @@ def test_check_conformance_is_per_card_and_streams(project, monkeypatch):
         c.slot_id: {"slot_id": c.slot_id, "tweaked_text": "White common creature"} for c in cards
     }
 
-    # One LLM call per card; the 2nd card is judged non-conforming.
-    calls = {"n": 0}
-
-    def fake_gate(**kwargs):
-        calls["n"] += 1
-        conforms = calls["n"] != 2
-        return {
-            "result": {"conforms": conforms, "reason": "" if conforms else "wrong color"},
-            "input_tokens": 5,
-            "output_tokens": 5,
-        }
-
-    monkeypatch.setattr(conf_mod, "generate_gate_tool", fake_gate)
-    monkeypatch.setattr(conf_mod, "cost_from_result", lambda r: 0.01)
+    # All three cards fit one batch; the model flags only the 2nd.
+    fake = _fake_stream({"W-C-02": "wrong color"})
+    monkeypatch.setattr(gate_common, "stream_text",fake)
+    monkeypatch.setattr(gate_common, "cost_from_result",lambda r: 0.01)
 
     started: list[list[dict]] = []
     streamed: list[dict] = []
@@ -206,22 +228,27 @@ def test_check_conformance_is_per_card_and_streams(project, monkeypatch):
         on_card=lambda rec: streamed.append(rec),
     )
 
-    # One call per card.
-    assert calls["n"] == 3
+    # One streamed call for the whole batch (not one per card).
+    assert fake.calls == 1
     # on_start fired once with the full card list (names only) up front.
     assert len(started) == 1
     assert [c["slot_id"] for c in started[0]] == ["W-C-01", "W-C-02", "W-C-03"]
-    # on_card streamed a verdict per card, in order.
-    assert [r["conforms"] for r in streamed] == [True, False, True]
-    # Only the non-conforming card becomes a finding.
+    # on_card fired once per card, in listing order: the flag for W-C-02 advances
+    # the approved frontier (W-C-01 ✓), then W-C-02 ✗, then W-C-03 ✓ at batch end.
+    assert [(r["slot_id"], r["conforms"]) for r in streamed] == [
+        ("W-C-01", True),
+        ("W-C-02", False),
+        ("W-C-03", True),
+    ]
+    # Only the flagged card becomes a finding.
     assert [f.slot_id for f in findings] == ["W-C-02"]
     assert findings[0].reason == "wrong color"
-    assert cost == pytest.approx(0.03)
+    assert cost == pytest.approx(0.01)
     assert "2/3" in analysis
 
 
-def test_check_conformance_tolerates_a_failed_card(project, monkeypatch):
-    """A card whose LLM call errors is marked unknown (not flagged); others proceed."""
+def test_check_conformance_truncation_marks_unknown(project, monkeypatch):
+    """A batch that keeps truncating leaves its unreached cards unknown, not flagged."""
     from mtgai.analysis import conformance as conf_mod
 
     cards = [_make_card("W-C-01"), _make_card("W-C-02")]
@@ -229,29 +256,25 @@ def test_check_conformance_tolerates_a_failed_card(project, monkeypatch):
         c.slot_id: {"slot_id": c.slot_id, "tweaked_text": "White common creature"} for c in cards
     }
 
-    calls = {"n": 0}
-
-    def fake_gate(**kwargs):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            raise RuntimeError("truncated")
-        return {"result": {"conforms": True, "reason": ""}, "input_tokens": 1, "output_tokens": 1}
-
-    monkeypatch.setattr(conf_mod, "generate_gate_tool", fake_gate)
-    monkeypatch.setattr(conf_mod, "cost_from_result", lambda r: 0.0)
+    # Every attempt truncates with no flag blocks emitted.
+    fake = _fake_stream({}, stop_reason="length")
+    monkeypatch.setattr(gate_common, "stream_text",fake)
+    monkeypatch.setattr(gate_common, "cost_from_result",lambda r: 0.0)
 
     streamed: list[dict] = []
-    findings, _analysis, _cost = conf_mod.check_conformance(
+    findings, analysis, _cost = conf_mod.check_conformance(
         cards, slots, on_card=lambda rec: streamed.append(rec)
     )
 
-    # The failed card streams conforms=None and is NOT flagged for regen.
-    assert streamed[0]["conforms"] is None
+    # Retried up to the budget, then both cards reported unknown (not flagged).
+    assert fake.calls == gate_common.MAX_BATCH_ATTEMPTS
+    assert all(r["conforms"] is None for r in streamed)
     assert findings == []
+    assert "could not be checked" in analysis
 
 
-def test_check_conformance_honors_cancel(project, monkeypatch):
-    """should_cancel halts the per-card loop between cards."""
+def test_check_conformance_retry_recovers(project, monkeypatch):
+    """A truncated batch is re-rolled; a clean retry yields verdicts."""
     from mtgai.analysis import conformance as conf_mod
 
     cards = [_make_card("W-C-01"), _make_card("W-C-02")]
@@ -259,18 +282,51 @@ def test_check_conformance_honors_cancel(project, monkeypatch):
         c.slot_id: {"slot_id": c.slot_id, "tweaked_text": "White common creature"} for c in cards
     }
 
-    calls = {"n": 0}
+    state = {"n": 0}
 
-    def fake_gate(**kwargs):
-        calls["n"] += 1
-        return {"result": {"conforms": True, "reason": ""}, "input_tokens": 1, "output_tokens": 1}
+    def fake(**kwargs):
+        state["n"] += 1
+        truncated = state["n"] == 1
+        text = "" if truncated else "--CARD W-C-02--\nwrong color\n"
+        if text:
+            yield {"type": "text_delta", "text": text}
+        yield {
+            "type": "complete",
+            "text": text,
+            "stop_reason": "length" if truncated else "stop",
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "model": "m",
+        }
 
-    monkeypatch.setattr(conf_mod, "generate_gate_tool", fake_gate)
-    monkeypatch.setattr(conf_mod, "cost_from_result", lambda r: 0.0)
+    monkeypatch.setattr(gate_common, "stream_text",fake)
+    monkeypatch.setattr(gate_common, "cost_from_result",lambda r: 0.0)
 
-    # Cancel before the second card.
-    conf_mod.check_conformance(cards, slots, should_cancel=lambda: calls["n"] >= 1)
-    assert calls["n"] == 1
+    findings, analysis, _cost = conf_mod.check_conformance(cards, slots)
+
+    assert state["n"] == 2  # one truncation, then a clean retry
+    assert [f.slot_id for f in findings] == ["W-C-02"]
+    assert "1/2" in analysis
+
+
+def test_check_conformance_honors_cancel(project, monkeypatch):
+    """should_cancel halts the loop between batches."""
+    from mtgai.analysis import conformance as conf_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02")]
+    slots = {
+        c.slot_id: {"slot_id": c.slot_id, "tweaked_text": "White common creature"} for c in cards
+    }
+
+    # One card per batch so the cancel check between batches is meaningful.
+    monkeypatch.setattr(conf_mod, "BATCH_SIZE", 1)
+    fake = _fake_stream({})
+    monkeypatch.setattr(gate_common, "stream_text",fake)
+    monkeypatch.setattr(gate_common, "cost_from_result",lambda r: 0.0)
+
+    # Cancel before the second batch.
+    conf_mod.check_conformance(cards, slots, should_cancel=lambda: fake.calls >= 1)
+    assert fake.calls == 1
 
 
 def test_run_conformance_cancel_halts_before_interactions(project, monkeypatch):
@@ -296,7 +352,7 @@ def test_run_conformance_cancel_halts_before_interactions(project, monkeypatch):
 
     interaction_calls: list[int] = []
 
-    def fake_interactions(cards, mechanics):
+    def fake_interactions(cards, mechanics, **kw):
         interaction_calls.append(1)
         return ([], "pool clean", 0.0)
 
@@ -328,7 +384,7 @@ def test_run_conformance_clean_pass_advances(project, monkeypatch):
     )
     monkeypatch.setattr(
         "mtgai.analysis.interactions.analyze_interactions",
-        lambda cards, mechanics: ([], "pool clean", 0.0),
+        lambda cards, mechanics, **kw: ([], "pool clean", 0.0),
     )
     monkeypatch.setattr(stages_mod, "make_poller", lambda *a, **k: contextlib.nullcontext())
 
@@ -349,14 +405,10 @@ def test_check_conformance_pre_flagged_seeds_x_and_skips_llm(project, monkeypatc
         c.slot_id: {"slot_id": c.slot_id, "tweaked_text": "White common creature"} for c in cards
     }
 
-    calls = {"n": 0}
-
-    def fake_gate(**kwargs):
-        calls["n"] += 1
-        return {"result": {"conforms": True, "reason": ""}, "input_tokens": 1, "output_tokens": 1}
-
-    monkeypatch.setattr(conf_mod, "generate_gate_tool", fake_gate)
-    monkeypatch.setattr(conf_mod, "cost_from_result", lambda r: 0.0)
+    # The non-duplicate card conforms (empty stream); the duplicate skips the LLM.
+    fake = _fake_stream({})
+    monkeypatch.setattr(gate_common, "stream_text",fake)
+    monkeypatch.setattr(gate_common, "cost_from_result",lambda r: 0.0)
 
     started: list[list[dict]] = []
     streamed: list[dict] = []
@@ -368,8 +420,8 @@ def test_check_conformance_pre_flagged_seeds_x_and_skips_llm(project, monkeypatc
         on_card=lambda rec: streamed.append(rec),
     )
 
-    # Only the non-duplicate card hit the LLM; the duplicate skipped it.
-    assert calls["n"] == 1
+    # Only the non-duplicate card hit the LLM (one batch); the duplicate skipped it.
+    assert fake.calls == 1
     # The summary denominator excludes the pre-flagged duplicate (it never ran
     # the conformance check): 1 checked, 1 conforms — not "1/2".
     assert analysis == "1/1 cards conform."
@@ -389,7 +441,6 @@ def test_check_conformance_pre_flagged_seeds_x_and_skips_llm(project, monkeypatc
 
 def test_run_conformance_folds_duplicates_into_conformance(project, monkeypatch):
     """Two functionally-identical cards: the duplicate is flagged via conformance."""
-    from mtgai.analysis import conformance as conf_mod
     from mtgai.io.card_io import load_card, save_card
 
     # Identical text/type/stats, differing only in collector number + mana cost.
@@ -404,15 +455,13 @@ def test_run_conformance_folds_duplicates_into_conformance(project, monkeypatch)
     }
     (project / "skeleton.json").write_text(json.dumps(skeleton), encoding="utf-8")
 
-    # The kept card (W-C-01) conforms; the duplicate (W-C-02) never reaches the LLM.
-    def fake_gate(**kwargs):
-        return {"result": {"conforms": True, "reason": ""}, "input_tokens": 1, "output_tokens": 1}
-
-    monkeypatch.setattr(conf_mod, "generate_gate_tool", fake_gate)
-    monkeypatch.setattr(conf_mod, "cost_from_result", lambda r: 0.0)
+    # The kept card (W-C-01) conforms (empty stream); the duplicate (W-C-02)
+    # never reaches the LLM — it's pre-flagged by the algorithmic duplicate scan.
+    monkeypatch.setattr(gate_common, "stream_text",_fake_stream({}))
+    monkeypatch.setattr(gate_common, "cost_from_result",lambda r: 0.0)
     monkeypatch.setattr(
         "mtgai.analysis.interactions.analyze_interactions",
-        lambda cards, mechanics: ([], "pool clean", 0.0),
+        lambda cards, mechanics, **kw: ([], "pool clean", 0.0),
     )
     monkeypatch.setattr(stages_mod, "make_poller", lambda *a, **k: contextlib.nullcontext())
 
@@ -433,6 +482,118 @@ def test_run_conformance_folds_duplicates_into_conformance(project, monkeypatch)
     dup_card = cards_by_slot["W-C-02"]
     assert dup_card.flagged_by == "conformance"
     assert "Functionally identical" in (dup_card.regen_reason or "")
+
+
+# ----------------------------------------------------------------------
+# analyze_interactions: batched cumulative-context streamed scan
+# ----------------------------------------------------------------------
+
+
+def _fake_inter_stream(enablers: dict[str, tuple[str, str]], *, stop_reason: str = "stop"):
+    """A ``stream_text`` stand-in for the batched interaction scan.
+
+    ``enablers`` maps ``slot_id -> (reason, avoid)``. A block is emitted for an
+    enabler only in the batch where it appears in the "New cards to check"
+    section (so a cumulative-context enabler is flagged once, when it is new).
+    Records each batch's user prompt on the returned function's ``prompts``.
+    """
+
+    def stream_text(**kwargs):
+        up = kwargs.get("user_prompt", "")
+        stream_text.prompts.append(up)
+        stream_text.calls += 1
+        new_section = up.split("## New cards to check")[-1]
+        text = ""
+        for sid, (reason, avoid) in enablers.items():
+            if f"{sid} |" in new_section:
+                text += f"--CARD {sid}--\n{reason}\nAVOID: {avoid}\n"
+        if text:
+            yield {"type": "text_delta", "text": text}
+        yield {
+            "type": "complete",
+            "text": text,
+            "stop_reason": stop_reason,
+            "input_tokens": 5,
+            "output_tokens": 5,
+            "model": kwargs.get("model", "m"),
+        }
+
+    stream_text.calls = 0
+    stream_text.prompts = []
+    return stream_text
+
+
+def test_analyze_interactions_batches_and_streams(project, monkeypatch):
+    """analyze_interactions streams a per-card interaction verdict, flagging enablers."""
+    from mtgai.analysis import interactions as inter_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02"), _make_card("W-C-03")]
+
+    fake = _fake_inter_stream({"W-C-02": ("infinite loop with W-C-01", "no free untap")})
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.01)
+
+    started: list[list[dict]] = []
+    streamed: list[dict] = []
+    flags, analysis, cost = inter_mod.analyze_interactions(
+        cards,
+        [],
+        on_start=lambda lst: started.append(lst),
+        on_card=lambda rec: streamed.append(rec),
+    )
+
+    # One batch (3 < BATCH_SIZE) -> one streamed call.
+    assert fake.calls == 1
+    # Seed listed every card up front.
+    assert [c["slot_id"] for c in started[0]] == ["W-C-01", "W-C-02", "W-C-03"]
+    # The enabler is flagged with its reason + replacement constraint.
+    assert [f.enabler_slot_id for f in flags] == ["W-C-02"]
+    assert flags[0].replacement_constraint == "no free untap"
+    assert "infinite loop" in flags[0].reason
+    # Per-card verdicts: the enabler flagged, the others checked clean.
+    by_slot = {r["slot_id"]: r["interacts"] for r in streamed}
+    assert by_slot == {"W-C-01": True, "W-C-02": False, "W-C-03": True}
+    assert cost == pytest.approx(0.01)
+    assert "1 degenerate interaction" in analysis
+
+
+def test_analyze_interactions_cumulative_context(project, monkeypatch):
+    """Each batch sees the prior batches' cards as existing context."""
+    from mtgai.analysis import interactions as inter_mod
+
+    cards = [_make_card(f"W-C-0{i}") for i in range(1, 6)]  # 5 cards
+    monkeypatch.setattr(inter_mod, "BATCH_SIZE", 2)
+    fake = _fake_inter_stream({})
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    inter_mod.analyze_interactions(cards, [])
+
+    # 5 cards / 2 per batch = 3 batches.
+    assert fake.calls == 3
+    # Batch 1: no existing context. Batch 2: the first 2 cards are existing.
+    assert "None yet" in fake.prompts[0]
+    assert "Existing cards (2)" in fake.prompts[1]
+    assert "Existing cards (4)" in fake.prompts[2]
+
+
+def test_analyze_interactions_truncation_marks_unknown(project, monkeypatch):
+    """A batch that keeps truncating leaves its new cards' interaction verdict unknown."""
+    from mtgai.analysis import interactions as inter_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02")]
+    fake = _fake_inter_stream({}, stop_reason="length")
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    streamed: list[dict] = []
+    flags, _analysis, _cost = inter_mod.analyze_interactions(
+        cards, [], on_card=lambda rec: streamed.append(rec)
+    )
+
+    assert fake.calls == gate_common.MAX_BATCH_ATTEMPTS
+    assert all(r["interacts"] is None for r in streamed)
+    assert flags == []
 
 
 # ----------------------------------------------------------------------

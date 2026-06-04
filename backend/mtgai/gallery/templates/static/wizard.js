@@ -523,7 +523,10 @@
     // every card up front, then conformance_card streams each ✓/✗ verdict as it
     // lands. conformance_reset fires once at the start of a run. The Conformance
     // tab listens via the W.onConformanceStream bridge.
-    ['conformance_reset', 'conformance_cards', 'conformance_card', 'conformance_step'].forEach(name => {
+    [
+      'conformance_reset', 'conformance_cards', 'conformance_card', 'conformance_step',
+      'interaction_cards', 'interaction_card',
+    ].forEach(name => {
       state.eventSource.addEventListener(name, (e) => {
         const handler = (window.MTGAIWizard || {}).onConformanceStream;
         if (handler) handler(name, JSON.parse(e.data));

@@ -84,6 +84,26 @@ def test_get_llm_model_id_swaps_base_for_48k_twin_on_downstream_stages():
         assert settings.get_llm_model_id(stage) == expected
 
 
+def test_conformance_uses_full_context_on_large_sets():
+    """The conformance gate's cumulative-context interaction prompt grows with set
+    size, so at/above the threshold the stage stays on the base's FULL window
+    instead of the 48k twin. Normal-size sets keep the lean twin."""
+    from mtgai.settings.model_settings import _CONFORMANCE_FULL_CONTEXT_SET_SIZE
+
+    settings = ModelSettings.from_preset("all-local")
+
+    # Normal set: conformance tiers down to the 48k twin like every other stage.
+    settings.set_params = settings.set_params.model_copy(update={"set_size": 277})
+    assert settings.get_llm_model_id("conformance") == "gemma4-26b-vlad-updated-48k"
+
+    # Large set: conformance keeps the full 128k base; other stages still tier down.
+    settings.set_params = settings.set_params.model_copy(
+        update={"set_size": _CONFORMANCE_FULL_CONTEXT_SET_SIZE}
+    )
+    assert settings.get_llm_model_id("conformance") == "gemma4-26b-vlad-updated"
+    assert settings.get_llm_model_id("card_gen") == "gemma4-26b-vlad-updated-48k"
+
+
 def test_get_llm_model_id_leaves_models_without_a_twin_untouched():
     """A base with no downstream twin (cloud models) resolves to itself on every
     stage -- the tiering only kicks in where a twin exists."""
