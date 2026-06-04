@@ -95,7 +95,6 @@ def test_build_visual_reference_prompts_substitutes_fields() -> None:
     assert "Feretha, the Hollow Founder" in sys_prompt
     # Only setting-specific creature types are surfaced, not standard MTG ones.
     assert "Moktar" in sys_prompt and "Automaton" in sys_prompt
-    assert "Human" not in sys_prompt.split("creature types")[-1].split("\n\n")[0]
     # Constraints are intentionally NOT threaded into this prompt — visual
     # refs care about appearance, not mechanical constraints.
     assert "ceremonial insignia" not in sys_prompt
@@ -111,8 +110,31 @@ def test_build_visual_reference_prompts_handles_missing_blocks() -> None:
     assert "Bare bones theme." in sys_prompt
     assert "(unnamed set)" in sys_prompt
     # Optional blocks fall back to placeholders, not KeyError.
-    assert "no named characters" in sys_prompt
-    assert "no setting-specific creature types" in sys_prompt
+    assert "no structured named characters" in sys_prompt
+    assert "none called out" in sys_prompt
+
+
+def test_build_visual_reference_prompts_surfaces_full_setting_prose() -> None:
+    # The transform reads the rich ``setting`` markdown (the source the old
+    # stage discarded), preferred over the legacy short ``flavor_description``.
+    theme = {
+        "theme": "One-liner.",
+        "setting": "# Factions\n\nThe Iron Choir, masked monks in copper habits.",
+        "flavor_description": "ignored when setting is present",
+    }
+    sys_prompt, _user = vre.build_visual_reference_prompts(theme=theme, set_name="X")
+    assert "Iron Choir" in sys_prompt
+    assert "ignored when setting is present" not in sys_prompt
+
+
+def test_notable_cards_block_threads_anchors() -> None:
+    theme = {
+        "notable_cards": [
+            {"name": "Fereyn's Stone Head", "type": "Legendary Artifact", "notes": "flying head"},
+        ]
+    }
+    block = vre._format_notable_cards_block(theme)
+    assert "Fereyn's Stone Head" in block and "flying head" in block
 
 
 def test_creature_types_block_accepts_flat_list() -> None:
@@ -302,3 +324,124 @@ def test_output_is_consumable_by_art_pipeline() -> None:
     # The dictionary's "Name: desc" value is split, so the prompt carries the
     # appearance prose, not the bare name.
     assert refs["legendary_characters"]["feretha"].split(":", 1)[1].strip()[:20] in prompt
+
+
+# ---------------------------------------------------------------------------
+# Artist directory
+# ---------------------------------------------------------------------------
+
+
+def test_target_artist_count_leans_fewer_and_clamps() -> None:
+    # ~277-card set -> round(277/18)=15 artists (~18 cards each, >=10/artist).
+    assert vre.target_artist_count(277) == 15
+    # Tiny / zero sets floor at MIN_ARTISTS; huge sets cap at MAX_ARTISTS.
+    assert vre.target_artist_count(10) == vre.MIN_ARTISTS
+    assert vre.target_artist_count(0) == vre.MIN_ARTISTS
+    assert vre.target_artist_count(10000) == vre.MAX_ARTISTS
+
+
+def test_assemble_artists_cleans_and_dedupes() -> None:
+    raw = [
+        {"name": "Lira Vance", "style_prompt": "soft watercolor"},
+        "not a dict",
+        {"name": "", "style_prompt": "empty name"},
+        {"name": "No Style"},
+        {"name": "lira vance", "style_prompt": "dup by lowercase name"},
+        {"name": "  Ronan Skye  ", "style_prompt": "  gritty ink  "},
+    ]
+    out = vre.assemble_artists(raw)
+    assert out == [
+        {"name": "Lira Vance", "style_prompt": "soft watercolor"},
+        {"name": "Ronan Skye", "style_prompt": "gritty ink"},
+    ]
+
+
+def test_assemble_artists_handles_non_list() -> None:
+    assert vre.assemble_artists(None) == []
+    assert vre.assemble_artists("nope") == []
+
+
+def test_load_artists_reads_and_defaults(tmp_path) -> None:
+    assert vre.load_artists(tmp_path) == []
+    art_dir = tmp_path / "art-direction"
+    art_dir.mkdir()
+    (art_dir / "artists.json").write_text(
+        json.dumps({"artists": [{"name": "A", "style_prompt": "s"}, {"bad": 1}]}),
+        encoding="utf-8",
+    )
+    assert vre.load_artists(tmp_path) == [{"name": "A", "style_prompt": "s"}]
+
+
+def test_build_artist_directory_prompts_substitutes_count() -> None:
+    sys_prompt, user_prompt = vre.build_artist_directory_prompts(
+        theme=_theme_fixture(), set_name="Dead Gods", count=12
+    )
+    assert "Dead Gods" in sys_prompt
+    assert "12 artists" in sys_prompt
+    assert "12" in user_prompt
+
+
+def test_generate_artists_returns_clean_list(_project, monkeypatch) -> None:
+    def stub(*args, **kwargs):
+        return {
+            "result": {"artists": [{"name": "Lira Vance", "style_prompt": "watercolor"}]},
+            "input_tokens": 5,
+            "output_tokens": 9,
+        }
+
+    monkeypatch.setattr(vre, "generate_with_tool", stub)
+    result = vre.generate_artists()
+    assert result["artists"] == [{"name": "Lira Vance", "style_prompt": "watercolor"}]
+    assert result["input_tokens"] == 5
+
+
+def test_generate_artists_raises_when_empty(_project, monkeypatch) -> None:
+    def stub(*args, **kwargs):
+        return {"result": {"artists": []}, "input_tokens": 0, "output_tokens": 0}
+
+    monkeypatch.setattr(vre, "generate_with_tool", stub)
+    with pytest.raises(RuntimeError, match="no usable artists"):
+        vre.generate_artists()
+
+
+def test_generate_artists_count_override(_project, monkeypatch) -> None:
+    captured: dict = {}
+
+    def stub(*args, **kwargs):
+        captured["system_prompt"] = kwargs.get("system_prompt", "")
+        return {
+            "result": {"artists": [{"name": "X", "style_prompt": "y"}]},
+            "input_tokens": 0,
+            "output_tokens": 0,
+        }
+
+    monkeypatch.setattr(vre, "generate_with_tool", stub)
+    vre.generate_artists(count=11)
+    assert "11 artists" in captured["system_prompt"]
+
+
+# ---------------------------------------------------------------------------
+# Set-wide art direction
+# ---------------------------------------------------------------------------
+
+
+def test_generate_set_art_direction_returns_prose(_project, monkeypatch) -> None:
+    def stub(*args, **kwargs):
+        return {
+            "result": {"set_art_direction": "  Sickly contrast, runny paint.  "},
+            "input_tokens": 3,
+            "output_tokens": 4,
+        }
+
+    monkeypatch.setattr(vre, "generate_with_tool", stub)
+    result = vre.generate_set_art_direction()
+    assert result["set_art_direction"] == "Sickly contrast, runny paint."
+
+
+def test_generate_set_art_direction_raises_when_empty(_project, monkeypatch) -> None:
+    def stub(*args, **kwargs):
+        return {"result": {"set_art_direction": "   "}, "input_tokens": 0, "output_tokens": 0}
+
+    monkeypatch.setattr(vre, "generate_with_tool", stub)
+    with pytest.raises(RuntimeError, match="no usable prose"):
+        vre.generate_set_art_direction()

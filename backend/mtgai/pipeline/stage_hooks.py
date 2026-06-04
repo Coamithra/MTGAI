@@ -419,3 +419,77 @@ def build_char_refs_hooks(emitter: StageEmitter) -> CharRefsStreamHooks:
         emitter.event("char_refs_image", entity_key=entity_key, ref_image_path=ref_image_path)
 
     return CharRefsStreamHooks(on_reset, on_entity_start, on_entity_image)
+
+
+# ---------------------------------------------------------------------------
+# Art-prompt tile shape + stream hooks (art_prompts)
+# ---------------------------------------------------------------------------
+
+
+def art_prompt_tile_dict(card: object) -> dict:
+    """Render a Card (or its disk-JSON dict) into the Art Prompts tab tile shape.
+
+    Single source of the tile shape so the engine's per-card SSE stream
+    (``art_prompt_card``) and the canonical ``/api/wizard/art_prompts/state``
+    response stay byte-identical — the tab merges streamed cards into a list it
+    eventually repaints from ``/state``, so any drift would surface as flicker.
+
+    Accepts a ``Card`` model (``model_dump(mode="json")`` → enums become strings)
+    or a plain dict already loaded from disk.
+    """
+    if hasattr(card, "model_dump"):
+        c: dict = card.model_dump(mode="json")  # type: ignore[attr-defined]
+    elif isinstance(card, dict):
+        c = card
+    else:
+        raise TypeError(f"art_prompt_tile_dict expects Card or dict, got {type(card).__name__}")
+
+    faces = c.get("card_faces")
+    face_prompts = (
+        [
+            {"name": f.get("name") or "", "art_prompt": f.get("art_prompt") or ""}
+            for f in faces
+            if isinstance(f, dict)
+        ]
+        if isinstance(faces, list)
+        else []
+    )
+
+    return {
+        "name": c.get("name") or "",
+        "collector_number": c.get("collector_number") or "",
+        "type_line": c.get("type_line") or "",
+        "rarity": c.get("rarity") or "common",
+        "colors": c.get("colors") or [],
+        "artist": c.get("artist") or "AI Generated",
+        "art_prompt": c.get("art_prompt") or "",
+        "card_faces": face_prompts or None,
+    }
+
+
+@dataclass
+class ArtPromptStreamHooks:
+    """The ``generate_prompts_for_set`` per-card streaming callback."""
+
+    on_card_saved: Callable[[object], None]
+
+
+def build_art_prompt_hooks(emitter: StageEmitter) -> ArtPromptStreamHooks:
+    """Build the art-prompt streaming hook shared by the engine (``run_art_prompts``)
+    and the refresh endpoint.
+
+    ``on_card_saved(card)`` streams one freshly-prompted card as the canonical
+    ``art_prompt_card`` tile (via :func:`art_prompt_tile_dict`) so the grid fills
+    in live, mirroring card_gen's ``card_gen_card`` stream.
+    """
+
+    def on_card_saved(card: object) -> None:
+        emitter.event("art_prompt_card", card=art_prompt_tile_dict(card))
+
+    return ArtPromptStreamHooks(on_card_saved)
+
+
+def emit_art_prompt_reset(emitter: StageEmitter) -> None:
+    """Tell the Art Prompts tab to drop its local list before a forced re-run
+    streams in (the prior prompts are being regenerated)."""
+    emitter.event("art_prompt_reset")

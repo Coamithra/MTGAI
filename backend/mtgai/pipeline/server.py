@@ -41,10 +41,13 @@ from mtgai.pipeline.models import (
     create_pipeline_state,
 )
 from mtgai.pipeline.stage_hooks import (
+    art_prompt_tile_dict,
+    build_art_prompt_hooks,
     build_card_gen_hooks,
     build_mechanic_hooks,
     build_skeleton_hooks,
     card_tile_dict,
+    emit_art_prompt_reset,
     emit_card_gen_reset,
     emit_skeleton_done,
     slots_by_id_from_skeleton,
@@ -3981,6 +3984,214 @@ async def wizard_reprints_save(request: Request) -> JSONResponse:
     )
 
 
+# ---------------------------------------------------------------------------
+# Visual references — the art-direction dictionary + artist directory, reviewed
+# on the Visual References & Artists tab (stage_id ``visual_refs``).
+# ---------------------------------------------------------------------------
+
+_VR_ENTITY_KEYS = ("legendary_characters", "creature_types", "factions", "landmarks")
+
+
+def _vr_entity_rows(refs: dict) -> dict[str, list[dict]]:
+    """Shape each category dict into ordered ``[{key, description}]`` rows for the tab."""
+    out: dict[str, list[dict]] = {}
+    for cat in _VR_ENTITY_KEYS:
+        dict_ = refs.get(cat)
+        rows: list[dict] = []
+        if isinstance(dict_, dict):
+            for key, desc in dict_.items():
+                if isinstance(key, str) and isinstance(desc, str):
+                    rows.append({"key": key, "description": desc})
+        out[cat] = rows
+    return out
+
+
+def _coerce_vr_payload(body: dict) -> tuple[dict, list[dict]] | str:
+    """Validate a Visual References save body into ``(references_dict, artists)``.
+
+    Body shape (all optional, missing → empty):
+    ``{entities: {<cat>: [{key, description}]}, flux_term_replacements: {term: repl},
+       visual_motifs: [str], set_art_direction: str, artists: [{name, style_prompt}]}``.
+
+    Returns the assembled ``visual-references.json`` dict + the clean artists
+    list, or an error string. Keys are slugified the same way the generator does
+    so hand-edited keys still match card text downstream; rows with an empty key
+    or description are dropped (a user-added blank row isn't an error).
+    """
+    from mtgai.art.visual_reference_extractor import _slugify_key, assemble_artists
+
+    entities = body.get("entities")
+    if entities is not None and not isinstance(entities, dict):
+        return "entities must be an object keyed by category"
+    references: dict[str, Any] = {}
+    for cat in _VR_ENTITY_KEYS:
+        rows = (entities or {}).get(cat)
+        cat_dict: dict[str, str] = {}
+        if isinstance(rows, list):
+            for row in rows:
+                if not isinstance(row, dict):
+                    return f"{cat} rows must be objects"
+                slug = _slugify_key(row.get("key"))
+                desc = row.get("description")
+                if slug is None or not isinstance(desc, str) or not desc.strip():
+                    continue
+                cat_dict.setdefault(slug, desc.strip())  # first row wins on a dup key
+        references[cat] = cat_dict
+
+    flux = body.get("flux_term_replacements")
+    flux_clean: dict[str, str] = {}
+    if isinstance(flux, dict):
+        for term, repl in flux.items():
+            if isinstance(term, str) and term.strip() and isinstance(repl, str) and repl.strip():
+                flux_clean[term.strip()] = repl.strip()
+    references["flux_term_replacements"] = flux_clean
+
+    motifs = body.get("visual_motifs")
+    motif_clean: list[str] = []
+    if isinstance(motifs, list):
+        for m in motifs:
+            if isinstance(m, str) and m.strip():
+                motif_clean.append(m.strip())
+    references["visual_motifs"] = motif_clean
+
+    sad = body.get("set_art_direction")
+    references["set_art_direction"] = sad.strip() if isinstance(sad, str) else ""
+
+    artists = assemble_artists(body.get("artists"))
+    return references, artists
+
+
+def _visual_refs_state_payload(settings: Any) -> dict:
+    """The shared ``/state``-shaped payload (also returned by refresh endpoints)."""
+    from mtgai.art.visual_reference_extractor import (
+        load_artists,
+        load_visual_references,
+        target_artist_count,
+    )
+
+    asset = set_artifact_dir()
+    refs = load_visual_references(asset)
+    artists = load_artists(asset)
+    entity_rows = _vr_entity_rows(refs)
+    has_content = any(entity_rows[cat] for cat in _VR_ENTITY_KEYS) or bool(artists)
+    return {
+        "entities": entity_rows,
+        "flux_term_replacements": refs.get("flux_term_replacements") or {},
+        "visual_motifs": refs.get("visual_motifs") or [],
+        "set_art_direction": refs.get("set_art_direction") or "",
+        "artists": artists,
+        "has_content": has_content,
+        "artist_count_target": target_artist_count(settings.set_params.set_size or 0),
+        **_stage_state_base("visual_refs", settings),
+    }
+
+
+@router.get("/api/wizard/visual_refs/state")
+async def wizard_visual_refs_state() -> JSONResponse:
+    """First-paint state for the Visual References & Artists tab.
+
+    Reads ``art-direction/visual-references.json`` + ``artists.json`` and shapes
+    the four entity-category dicts into editable ``[{key, description}]`` rows,
+    alongside flux replacements, motifs, the set-wide art direction, the artist
+    directory, set params, theme excerpt, model id, and the stage status.
+    """
+    project = _require_active_project()
+    return JSONResponse(_visual_refs_state_payload(project.settings))
+
+
+@router.post("/api/wizard/visual_refs/refresh")
+async def wizard_visual_refs_refresh() -> JSONResponse:
+    """Regenerate the full art-direction dictionary + set-wide direction (AI).
+
+    Re-runs the dictionary transform and the set-wide art-direction call, merges
+    them, and overwrites ``visual-references.json`` (the artist directory is a
+    separate endpoint). Initial-generate and re-extract share this URL — both
+    overwrite. 409 on busy / no project / no asset.
+    """
+    from mtgai.art.visual_reference_extractor import (
+        generate_set_art_direction,
+        generate_visual_references,
+    )
+
+    project = _require_active_project()
+
+    asset = set_artifact_dir()
+    with guarded_ai("Visual-reference refresh", stage_id="visual_refs") as guard:
+        if guard.busy:
+            return guard.busy_response
+        with _bus_poller("visual_refs", activity_prefix="Generating art direction"):
+            ref_response = await asyncio.to_thread(generate_visual_references)
+            references = ref_response["references"]
+            set_response = await asyncio.to_thread(generate_set_art_direction)
+            references["set_art_direction"] = set_response["set_art_direction"]
+        _write_json(asset / "art-direction" / "visual-references.json", references)
+
+    return JSONResponse(_visual_refs_state_payload(project.settings))
+
+
+@router.post("/api/wizard/visual_refs/refresh-artists")
+async def wizard_visual_refs_refresh_artists(request: Request) -> JSONResponse:
+    """Regenerate the made-up artist directory (AI).
+
+    Body: ``{count?: int}`` — an explicit roster size, else the auto target for
+    the set size. Overwrites ``artists.json``. 409 on busy / no project / no
+    asset.
+    """
+    from mtgai.art.visual_reference_extractor import generate_artists
+
+    project = _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    count = body.get("count") if isinstance(body, dict) else None
+    if count is not None and (not isinstance(count, int) or count <= 0):
+        return JSONResponse({"error": "count must be a positive integer"}, status_code=400)
+
+    asset = set_artifact_dir()
+    with guarded_ai("Artist-directory refresh", stage_id="visual_refs") as guard:
+        if guard.busy:
+            return guard.busy_response
+        with _bus_poller("visual_refs", activity_prefix="Generating artists"):
+            response = await asyncio.to_thread(generate_artists, count=count)
+        _write_json(
+            asset / "art-direction" / "artists.json",
+            {"artists": response["artists"]},
+        )
+
+    return JSONResponse(_visual_refs_state_payload(project.settings))
+
+
+@router.post("/api/wizard/visual_refs/save")
+async def wizard_visual_refs_save(request: Request) -> JSONResponse:
+    """Persist the edited art-direction dictionary + artist directory. No AI.
+
+    Body shape: see :func:`_coerce_vr_payload`. Writes both
+    ``visual-references.json`` and ``artists.json``, heals a FAILED stage, and
+    returns the ``/state`` shape plus ``navigate_to`` for Save & Continue.
+    """
+    project = _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+
+    coerced = _coerce_vr_payload(body)
+    if isinstance(coerced, str):
+        return JSONResponse({"error": coerced}, status_code=400)
+    references, artists = coerced
+
+    asset = set_artifact_dir()
+    _write_json(asset / "art-direction" / "visual-references.json", references)
+    _write_json(asset / "art-direction" / "artists.json", {"artists": artists})
+    _heal_failed_stage("visual_refs")
+
+    payload = _visual_refs_state_payload(project.settings)
+    payload["navigate_to"] = _next_stage_nav("visual_refs")
+    payload["success"] = True
+    return JSONResponse(payload)
+
+
 @router.get("/api/wizard/lands/state")
 async def wizard_lands_state() -> JSONResponse:
     """First-paint state for the Lands tab.
@@ -4634,6 +4845,201 @@ async def wizard_card_gen_refresh() -> JSONResponse:
             _resnapshot_stage_tip("card_gen")
 
     return await wizard_card_gen_state()
+
+
+# ---------------------------------------------------------------------------
+# Art Prompts tab (art_prompts) — artist-driven, LLM-authored, editable
+# ---------------------------------------------------------------------------
+
+
+def _art_prompt_tiles(asset: Path) -> list[dict]:
+    """Read every card in ``<asset>/cards/`` into the Art Prompts tile shape.
+
+    Uses the shared :func:`art_prompt_tile_dict` so this endpoint and the per-card
+    SSE stream emit byte-identical tiles. Sorted by collector number for a stable
+    grid order.
+    """
+    cards_dir = asset / "cards"
+    if not cards_dir.is_dir():
+        return []
+    tiles: list[dict] = []
+    for path in sorted(cards_dir.glob("*.json")):
+        card = _read_json(path, None)
+        if isinstance(card, dict):
+            tiles.append(art_prompt_tile_dict(card))
+    return tiles
+
+
+@router.get("/api/wizard/art_prompts/state")
+async def wizard_art_prompts_state() -> JSONResponse:
+    """First-paint state for the Art Prompts tab.
+
+    Reads every card JSON into the tile shape the grid renders (name, collector
+    number, artist, the authored ``art_prompt``, DFC face prompts), plus the
+    Artist Directory, the persisted cameo-probability knob, and the stage status.
+    The stage streams live tiles over SSE while running; this is the durable
+    source the tab bootstraps from on reload + re-reads after edits.
+    """
+    project = _require_active_project()
+    settings = project.settings
+    asset = set_artifact_dir()
+
+    from mtgai.art.artist_assignment import load_art_prompt_knobs
+
+    cards = _art_prompt_tiles(asset)
+    artists = _read_json(asset / "art-direction" / "artists.json", {})
+    artist_names = []
+    if isinstance(artists, dict) and isinstance(artists.get("artists"), list):
+        artist_names = [
+            str(a.get("name") or "")
+            for a in artists["artists"]
+            if isinstance(a, dict) and a.get("name")
+        ]
+
+    knobs = load_art_prompt_knobs(asset)
+    prompted = sum(1 for c in cards if c.get("art_prompt"))
+
+    return JSONResponse(
+        {
+            **_stage_state_base("art_prompts", settings),
+            "cards": cards,
+            "has_content": prompted > 0,
+            "prompted": prompted,
+            "artists": artist_names,
+            "cameo_probability": knobs.cameo_probability,
+        }
+    )
+
+
+@router.post("/api/wizard/art_prompts/refresh")
+async def wizard_art_prompts_refresh(request: Request) -> JSONResponse:
+    """Regenerate art prompts under the AI lock — the tab's manual re-roll.
+
+    The engine runs ``art_prompts`` automatically; this re-authors every card's
+    prompt from scratch (``force=True``), streaming each one to the grid as it
+    lands. An optional ``{cameo_probability}`` body persists the knob before the
+    run so the re-roll uses the just-set value. A cancel from the progress strip
+    stops it at the next card boundary.
+    """
+    _require_active_project()
+    asset = set_artifact_dir()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+
+    from mtgai.art.artist_assignment import (
+        ArtPromptKnobs,
+        load_art_prompt_knobs,
+        save_art_prompt_knobs,
+    )
+    from mtgai.art.prompt_builder import generate_prompts_for_set
+
+    cameo_prob: float | None = None
+    if isinstance(body, dict) and body.get("cameo_probability") is not None:
+        try:
+            knobs = ArtPromptKnobs(cameo_probability=float(body["cameo_probability"]))
+        except (TypeError, ValueError):
+            return JSONResponse(
+                {"error": "cameo_probability must be a number in [0, 1]"}, status_code=400
+            )
+        save_art_prompt_knobs(asset, knobs)
+        cameo_prob = knobs.cameo_probability
+    else:
+        cameo_prob = load_art_prompt_knobs(asset).cameo_probability
+
+    with guarded_ai("Art prompt generation", stage_id="art_prompts") as guard:
+        if guard.busy:
+            return guard.busy_response
+
+        emitter = _refresh_emitter("art_prompts")
+        emit_art_prompt_reset(emitter)
+        ap_hooks = build_art_prompt_hooks(emitter)
+
+        def _on_progress(item: str, completed: int, total: int, detail: str, cost: float) -> None:
+            event_bus.item_progress("art_prompts", item, completed, total, detail)
+
+        with _bus_poller("art_prompts", activity_prefix="Writing art prompts"):
+            result = await asyncio.to_thread(
+                generate_prompts_for_set,
+                force=True,
+                cameo_probability=cameo_prob,
+                progress_callback=_on_progress,
+                should_cancel=ai_lock.is_cancelled,
+                card_saved_callback=ap_hooks.on_card_saved,
+            )
+
+        # A cancel isn't a recovery: leave a stuck FAILED stage FAILED.
+        if isinstance(result, dict) and result.get("cancelled"):
+            guard.skip_heal = True
+
+    return await wizard_art_prompts_state()
+
+
+@router.post("/api/wizard/art_prompts/knobs")
+async def wizard_art_prompts_knobs(request: Request) -> JSONResponse:
+    """Persist the cameo-probability knob (no AI — a pure config write).
+
+    Body: ``{cameo_probability: float}``. Per §15 this is a pure-config endpoint
+    (no output regenerated), so it does NOT heal a failed stage — the next refresh
+    will. Returns the saved value.
+    """
+    _require_active_project()
+    asset = set_artifact_dir()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+
+    from mtgai.art.artist_assignment import ArtPromptKnobs, save_art_prompt_knobs
+
+    if not isinstance(body, dict) or body.get("cameo_probability") is None:
+        return JSONResponse({"error": "cameo_probability (number) required"}, status_code=400)
+    try:
+        knobs = ArtPromptKnobs(cameo_probability=float(body["cameo_probability"]))
+    except (TypeError, ValueError):
+        return JSONResponse(
+            {"error": "cameo_probability must be a number in [0, 1]"}, status_code=400
+        )
+    save_art_prompt_knobs(asset, knobs)
+    return JSONResponse({"cameo_probability": knobs.cameo_probability})
+
+
+@router.post("/api/wizard/art_prompts/save-card")
+async def wizard_art_prompts_save_card(request: Request) -> JSONResponse:
+    """Persist a manually-edited art prompt + artist for one card (no AI).
+
+    Body: ``{collector_number: str, art_prompt?: str, artist?: str}``. Writes the
+    edited fields onto the card JSON and heals the stage so Save & Continue
+    re-appears after a recovery. Returns the updated tile.
+    """
+    from mtgai.io.card_io import load_card, save_card
+
+    _require_active_project()
+    asset = set_artifact_dir()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+
+    cn = body.get("collector_number") if isinstance(body, dict) else None
+    if not isinstance(cn, str) or not cn:
+        return JSONResponse({"error": "collector_number (str) required"}, status_code=400)
+    path = _ai_review_card_path(asset, cn)
+    if path is None:
+        return JSONResponse({"error": f"No card found for {cn}"}, status_code=404)
+
+    update: dict = {}
+    if isinstance(body.get("art_prompt"), str):
+        update["art_prompt"] = body["art_prompt"].strip()
+    if isinstance(body.get("artist"), str) and body["artist"].strip():
+        update["artist"] = body["artist"].strip()
+    if not update:
+        return JSONResponse(
+            {"error": "Nothing to save (art_prompt or artist required)"}, status_code=400
+        )
+
+    card = load_card(path)
+    save_card(card.model_copy(update=update), set_dir=asset)
+    _heal_failed_stage("art_prompts")
+    return JSONResponse({"tile": art_prompt_tile_dict(load_card(path).model_dump(mode="json"))})
 
 
 # ---------------------------------------------------------------------------

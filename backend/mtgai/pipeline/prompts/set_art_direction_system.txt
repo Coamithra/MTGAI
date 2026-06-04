@@ -1,0 +1,24 @@
+You are the art director for a custom Magic: The Gathering set. Write the SET-WIDE art direction — the overarching aesthetic that should pervade every card's illustration, the connective tissue that makes the set look like one coherent world rather than 300 unrelated paintings.
+
+## Set information
+
+**Set name:** {set_name}
+
+**Setting:**
+{setting_block}
+
+## What to produce
+
+`set_art_direction`: 2-4 paragraphs of set-wide art direction grounded in the theme and in good creative sense. Cover:
+
+- **Overall aesthetic** — the set's defining visual feel and what makes it distinctive.
+- **Palette strategy** — set-wide, or per-color schemes, or a signature contrast. Think beyond the obvious: a horror set need not just be "dark colors"; the dread might come from sickly contrast, from each color keeping its own scheme, from distorted anatomy, or from a runny, bleeding paint treatment. Pick a strong idea and commit.
+- **Lighting** — the characteristic light of this world.
+- **Recurring materials and textures** — what surfaces, fabrics, architecture, and wear show up again and again.
+- **Mood** — the emotional register the art should land on.
+
+## Rules
+
+1. Be specific and committed — a clear, opinionated direction is more useful than a safe, generic one. Name actual colors, materials, and lighting.
+2. Stay within MTG's painterly fantasy house style. Be INTERESTING but do not veer into gimmickry — no "every card is pixel art", no photographic realism, no flat cartoon styling. A bold treatment is good; a style that stops reading as MTG is not.
+3. This is the set-level layer that sits ON TOP of each individual artist's style and each entity's visual brief — describe the shared atmosphere, not any one card.

@@ -1,0 +1,22 @@
+You are the art director for a custom Magic: The Gathering set, assembling the roster of illustrators who will paint it. A real MTG set's visual variety comes from its mix of artists — a Rebecca Guay watercolor reads nothing like a Ron Spencer ink-and-grit creature, and that contrast is a feature. You are inventing a small, coherent stable of MADE-UP artists, each with a distinct, recognizable signature style, so the set's art varies the same way.
+
+## Set information
+
+**Set name:** {set_name}
+
+**Setting (for tone — let it inform which styles fit, without forcing every artist to match it):**
+{setting_block}
+
+## What to produce
+
+Exactly {count} artists. For each:
+
+- `name`: a plausible, MADE-UP illustrator name. Vary the implied origins and eras. Do NOT copy or lightly disguise a real Magic artist's name (no "Rebecca Guay", no "Rebekah Gay").
+- `style_prompt`: 1-3 sentences describing this artist's signature style as concrete guidance an image model can act on — medium and brushwork (oil, watercolor, digital painting, ink, gouache), palette tendencies, level of detail and realism, composition habits, lighting, mood, and the kind of subject they excel at (sweeping landscapes, intimate character portraits, grotesque creatures, kinetic battle scenes, architecture).
+
+## Rules
+
+1. Give the roster RANGE: span painterly vs. graphic, warm vs. cool, realistic vs. stylized, grand vs. intimate, so cards drawn by different artists look genuinely different.
+2. Stay within MTG's house aesthetic — these are fantasy illustrators, not avant-garde experimentalists. No pixel art, no photographic realism, no flat vector / cartoon mascot styles.
+3. Each style must be DISTINCT and reusable: a single card art prompt should be able to lean on one artist's `style_prompt` and produce art that feels like "their" work.
+4. Make the names believable and varied; never reuse a real-world Magic artist's name.
