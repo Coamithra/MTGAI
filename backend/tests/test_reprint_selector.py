@@ -490,7 +490,9 @@ class TestSelectReprintsPinned:
 class TestRetryTemperatureBump:
     """Both passes start at the ANALYTICAL base and bump by RETRY_TEMP_STEP per
     retry — a same-temp re-roll would reproduce a Gemma loop, so the escape is
-    the bump (see temperatures.py / gate_common)."""
+    the bump (see temperatures.py / gate_common). The fixture's project resolves
+    to a local reasoning model, so the base is first lifted to
+    LOCAL_REASONING_FLOOR by ``floor_for_local`` and the bump stacks on top."""
 
     def test_select_truncation_retries_with_bumped_temp(self, project_skeleton: Path):
         from mtgai.generation import temperatures as temps
@@ -519,8 +521,9 @@ class TestRetryTemperatureBump:
         with patch("mtgai.generation.llm_client.generate_with_tool", stub):
             result = select_reprints(project_skeleton, count=1)
 
-        assert seen[0] == pytest.approx(temps.ANALYTICAL)  # attempt 0 at the base
-        assert seen[1] == pytest.approx(temps.ANALYTICAL + temps.RETRY_TEMP_STEP)
+        base = temps.LOCAL_REASONING_FLOOR  # ANALYTICAL floored for the local model
+        assert seen[0] == pytest.approx(base)  # attempt 0 at the floored base
+        assert seen[1] == pytest.approx(base + temps.RETRY_TEMP_STEP)
         assert len(result.selections) == 1  # the bumped retry succeeded
 
     def test_select_persistent_truncation_bails_bounded(self, project_skeleton: Path):
@@ -569,8 +572,9 @@ class TestRetryTemperatureBump:
         with patch("mtgai.generation.llm_client.generate_with_tool", stub):
             result = select_reprints(project_skeleton, count=1)
 
-        assert place_temps[0] == pytest.approx(temps.ANALYTICAL)  # attempt 1 at the base
-        assert place_temps[1] == pytest.approx(temps.ANALYTICAL + temps.RETRY_TEMP_STEP)
+        base = temps.LOCAL_REASONING_FLOOR  # ANALYTICAL floored for the local model
+        assert place_temps[0] == pytest.approx(base)  # attempt 1 at the floored base
+        assert place_temps[1] == pytest.approx(base + temps.RETRY_TEMP_STEP)
         assert len(result.selections) == 1
 
     def test_place_retry_rebuilds_prompt_from_unplaced_only(self, project_skeleton: Path):

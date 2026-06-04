@@ -232,7 +232,10 @@ def detect_recurring_entities(
         user_prompt=user,
         tool_schema=_build_detection_tool_schema(),
         model=model_id,
-        temperature=temps.ANALYTICAL,
+        # Floored off the near-greedy base for a local reasoning model so the
+        # whole-pool entity scan terminates instead of looping (see
+        # temperatures.floor_for_local).
+        temperature=temps.floor_for_local(temps.ANALYTICAL, model_id),
         max_tokens=STANDARD,
         log_dir=log_dir,
     )

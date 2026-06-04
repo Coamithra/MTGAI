@@ -145,6 +145,13 @@ IRREGULAR_SUBTYPES: list[IrregularSubtype] = [
     ),
 ]
 
+# The bucket members' subtype values, in their canonical order — the single source
+# of truth for "which strings are a valid irregular-subtype pick". The knob layer
+# (``SkeletonKnobs.irregular_subtypes``) and the AI tuner's tool schema both
+# validate against this, and ``knobs.py`` can't import it (it's imported *by* this
+# module), so membership is enforced here in ``_assign_subtypes``.
+IRREGULAR_SUBTYPE_NAMES: list[str] = [str(s.subtype) for s in IRREGULAR_SUBTYPES]
+
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -1373,9 +1380,12 @@ def _assign_subtypes(
     Recurring subtypes (equipment / vehicle / aura / artifact creature) get a
     knob-driven count, scaled to ``set_size`` and jittered by ``subtype_jitter``;
     then ``irregular_subtype_count`` deciduous specials (saga / class / shrine /
-    enchantment creature) are picked from :data:`IRREGULAR_SUBTYPES`, each filling a
+    enchantment creature) are taken from :data:`IRREGULAR_SUBTYPES`, each filling a
     scaled count drawn from its own ``lo``/``hi`` range (its spread comes from that
-    range, not ``subtype_jitter``). Everything is realized by an RNG seeded on
+    range, not ``subtype_jitter``). WHICH specials are taken is theme-driven when
+    ``knobs.irregular_subtypes`` lists them (the AI tuner's picks, in order); the
+    seeded RNG only shuffles in the rest, so a set with no theme signal falls back
+    to pure chance. Everything is realized by an RNG seeded on
     ``set_code`` + ``subtype_seed`` so the same project is stable across re-runs
     (the seed is the raw string, not ``hash()``) and bumping the seed re-rolls.
 
@@ -1426,10 +1436,23 @@ def _assign_subtypes(
     _label("enchantment", SlotCardSubtype.AURA, _realized(knobs.aura_count), colored=True)
     _label("creature", SlotCardSubtype.ARTIFACT_CREATURE, _realized(knobs.artifact_creature_count))
 
-    # Irregular bucket: pick `irregular_subtype_count` deciduous specials at random.
-    bucket = list(IRREGULAR_SUBTYPES)
-    rng.shuffle(bucket)
-    for spec in bucket[: max(0, knobs.irregular_subtype_count)]:
+    # Irregular bucket: weave in `irregular_subtype_count` deciduous specials.
+    # WHICH ones is theme-driven when the tuner set `knobs.irregular_subtypes`
+    # (validated bucket members, in preference order); the seeded RNG only fills
+    # any remaining slots, so a set with no theme signal stays pure chance.
+    by_subtype = {str(spec.subtype): spec for spec in IRREGULAR_SUBTYPES}
+    ordered: list[IrregularSubtype] = []
+    seen: set[str] = set()
+    for name in knobs.irregular_subtypes:  # theme picks first, in order, deduped
+        spec = by_subtype.get(name)
+        if spec is not None and name not in seen:
+            ordered.append(spec)
+            seen.add(name)
+    remaining = [s for s in IRREGULAR_SUBTYPES if str(s.subtype) not in seen]
+    rng.shuffle(remaining)  # RNG fallback fills whatever the theme didn't pick
+    ordered.extend(remaining)
+
+    for spec in ordered[: max(0, knobs.irregular_subtype_count)]:
         n = max(0, round(rng.randint(spec.lo, spec.hi) * scale))
         _label(spec.parent, spec.subtype, n, colored=spec.colored)
 

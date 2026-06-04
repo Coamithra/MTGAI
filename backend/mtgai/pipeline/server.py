@@ -3665,6 +3665,7 @@ def _skeleton_knobs_payload(skeleton: dict) -> dict:
     controls from. Kept separate so both ``/state`` and the knob endpoints return
     the same shape.
     """
+    from mtgai.skeleton.generator import IRREGULAR_SUBTYPES, subtype_label
     from mtgai.skeleton.knobs import SkeletonKnobs, cycle_options_payload, knob_specs_payload
 
     raw = skeleton.get("knobs")
@@ -3683,6 +3684,12 @@ def _skeleton_knobs_payload(skeleton: dict) -> dict:
         "knob_specs": knob_specs_payload(),
         "cycles": cycles,
         "cycle_options": cycle_options_payload(),
+        # The irregular-subtype bucket the picker offers (value + display label),
+        # so the tab can render checkboxes for the theme-driven choice.
+        "irregular_subtype_options": [
+            {"value": str(s.subtype), "label": subtype_label(str(s.subtype))}
+            for s in IRREGULAR_SUBTYPES
+        ],
         "knobs_defaulted": bool(skeleton.get("knobs_defaulted")),
         "knob_warnings": skeleton.get("knob_warnings", []),
     }

@@ -96,6 +96,28 @@ discards `reasoning_content` → the retry path papers over the truncations.
    the template honors it). Faster + cheaper, at some quality cost on the
    reasoning-heavy steps (council, gates).
 
+5. **Done — cross-stage local-reasoning temperature floor** (2026-06, card "Tame
+   Gemma 4 local overthinking"). A distinct-but-related failure mode of the same
+   root cause: a gate run at near-greedy temperature (interactions step, temp 0.3,
+   batch 40) burned its **entire** 16384 budget re-deriving the *same* multi-
+   paragraph conclusion verbatim ~15× and emitted zero `--CARD` output
+   (`finish=length`). Greedy/near-greedy decode is the loop trigger; the unbounded
+   adaptive CoT is the fuel. Since the llamacpp provider has **no `thinking_budget`
+   knob** (confirmed: llmfacade's `SUPPORTS` omits it on purpose — `enable_thinking`
+   is a bool, not a budget), the CoT can't be capped by tokens on this model. Fix
+   (chosen: keep thinking adaptive, mitigate the decode): `temperatures.floor_for_local`
+   raises the *base* temperature of every objective/enumeration/judgment stage to
+   `LOCAL_REASONING_FLOOR` (0.6) when it resolves to a local reasoning model — out
+   of the verbatim-loop zone — while the existing per-retry `RETRY_TEMP_STEP` bump
+   still stacks on top (0.6→0.8→1.0), and cloud models keep their precise low temp.
+   Applied at the gates, slot grouper, reprint selection, mechanics council/synth/
+   pick, and the character-portrait scan; the two gates also shrank `BATCH_SIZE`
+   40→20 so each call's reasoning space stays tractable. **Not** raising `max_tokens`
+   (the problem is non-termination, not budget size). **TODO/follow-up:** the card
+   also wanted the **DRY** sampler on the truncation retry — not currently plumbable
+   (llmfacade forwards only `top_k`/`min_p`/`repeat_penalty` via `extra_body`, no
+   `dry_*`); needs an llmfacade change.
+
 ## Note on configuration
 
 Nobody "turned reasoning on." The app sends no reasoning control at any layer

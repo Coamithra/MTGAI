@@ -86,3 +86,45 @@ RETRY_TEMP_STEP = 0.2
 the same low temp reproduces a Gemma repetition loop; bumping the temperature is
 the verified way out (``learnings/gemma-repetition-loops.md``). Shared by the
 review gates, the slot grouper, and reprint selection."""
+
+# --- Local-reasoning anti-loop floor ------------------------------------------
+
+LOCAL_REASONING_FLOOR = GROUNDED
+"""Minimum *base* temperature for an objective / enumeration / judgment stage
+when it resolves to a **local reasoning model**. Near-greedy decode
+(:data:`PRECISE`/:data:`ANALYTICAL`/:data:`FOCUSED`) is the single biggest
+verbatim-loop trigger on local Gemma 4: in ``thinking="adaptive"`` mode it can
+spend its entire output budget re-deriving the same chain-of-thought verbatim and
+never emit the answer (``finish_reason=length``, empty output — see the card
+"Tame Gemma 4 local overthinking" and ``learnings/reasoning-budget-overrun.md``).
+Lifting the base off the greedy floor to ~0.6 makes the decode terminate; cloud
+models have no such pathology and keep their precise low temperature. Apply via
+:func:`floor_for_local`, which floors the **base** so a stage's per-retry
+:data:`RETRY_TEMP_STEP` escalation still stacks on top (0.6 → 0.8 → 1.0)."""
+
+
+def floor_for_local(base: float, model_id: str | None) -> float:
+    """Raise ``base`` to :data:`LOCAL_REASONING_FLOOR` for a local reasoning model.
+
+    "Reasoning model" is the common case (every local registry entry today is an
+    adaptive-thinking Gemma), but the gate is simply ``provider == "llamacpp"``:
+    the near-greedy verbatim-loop is a *decode* pathology, not a thinking-only
+    one, so every local model is floored regardless of its ``thinking`` setting.
+
+    Returns ``base`` unchanged when it is already at/above the floor, when no
+    ``model_id`` is known, or when the model resolves to a non-local (Anthropic)
+    model — so cloud objective stages keep their precise low temperature. The
+    registry lookup is lazy + best-effort: a resolution failure degrades to the
+    caller's ``base`` rather than raising (this runs on every gate/select call).
+    """
+    if base >= LOCAL_REASONING_FLOOR or not model_id:
+        return base
+    try:
+        from mtgai.settings.model_registry import get_registry
+
+        info = get_registry().get_llm_by_model_id(model_id)
+    except Exception:
+        return base
+    if info is not None and info.provider == "llamacpp":
+        return LOCAL_REASONING_FLOOR
+    return base

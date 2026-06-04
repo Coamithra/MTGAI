@@ -14,9 +14,10 @@ the model is shown every card in the batch with its slot spec and emits a
 ``--CARD <slot_id>--`` block **only for cards that do NOT conform** (the same
 plain-text-block format the skeleton relabel + interaction gate use, so a
 truncated reply still parses block-by-block). Conforming cards produce no output.
-This cuts ~277 calls to ~7, keeps each call's output tiny, and makes truncation
-rare; a batch that *does* truncate is retried (bumping temperature, the verified
-loop escape) and only its unreached tail is left "unknown".
+This cuts ~277 calls to ~14, keeps each call's output tiny, and keeps the
+reasoning space small enough that the local model terminates; a batch that *does*
+truncate is retried (bumping temperature off the local-reasoning floor, the
+verified loop escape) and only its unreached tail is left "unknown".
 
 The model emits flagged cards in listing order, so the tab fills in a live
 checklist as the stream arrives: when a flag for card N streams in, every earlier
@@ -53,10 +54,12 @@ TEMPERATURE = temps.PRECISE  # objective adherence check (see temperatures.py)
 # Flag-only output is short (one terse block per *failing* card), so a large
 # ceiling is just truncation insurance — the model almost never approaches it.
 MAX_TOKENS = HEAVY
-# Cards per streamed call. ~40 keeps each batch's input modest, its output tiny,
-# and gives the tab a progress checkpoint every batch while collapsing a ~277-card
-# set to ~7 round-trips.
-BATCH_SIZE = 40
+# Cards per streamed call. Kept small (20) so each batch's reasoning space is
+# tractable and the local model terminates instead of looping over a large
+# combinatorial check (see the "Tame Gemma 4 local overthinking" card); still
+# collapses a ~277-card set to ~14 round-trips and gives the tab a per-batch
+# progress checkpoint.
+BATCH_SIZE = 20
 
 
 # ---------------------------------------------------------------------------

@@ -207,10 +207,14 @@ def find_cycle_families(
     any_response = False
     last_error: Exception | None = None
 
+    # Lift the base off the near-greedy floor for a local reasoning model so the
+    # decode terminates; the per-attempt bump still stacks on top of the floored
+    # base (see temperatures.floor_for_local).
+    base_temperature = temps.floor_for_local(_BASE_TEMPERATURE, model)
     for attempt in range(1, _FIND_MAX_ATTEMPTS + 1):
         # Perturb the decode off the low base each attempt so a retry doesn't
         # re-derive the same repetition loop a flat re-roll would (see above).
-        temperature = _BASE_TEMPERATURE + _TEMPERATURE_STEP * (attempt - 1)
+        temperature = base_temperature + _TEMPERATURE_STEP * (attempt - 1)
         try:
             response = generate_with_tool(
                 system_prompt=system_prompt,
