@@ -5517,7 +5517,9 @@ async def get_stage_logs(stage_id: str):
         "ai_review": [set_dir / "reviews"],
         "conformance": [set_dir / "conformance" / "logs"],
         "art_prompts": [set_dir / "art-direction" / "prompt-logs"],
-        "art_select": [set_dir / "art-direction" / "selections"],
+        # art_select folded into the merged art_gen stage; its best-of-N
+        # selection transcripts surface under art_gen now.
+        "art_gen": [set_dir / "art-direction" / "selections"],
         "finalize": [set_dir / "reports"],
     }
 

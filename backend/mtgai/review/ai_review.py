@@ -330,7 +330,8 @@ def _format_card_for_review(card: dict) -> str:
     read from ``generation_attempts[].validation_errors`` — so a revision
     produced mid-review sees warnings about its own current state, not the
     original gen-time draft. Mechanical similarity (cross-set) is intentionally
-    skipped here; it's a set-level concern surfaced by render_qa.
+    skipped here; it's a set-level concern (the old render_qa stage that
+    surfaced it was dropped in the art/render topology reorg).
     """
     lines = [
         f"Name: {card['name']}",
