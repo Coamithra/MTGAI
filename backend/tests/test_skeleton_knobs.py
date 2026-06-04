@@ -24,7 +24,7 @@ from mtgai.skeleton.knobs import (
 
 
 # Fields that are intentionally not clampable knobs (metadata / structured).
-_NON_KNOB_FIELDS = {"cycles", "provenance", "pinned"}
+_NON_KNOB_FIELDS = {"cycles", "irregular_subtypes", "provenance", "pinned"}
 
 
 class TestSpecFieldConsistency:
@@ -145,6 +145,19 @@ class TestFromPayload:
         assert len(knobs.cycles) == 1
         assert knobs.cycles[0].id == "ok"
 
+    def test_irregular_subtypes_normalized(self):
+        # Lowercased, stripped, deduped, blanks/non-strings dropped, order kept.
+        knobs, _ = SkeletonKnobs.from_payload(
+            {"irregular_subtypes": ["Saga", " SHRINE ", "saga", "", 5, "class"]}, source="ai"
+        )
+        assert knobs.irregular_subtypes == ["saga", "shrine", "class"]
+        assert knobs.provenance["irregular_subtypes"] == "ai"
+
+    def test_irregular_subtypes_empty_has_no_provenance_stamp(self):
+        knobs, _ = SkeletonKnobs.from_payload({"irregular_subtypes": []}, source="ai")
+        assert knobs.irregular_subtypes == []
+        assert "irregular_subtypes" not in knobs.provenance
+
     def test_pinned_filtered_to_real_knobs(self):
         knobs, _ = SkeletonKnobs.from_payload({"pinned": ["multicolor_rare", "bogus"]})
         assert knobs.pinned == ["multicolor_rare"]
@@ -259,6 +272,29 @@ class TestMergePins:
         retuned = SkeletonKnobs(cycles=[ai_cyc])
         merged = retuned.merge_pins_from(base)
         assert [c.id for c in merged.cycles] == ["titans"]
+
+    def test_ai_irregular_subtypes_replace_base(self):
+        # A re-tune is meant to re-decide the picks: a non-empty AI list wins.
+        base = SkeletonKnobs(irregular_subtypes=["saga"])
+        retuned = SkeletonKnobs(irregular_subtypes=["shrine", "class"])
+        merged = retuned.merge_pins_from(base)
+        assert merged.irregular_subtypes == ["shrine", "class"]
+
+    def test_empty_ai_irregular_subtypes_fall_back_to_base(self):
+        # If the AI returned none, a prior/hand-edited pick must not be silently lost.
+        base = SkeletonKnobs(irregular_subtypes=["saga"])
+        retuned = SkeletonKnobs(multicolor_rare=0.40)  # AI proposed no picks
+        merged = retuned.merge_pins_from(base)
+        assert merged.irregular_subtypes == ["saga"]
+
+    def test_empty_ai_irregular_subtypes_carry_with_pins(self):
+        base = SkeletonKnobs(
+            multicolor_rare=0.40, pinned=["multicolor_rare"], irregular_subtypes=["shrine"]
+        )
+        retuned = SkeletonKnobs(multicolor_rare=0.15)
+        merged = retuned.merge_pins_from(base)
+        assert merged.irregular_subtypes == ["shrine"]
+        assert merged.multicolor_rare == 0.40
 
 
 # ---------------------------------------------------------------------------
