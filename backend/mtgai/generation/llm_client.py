@@ -65,9 +65,24 @@ if _ENV_PATH.exists():
 # CUSTOM_HEADERS would misdirect the client the same way. We delete only the
 # blanks (a genuinely-set bearer token / proxy URL is left untouched) so the
 # api-key path wins. Mirrors the empty-API-key defense above.
+_stripped_anthropic_vars: list[str] = []
 for _anthropic_var in ("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS"):
     if _anthropic_var in os.environ and not os.environ[_anthropic_var].strip():
         del os.environ[_anthropic_var]
+        _stripped_anthropic_vars.append(_anthropic_var)
+# Startup self-check: surface the blank-var condition loudly. Without this the
+# strip is silent, so when it DIDN'T run (server booted on stale code, or a var
+# was injected post-import) the resulting `Illegal header value b'Bearer '`
+# looks like an opaque "Haiku failure". A WARN naming the stripped var makes the
+# diagnosis instant next time.
+if _stripped_anthropic_vars:
+    logger.warning(
+        "Stripped blank Anthropic env var(s) %s that would force broken bearer "
+        "auth (`Authorization: Bearer ` -> httpcore 'Illegal header value'). "
+        "The ANTHROPIC_API_KEY / x-api-key path now wins. If Anthropic calls "
+        "still fail, the running process predates this fix — restart it.",
+        ", ".join(_stripped_anthropic_vars),
+    )
 
 # ── Provider config ──────────────────────────────────────────────────
 
