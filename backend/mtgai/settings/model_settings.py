@@ -94,6 +94,17 @@ _LOCAL_DEFAULT = "gemma4-26b-vlad-updated"
 # user picks a base model, the right tier is chosen per stage. A base with no
 # twin (cloud models, untiered locals) is unaffected.
 _FULL_CONTEXT_STAGES: frozenset[str] = frozenset({"theme_extract"})
+
+# The conformance gate's interaction step builds a CUMULATIVE-context prompt:
+# each batch is shown every previously-reviewed card plus its ~40 new cards, so
+# its largest batch grows with set size and on a very large set outgrows the 48k
+# downstream twin. At/above this set_size the conformance stage stays on the
+# base's FULL window (128k for Gemma) instead of the twin; normal sets keep the
+# lean 48k fast path. ~400 cards lands the largest batch near ~28-32k tokens —
+# comfortably under the 48k twin's ~40k usable input — so this is the headroom
+# cushion, not the cliff. NOTE: assumes the assigned base actually has a large
+# window; a low-context local base can't honour this (tracked on Trello).
+_CONFORMANCE_FULL_CONTEXT_SET_SIZE = 400
 DEFAULT_LLM_ASSIGNMENTS: dict[str, str] = {
     "theme_extract": _LOCAL_DEFAULT,
     "mechanics": _LOCAL_DEFAULT,
@@ -359,9 +370,22 @@ class ModelSettings(BaseModel):
         ``--ctx-size`` downstream twin when one exists, so the stage launches a
         leaner llama-server and budgets against the right window. A base with no
         twin (cloud models, untiered locals) is returned unchanged.
+
+        Exception: the ``conformance`` gate keeps the base's full window once the
+        set reaches ``_CONFORMANCE_FULL_CONTEXT_SET_SIZE`` cards, because its
+        interaction step's cumulative-context prompt grows with set size and can
+        outgrow the 48k twin on a large set.
         """
         base_id = self.get_assigned_model_id(stage_id)
         if stage_id in _FULL_CONTEXT_STAGES:
+            return base_id
+        # The conformance gate (conformance + interaction steps) can build a
+        # cumulative-context prompt that outgrows the 48k twin on a very large
+        # set; keep such a set on the base's full window. Normal sets stay lean.
+        if (
+            stage_id == "conformance"
+            and (self.set_params.set_size or 0) >= _CONFORMANCE_FULL_CONTEXT_SET_SIZE
+        ):
             return base_id
         registry = get_registry()
         base = registry.get_llm_by_model_id(base_id)
