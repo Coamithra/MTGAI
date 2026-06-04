@@ -56,6 +56,40 @@ Your job is to pick the BEST version based on these criteria (in priority order)
 If ALL versions have serious artifacts or are unusable, say so — don't force a pick."""
 
 
+# ---------------------------------------------------------------------------
+# Art-pick decisions store (merged Art Generation stage)
+# ---------------------------------------------------------------------------
+#
+# ``<asset>/art_gen/decisions.json`` records, per collector number, which art
+# version is the chosen one and where the choice came from. Mirrors ai_review's
+# ``reviews/decisions.json``: the LLM judge writes ``source="auto"`` picks, and
+# the merged Art Generation tab writes ``source="user"`` overrides (re-pick /
+# upload) over the top. The picked filename is also stamped onto the card's
+# ``art_path`` so the renderer + gallery resolve it.
+
+
+def _decisions_path(set_dir):
+    return set_dir / "art_gen" / "decisions.json"
+
+
+def load_art_decisions(set_dir) -> dict:
+    """Load the per-card art-pick decisions for the active project."""
+    path = _decisions_path(set_dir)
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            logger.warning("Could not parse %s; starting fresh", path)
+    return {}
+
+
+def save_art_decisions(set_dir, decisions: dict) -> None:
+    """Persist the per-card art-pick decisions store."""
+    path = _decisions_path(set_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(path, json.dumps(decisions, indent=2))
+
+
 def _build_tool_schema(version_count: int) -> dict:
     """Build the art-selection tool schema with a ``pick`` enum sized to the
     number of versions actually shown to the model.
@@ -179,17 +213,55 @@ def select_best_version(
     }
 
 
+def _pick_to_filename(pick: str, version_files: list[str]) -> str | None:
+    """Map a judge pick ('v2') to its filename in ``version_files``.
+
+    Returns None for 'none' / an out-of-range pick. ``version_files`` is the
+    sorted list shown to the judge (index i == v{i+1}).
+    """
+    if not pick or pick == "none":
+        return None
+    try:
+        idx = int(pick.lstrip("v")) - 1
+    except ValueError:
+        return None
+    if 0 <= idx < len(version_files):
+        return version_files[idx]
+    return None
+
+
+def _stamp_art_path(card, set_dir, filename: str | None):
+    """Persist the picked version's filename onto ``card.art_path``.
+
+    ``art_path`` is relative to the asset folder (``art/<file>``) so the renderer
+    + gallery resolve it the same way they resolve a render path. A None filename
+    (no usable version) leaves the card's existing art_path untouched.
+    """
+    if not filename:
+        return
+    from mtgai.io.card_io import save_card
+
+    updated = card.model_copy(update={"art_path": f"art/{filename}"})
+    save_card(updated, set_dir=set_dir)
+
+
 def select_art_for_set(
     card_filter: str | None = None,
     dry_run: bool = False,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
 ) -> dict:
-    """Run art selection for all cards in the active project with multiple versions.
+    """Judge the best-of-N art versions per card and stamp the pick.
+
+    For each card with >= 2 versions, the LLM judge (the ``art_select`` model
+    assignment, a vision-capable Anthropic model) picks the best version; with
+    exactly one version it is auto-picked (no LLM call). The pick is written to
+    ``art_path`` and recorded in ``art_gen/decisions.json`` so the merged Art
+    Generation tab can show + override it.
 
     ``should_cancel`` is an optional predicate polled at each card boundary; when
-    it returns True the loop stops early (per-card selection logs written so far
-    are kept, so a resume skips them) and ``summary["cancelled"]`` is set.
+    it returns True the loop stops early (decisions written so far are kept, so a
+    resume skips them) and ``summary["cancelled"]`` is set.
 
     Returns summary dict.
     """
@@ -204,6 +276,8 @@ def select_art_for_set(
     art_dir = set_dir / "art"
     log_dir = set_dir / "art-selection-logs"
     log_dir.mkdir(parents=True, exist_ok=True)
+
+    decisions = load_art_decisions(set_dir)
 
     card_files = sorted(cards_dir.glob("*.json"))
     if card_filter:
@@ -227,14 +301,41 @@ def select_art_for_set(
 
         # Find all versions
         versions = sorted(art_dir.glob(f"{slug}_v*.png"))
-        if len(versions) < 2:
-            logger.info("SKIP %s — only %d version(s)", cn, len(versions))
+        if len(versions) == 0:
+            logger.info("SKIP %s — no versions", cn)
             skipped += 1
             continue
 
         if not card.art_prompt:
             logger.info("SKIP %s — no art_prompt", cn)
             skipped += 1
+            continue
+
+        version_files = [v.name for v in versions]
+
+        # Single version: auto-pick v1, no LLM judge call needed.
+        if len(versions) == 1:
+            pick = "v1"
+            _stamp_art_path(card, set_dir, version_files[0])
+            decisions[cn] = {
+                "pick": pick,
+                "source": "auto_single",
+                "reasoning": "Only one version generated.",
+                "version_files": version_files,
+            }
+            save_art_decisions(set_dir, decisions)
+            result = {
+                "collector_number": cn,
+                "name": card.name,
+                "versions_reviewed": 1,
+                "pick": pick,
+                "confidence": "high",
+                "reasoning": "Only one version generated.",
+                "artifacts_found": [],
+                "version_files": version_files,
+            }
+            results.append(result)
+            atomic_write_text(log_dir / f"{cn}.json", json.dumps(result, indent=2))
             continue
 
         logger.info("REVIEW %s: %s (%d versions)", cn, card.name, len(versions))
@@ -263,9 +364,24 @@ def select_art_for_set(
                 "confidence": selection["confidence"],
                 "reasoning": selection["reasoning"],
                 "artifacts_found": selection["artifacts_found"],
-                "version_files": [v.name for v in versions],
+                "version_files": version_files,
             }
             results.append(result)
+
+            # Stamp the chosen version onto the card + record the auto-pick. A
+            # user override (re-pick in the tab) writes the same decisions store
+            # with source="user", which the tab merges over this.
+            picked_file = _pick_to_filename(selection["pick"], version_files)
+            _stamp_art_path(card, set_dir, picked_file)
+            decisions[cn] = {
+                "pick": selection["pick"],
+                "source": "auto",
+                "confidence": selection["confidence"],
+                "reasoning": selection["reasoning"],
+                "artifacts_found": selection["artifacts_found"],
+                "version_files": version_files,
+            }
+            save_art_decisions(set_dir, decisions)
 
             # Save per-card log
             log_path = log_dir / f"{cn}.json"

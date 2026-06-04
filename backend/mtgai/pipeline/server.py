@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import (
+    FileResponse,
     HTMLResponse,
     JSONResponse,
     RedirectResponse,
@@ -1310,7 +1311,12 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
     cascade-clear edit flow (§9 card). Until that ships the field is
     read-only post-Start; this endpoint rejects the change with 409.
     """
-    from mtgai.settings.model_settings import SetParams, apply_settings
+    from mtgai.settings.model_settings import (
+        MAX_ART_VERSIONS,
+        MIN_ART_VERSIONS,
+        SetParams,
+        apply_settings,
+    )
 
     project = _require_active_project()
     settings = project.settings
@@ -1322,6 +1328,7 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
     name = body.get("set_name", current.set_name)
     mech = body.get("mechanic_count", current.mechanic_count)
     size = body.get("set_size", current.set_size)
+    art_versions = body.get("art_versions_per_card", current.art_versions_per_card)
 
     if not isinstance(name, str):
         return JSONResponse({"error": "set_name must be a string"}, status_code=400)
@@ -1345,6 +1352,20 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
         )
     if not isinstance(size, int) or size <= 0:
         return JSONResponse({"error": "set_size must be a positive int"}, status_code=400)
+    # art_versions_per_card is a plain number knob (no downstream artifact to
+    # cascade-clear — it only governs the next art run), so it applies live.
+    if not isinstance(art_versions, int) or not (
+        MIN_ART_VERSIONS <= art_versions <= MAX_ART_VERSIONS
+    ):
+        return JSONResponse(
+            {
+                "error": (
+                    f"art_versions_per_card must be an int in "
+                    f"[{MIN_ART_VERSIONS}, {MAX_ART_VERSIONS}]; got {art_versions!r}"
+                )
+            },
+            status_code=400,
+        )
 
     try:
         pipeline_started = (set_artifact_dir() / "pipeline-state.json").exists()
@@ -1365,7 +1386,14 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
         )
 
     new = settings.model_copy(
-        update={"set_params": SetParams(set_name=name, set_size=size, mechanic_count=mech)}
+        update={
+            "set_params": SetParams(
+                set_name=name,
+                set_size=size,
+                mechanic_count=mech,
+                art_versions_per_card=art_versions,
+            )
+        }
     )
     apply_settings(new)
     return JSONResponse({"success": True, "set_params": new.set_params.model_dump()})
@@ -5341,6 +5369,308 @@ async def wizard_skeleton_save(request: Request) -> JSONResponse:
     _heal_failed_stage("skeleton")
 
     return JSONResponse({"success": True, "navigate_to": _next_stage_nav("skeleton")})
+
+
+# ---------------------------------------------------------------------------
+# Wizard Art Generation tab (merged generate + best-of-N judge + human review)
+# ---------------------------------------------------------------------------
+
+
+def _art_versions_for_card(art_dir: Path, slug: str) -> list[dict]:
+    """All on-disk art versions for a card slug, as tab tiles.
+
+    Each entry carries the version filename + the image-serving URL the tab's
+    ``<img>`` points at. Sorted v1..vN by the filename suffix.
+    """
+    versions: list[dict] = []
+    for path in sorted(art_dir.glob(f"{slug}_v*.png")):
+        versions.append(
+            {
+                "filename": path.name,
+                "url": f"/api/wizard/art_gen/image/{path.name}",
+            }
+        )
+    return versions
+
+
+def _art_gen_cards() -> list[dict]:
+    """Per-card art tiles for the Art Generation tab.
+
+    Joins each card's generated versions with the merged decisions store (the
+    LLM judge's auto-pick + any user override) so the tab can render the version
+    grid, highlight the chosen one, and show the judge's reasoning.
+    """
+    from mtgai.art.art_selector import load_art_decisions
+    from mtgai.io.paths import card_slug
+
+    asset = set_artifact_dir()
+    cards_dir = asset / "cards"
+    art_dir = asset / "art"
+    decisions = load_art_decisions(asset)
+
+    cards: list[dict] = []
+    if not cards_dir.exists():
+        return cards
+    for path in sorted(cards_dir.glob("*.json")):
+        card = _read_json(path, None)
+        if not isinstance(card, dict):
+            continue
+        cn = str(card.get("collector_number") or "")
+        name = card.get("name") or ""
+        slug = card_slug(cn, name)
+        versions = _art_versions_for_card(art_dir, slug)
+        decision = decisions.get(cn) or {}
+        cards.append(
+            {
+                "collector_number": cn,
+                "name": name,
+                "type_line": card.get("type_line") or "",
+                "rarity": card.get("rarity") or "",
+                "has_art_prompt": bool(card.get("art_prompt")),
+                "versions": versions,
+                "pick": decision.get("pick"),
+                "pick_source": decision.get("source"),
+                "reasoning": decision.get("reasoning") or "",
+                "confidence": decision.get("confidence") or "",
+                "art_path": card.get("art_path"),
+            }
+        )
+    return cards
+
+
+@router.get("/api/wizard/art_gen/state")
+async def wizard_art_gen_state() -> JSONResponse:
+    """First-paint state for the merged Art Generation tab.
+
+    Returns per-card tiles (all generated versions + the auto-pick + the judge's
+    reasoning + any user override) plus the best-of-N + judge-model knobs so the
+    tab can show what's configured. The stage streams live ``art_gen_card``
+    events while running; this is the durable source the tab bootstraps from.
+    """
+    project = _require_active_project()
+    cards = _art_gen_cards()
+    sp = project.settings.set_params
+    return JSONResponse(
+        {
+            "set_params": sp.model_dump(),
+            "theme_summary": _theme_summary(read_theme_or_none()),
+            "stage_status": _stage_status_in_state("art_gen"),
+            "cards": cards,
+            "has_content": any(c["versions"] for c in cards),
+            "versions_per_card": sp.art_versions_per_card,
+            # The judge is an LLM (vision) model resolved via the kept art_select
+            # assignment; the image provider is the art_gen image assignment.
+            "judge_model": project.settings.get_assigned_model_id("art_select"),
+            "provider": project.settings.get_image_model_key("art_gen"),
+        }
+    )
+
+
+@router.get("/api/wizard/art_gen/image/{filename}", response_model=None)
+async def wizard_art_gen_image(filename: str):
+    """Serve a generated art image from the active project's ``art/`` folder.
+
+    Path-traversal-safe: only a bare filename inside ``<asset>/art/`` resolves.
+    """
+    _require_active_project()
+    art_dir = set_artifact_dir() / "art"
+    # Reject any path component so ``../`` can't escape the art folder.
+    if "/" in filename or "\\" in filename or filename in ("", ".", ".."):
+        return JSONResponse({"error": "Invalid filename"}, status_code=400)
+    target = (art_dir / filename).resolve()
+    try:
+        target.relative_to(art_dir.resolve())
+    except ValueError:
+        return JSONResponse({"error": "Invalid path"}, status_code=400)
+    if not target.is_file():
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    return FileResponse(str(target))
+
+
+@router.post("/api/wizard/art_gen/refresh")
+async def wizard_art_gen_refresh(request: Request) -> JSONResponse:
+    """Re-run the merged Art Generation stage (generate best-of-N + judge).
+
+    The engine runs this automatically; the tab's Refresh button calls here. Runs
+    under the AI lock (cancellable at card boundaries) and re-reads the freshly
+    written tiles. Requires art prompts on the cards (the ``art_prompts`` stage).
+
+    NOTE: this calls the underlying generate + judge functions directly (not
+    ``stages.run_art_gen``, which acquires the AI lock itself — calling it inside
+    ``guarded_ai`` would deadlock-as-busy since the lock is strictly
+    non-reentrant). The engine path uses ``run_art_gen``; this is its manual twin.
+    """
+    from mtgai.art.art_selector import select_art_for_set
+    from mtgai.art.image_generator import generate_art_for_set
+
+    _require_active_project()
+    emitter = _refresh_emitter("art_gen")
+    with guarded_ai("Art generation", stage_id="art_gen") as guard:
+        if guard.busy:
+            return guard.busy_response
+
+        emitter.event("art_gen_reset")
+
+        def _run():
+            gen = generate_art_for_set(should_cancel=ai_lock.is_cancelled)
+            if gen.get("cancelled"):
+                return gen, None
+            sel = select_art_for_set(should_cancel=ai_lock.is_cancelled)
+            return gen, sel
+
+        with _bus_poller("art_gen", activity_prefix="Generating art"):
+            gen_result, sel_result = await asyncio.to_thread(_run)
+        cancelled = gen_result.get("cancelled") or (
+            sel_result is not None and sel_result.get("cancelled")
+        )
+        if cancelled:
+            guard.skip_heal = True
+    return await wizard_art_gen_state()
+
+
+@router.post("/api/wizard/art_gen/reroll")
+async def wizard_art_gen_reroll(request: Request) -> JSONResponse:
+    """Regenerate art for a single card (force new versions) and re-judge it.
+
+    Body: ``{collector_number}``. Runs under the AI lock; the new versions
+    overwrite the card's prior ones and the judge re-picks.
+    """
+    from mtgai.art.image_generator import generate_art_for_set
+
+    _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    cn = (body or {}).get("collector_number")
+    if not isinstance(cn, str) or not cn:
+        return JSONResponse({"error": "collector_number is required"}, status_code=400)
+
+    from mtgai.art.art_selector import select_art_for_set
+
+    with guarded_ai("Art reroll", stage_id="art_gen") as guard:
+        if guard.busy:
+            return guard.busy_response
+
+        def _reroll():
+            generate_art_for_set(card_filter=cn, force=True, should_cancel=ai_lock.is_cancelled)
+            select_art_for_set(card_filter=cn, should_cancel=ai_lock.is_cancelled)
+
+        with _bus_poller("art_gen", activity_prefix="Rerolling art"):
+            await asyncio.to_thread(_reroll)
+    return await wizard_art_gen_state()
+
+
+@router.post("/api/wizard/art_gen/repick")
+async def wizard_art_gen_repick(request: Request) -> JSONResponse:
+    """User override of the chosen art version (no AI).
+
+    Body: ``{collector_number, pick}`` where ``pick`` is ``v1``..``vN``. Stamps
+    the picked version onto the card's ``art_path`` and records the override in
+    the decisions store (``source="user"``) so it survives the next state read.
+    """
+    from mtgai.art.art_selector import (
+        _pick_to_filename,
+        _stamp_art_path,
+        load_art_decisions,
+        save_art_decisions,
+    )
+    from mtgai.io.card_io import load_card
+    from mtgai.io.paths import card_slug
+
+    _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    cn = (body or {}).get("collector_number")
+    pick = (body or {}).get("pick")
+    if not isinstance(cn, str) or not cn or not isinstance(pick, str) or not pick:
+        return JSONResponse({"error": "collector_number and pick are required"}, status_code=400)
+
+    asset = set_artifact_dir()
+    art_dir = asset / "art"
+    # Locate the card so we can stamp its art_path.
+    card = None
+    for path in (asset / "cards").glob(f"{cn}_*.json"):
+        card = load_card(path)
+        break
+    if card is None:
+        return JSONResponse({"error": f"No card {cn}"}, status_code=404)
+
+    slug = card_slug(cn, card.name)
+    version_files = [p.name for p in sorted(art_dir.glob(f"{slug}_v*.png"))]
+    picked_file = _pick_to_filename(pick, version_files)
+    if picked_file is None:
+        return JSONResponse({"error": f"Invalid pick {pick!r}"}, status_code=400)
+
+    _stamp_art_path(card, asset, picked_file)
+    decisions = load_art_decisions(asset)
+    prior = decisions.get(cn) or {}
+    decisions[cn] = {
+        **prior,
+        "pick": pick,
+        "source": "user",
+        "version_files": version_files,
+    }
+    save_art_decisions(asset, decisions)
+    _heal_failed_stage("art_gen")
+    return await wizard_art_gen_state()
+
+
+@router.post("/api/wizard/art_gen/upload")
+async def wizard_art_gen_upload(request: Request) -> JSONResponse:
+    """Upload a user-supplied image to use as a card's art (no AI).
+
+    Multipart body: ``collector_number`` + ``file``. The image is saved as a new
+    version (``<slug>_v<N+1>.png``) and immediately picked + stamped onto the
+    card (``source="user"``), so the user's own art wins over the generated set.
+    """
+    from starlette.datastructures import UploadFile
+
+    from mtgai.art.art_selector import (
+        _stamp_art_path,
+        load_art_decisions,
+        save_art_decisions,
+    )
+    from mtgai.io.card_io import load_card
+    from mtgai.io.paths import card_slug
+
+    _require_active_project()
+    form = await request.form()
+    cn = form.get("collector_number")
+    file = form.get("file")
+    if not isinstance(cn, str) or not cn:
+        return JSONResponse({"error": "collector_number is required"}, status_code=400)
+    if not isinstance(file, UploadFile):
+        return JSONResponse({"error": "file is required"}, status_code=400)
+
+    asset = set_artifact_dir()
+    art_dir = asset / "art"
+    art_dir.mkdir(parents=True, exist_ok=True)
+
+    card = None
+    for path in (asset / "cards").glob(f"{cn}_*.json"):
+        card = load_card(path)
+        break
+    if card is None:
+        return JSONResponse({"error": f"No card {cn}"}, status_code=404)
+
+    slug = card_slug(cn, card.name)
+    next_v = len(list(art_dir.glob(f"{slug}_v*.png"))) + 1
+    dest = art_dir / f"{slug}_v{next_v}.png"
+    dest.write_bytes(await file.read())
+
+    _stamp_art_path(card, asset, dest.name)
+    decisions = load_art_decisions(asset)
+    version_files = [p.name for p in sorted(art_dir.glob(f"{slug}_v*.png"))]
+    decisions[cn] = {
+        "pick": f"v{next_v}",
+        "source": "user",
+        "reasoning": "User-uploaded image.",
+        "version_files": version_files,
+    }
+    save_art_decisions(asset, decisions)
+    _heal_failed_stage("art_gen")
+    return await wizard_art_gen_state()
 
 
 # ---------------------------------------------------------------------------

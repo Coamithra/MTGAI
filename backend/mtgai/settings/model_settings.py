@@ -229,6 +229,13 @@ def validate_profile_name(name: str) -> str:
 ThemeInputKind = Literal["none", "pdf", "text", "existing"]
 
 
+# Best-of-N art versions: how many candidate images the Art Generation stage
+# produces per card before the judge picks. Bounded so a set art run stays
+# tractable on local Flux (each version is a full ~30-step diffusion pass).
+MIN_ART_VERSIONS = 1
+MAX_ART_VERSIONS = 6
+
+
 class SetParams(BaseModel):
     """Numeric / structural parameters for a set.
 
@@ -242,6 +249,11 @@ class SetParams(BaseModel):
     # Smaller dev runs override this in the wizard.
     set_size: int = 277
     mechanic_count: int = 3
+    # Best-of-N art generation: how many candidate art versions the Art
+    # Generation stage produces per card before the LLM judge picks the best.
+    # 1 disables judging (the single version is auto-picked). Capped low so a
+    # set's art run stays tractable on local Flux. Surfaced on Project Settings.
+    art_versions_per_card: int = 3
 
 
 class ThemeInputSource(BaseModel):
