@@ -1259,11 +1259,13 @@
     { id: 'conformance', label: 'Conformance & interactions' },
     { id: 'ai_review', label: 'AI design review' },
     { id: 'art_prompts', label: 'Art prompt generation' },
+    // art_select is folded into the merged art_gen stage; its model key is kept
+    // so the best-of-N selection sub-step still resolves an assigned model.
     { id: 'art_select', label: 'Art selection' },
   ];
   const IMAGE_STAGES = [
-    { id: 'char_portraits', label: 'Character portraits' },
-    { id: 'art_gen', label: 'Art generation' },
+    { id: 'char_portraits', label: 'Character references' },
+    { id: 'art_gen', label: 'Art generation & review' },
   ];
   const EFFORT_OPTIONS = [
     { value: '', label: '—' },

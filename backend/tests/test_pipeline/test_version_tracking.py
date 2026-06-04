@@ -166,8 +166,8 @@ def test_rerun_instance_truncates_and_reappends(project: Path) -> None:
     # and backbone ai_review/finalize (no survivor -> ordinal 1).
     after_cg2 = ids[ids.index("card_gen.2") + 1 :]
     assert after_cg2[:3] == ["conformance.2", "ai_review", "finalize"]
-    # Canonical tail (art/render/human) is re-appended too.
-    assert "rendering" in after_cg2 and "human_final_review" in after_cg2
+    # Canonical art/render tail is re-appended too (ending at the merged rendering).
+    assert "art_gen" in after_cg2 and "rendering" in after_cg2
     # All re-appended stages are PENDING.
     assert all(s.status == StageStatus.PENDING for s in state.stages[state.stages.index(cg2) + 1 :])
     assert state.current_instance_id == "card_gen.2"

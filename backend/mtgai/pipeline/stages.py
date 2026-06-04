@@ -1465,29 +1465,28 @@ def run_char_portraits(progress_cb: ProgressCallback | None, emitter: StageEmitt
 
 
 def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Generate art for all cards via ComfyUI + Flux."""
-    from mtgai.art.image_generator import generate_art_for_set
+    """Generate art for all cards, then select the best version per card.
 
-    result = generate_art_for_set(progress_callback=progress_cb)
-
-    generated = result.get("generated", 0)
-    return StageResult(
-        total_items=generated + result.get("skipped", 0),
-        completed_items=generated,
-        failed_items=result.get("failed", 0),
-        detail=f"Generated art for {generated} cards",
-    )
-
-
-def run_art_select(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Select best art version per card via Haiku vision."""
+    MERGED stage (topology reorg): chains the existing
+    ``generate_art_for_set`` (ComfyUI + Flux) and ``select_art_for_set``
+    (Haiku vision best-of-N pick) so the retired ``art_select`` /
+    ``human_art_review`` stages still run end-to-end. The downstream Art
+    Generation rework card swaps these internals (new gen+select+review UI)
+    without touching the stage registry. The select pass still resolves its
+    own model assignment via the ``art_select`` key.
+    """
     from mtgai.art.art_selector import select_art_for_set
+    from mtgai.art.image_generator import generate_art_for_set
     from mtgai.runtime import ai_lock
 
-    emitter.phase("running", "Selecting art")
-    # Hold the app-wide AI lock for the whole loop (one AI action at a time) and
-    # thread the cancel hook so the Cancel button halts at the next card boundary
+    gen_result = generate_art_for_set(progress_callback=progress_cb)
+    generated = gen_result.get("generated", 0)
+
+    # Best-of-N selection (folded in from the old art_select stage). Hold the
+    # app-wide AI lock for the whole loop (one AI action at a time) and thread
+    # the cancel hook so the Cancel button halts at the next card boundary
     # (request_cancel() is a no-op unless the lock is held). Mirrors run_card_gen.
+    emitter.phase("running", "Selecting art")
     with ai_lock.hold("Art selection") as acquired:
         if not acquired:
             return StageResult(
@@ -1495,36 +1494,31 @@ def run_art_select(progress_cb: ProgressCallback | None, emitter: StageEmitter) 
                 error_message="Another AI action holds the lock; try again later.",
             )
         with make_poller("art_select", emitter.phase, activity_prefix="Selecting art"):
-            result = select_art_for_set(
+            sel_result = select_art_for_set(
                 progress_callback=progress_cb,
                 should_cancel=ai_lock.is_cancelled,
             )
 
-    reviewed = result.get("reviewed", 0)
-    if result.get("cancelled"):
+    reviewed = sel_result.get("reviewed", 0)
+    sel_cost = sel_result.get("estimated_cost_usd", 0.0)
+    if sel_result.get("cancelled"):
         emitter.phase("done", "Art selection cancelled")
         return StageResult(
             success=False,
-            total_items=reviewed,
-            completed_items=reviewed,
-            cost_usd=result.get("estimated_cost_usd", 0.0),
+            total_items=generated + gen_result.get("skipped", 0),
+            completed_items=generated,
+            cost_usd=sel_cost,
             error_message="Art selection cancelled by user.",
         )
 
-    emitter.phase("done", f"Selected art for {reviewed} cards")
+    emitter.phase("done", f"Generated art for {generated} cards, selected {reviewed}")
     return StageResult(
-        total_items=reviewed,
-        completed_items=reviewed,
-        cost_usd=result.get("estimated_cost_usd", 0.0),
-        detail=f"Selected art for {reviewed} cards",
+        total_items=generated + gen_result.get("skipped", 0),
+        completed_items=generated,
+        failed_items=gen_result.get("failed", 0),
+        cost_usd=sel_cost,
+        detail=f"Generated art for {generated} cards, selected {reviewed}",
     )
-
-
-def run_human_art_review(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
-    """Human art review — pause point for art gallery review."""
-    return StageResult(detail="Awaiting human art review via gallery UI")
 
 
 def run_rendering(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
@@ -1541,72 +1535,6 @@ def run_rendering(progress_cb: ProgressCallback | None, emitter: StageEmitter) -
         failed_items=result.get("failed", 0),
         detail=f"Rendered {rendered} cards ({result.get('elapsed_seconds', 0):.1f}s)",
     )
-
-
-def run_render_qa(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Re-run validators on rendered cards for final QA.
-
-    Runs format-hygiene validation (any residuals would point at a pipeline
-    bug — gen-time auto-fix should have caught them) **and** the design-tier
-    heuristic checks (power level, color pie, mechanical similarity across the
-    finished set). The combined count surfaces both kinds of issue in the
-    final stage report.
-    """
-    from mtgai.analysis.heuristic_checks import check_card_heuristics
-    from mtgai.io.card_io import load_card
-    from mtgai.validation import validate_card_from_raw
-
-    set_dir = _set_dir()
-    cards_dir = set_dir / "cards"
-
-    if not cards_dir.exists():
-        return StageResult(success=False, error_message="cards/ directory not found")
-
-    card_files = sorted(cards_dir.glob("*.json"))
-    # Load the parsed Card list once so heuristic checks (which need the full
-    # set for mechanical-similarity) don't re-parse per-card.
-    parsed_cards = []
-    for card_file in card_files:
-        try:
-            parsed_cards.append(load_card(card_file))
-        except Exception:
-            parsed_cards.append(None)
-
-    errors_found = 0
-    cards_clean = 0
-
-    for card_file, parsed in zip(card_files, parsed_cards, strict=True):
-        data = json.loads(card_file.read_text(encoding="utf-8"))
-        _card, errors, _fixes, _regen = validate_card_from_raw(data)
-        manual_errors = [e for e in errors if e.severity.value == "MANUAL"]
-
-        # Cross-set heuristic findings: power level, color pie, and mechanical
-        # similarity against every *other* card in the set.
-        heuristic_findings = []
-        if parsed is not None:
-            others = [c for c in parsed_cards if c is not None and c is not parsed]
-            heuristic_findings = check_card_heuristics(parsed, existing_cards=others)
-
-        total_issues = len(manual_errors) + len(heuristic_findings)
-        if total_issues:
-            errors_found += total_issues
-        else:
-            cards_clean += 1
-
-    total = len(card_files)
-    return StageResult(
-        total_items=total,
-        completed_items=total,
-        detail=f"QA complete — {cards_clean}/{total} clean, {errors_found} issues",
-        artifacts={"errors_found": errors_found, "cards_clean": cards_clean},
-    )
-
-
-def run_human_final_review(
-    progress_cb: ProgressCallback | None, emitter: StageEmitter
-) -> StageResult:
-    """Human final review — pause point for rendered card review."""
-    return StageResult(detail="Awaiting human final review via gallery UI")
 
 
 # ---------------------------------------------------------------------------
@@ -1627,11 +1555,7 @@ STAGE_RUNNERS = {
     "art_prompts": run_art_prompts,
     "char_portraits": run_char_portraits,
     "art_gen": run_art_gen,
-    "art_select": run_art_select,
-    "human_art_review": run_human_art_review,
     "rendering": run_rendering,
-    "render_qa": run_render_qa,
-    "human_final_review": run_human_final_review,
 }
 
 
@@ -1651,7 +1575,7 @@ STAGE_RUNNERS = {
 # - File-not-found is fine (clear is idempotent); permission / I/O
 #   errors propagate so the caller can surface them.
 # - Stages that mutate cards in place or only flag them (``conformance``,
-#   ``balance``, ``ai_review``, ``finalize``, ``art_prompts``, ``art_select``)
+#   ``ai_review``, ``finalize``, ``art_prompts``)
 #   intentionally no-op — their effects are erased by re-running ``card_gen``'s
 #   clearer further upstream in the cascade.
 
@@ -1784,7 +1708,7 @@ def clear_card_gen() -> None:
     contradicting the refresh endpoint, which preserves them. It is now scoped to
     card_gen-owned cards only (ordinary slots + land cycles) + ``generation_progress.json``
     + ``_regen_archive/``; the in-place mutators downstream (ai_review, finalize,
-    art_prompts, art_select) still reset via the same cards being regenerated.
+    art_prompts) still reset via the same cards being regenerated.
     """
     clear_card_gen_cards()
 
@@ -1826,7 +1750,14 @@ def clear_char_portraits() -> None:
 
 
 def clear_art_gen() -> None:
+    """Wipe the merged art-generation stage's artifacts.
+
+    Owns the generated ``art/`` images and the ``art-direction/selections``
+    transcripts (the best-of-N pick logs folded in from the retired
+    ``art_select`` stage).
+    """
     _remove_path(_set_dir() / "art")
+    _remove_path(_set_dir() / "art-direction" / "selections")
 
 
 def clear_rendering() -> None:
@@ -1847,11 +1778,7 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
     "art_prompts": _no_artifacts,
     "char_portraits": clear_char_portraits,
     "art_gen": clear_art_gen,
-    "art_select": _no_artifacts,
-    "human_art_review": _no_artifacts,
     "rendering": clear_rendering,
-    "render_qa": _no_artifacts,
-    "human_final_review": _no_artifacts,
 }
 
 

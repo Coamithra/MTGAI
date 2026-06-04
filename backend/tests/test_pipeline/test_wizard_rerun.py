@@ -186,8 +186,8 @@ def test_rerun_success_truncates_and_kicks(client, no_thread_start):
     assert reloaded.stages[cg2_pos].status == StageStatus.PENDING
     # Forward path re-appended: conformance.2 (sibling survives) then backbone tail.
     assert ids[cg2_pos + 1 : cg2_pos + 4] == ["conformance.2", "ai_review", "finalize"]
-    # The full canonical tail is re-appended (art/render/human).
-    assert "rendering" in ids[cg2_pos:] and "human_final_review" in ids[cg2_pos:]
+    # The full canonical art/render tail is re-appended (ending at merged rendering).
+    assert "art_gen" in ids[cg2_pos:] and "rendering" in ids[cg2_pos:]
     assert all(s.status == StageStatus.PENDING for s in reloaded.stages[cg2_pos:])
     assert reloaded.current_instance_id == "card_gen.2"
     assert reloaded.overall_status == PipelineStatus.NOT_STARTED

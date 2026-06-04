@@ -414,9 +414,15 @@ def test_run_art_prompts_halts_on_cancel(monkeypatch) -> None:
     assert "done" in [name for name, _ in spy.calls]
 
 
-def test_run_art_select_returns_busy_when_lock_held(monkeypatch) -> None:
+# art_select folded into the merged art_gen runner: the best-of-N selection
+# sub-step's lock/cancel behavior now lives inside run_art_gen.
+def test_run_art_gen_select_returns_busy_when_lock_held(monkeypatch) -> None:
     from mtgai.runtime import ai_lock
 
+    monkeypatch.setattr(
+        "mtgai.art.image_generator.generate_art_for_set",
+        lambda **_k: {"generated": 0, "skipped": 0, "failed": 0},
+    )
     called: list[int] = []
     monkeypatch.setattr(
         "mtgai.art.art_selector.select_art_for_set",
@@ -425,21 +431,25 @@ def test_run_art_select_returns_busy_when_lock_held(monkeypatch) -> None:
 
     assert ai_lock.try_acquire("Other action") is not None
     spy = _SpyEmitter()
-    result = stages.run_art_select(progress_cb=None, emitter=spy)
+    result = stages.run_art_gen(progress_cb=None, emitter=spy)
 
     assert result.success is False
     assert "holds the lock" in (result.error_message or "")
     assert called == [], "art selector ran despite the lock being held"
 
 
-def test_run_art_select_halts_on_cancel(monkeypatch) -> None:
+def test_run_art_gen_halts_on_select_cancel(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "mtgai.art.image_generator.generate_art_for_set",
+        lambda **_k: {"generated": 1, "skipped": 0, "failed": 0},
+    )
     monkeypatch.setattr(
         "mtgai.art.art_selector.select_art_for_set",
-        lambda **_k: {"selected": 1, "cost_usd": 0.0, "cancelled": True},
+        lambda **_k: {"reviewed": 1, "estimated_cost_usd": 0.0, "cancelled": True},
     )
 
     spy = _SpyEmitter()
-    result = stages.run_art_select(progress_cb=None, emitter=spy)
+    result = stages.run_art_gen(progress_cb=None, emitter=spy)
 
     assert result.success is False
     assert "cancelled" in (result.error_message or "").lower()

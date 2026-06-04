@@ -224,17 +224,24 @@ STAGE_DEFINITIONS: list[dict] = [
     # continuing — review_eligible surfaces that intent (break-point defaults
     # off; the pause is wired through review_mode independent of this flag).
     {"stage_id": "finalize", "display_name": "Finalization", "review_eligible": True},
-    # visual_refs feeds only the art stages (prompt_builder + character_portraits),
+    # visual_refs feeds only the art stages (prompt_builder + character refs),
     # so it sits here — right before art_prompts — not pre-skeleton.
-    {"stage_id": "visual_refs", "display_name": "Visual References", "review_eligible": True},
+    {
+        "stage_id": "visual_refs",
+        "display_name": "Visual References & Artists",
+        "review_eligible": True,
+    },
     {"stage_id": "art_prompts", "display_name": "Art Prompt Generation", "review_eligible": False},
-    {"stage_id": "char_portraits", "display_name": "Character Portraits", "review_eligible": True},
-    {"stage_id": "art_gen", "display_name": "Art Generation", "review_eligible": False},
-    {"stage_id": "art_select", "display_name": "Art Selection", "review_eligible": True},
-    {"stage_id": "human_art_review", "display_name": "Art Review", "review_eligible": True},
-    {"stage_id": "rendering", "display_name": "Card Rendering", "review_eligible": False},
-    {"stage_id": "render_qa", "display_name": "Render QA", "review_eligible": True},
-    {"stage_id": "human_final_review", "display_name": "Final Review", "review_eligible": True},
+    # char_portraits KEEPS its stage_id (not renamed to char_refs) to avoid
+    # churning model/image assignments, break_points keys, /pipeline URLs, and
+    # persisted pipeline-state.json; only the display_name changed.
+    {"stage_id": "char_portraits", "display_name": "Character References", "review_eligible": True},
+    # art_gen is MERGED: art generation + best-of-N selection + human art review.
+    # The old art_select + human_art_review stage_ids are retired (folded in here).
+    {"stage_id": "art_gen", "display_name": "Art Generation & Review", "review_eligible": True},
+    # rendering is MERGED: render + final review (QA dropped entirely). The old
+    # render_qa + human_final_review stage_ids are retired (folded in here).
+    {"stage_id": "rendering", "display_name": "Rendering & Final Review", "review_eligible": True},
 ]
 
 

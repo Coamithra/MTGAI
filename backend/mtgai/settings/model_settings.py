@@ -49,19 +49,24 @@ LLM_STAGE_NAMES: dict[str, str] = {
     "mechanics": "Mechanic Generation",
     "archetypes": "Archetype Generation",
     "skeleton": "Skeleton Generation",
-    "visual_refs": "Visual References",
+    "visual_refs": "Visual References & Artists",
     "reprints": "Reprint Selection",
     "lands": "Land Generation",
     "card_gen": "Card Generation",
     "conformance": "Conformance & Interactions",
     "ai_review": "AI Design Review",
     "art_prompts": "Art Prompt Generation",
+    # art_select is no longer a standalone STAGE_DEFINITIONS stage (folded into
+    # the merged art_gen). Its model-assignment key is intentionally KEPT so the
+    # best-of-N selection sub-step inside run_art_gen still resolves a model and
+    # appears in the per-stage Settings picker (the Art Generation rework card
+    # decides its final shape).
     "art_select": "Art Selection",
 }
 
 IMAGE_STAGE_NAMES: dict[str, str] = {
-    "char_portraits": "Character Portraits",
-    "art_gen": "Art Generation",
+    "char_portraits": "Character References",
+    "art_gen": "Art Generation & Review",
 }
 
 # ---------------------------------------------------------------------------
@@ -117,8 +122,11 @@ DEFAULT_BREAK_POINTS: dict[str, str] = {
     # Pause after Skeleton Generation so the user reviews the relabeled skeleton
     # (default vs tweaked) before reprints/card-gen consume it. Auto-toggleable.
     "skeleton": "review",
-    "human_art_review": "review",
-    "human_final_review": "review",
+    # Merged art/render stages pause for human review by default (was the retired
+    # human_art_review + human_final_review). art_gen = generation + best-of-N
+    # select + human art review; rendering = render + final review.
+    "art_gen": "review",
+    "rendering": "review",
 }
 
 # Stages whose ``review`` break-point is *structural* — the wizard tab is

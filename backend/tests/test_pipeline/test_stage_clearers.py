@@ -150,15 +150,21 @@ def test_clear_char_portraits_targets_real_output_dir(fake_output_root: Path) ->
     assert visual_refs.exists(), "upstream visual-references.json must be preserved"
 
 
-def test_clear_art_gen_removes_art_dir(fake_output_root: Path) -> None:
+def test_clear_art_gen_removes_art_and_selections(fake_output_root: Path) -> None:
+    # The merged art_gen stage owns the generated art/ images AND the best-of-N
+    # selection transcripts folded in from the retired art_select stage.
     set_dir = fake_output_root / "sets" / "TST"
     art_dir = set_dir / "art"
     art_dir.mkdir(parents=True)
     (art_dir / "001_foo_v1.png").write_bytes(b"\x89PNG")
+    selections_dir = set_dir / "art-direction" / "selections"
+    selections_dir.mkdir(parents=True)
+    (selections_dir / "001_foo.json").write_text("{}", encoding="utf-8")
     _open_test_project("TST", set_dir)
 
     stages_mod.clear_stage_artifacts("art_gen")
     assert not art_dir.exists()
+    assert not selections_dir.exists()
 
 
 def test_clear_reprints_removes_selection_json(fake_output_root: Path) -> None:
@@ -235,7 +241,6 @@ def test_in_place_mutator_clearers_are_no_ops(fake_output_root: Path) -> None:
         "ai_review",
         "finalize",
         "art_prompts",
-        "art_select",
     ):
         stages_mod.clear_stage_artifacts(stage_id)
 
