@@ -47,7 +47,15 @@ logger = logging.getLogger(__name__)
 
 # LLM settings — model + effort come from per-set model_settings at runtime.
 TEMPERATURE = temps.CREATIVE  # open design-council review (see temperatures.py)
-MAX_ITERATIONS = 5
+MAX_ITERATIONS = 5  # single-reviewer (C/U) self-iteration budget — unchanged
+
+# Council tier (R/M + planeswalkers/sagas): after the initial independent panel, the
+# synthesizer revises in place and a FRESH full council re-judges the revision. This
+# is the number of fresh-council *review* rounds after the initial panel — so a
+# persistently problematic card is judged by at most ``1 + MAX_COUNCIL_ROUNDS`` panels
+# and revised at most ``MAX_COUNCIL_ROUNDS`` times before being flagged for a
+# from-scratch regen. Mirrors ``mechanic_generator.MAX_MECHANIC_REVIEW_ITERATIONS``.
+MAX_COUNCIL_ROUNDS = 3
 
 
 def _safe_council(on_council, event):
@@ -111,6 +119,10 @@ class ReviewIteration(BaseModel):
 
 class CouncilMemberReview(BaseModel):
     member_id: int
+    # Which fresh-council round this review belongs to: 1 = the initial panel,
+    # 2.. = the panels that re-judge each synthesizer revision. Defaults to 1 so
+    # pre-existing reviews/<cn>.json logs still load.
+    round: int = 1
     verdict: str
     issues: list[ReviewIssue] = Field(default_factory=list)
     response: dict
@@ -715,61 +727,97 @@ def _review_single(
 
 
 # ---------------------------------------------------------------------------
-# Council review (R/M tier)
+# Council review (R/M tier) — fresh council per revision, regen after the budget
 # ---------------------------------------------------------------------------
 
 
-def _review_council(
+class _CostAcc:
+    """Accumulate token/cost/latency/model across one or more LLM calls.
+
+    Dedups the bookkeeping repeated for every reviewer + synth call. ``input_tokens``
+    counts cache-creation/read tokens too (the basis for ``total_input_tokens``); a
+    caller reads the raw ``result["input_tokens"]`` separately for the per-call record.
+    """
+
+    def __init__(self) -> None:
+        self.input_tokens = 0
+        self.output_tokens = 0
+        self.cost_usd = 0.0
+        self.latency_s = 0.0
+        self.model = ""
+
+    def record(self, result: dict, latency: float) -> float:
+        """Fold one ``generate_with_tool`` result in; return its dollar cost."""
+        self.model = result.get("model", self.model)
+        cost = cost_from_result(result)
+        self.input_tokens += (
+            result["input_tokens"]
+            + result.get("cache_creation_input_tokens", 0)
+            + result.get("cache_read_input_tokens", 0)
+        )
+        self.output_tokens += result["output_tokens"]
+        self.cost_usd += cost
+        self.latency_s += latency
+        return cost
+
+
+def _council_consensus_ok(reviews: list[CouncilMemberReview], num_reviewers: int) -> bool:
+    """2-of-3 consensus filter: a round passes iff a strict majority of the FULL
+    panel voted OK (``ok * 2 > num_reviewers`` → 2 of 3). A collapsed panel (no
+    reviewer returned) never passes — an un-judgeable card is not silently approved.
+    """
+    if not reviews:
+        return False
+    ok = sum(1 for r in reviews if r.verdict == "OK")
+    return ok * 2 > num_reviewers
+
+
+def _dedup_issues(reviews: list[CouncilMemberReview]) -> list[ReviewIssue]:
+    """Flatten + dedup (by category+description) the surviving issues of a panel.
+
+    Used as the ``final_issues`` of a flagged card — these descriptions become the
+    regen reason the runner threads back into ``card_gen``.
+    """
+    out: list[ReviewIssue] = []
+    seen: set[tuple[str, str]] = set()
+    for r in reviews:
+        for issue in r.issues:
+            key = (issue.category, issue.description)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(issue)
+    return out
+
+
+def _run_council_panel(
     card: dict,
     mechanics: list[dict],
     pointed_questions: list[dict],
     review_model: str,
     review_effort: str | None,
-    num_reviewers: int = 3,
-    max_iterations: int = MAX_ITERATIONS,
-    on_council: Callable[[dict], None] | None = None,
-) -> CardReviewResult:
-    """Full council (3 independent reviewers + synthesizer) + iteration for R/M cards.
+    num_reviewers: int,
+    round_no: int,
+    on_council: Callable[[dict], None] | None,
+    should_cancel: Callable[[], bool] | None,
+) -> tuple[list[CouncilMemberReview], _CostAcc, list[str]]:
+    """Run one fresh independent panel on ``card`` and stream it as council ``round``.
 
-    ``review_model`` / ``review_effort`` are resolved once by the caller
-    (``review_set``) before the per-card loop starts so a mid-run settings
-    change can't swap the model between cards.
-
-    ``on_council`` (optional) streams live progress for the wizard tab: round 1
-    is the independent panel (one verdict slot per reviewer, filled as each
-    returns); subsequent rounds are the synthesis iterations. Best-effort — a
-    hook raising never breaks the review.
+    Each of ``num_reviewers`` reviewers judges ``card`` independently (an errored one
+    gets an "error" slot so the panel still resolves). Returns the completed reviews
+    (tagged with ``round_no``), a ``_CostAcc`` for the caller to fold into the totals,
+    and the live verdict-glyph list. Polls ``should_cancel`` between reviewers so a
+    Cancel halts the (potentially long) panel mid-round.
     """
-    collector_number = card.get("collector_number", card.get("slot_id", "???"))
-    card_name = card.get("name", "???")
-    rarity = card.get("rarity", "???")
-
-    logger.info(
-        "  [%s] Council review (%d reviewers): %s (%s)",
-        collector_number,
-        num_reviewers,
-        card_name,
-        rarity,
-    )
-
-    council_reviews: list[CouncilMemberReview] = []
-    effective_model = review_model
-    total_in = 0
-    total_out = 0
-    total_cost = 0.0
-    total_latency = 0.0
-
-    user_prompt = _build_review_prompt(card, mechanics, pointed_questions)
-
-    # Phase 1: Independent reviews. Round 1 of the live council panel: one
-    # verdict slot per reviewer, filled as each returns (an errored reviewer
-    # gets an "error" slot so the count still resolves).
-    all_ok = True
+    acc = _CostAcc()
+    reviews: list[CouncilMemberReview] = []
     panel_verdicts: list[str] = []
-    _safe_council(on_council, {"kind": "round", "round": 1, "verdicts": []})
+    user_prompt = _build_review_prompt(card, mechanics, pointed_questions)
+    _safe_council(on_council, {"kind": "round", "round": round_no, "verdicts": []})
     for member_id in range(1, num_reviewers + 1):
-        logger.info("    Reviewer %d/%d...", member_id, num_reviewers)
-
+        if should_cancel is not None and should_cancel():
+            break
+        logger.info("    Round %d reviewer %d/%d...", round_no, member_id, num_reviewers)
         t0 = time.time()
         try:
             result = generate_with_tool(
@@ -782,47 +830,36 @@ def _review_council(
                 effort=review_effort,
             )
         except Exception:
-            logger.exception("    Reviewer %d API call failed", member_id)
+            logger.exception("    Round %d reviewer %d API call failed", round_no, member_id)
             panel_verdicts.append("error")
             _safe_council(
-                on_council, {"kind": "round", "round": 1, "verdicts": list(panel_verdicts)}
+                on_council,
+                {"kind": "round", "round": round_no, "verdicts": list(panel_verdicts)},
             )
             continue
-
         latency = time.time() - t0
-        effective_model = result.get("model", review_model)
-        cost = cost_from_result(result)
-        total_in += (
-            result["input_tokens"]
-            + result.get("cache_creation_input_tokens", 0)
-            + result.get("cache_read_input_tokens", 0)
-        )
-        total_out += result["output_tokens"]
-        total_cost += cost
-        total_latency += latency
-
+        cost = acc.record(result, latency)
         verdict_data = result["result"]
         verdict = verdict_data.get("verdict", "OK")
-        verdict_data["verdict"] = verdict  # ensure key exists for synthesis prompt
+        verdict_data["verdict"] = verdict  # ensure key exists for the synthesis prompt
         issues = [ReviewIssue(**i) for i in verdict_data.get("issues", [])]
-
         logger.info(
-            "    Reviewer %d: %s (%d issues), $%.4f",
+            "    Round %d reviewer %d: %s (%d issues), $%.4f",
+            round_no,
             member_id,
             verdict,
             len(issues),
             cost,
         )
-
-        if verdict != "OK":
-            all_ok = False
-
         panel_verdicts.append(_verdict_glyph(verdict))
-        _safe_council(on_council, {"kind": "round", "round": 1, "verdicts": list(panel_verdicts)})
-
-        council_reviews.append(
+        _safe_council(
+            on_council,
+            {"kind": "round", "round": round_no, "verdicts": list(panel_verdicts)},
+        )
+        reviews.append(
             CouncilMemberReview(
                 member_id=member_id,
+                round=round_no,
                 verdict=verdict,
                 issues=issues,
                 response=verdict_data,
@@ -831,212 +868,271 @@ def _review_council(
                 cost_usd=cost,
             )
         )
+    return reviews, acc, panel_verdicts
 
-    # Every reviewer errored: synthesis would run against an empty reviewer list
-    # and could return a vacuous OK with no real review behind it. Flag REVISE/error
-    # instead of trusting that synthesis, mirroring the empty-iterations handling.
-    if not council_reviews:
-        logger.error(
-            "  [%s] All %d council reviewers failed — flagging REVISE instead of "
-            "trusting a review-less synthesis",
-            collector_number,
-            num_reviewers,
-        )
-        return _error_review_result(
-            card,
-            "council",
-            review_model,
-            collector_number,
-            card_name,
-            rarity,
-            total_input_tokens=total_in,
-            total_output_tokens=total_out,
-            total_cost_usd=total_cost,
-            total_latency_s=total_latency,
-        )
 
-    # Skip synthesis if all reviewers say OK
-    if all_ok and len(council_reviews) == num_reviewers:
-        logger.info("    All %d reviewers say OK -- skipping synthesis", num_reviewers)
-        return CardReviewResult(
-            collector_number=collector_number,
-            card_name=card_name,
-            rarity=rarity,
-            review_tier="council",
-            model=effective_model,
-            original_card=card,
-            final_verdict="OK",
-            final_issues=[],
-            revised_card=None,
-            card_was_changed=False,
-            iterations=[],
-            council_reviews=council_reviews,
-            total_input_tokens=total_in,
-            total_output_tokens=total_out,
-            total_cost_usd=total_cost,
-            total_latency_s=total_latency,
-            timestamp=datetime.now(UTC).isoformat(),
-        )
+def _run_synth(
+    card: dict,
+    reviews: list[CouncilMemberReview],
+    mechanics: list[dict],
+    review_model: str,
+    review_effort: str | None,
+    round_no: int,
+    on_council: Callable[[dict], None] | None,
+    panel_verdicts: list[str],
+) -> tuple[ReviewIteration | None, _CostAcc, dict | None]:
+    """One synthesizer revise-in-place call against ``reviews`` of ``card``.
 
-    # Phase 2: Synthesis
-    logger.info("    Synthesizing %d reviews...", len(council_reviews))
-    synthesis_prompt = _build_council_synthesis_prompt(
-        card,
-        [r.response for r in council_reviews],
-    )
-
-    # Include mechanic defs in synthesis context
-    card_colors = set(card.get("colors", []))
-    if not card_colors:
-        card_colors = {"W", "U", "B", "R", "G"}
+    The synthesizer combines the panel's consensus feedback into a single revised
+    card. Its OWN verdict is ignored by the caller (it over-claims) — only its
+    ``revised_card`` is used; a FRESH council re-judges next round. Returns the
+    iteration record (``None`` if the call failed), a ``_CostAcc``, and the revised
+    card dict (``None`` if the synth produced none). Streams the round's synth slot
+    ``running → done``.
+    """
+    acc = _CostAcc()
+    synthesis_prompt = _build_council_synthesis_prompt(card, [r.response for r in reviews])
+    card_colors = set(card.get("colors", [])) or {"W", "U", "B", "R", "G"}
     mech_block = format_mechanic_block(mechanics, card_colors)
     synthesis_prompt = f"## Custom Mechanics\n\n{mech_block}\n\n---\n\n{synthesis_prompt}"
-
-    iterations: list[ReviewIteration] = []
-
-    # The synthesizer is combining the panel's feedback into a revision —
-    # surface that on round 1's synth state so the tab shows "Combining feedback…".
     _safe_council(
         on_council,
-        {"kind": "round", "round": 1, "verdicts": list(panel_verdicts), "synth": "running"},
+        {
+            "kind": "round",
+            "round": round_no,
+            "verdicts": list(panel_verdicts),
+            "synth": "running",
+        },
+    )
+    t0 = time.time()
+    try:
+        result = generate_with_tool(
+            system_prompt=REVIEW_SYSTEM_PROMPT,
+            user_prompt=synthesis_prompt,
+            tool_schema=COUNCIL_SYNTHESIS_TOOL_SCHEMA,
+            model=review_model,
+            temperature=TEMPERATURE,
+            max_tokens=HEAVY,
+            effort=review_effort,
+        )
+    except Exception:
+        logger.exception("    Round %d synthesis (revise) call failed", round_no)
+        return None, acc, None
+    latency = time.time() - t0
+    cost = acc.record(result, latency)
+    verdict_data = result["result"]
+    issues = [ReviewIssue(**i) for i in verdict_data.get("issues", [])]
+    _safe_council(
+        on_council,
+        {
+            "kind": "round",
+            "round": round_no,
+            "verdicts": list(panel_verdicts),
+            "synth": "done",
+        },
+    )
+    logger.info("    Round %d synthesis revised the card, $%.4f, %.1fs", round_no, cost, latency)
+    revised = verdict_data.get("revised_card")
+    iteration = ReviewIteration(
+        iteration=round_no,
+        prompt=synthesis_prompt,
+        response=verdict_data,
+        verdict=verdict_data.get("verdict", "REVISE"),
+        issues=issues,
+        model=acc.model or review_model,
+        input_tokens=result["input_tokens"],
+        output_tokens=result["output_tokens"],
+        cost_usd=cost,
+        latency_s=latency,
+    )
+    return iteration, acc, (revised if isinstance(revised, dict) else None)
+
+
+def _review_council(
+    card: dict,
+    mechanics: list[dict],
+    pointed_questions: list[dict],
+    review_model: str,
+    review_effort: str | None,
+    num_reviewers: int = 3,
+    max_rounds: int = MAX_COUNCIL_ROUNDS,
+    on_council: Callable[[dict], None] | None = None,
+) -> CardReviewResult:
+    """Fresh-council-per-revision loop for R/M + planeswalker/saga cards.
+
+    An independent panel (round 1) judges the original card. While the panel lacks a
+    2-of-3 OK consensus, the synthesizer revises the card in place and a FRESH full
+    council re-judges the revision — up to ``max_rounds`` review rounds. The synth's
+    own verdict is never trusted (it over-claims); only the independent panels decide.
+    A card still problematic after the final fresh council is left ``REVISE`` so the
+    runner flags it (``flagged_by="ai_review"``) for a from-scratch ``card_gen`` regen
+    — the best in-place revision stays saved and is archived+replaced by the regen.
+
+    ``review_model`` / ``review_effort`` are resolved once by the caller
+    (``review_set``) before the per-card loop starts so a mid-run settings change
+    can't swap the model between cards.
+
+    ``on_council`` (optional) streams each round as a full ``num_reviewers``-slot
+    panel (plus the round's synth slot while it revises). Best-effort — a hook raising
+    never breaks the review. Cancellation (``ai_lock.is_cancelled``) is polled at
+    every round/reviewer/synth boundary so the Cancel button halts mid-card.
+    """
+    from mtgai.runtime import ai_lock
+
+    collector_number = card.get("collector_number", card.get("slot_id", "???"))
+    card_name = card.get("name", "???")
+    rarity = card.get("rarity", "???")
+
+    logger.info(
+        "  [%s] Council review (%d reviewers, %d max rounds): %s (%s)",
+        collector_number,
+        num_reviewers,
+        max_rounds,
+        card_name,
+        rarity,
     )
 
-    for iteration in range(1, max_iterations + 1):
-        logger.info("    Synthesis iteration %d/%d...", iteration, max_iterations)
-
-        # Each synthesis iteration past the first is the synth re-reviewing its
-        # own revision: a fresh round with a single verdict slot.
-        if iteration > 1:
-            _safe_council(on_council, {"kind": "round", "round": iteration, "verdicts": []})
-
-        t0 = time.time()
-        try:
-            if iteration == 1:
-                tool = COUNCIL_SYNTHESIS_TOOL_SCHEMA
-                prompt = synthesis_prompt
-            else:
-                tool = REVIEW_TOOL_SCHEMA
-                prompt = _build_iteration_prompt(iterations[-1].response)
-
-            result = generate_with_tool(
-                system_prompt=REVIEW_SYSTEM_PROMPT,
-                user_prompt=prompt,
-                tool_schema=tool,
-                model=review_model,
-                temperature=TEMPERATURE,
-                max_tokens=HEAVY,
-                effort=review_effort,
-            )
-        except Exception:
-            logger.exception("    Synthesis API call failed on iteration %d", iteration)
-            if iteration > 1:
-                _safe_council(
-                    on_council,
-                    {"kind": "round", "round": iteration, "verdicts": ["error"]},
-                )
-            break
-
-        latency = time.time() - t0
-        effective_model = result.get("model", review_model)
-        cost = cost_from_result(result)
-        total_in += (
-            result["input_tokens"]
-            + result.get("cache_creation_input_tokens", 0)
-            + result.get("cache_read_input_tokens", 0)
-        )
-        total_out += result["output_tokens"]
-        total_cost += cost
-        total_latency += latency
-
-        verdict_data = result["result"]
-        verdict = verdict_data.get("verdict", "OK")
-        issues = [ReviewIssue(**i) for i in verdict_data.get("issues", [])]
-
-        # Round 1 is the synthesis of the panel (its slot is the synth, not a
-        # reviewer verdict): mark its synth "done". Round N>1 is the synth's own
-        # re-review: fill its single verdict slot.
-        if iteration == 1:
-            _safe_council(
-                on_council,
-                {
-                    "kind": "round",
-                    "round": 1,
-                    "verdicts": list(panel_verdicts),
-                    "synth": "done",
-                },
-            )
-        else:
-            _safe_council(
-                on_council,
-                {"kind": "round", "round": iteration, "verdicts": [_verdict_glyph(verdict)]},
-            )
-
-        logger.info(
-            "    Synthesis verdict: %s (%d issues), $%.4f, %.1fs",
-            verdict,
-            len(issues),
-            cost,
-            latency,
-        )
-
-        iterations.append(
-            ReviewIteration(
-                iteration=iteration,
-                prompt=prompt,
-                response=verdict_data,
-                verdict=verdict,
-                issues=issues,
-                model=effective_model,
-                input_tokens=result["input_tokens"],
-                output_tokens=result["output_tokens"],
-                cost_usd=cost,
-                latency_s=latency,
-            )
-        )
-
-        if verdict == "OK":
-            break
-
-        if iteration >= max_iterations:
-            break
-
-    # Final result. Reaching here with no synthesis iterations means every
-    # synthesis LLM call failed (and the all-OK early-return above didn't fire) —
-    # the council never produced a verdict, so flag REVISE/error rather than
-    # silently passing OK (the bug this guards against). Exceptions were logged
-    # via ``logger.exception`` above; log the empty-iterations outcome explicitly.
-    if not iterations:
-        logger.error(
-            "  [%s] Council synthesis produced no iterations (all LLM calls failed) — "
-            "flagging REVISE instead of defaulting OK",
-            collector_number,
-        )
-        return _error_review_result(
-            card,
-            "council",
-            review_model,
-            collector_number,
-            card_name,
-            rarity,
-            council_reviews=council_reviews,
-            total_input_tokens=total_in,
-            total_output_tokens=total_out,
-            total_cost_usd=total_cost,
-            total_latency_s=total_latency,
-        )
-
-    last = iterations[-1]
-    final_verdict = last.verdict
-    final_issues = last.issues
-
+    council_reviews: list[CouncilMemberReview] = []
+    iterations: list[ReviewIteration] = []
+    total_in = 0
+    total_out = 0
+    total_cost = 0.0
+    total_latency = 0.0
+    effective_model = review_model
+    current_card = card
     card_was_changed = False
-    revised_card = None
-    for it in iterations:
-        if it.response.get("revised_card") is not None:
-            card_was_changed = True
-            revised_card = it.response.get("revised_card")
+    final_verdict: str | None = None
+    final_issues: list[ReviewIssue] = []
+    last_reviews: list[CouncilMemberReview] = []
 
-    effective_model = iterations[0].model
+    def _fold(acc: _CostAcc) -> None:
+        nonlocal total_in, total_out, total_cost, total_latency, effective_model
+        total_in += acc.input_tokens
+        total_out += acc.output_tokens
+        total_cost += acc.cost_usd
+        total_latency += acc.latency_s
+        if acc.model:
+            effective_model = acc.model
+
+    # Round 1 is the initial panel; rounds 2..max_rounds+1 re-judge each revision.
+    total_panels = max_rounds + 1
+    for round_no in range(1, total_panels + 1):
+        if ai_lock.is_cancelled():
+            break
+
+        reviews, acc, panel_verdicts = _run_council_panel(
+            current_card,
+            mechanics,
+            pointed_questions,
+            review_model,
+            review_effort,
+            num_reviewers,
+            round_no,
+            on_council,
+            ai_lock.is_cancelled,
+        )
+        _fold(acc)
+        council_reviews.extend(reviews)
+        if reviews:
+            last_reviews = reviews
+
+        # A fully collapsed INITIAL panel (every reviewer errored) leaves the card
+        # un-judged — flag REVISE/error rather than risk a vacuous pass, mirroring
+        # the empty-iterations guard.
+        if not council_reviews:
+            logger.error(
+                "  [%s] All %d council reviewers failed on the initial panel — flagging "
+                "REVISE instead of trusting a review-less verdict",
+                collector_number,
+                num_reviewers,
+            )
+            return _error_review_result(
+                card,
+                "council",
+                review_model,
+                collector_number,
+                card_name,
+                rarity,
+                total_input_tokens=total_in,
+                total_output_tokens=total_out,
+                total_cost_usd=total_cost,
+                total_latency_s=total_latency,
+            )
+
+        if ai_lock.is_cancelled():
+            break
+
+        if _council_consensus_ok(reviews, num_reviewers):
+            logger.info(
+                "    Round %d: 2-of-%d OK consensus — card approved", round_no, num_reviewers
+            )
+            final_verdict = "OK"
+            final_issues = []
+            break
+
+        # Problematic. After the final fresh council, flag for a from-scratch regen.
+        if round_no == total_panels:
+            logger.info(
+                "    Round %d still problematic after %d fresh-council round(s) — "
+                "flagging for regen",
+                round_no,
+                max_rounds,
+            )
+            final_verdict = "REVISE"
+            final_issues = _dedup_issues(reviews)
+            break
+
+        if ai_lock.is_cancelled():
+            break
+
+        # Synthesizer revises in place; a fresh council re-judges next round. Its own
+        # verdict is ignored — only the revised card is taken.
+        iteration, sacc, revised = _run_synth(
+            current_card,
+            reviews,
+            mechanics,
+            review_model,
+            review_effort,
+            round_no,
+            on_council,
+            panel_verdicts,
+        )
+        _fold(sacc)
+        if iteration is None:
+            # The reviser call failed — can't improve a consensus-flagged card; flag it.
+            final_verdict = "REVISE"
+            final_issues = _dedup_issues(reviews)
+            break
+        iterations.append(iteration)
+        if revised is None:
+            # Synth declined to revise a consensus-flagged card — nothing changed, so a
+            # fresh council would only re-flag it. Flag for regen now.
+            logger.info("    Round %d synth produced no revision — flagging for regen", round_no)
+            final_verdict = "REVISE"
+            final_issues = _dedup_issues(reviews)
+            break
+        current_card = revised
+        card_was_changed = True
+
+    # Cancelled before a verdict was decided: don't claim OK. Keep whatever was
+    # reviewed (the runner skips flagging on a cancelled run anyway). A cancel before
+    # any reviewer returned leaves nothing to judge — surface the error verdict.
+    if final_verdict is None:
+        if not council_reviews:
+            return _error_review_result(
+                card,
+                "council",
+                review_model,
+                collector_number,
+                card_name,
+                rarity,
+                total_input_tokens=total_in,
+                total_output_tokens=total_out,
+                total_cost_usd=total_cost,
+                total_latency_s=total_latency,
+            )
+        final_verdict = "REVISE"
+        final_issues = _dedup_issues(last_reviews)
 
     return CardReviewResult(
         collector_number=collector_number,
@@ -1047,7 +1143,7 @@ def _review_council(
         original_card=card,
         final_verdict=final_verdict,
         final_issues=final_issues,
-        revised_card=revised_card if card_was_changed else None,
+        revised_card=current_card if card_was_changed else None,
         card_was_changed=card_was_changed,
         iterations=iterations,
         council_reviews=council_reviews,
@@ -1164,10 +1260,15 @@ def review_tile(card: dict, review: CardReviewResult | None) -> dict:
     tile["card_was_changed"] = review.card_was_changed
     tile["review_tier"] = review.review_tier
     # Compact per-reviewer summary for the (resolved) council panel: verdict +
-    # issue count, no full transcript (that stays in reviews/<cn>.json).
+    # issue count, no full transcript (that stays in reviews/<cn>.json). With the
+    # fresh-council-per-revision loop a card can carry several rounds of reviews;
+    # the resolved tile shows the *deciding* (last) panel — the one whose consensus
+    # set the final verdict.
+    last_round = max((cr.round for cr in review.council_reviews), default=0)
     tile["council"] = [
         {"member_id": cr.member_id, "verdict": cr.verdict, "issues": len(cr.issues)}
         for cr in review.council_reviews
+        if cr.round == last_round
     ]
     return tile
 
@@ -1462,7 +1563,7 @@ def _review_to_markdown(r: CardReviewResult) -> str:
         lines.append("## Council Reviews")
         lines.append("")
         for cr in r.council_reviews:
-            lines.append(f"### Reviewer {cr.member_id}")
+            lines.append(f"### Round {cr.round} — Reviewer {cr.member_id}")
             lines.append("")
             lines.append(f"**Verdict:** {cr.verdict} ({len(cr.issues)} issues)  ")
             lines.append(
@@ -1742,10 +1843,11 @@ def review_set(
     logger.info("MTGAI AI Design Review Pipeline -- Phase 4B")
     logger.info("=" * 70)
     logger.info(
-        "Model: %s | Effort: %s | Max iterations: %d",
+        "Model: %s | Effort: %s | C/U iterations: %d | council rounds: %d",
         review_model,
         review_effort or "default",
         MAX_ITERATIONS,
+        MAX_COUNCIL_ROUNDS,
     )
     logger.info("Set: %s", set_code)
     logger.info("")
@@ -1922,7 +2024,11 @@ def review_set(
         # Mark this card seen at its current (post-revision) content, so a later
         # review instance skips it unless card_gen regenerates it again. Recorded
         # per card (not at stage end) so a cancel/resume re-reviews only the rest.
-        record_reviewed(set_dir, cn, card_signature(current_card))
+        # Skip recording when a Cancel landed: the council loop now polls cancellation
+        # mid-card, so this card's review may have been cut short — leave it unrecorded
+        # so a resume re-reviews it fully rather than treating the partial pass as done.
+        if not (should_cancel is not None and should_cancel()):
+            record_reviewed(set_dir, cn, card_signature(current_card))
 
         # Live council: the verdict is in — push the per-card result tile so the
         # tab stamps the card approved / rejected (rejected = flagged for regen,
