@@ -55,6 +55,20 @@ if _ENV_PATH.exists():
             if value and not os.environ.get(key, "").strip():
                 os.environ[key] = value
 
+# Drop empty Anthropic auth/config vars that the SDK reads automatically.
+# The Claude Code CLI (and some shells) export these BLANK into child
+# processes — e.g. ANTHROPIC_AUTH_TOKEN="". The Anthropic SDK treats a
+# *present* ANTHROPIC_AUTH_TOKEN as "use bearer auth" even when it's empty,
+# so it builds `Authorization: Bearer ` and httpcore rejects it with
+# `Illegal header value b'Bearer '` — every Anthropic call then fails before
+# it's sent, despite a valid ANTHROPIC_API_KEY in .env. An empty BASE_URL /
+# CUSTOM_HEADERS would misdirect the client the same way. We delete only the
+# blanks (a genuinely-set bearer token / proxy URL is left untouched) so the
+# api-key path wins. Mirrors the empty-API-key defense above.
+for _anthropic_var in ("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS"):
+    if _anthropic_var in os.environ and not os.environ[_anthropic_var].strip():
+        del os.environ[_anthropic_var]
+
 # ── Provider config ──────────────────────────────────────────────────
 
 _PROVIDER_RAW = os.environ.get("MTGAI_PROVIDER", "anthropic").strip().lower()
