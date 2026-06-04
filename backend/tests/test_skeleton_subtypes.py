@@ -77,14 +77,26 @@ class TestGenerateWithSubtypes:
         b = generate_skeleton(_cfg(), default_knobs())
         fa = [(s.slot_id, s.card_subtype) for s in a.slots if s.card_subtype]
         fb = [(s.slot_id, s.card_subtype) for s in b.slots if s.card_subtype]
-        assert fa == fb
+        assert fa and fa == fb
 
     def test_different_seed_reshuffles(self):
         a = generate_skeleton(_cfg(), default_knobs())
         c = generate_skeleton(_cfg(), _knobs(subtype_seed=7))
         fa = {(s.slot_id, s.card_subtype) for s in a.slots if s.card_subtype}
         fc = {(s.slot_id, s.card_subtype) for s in c.slots if s.card_subtype}
-        assert fa != fc
+        assert fa and fc and fa != fc
+
+    def test_seed_depends_only_on_code_and_seed_not_object_identity(self):
+        """Re-run stability rests on a raw-string RNG seed (not `hash()`, which is
+        per-process salted): two freshly-built identical slot lists must agree."""
+        knobs = _knobs(subtype_jitter=0.0)
+        out = []
+        for _ in range(2):
+            slots = [_slot(f"a{i}", "colorless", "artifact") for i in range(20)]
+            slots += [_slot(f"e{i}", "B", "enchantment") for i in range(20)]
+            _assign_subtypes(slots, knobs, set_size=277, set_code="TST")
+            out.append([(s.slot_id, s.card_subtype) for s in slots if s.card_subtype])
+        assert out[0] and out[0] == out[1]
 
 
 # ---------------------------------------------------------------------------

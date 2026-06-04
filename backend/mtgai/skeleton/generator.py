@@ -118,7 +118,6 @@ class IrregularSubtype(BaseModel):
     subtype: str
     parent: str
     colored: bool = False
-    colorless: bool = False
     lo: int
     hi: int
 
@@ -1359,15 +1358,18 @@ def _assign_subtypes(
     """Label a subset of slots with a fine-grained ``card_subtype`` in place.
 
     Recurring subtypes (equipment / vehicle / aura / artifact creature) get a
-    knob-driven count; then ``irregular_subtype_count`` deciduous specials (saga /
-    class / shrine / enchantment creature) are picked from :data:`IRREGULAR_SUBTYPES`.
-    Each count is scaled to ``set_size``, jittered by ``subtype_jitter``, and
-    realized by an RNG seeded on ``set_code`` + ``subtype_seed`` so the same project
-    is stable across re-runs and bumping the seed re-rolls.
+    knob-driven count, scaled to ``set_size`` and jittered by ``subtype_jitter``;
+    then ``irregular_subtype_count`` deciduous specials (saga / class / shrine /
+    enchantment creature) are picked from :data:`IRREGULAR_SUBTYPES`, each filling a
+    scaled count drawn from its own ``lo``/``hi`` range (its spread comes from that
+    range, not ``subtype_jitter``). Everything is realized by an RNG seeded on
+    ``set_code`` + ``subtype_seed`` so the same project is stable across re-runs
+    (the seed is the raw string, not ``hash()``) and bumping the seed re-rolls.
 
     Only ordinary slots are eligible: special slots (cycle members, reserved cards,
-    signposts) and planeswalkers/lands are skipped so structural families stay
-    clean. The labelling never changes ``card_type``/color/rarity/counts, so every
+    signposts) are skipped, and planeswalkers/lands never match a subtype's parent
+    type, so structural families stay clean. The labelling only writes
+    ``card_subtype`` -- it never changes ``card_type``/color/rarity/counts, so every
     balance invariant still holds.
     """
     rng = random.Random(f"{set_code}|{knobs.subtype_seed}")
@@ -1416,7 +1418,7 @@ def _assign_subtypes(
     rng.shuffle(bucket)
     for spec in bucket[: max(0, knobs.irregular_subtype_count)]:
         n = max(0, round(rng.randint(spec.lo, spec.hi) * scale))
-        _label(spec.parent, spec.subtype, n, colored=spec.colored, colorless=spec.colorless)
+        _label(spec.parent, spec.subtype, n, colored=spec.colored)
 
 
 # ---------------------------------------------------------------------------

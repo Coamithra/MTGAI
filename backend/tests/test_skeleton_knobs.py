@@ -23,10 +23,23 @@ from mtgai.skeleton.knobs import (
 # ---------------------------------------------------------------------------
 
 
+# Fields that are intentionally not clampable knobs (metadata / structured).
+_NON_KNOB_FIELDS = {"cycles", "provenance", "pinned"}
+
+
 class TestSpecFieldConsistency:
     def test_every_spec_is_a_model_field(self):
         for spec in KNOB_SPECS:
             assert spec.key in SkeletonKnobs.model_fields, f"{spec.key} not a field"
+
+    def test_every_scalar_field_has_a_spec(self):
+        # Reverse direction: a scalar SkeletonKnobs field without a KNOB_SPECS entry
+        # would silently miss clamping, the AI tuner, and the wizard control. Only
+        # the metadata/structured fields are allowed to have no spec.
+        for name in SkeletonKnobs.model_fields:
+            if name in _NON_KNOB_FIELDS:
+                continue
+            assert name in KNOB_SPEC_BY_KEY, f"{name} field has no KNOB_SPECS entry"
 
     def test_field_defaults_match_spec_defaults(self):
         knobs = SkeletonKnobs()
