@@ -1522,13 +1522,54 @@ def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
 
 
 def run_rendering(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Render all cards to print-ready images."""
+    """Render every card to a print-ready image, streaming each into the tab.
+
+    Merged terminal stage (topology reorg): render-only, **no QA / pixel-check
+    pass** — detection without remediation is noise at the end of the pipeline.
+    The user's two final-review actions (manual field edit, remove card) live on
+    the Rendering & Final Review tab and re-render the affected card(s) through
+    the per-card endpoints. The stage holds the app-wide AI lock for the whole
+    render loop (so the Cancel button can halt it at a card boundary) even though
+    rendering isn't an LLM call — it keeps the one-heavy-action-at-a-time
+    invariant and the cancel/heal plumbing uniform with the other long runners.
+
+    Streams a ``render_reset`` once, then a ``render_card`` per rendered card so
+    the gallery fills in live (mirrors the card_gen / ai_review streams).
+    """
     from mtgai.rendering.card_renderer import CardRenderer
+    from mtgai.runtime import ai_lock
+
+    emitter.event("render_reset")
+
+    def on_card(cn: str, completed: int, total: int, detail: str, _elapsed: float) -> None:
+        emitter.event("render_card", collector_number=cn)
+        emitter.phase("running", detail, completed=completed, total=total)
+        if progress_cb is not None:
+            progress_cb(cn, completed, total, detail, _elapsed)
 
     renderer = CardRenderer()
-    result = renderer.render_set(progress_callback=progress_cb)
+    with ai_lock.hold("Rendering") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+        result = renderer.render_set(
+            progress_callback=on_card,
+            should_cancel=ai_lock.is_cancelled,
+        )
 
     rendered = result.get("rendered", 0)
+    if result.get("cancelled"):
+        emitter.phase("done", "Rendering cancelled")
+        return StageResult(
+            success=False,
+            total_items=rendered + result.get("skipped", 0),
+            completed_items=rendered,
+            failed_items=result.get("failed", 0),
+            error_message="Rendering cancelled by user.",
+        )
+
     return StageResult(
         total_items=rendered + result.get("skipped", 0),
         completed_items=rendered,

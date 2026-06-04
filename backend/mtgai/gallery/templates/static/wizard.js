@@ -532,6 +532,17 @@
       });
     });
 
+    // Rendering & Final Review streaming: each card's print-ready image pops onto
+    // the gallery as it renders (render_card → refresh that thumbnail), with a
+    // render_reset at the start of a run. The Rendering tab listens via the
+    // W.onRenderingStream bridge.
+    ['render_reset', 'render_card'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onRenderingStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     // Mechanics generation streaming: each accepted draft pops onto the
     // Mechanics tab (mechanic_candidate_drafted, pre-review); the council loop
     // then reports live (mechanic_council_update — reviewer thumbs + synth

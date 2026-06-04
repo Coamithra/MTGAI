@@ -124,11 +124,19 @@ class CardRenderer:
 
     def __init__(
         self,
-        assets_root: Path,
-        output_root: Path,
+        assets_root: Path | None = None,
+        output_root: Path | None = None,
     ) -> None:
-        self.assets_root = Path(assets_root)
-        self.output_root = Path(output_root)
+        # Both roots are repo-relative bundled trees (``assets/`` frames+fonts,
+        # ``output/`` is the legacy fallback root — production card paths come
+        # from the active project's ``set_artifact_dir()``). Default them off
+        # ``repo_root()`` so the pipeline runner can construct ``CardRenderer()``
+        # with no args; the CLI / tests may still pass explicit roots.
+        from mtgai.io.paths import repo_root
+
+        root = repo_root()
+        self.assets_root = Path(assets_root) if assets_root is not None else root / "assets"
+        self.output_root = Path(output_root) if output_root is not None else root / "output"
         self.fm: FontManager = get_font_manager()
         self.text_engine = TextEngine(self.fm)
         # Frame image cache to avoid reloading per card
@@ -833,6 +841,7 @@ class CardRenderer:
         dry_run: bool = False,
         force: bool = False,
         progress_callback: Callable[[str, int, int, str, float], None] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> dict:
         """Render all cards in the active project.
 
@@ -840,10 +849,16 @@ class CardRenderer:
             card_filter: Optional collector number prefix filter.
             dry_run: If True, log what would be done without rendering.
             force: If True, re-render even if output already exists.
+            progress_callback: Called ``(cn, completed, total, detail, elapsed)``
+                after each card renders so the caller can stream progress.
+            should_cancel: Polled at each card boundary; when it returns True the
+                loop stops early (partial output kept) and the summary carries
+                ``cancelled: True``. Lets the pipeline Cancel button halt a long
+                render run.
 
         Returns:
             Summary dict with keys: set_code, rendered, skipped,
-            failed, errors, dry_run, elapsed_seconds.
+            failed, errors, dry_run, elapsed_seconds, cancelled.
         """
         from mtgai.io.asset_paths import set_artifact_dir
         from mtgai.runtime.active_project import require_active_project
@@ -871,6 +886,7 @@ class CardRenderer:
                 "failed": 0,
                 "errors": [],
                 "dry_run": dry_run,
+                "cancelled": False,
                 "elapsed_seconds": 0.0,
             }
 
@@ -879,9 +895,14 @@ class CardRenderer:
         rendered = 0
         skipped = 0
         failed = 0
+        cancelled = False
         errors: list[dict] = []
 
         for card_file in card_files:
+            if should_cancel is not None and should_cancel():
+                logger.info("Rendering cancelled by request after %d card(s)", rendered)
+                cancelled = True
+                break
             try:
                 card = load_card(card_file)
             except Exception as exc:
@@ -964,6 +985,7 @@ class CardRenderer:
             "failed": failed,
             "errors": errors,
             "dry_run": dry_run,
+            "cancelled": cancelled,
             "elapsed_seconds": round(elapsed, 2),
         }
 
