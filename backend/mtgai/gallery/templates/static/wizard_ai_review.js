@@ -13,6 +13,9 @@
  *    tag, dimmed).
  *  - A live council panel while a card is under review — 👍/👎 thumbs per
  *    reviewer, round by round, mirroring the mechanics council.
+ *  - A "✎ Tweaked by AI" mark on any card the review revised in place, with a
+ *    collapsible per-field before→after of what changed (the ``changes`` tile
+ *    field; a bare mark when no field-level diff is available).
  *  - A per-card submenu (⋯): Approve / Revise… (inline textbox → in-place LLM
  *    revision, executed immediately, re-opens for another round) / Regenerate
  *    (flags the slot back to Card Generation).
@@ -20,9 +23,9 @@
  * Backend:
  *  - ``GET  /api/wizard/ai_review/state`` → { cards: Tile[], has_content,
  *    summary, ...stage_state_base }. A Tile carries the card display fields +
- *    {reviewed, verdict, issues, card_was_changed, review_tier, council,
- *    flagged, effective:{verdict:"approved"|"rejected"|"pending", reason,
- *    source}}.
+ *    {reviewed, verdict, issues, card_was_changed, changes:[{field,label,
+ *    before,after}], review_tier, council, flagged,
+ *    effective:{verdict:"approved"|"rejected"|"pending", reason, source}}.
  *  - ``POST /api/wizard/ai_review/{approve,revise,regenerate}`` → { tile }.
  *  - SSE: ai_review_reset / ai_review_card_start / ai_review_council /
  *    ai_review_card_done (routed here by wizard.js → W.onAiReviewStream).
@@ -111,6 +114,20 @@
       .wiz-ar-sev.FAIL { background: #3a0c0c; color: #f87171; }
       .wiz-ar-sev.WARN { background: #3a2a00; color: #fbbf24; }
       .wiz-ar-details summary { cursor: pointer; font-size: 0.7rem; color: #8b949e; }
+      /* "Tweaked by AI" mark + per-field what-changed diff */
+      .wiz-ar-tweak { display: flex; flex-direction: column; gap: 0.28rem; margin-top: 0.1rem; }
+      .wiz-ar-tweak-badge {
+        font-size: 0.62rem; font-weight: 700; color: #c4b5fd; align-self: flex-start;
+        background: #2a1f47; border: 1px solid #4c3a82; border-radius: 3px;
+        padding: 0.1rem 0.42rem; display: inline-flex; align-items: center; gap: 0.28rem;
+      }
+      .wiz-ar-changes { margin: 0.15rem 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.3rem; }
+      .wiz-ar-change { display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.7rem; }
+      .wiz-ar-change-field { color: #9aa3b8; font-weight: 700; }
+      .wiz-ar-change-ba { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem; line-height: 1.35; }
+      .wiz-ar-change-before { color: #d49a9a; text-decoration: line-through; opacity: 0.85; white-space: pre-wrap; }
+      .wiz-ar-change-arrow { color: #6e7681; }
+      .wiz-ar-change-after { color: #9ece9e; white-space: pre-wrap; }
       /* Council panel (mirrors mechanics) */
       .wiz-ar-reviewing-badge {
         font-size: 0.62rem; font-weight: 700; color: #58a6ff; align-self: flex-start;
@@ -443,6 +460,8 @@
            ).join('')}</ul></details>`
       : '';
 
+    const tweakBlock = reviewing ? '' : tweakHtml(tile);
+
     const reviseBox = (local.reviseOpen === cn) ? reviseBoxHtml(cn) : '';
     const menu = reviewing ? '' : actionsHtml(cn, local);
 
@@ -463,10 +482,39 @@
         ${pendingTag}
         ${rejectReason}
         ${issuesBlock}
+        ${tweakBlock}
         ${menu}
         ${reviseBox}
       </article>
     `;
+  }
+
+  // "Tweaked by AI" mark + the per-field before/after the review changed. The
+  // mark shows whenever the review revised the card in place; the diff rows are
+  // present only when the tile carries field-level changes (else just the mark,
+  // per the card spec's "a 'tweaked' mark is also fine" fallback).
+  function tweakHtml(tile) {
+    if (!tile.card_was_changed) return '';
+    const badge = '<span class="wiz-ar-tweak-badge" title="The AI review revised this card in place">✎ Tweaked by AI</span>';
+    const changes = Array.isArray(tile.changes) ? tile.changes : [];
+    if (!changes.length) return `<div class="wiz-ar-tweak">${badge}</div>`;
+    const rows = changes.map((c) => `
+      <li class="wiz-ar-change">
+        <span class="wiz-ar-change-field">${escHtml(c.label || c.field || '')}</span>
+        <span class="wiz-ar-change-ba">
+          <span class="wiz-ar-change-before">${escHtml(c.before)}</span>
+          <span class="wiz-ar-change-arrow">→</span>
+          <span class="wiz-ar-change-after">${escHtml(c.after)}</span>
+        </span>
+      </li>`).join('');
+    return `
+      <div class="wiz-ar-tweak">
+        ${badge}
+        <details class="wiz-ar-details">
+          <summary>What changed (${changes.length})</summary>
+          <ul class="wiz-ar-changes">${rows}</ul>
+        </details>
+      </div>`;
   }
 
   function actionsHtml(cn, local) {
