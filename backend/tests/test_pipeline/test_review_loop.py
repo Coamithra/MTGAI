@@ -261,6 +261,32 @@ def test_midrun_break_toggle_off_lets_default_review_stage_continue(project, mon
     assert state.overall_status == PipelineStatus.COMPLETED
 
 
+def test_midrun_break_toggle_ignored_for_review_ineligible_stage(project, monkeypatch):
+    """The live re-read is scoped to review-eligible stages: a review-ineligible
+    backbone stage (lands) never pauses, even if its break point is explicitly
+    toggled on mid-run."""
+    assert _DEFN["lands"]["review_eligible"] is False  # guards the premise
+
+    state = _state(["lands", "card_gen"])
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "lands", _toggle_break_on("lands"))
+    _patch_clean(monkeypatch, "card_gen")
+
+    PipelineEngine(state, EventBus()).run()
+
+    lands = next(s for s in state.stages if s.stage_id == "lands")
+    assert lands.status == StageStatus.COMPLETED
+    assert lands.review_mode == StageReviewMode.AUTO
+    assert state.overall_status == PipelineStatus.COMPLETED
+
+
+def test_live_break_point_falls_back_to_defaults_without_active_project():
+    """_live_break_point degrades to the stage defaults when no project is open
+    (the bare-harness path), so a non-wizard caller still gets sane pauses."""
+    active_project.clear_active_project()
+    assert engine_mod._live_break_point("skeleton") is True  # DEFAULT_BREAK_POINTS -> review
+    assert engine_mod._live_break_point("card_gen") is False  # not a default -> auto
+
+
 # ----------------------------------------------------------------------
 # Legacy skeleton_rev reconciles cleanly out of a loaded state
 # ----------------------------------------------------------------------

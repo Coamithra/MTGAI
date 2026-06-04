@@ -376,11 +376,12 @@ class PipelineEngine:
             # Check if human review is needed. Re-resolve from the project's
             # LIVE break points (not the build-time-frozen review_mode) so a
             # "Stop after this step" toggled *while this stage was running*
-            # takes effect on the stage that just finished. Only backbone
-            # instances honour the live toggle; inserted regen-loop instances
-            # stay pinned to their build-time AUTO (matching _build_rerun_span)
-            # so an active regen loop still flows without pausing midway.
-            if stage.instance_id == stage.stage_id:
+            # takes effect on the stage that just finished. Scoped to backbone,
+            # review-eligible instances: inserted regen-loop copies stay pinned
+            # to their build-time AUTO (matching _build_rerun_span) so an active
+            # loop still flows, and a review-ineligible stage keeps whatever it
+            # was built with (the live re-read never makes one pausable).
+            if stage.instance_id == stage.stage_id and stage.review_eligible:
                 stage.review_mode = (
                     StageReviewMode.REVIEW
                     if _live_break_point(stage.stage_id)
@@ -674,7 +675,7 @@ def _build_forward_path(state: PipelineState, after_stage_id: str) -> list[Stage
     *backward* slice ``rerun_from..gate``). Each new instance gets the next free
     ordinal for its stage_id via :func:`make_instance_id` — a stage with a surviving
     earlier sibling becomes ``conformance.2`` while one with none becomes the backbone
-    ``balance`` — which is what re-establishes the gate that must *follow* a
+    ``ai_review`` — which is what re-establishes the gate that must *follow* a
     regenerated loop instance. The duplicable loop stages stay AUTO so the regen tail
     flows (matching the engine's own insert span); post-loop stages honour the
     project's break points so human-review pauses still fire.
