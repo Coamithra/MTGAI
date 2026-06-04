@@ -1199,6 +1199,50 @@ def _flag_cards_for_regen(flags: list[tuple[str, str]], flagged_by: str) -> list
     return flagged
 
 
+def _cards_to_recheck(instance_id: str, cards: list) -> set[str] | None:
+    """Card ids a later Conformance & Interactions instance should re-check.
+
+    ``None`` (check the whole pool) for the **backbone** instance
+    (``instance_id == "conformance"``) and as a safe fallback whenever the scope
+    can't be resolved. For an **inserted** instance (``conformance.2`` …) it
+    returns only the cards regenerated since this gate's *previous* instance ran
+    — found by diffing the live pool against that instance's output snapshot
+    (carried-over cards are byte-identical copies; a regenerated card differs).
+
+    The returned set holds each in-scope card's ``slot_id`` *and*
+    ``collector_number`` so both gate steps (conformance keys on ``slot_id``,
+    interactions on either) match against it directly.
+    """
+    from mtgai.pipeline import history
+    from mtgai.pipeline.engine import load_state
+
+    state = load_state()
+    if state is None:
+        return None
+    idx = next((i for i, s in enumerate(state.stages) if s.instance_id == instance_id), None)
+    if idx is None:
+        return None
+    stage_id = state.stages[idx].stage_id
+    # The reference pool is the nearest *prior* instance of this same gate; the
+    # cards changed since it ran are exactly what card_gen just regenerated.
+    prior = next((s for s in reversed(state.stages[:idx]) if s.stage_id == stage_id), None)
+    if prior is None:
+        return None  # backbone / first instance — nothing earlier to scope against
+    changed = history.changed_since_snapshot(prior.instance_id)
+    if changed is None:
+        return None  # missing snapshot (pre-version-tracking) — re-check everything
+    ids: set[str] = set()
+    for c in cards:
+        if (c.collector_number and c.collector_number in changed) or (
+            c.slot_id and c.slot_id in changed
+        ):
+            if c.slot_id:
+                ids.add(c.slot_id)
+            if c.collector_number:
+                ids.add(c.collector_number)
+    return ids
+
+
 def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Merged review gate — conformance + interactions in one stage (stage_id ``conformance``).
 
@@ -1249,6 +1293,17 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
         if c.collector_number:
             name_by_slot.setdefault(c.collector_number, c.name)
 
+    # A later instance of this gate re-checks only the cards regenerated since
+    # its predecessor ran; the backbone (first) instance checks the whole pool
+    # (``recheck is None``). Both LLM steps + the duplicate scan honour the scope.
+    recheck = _cards_to_recheck(emitter.instance_id, cards)
+    if recheck is not None:
+        logger.info(
+            "Conformance instance %s scoped to %d regenerated card(s)",
+            emitter.instance_id,
+            len(recheck),
+        )
+
     with ai_lock.hold("Conformance & Interactions") as acquired:
         if not acquired:
             return StageResult(
@@ -1274,6 +1329,10 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
         # than shown as a separate section.
         dup_findings, _dup_analysis = find_duplicates(cards)
         dup_by_slot = {f.slot_id: f.reason for f in dup_findings}
+        if recheck is not None:
+            # Scope the duplicate hits to the regenerated cards too — an
+            # already-vetted carried-over card must not be re-flagged here.
+            dup_by_slot = {sid: r for sid, r in dup_by_slot.items() if sid in recheck}
 
         # Conformance scans the pool in streamed batches (one call per ~40 cards)
         # and fills a live checklist: the full card list up front
@@ -1306,6 +1365,7 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
                 cards,
                 slots_by_id,
                 pre_flagged=dup_by_slot,
+                restrict_to=recheck,
                 on_start=_on_conf_start,
                 on_card=_on_conf_card,
                 on_progress=lambda msg: emitter.phase("running", msg),
@@ -1356,6 +1416,7 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
             inter_flags, inter_analysis, inter_cost = analyze_interactions(
                 cards,
                 mechanics,
+                new_only=recheck,
                 on_start=_on_inter_start,
                 on_card=_on_inter_card,
                 on_progress=lambda msg: emitter.phase("running", msg),

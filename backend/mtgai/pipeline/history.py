@@ -32,6 +32,7 @@ Design choices:
 
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 import time
@@ -163,6 +164,45 @@ def restore_snapshot(instance_id: str, asset: Path | None = None) -> bool:
 
     logger.info("Restored snapshot %s into live cards", instance_id)
     return True
+
+
+def _read_pool(cards_dir: Path) -> dict[str, dict]:
+    """Top-level ``cards/*.json`` keyed by ``collector_number`` (else filename stem).
+
+    A flat read of a card pool (live or a snapshot) for diffing. Malformed JSON
+    and non-object files are skipped; a missing dir yields an empty map.
+    """
+    out: dict[str, dict] = {}
+    if not cards_dir.is_dir():
+        return out
+    for p in sorted(cards_dir.glob("*.json")):
+        try:
+            card = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(card, dict):
+            out[card.get("collector_number") or p.stem] = card
+    return out
+
+
+def changed_since_snapshot(reference_id: str, asset: Path | None = None) -> set[str] | None:
+    """Collector numbers whose live card differs from snapshot ``reference_id``.
+
+    A carried-over card is a byte-identical plain copy of the snapshot (see
+    :func:`snapshot_instance`), so it matches; a card the regen rebuilt differs.
+    Used to scope a later review-gate instance to the cards regenerated since the
+    gate's previous instance ran — diff the live pool against that instance's
+    output snapshot. Returns ``None`` when the snapshot is missing (a
+    pre-version-tracking project, or the snapshot was pruned), so the caller can
+    fall back to checking the whole pool.
+    """
+    asset = asset or _asset_dir()
+    ref_cards = snapshot_dir(reference_id, asset) / _CARDS_DIRNAME
+    if not ref_cards.is_dir():
+        return None
+    ref = _read_pool(ref_cards)
+    live = _read_pool(asset / _CARDS_DIRNAME)
+    return {cn for cn, card in live.items() if card != ref.get(cn)}
 
 
 def delete_snapshot(instance_id: str, asset: Path | None = None) -> None:

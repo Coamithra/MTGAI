@@ -41,7 +41,7 @@ from mtgai.analysis import gate_common
 from mtgai.analysis.gate_common import filter_gate_cards
 from mtgai.analysis.models import InteractionFlag
 from mtgai.generation import temperatures as temps
-from mtgai.generation.token_budgets import STANDARD
+from mtgai.generation.token_budgets import HEAVY
 from mtgai.models.card import Card
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 # Model + effort come from per-set model_settings at runtime.
 TEMPERATURE = temps.ANALYTICAL  # analytical scan (see temperatures.py)
 # Flag-only output is short; a large ceiling is just truncation insurance.
-MAX_TOKENS = STANDARD
+MAX_TOKENS = HEAVY
 # New cards checked per streamed call (existing cards ride along as context).
 BATCH_SIZE = 40
 
@@ -206,6 +206,7 @@ def analyze_interactions(
     cards: list[Card],
     mechanics: list[dict],
     *,
+    new_only: set[str] | None = None,
     on_start: Callable[[list[dict]], None] | None = None,
     on_card: Callable[[dict], None] | None = None,
     on_progress: Callable[[str], None] | None = None,
@@ -216,6 +217,15 @@ def analyze_interactions(
     Skips basic lands + reprints. Returns ``(flags, analysis_text, cost_usd)``;
     each flag names an enabler card (by ``enabler_slot_id``) the runner will flag
     for regeneration.
+
+    ``new_only`` (a set of card ids) scopes the scan to the cards regenerated
+    since a *later* gate instance's predecessor ran: those become the "new" cards
+    to check, while every other card rides along as fixed **existing context**.
+    Each regenerated card is thus still checked against the whole pool, but pairs
+    of two unchanged cards (already vetted by an earlier instance) are not
+    re-scanned. The flagged enabler may still be an existing (unchanged) card —
+    a regenerated card can create a combo whose root cause is an old card.
+    ``None`` checks every card as new (the backbone / first-instance behaviour).
 
     Hooks (all optional) drive the live per-card interaction checklist (the second
     checkbox per card in the tab):
@@ -234,11 +244,23 @@ def analyze_interactions(
     if not gate_cards:
         return [], "", 0.0
 
-    valid_ids = {_card_id(c) for c in gate_cards}
+    valid_ids = {_card_id(c) for c in gate_cards}  # an enabler may be an existing card
     name_by = {_card_id(c): c.name for c in gate_cards}
 
+    # Scope: a later instance checks only the regenerated cards (``to_check``)
+    # against everything else as fixed existing context (``context``). The
+    # backbone treats every card as new with no prior context.
+    if new_only is not None:
+        context = [c for c in gate_cards if _card_id(c) not in new_only]
+        to_check = [c for c in gate_cards if _card_id(c) in new_only]
+    else:
+        context, to_check = [], gate_cards
+
+    if not to_check:
+        return [], "No new cards to check.", 0.0
+
     if on_start is not None:
-        on_start([{"slot_id": _card_id(c), "card_name": c.name} for c in gate_cards])
+        on_start([{"slot_id": _card_id(c), "card_name": c.name} for c in to_check])
 
     from mtgai.io.asset_paths import set_artifact_dir
     from mtgai.runtime.active_project import require_active_project
@@ -252,12 +274,13 @@ def analyze_interactions(
         log_dir = None
     model = settings.get_llm_model_id("conformance")
 
-    batches = [gate_cards[i : i + BATCH_SIZE] for i in range(0, len(gate_cards), BATCH_SIZE)]
+    batches = [to_check[i : i + BATCH_SIZE] for i in range(0, len(to_check), BATCH_SIZE)]
     logger.info(
-        "Interaction analysis: %d cards in %d batch(es) of up to %d new cards",
-        len(gate_cards),
+        "Interaction analysis: %d new card(s) in %d batch(es) of up to %d (+%d existing context)",
+        len(to_check),
         len(batches),
         BATCH_SIZE,
+        len(context),
     )
 
     flags: dict[str, tuple[str, str]] = {}  # enabler slot_id -> (reason, constraint)
@@ -288,7 +311,9 @@ def analyze_interactions(
             break
         if on_progress is not None:
             on_progress(f"Scanning interactions — batch {bi}/{len(batches)}")
-        existing = gate_cards[: (bi - 1) * BATCH_SIZE]
+        # Existing context = the always-present fixed context (unchanged cards on
+        # a scoped run; empty on the backbone) + the new cards already processed.
+        existing = context + to_check[: (bi - 1) * BATCH_SIZE]
         completed, cost = gate_common.stream_flag_batch(
             system_prompt=INTERACTION_SYSTEM_PROMPT,
             user_prompt=_build_batch_prompt(existing, new_batch, mechanics),

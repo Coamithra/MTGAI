@@ -44,7 +44,7 @@ from mtgai.analysis import gate_common
 from mtgai.analysis.gate_common import filter_gate_cards
 from mtgai.analysis.models import ConformanceFinding
 from mtgai.generation import temperatures as temps
-from mtgai.generation.token_budgets import STANDARD
+from mtgai.generation.token_budgets import HEAVY
 from mtgai.models.card import Card
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 TEMPERATURE = temps.PRECISE  # objective adherence check (see temperatures.py)
 # Flag-only output is short (one terse block per *failing* card), so a large
 # ceiling is just truncation insurance — the model almost never approaches it.
-MAX_TOKENS = STANDARD
+MAX_TOKENS = HEAVY
 # Cards per streamed call. ~40 keeps each batch's input modest, its output tiny,
 # and gives the tab a progress checkpoint every batch while collapsing a ~277-card
 # set to ~7 round-trips.
@@ -263,6 +263,7 @@ def check_conformance(
     slots_by_id: dict[str, dict],
     *,
     pre_flagged: dict[str, str] | None = None,
+    restrict_to: set[str] | None = None,
     on_start: Callable[[list[dict]], None] | None = None,
     on_card: Callable[[dict], None] | None = None,
     on_progress: Callable[[str], None] | None = None,
@@ -281,6 +282,13 @@ def check_conformance(
     finding carrying the given reason. Such a card is kept even when its slot has
     no resolvable spec, so a duplicate is never dropped.
 
+    ``restrict_to`` (a set of card ``slot_id``s) scopes the check to just those
+    cards — used by a *later* gate instance to re-check only the cards
+    regenerated since the previous instance ran. Cards outside the set are
+    skipped entirely (they were already vetted upstream), including any
+    ``pre_flagged`` duplicate that falls outside it. ``None`` checks every card
+    (the backbone / first-instance behaviour).
+
     Hooks (all optional) drive the live tab checklist:
 
     * ``on_start(card_list)`` — fired once with ``[{slot_id, card_name}, ...]``
@@ -298,6 +306,10 @@ def check_conformance(
     pairs: list[tuple[str, Card, str]] = []
     for card in filter_gate_cards(cards):
         if not card.slot_id:
+            continue
+        if restrict_to is not None and card.slot_id not in restrict_to:
+            # A later instance re-checks only the freshly regenerated cards;
+            # everything else was already vetted by an earlier instance.
             continue
         if card.slot_id in pre_flagged:
             # Pre-flagged (duplicate) — keep it in the checklist even without a

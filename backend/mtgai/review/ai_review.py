@@ -18,6 +18,7 @@ Usage:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -1222,6 +1223,97 @@ def _emit_card_done(hooks: object | None, review: CardReviewResult, card: dict) 
 
 
 # ---------------------------------------------------------------------------
+# "Already reviewed" tracking — review only cards unseen at their current content
+# ---------------------------------------------------------------------------
+
+# Sidecar recording which cards this stage has already reviewed, keyed by
+# collector_number -> a content signature of the card *as the stage last left it*.
+# A later review instance reviews a card only when its current signature differs
+# from the recorded one (i.e. card_gen regenerated it since), and skips cards
+# already reviewed at their current content. This is tracked SEPARATELY from the
+# per-card ``reviews/<cn>.json`` logs (which are collector-number-keyed and
+# content-blind) because several card_gen/conformance regen passes can happen
+# before the first review pass even starts — so "what's changed since the last
+# instance" is not enough; the stage must remember which exact card versions it
+# has personally seen.
+REVIEWED_FILENAME = "reviewed.json"
+
+# Design-relevant fields the review judges — the signature basis. Excludes
+# volatile pipeline metadata (status, flags, timestamps, generation_attempts) so
+# only a real design change (a regen, a manual edit) shifts the signature. Mirrors
+# the fields ``_apply_revision`` is allowed to change.
+_SIGNATURE_FIELDS = (
+    "name",
+    "mana_cost",
+    "type_line",
+    "oracle_text",
+    "flavor_text",
+    "power",
+    "toughness",
+    "loyalty",
+    "rarity",
+    "colors",
+    "color_identity",
+    "cmc",
+    "design_notes",
+)
+
+
+def card_signature(card: dict) -> str:
+    """A stable content hash of a card's design-relevant fields.
+
+    Two card dicts with the same design content hash equal regardless of volatile
+    metadata; a regenerated/edited card hashes differently. Lists are sorted so a
+    cosmetic colour reordering doesn't read as a change.
+    """
+    payload = {}
+    for f in _SIGNATURE_FIELDS:
+        v = card.get(f)
+        payload[f] = sorted(v) if isinstance(v, list) else v
+    blob = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha1(blob.encode("utf-8")).hexdigest()
+
+
+def reviewed_path(set_dir: Path) -> Path:
+    """Path to the reviewed-signatures sidecar under a set's ``reviews/`` dir."""
+    return set_dir / "reviews" / REVIEWED_FILENAME
+
+
+def load_reviewed(set_dir: Path) -> dict[str, str]:
+    """Load the reviewed-signatures sidecar (empty dict if missing / malformed)."""
+    path = reviewed_path(set_dir)
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.warning("Could not read reviewed-signatures sidecar %s", path)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_reviewed(set_dir: Path, reviewed: dict[str, str]) -> None:
+    """Persist the full reviewed-signatures map."""
+    path = reviewed_path(set_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(path, json.dumps(reviewed, indent=2, ensure_ascii=False))
+
+
+def record_reviewed(set_dir: Path, collector_number: str, signature: str) -> None:
+    """Mark one card as reviewed at ``signature``, merging into the sidecar.
+
+    Called per card the moment its review finishes (after any in-place revision is
+    saved), so a cancelled/partial run still records exactly the cards it actually
+    reviewed — a resume re-reviews only the rest.
+    """
+    reviewed = load_reviewed(set_dir)
+    if reviewed.get(collector_number) == signature:
+        return
+    reviewed[collector_number] = signature
+    save_reviewed(set_dir, reviewed)
+
+
+# ---------------------------------------------------------------------------
 # User review decisions (manual approve / revise / regenerate)
 # ---------------------------------------------------------------------------
 
@@ -1688,15 +1780,32 @@ def review_set(
 
     logger.info("Cards to review: %d (filtered from %d files)", len(cards), len(card_paths))
 
-    # Check for existing review progress
-    completed: set[str] = set()
-    if reviews_dir.exists() and not card_filter:
-        for rp in reviews_dir.glob("*.json"):
-            completed.add(rp.stem)
-    if completed:
-        logger.info("Found %d existing reviews -- will skip those", len(completed))
-        cards = [c for c in cards if c.get("collector_number") not in completed]
-        logger.info("Cards remaining: %d", len(cards))
+    # Review only cards this stage hasn't already seen *at their current content*.
+    # The reviewed-signatures sidecar persists across review instances and the
+    # card_gen/conformance regen passes between them, so a card regenerated after
+    # an earlier review (new content -> new signature) is re-reviewed while an
+    # untouched already-reviewed card is skipped. A ``card_filter`` (explicit
+    # single-card review) always runs regardless. See ``card_signature`` /
+    # ``load_reviewed`` for why this is tracked separately from reviews/<cn>.json.
+    if not card_filter:
+        # No migration seeding from the content-blind reviews/<cn>.json logs: a
+        # stale log can't tell an already-reviewed card from one regenerated since
+        # it was written, so seeding from current content would wrongly skip a
+        # card that changed before the first signature-tracked pass. A pre-
+        # signature project therefore re-reviews its pool once, which re-establishes
+        # accurate signatures; every pass after that is correctly scoped.
+        reviewed = load_reviewed(set_dir)
+        before = len(cards)
+        cards = [
+            c for c in cards if reviewed.get(c.get("collector_number") or "") != card_signature(c)
+        ]
+        skipped = before - len(cards)
+        if skipped:
+            logger.info(
+                "Skipping %d card(s) already reviewed at their current content; %d to review",
+                skipped,
+                len(cards),
+            )
 
     if not cards:
         logger.info("Nothing to review.")
@@ -1809,6 +1918,11 @@ def review_set(
                     logger.info("  [%s] Card JSON updated: %s", cn, original_path.name)
             except Exception:
                 logger.exception("  [%s] Failed to apply revision to card JSON", cn)
+
+        # Mark this card seen at its current (post-revision) content, so a later
+        # review instance skips it unless card_gen regenerates it again. Recorded
+        # per card (not at stage end) so a cancel/resume re-reviews only the rest.
+        record_reviewed(set_dir, cn, card_signature(current_card))
 
         # Live council: the verdict is in — push the per-card result tile so the
         # tab stamps the card approved / rejected (rejected = flagged for regen,
