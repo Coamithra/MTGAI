@@ -318,6 +318,14 @@ def get_character_ref_paths(card: Card) -> list[dict]:
     Returns list of {character_name, ref_image_path} for characters that
     have reference images generated. These should be used as IP-Adapter
     or img2img conditioning in the ComfyUI workflow.
+
+    DEPRECATED scan-at-render-time approach. The Character References stage
+    (``char_portraits``) now writes ``card.art_character_refs`` as an explicit
+    produced artifact (it runs after ``art_prompts``, so this scan returns
+    nothing at prompt time on a first pass — the bug it replaces). Downstream
+    art generation should read ``card.art_character_refs`` instead; this remains
+    only as informational logging in the art-prompt stage until the Art
+    Generation rework (card 6a20adda) switches the consumer over.
     """
     from mtgai.io.asset_paths import set_artifact_dir
 

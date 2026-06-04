@@ -14,9 +14,11 @@ import threading
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import (
+    FileResponse,
     HTMLResponse,
     JSONResponse,
     RedirectResponse,
@@ -4069,6 +4071,255 @@ async def wizard_lands_refresh() -> JSONResponse:
     # Re-read the freshly-written L-* cards into the tile shape (same source of
     # truth the tab bootstraps from), keeping the response shape DRY.
     return await wizard_lands_state()
+
+
+# ---------------------------------------------------------------------------
+# Character References tab (stage_id ``char_portraits``)
+# ---------------------------------------------------------------------------
+
+
+_CHAR_REFS_SUBDIR = ("art-direction", "character-refs")
+
+
+def _char_refs_dir(asset: Path) -> Path:
+    return asset.joinpath(*_CHAR_REFS_SUBDIR)
+
+
+def _entity_versions(refs_dir: Path, entity_name: str, entity_key: str) -> list[dict]:
+    """All reference-image versions for one entity, as ``{path, url, is_upload}``.
+
+    Matches both ``<name-slug>_v<N>.png`` (AI-generated, slug from the name) and
+    ``<entity_key>_*.png`` (e.g. a user upload keyed by entity_key), so both
+    naming conventions surface. Paths are repo-relative under the asset folder;
+    the ``url`` routes through the char-refs image endpoint."""
+    from mtgai.art.character_portraits import _slugify
+
+    if not refs_dir.exists():
+        return []
+    slug = _slugify(entity_name) or entity_key
+    seen: set[str] = set()
+    out: list[dict] = []
+    for f in sorted(refs_dir.glob("*.png")):
+        stem = f.stem
+        if not (stem.startswith(f"{slug}_") or stem.startswith(f"{entity_key}_")):
+            continue
+        if f.name in seen:
+            continue
+        seen.add(f.name)
+        out.append(
+            {
+                "filename": f.name,
+                "url": f"/api/wizard/char_refs/image?file={quote(f.name)}",
+                "is_upload": "upload" in stem,
+            }
+        )
+    return out
+
+
+def _char_refs_state_payload(asset: Path) -> dict:
+    """Build the Character References tab state from ``entities.json`` + the
+    images on disk + the refs already attached to the cards."""
+    refs_dir = _char_refs_dir(asset)
+    entities = _read_json(refs_dir / "entities.json", [])
+    if not isinstance(entities, list):
+        entities = []
+
+    # entity_key -> the path stored on the cards (so the tab can show which
+    # version is the *attached* one even after a manual save).
+    attached: dict[str, str] = {}
+    cards_dir = asset / "cards"
+    if cards_dir.exists():
+        for path in sorted(cards_dir.glob("*.json")):
+            card = _read_json(path, None)
+            if not isinstance(card, dict):
+                continue
+            for ref in card.get("art_character_refs") or []:
+                if isinstance(ref, dict) and ref.get("entity_key"):
+                    attached.setdefault(
+                        str(ref["entity_key"]), str(ref.get("ref_image_path") or "")
+                    )
+
+    out_entities: list[dict] = []
+    for e in entities:
+        if not isinstance(e, dict):
+            continue
+        key = str(e.get("entity_key") or "")
+        if not key:
+            continue
+        name = str(e.get("name") or key.replace("_", " ").title())
+        out_entities.append(
+            {
+                "entity_key": key,
+                "name": name,
+                "kind": str(e.get("kind") or "entity"),
+                "cards": [str(c) for c in (e.get("cards") or [])],
+                "note": str(e.get("note") or ""),
+                "versions": _entity_versions(refs_dir, name, key),
+                "attached_path": attached.get(key, ""),
+            }
+        )
+
+    return {
+        "entities": out_entities,
+        "has_content": bool(out_entities),
+        "stage_status": _stage_status_in_state("char_portraits"),
+    }
+
+
+@router.get("/api/wizard/char_refs/state")
+async def wizard_char_refs_state() -> JSONResponse:
+    """First-paint state for the Character References tab.
+
+    Reads the durable ``entities.json`` the stage wrote plus the reference images
+    on disk and the refs already attached to cards. The stage streams live entity
+    tiles + images over SSE while running; this endpoint is the source the tab
+    bootstraps from on reload.
+    """
+    _require_active_project()
+    return JSONResponse(_char_refs_state_payload(set_artifact_dir()))
+
+
+@router.get("/api/wizard/char_refs/image", response_model=None)
+async def wizard_char_refs_image(file: str) -> FileResponse | JSONResponse:
+    """Serve one reference image from ``<asset>/art-direction/character-refs/``.
+
+    Filename-only (no path traversal): the requested name is resolved against the
+    char-refs dir and rejected if it escapes it. The asset dirs aren't statically
+    mounted (the active project isn't known at boot), so the tab loads images
+    through this endpoint instead of a ``/static`` URL.
+    """
+    _require_active_project()
+    refs_dir = _char_refs_dir(set_artifact_dir())
+    # Reject anything but a bare filename to prevent traversal.
+    name = Path(file).name
+    if name != file or not name:
+        return JSONResponse({"error": "Invalid filename"}, status_code=400)
+    target = (refs_dir / name).resolve()
+    if not str(target).startswith(str(refs_dir.resolve())) or not target.is_file():
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    return FileResponse(str(target))
+
+
+@router.post("/api/wizard/char_refs/refresh")
+async def wizard_char_refs_refresh() -> JSONResponse:
+    """Manual re-run of the Character References stage under the AI lock.
+
+    Re-detects recurring entities and regenerates their neutral reference images
+    (``force=True`` so a re-roll actually replaces the prior images), then
+    re-attaches ``art_character_refs`` to the cards. Returns the same shape as
+    ``/state`` so the tab repaints from the freshly-written artifacts.
+    """
+    _require_active_project()
+    set_artifact_dir()  # 409s if no asset folder
+
+    from mtgai.art.character_portraits import generate_character_refs
+    from mtgai.pipeline.stage_hooks import build_char_refs_hooks
+
+    emitter = _refresh_emitter("char_portraits")
+    hooks = build_char_refs_hooks(emitter)
+
+    with guarded_ai("Character references", stage_id="char_portraits") as guard:
+        if guard.busy:
+            return guard.busy_response
+        with _bus_poller("char_portraits", activity_prefix="Finding entities"):
+            result = await asyncio.to_thread(
+                generate_character_refs,
+                force=True,
+                should_cancel=ai_lock.is_cancelled,
+                on_reset=hooks.on_reset,
+                on_entity_start=hooks.on_entity_start,
+                on_entity_image=hooks.on_entity_image,
+            )
+        if isinstance(result, dict) and result.get("cancelled"):
+            guard.skip_heal = True
+
+    return await wizard_char_refs_state()
+
+
+@router.post("/api/wizard/char_refs/upload")
+async def wizard_char_refs_upload(request: Request) -> JSONResponse:
+    """Upload the user's own image as the reference for one entity.
+
+    Multipart form: ``entity_key`` + ``file`` (a PNG/JPG). The image is saved as
+    ``<entity_key>_upload.png`` in the char-refs dir and immediately attached to
+    every card featuring that entity (so the upload takes effect without a full
+    re-run). No AI call — but it heals a failed stage like other recovery writes.
+    """
+    from starlette.datastructures import UploadFile
+
+    _require_active_project()
+    asset = set_artifact_dir()
+
+    form = await request.form()
+    entity_key = str(form.get("entity_key") or "").strip()
+    file = form.get("file")
+    if not entity_key:
+        return JSONResponse({"error": "Missing entity_key"}, status_code=400)
+    if not isinstance(file, UploadFile):
+        return JSONResponse({"error": "No file uploaded"}, status_code=400)
+
+    refs_dir = _char_refs_dir(asset)
+    refs_dir.mkdir(parents=True, exist_ok=True)
+    dest = refs_dir / f"{entity_key}_upload.png"
+    dest.write_bytes(await file.read())
+
+    rel = dest.relative_to(asset).as_posix()
+    # Attach this upload to the entity's cards (look the entity up in entities.json).
+    entities = _read_json(refs_dir / "entities.json", [])
+    entity = next(
+        (
+            e
+            for e in (entities if isinstance(entities, list) else [])
+            if isinstance(e, dict) and str(e.get("entity_key")) == entity_key
+        ),
+        {"entity_key": entity_key, "cards": []},
+    )
+    from mtgai.art.character_portraits import attach_refs_to_cards
+
+    await asyncio.to_thread(attach_refs_to_cards, [entity], {entity_key: rel}, asset / "cards")
+    _heal_failed_stage("char_portraits")
+
+    return await wizard_char_refs_state()
+
+
+@router.post("/api/wizard/char_refs/save")
+async def wizard_char_refs_save(request: Request) -> JSONResponse:
+    """Pick which generated version is the attached reference for an entity.
+
+    Body: ``{entity_key, ref_image_path}`` (repo-relative under the asset folder,
+    e.g. ``art-direction/character-refs/<slug>_v2.png``). Re-attaches that path to
+    every card featuring the entity. No AI; heals a failed stage on success.
+    """
+    _require_active_project()
+    asset = set_artifact_dir()
+
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    entity_key = str(body.get("entity_key") or "").strip()
+    ref_image_path = str(body.get("ref_image_path") or "").strip()
+    if not entity_key or not ref_image_path:
+        return JSONResponse(
+            {"error": "entity_key and ref_image_path are required"}, status_code=400
+        )
+
+    entities = _read_json(_char_refs_dir(asset) / "entities.json", [])
+    entity = next(
+        (
+            e
+            for e in (entities if isinstance(entities, list) else [])
+            if isinstance(e, dict) and str(e.get("entity_key")) == entity_key
+        ),
+        {"entity_key": entity_key, "cards": []},
+    )
+    from mtgai.art.character_portraits import attach_refs_to_cards
+
+    await asyncio.to_thread(
+        attach_refs_to_cards, [entity], {entity_key: ref_image_path}, asset / "cards"
+    )
+    _heal_failed_stage("char_portraits")
+
+    return await wizard_char_refs_state()
 
 
 def _is_land_stage_card(card: dict) -> bool:

@@ -374,3 +374,48 @@ def build_ai_review_hooks(emitter: StageEmitter) -> AiReviewStreamHooks:
         emitter.event("ai_review_card_done", tile=tile)
 
     return AiReviewStreamHooks(on_reset, on_card_start, on_council, on_card_done)
+
+
+# ---------------------------------------------------------------------------
+# Character References stream hooks
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CharRefsStreamHooks:
+    """The ``generate_character_refs`` per-entity streaming callbacks.
+
+    Mirrors the card_gen / mechanics streams so the Character References tab can
+    fill in live: a reset clears the strip before a from-scratch run, an entity
+    tile appears as its image generation starts (``char_refs_entity`` — kind +
+    cards + a "generating" badge), and each saved version's image pops in
+    (``char_refs_image`` — entity_key + the repo-relative image path).
+    """
+
+    on_reset: Callable[[], None]
+    on_entity_start: Callable[[dict], None]
+    on_entity_image: Callable[[str, str], None]
+
+
+def build_char_refs_hooks(emitter: StageEmitter) -> CharRefsStreamHooks:
+    """Build the Character References streaming hooks shared by the engine
+    (``run_char_portraits``) and the refresh endpoint.
+
+    Owns the canonical ``char_refs_reset`` / ``char_refs_entity`` /
+    ``char_refs_image`` payloads. ``char_refs_entity`` carries the entity dict
+    (entity_key / name / kind / cards / note) so the tab can render the tile +
+    its attached-cards list before any image lands; ``char_refs_image`` carries
+    the ``entity_key`` + ``ref_image_path`` so the tab routes each version to the
+    right tile.
+    """
+
+    def on_reset() -> None:
+        emitter.event("char_refs_reset")
+
+    def on_entity_start(entity: dict) -> None:
+        emitter.event("char_refs_entity", entity=entity)
+
+    def on_entity_image(entity_key: str, ref_image_path: str) -> None:
+        emitter.event("char_refs_image", entity_key=entity_key, ref_image_path=ref_image_path)
+
+    return CharRefsStreamHooks(on_reset, on_entity_start, on_entity_image)

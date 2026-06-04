@@ -285,7 +285,7 @@ def test_output_is_consumable_by_art_pipeline() -> None:
     shape directly (those readers index ``refs.get(category, {})`` and parse
     a ``"Name: desc"`` value) without loading any model or ComfyUI.
     """
-    from mtgai.art.character_portraits import _build_portrait_prompts
+    from mtgai.art.character_portraits import build_neutral_prompt
 
     refs = vre.assemble_visual_references(_entities_fixture(), ["rust and verdigris"])
 
@@ -293,10 +293,12 @@ def test_output_is_consumable_by_art_pipeline() -> None:
     assert isinstance(refs["legendary_characters"], dict)
     assert isinstance(refs["flux_term_replacements"], dict)
 
-    # character_portraits._build_portrait_prompts consumes legendary_characters
-    # + flux_term_replacements; it must not raise and must surface Feretha.
-    prompts = _build_portrait_prompts(refs)
-    keys = {p["key"] for p in prompts}
-    assert "feretha" in keys
-    feretha = next(p for p in prompts if p["key"] == "feretha")
-    assert feretha["name"] == "Feretha, the Hollow Founder"
+    # character_portraits.build_neutral_prompt pulls a recurring entity's
+    # appearance from legendary_characters + applies flux_term_replacements; it
+    # must not raise and must surface Feretha's appearance prose.
+    entity = {"entity_key": "feretha", "name": "Feretha", "kind": "character"}
+    prompt = build_neutral_prompt(entity, refs)
+    assert isinstance(prompt, str) and prompt
+    # The dictionary's "Name: desc" value is split, so the prompt carries the
+    # appearance prose, not the bare name.
+    assert refs["legendary_characters"]["feretha"].split(":", 1)[1].strip()[:20] in prompt
