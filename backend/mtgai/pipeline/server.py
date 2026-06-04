@@ -5706,6 +5706,393 @@ async def wizard_finalize_save(request: Request) -> JSONResponse:
     return JSONResponse({"success": True, "navigate_to": _next_stage_nav("finalize")})
 
 
+# ---------------------------------------------------------------------------
+# Rendering & Final Review tab (stage_id ``rendering`` — the terminal stage)
+# ---------------------------------------------------------------------------
+#
+# The merged terminal stage renders every card to a print-ready image and offers
+# a final-review gallery. No QA / pixel-check pass — the user's two actions are
+# the remediation: edit any field (→ lightweight per-card finalize + re-render
+# that card) or remove a card (→ hard-delete + contiguous renumber of its group
+# + re-render every card whose number changed). A final approve-to-print gate
+# resumes the (last) stage. The renumber/finalize logic is pure + unit-tested in
+# ``mtgai/review/render_review.py``; these endpoints are the IO + AI-lock shell.
+
+
+def _load_all_cards(cards_dir: Path) -> dict[str, dict]:
+    """Load EVERY card (card-gen + the Lands tab's ``L-*``) as ``{cn: card_json}``.
+
+    Unlike ``_load_card_gen_cards`` (which drops ``L-*`` because they never appear
+    on the card-gen / finalize tabs), the rendering gallery shows the *whole*
+    printed set, lands included — they get rendered and can be edited/removed too.
+    """
+    out: dict[str, dict] = {}
+    if not cards_dir.is_dir():
+        return out
+    for path in sorted(cards_dir.glob("*.json")):
+        card = _read_json(path, None)
+        if not isinstance(card, dict):
+            continue
+        out[card.get("collector_number") or path.stem] = card
+    return out
+
+
+def _all_card_paths_by_cn(cards_dir: Path) -> dict[str, Path]:
+    """Map ``collector_number -> on-disk file path`` for the whole card pool."""
+    out: dict[str, Path] = {}
+    if not cards_dir.is_dir():
+        return out
+    for path in sorted(cards_dir.glob("*.json")):
+        card = _read_json(path, None)
+        if not isinstance(card, dict):
+            continue
+        out[card.get("collector_number") or path.stem] = path
+    return out
+
+
+def _render_dest(asset: Path, card: dict) -> Path:
+    """Render PNG path for a card dict (``renders/<cn>_<name-slug>.png``)."""
+    from mtgai.io.paths import card_slug
+
+    cn = card.get("collector_number") or ""
+    name = card.get("name") or ""
+    return asset / "renders" / f"{card_slug(cn, name)}.png"
+
+
+def _rendering_card_view(card: dict, asset: Path, slots_by_id: dict[str, dict]) -> dict:
+    """Editable + gallery shape the Rendering tab renders for one card.
+
+    Same editable fields as the finalize tab, plus ``has_render`` (whether the PNG
+    exists on disk) so the gallery can show the image vs. a "not rendered yet"
+    placeholder. ``slot_text`` (read-only context) is keyed by the card's
+    ``slot_id`` — NOT its ``collector_number`` — so it survives a remove-and-
+    renumber (which shifts collector numbers but leaves ``slot_id`` pinned to the
+    originating skeleton slot).
+    """
+    cn = card.get("collector_number") or ""
+    slot_id = card.get("slot_id") or cn
+    slot = slots_by_id.get(slot_id) if slots_by_id else None
+    slot_text = ""
+    if slot:
+        from mtgai.skeleton.generator import render_slot_string
+
+        slot_text = (slot.get("tweaked_text") or "").strip() or render_slot_string(slot)
+    return {
+        "collector_number": cn,
+        "name": card.get("name") or "",
+        "mana_cost": card.get("mana_cost") or "",
+        "type_line": card.get("type_line") or "",
+        "oracle_text": card.get("oracle_text") or "",
+        "flavor_text": card.get("flavor_text") or "",
+        "power": card.get("power"),
+        "toughness": card.get("toughness"),
+        "loyalty": card.get("loyalty"),
+        "rarity": card.get("rarity") or "common",
+        "colors": card.get("colors") or [],
+        "slot_text": slot_text,
+        "has_render": _render_dest(asset, card).is_file(),
+    }
+
+
+def _render_one_card(card_json: dict, total_cards: int) -> None:
+    """Render a single card (force overwrite) to the active project's renders dir.
+
+    Round-trips the JSON through :class:`Card` then through
+    ``CardRenderer.render_and_save`` — the same path the batch render uses, so a
+    re-render after an edit / renumber is byte-compatible with the stage's output.
+    """
+    from mtgai.models.card import Card
+    from mtgai.rendering.card_renderer import CardRenderer
+
+    CardRenderer().render_and_save(Card.model_validate(card_json), total_cards)
+
+
+def _delete_render(asset: Path, card: dict) -> None:
+    """Remove a card's render PNG if present (idempotent)."""
+    dest = _render_dest(asset, card)
+    if dest.is_file():
+        dest.unlink()
+
+
+def _rendering_progress_path(asset: Path) -> Path:
+    return asset / "generation_progress.json"
+
+
+def _apply_renumber_to_disk(
+    asset: Path,
+    cards_dir: Path,
+    remap: dict[str, str],
+    paths: dict[str, Path],
+    view_cards: dict[str, dict],
+) -> list[dict]:
+    """Apply a ``{old_cn: new_cn}`` remap to the live card pool on disk.
+
+    For each renumbered card: rewrite ``collector_number`` (NOT ``slot_id`` — that
+    stays pinned to the skeleton slot), rename its ``<cn>_<slug>.json`` file, delete
+    its now-stale render PNG, and re-render it under its new number. Two-phase to
+    avoid a filename collision mid-renumber: write every card to a temp ``.tmp``
+    file first, then move each into place. Returns the renumbered card dicts (new
+    collector numbers) so the caller can report them.
+
+    ``generation_progress.json`` is repointed in lockstep: ``filled_slots`` is keyed
+    by the stable ``slot_id`` so its keys don't move, but the path *values* of
+    renamed files are updated to the new filenames.
+    """
+    from mtgai.io.paths import card_slug
+    from mtgai.models.card import Card
+
+    total_after = len(view_cards)  # caller already dropped the removed card
+    renumbered: list[dict] = []
+    # (tmp_path, final_path, old_path, validated_json) per renumbered card.
+    staged: list[tuple[Path, Path, Path | None, dict]] = []
+
+    # Phase 1: write each renumbered card to a temp file (avoids a filename
+    # collision when one card's new name equals another's current name mid-shift).
+    for old_cn, new_cn in remap.items():
+        card = dict(view_cards[old_cn])
+        _delete_render(asset, card)  # drop the stale render before the number changes
+        card["collector_number"] = new_cn
+        validated = Card.model_validate(card).model_dump(mode="json")
+        slug = card_slug(new_cn, validated.get("name") or "")
+        final_path = cards_dir / f"{slug}.json"
+        tmp_path = cards_dir / f"{slug}.json.tmp"
+        atomic_write_text(tmp_path, json.dumps(validated, indent=2, ensure_ascii=False))
+        staged.append((tmp_path, final_path, paths.get(old_cn), validated))
+
+    # Phase 2: drop the old files, move temps into place, then re-render.
+    for _tmp, _final, old_path, _validated in staged:
+        if old_path is not None and old_path.exists():
+            old_path.unlink()
+    for tmp_path, final_path, _old_path, validated in staged:
+        tmp_path.replace(final_path)
+        _render_one_card(validated, total_after)
+        renumbered.append(validated)
+
+    # Repoint generation_progress.json path values for renamed files (keyed by the
+    # stable slot_id). Best-effort: a missing/malformed file is left alone.
+    progress = _read_json(_rendering_progress_path(asset), None)
+    if isinstance(progress, dict) and isinstance(progress.get("filled_slots"), dict):
+        filled = progress["filled_slots"]
+        changed = False
+        for validated in renumbered:
+            slot_id = validated.get("slot_id")
+            if slot_id and slot_id in filled:
+                slug = card_slug(validated["collector_number"], validated.get("name") or "")
+                filled[slot_id] = str(cards_dir / f"{slug}.json")
+                changed = True
+        if changed:
+            atomic_write_text(
+                _rendering_progress_path(asset),
+                json.dumps(progress, indent=2, ensure_ascii=False),
+            )
+    return renumbered
+
+
+@router.get("/api/wizard/rendering/state")
+async def wizard_rendering_state() -> JSONResponse:
+    """First-paint state for the Rendering & Final Review tab.
+
+    Returns every card in the printed set (card-gen + lands) in the tab's editable
+    + gallery shape, plus the render summary header and the stage status. The stage
+    renders all cards automatically, then pauses here only if the user toggled
+    "Stop after this step" (the break-point defaults ON for rendering).
+    """
+    project = _require_active_project()
+    settings = project.settings
+    asset = set_artifact_dir()
+
+    slots_by_id = slots_by_id_from_skeleton(asset / "skeleton.json")
+    view_cards = _load_all_cards(asset / "cards")
+    cards = [_rendering_card_view(view_cards[cn], asset, slots_by_id) for cn in sorted(view_cards)]
+
+    report = _read_json(asset / "reports" / "render-summary.json", None)
+    summary = None
+    if isinstance(report, dict):
+        summary = {
+            "rendered": report.get("rendered", 0),
+            "skipped": report.get("skipped", 0),
+            "failed": report.get("failed", 0),
+            "elapsed_seconds": report.get("elapsed_seconds", 0.0),
+        }
+
+    return JSONResponse(
+        {
+            "cards": cards,
+            "has_content": bool(cards),
+            "report": summary,
+            **_stage_state_base("rendering", settings),
+        }
+    )
+
+
+@router.get("/api/wizard/rendering/image/{collector_number}", response_model=None)
+async def wizard_rendering_image(collector_number: str) -> FileResponse | JSONResponse:
+    """Serve a card's rendered PNG from the active project's ``renders/`` dir.
+
+    Scoped strictly to the resolved card pool: the collector number must match a
+    real card, and the served file is resolved from that card's name-derived slug
+    (never from the raw URL), so the path can't escape the renders directory. 404
+    when the card or its render is missing.
+    """
+    _require_active_project()
+    asset = set_artifact_dir()
+    view_cards = _load_all_cards(asset / "cards")
+    cn = str(collector_number)
+    card = view_cards.get(cn)
+    if card is None:
+        return JSONResponse({"error": f"No card {cn!r}"}, status_code=404)
+    dest = _render_dest(asset, card)
+    if not dest.is_file():
+        return JSONResponse({"error": "Not rendered yet"}, status_code=404)
+    return FileResponse(str(dest), media_type="image/png")
+
+
+@router.post("/api/wizard/rendering/save-card")
+async def wizard_rendering_save_card(request: Request) -> JSONResponse:
+    """Manual field edit on the final-review tab: finalize one card + re-render it.
+
+    Body: ``{collector_number, fields: {name, mana_cost, oracle_text, ...}}``.
+    Applies the editable fields (validated through :class:`Card`), runs the
+    lightweight per-card finalize pass (reminder-text re-injection + validation +
+    auto-fix via ``render_review.finalize_one_card``), writes the card back
+    (renaming the file if the name slug changed), and re-renders just that card.
+    AI-lock guarded (the render holds the lock) + heals a stuck FAILED stage.
+    """
+    _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+
+    cn = str(body.get("collector_number") or "").strip()
+    fields = body.get("fields")
+    if not cn or not isinstance(fields, dict):
+        return JSONResponse(
+            {"error": "collector_number and fields object are required"}, status_code=400
+        )
+
+    asset = set_artifact_dir()
+    cards_dir = asset / "cards"
+    view_cards = _load_all_cards(cards_dir)
+    paths = _all_card_paths_by_cn(cards_dir)
+    if cn not in view_cards:
+        return JSONResponse({"error": f"No card {cn!r} in the current pool"}, status_code=404)
+
+    # Apply the field edits + validate before grabbing the AI lock so a bad edit
+    # 400s cleanly without contending for the lock.
+    try:
+        edited = _apply_finalize_card_edits(view_cards[cn], fields)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"error": f"Invalid card edit: {exc}"}, status_code=400)
+
+    with guarded_ai("Re-render card", stage_id="rendering") as guard:
+        if guard.busy:
+            return guard.busy_response
+
+        def _work() -> tuple[str, list[str]]:
+            from mtgai.models.card import Card
+            from mtgai.review.finalize import _load_mechanics
+            from mtgai.review.render_review import finalize_one_card
+
+            mechanics = _load_mechanics()
+            finalized, fixes, _manual = finalize_one_card(Card.model_validate(edited), mechanics)
+            final_json = finalized.model_dump(mode="json")
+            _persist_finalize_edit(asset, final_json, paths[cn])
+            total_cards = len(_all_card_paths_by_cn(cards_dir))
+            _render_one_card(final_json, total_cards)
+            return final_json["collector_number"], fixes
+
+        new_cn, fixes = await asyncio.to_thread(_work)
+
+    return JSONResponse({"success": True, "collector_number": new_cn, "fixes_applied": fixes})
+
+
+@router.post("/api/wizard/rendering/remove-card")
+async def wizard_rendering_remove_card(request: Request) -> JSONResponse:
+    """Remove a card from the set: hard-delete + contiguous renumber + re-render.
+
+    Body: ``{collector_number}``. Hard-deletes the card JSON + its render, then
+    renumbers the remaining cards in that collector-number group so numbering stays
+    contiguous (``B-C-03`` → ``B-C-02`` …), renames their files, rewrites their
+    ``collector_number`` (``slot_id`` stays pinned to the skeleton), repoints
+    ``generation_progress.json``, and re-renders every card whose number changed.
+    AI-lock guarded (the re-renders hold the lock) + heals a stuck FAILED stage.
+    """
+    _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+
+    cn = str(body.get("collector_number") or "").strip()
+    if not cn:
+        return JSONResponse({"error": "collector_number is required"}, status_code=400)
+
+    asset = set_artifact_dir()
+    cards_dir = asset / "cards"
+    view_cards = _load_all_cards(cards_dir)
+    paths = _all_card_paths_by_cn(cards_dir)
+    if cn not in view_cards:
+        return JSONResponse({"error": f"No card {cn!r} in the current pool"}, status_code=404)
+
+    with guarded_ai("Remove card", stage_id="rendering") as guard:
+        if guard.busy:
+            return guard.busy_response
+
+        def _work() -> dict:
+            from mtgai.review.render_review import plan_renumber
+
+            removed = view_cards[cn]
+            # 1. Hard-delete the card file + its render + its generation_progress entry.
+            _delete_render(asset, removed)
+            removed_path = paths.get(cn)
+            if removed_path is not None and removed_path.exists():
+                removed_path.unlink()
+            removed_slot = removed.get("slot_id") or cn
+            progress = _read_json(_rendering_progress_path(asset), None)
+            if (
+                isinstance(progress, dict)
+                and isinstance(progress.get("filled_slots"), dict)
+                and progress["filled_slots"].pop(removed_slot, None) is not None
+            ):
+                atomic_write_text(
+                    _rendering_progress_path(asset),
+                    json.dumps(progress, indent=2, ensure_ascii=False),
+                )
+
+            # 2. Renumber the survivors in the removed card's group, contiguously.
+            survivors = {c: v for c, v in view_cards.items() if c != cn}
+            remap = plan_renumber(list(survivors), cn)
+            renumbered = _apply_renumber_to_disk(asset, cards_dir, remap, paths, survivors)
+            return {
+                "removed": cn,
+                "renumbered": [{"old": old, "new": remap[old]} for old in remap],
+                "re_rendered": [v["collector_number"] for v in renumbered],
+            }
+
+        result = await asyncio.to_thread(_work)
+
+    return JSONResponse({"success": True, **result})
+
+
+@router.post("/api/wizard/rendering/approve")
+async def wizard_rendering_approve() -> JSONResponse:
+    """Final approve-to-print gate — resume the (terminal) rendering stage.
+
+    No payload: the cards are already on disk (rendered + any manual edits saved
+    per-card). Heals a stuck FAILED stage and returns the ``navigate_to`` (``/pipeline``
+    since rendering is the last stage); the client follows with
+    ``POST /api/wizard/advance`` to let the engine mark the stage completed.
+    """
+    _require_active_project()
+    _heal_failed_stage("rendering")
+    return JSONResponse({"success": True, "navigate_to": _next_stage_nav("rendering")})
+
+
 @router.get("/api/wizard/skeleton/state")
 async def wizard_skeleton_state() -> JSONResponse:
     """First-paint state for the Skeleton tab.
