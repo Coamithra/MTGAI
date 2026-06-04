@@ -33,6 +33,16 @@ from mtgai.pipeline.stages import STAGE_RUNNERS, StageResult
 
 logger = logging.getLogger(__name__)
 
+# Review→regen loop cap. A gate (conformance / ai_review) that flags cards
+# bounces the pipeline to ``card_gen`` for another round; this caps how many
+# generation rounds the *automatic* loop will run before it gives up and
+# accepts the still-flagged cards as-is. The count is "card_gen instances so
+# far" — the backbone run plus one per prior bounce — so MAX_REGEN_ROUNDS=5
+# allows the backbone generation + up to 5 regen rounds, then stops. It is a
+# safety valve against a never-conforming card looping forever, NOT a quality
+# target: most sets settle in 0-2 rounds.
+MAX_REGEN_ROUNDS = 5
+
 
 def _state_path() -> Path:
     """Where ``pipeline-state.json`` lives for the active project.
@@ -361,8 +371,8 @@ class PipelineEngine:
 
             # A review runner that flagged cards bounces the pipeline: insert
             # fresh instances of the upstream span and walk forward into them.
-            # There is no cap — a gate keeps bouncing to card_gen until its
-            # flagged cards finally conform.
+            # Capped at MAX_REGEN_ROUNDS rounds (see _handle_rerun): past the cap
+            # the gate completes and the still-flagged cards are accepted as-is.
             rerun = self._handle_rerun(result, i)
             if rerun == "inserted":
                 i += 1  # walk into the freshly-inserted regen span
@@ -435,18 +445,37 @@ class PipelineEngine:
         inserted right after ``index``. Returns ``"inserted"`` so the walk steps
         into the regen span.
 
-        There is **no round cap**: a gate keeps bouncing to ``card_gen`` for as
-        many rounds as it takes for the flagged cards to conform — it never
-        pauses the pipeline just because it has looped a few times.
+        **Round cap** (``MAX_REGEN_ROUNDS``): the loop is capped, not infinite.
+        Once the automatic loop has run ``card_gen`` that many regen rounds, a
+        further flag no longer bounces — the gate just completes and the
+        still-flagged cards are accepted as-is so the pipeline can finish. This
+        is a safety valve against a never-conforming card, not a quality bar.
 
         Returns ``None`` when there's nothing to re-run (a clean pass / non-gate
-        stage), leaving the normal review-pause / complete handling to run.
+        stage) or when the cap has been hit, leaving the normal review-pause /
+        complete handling to mark the gate done and walk forward.
         """
         if not result.rerun_from:
             return None
 
         gate = self.state.stages[index]
         gate_sid = gate.stage_id
+
+        # Cap the review->regen loop. The number of ``card_gen`` instances
+        # already in the plan is the rounds run so far (backbone generation plus
+        # one per prior bounce); past MAX_REGEN_ROUNDS we stop looping and accept
+        # the flagged cards as-is rather than bouncing forever. Returning None
+        # lets the caller's normal "stage completed" path mark this gate done and
+        # walk forward.
+        regen_rounds = sum(1 for s in self.state.stages if s.stage_id == result.rerun_from) - 1
+        if regen_rounds >= MAX_REGEN_ROUNDS:
+            logger.warning(
+                "Gate %s flagged cards, but the review->regen loop hit its cap "
+                "(%d rounds) -- accepting the flagged cards as-is and continuing.",
+                gate.display_name,
+                MAX_REGEN_ROUNDS,
+            )
+            return None
 
         # Mark the flagging gate complete, then insert the regen span after it.
         gate.status = StageStatus.COMPLETED

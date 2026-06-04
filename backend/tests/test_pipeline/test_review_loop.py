@@ -2,9 +2,10 @@
 
 Covers the engine's forward-only re-entrancy (a gate that flags cards bounces to
 ``card_gen`` by inserting a fresh instance span and walking into it; the loop is
-uncapped — a gate keeps bouncing until its cards conform), the span scope (cost
-rule: a conformance
-bounce re-inserts only ``[card_gen, conformance]``), the card-flag substrate
+capped at ``MAX_REGEN_ROUNDS`` rounds, after which a still-flagging gate just
+completes and the cards are accepted as-is), the span scope (cost rule: a
+conformance bounce re-inserts only ``[card_gen, conformance]``), the card-flag
+substrate
 (``regen_reason`` collected by card_gen, archived, threaded into the prompt,
 flagged by a gate runner), and that a legacy ``skeleton_rev`` stage reconciles
 cleanly out of a loaded state.
@@ -87,7 +88,7 @@ _SPAN = ["card_gen", "conformance", "ai_review", "finalize"]
 
 
 # ----------------------------------------------------------------------
-# Engine insertion + uncapped loop
+# Engine insertion + capped regen loop
 # ----------------------------------------------------------------------
 
 
@@ -113,22 +114,47 @@ def test_gate_flags_then_passes_inserts_spans_and_advances(project, monkeypatch)
     assert all(s.status == StageStatus.COMPLETED for s in state.stages)
 
 
-def test_gate_loop_is_uncapped(project, monkeypatch):
-    """There is no round cap: a gate that flags well past the old 3-round limit
-    keeps bouncing to card_gen, then completes once its cards finally conform —
-    it never pauses the pipeline for human review."""
+def test_gate_loop_flags_then_passes_under_cap(project, monkeypatch):
+    """A gate that flags a few rounds (well under the cap) then passes keeps
+    bouncing to card_gen, then completes once its cards finally conform — it
+    never pauses the pipeline for human review."""
     state = _state(_SPAN)
     counter = [0]
     _patch_clean(monkeypatch, "card_gen", "conformance", "finalize")
-    # Flag 6 times (double the old MAX_REVIEW_ROUNDS) then pass.
-    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "ai_review", _flagging(6, counter))
+    # Flag 4 times (under MAX_REGEN_ROUNDS) then pass.
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "ai_review", _flagging(4, counter))
 
     PipelineEngine(state, EventBus()).run()
 
     ar = [s for s in state.stages if s.stage_id == "ai_review"]
-    # 6 flagging rounds + 1 clean = 7 ai_review instances, all completed.
-    assert len(ar) == 7, [s.instance_id for s in state.stages]
+    # 4 flagging rounds + 1 clean = 5 ai_review instances, all completed.
+    assert len(ar) == 5, [s.instance_id for s in state.stages]
     assert all(s.status == StageStatus.COMPLETED for s in ar)
+    assert state.overall_status == PipelineStatus.COMPLETED
+    assert all(s.status == StageStatus.COMPLETED for s in state.stages)
+
+
+def test_gate_loop_caps_at_max_regen_rounds(project, monkeypatch):
+    """The loop is capped: a gate that flags every single round stops bouncing
+    after MAX_REGEN_ROUNDS card_gen rounds, then completes and accepts the
+    still-flagged cards as-is so the pipeline can finish (never an infinite loop,
+    never a human-review pause)."""
+    state = _state(_SPAN)
+    counter = [0]
+    _patch_clean(monkeypatch, "card_gen", "conformance", "finalize")
+    # Flag far more times than the cap — the engine must stop us well before this.
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "ai_review", _flagging(50, counter))
+
+    PipelineEngine(state, EventBus()).run()
+
+    # backbone card_gen + MAX_REGEN_ROUNDS regen rounds, then accept-as-is.
+    n = engine_mod.MAX_REGEN_ROUNDS + 1
+    ids = [s.instance_id for s in state.stages]
+    assert sum(1 for s in state.stages if s.stage_id == "card_gen") == n, ids
+    assert sum(1 for s in state.stages if s.stage_id == "ai_review") == n, ids
+    # ai_review ran n times and flagged on every one (incl. the last, accepted) —
+    # the cap, not the runner finally passing, is what stopped the loop.
+    assert counter[0] == n
     assert state.overall_status == PipelineStatus.COMPLETED
     assert all(s.status == StageStatus.COMPLETED for s in state.stages)
 
