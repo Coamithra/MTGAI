@@ -162,6 +162,106 @@ def test_build_rerun_span_ordinals_and_scope(project):
 
 
 # ----------------------------------------------------------------------
+# Mid-run "Stop after this step" toggle (re-resolved from live break points)
+# ----------------------------------------------------------------------
+
+
+def _toggle_break_on(stage_id: str):
+    """A clean runner that flips ``stage_id``'s break point on while it runs.
+
+    Simulates the user ticking "Stop after this step" mid-run: the
+    /api/wizard/project/breaks endpoint calls ``apply_settings`` with the new
+    break_points, which the engine re-reads at its pause decision.
+    """
+
+    def run(_pc, _em):
+        from mtgai.settings.model_settings import apply_settings, get_active_settings
+
+        s = get_active_settings()
+        apply_settings(
+            s.model_copy(update={"break_points": {**s.break_points, stage_id: "review"}})
+        )
+        return StageResult(detail="clean")
+
+    return run
+
+
+def test_midrun_break_toggle_pauses_after_running_backbone_stage(project, monkeypatch):
+    """Ticking "Stop after this step" while a backbone stage runs pauses the
+    pipeline after that stage — the engine re-resolves the live break point
+    rather than the build-time-frozen (AUTO) review_mode."""
+    state = _state(_SPAN)
+    _patch_clean(monkeypatch, "card_gen", "ai_review", "finalize")
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "conformance", _toggle_break_on("conformance"))
+
+    PipelineEngine(state, EventBus()).run()
+
+    conf = next(s for s in state.stages if s.stage_id == "conformance")
+    assert conf.status == StageStatus.PAUSED_FOR_REVIEW
+    # The live re-resolve also syncs review_mode so persisted state is honest.
+    assert conf.review_mode == StageReviewMode.REVIEW
+    assert state.overall_status == PipelineStatus.PAUSED
+    # The downstream stage never ran (paused before it).
+    assert next(s for s in state.stages if s.stage_id == "ai_review").status == StageStatus.PENDING
+
+
+def test_midrun_break_toggle_does_not_pause_inserted_loop_instance(project, monkeypatch):
+    """An inserted regen-loop instance (conformance.2) stays AUTO even if its
+    break point is toggled on mid-run, so the loop still flows. Only backbone
+    instances honour a live toggle (preserves the _build_rerun_span contract)."""
+    state = _state(_SPAN)
+    counter = [0]
+    _patch_clean(monkeypatch, "card_gen", "ai_review", "finalize")
+
+    def conformance_runner(_pc, _em):
+        # Backbone run flags once -> inserts [card_gen.2, conformance.2].
+        if counter[0] == 0:
+            counter[0] += 1
+            return StageResult(detail="flagged 1", rerun_from="card_gen")
+        # The inserted conformance.2 toggles the break on, but as a non-backbone
+        # instance it must NOT pause — the regen tail keeps flowing.
+        return _toggle_break_on("conformance")(_pc, _em)
+
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "conformance", conformance_runner)
+
+    PipelineEngine(state, EventBus()).run()
+
+    conf2 = next(s for s in state.stages if s.instance_id == "conformance.2")
+    assert conf2.status == StageStatus.COMPLETED
+    assert conf2.review_mode == StageReviewMode.AUTO
+    assert state.overall_status == PipelineStatus.COMPLETED
+
+
+def test_midrun_break_toggle_off_lets_default_review_stage_continue(project, monkeypatch):
+    """The mirror direction: un-ticking a default-on break (skeleton) while it
+    runs lets the pipeline auto-continue past it instead of pausing."""
+    from mtgai.settings.model_settings import DEFAULT_BREAK_POINTS
+
+    assert DEFAULT_BREAK_POINTS.get("skeleton") == "review"  # guards the premise
+
+    state = _state(["skeleton", "card_gen"])
+
+    def skeleton_runner(_pc, _em):
+        from mtgai.settings.model_settings import apply_settings, get_active_settings
+
+        s = get_active_settings()
+        apply_settings(
+            s.model_copy(update={"break_points": {**s.break_points, "skeleton": "auto"}})
+        )
+        return StageResult(detail="clean")
+
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "skeleton", skeleton_runner)
+    _patch_clean(monkeypatch, "card_gen")
+
+    PipelineEngine(state, EventBus()).run()
+
+    skel = next(s for s in state.stages if s.stage_id == "skeleton")
+    assert skel.status == StageStatus.COMPLETED
+    assert skel.review_mode == StageReviewMode.AUTO
+    assert state.overall_status == PipelineStatus.COMPLETED
+
+
+# ----------------------------------------------------------------------
 # Legacy skeleton_rev reconciles cleanly out of a loaded state
 # ----------------------------------------------------------------------
 

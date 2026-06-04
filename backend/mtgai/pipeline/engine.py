@@ -373,7 +373,20 @@ class PipelineEngine:
                 i += 1  # walk into the freshly-inserted regen span
                 continue
 
-            # Check if human review is needed
+            # Check if human review is needed. Re-resolve from the project's
+            # LIVE break points (not the build-time-frozen review_mode) so a
+            # "Stop after this step" toggled *while this stage was running*
+            # takes effect on the stage that just finished. Only backbone
+            # instances honour the live toggle; inserted regen-loop instances
+            # stay pinned to their build-time AUTO (matching _build_rerun_span)
+            # so an active regen loop still flows without pausing midway.
+            if stage.instance_id == stage.stage_id:
+                stage.review_mode = (
+                    StageReviewMode.REVIEW
+                    if _live_break_point(stage.stage_id)
+                    else StageReviewMode.AUTO
+                )
+
             if stage.review_mode == StageReviewMode.REVIEW:
                 stage.status = StageStatus.PAUSED_FOR_REVIEW
                 self.state.overall_status = PipelineStatus.PAUSED
@@ -635,6 +648,23 @@ class PipelineEngine:
             logger.exception(
                 "Card-pool snapshot for instance %s failed (continuing)", stage.instance_id
             )
+
+
+def _live_break_point(stage_id: str) -> bool:
+    """Whether the wizard should pause after ``stage_id`` per the project's *live* settings.
+
+    Reads the active project's current ``break_points`` (kept in sync by
+    ``apply_settings`` -> ``write_active_project``), so a "Stop after this step"
+    toggled mid-run is honoured at the engine's pause decision instead of the
+    review_mode frozen onto the stage at build time. No open project (e.g. a
+    bare test harness) falls back to the stage defaults via ``_resolve_break_point``.
+    """
+    from mtgai.pipeline.models import _resolve_break_point
+    from mtgai.runtime.active_project import read_active_project
+
+    project = read_active_project()
+    break_points = project.settings.break_points if project is not None else {}
+    return _resolve_break_point(stage_id, break_points)
 
 
 def _build_forward_path(state: PipelineState, after_stage_id: str) -> list[StageState]:
