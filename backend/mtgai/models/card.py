@@ -65,6 +65,22 @@ class CardFace(BaseModel):
     art_prompt: str | None = None
 
 
+class ArtCharacterRef(BaseModel):
+    """A structured reference-image attachment for a recurring entity.
+
+    Written by the Character References stage (``char_portraits``) onto every
+    card that features a named character / location / element appearing on more
+    than one card, and read by the Art Generation stage (``art_gen``) to feed
+    PuLID / IP-Adapter (Flux) or provider reference-conditioning. Replaces the
+    old scan-at-render-time ``get_character_ref_paths`` approach with an explicit
+    produced artifact. ``entity_key`` is the slug key into the art-direction
+    dictionary; ``ref_image_path`` is repo-relative (under the asset folder).
+    """
+
+    entity_key: str
+    ref_image_path: str
+
+
 class Card(BaseModel):
     """Full card data model.
 
@@ -122,6 +138,10 @@ class Card(BaseModel):
     art_path: str | None = None
     render_path: str | None = None
     art_prompt: str | None = None
+    # Reference-image attachments for recurring entities, written by the
+    # Character References stage and consumed by Art Generation (PuLID/IP-Adapter
+    # / provider reference-conditioning). Empty for cards with no recurring entity.
+    art_character_refs: list[ArtCharacterRef] = Field(default_factory=list)
 
     # === Design Metadata ===
     design_notes: str | None = None
