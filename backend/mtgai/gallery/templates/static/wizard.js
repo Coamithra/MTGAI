@@ -505,6 +505,17 @@
       });
     });
 
+    // Art-prompt streaming: each card pops onto the Art Prompts tab as its
+    // LLM-authored prompt lands (art_prompt_card), with a reset before a forced
+    // re-run so the tab drops its prior local list (art_prompt_reset). Mirrors
+    // the card_gen stream; the Art Prompts tab listens via W.onArtPromptsStream.
+    ['art_prompt_card', 'art_prompt_reset'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onArtPromptsStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     // Conformance & Interactions streaming. The gate's two internal LLM steps
     // each emit a conformance_step the instant they return, so the tab's two
     // sections fill in independently rather than waiting for the whole stage.
