@@ -706,6 +706,10 @@ def select_reprints(
             logger.error("Cannot resolve reprints model (no active project?)", exc_info=True)
             model = None
         if model is not None:
+            # Lift the base off the near-greedy floor for a local reasoning model
+            # so both passes terminate; each pass's per-retry bump stacks on top
+            # of the floored base (see temperatures.floor_for_local).
+            temperature = temps.floor_for_local(temperature, model)
             context = _load_set_context(asset, cfg)
             chosen = _select_from_pool(
                 context, pool, ai_target, model, log_dir, temperature, per_rarity=ai_per_rarity
