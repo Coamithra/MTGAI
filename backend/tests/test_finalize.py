@@ -68,10 +68,9 @@ class TestFinalizeCard:
         assert any("etb" in f.lower() for f in fixes)
 
     def test_manual_errors_surfaced(self):
-        """Haste+Malfunction nonbo should appear as MANUAL error."""
+        """A haste + enters-tapped nonbo should appear as a MANUAL error."""
         card = _make_card(
-            oracle_text="Haste\nMalfunction 2",
-            mechanic_tags=["malfunction"],
+            oracle_text="Haste\nThis creature enters tapped.",
         )
         _finalized, _fixes, manual = finalize_card(card, MECHANICS)
         assert any("nonbo" in e.message.lower() for e in manual)
