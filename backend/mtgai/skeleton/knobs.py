@@ -305,6 +305,96 @@ KNOB_SPECS: list[KnobSpec] = [
         help="Multicolor uncommon signposts per color pair "
         "(0 = no gold signposts, BLB ran 1, DSK/OTJ/MKM 2).",
     ),
+    # --- Card subtype mix (research/subtype-distribution.md). Counts are per
+    # ~277-card set, scaled to set_size, then jittered by subtype_jitter and
+    # realized by a seed-stable RNG (subtype_seed). They refine the coarse type
+    # (a labelling overlay) without touching any color/rarity/count invariant.
+    # The four standing subtypes appear in (nearly) every recent set. ---
+    KnobSpec(
+        key="equipment_count",
+        label="Equipment",
+        group="subtype",
+        kind=KnobKind.INT,
+        default=5,
+        min=0,
+        max=24,
+        step=1,
+        help="Colorless artifacts that are Equipment (avg ~7/set; FIN ran 24). "
+        "Bump for a gear/loadout theme.",
+    ),
+    KnobSpec(
+        key="vehicle_count",
+        label="Vehicles",
+        group="subtype",
+        kind=KnobKind.INT,
+        default=2,
+        min=0,
+        max=12,
+        step=1,
+        help="Colorless artifacts that are Vehicles (a few most sets; a vehicles "
+        "theme like Aetherdrift runs many more).",
+    ),
+    KnobSpec(
+        key="aura_count",
+        label="Auras",
+        group="subtype",
+        kind=KnobKind.INT,
+        default=5,
+        min=0,
+        max=12,
+        step=1,
+        help="Colored enchantments that are Auras (local enchantments attached to "
+        "a permanent), avg ~5/set. Bump for an Auras-matter theme.",
+    ),
+    KnobSpec(
+        key="artifact_creature_count",
+        label="Artifact creatures",
+        group="subtype",
+        kind=KnobKind.INT,
+        default=4,
+        min=0,
+        max=34,
+        step=1,
+        help="Creatures that are also Artifacts (constructs, golems, robots). Avg "
+        "~11/set but very theme-dependent (a sci-fi/artifact set runs 25-34).",
+    ),
+    KnobSpec(
+        key="irregular_subtype_count",
+        label="Irregular subtypes",
+        group="subtype",
+        kind=KnobKind.INT,
+        default=1,
+        min=0,
+        max=3,
+        step=1,
+        help="How many deciduous 'special' subtypes (Saga, Class, Shrine, "
+        "enchantment creatures) to weave in. These come and go set to set, so a "
+        "set picks just 0-2; which ones is currently random.",
+    ),
+    KnobSpec(
+        key="subtype_jitter",
+        label="Subtype jitter",
+        group="subtype",
+        kind=KnobKind.FLOAT,
+        default=0.30,
+        min=0.0,
+        max=0.6,
+        step=0.05,
+        help="Random +/- band applied to every subtype count, so each set's mix "
+        "varies. 0 = use the exact counts.",
+    ),
+    KnobSpec(
+        key="subtype_seed",
+        label="Subtype seed",
+        group="subtype",
+        kind=KnobKind.INT,
+        default=0,
+        min=0,
+        max=9999,
+        step=1,
+        help="Re-roll handle for the subtype randomization. Same seed always "
+        "yields the same mix; bump it to re-roll within the ranges above.",
+    ),
 ]
 
 KNOB_SPEC_BY_KEY: dict[str, KnobSpec] = {s.key: s for s in KNOB_SPECS}
@@ -473,6 +563,14 @@ class SkeletonKnobs(BaseModel):
     # counts
     planeswalker_count: int = 0
     signposts_per_pair: int = 1
+    # card subtype mix (overlay on the coarse type; see research/subtype-distribution.md)
+    equipment_count: int = 5
+    vehicle_count: int = 2
+    aura_count: int = 5
+    artifact_creature_count: int = 4
+    irregular_subtype_count: int = 1
+    subtype_jitter: float = 0.30
+    subtype_seed: int = 0
     # cycles
     cycles: list[Cycle] = Field(default_factory=list)
     # metadata (not clamped knobs)

@@ -1,0 +1,514 @@
+{
+  "sets": [
+    {
+      "code": "sos",
+      "name": "Secrets of Strixhaven",
+      "released": "2026-04-24"
+    },
+    {
+      "code": "tmt",
+      "name": "Teenage Mutant Ninja Turtles",
+      "released": "2026-03-06"
+    },
+    {
+      "code": "ecl",
+      "name": "Lorwyn Eclipsed",
+      "released": "2026-01-23"
+    },
+    {
+      "code": "tla",
+      "name": "Avatar: The Last Airbender",
+      "released": "2025-11-21"
+    },
+    {
+      "code": "spm",
+      "name": "Marvel's Spider-Man",
+      "released": "2025-09-26"
+    },
+    {
+      "code": "eoe",
+      "name": "Edge of Eternities",
+      "released": "2025-08-01"
+    },
+    {
+      "code": "fin",
+      "name": "Final Fantasy",
+      "released": "2025-06-13"
+    },
+    {
+      "code": "tdm",
+      "name": "Tarkir: Dragonstorm",
+      "released": "2025-04-11"
+    },
+    {
+      "code": "dft",
+      "name": "Aetherdrift",
+      "released": "2025-02-14"
+    },
+    {
+      "code": "fdn",
+      "name": "Foundations",
+      "released": "2024-11-15"
+    },
+    {
+      "code": "dsk",
+      "name": "Duskmourn: House of Horror",
+      "released": "2024-09-27"
+    },
+    {
+      "code": "blb",
+      "name": "Bloomburrow",
+      "released": "2024-08-02"
+    },
+    {
+      "code": "otj",
+      "name": "Outlaws of Thunder Junction",
+      "released": "2024-04-19"
+    },
+    {
+      "code": "mkm",
+      "name": "Murders at Karlov Manor",
+      "released": "2024-02-09"
+    }
+  ],
+  "per_set": {
+    "sos": {
+      "_total": 0,
+      "_name": "Secrets of Strixhaven",
+      "_released": "2026-04-24"
+    },
+    "tmt": {
+      "_total": 0,
+      "_name": "Teenage Mutant Ninja Turtles",
+      "_released": "2026-03-06"
+    },
+    "ecl": {
+      "_total": 273,
+      "Aura": 9,
+      "Equipment": 4,
+      "Enchantment (plain)": 12,
+      "Artifact (plain)": 7,
+      "Artifact Creature": 1,
+      "_name": "Lorwyn Eclipsed",
+      "_released": "2026-01-23"
+    },
+    "tla": {
+      "_total": 286,
+      "Enchantment (plain)": 12,
+      "Aura": 5,
+      "Artifact (plain)": 5,
+      "Shrine": 5,
+      "Vehicle": 6,
+      "Artifact Creature": 3,
+      "Equipment": 5,
+      "Saga": 7,
+      "_name": "Avatar: The Last Airbender",
+      "_released": "2025-11-21"
+    },
+    "spm": {
+      "_total": 193,
+      "Aura": 5,
+      "Artifact (plain)": 9,
+      "Equipment": 5,
+      "Artifact Creature": 8,
+      "Enchantment (plain)": 8,
+      "Saga": 5,
+      "Vehicle": 3,
+      "_name": "Marvel's Spider-Man",
+      "_released": "2025-09-26"
+    },
+    "eoe": {
+      "_total": 266,
+      "Artifact (plain)": 33,
+      "Equipment": 7,
+      "Enchantment (plain)": 9,
+      "Artifact Creature": 34,
+      "Aura": 7,
+      "_name": "Edge of Eternities",
+      "_released": "2025-08-01"
+    },
+    "fin": {
+      "_total": 300,
+      "Vehicle": 7,
+      "Equipment": 24,
+      "Enchantment (plain)": 8,
+      "Artifact (plain)": 15,
+      "Artifact Creature": 11,
+      "Aura": 2,
+      "Enchantment Creature": 15,
+      "_name": "Final Fantasy",
+      "_released": "2025-06-13"
+    },
+    "tdm": {
+      "_total": 271,
+      "Artifact (plain)": 10,
+      "Enchantment (plain)": 21,
+      "Saga": 5,
+      "Artifact Creature": 4,
+      "Equipment": 3,
+      "Aura": 4,
+      "_name": "Tarkir: Dragonstorm",
+      "_released": "2025-04-11"
+    },
+    "dft": {
+      "_total": 276,
+      "Artifact Creature": 26,
+      "Artifact (plain)": 14,
+      "Vehicle": 41,
+      "Enchantment (plain)": 9,
+      "Aura": 4,
+      "Equipment": 2,
+      "_name": "Aetherdrift",
+      "_released": "2025-02-14"
+    },
+    "fdn": {
+      "_total": 276,
+      "Equipment": 7,
+      "Enchantment (plain)": 14,
+      "Artifact (plain)": 3,
+      "Aura": 4,
+      "Artifact Creature": 9,
+      "_name": "Foundations",
+      "_released": "2024-11-15"
+    },
+    "dsk": {
+      "_total": 276,
+      "Enchantment Creature": 31,
+      "Artifact Creature": 17,
+      "Equipment": 8,
+      "Artifact (plain)": 7,
+      "Room": 23,
+      "Aura": 10,
+      "Enchantment (plain)": 13,
+      "Vehicle": 2,
+      "Saga": 1,
+      "_name": "Duskmourn: House of Horror",
+      "_released": "2024-09-27"
+    },
+    "blb": {
+      "_total": 266,
+      "Class": 10,
+      "Enchantment (plain)": 5,
+      "Artifact Creature": 2,
+      "Artifact (plain)": 8,
+      "Aura": 4,
+      "Equipment": 2,
+      "Vehicle": 1,
+      "_name": "Bloomburrow",
+      "_released": "2024-08-02"
+    },
+    "otj": {
+      "_total": 276,
+      "Enchantment (plain)": 15,
+      "Equipment": 5,
+      "Artifact (plain)": 2,
+      "Aura": 3,
+      "Vehicle": 2,
+      "Artifact Creature": 5,
+      "_name": "Outlaws of Thunder Junction",
+      "_released": "2024-04-19"
+    },
+    "mkm": {
+      "_total": 276,
+      "Aura": 9,
+      "Enchantment (plain)": 15,
+      "Artifact Creature": 12,
+      "Equipment": 9,
+      "Case": 12,
+      "Artifact (plain)": 5,
+      "Vehicle": 1,
+      "_name": "Murders at Karlov Manor",
+      "_released": "2024-02-09"
+    }
+  },
+  "aggregate": {
+    "Artifact (plain)": {
+      "present_in_sets": 12,
+      "present_frac": 0.86,
+      "avg_when_present": 9.8,
+      "avg_overall": 8.4,
+      "min": 0,
+      "max": 33,
+      "per_set": {
+        "sos": 0,
+        "tmt": 0,
+        "ecl": 7,
+        "tla": 5,
+        "spm": 9,
+        "eoe": 33,
+        "fin": 15,
+        "tdm": 10,
+        "dft": 14,
+        "fdn": 3,
+        "dsk": 7,
+        "blb": 8,
+        "otj": 2,
+        "mkm": 5
+      }
+    },
+    "Artifact Creature": {
+      "present_in_sets": 12,
+      "present_frac": 0.86,
+      "avg_when_present": 11.0,
+      "avg_overall": 9.4,
+      "min": 0,
+      "max": 34,
+      "per_set": {
+        "sos": 0,
+        "tmt": 0,
+        "ecl": 1,
+        "tla": 3,
+        "spm": 8,
+        "eoe": 34,
+        "fin": 11,
+        "tdm": 4,
+        "dft": 26,
+        "fdn": 9,
+        "dsk": 17,
+        "blb": 2,
+        "otj": 5,
+        "mkm": 12
+      }
+    },
+    "Aura": {
+      "present_in_sets": 12,
+      "present_frac": 0.86,
+      "avg_when_present": 5.5,
+      "avg_overall": 4.7,
+      "min": 0,
+      "max": 10,
+      "per_set": {
+        "sos": 0,
+        "tmt": 0,
+        "ecl": 9,
+        "tla": 5,
+        "spm": 5,
+        "eoe": 7,
+        "fin": 2,
+        "tdm": 4,
+        "dft": 4,
+        "fdn": 4,
+        "dsk": 10,
+        "blb": 4,
+        "otj": 3,
+        "mkm": 9
+      }
+    },
+    "Case": {
+      "present_in_sets": 1,
+      "present_frac": 0.07,
+      "avg_when_present": 12.0,
+      "avg_overall": 0.9,
+      "min": 0,
+      "max": 12,
+      "per_set": {
+        "sos": 0,
+        "tmt": 0,
+        "ecl": 0,
+        "tla": 0,
+        "spm": 0,
+        "eoe": 0,
+        "fin": 0,
+        "tdm": 0,
+        "dft": 0,
+        "fdn": 0,
+        "dsk": 0,
+        "blb": 0,
+        "otj": 0,
+        "mkm": 12
+      }
+    },
+    "Class": {
+      "present_in_sets": 1,
+      "present_frac": 0.07,
+      "avg_when_present": 10.0,
+      "avg_overall": 0.7,
+      "min": 0,
+      "max": 10,
+      "per_set": {
+        "sos": 0,
+        "tmt": 0,
+        "ecl": 0,
+        "tla": 0,
+        "spm": 0,
+        "eoe": 0,
+        "fin": 0,
+        "tdm": 0,
+        "dft": 0,
+        "fdn": 0,
+        "dsk": 0,
+        "blb": 10,
+        "otj": 0,
+        "mkm": 0
+      }
+    },
+    "Enchantment (plain)": {
+      "present_in_sets": 12,
+      "present_frac": 0.86,
+      "avg_when_present": 11.8,
+      "avg_overall": 10.1,
+      "min": 0,
+      "max": 21,
+      "per_set": {
+        "sos": 0,
+        "tmt": 0,
+        "ecl": 12,
+        "tla": 12,
+        "spm": 8,
+        "eoe": 9,
+        "fin": 8,
+        "tdm": 21,
+        "dft": 9,
+        "fdn": 14,
+        "dsk": 13,
+        "blb": 5,
+        "otj": 15,
+        "mkm": 15
+      }
+    },
+    "Enchantment Creature": {
+      "present_in_sets": 2,
+      "present_frac": 0.14,
+      "avg_when_present": 23.0,
+      "avg_overall": 3.3,
+      "min": 0,
+      "max": 31,
+      "per_set": {
+        "sos": 0,
+        "tmt": 0,
+        "ecl": 0,
+        "tla": 0,
+        "spm": 0,
+        "eoe": 0,
+        "fin": 15,
+        "tdm": 0,
+        "dft": 0,
+        "fdn": 0,
+        "dsk": 31,
+        "blb": 0,
+        "otj": 0,
+        "mkm": 0
+      }
+    },
+    "Equipment": {
+      "present_in_sets": 12,
+      "present_frac": 0.86,
+      "avg_when_present": 6.8,
+      "avg_overall": 5.8,
+      "min": 0,
+      "max": 24,
+      "per_set": {
+        "sos": 0,
+        "tmt": 0,
+        "ecl": 4,
+        "tla": 5,
+        "spm": 5,
+        "eoe": 7,
+        "fin": 24,
+        "tdm": 3,
+        "dft": 2,
+        "fdn": 7,
+        "dsk": 8,
+        "blb": 2,
+        "otj": 5,
+        "mkm": 9
+      }
+    },
+    "Room": {
+      "present_in_sets": 1,
+      "present_frac": 0.07,
+      "avg_when_present": 23.0,
+      "avg_overall": 1.6,
+      "min": 0,
+      "max": 23,
+      "per_set": {
+        "sos": 0,
+        "tmt": 0,
+        "ecl": 0,
+        "tla": 0,
+        "spm": 0,
+        "eoe": 0,
+        "fin": 0,
+        "tdm": 0,
+        "dft": 0,
+        "fdn": 0,
+        "dsk": 23,
+        "blb": 0,
+        "otj": 0,
+        "mkm": 0
+      }
+    },
+    "Saga": {
+      "present_in_sets": 4,
+      "present_frac": 0.29,
+      "avg_when_present": 4.5,
+      "avg_overall": 1.3,
+      "min": 0,
+      "max": 7,
+      "per_set": {
+        "sos": 0,
+        "tmt": 0,
+        "ecl": 0,
+        "tla": 7,
+        "spm": 5,
+        "eoe": 0,
+        "fin": 0,
+        "tdm": 5,
+        "dft": 0,
+        "fdn": 0,
+        "dsk": 1,
+        "blb": 0,
+        "otj": 0,
+        "mkm": 0
+      }
+    },
+    "Shrine": {
+      "present_in_sets": 1,
+      "present_frac": 0.07,
+      "avg_when_present": 5.0,
+      "avg_overall": 0.4,
+      "min": 0,
+      "max": 5,
+      "per_set": {
+        "sos": 0,
+        "tmt": 0,
+        "ecl": 0,
+        "tla": 5,
+        "spm": 0,
+        "eoe": 0,
+        "fin": 0,
+        "tdm": 0,
+        "dft": 0,
+        "fdn": 0,
+        "dsk": 0,
+        "blb": 0,
+        "otj": 0,
+        "mkm": 0
+      }
+    },
+    "Vehicle": {
+      "present_in_sets": 8,
+      "present_frac": 0.57,
+      "avg_when_present": 7.9,
+      "avg_overall": 4.5,
+      "min": 0,
+      "max": 41,
+      "per_set": {
+        "sos": 0,
+        "tmt": 0,
+        "ecl": 0,
+        "tla": 6,
+        "spm": 3,
+        "eoe": 0,
+        "fin": 7,
+        "tdm": 0,
+        "dft": 41,
+        "fdn": 0,
+        "dsk": 2,
+        "blb": 1,
+        "otj": 2,
+        "mkm": 1
+      }
+    }
+  }
+}

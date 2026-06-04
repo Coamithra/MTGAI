@@ -30,6 +30,15 @@ fractions of that rarity's cards. The non-creature bias knobs are relative weigh
 (instant / sorcery / enchantment / artifact) that split each color's non-creature
 slots; raise artifact or enchantment to skew the type mix.
 
+The card-subtype knobs refine the coarse types into the textures real sets carry.
+The recurring ones (equipment, vehicles, auras, artifact creatures) are counts per
+~277-card set, scaled automatically — raise the one your theme leans on (a gear
+theme wants more equipment; a sci-fi theme more artifact creatures; an enchantments
+theme more auras). `irregular_subtype_count` is how many deciduous "specials"
+(Sagas, Classes, Shrines, enchantment creatures) to weave in — most sets carry 0-2,
+so keep it small unless the theme is built on one. `subtype_jitter` randomizes the
+counts a little; leave `subtype_seed` alone.
+
 ## Cycle spans
 
 A cycle's `span` chooses how its members spread across colors:

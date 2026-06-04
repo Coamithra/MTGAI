@@ -174,6 +174,7 @@
     creature: 'Creature density',
     noncreature: 'Non-creature type bias',
     special: 'Planeswalkers & signposts',
+    subtype: 'Card subtype mix',
   };
 
   function paintKnobs(root, state) {

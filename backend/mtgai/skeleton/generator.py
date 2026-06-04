@@ -11,6 +11,7 @@ Given a SetConfig and the research-derived set template, this module:
 from __future__ import annotations
 
 import logging
+import random
 from enum import StrEnum
 from pathlib import Path
 
@@ -65,6 +66,75 @@ class SlotCardType(StrEnum):
     ARTIFACT = "artifact"
     PLANESWALKER = "planeswalker"
     LAND = "land"
+
+
+class SlotCardSubtype(StrEnum):
+    """A fine-grained refinement of a slot's coarse ``card_type``.
+
+    A pure labelling overlay assigned by :func:`_assign_subtypes` after the matrix
+    is built: it never changes ``card_type``, color, rarity, or any count, so every
+    balance/density invariant still holds. ``None`` means a plain card of the coarse
+    type. See ``research/subtype-distribution.md`` for the distribution it models.
+
+    The first four are *recurring* (a few in nearly every set, knob-driven counts);
+    the last four are the *irregular bucket* (deciduous specials, 0-2 per set).
+    """
+
+    # recurring (standing count knobs)
+    EQUIPMENT = "equipment"
+    VEHICLE = "vehicle"
+    AURA = "aura"
+    ARTIFACT_CREATURE = "artifact_creature"
+    # irregular / deciduous (the bucket)
+    SAGA = "saga"
+    CLASS = "class"
+    SHRINE = "shrine"
+    ENCHANTMENT_CREATURE = "enchantment_creature"
+
+
+# Human-readable label for each subtype, shown in ``render_slot_string`` so the
+# relabel LLM + card-gen fallback read the intent directly. Bare values whose
+# StrEnum value is already self-explanatory ("equipment", "saga", ...) are omitted.
+_SUBTYPE_LABELS: dict[str, str] = {
+    SlotCardSubtype.AURA: "aura (local enchantment)",
+    SlotCardSubtype.ARTIFACT_CREATURE: "artifact creature",
+    SlotCardSubtype.ENCHANTMENT_CREATURE: "enchantment creature",
+}
+
+
+def subtype_label(subtype: str) -> str:
+    """The display label for a subtype value (falls back to the value itself)."""
+    return _SUBTYPE_LABELS.get(subtype, subtype)
+
+
+class IrregularSubtype(BaseModel):
+    """One member of the irregular-subtype bucket (a deciduous special).
+
+    ``parent`` is the coarse ``card_type`` it refines; ``colored`` (when True)
+    restricts it to non-colorless slots. ``lo``/``hi`` bound the per-set count when
+    the subtype is picked (scaled to set_size, then realized by the seeded RNG).
+    """
+
+    subtype: str
+    parent: str
+    colored: bool = False
+    colorless: bool = False
+    lo: int
+    hi: int
+
+
+# The curated deciduous bucket (research/subtype-distribution.md): subtypes MTG
+# reuses across sets but only 0-2 at a time. ``irregular_subtype_count`` says how
+# many to include; the seeded RNG picks which. One-set-exclusive types (DSK Rooms,
+# MKM Cases) are deliberately absent - a theme that wants them uses card_requests.
+IRREGULAR_SUBTYPES: list[IrregularSubtype] = [
+    IrregularSubtype(subtype=SlotCardSubtype.SAGA, parent="enchantment", colored=True, lo=2, hi=5),
+    IrregularSubtype(subtype=SlotCardSubtype.CLASS, parent="enchantment", colored=True, lo=2, hi=4),
+    IrregularSubtype(
+        subtype=SlotCardSubtype.SHRINE, parent="enchantment", colored=True, lo=1, hi=5
+    ),
+    IrregularSubtype(subtype=SlotCardSubtype.ENCHANTMENT_CREATURE, parent="creature", lo=4, hi=12),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +192,13 @@ class SkeletonSlot(BaseModel):
     color: str  # "W", "U", "B", "R", "G", "multicolor", "colorless"
     rarity: str  # "common", "uncommon", "rare", "mythic"
     card_type: str  # SlotCardType value
+    # Optional fine-grained refinement of ``card_type`` (a ``SlotCardSubtype``
+    # value: equipment / vehicle / aura / saga / artifact_creature / ...). Assigned
+    # by ``_assign_subtypes`` as a labelling overlay - it never changes the coarse
+    # ``card_type``/color/rarity, so reprints, lands, and balance read those
+    # unchanged, while ``render_slot_string`` (and thus the relabel + card-gen)
+    # surfaces the subtype. ``None`` = a plain card of the coarse type.
+    card_subtype: str | None = None
     cmc_target: int
     archetype_tags: list[str] = Field(default_factory=list)
     mechanic_tag: str = MechanicTag.EVERGREEN
@@ -189,10 +266,15 @@ def render_slot_string(slot: dict) -> str:
     tab's diff. Takes a slot dict (the on-disk / loaded shape) so stage runners
     and endpoints can call it without rehydrating a ``SkeletonSlot``.
     """
+    # Show the fine-grained subtype label in the type position when present
+    # (e.g. "equipment", "aura (local enchantment)", "artifact creature"); else
+    # the coarse card_type.
+    subtype = slot.get("card_subtype")
+    type_str = subtype_label(subtype) if subtype else (slot.get("card_type") or "?")
     parts = [
         _COLOR_FULL.get(slot.get("color", ""), slot.get("color") or "?"),
         slot.get("rarity") or "?",
-        slot.get("card_type") or "?",
+        type_str,
         f"CMC{slot.get('cmc_target', '?')}",
         slot.get("mechanic_tag") or "",
     ]
@@ -1264,6 +1346,80 @@ def _place_planeswalkers(slots: list[SkeletonSlot], count: int) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Card subtype assignment (a labelling overlay; see research/subtype-distribution.md)
+# ---------------------------------------------------------------------------
+
+
+def _assign_subtypes(
+    slots: list[SkeletonSlot],
+    knobs: SkeletonKnobs,
+    set_size: int,
+    set_code: str,
+) -> None:
+    """Label a subset of slots with a fine-grained ``card_subtype`` in place.
+
+    Recurring subtypes (equipment / vehicle / aura / artifact creature) get a
+    knob-driven count; then ``irregular_subtype_count`` deciduous specials (saga /
+    class / shrine / enchantment creature) are picked from :data:`IRREGULAR_SUBTYPES`.
+    Each count is scaled to ``set_size``, jittered by ``subtype_jitter``, and
+    realized by an RNG seeded on ``set_code`` + ``subtype_seed`` so the same project
+    is stable across re-runs and bumping the seed re-rolls.
+
+    Only ordinary slots are eligible: special slots (cycle members, reserved cards,
+    signposts) and planeswalkers/lands are skipped so structural families stay
+    clean. The labelling never changes ``card_type``/color/rarity/counts, so every
+    balance invariant still holds.
+    """
+    rng = random.Random(f"{set_code}|{knobs.subtype_seed}")
+    scale = set_size / BASE_SET_SIZE
+    jitter = knobs.subtype_jitter
+
+    def _realized(count: int) -> int:
+        if count <= 0:
+            return 0
+        center = count * scale
+        return max(0, round(center * (1 + rng.uniform(-jitter, jitter))))
+
+    def _eligible(parent: str, *, colored: bool = False, colorless: bool = False) -> list:
+        out = []
+        for s in slots:
+            if s.card_subtype:  # already labelled by an earlier subtype
+                continue
+            if s.cycle_id or s.reserved_card or s.signpost_for:
+                continue
+            if s.card_type != parent:
+                continue
+            is_cl = s.color == "colorless"
+            if colorless and not is_cl:
+                continue
+            if colored and is_cl:
+                continue
+            out.append(s)
+        return out
+
+    def _label(parent: str, subtype: str, n: int, *, colored=False, colorless=False) -> None:
+        if n <= 0:
+            return
+        pool = _eligible(parent, colored=colored, colorless=colorless)
+        rng.shuffle(pool)
+        for s in pool[:n]:
+            s.card_subtype = subtype
+
+    # Recurring subtypes first, so they claim their slots before the specials.
+    _label("artifact", SlotCardSubtype.EQUIPMENT, _realized(knobs.equipment_count), colorless=True)
+    _label("artifact", SlotCardSubtype.VEHICLE, _realized(knobs.vehicle_count), colorless=True)
+    _label("enchantment", SlotCardSubtype.AURA, _realized(knobs.aura_count), colored=True)
+    _label("creature", SlotCardSubtype.ARTIFACT_CREATURE, _realized(knobs.artifact_creature_count))
+
+    # Irregular bucket: pick `irregular_subtype_count` deciduous specials at random.
+    bucket = list(IRREGULAR_SUBTYPES)
+    rng.shuffle(bucket)
+    for spec in bucket[: max(0, knobs.irregular_subtype_count)]:
+        n = max(0, round(rng.randint(spec.lo, spec.hi) * scale))
+        _label(spec.parent, spec.subtype, n, colored=spec.colored, colorless=spec.colorless)
+
+
+# ---------------------------------------------------------------------------
 # Main generator
 # ---------------------------------------------------------------------------
 
@@ -1439,6 +1595,12 @@ def generate_skeleton(
 
     n_signposts = _mark_signpost_slots(all_slots, knobs.signposts_per_pair)
     logger.info("Skeleton: flagged %d signpost uncommon slot(s)", n_signposts)
+
+    # Label fine-grained subtypes last (after special slots are flagged so it skips
+    # them); a pure overlay that leaves card_type/color/rarity/counts untouched.
+    _assign_subtypes(all_slots, knobs, config.set_size, config.code)
+    n_subtypes = sum(1 for s in all_slots if s.card_subtype)
+    logger.info("Skeleton: labelled %d slot(s) with a fine-grained subtype", n_subtypes)
 
     balance = _build_balance_report(all_slots, config.set_size, knobs.signposts_per_pair)
 
