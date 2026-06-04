@@ -1,0 +1,3 @@
+Generate the artist directory for this set: exactly {count} made-up illustrators, each with a `name` and a `style_prompt`.
+
+Give the roster real range so different artists' cards look genuinely different, keep every style within MTG's painterly fantasy house aesthetic, and never reuse a real Magic artist's name.

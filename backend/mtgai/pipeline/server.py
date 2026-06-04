@@ -3982,6 +3982,214 @@ async def wizard_reprints_save(request: Request) -> JSONResponse:
     )
 
 
+# ---------------------------------------------------------------------------
+# Visual references — the art-direction dictionary + artist directory, reviewed
+# on the Visual References & Artists tab (stage_id ``visual_refs``).
+# ---------------------------------------------------------------------------
+
+_VR_ENTITY_KEYS = ("legendary_characters", "creature_types", "factions", "landmarks")
+
+
+def _vr_entity_rows(refs: dict) -> dict[str, list[dict]]:
+    """Shape each category dict into ordered ``[{key, description}]`` rows for the tab."""
+    out: dict[str, list[dict]] = {}
+    for cat in _VR_ENTITY_KEYS:
+        dict_ = refs.get(cat)
+        rows: list[dict] = []
+        if isinstance(dict_, dict):
+            for key, desc in dict_.items():
+                if isinstance(key, str) and isinstance(desc, str):
+                    rows.append({"key": key, "description": desc})
+        out[cat] = rows
+    return out
+
+
+def _coerce_vr_payload(body: dict) -> tuple[dict, list[dict]] | str:
+    """Validate a Visual References save body into ``(references_dict, artists)``.
+
+    Body shape (all optional, missing → empty):
+    ``{entities: {<cat>: [{key, description}]}, flux_term_replacements: {term: repl},
+       visual_motifs: [str], set_art_direction: str, artists: [{name, style_prompt}]}``.
+
+    Returns the assembled ``visual-references.json`` dict + the clean artists
+    list, or an error string. Keys are slugified the same way the generator does
+    so hand-edited keys still match card text downstream; rows with an empty key
+    or description are dropped (a user-added blank row isn't an error).
+    """
+    from mtgai.art.visual_reference_extractor import _slugify_key, assemble_artists
+
+    entities = body.get("entities")
+    if entities is not None and not isinstance(entities, dict):
+        return "entities must be an object keyed by category"
+    references: dict[str, Any] = {}
+    for cat in _VR_ENTITY_KEYS:
+        rows = (entities or {}).get(cat)
+        cat_dict: dict[str, str] = {}
+        if isinstance(rows, list):
+            for row in rows:
+                if not isinstance(row, dict):
+                    return f"{cat} rows must be objects"
+                slug = _slugify_key(row.get("key"))
+                desc = row.get("description")
+                if slug is None or not isinstance(desc, str) or not desc.strip():
+                    continue
+                cat_dict.setdefault(slug, desc.strip())  # first row wins on a dup key
+        references[cat] = cat_dict
+
+    flux = body.get("flux_term_replacements")
+    flux_clean: dict[str, str] = {}
+    if isinstance(flux, dict):
+        for term, repl in flux.items():
+            if isinstance(term, str) and term.strip() and isinstance(repl, str) and repl.strip():
+                flux_clean[term.strip()] = repl.strip()
+    references["flux_term_replacements"] = flux_clean
+
+    motifs = body.get("visual_motifs")
+    motif_clean: list[str] = []
+    if isinstance(motifs, list):
+        for m in motifs:
+            if isinstance(m, str) and m.strip():
+                motif_clean.append(m.strip())
+    references["visual_motifs"] = motif_clean
+
+    sad = body.get("set_art_direction")
+    references["set_art_direction"] = sad.strip() if isinstance(sad, str) else ""
+
+    artists = assemble_artists(body.get("artists"))
+    return references, artists
+
+
+def _visual_refs_state_payload(settings: Any) -> dict:
+    """The shared ``/state``-shaped payload (also returned by refresh endpoints)."""
+    from mtgai.art.visual_reference_extractor import (
+        load_artists,
+        load_visual_references,
+        target_artist_count,
+    )
+
+    asset = set_artifact_dir()
+    refs = load_visual_references(asset)
+    artists = load_artists(asset)
+    entity_rows = _vr_entity_rows(refs)
+    has_content = any(entity_rows[cat] for cat in _VR_ENTITY_KEYS) or bool(artists)
+    return {
+        "entities": entity_rows,
+        "flux_term_replacements": refs.get("flux_term_replacements") or {},
+        "visual_motifs": refs.get("visual_motifs") or [],
+        "set_art_direction": refs.get("set_art_direction") or "",
+        "artists": artists,
+        "has_content": has_content,
+        "artist_count_target": target_artist_count(settings.set_params.set_size or 0),
+        **_stage_state_base("visual_refs", settings),
+    }
+
+
+@router.get("/api/wizard/visual_refs/state")
+async def wizard_visual_refs_state() -> JSONResponse:
+    """First-paint state for the Visual References & Artists tab.
+
+    Reads ``art-direction/visual-references.json`` + ``artists.json`` and shapes
+    the four entity-category dicts into editable ``[{key, description}]`` rows,
+    alongside flux replacements, motifs, the set-wide art direction, the artist
+    directory, set params, theme excerpt, model id, and the stage status.
+    """
+    project = _require_active_project()
+    return JSONResponse(_visual_refs_state_payload(project.settings))
+
+
+@router.post("/api/wizard/visual_refs/refresh")
+async def wizard_visual_refs_refresh() -> JSONResponse:
+    """Regenerate the full art-direction dictionary + set-wide direction (AI).
+
+    Re-runs the dictionary transform and the set-wide art-direction call, merges
+    them, and overwrites ``visual-references.json`` (the artist directory is a
+    separate endpoint). Initial-generate and re-extract share this URL — both
+    overwrite. 409 on busy / no project / no asset.
+    """
+    from mtgai.art.visual_reference_extractor import (
+        generate_set_art_direction,
+        generate_visual_references,
+    )
+
+    project = _require_active_project()
+
+    asset = set_artifact_dir()
+    with guarded_ai("Visual-reference refresh", stage_id="visual_refs") as guard:
+        if guard.busy:
+            return guard.busy_response
+        with _bus_poller("visual_refs", activity_prefix="Generating art direction"):
+            ref_response = await asyncio.to_thread(generate_visual_references)
+            references = ref_response["references"]
+            set_response = await asyncio.to_thread(generate_set_art_direction)
+            references["set_art_direction"] = set_response["set_art_direction"]
+        _write_json(asset / "art-direction" / "visual-references.json", references)
+
+    return JSONResponse(_visual_refs_state_payload(project.settings))
+
+
+@router.post("/api/wizard/visual_refs/refresh-artists")
+async def wizard_visual_refs_refresh_artists(request: Request) -> JSONResponse:
+    """Regenerate the made-up artist directory (AI).
+
+    Body: ``{count?: int}`` — an explicit roster size, else the auto target for
+    the set size. Overwrites ``artists.json``. 409 on busy / no project / no
+    asset.
+    """
+    from mtgai.art.visual_reference_extractor import generate_artists
+
+    project = _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    count = body.get("count") if isinstance(body, dict) else None
+    if count is not None and (not isinstance(count, int) or count <= 0):
+        return JSONResponse({"error": "count must be a positive integer"}, status_code=400)
+
+    asset = set_artifact_dir()
+    with guarded_ai("Artist-directory refresh", stage_id="visual_refs") as guard:
+        if guard.busy:
+            return guard.busy_response
+        with _bus_poller("visual_refs", activity_prefix="Generating artists"):
+            response = await asyncio.to_thread(generate_artists, count=count)
+        _write_json(
+            asset / "art-direction" / "artists.json",
+            {"artists": response["artists"]},
+        )
+
+    return JSONResponse(_visual_refs_state_payload(project.settings))
+
+
+@router.post("/api/wizard/visual_refs/save")
+async def wizard_visual_refs_save(request: Request) -> JSONResponse:
+    """Persist the edited art-direction dictionary + artist directory. No AI.
+
+    Body shape: see :func:`_coerce_vr_payload`. Writes both
+    ``visual-references.json`` and ``artists.json``, heals a FAILED stage, and
+    returns the ``/state`` shape plus ``navigate_to`` for Save & Continue.
+    """
+    project = _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+
+    coerced = _coerce_vr_payload(body)
+    if isinstance(coerced, str):
+        return JSONResponse({"error": coerced}, status_code=400)
+    references, artists = coerced
+
+    asset = set_artifact_dir()
+    _write_json(asset / "art-direction" / "visual-references.json", references)
+    _write_json(asset / "art-direction" / "artists.json", {"artists": artists})
+    _heal_failed_stage("visual_refs")
+
+    payload = _visual_refs_state_payload(project.settings)
+    payload["navigate_to"] = _next_stage_nav("visual_refs")
+    payload["success"] = True
+    return JSONResponse(payload)
+
+
 @router.get("/api/wizard/lands/state")
 async def wizard_lands_state() -> JSONResponse:
     """First-paint state for the Lands tab.
