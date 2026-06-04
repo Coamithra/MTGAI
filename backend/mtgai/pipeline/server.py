@@ -1852,6 +1852,7 @@ async def project_new(request: Request) -> JSONResponse:
 
     registry = get_registry()
     break_points = _break_points_payload(seeded)
+    llm_stages, image_stages = _model_stage_lists()
     return JSONResponse(
         {
             "success": True,
@@ -1879,8 +1880,8 @@ async def project_new(request: Request) -> JSONResponse:
                     {"key": m.key, "name": m.name, "implemented": m.implemented}
                     for m in registry.list_image()
                 ],
-                "llm_stages": _model_stage_lists()[0],
-                "image_stages": _model_stage_lists()[1],
+                "llm_stages": llm_stages,
+                "image_stages": image_stages,
                 "builtin_presets": sorted(PRESETS),
                 "saved_profiles": list_profiles(),
                 "pipeline_started": False,
