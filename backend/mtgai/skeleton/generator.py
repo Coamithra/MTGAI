@@ -254,13 +254,16 @@ class SkeletonSlot(BaseModel):
 
 
 # Full color names for the human-readable one-line slot descriptor. WUBRG
-# singles plus the two pseudo-colors the matrix uses.
+# singles plus the two pseudo-colors the matrix uses. The mono colors are
+# prefixed "Mono " so the relabel/card-gen LLM can't read a bare "Green" as
+# "any card containing green" (e.g. a {U}{G} card is technically green too) and
+# slip a multicolor card into a mono slot.
 _COLOR_FULL: dict[str, str] = {
-    "W": "White",
-    "U": "Blue",
-    "B": "Black",
-    "R": "Red",
-    "G": "Green",
+    "W": "Mono White",
+    "U": "Mono Blue",
+    "B": "Mono Black",
+    "R": "Mono Red",
+    "G": "Mono Green",
     "multicolor": "Multicolor",
     "colorless": "Colorless",
 }

@@ -5082,7 +5082,12 @@ def _ai_review_load(instance_id: str | None = None) -> tuple[Path, dict[str, dic
     collector number to its persisted ``CardReviewResult`` JSON (from
     ``reviews/<cn>.json``), and ``decisions`` is the user-decisions sidecar.
     """
-    from mtgai.review.ai_review import CardReviewResult, load_decisions
+    from mtgai.review.ai_review import (
+        DECISIONS_FILENAME,
+        REVIEWED_FILENAME,
+        CardReviewResult,
+        load_decisions,
+    )
 
     asset = set_artifact_dir()
     cards_dir = _resolve_view_cards_dir(instance_id, asset)
@@ -5090,9 +5095,12 @@ def _ai_review_load(instance_id: str | None = None) -> tuple[Path, dict[str, dic
 
     reviews_by_cn: dict[str, dict] = {}
     reviews_dir = asset / "reviews"
+    # The reviews/ dir also holds non-review sidecars (user decisions + the
+    # reviewed-signatures tracker); skip them so they aren't parsed as reviews.
+    _sidecars = {DECISIONS_FILENAME, REVIEWED_FILENAME}
     if reviews_dir.is_dir():
         for rp in sorted(reviews_dir.glob("*.json")):
-            if rp.name == "decisions.json":
+            if rp.name in _sidecars:
                 continue
             try:
                 review = CardReviewResult.model_validate_json(rp.read_text(encoding="utf-8"))

@@ -76,7 +76,11 @@ def project(tmp_path: Path):
 
 
 class _Emitter:
-    def __init__(self):
+    # ``instance_id`` defaults to the backbone gate id, so run_conformance scopes
+    # to the whole pool (recheck is None) — what every test here but the
+    # later-instance scoping ones expect.
+    def __init__(self, instance_id: str = "conformance"):
+        self.instance_id = instance_id
         self.phases: list[tuple[str, str]] = []
         self.events: list[tuple[str, dict]] = []
 
@@ -216,8 +220,8 @@ def test_check_conformance_batches_and_streams(project, monkeypatch):
 
     # All three cards fit one batch; the model flags only the 2nd.
     fake = _fake_stream({"W-C-02": "wrong color"})
-    monkeypatch.setattr(gate_common, "stream_text",fake)
-    monkeypatch.setattr(gate_common, "cost_from_result",lambda r: 0.01)
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.01)
 
     started: list[list[dict]] = []
     streamed: list[dict] = []
@@ -258,8 +262,8 @@ def test_check_conformance_truncation_marks_unknown(project, monkeypatch):
 
     # Every attempt truncates with no flag blocks emitted.
     fake = _fake_stream({}, stop_reason="length")
-    monkeypatch.setattr(gate_common, "stream_text",fake)
-    monkeypatch.setattr(gate_common, "cost_from_result",lambda r: 0.0)
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
 
     streamed: list[dict] = []
     findings, analysis, _cost = conf_mod.check_conformance(
@@ -299,8 +303,8 @@ def test_check_conformance_retry_recovers(project, monkeypatch):
             "model": "m",
         }
 
-    monkeypatch.setattr(gate_common, "stream_text",fake)
-    monkeypatch.setattr(gate_common, "cost_from_result",lambda r: 0.0)
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
 
     findings, analysis, _cost = conf_mod.check_conformance(cards, slots)
 
@@ -321,8 +325,8 @@ def test_check_conformance_honors_cancel(project, monkeypatch):
     # One card per batch so the cancel check between batches is meaningful.
     monkeypatch.setattr(conf_mod, "BATCH_SIZE", 1)
     fake = _fake_stream({})
-    monkeypatch.setattr(gate_common, "stream_text",fake)
-    monkeypatch.setattr(gate_common, "cost_from_result",lambda r: 0.0)
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
 
     # Cancel before the second batch.
     conf_mod.check_conformance(cards, slots, should_cancel=lambda: fake.calls >= 1)
@@ -407,8 +411,8 @@ def test_check_conformance_pre_flagged_seeds_x_and_skips_llm(project, monkeypatc
 
     # The non-duplicate card conforms (empty stream); the duplicate skips the LLM.
     fake = _fake_stream({})
-    monkeypatch.setattr(gate_common, "stream_text",fake)
-    monkeypatch.setattr(gate_common, "cost_from_result",lambda r: 0.0)
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
 
     started: list[list[dict]] = []
     streamed: list[dict] = []
@@ -457,8 +461,8 @@ def test_run_conformance_folds_duplicates_into_conformance(project, monkeypatch)
 
     # The kept card (W-C-01) conforms (empty stream); the duplicate (W-C-02)
     # never reaches the LLM — it's pre-flagged by the algorithmic duplicate scan.
-    monkeypatch.setattr(gate_common, "stream_text",_fake_stream({}))
-    monkeypatch.setattr(gate_common, "cost_from_result",lambda r: 0.0)
+    monkeypatch.setattr(gate_common, "stream_text", _fake_stream({}))
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
     monkeypatch.setattr(
         "mtgai.analysis.interactions.analyze_interactions",
         lambda cards, mechanics, **kw: ([], "pool clean", 0.0),
@@ -594,6 +598,184 @@ def test_analyze_interactions_truncation_marks_unknown(project, monkeypatch):
     assert fake.calls == gate_common.MAX_BATCH_ATTEMPTS
     assert all(r["interacts"] is None for r in streamed)
     assert flags == []
+
+
+# ----------------------------------------------------------------------
+# Later-instance scoping — re-check only newly regenerated cards
+# ----------------------------------------------------------------------
+
+
+def test_check_conformance_restrict_to_scopes_check(project, monkeypatch):
+    """restrict_to limits the conformance check to the named cards only."""
+    from mtgai.analysis import conformance as conf_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02"), _make_card("W-C-03")]
+    slots = {
+        c.slot_id: {"slot_id": c.slot_id, "tweaked_text": "White common creature"} for c in cards
+    }
+    fake = _fake_stream({})  # nothing flagged
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    started: list[list[dict]] = []
+    findings, analysis, _cost = conf_mod.check_conformance(
+        cards, slots, restrict_to={"W-C-02"}, on_start=lambda lst: started.append(lst)
+    )
+
+    # Only the in-scope card was ever listed/checked; the others were skipped.
+    assert [c["slot_id"] for c in started[0]] == ["W-C-02"]
+    assert findings == []
+    assert analysis == "1/1 cards conform."
+
+
+def test_analyze_interactions_new_only_uses_rest_as_context(project, monkeypatch):
+    """new_only checks just the regenerated cards, with the rest as fixed context."""
+    from mtgai.analysis import interactions as inter_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02"), _make_card("W-C-03")]
+    fake = _fake_inter_stream({})
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    started: list[list[dict]] = []
+    streamed: list[dict] = []
+    inter_mod.analyze_interactions(
+        cards,
+        [],
+        new_only={"W-C-02"},
+        on_start=lambda lst: started.append(lst),
+        on_card=lambda rec: streamed.append(rec),
+    )
+
+    # One streamed call: only W-C-02 is new; W-C-01 + W-C-03 ride along as context.
+    assert fake.calls == 1
+    assert [c["slot_id"] for c in started[0]] == ["W-C-02"]
+    prompt = fake.prompts[0]
+    assert "Existing cards (2)" in prompt
+    new_section = prompt.split("## New cards to check")[-1]
+    assert "W-C-02 |" in new_section
+    assert "W-C-01 |" not in new_section and "W-C-03 |" not in new_section
+    # Only the in-scope card gets a per-card verdict.
+    assert [r["slot_id"] for r in streamed] == ["W-C-02"]
+
+
+def test_analyze_interactions_new_only_empty_is_clean_noop(project, monkeypatch):
+    """An empty new_only (nothing regenerated) makes no LLM call and passes."""
+    from mtgai.analysis import interactions as inter_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02")]
+    fake = _fake_inter_stream({})
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    flags, _analysis, cost = inter_mod.analyze_interactions(cards, [], new_only=set())
+
+    assert fake.calls == 0
+    assert flags == []
+    assert cost == 0.0
+
+
+def _state(*instance_ids: str):
+    from mtgai.pipeline.models import PipelineConfig, PipelineState, StageState
+
+    stages = [
+        StageState(stage_id=iid.split(".")[0], instance_id=iid, display_name=iid)
+        for iid in instance_ids
+    ]
+    return PipelineState(config=PipelineConfig(set_code="ABC", set_name="ABC"), stages=stages)
+
+
+def test_cards_to_recheck_backbone_checks_whole_pool(project, monkeypatch):
+    """The backbone conformance instance scopes to None (the whole pool)."""
+    from mtgai.pipeline import engine as engine_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02")]
+    monkeypatch.setattr(engine_mod, "load_state", lambda: _state("card_gen", "conformance"))
+
+    assert stages_mod._cards_to_recheck("conformance", cards) is None
+
+
+def test_cards_to_recheck_later_instance_diffs_snapshot(project, monkeypatch):
+    """A later instance scopes to the cards changed since the previous instance ran."""
+    from mtgai.io.card_io import save_card
+    from mtgai.pipeline import engine as engine_mod
+    from mtgai.pipeline import history
+
+    # Two cards present when the backbone conformance instance ran -> snapshot it.
+    save_card(_make_card("W-C-01", oracle_text="Original one."), set_dir=project)
+    save_card(_make_card("W-C-02", oracle_text="Original two."), set_dir=project)
+    assert history.snapshot_instance("conformance") is True
+
+    # card_gen.2 regenerates only W-C-02; the live pool now differs there.
+    save_card(_make_card("W-C-02", oracle_text="Regenerated two."), set_dir=project)
+    cards = [_make_card("W-C-01"), _make_card("W-C-02")]
+
+    monkeypatch.setattr(
+        engine_mod,
+        "load_state",
+        lambda: _state("card_gen", "conformance", "card_gen.2", "conformance.2"),
+    )
+
+    recheck = stages_mod._cards_to_recheck("conformance.2", cards)
+    assert recheck == {"W-C-02"}
+
+
+def test_cards_to_recheck_missing_snapshot_falls_back_to_whole_pool(project, monkeypatch):
+    """No predecessor snapshot (pre-version-tracking) -> re-check everything (None)."""
+    from mtgai.pipeline import engine as engine_mod
+
+    cards = [_make_card("W-C-01")]
+    monkeypatch.setattr(
+        engine_mod,
+        "load_state",
+        lambda: _state("card_gen", "conformance", "card_gen.2", "conformance.2"),
+    )
+    # No history/conformance snapshot was written.
+    assert stages_mod._cards_to_recheck("conformance.2", cards) is None
+
+
+def test_run_conformance_later_instance_scopes_both_steps(project, monkeypatch):
+    """run_conformance on a later instance passes the regenerated-card scope to
+    both the conformance (restrict_to) and interactions (new_only) steps."""
+    from mtgai.io.card_io import save_card
+    from mtgai.pipeline import engine as engine_mod
+    from mtgai.pipeline import history
+    from mtgai.runtime import ai_lock
+
+    ai_lock.reset_for_tests()
+
+    save_card(_make_card("W-C-01", oracle_text="Original one."), set_dir=project)
+    save_card(_make_card("W-C-02", oracle_text="Original two."), set_dir=project)
+    assert history.snapshot_instance("conformance") is True
+    # Only W-C-02 is regenerated since the backbone instance ran.
+    save_card(_make_card("W-C-02", oracle_text="Regenerated two."), set_dir=project)
+
+    monkeypatch.setattr(
+        engine_mod,
+        "load_state",
+        lambda: _state("card_gen", "conformance", "card_gen.2", "conformance.2"),
+    )
+
+    seen: dict[str, set | None] = {}
+
+    def fake_conformance(cards, slots, **kw):
+        seen["restrict_to"] = kw.get("restrict_to")
+        return ([], "all conform", 0.0)
+
+    def fake_interactions(cards, mechanics, **kw):
+        seen["new_only"] = kw.get("new_only")
+        return ([], "pool clean", 0.0)
+
+    monkeypatch.setattr("mtgai.analysis.conformance.check_conformance", fake_conformance)
+    monkeypatch.setattr("mtgai.analysis.interactions.analyze_interactions", fake_interactions)
+    monkeypatch.setattr(stages_mod, "make_poller", lambda *a, **k: contextlib.nullcontext())
+
+    stages_mod.run_conformance(None, _Emitter(instance_id="conformance.2"))
+
+    assert seen["restrict_to"] == {"W-C-02"}
+    assert seen["new_only"] == {"W-C-02"}
+
+    ai_lock.reset_for_tests()
 
 
 # ----------------------------------------------------------------------

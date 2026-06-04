@@ -144,7 +144,7 @@ def _project(isolated_output):
 
 def test_render_slot_string_format() -> None:
     s = _seed_slots()[0]
-    assert render_slot_string(s) == "White · common · creature · CMC2 · vanilla"
+    assert render_slot_string(s) == "Mono White · common · creature · CMC2 · vanilla"
     # The multicolor uncommon carries its signpost marker.
     assert render_slot_string(_seed_slots()[2]).endswith("· signpost:WU")
 

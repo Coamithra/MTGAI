@@ -290,6 +290,19 @@ class StageEmitter:
         """Emitter that swallows every call. Useful for CLI/test paths."""
         return cls(None, "", 0.0)
 
+    @property
+    def instance_id(self) -> str:
+        """The stage *instance* this emitter is bound to (``stage_id`` for the
+        backbone, ``f"{stage_id}.{n}"`` for an inserted loop copy). Runners read
+        it to scope per-instance behaviour — e.g. a later Conformance instance
+        re-checking only the cards regenerated since its predecessor ran."""
+        return self._instance_id
+
+    @property
+    def stage_id(self) -> str:
+        """The template stage_id (shared across this stage's instances)."""
+        return self._stage_id
+
     def _elapsed(self) -> float:
         if self._started_at <= 0:
             return 0.0

@@ -207,6 +207,20 @@ class TestCycleExpansion:
         assert all(m["cmc_target"] == 0 for m in members)
         assert all(m["cycle_id"] == "g" for m in members)
 
+    def test_nonland_cycle_cmc0_resolves_to_curve_center(self):
+        # The tuner leaving cmc_target=0 on a non-land cycle means "unspecified",
+        # not a free 0-drop — the skeleton commits to a concrete mana value.
+        cyc = Cycle(id="s", name="Signposts", span=CycleSpan.PAIRS10, card_type="creature",
+                    cmc_target=0)
+        assert cyc.cmc_target == 3
+        assert all(m["cmc_target"] == 3 for m in _expand_cycle(cyc))
+
+    def test_nonland_cycle_cmc_clamped_to_ceiling(self):
+        # An out-of-range high value clamps to the curve ceiling (not the default).
+        assert Cycle(id="t", name="T", card_type="creature", cmc_target=99).cmc_target == 12
+        # An in-range value is honoured verbatim.
+        assert Cycle(id="u", name="U", card_type="creature", cmc_target=6).cmc_target == 6
+
 
 class TestCycleReservation:
     def test_mono5_rare_cycle_stays_balanced(self):

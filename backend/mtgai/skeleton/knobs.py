@@ -486,6 +486,10 @@ WEDGE_TRIOS: list[str] = ["WBG", "URW", "BGU", "RWB", "GUR"]
 _RARITIES = {"common", "uncommon", "rare", "mythic"}
 _CARD_TYPES = {"creature", "instant", "sorcery", "enchantment", "artifact", "planeswalker", "land"}
 
+# Curve-center fallback for a non-land cycle whose cmc_target is unspecified
+# (0) or out of range — the skeleton always commits to a concrete mana value.
+_DEFAULT_CYCLE_CMC = 3
+
 
 class Cycle(BaseModel):
     """A structural reservation spanning several balanced slots.
@@ -503,7 +507,7 @@ class Cycle(BaseModel):
     span: CycleSpan = CycleSpan.MONO5
     card_type: str = "creature"
     template: str = ""
-    cmc_target: int = 3
+    cmc_target: int = _DEFAULT_CYCLE_CMC
     notes: str = ""
 
     @model_validator(mode="after")
@@ -512,8 +516,17 @@ class Cycle(BaseModel):
             object.__setattr__(self, "rarity", "uncommon")
         if self.card_type not in _CARD_TYPES:
             object.__setattr__(self, "card_type", "creature")
-        # Lands have no mana value; clamp others to the curve range.
-        cmc = 0 if self.card_type == "land" else max(0, min(12, self.cmc_target))
+        # Lands have no mana value. For everything else the skeleton OWNS the
+        # mana value — it never punts a CMC0 spell to card-gen — so a tuner that
+        # leaves cmc_target unspecified (0 / negative) is resolved to the
+        # curve-center default; a real but over-high value is clamped to the
+        # curve ceiling rather than discarded.
+        if self.card_type == "land":
+            cmc = 0
+        elif self.cmc_target < 1:
+            cmc = _DEFAULT_CYCLE_CMC
+        else:
+            cmc = min(12, self.cmc_target)
         object.__setattr__(self, "cmc_target", cmc)
         return self
 
