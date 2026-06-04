@@ -1195,7 +1195,7 @@
   // ------------------------------------------------------------------
 
   function renderModelAssignmentsSection(data) {
-    const llmRows = LLM_STAGES.map(stage => {
+    const llmRows = (data.llm_stages || []).map(stage => {
       const assigned = data.llm_assignments[stage.id] || '';
       const opts = data.llm_models.map(m =>
         `<option value="${escAttr(m.key)}" ${m.key === assigned ? 'selected' : ''}>${escHtml(m.name)}</option>`
@@ -1217,7 +1217,7 @@
       `;
     }).join('');
 
-    const imageRows = IMAGE_STAGES.map(stage => {
+    const imageRows = (data.image_stages || []).map(stage => {
       const assigned = data.image_assignments[stage.id] || '';
       const opts = data.image_models.map(m =>
         `<option value="${escAttr(m.key)}" ${m.key === assigned ? 'selected' : ''}>${escHtml(m.name)}${m.implemented ? '' : ' (not implemented)'}</option>`
@@ -1245,28 +1245,11 @@
     `;
   }
 
-  // Pipeline-order subset of stages that use LLMs / image models. Mirrors
-  // LLM_STAGE_NAMES / IMAGE_STAGE_NAMES in model_settings.py — kept
-  // client-side so we don't need a second fetch just to label rows.
-  const LLM_STAGES = [
-    { id: 'theme_extract', label: 'Theme extraction' },
-    { id: 'mechanics', label: 'Mechanic generation' },
-    { id: 'archetypes', label: 'Archetype generation' },
-    { id: 'skeleton', label: 'Skeleton generation' },
-    { id: 'reprints', label: 'Reprint selection' },
-    { id: 'lands', label: 'Land generation' },
-    { id: 'card_gen', label: 'Card generation' },
-    { id: 'conformance', label: 'Conformance & interactions' },
-    { id: 'ai_review', label: 'AI design review' },
-    { id: 'art_prompts', label: 'Art prompt generation' },
-    // art_select is folded into the merged art_gen stage; its model key is kept
-    // so the best-of-N selection sub-step still resolves an assigned model.
-    { id: 'art_select', label: 'Art selection' },
-  ];
-  const IMAGE_STAGES = [
-    { id: 'char_portraits', label: 'Character references' },
-    { id: 'art_gen', label: 'Art generation & review' },
-  ];
+  // The per-stage LLM / image rows are served by the backend (llm_stages /
+  // image_stages in the /api/wizard/project payload), derived from
+  // LLM_STAGE_NAMES / IMAGE_STAGE_NAMES in model_settings.py — so the picker
+  // stays in pipeline order and can never drift out of sync with the stage
+  // registry. Each row is { id, label }.
   const EFFORT_OPTIONS = [
     { value: '', label: '—' },
     { value: 'low', label: 'Low' },

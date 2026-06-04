@@ -1215,6 +1215,21 @@ def _break_points_payload(settings_obj) -> list[dict[str, Any]]:
     return rows
 
 
+def _model_stage_lists() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """The ordered (id, label) rows the Project Settings model table renders.
+
+    Derived from ``LLM_STAGE_NAMES`` / ``IMAGE_STAGE_NAMES`` so the wizard's
+    per-stage model picker can never drift out of sync with the backend stage
+    registry (the bug that left ``visual_refs`` / ``char_portraits`` out of the
+    picker when they were added). Served verbatim in both project payloads.
+    """
+    from mtgai.settings.model_settings import IMAGE_STAGE_NAMES, LLM_STAGE_NAMES
+
+    llm = [{"id": sid, "label": name} for sid, name in LLM_STAGE_NAMES.items()]
+    image = [{"id": sid, "label": name} for sid, name in IMAGE_STAGE_NAMES.items()]
+    return llm, image
+
+
 def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
     """Bundle everything the Project Settings tab needs on first paint."""
     from mtgai.settings.model_registry import get_registry
@@ -1253,6 +1268,7 @@ def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
     image_models = [
         {"key": m.key, "name": m.name, "implemented": m.implemented} for m in registry.list_image()
     ]
+    llm_stages, image_stages = _model_stage_lists()
 
     return {
         "set_code": set_code,
@@ -1266,6 +1282,8 @@ def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
         "debug": settings.debug.model_dump(),
         "llm_models": llm_models,
         "image_models": image_models,
+        "llm_stages": llm_stages,
+        "image_stages": image_stages,
         "builtin_presets": sorted(PRESETS),
         "saved_profiles": list_profiles(),
         "pipeline_started": pipeline_started,
@@ -1834,6 +1852,7 @@ async def project_new(request: Request) -> JSONResponse:
 
     registry = get_registry()
     break_points = _break_points_payload(seeded)
+    llm_stages, image_stages = _model_stage_lists()
     return JSONResponse(
         {
             "success": True,
@@ -1861,6 +1880,8 @@ async def project_new(request: Request) -> JSONResponse:
                     {"key": m.key, "name": m.name, "implemented": m.implemented}
                     for m in registry.list_image()
                 ],
+                "llm_stages": llm_stages,
+                "image_stages": image_stages,
                 "builtin_presets": sorted(PRESETS),
                 "saved_profiles": list_profiles(),
                 "pipeline_started": False,
