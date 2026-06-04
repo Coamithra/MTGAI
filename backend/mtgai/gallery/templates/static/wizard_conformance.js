@@ -192,7 +192,7 @@
     }
 
     const pausedNote = (status === 'paused_for_review' && (result.flagged || []).length)
-      ? '<p class="wiz-gate-paused">Review limit reached — these cards are left flagged for you '
+      ? '<p class="wiz-gate-paused">These cards are left flagged for you '
         + 'to edit or accept by hand before continuing.</p>'
       : '';
 
