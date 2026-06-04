@@ -1,8 +1,9 @@
 """Part 2 — the review→regen loop + stage split.
 
 Covers the engine's forward-only re-entrancy (a gate that flags cards bounces to
-``card_gen`` by inserting a fresh instance span and walking into it; budget
-exhaustion pauses for human review), the span scope (cost rule: a conformance
+``card_gen`` by inserting a fresh instance span and walking into it; the loop is
+uncapped — a gate keeps bouncing until its cards conform), the span scope (cost
+rule: a conformance
 bounce re-inserts only ``[card_gen, conformance]``), the card-flag substrate
 (``regen_reason`` collected by card_gen, archived, threaded into the prompt,
 flagged by a gate runner), and that a legacy ``skeleton_rev`` stage reconciles
@@ -16,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from mtgai.pipeline import engine as engine_mod
-from mtgai.pipeline.engine import MAX_REVIEW_ROUNDS, PipelineEngine
+from mtgai.pipeline.engine import PipelineEngine
 from mtgai.pipeline.events import EventBus
 from mtgai.pipeline.models import (
     STAGE_DEFINITIONS,
@@ -86,7 +87,7 @@ _SPAN = ["card_gen", "conformance", "ai_review", "finalize"]
 
 
 # ----------------------------------------------------------------------
-# Engine insertion + exhaustion
+# Engine insertion + uncapped loop
 # ----------------------------------------------------------------------
 
 
@@ -112,22 +113,24 @@ def test_gate_flags_then_passes_inserts_spans_and_advances(project, monkeypatch)
     assert all(s.status == StageStatus.COMPLETED for s in state.stages)
 
 
-def test_gate_exhaustion_pauses_for_review(project, monkeypatch):
-    """A gate that flags every round pauses for human review at the cap."""
+def test_gate_loop_is_uncapped(project, monkeypatch):
+    """There is no round cap: a gate that flags well past the old 3-round limit
+    keeps bouncing to card_gen, then completes once its cards finally conform —
+    it never pauses the pipeline for human review."""
     state = _state(_SPAN)
     counter = [0]
     _patch_clean(monkeypatch, "card_gen", "conformance", "finalize")
-    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "ai_review", _flagging(999, counter))
+    # Flag 6 times (double the old MAX_REVIEW_ROUNDS) then pass.
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "ai_review", _flagging(6, counter))
 
     PipelineEngine(state, EventBus()).run()
 
     ar = [s for s in state.stages if s.stage_id == "ai_review"]
-    assert len(ar) == MAX_REVIEW_ROUNDS, [s.instance_id for s in state.stages]
-    assert state.overall_status == PipelineStatus.PAUSED
-    # The last ai_review instance is the paused-for-review surface.
-    assert ar[-1].status == StageStatus.PAUSED_FOR_REVIEW
-    # finalize never ran.
-    assert next(s for s in state.stages if s.stage_id == "finalize").status == StageStatus.PENDING
+    # 6 flagging rounds + 1 clean = 7 ai_review instances, all completed.
+    assert len(ar) == 7, [s.instance_id for s in state.stages]
+    assert all(s.status == StageStatus.COMPLETED for s in ar)
+    assert state.overall_status == PipelineStatus.COMPLETED
+    assert all(s.status == StageStatus.COMPLETED for s in state.stages)
 
 
 def test_conformance_bounce_reinserts_only_card_gen_and_conformance(project, monkeypatch):
