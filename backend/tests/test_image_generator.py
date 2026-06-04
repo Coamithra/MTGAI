@@ -62,17 +62,104 @@ def test_generate_image_dispatches_to_comfyui(monkeypatch):
     assert calls["ref_paths"] == ["/x.png"]
 
 
-@pytest.mark.parametrize("provider", ["openai", "gemini"])
-def test_hosted_provider_is_stubbed(provider):
-    """Hosted providers are wired to dispatch but raise NotImplementedError
-    until llmfacade's generate_image lands."""
-    with pytest.raises(NotImplementedError):
-        ig.generate_image("a cat", provider=provider)
+def _fake_image_result(media_type="image/png"):
+    """A minimal stand-in for llmfacade's ImageResult."""
+    from llmfacade.models import ImageBlock, ImageResult, ImageUsage
+
+    return ImageResult(
+        images=[ImageBlock(data=b"hostedimg", media_type=media_type)],
+        usage=ImageUsage(input_tokens=10, output_tokens=20, image_count=1),
+        model="resolved-model",
+        provider="test",
+    )
+
+
+def test_hosted_openai_routes_through_llmfacade(monkeypatch):
+    """openai dispatch calls LLM.default().generate_image with a *valid* OpenAI
+    size (our 1024x768 art window is illegal for OpenAI) and returns bytes."""
+    captured = {}
+
+    class _FakeLLM:
+        def generate_image(self, prompt, **kwargs):
+            captured["prompt"] = prompt
+            captured.update(kwargs)
+            return _fake_image_result()
+
+    monkeypatch.setattr("llmfacade.LLM.default", classmethod(lambda cls: _FakeLLM()))
+
+    data, meta = ig.generate_image("a dragon", provider="openai", model_id="gpt-image-1")
+    assert data == b"hostedimg"
+    assert captured["provider"] == "openai"
+    assert captured["model"] == "gpt-image-1"
+    # 1024x768 is landscape -> nearest supported gpt-image-1 size.
+    assert captured["size"] == "1536x1024"
+    assert "aspect_ratio" not in captured
+    assert meta["backend"] == "llmfacade_openai"
+    assert meta["provider"] == "openai"
+
+
+def test_hosted_gemini_uses_aspect_ratio(monkeypatch):
+    """gemini dispatch passes aspect_ratio (Gemini ignores size) and aliases the
+    provider name to llmfacade's 'google'."""
+    captured = {}
+
+    class _FakeLLM:
+        def generate_image(self, prompt, **kwargs):
+            captured.update(kwargs)
+            return _fake_image_result()
+
+    monkeypatch.setattr("llmfacade.LLM.default", classmethod(lambda cls: _FakeLLM()))
+
+    ig.generate_image("a forest", provider="gemini")
+    assert captured["provider"] == "google"  # gemini -> google alias
+    # No model_id passed -> the provider default.
+    assert captured["model"] == "gemini-2.5-flash-image"
+    assert captured["aspect_ratio"] == "4:3"  # 1024x768 reduced
+    assert "size" not in captured
+
+
+def test_hosted_threads_existing_refs_as_reference_images(monkeypatch, tmp_path):
+    """ref_paths that exist on disk become ImageBlock reference_images; missing
+    ones are dropped (no conditioning)."""
+    ref = tmp_path / "hero.png"
+    ref.write_bytes(b"fakepng")
+    missing = str(tmp_path / "nope.png")
+    captured = {}
+
+    class _FakeLLM:
+        def generate_image(self, prompt, **kwargs):
+            captured.update(kwargs)
+            return _fake_image_result()
+
+    monkeypatch.setattr("llmfacade.LLM.default", classmethod(lambda cls: _FakeLLM()))
+
+    _data, meta = ig.generate_image(
+        "a hero", provider="openai", model_id="gpt-image-1", ref_paths=[str(ref), missing]
+    )
+    refs = captured["reference_images"]
+    assert refs is not None and len(refs) == 1  # only the existing one
+    assert refs[0].data == b"fakepng"
+    assert meta["character_refs_applied"] is True
 
 
 def test_unknown_provider_raises():
     with pytest.raises(ValueError):
         ig.generate_image("a cat", provider="midjourney")
+
+
+def test_openai_size_snaps_to_supported():
+    # gpt-image-1 family
+    assert ig._openai_size(1024, 768, "gpt-image-1") == "1536x1024"
+    assert ig._openai_size(768, 1024, "gpt-image-1") == "1024x1536"
+    # dall-e-3 family
+    assert ig._openai_size(1024, 768, "dall-e-3") == "1792x1024"
+    assert ig._openai_size(768, 1024, "dall-e-3") == "1024x1792"
+
+
+def test_aspect_ratio_reduces():
+    assert ig._aspect_ratio(1024, 768) == "4:3"
+    assert ig._aspect_ratio(1024, 1024) == "1:1"
+    assert ig._aspect_ratio(1920, 1080) == "16:9"
 
 
 # ---------------------------------------------------------------------------

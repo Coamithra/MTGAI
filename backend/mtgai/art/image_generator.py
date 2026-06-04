@@ -1,8 +1,11 @@
 """Image generation pipeline for card art.
 
-Generates art images for cards using their pre-built art prompts.
-Supports local ComfyUI (Flux GGUF) with a swappable backend design
-for future cloud API integration (fal.ai, Replicate, Midjourney).
+Generates art images for cards using their pre-built art prompts. Two backends,
+dispatched per the active project's ``art_gen`` image assignment:
+  - ``comfyui`` — local Flux GGUF via a direct ComfyUI API path (no llmfacade).
+  - hosted (``openai`` / ``gemini``) — routed through llmfacade's
+    ``generate_image`` (OpenAI Images / Gemini-native). The provider + model id
+    come from the image registry (``models.toml`` ``[image.*]``).
 
 Prerequisites:
     - ComfyUI running at http://127.0.0.1:8188
@@ -553,35 +556,116 @@ def generate_image_comfyui(
     return image_data, metadata
 
 
+# Hosted providers we route through llmfacade. "google" is llmfacade's alias
+# for "gemini"; both resolve to the Gemini-native image path.
+_HOSTED_PROVIDERS = frozenset({"openai", "gemini", "google"})
+
+# Per-provider default model id, used only when the registry entry omits one.
+_HOSTED_DEFAULT_MODEL = {
+    "openai": "gpt-image-1",
+    "gemini": "gemini-2.5-flash-image",
+    "google": "gemini-2.5-flash-image",
+}
+
+
+def _openai_size(width: int, height: int, model_id: str | None) -> str:
+    """Map our art window to the nearest OpenAI-supported size string.
+
+    OpenAI's image models reject arbitrary sizes: our 4:3-ish landscape default
+    (1024x768) is not valid for either family, so we snap to the closest
+    supported landscape/portrait size. gpt-image-1: 1024x1024 / 1536x1024 /
+    1024x1536; dall-e-3: 1024x1024 / 1792x1024 / 1024x1792.
+    """
+    landscape = width >= height
+    mid = (model_id or "").lower()
+    if "dall-e" in mid:
+        return "1792x1024" if landscape else "1024x1792"
+    return "1536x1024" if landscape else "1024x1536"
+
+
+def _aspect_ratio(width: int, height: int) -> str:
+    """Reduce a pixel WxH to the simple ``w:h`` ratio Gemini's image_config wants
+    (1024x768 -> ``4:3``). Gemini ignores ``size`` and takes ``aspect_ratio``."""
+    from math import gcd
+
+    g = gcd(width, height) or 1
+    return f"{width // g}:{height // g}"
+
+
 def generate_image_hosted(
     prompt: str,
     provider: str,
     *,
+    model_id: str | None = None,
     width: int = DEFAULT_WIDTH,
     height: int = DEFAULT_HEIGHT,
     ref_paths: list[str] | None = None,
 ) -> tuple[bytes, dict]:
-    """Generate an image via a hosted provider (OpenAI / Google) through llmfacade.
+    """Generate an image via a hosted provider (OpenAI / Gemini) through llmfacade.
 
-    STUB (intentional, tracked): hosted image generation rides on llmfacade's
-    ``generate_image`` support, built under a concurrent ticket. The dispatch +
-    routing live here so the seam is in place; the actual call is wired the
-    moment llmfacade lands it. Until then this raises ``NotImplementedError`` so
-    the stage runner can fall back to local Flux rather than silently producing
-    nothing. ``ref_paths`` are threaded for provider reference-conditioning once
-    the call is live.
+    Routes to ``LLM.default().generate_image`` (the same manager ``llm_client``
+    configures, so ``.env`` API keys are shared). ``model_id`` is the provider's
+    image model (resolved from the registry by the caller); when omitted we fall
+    back to the provider's default. Sizing is provider-specific: OpenAI takes a
+    constrained ``size``, Gemini an ``aspect_ratio``, so we map our pixel art
+    window accordingly. ``ref_paths`` that exist on disk become
+    ``reference_images`` (provider reference-conditioning: OpenAI's edit
+    endpoint, Gemini inline parts). Returns ``(image_bytes, metadata)``.
     """
-    raise NotImplementedError(
-        f"Hosted image generation ({provider!r}) is not wired yet — it depends on "
-        "llmfacade's generate_image support (concurrent ticket). Use the local "
-        "Flux/ComfyUI provider until that lands."
-    )
+    from llmfacade import LLM
+    from llmfacade.models import ImageBlock
+
+    if model_id is None:
+        model_id = _HOSTED_DEFAULT_MODEL.get(provider)
+
+    # Reference conditioning: only forward refs that actually exist on disk
+    # (char_portraits may not have produced them yet).
+    reference_images: list[ImageBlock] | None = None
+    if ref_paths:
+        existing = [p for p in ref_paths if Path(p).exists()]
+        if existing:
+            reference_images = [ImageBlock.from_path(p) for p in existing]
+
+    call_kwargs: dict = {
+        "provider": "google" if provider in ("gemini", "google") else provider,
+        "model": model_id,
+        "reference_images": reference_images,
+    }
+    if provider == "openai":
+        call_kwargs["size"] = _openai_size(width, height, model_id)
+    else:  # gemini / google
+        call_kwargs["aspect_ratio"] = _aspect_ratio(width, height)
+
+    start = time.time()
+    result = LLM.default().generate_image(prompt, **call_kwargs)
+    elapsed = time.time() - start
+
+    if not result.images:
+        raise RuntimeError(f"Hosted image provider {provider!r} returned no images")
+    block = result.images[0]
+
+    usage = result.usage
+    metadata = {
+        "backend": f"llmfacade_{provider}",
+        "provider": provider,
+        "model": result.model or model_id,
+        "media_type": block.media_type,
+        "width": width,
+        "height": height,
+        "elapsed_seconds": round(elapsed, 1),
+        "character_refs_applied": reference_images is not None,
+        "input_tokens": usage.input_tokens if usage else 0,
+        "output_tokens": usage.output_tokens if usage else 0,
+        "image_count": usage.image_count if usage else len(result.images),
+    }
+    return block.data, metadata
 
 
 def generate_image(
     prompt: str,
     *,
     provider: str = "comfyui",
+    model_id: str | None = None,
     seed: int | None = None,
     ref_paths: list[str] | None = None,
     width: int = DEFAULT_WIDTH,
@@ -591,19 +675,20 @@ def generate_image(
 
     - ``comfyui`` -> local Flux (a direct ComfyUI path, no llmfacade).
     - ``openai`` / ``gemini`` -> hosted, routed through llmfacade's
-      ``generate_image`` (stubbed; raises until that lands).
+      ``generate_image``. ``model_id`` is the provider image model (from the
+      registry); ``None`` falls back to the provider default.
 
     Other providers raise ``ValueError``. The Art Generation stage calls this
-    per candidate version; it resolves the provider from the active project's
-    ``art_gen`` image assignment.
+    per candidate version; it resolves the provider + model id from the active
+    project's ``art_gen`` image assignment.
     """
     if provider == "comfyui":
         return generate_image_comfyui(
             prompt, seed=seed, ref_paths=ref_paths, width=width, height=height
         )
-    if provider in ("openai", "gemini"):
+    if provider in _HOSTED_PROVIDERS:
         return generate_image_hosted(
-            prompt, provider, ref_paths=ref_paths, width=width, height=height
+            prompt, provider, model_id=model_id, ref_paths=ref_paths, width=width, height=height
         )
     raise ValueError(f"Unknown image provider: {provider!r}")
 
@@ -662,23 +747,30 @@ def _resolve_versions_per_card() -> int:
     return max(MIN_ART_VERSIONS, min(MAX_ART_VERSIONS, int(n)))
 
 
-def _resolve_provider() -> str:
-    """The image provider for the ``art_gen`` stage (from its image assignment).
+def _resolve_image_model():
+    """The ``ImageModel`` assigned to ``art_gen``, or ``None``.
 
-    Falls back to local Flux/ComfyUI when no project is open or the assigned
-    model can't be resolved.
+    Returns ``None`` when no project is open or the assigned key can't be
+    resolved, so callers degrade to local Flux/ComfyUI.
     """
     try:
         from mtgai.runtime.active_project import require_active_project
         from mtgai.settings.model_registry import get_registry
 
         key = require_active_project().settings.get_image_model_key("art_gen")
-        model = get_registry().get_image(key)
-        if model is not None:
-            return model.provider
+        return get_registry().get_image(key)
     except Exception:
-        pass
-    return "comfyui"
+        return None
+
+
+def _resolve_provider() -> str:
+    """The image provider for the ``art_gen`` stage (from its image assignment).
+
+    Falls back to local Flux/ComfyUI when no project is open or the assigned
+    model can't be resolved.
+    """
+    model = _resolve_image_model()
+    return model.provider if model is not None else "comfyui"
 
 
 def generate_art_for_set(
@@ -724,7 +816,9 @@ def generate_art_for_set(
     n_versions = (
         versions_per_card if versions_per_card is not None else _resolve_versions_per_card()
     )
-    provider = _resolve_provider()
+    image_model = _resolve_image_model()
+    provider = image_model.provider if image_model is not None else "comfyui"
+    model_id = image_model.model_id if image_model is not None else None
 
     # Progress file for resumability
     progress_path = log_dir / "progress.json"
@@ -807,6 +901,7 @@ def generate_art_for_set(
                         image_data, metadata = generate_image(
                             card.art_prompt,
                             provider=provider,
+                            model_id=model_id,
                             ref_paths=ref_paths,
                         )
                         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -833,10 +928,6 @@ def generate_art_for_set(
                         )
                         saved_versions.append({"version": version, "path": str(dest)})
                         break
-                    except NotImplementedError:
-                        # Hosted provider not wired yet — surface clearly and stop
-                        # (retrying will not help); the stage falls back / fails visibly.
-                        raise
                     except Exception as e:
                         logger.error(
                             "  v%d attempt %d/%d failed for %s: %s",

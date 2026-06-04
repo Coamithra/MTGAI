@@ -145,13 +145,15 @@ cost_per_image = 0.00
 implemented = true
 
 [image.gemini-imagen]
-name = "Gemini Imagen"
+name = "Gemini 2.5 Flash Image"
 provider = "gemini"
-cost_per_image = 0.00
-implemented = false
+model_id = "gemini-2.5-flash-image"
+cost_per_image = 0.04
+implemented = true
 
 [image.openai-dalle]
-name = "OpenAI DALL-E 3"
+name = "OpenAI GPT-Image-1"
 provider = "openai"
+model_id = "gpt-image-1"
 cost_per_image = 0.04
-implemented = false
+implemented = true
