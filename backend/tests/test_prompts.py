@@ -227,6 +227,29 @@ def test_format_slot_specs_no_signpost_marker_when_absent() -> None:
     assert "SIGNPOST UNCOMMON" not in spec
 
 
+def test_format_slot_specs_signpost_asserts_gold_colors_against_mono_descriptor() -> None:
+    # Regression: the relabel can wrongly recolour a signpost slot's free-text
+    # descriptor to a single colour while keeping the signpost tag (e.g.
+    # "White ... signpost:WU"), which confused card-gen into a mono card. The
+    # signpost instruction must authoritatively name the gold two-colour
+    # identity from the (structural) pair and override the descriptor's colour.
+    slot = {
+        "slot_id": "001",
+        "color": "multicolor",
+        "color_pair": "WU",
+        "rarity": "uncommon",
+        "card_type": "creature",
+        "cmc_target": 2,
+        "signpost_for": "WU",
+        "tweaked_text": "White · uncommon · creature · CMC2 · complex · signpost:WU",
+    }
+    spec = prompts.format_slot_specs([slot], None, None)
+    assert "SIGNPOST UNCOMMON for the WU archetype" in spec
+    assert "White/Blue" in spec
+    assert "MUST be a WU multicolor card" in spec
+    assert "ignore any single colour" in spec
+
+
 # ---------------------------------------------------------------------------
 # build_user_prompt — regression + override threading
 # ---------------------------------------------------------------------------

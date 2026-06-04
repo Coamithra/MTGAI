@@ -18,7 +18,7 @@ Color, rarity, type and CMC are ordinary Magic. The field worth decoding is the 
 - `evergreen` — built on a single evergreen keyword/ability
 - `complex` — meant to carry a real, non-trivial ability; the prime slot to hand one of the set's NAMED mechanics (from the Mechanics list below)
 
-A trailing `signpost:XY` (e.g. `signpost:UR`) marks the gold uncommon that defines the XY color pair's draft archetype — the card a drafter sees and instantly knows what deck to build. Keep those as the pair's signpost.
+A trailing `signpost:XY` (e.g. `signpost:UR`) marks the gold uncommon that defines the XY color pair's draft archetype — the card a drafter sees and instantly knows what deck to build. Keep those as the pair's signpost: a signpost slot is a TWO-COLOUR `X`/`Y` gold (multicolor) card and its colour is LOCKED — never recolour a `signpost:XY` slot to a single colour (a `signpost:WU` line must stay a White/Blue gold card, not "White"). You may still relabel its type/CMC/mechanic/notes.
 
 A trailing `cycle:<name> (colors)` (e.g. `cycle:Energon Sources (WG)`) marks a slot in a named cycle — a small family of cards built to share a structure, spread one per colour / colour-pair / three-colour trio. The `(colors)` is THIS member's slot in the family (its colour, pair, or trio), so you can see which sibling each card is. Keep each such slot in its cycle, keep the `cycle:<name> (colors)` tag on the line, and relabel the members as a coherent family so they read as siblings; the family's shared template is applied downstream when the cards are generated.
 

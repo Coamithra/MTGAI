@@ -310,14 +310,7 @@ def format_slot_specs(
                 spec += (
                     "\n   REPRINT SLOT — design a card suitable as a reprint from an existing set"
                 )
-            signpost_for = (slot.get("signpost_for") or "").strip()
-            if signpost_for:
-                arch = archetype_map.get(signpost_for)
-                arch_note = f" — {arch}" if arch else ""
-                spec += (
-                    f"\n   SIGNPOST UNCOMMON for the {signpost_for} archetype{arch_note}. "
-                    "Design the gold uncommon that defines and enables this archetype."
-                )
+            spec += _signpost_note(slot, archetype_map)
             # Ordinary gold slots used to be annotated here from ``slot["color_pair"]``,
             # but that's a swingable seed the relabel doesn't update — a slot recoloured
             # from WG to UR would get the WG archetype injected. The Draft Archetypes
@@ -365,15 +358,7 @@ def format_slot_specs(
         if reserved_card:
             spec += f"\n   REQUESTED CARD — design this slot as: {reserved_card}"
 
-        signpost_for = (slot.get("signpost_for") or "").strip()
-        if signpost_for:
-            arch = archetype_map.get(signpost_for)
-            arch_note = f" — {arch}" if arch else ""
-            spec += (
-                f"\n   SIGNPOST UNCOMMON for the {signpost_for} archetype{arch_note}. "
-                "Design the gold uncommon that defines and enables this archetype — the "
-                "card a drafter sees and immediately knows what deck to build."
-            )
+        spec += _signpost_note(slot, archetype_map)
 
         notes = slot.get("notes", "").strip()
         if notes:
@@ -403,6 +388,33 @@ def _cycle_note(slot: dict) -> str:
     if template:
         note += f" Cycle template: {template}"
     return note
+
+
+def _signpost_note(slot: dict, archetype_map: dict[str, str]) -> str:
+    """A SIGNPOST instruction for a signpost-uncommon slot, else "".
+
+    ``signpost_for`` is a structural flag (``"WU"``, ``"UR"``, …) the relabel
+    never touches, so it stays authoritative even when the relabel's free-text
+    descriptor drifts. In particular the relabel can wrongly recolour a signpost
+    slot's descriptor to a single colour while copying the ``signpost:WU`` tag
+    along (e.g. ``"White · uncommon · creature · … · signpost:WU"``) — a
+    self-contradiction that confused card-gen into building a mono-colour card.
+    So we name the gold two-colour identity explicitly from the (authoritative)
+    pair and tell the model to ignore any single colour the descriptor states.
+    """
+    pair = (slot.get("signpost_for") or "").strip()
+    if not pair:
+        return ""
+    arch = archetype_map.get(pair)
+    arch_note = f" — {arch}" if arch else ""
+    colors = "/".join(_expand_color(c) for c in pair) or pair
+    return (
+        f"\n   SIGNPOST UNCOMMON for the {pair} archetype{arch_note}. This is the {colors} "
+        f"GOLD (two-colour {pair} multicolor) uncommon that defines and enables this "
+        f"archetype — it MUST be a {pair} multicolor card; ignore any single colour the "
+        "line above may state. Design the card a drafter sees and immediately knows what "
+        "deck to build."
+    )
 
 
 def _regen_note(slot: dict) -> str:
