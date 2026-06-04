@@ -543,6 +543,18 @@
       });
     });
 
+    // Art Generation streaming (merged generate + best-of-N judge). A single
+    // art_gen_reset fires at the start of a run; each card's art landing emits
+    // art_gen_card (phase: "generated" then "judged") so the merged Art
+    // Generation tab marks tiles live as they fill in + get judged. The tab
+    // listens via the W.onArtGenStream bridge.
+    ['art_gen_reset', 'art_gen_card'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onArtGenStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     // Character References streaming. Each recurring entity pops onto the
     // Character References tab as its image generation starts (char_refs_entity
     // — tile + attached-cards list + a "generating" badge), then each saved

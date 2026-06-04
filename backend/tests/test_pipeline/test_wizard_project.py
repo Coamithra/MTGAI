@@ -131,6 +131,32 @@ def test_save_params_rejects_negative_mechanic_count(client):
     assert resp.status_code == 400
 
 
+def test_save_params_live_applies_art_versions(client):
+    """The best-of-N knob (art_versions_per_card) applies live and is clamped."""
+    from mtgai.settings.model_settings import MAX_ART_VERSIONS
+
+    _open_project("TST")
+    resp = client.post(
+        "/api/wizard/project/params",
+        json={"set_code": "TST", "art_versions_per_card": 4},
+    )
+    assert resp.status_code == 200
+    settings = active_project.require_active_project().settings
+    assert settings.set_params.art_versions_per_card == 4
+
+    # Out of range -> 400.
+    resp = client.post(
+        "/api/wizard/project/params",
+        json={"set_code": "TST", "art_versions_per_card": MAX_ART_VERSIONS + 1},
+    )
+    assert resp.status_code == 400
+    resp = client.post(
+        "/api/wizard/project/params",
+        json={"set_code": "TST", "art_versions_per_card": 0},
+    )
+    assert resp.status_code == 400
+
+
 def test_save_params_rejects_mechanic_count_above_max(client):
     """``mechanic_count`` is capped at ``MAX_MECHANIC_COUNT``.
 

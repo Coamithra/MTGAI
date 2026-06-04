@@ -1558,59 +1558,92 @@ def run_char_portraits(progress_cb: ProgressCallback | None, emitter: StageEmitt
 
 
 def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Generate art for all cards, then select the best version per card.
+    """Merged Art Generation stage: generate best-of-N, judge, human review.
 
-    MERGED stage (topology reorg): chains the existing
-    ``generate_art_for_set`` (ComfyUI + Flux) and ``select_art_for_set``
-    (Haiku vision best-of-N pick) so the retired ``art_select`` /
-    ``human_art_review`` stages still run end-to-end. The downstream Art
-    Generation rework card swaps these internals (new gen+select+review UI)
-    without touching the stage registry. The select pass still resolves its
-    own model assignment via the ``art_select`` key.
+    One cohesive stage (the old ``art_select`` + ``human_art_review`` are folded
+    in): for every card it generates ``SetParams.art_versions_per_card`` candidate
+    images (provider from the ``art_gen`` image assignment — local Flux/ComfyUI
+    direct, OpenAI/Google stubbed), conditions on ``Card.art_character_refs``
+    (PuLID/IP-Adapter), then the LLM judge (the ``art_select`` model assignment)
+    auto-picks the best per card. The merged Art Generation tab then lets the user
+    re-pick / reroll / upload over the auto-pick (its ``review`` break-point is on
+    by default).
+
+    The whole span (generate + judge) runs under ONE app-wide AI-lock hold so the
+    Cancel button halts it at a card boundary (kept partial output is resumable).
+    Per-card art lands stream to the tab as ``art_gen_card`` events; a single
+    ``art_gen_reset`` fires at the start.
     """
     from mtgai.art.art_selector import select_art_for_set
     from mtgai.art.image_generator import generate_art_for_set
     from mtgai.runtime import ai_lock
 
-    gen_result = generate_art_for_set(progress_callback=progress_cb)
-    generated = gen_result.get("generated", 0)
+    emitter.event("art_gen_reset")
 
-    # Best-of-N selection (folded in from the old art_select stage). Hold the
-    # app-wide AI lock for the whole loop (one AI action at a time) and thread
-    # the cancel hook so the Cancel button halts at the next card boundary
-    # (request_cancel() is a no-op unless the lock is held). Mirrors run_card_gen.
-    emitter.phase("running", "Selecting art")
-    with ai_lock.hold("Art selection") as acquired:
+    def gen_progress(cn, completed, total, message, cost):
+        # Mirror the upstream progress to the stage strip AND stream a per-card
+        # tile to the merged Art Generation tab so art shows up live, labeled.
+        if progress_cb is not None:
+            progress_cb(cn, completed, total, message, cost)
+        emitter.event("art_gen_card", collector_number=cn, phase="generated", detail=message)
+
+    def judge_progress(cn, completed, total, message, cost):
+        if progress_cb is not None:
+            progress_cb(cn, completed, total, message, cost)
+        emitter.event("art_gen_card", collector_number=cn, phase="judged", detail=message)
+
+    with ai_lock.hold("Art generation") as acquired:
         if not acquired:
             return StageResult(
                 success=False,
                 error_message="Another AI action holds the lock; try again later.",
             )
-        with make_poller("art_select", emitter.phase, activity_prefix="Selecting art"):
+
+        emitter.phase("running", "Generating art")
+        with make_poller("art_gen", emitter.phase, activity_prefix="Generating art"):
+            gen_result = generate_art_for_set(
+                progress_callback=gen_progress,
+                should_cancel=ai_lock.is_cancelled,
+            )
+        generated = gen_result.get("generated", 0)
+
+        if gen_result.get("cancelled"):
+            emitter.phase("done", "Art generation cancelled")
+            return StageResult(
+                success=False,
+                total_items=generated + gen_result.get("skipped", 0),
+                completed_items=generated,
+                error_message="Art generation cancelled by user.",
+            )
+
+        # Best-of-N judge (folded in from the old art_select stage). Same lock
+        # hold — one AI action at a time. Resolves the ``art_select`` model.
+        emitter.phase("running", "Judging art")
+        with make_poller("art_select", emitter.phase, activity_prefix="Judging art"):
             sel_result = select_art_for_set(
-                progress_callback=progress_cb,
+                progress_callback=judge_progress,
                 should_cancel=ai_lock.is_cancelled,
             )
 
     reviewed = sel_result.get("reviewed", 0)
     sel_cost = sel_result.get("estimated_cost_usd", 0.0)
     if sel_result.get("cancelled"):
-        emitter.phase("done", "Art selection cancelled")
+        emitter.phase("done", "Art judging cancelled")
         return StageResult(
             success=False,
             total_items=generated + gen_result.get("skipped", 0),
             completed_items=generated,
             cost_usd=sel_cost,
-            error_message="Art selection cancelled by user.",
+            error_message="Art judging cancelled by user.",
         )
 
-    emitter.phase("done", f"Generated art for {generated} cards, selected {reviewed}")
+    emitter.phase("done", f"Generated art for {generated} cards, judged {reviewed}")
     return StageResult(
         total_items=generated + gen_result.get("skipped", 0),
         completed_items=generated,
         failed_items=gen_result.get("failed", 0),
         cost_usd=sel_cost,
-        detail=f"Generated art for {generated} cards, selected {reviewed}",
+        detail=f"Generated art for {generated} cards, judged {reviewed}",
     )
 
 

@@ -456,6 +456,46 @@ def flush_comfyui() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _apply_character_refs(workflow: dict, ref_paths: list[str]) -> bool:
+    """Inject character reference-image conditioning into the Flux workflow.
+
+    Reads the resolved reference-image paths a card carries via
+    ``Card.art_character_refs`` (produced by the ``char_portraits`` stage) and
+    wires them into the ComfyUI graph as PuLID-Flux / IP-Adapter conditioning so
+    a card featuring a recurring entity is generated *with that entity's
+    appearance* rather than a fresh interpretation.
+
+    STUB (intentional, tracked): the bundled ``flux_dev_gguf.json`` workflow has
+    no PuLID/IP-Adapter nodes, and those require ComfyUI custom-node packs that
+    aren't guaranteed present. Wiring the actual graph is a manual-testing follow
+    -up against a live ComfyUI with the PuLID-Flux nodes installed. Until then
+    this logs the intent and returns False so the caller falls back to plain
+    text-to-image. The *decision* (which cards get ref-conditioning, with which
+    images) is fully implemented here and unit-tested — only the node injection
+    is deferred. Returns True when conditioning was actually applied.
+    """
+    if not ref_paths:
+        return False
+    existing = [p for p in ref_paths if Path(p).exists()]
+    if not existing:
+        logger.warning(
+            "  Character refs declared but none exist on disk (%s) — generating without them",
+            ", ".join(ref_paths),
+        )
+        return False
+    # TODO(art-gen): inject PuLID-Flux / IP-Adapter nodes into ``workflow`` here,
+    # loading each path in ``existing`` as an identity/style reference and routing
+    # its conditioning into KSampler node "8". Requires the PuLID-Flux ComfyUI
+    # custom nodes; verify against a live ComfyUI. Until then we no-op so the run
+    # still produces art (without identity locking).
+    logger.info(
+        "  %d character ref(s) available for conditioning (PuLID wiring pending): %s",
+        len(existing),
+        ", ".join(Path(p).name for p in existing),
+    )
+    return False
+
+
 def generate_image_comfyui(
     prompt: str,
     seed: int | None = None,
@@ -463,8 +503,13 @@ def generate_image_comfyui(
     guidance: float = DEFAULT_GUIDANCE,
     width: int = DEFAULT_WIDTH,
     height: int = DEFAULT_HEIGHT,
+    ref_paths: list[str] | None = None,
 ) -> tuple[bytes, dict]:
     """Generate an image via local ComfyUI.
+
+    ``ref_paths`` are resolved character-reference image paths (from
+    ``Card.art_character_refs``); when present and the PuLID/IP-Adapter wiring is
+    available they condition generation on the entity's appearance.
 
     Returns (image_bytes, metadata_dict).
     """
@@ -477,6 +522,8 @@ def generate_image_comfyui(
     workflow["7"]["inputs"]["height"] = height
     workflow["8"]["inputs"]["seed"] = seed if seed is not None else random.randint(0, 2**32)
     workflow["8"]["inputs"]["steps"] = steps
+
+    refs_applied = _apply_character_refs(workflow, ref_paths or [])
 
     # Queue and wait
     prompt_id = _queue_prompt(workflow)
@@ -501,8 +548,83 @@ def generate_image_comfyui(
         "elapsed_seconds": round(result["elapsed"], 1),
         "backend": "comfyui_local",
         "model": "flux1-dev-Q8_0",
+        "character_refs_applied": refs_applied,
     }
     return image_data, metadata
+
+
+def generate_image_hosted(
+    prompt: str,
+    provider: str,
+    *,
+    width: int = DEFAULT_WIDTH,
+    height: int = DEFAULT_HEIGHT,
+    ref_paths: list[str] | None = None,
+) -> tuple[bytes, dict]:
+    """Generate an image via a hosted provider (OpenAI / Google) through llmfacade.
+
+    STUB (intentional, tracked): hosted image generation rides on llmfacade's
+    ``generate_image`` support, built under a concurrent ticket. The dispatch +
+    routing live here so the seam is in place; the actual call is wired the
+    moment llmfacade lands it. Until then this raises ``NotImplementedError`` so
+    the stage runner can fall back to local Flux rather than silently producing
+    nothing. ``ref_paths`` are threaded for provider reference-conditioning once
+    the call is live.
+    """
+    raise NotImplementedError(
+        f"Hosted image generation ({provider!r}) is not wired yet — it depends on "
+        "llmfacade's generate_image support (concurrent ticket). Use the local "
+        "Flux/ComfyUI provider until that lands."
+    )
+
+
+def generate_image(
+    prompt: str,
+    *,
+    provider: str = "comfyui",
+    seed: int | None = None,
+    ref_paths: list[str] | None = None,
+    width: int = DEFAULT_WIDTH,
+    height: int = DEFAULT_HEIGHT,
+) -> tuple[bytes, dict]:
+    """Provider-dispatching single-image generation entry point.
+
+    - ``comfyui`` -> local Flux (a direct ComfyUI path, no llmfacade).
+    - ``openai`` / ``gemini`` -> hosted, routed through llmfacade's
+      ``generate_image`` (stubbed; raises until that lands).
+
+    Other providers raise ``ValueError``. The Art Generation stage calls this
+    per candidate version; it resolves the provider from the active project's
+    ``art_gen`` image assignment.
+    """
+    if provider == "comfyui":
+        return generate_image_comfyui(
+            prompt, seed=seed, ref_paths=ref_paths, width=width, height=height
+        )
+    if provider in ("openai", "gemini"):
+        return generate_image_hosted(
+            prompt, provider, ref_paths=ref_paths, width=width, height=height
+        )
+    raise ValueError(f"Unknown image provider: {provider!r}")
+
+
+def _resolve_ref_paths(card, set_dir: Path) -> list[str]:
+    """Resolve a card's ``art_character_refs`` to absolute, on-disk paths.
+
+    ``ref_image_path`` is repo-relative under the asset folder; we join it to
+    ``set_dir`` (absolute paths are kept as-is). Built to the field contract —
+    works whether or not ``char_portraits`` has actually produced the images.
+    """
+    resolved: list[str] = []
+    for ref in getattr(card, "art_character_refs", None) or []:
+        raw = getattr(ref, "ref_image_path", None)
+        if not raw:
+            continue
+        p = Path(raw)
+        if not p.is_absolute():
+            p = set_dir / raw
+        resolved.append(str(p))
+    return resolved
 
 
 # ---------------------------------------------------------------------------
@@ -522,20 +644,69 @@ def _save_progress(progress: dict, progress_path: Path) -> None:
     atomic_write_text(progress_path, json.dumps(progress, indent=2))
 
 
+def _resolve_versions_per_card() -> int:
+    """How many candidate versions to generate per card (best-of-N knob).
+
+    Reads ``SetParams.art_versions_per_card`` off the active project, clamped to
+    the supported range. Falls back to the default when no project is open
+    (CLI/test paths that haven't activated one).
+    """
+    from mtgai.settings.model_settings import MAX_ART_VERSIONS, MIN_ART_VERSIONS
+
+    try:
+        from mtgai.runtime.active_project import require_active_project
+
+        n = require_active_project().settings.set_params.art_versions_per_card
+    except Exception:
+        n = 3
+    return max(MIN_ART_VERSIONS, min(MAX_ART_VERSIONS, int(n)))
+
+
+def _resolve_provider() -> str:
+    """The image provider for the ``art_gen`` stage (from its image assignment).
+
+    Falls back to local Flux/ComfyUI when no project is open or the assigned
+    model can't be resolved.
+    """
+    try:
+        from mtgai.runtime.active_project import require_active_project
+        from mtgai.settings.model_registry import get_registry
+
+        key = require_active_project().settings.get_image_model_key("art_gen")
+        model = get_registry().get_image(key)
+        if model is not None:
+            return model.provider
+    except Exception:
+        pass
+    return "comfyui"
+
+
 def generate_art_for_set(
     card_filter: str | None = None,
     dry_run: bool = False,
     force: bool = False,
-    max_attempts: int = 2,
+    versions_per_card: int | None = None,
+    max_attempts_per_version: int = 2,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict:
-    """Generate art images for all cards in the active project.
+    """Generate best-of-N art candidates for all cards in the active project.
+
+    For each card, generates ``versions_per_card`` distinct candidate images
+    (different seeds) so a downstream judge can pick the best. This is the
+    best-of-N knob, distinct from the old ``max_attempts`` retry-on-failure
+    (now a per-version error retry only).
 
     Args:
         card_filter: Optional collector number prefix to filter cards.
         dry_run: If True, log what would be done but don't generate.
         force: If True, regenerate even if art already exists.
-        max_attempts: Max generation attempts per card.
+        versions_per_card: Override the per-card candidate count; defaults to the
+            project's ``SetParams.art_versions_per_card``.
+        max_attempts_per_version: Retries for a single failing version.
+        should_cancel: Predicate polled at each card boundary; when True the loop
+            stops early (versions generated so far are kept + tracked) and
+            ``summary["cancelled"]`` is set.
 
     Returns summary dict with stats.
     """
@@ -550,6 +721,11 @@ def generate_art_for_set(
     art_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
 
+    n_versions = (
+        versions_per_card if versions_per_card is not None else _resolve_versions_per_card()
+    )
+    provider = _resolve_provider()
+
     # Progress file for resumability
     progress_path = log_dir / "progress.json"
     progress = _load_progress(progress_path)
@@ -562,18 +738,25 @@ def generate_art_for_set(
     if not card_files:
         raise ValueError(f"No cards found matching filter: {card_filter}")
 
-    # Ensure ComfyUI is running (unless dry run)
+    # Ensure ComfyUI is running (local Flux only; hosted providers need no
+    # subprocess). Skip on dry-run.
     comfyui_proc = None
-    if not dry_run:
-        comfyui_proc = ensure_comfyui()
+    if not dry_run and provider == "comfyui":
+        comfyui_proc = ensure_comfyui(log_dir=log_dir)
 
     generated = 0
     skipped = 0
     failed = 0
+    cancelled = False
     errors = []
 
     try:
         for card_file in card_files:
+            if should_cancel is not None and should_cancel():
+                logger.info("Art generation cancelled by user after %d card(s)", generated)
+                cancelled = True
+                break
+
             card = load_card(card_file)
             cn = card.collector_number
 
@@ -589,21 +772,17 @@ def generate_art_for_set(
                 skipped += 1
                 continue
 
-            # Determine version number
-            existing = list(art_dir.glob(f"{card_slug(cn, card.name)}_v*.png"))
-            version = len(existing) + 1
-            if force:
-                version = 1  # overwrite
-
-            # Build the destination directly from art_dir so asset_folder
-            # routing wins over the legacy art_path() default.
-            dest = art_dir / f"{card_slug(cn, card.name)}_v{version}.png"
+            slug = card_slug(cn, card.name)
+            ref_paths = _resolve_ref_paths(card, set_dir)
 
             logger.info(
-                "GENERATE %s: %s (v%d)%s",
+                "GENERATE %s: %s (%d version%s, provider=%s%s)%s",
                 cn,
                 card.name,
-                version,
+                n_versions,
+                "" if n_versions == 1 else "s",
+                provider,
+                f", {len(ref_paths)} ref(s)" if ref_paths else "",
                 " [DRY RUN]" if dry_run else "",
             )
             logger.info("  Prompt: %s", card.art_prompt[:100] + "...")
@@ -612,75 +791,92 @@ def generate_art_for_set(
                 generated += 1
                 continue
 
-            # Generate with retry
-            attempt_errors = []
-            for attempt in range(1, max_attempts + 1):
-                try:
-                    image_data, metadata = generate_image_comfyui(
-                        prompt=card.art_prompt,
-                    )
+            # Best-of-N: generate ``n_versions`` distinct candidates. ``force``
+            # restarts the version numbering at 1 (overwrite); otherwise append
+            # after any existing versions so a resume tops up the pool.
+            existing = list(art_dir.glob(f"{slug}_v*.png"))
+            base_version = 0 if force else len(existing)
 
-                    # Save image
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    dest.write_bytes(image_data)
-                    logger.info(
-                        "  SAVED %s (%.1fs, %s bytes)",
-                        dest.name,
-                        metadata["elapsed_seconds"],
-                        f"{len(image_data):,}",
-                    )
-
-                    # Log generation details
-                    log_entry = {
-                        "collector_number": cn,
-                        "name": card.name,
-                        "version": version,
-                        "attempt": attempt,
-                        "prompt": card.art_prompt,
-                        "output_path": str(dest),
-                        "file_size_bytes": len(image_data),
-                        **metadata,
-                    }
-                    log_path = log_dir / f"{cn}_v{version}.json"
-                    atomic_write_text(log_path, json.dumps(log_entry, indent=2))
-
-                    # Track progress
-                    progress["completed"][cn] = {
-                        "version": version,
-                        "path": str(dest),
-                        "elapsed": metadata["elapsed_seconds"],
-                    }
-                    _save_progress(progress, progress_path)
-
-                    generated += 1
-
-                    if progress_callback is not None:
-                        progress_callback(
-                            cn,
-                            generated + skipped,
-                            len(card_files),
-                            f"Generated art for {card.name}",
-                            0.0,
+            saved_versions: list[dict] = []
+            version_errors: list[dict] = []
+            for i in range(1, n_versions + 1):
+                version = base_version + i
+                dest = art_dir / f"{slug}_v{version}.png"
+                for attempt in range(1, max_attempts_per_version + 1):
+                    try:
+                        image_data, metadata = generate_image(
+                            card.art_prompt,
+                            provider=provider,
+                            ref_paths=ref_paths,
                         )
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        dest.write_bytes(image_data)
+                        logger.info(
+                            "  SAVED %s (%.1fs, %s bytes)",
+                            dest.name,
+                            metadata.get("elapsed_seconds", 0.0),
+                            f"{len(image_data):,}",
+                        )
+                        log_entry = {
+                            "collector_number": cn,
+                            "name": card.name,
+                            "version": version,
+                            "attempt": attempt,
+                            "prompt": card.art_prompt,
+                            "output_path": str(dest),
+                            "file_size_bytes": len(image_data),
+                            "character_refs": ref_paths,
+                            **metadata,
+                        }
+                        atomic_write_text(
+                            log_dir / f"{cn}_v{version}.json", json.dumps(log_entry, indent=2)
+                        )
+                        saved_versions.append({"version": version, "path": str(dest)})
+                        break
+                    except NotImplementedError:
+                        # Hosted provider not wired yet — surface clearly and stop
+                        # (retrying will not help); the stage falls back / fails visibly.
+                        raise
+                    except Exception as e:
+                        logger.error(
+                            "  v%d attempt %d/%d failed for %s: %s",
+                            version,
+                            attempt,
+                            max_attempts_per_version,
+                            cn,
+                            e,
+                        )
+                        version_errors.append(
+                            {"version": version, "attempt": attempt, "error": str(e)}
+                        )
+                        if attempt < max_attempts_per_version:
+                            time.sleep(5)
 
-                    break
-
-                except Exception as e:
-                    logger.error("  ATTEMPT %d/%d failed for %s: %s", attempt, max_attempts, cn, e)
-                    attempt_errors.append({"attempt": attempt, "error": str(e)})
-
-                    if attempt < max_attempts:
-                        time.sleep(5)
+            if saved_versions:
+                generated += 1
+                progress["completed"][cn] = {
+                    "versions": saved_versions,
+                    "version_count": len(saved_versions),
+                }
+                _save_progress(progress, progress_path)
+                if progress_callback is not None:
+                    progress_callback(
+                        cn,
+                        generated + skipped,
+                        len(card_files),
+                        f"Generated {len(saved_versions)} version(s) for {card.name}",
+                        0.0,
+                    )
             else:
-                # All attempts failed
                 failed += 1
-                errors.append({"card": cn, "attempts": attempt_errors})
-                progress["failed"][cn] = attempt_errors
+                errors.append({"card": cn, "attempts": version_errors})
+                progress["failed"][cn] = version_errors
                 _save_progress(progress, progress_path)
 
     finally:
-        # Always kill ComfyUI on exit to free VRAM
-        kill_comfyui(comfyui_proc)
+        # Always kill ComfyUI on exit to free VRAM (no-op if we did not start it).
+        if provider == "comfyui":
+            kill_comfyui(comfyui_proc)
 
     summary = {
         "set_code": set_code,
@@ -688,7 +884,10 @@ def generate_art_for_set(
         "skipped": skipped,
         "failed": failed,
         "errors": errors,
+        "provider": provider,
+        "versions_per_card": n_versions,
         "dry_run": dry_run,
+        "cancelled": cancelled,
     }
 
     # Save summary
