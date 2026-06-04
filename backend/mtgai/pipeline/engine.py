@@ -33,11 +33,6 @@ from mtgai.pipeline.stages import STAGE_RUNNERS, StageResult
 
 logger = logging.getLogger(__name__)
 
-# Per-stage_id cap on review→regen cycles. When a gate's instance count reaches
-# this with cards still flagged, that instance pauses for human review (best
-# attempt kept, cards left flagged) instead of inserting yet another regen span.
-MAX_REVIEW_ROUNDS = 3
-
 
 def _state_path() -> Path:
     """Where ``pipeline-state.json`` lives for the active project.
@@ -366,9 +361,9 @@ class PipelineEngine:
 
             # A review runner that flagged cards bounces the pipeline: insert
             # fresh instances of the upstream span and walk forward into them.
+            # There is no cap — a gate keeps bouncing to card_gen until its
+            # flagged cards finally conform.
             rerun = self._handle_rerun(result, i)
-            if rerun == "exhausted":
-                return  # gate hit the round cap with flags remaining — human pause
             if rerun == "inserted":
                 i += 1  # walk into the freshly-inserted regen span
                 continue
@@ -434,17 +429,15 @@ class PipelineEngine:
         """Forward-only re-entrancy for a gate that flagged cards.
 
         When a review gate sets ``result.rerun_from`` (the upstream stage to
-        bounce to — always ``card_gen``), one of two things happens:
+        bounce to — always ``card_gen``), the flagging gate is marked COMPLETED
+        and a fresh PENDING instance span ``[rerun_from … this gate]``
+        (canonical order, each at its next ordinal, AUTO so the loop flows) is
+        inserted right after ``index``. Returns ``"inserted"`` so the walk steps
+        into the regen span.
 
-        * **Exhausted** — this gate's ``stage_id`` already has
-          ``MAX_REVIEW_ROUNDS`` instances. The gate pauses for human review
-          (best attempt kept, cards left flagged). Returns ``"exhausted"`` so
-          the loop yields control.
-        * **Inserted** — otherwise the flagging gate is marked COMPLETED and a
-          fresh PENDING instance span ``[rerun_from … this gate]`` (canonical
-          order, each at its next ordinal, AUTO so the loop flows) is inserted
-          right after ``index``. Returns ``"inserted"`` so the walk steps into
-          the regen span.
+        There is **no round cap**: a gate keeps bouncing to ``card_gen`` for as
+        many rounds as it takes for the flagged cards to conform — it never
+        pauses the pipeline just because it has looped a few times.
 
         Returns ``None`` when there's nothing to re-run (a clean pass / non-gate
         stage), leaving the normal review-pause / complete handling to run.
@@ -454,30 +447,6 @@ class PipelineEngine:
 
         gate = self.state.stages[index]
         gate_sid = gate.stage_id
-        rounds = sum(1 for s in self.state.stages if s.stage_id == gate_sid)
-
-        if rounds >= MAX_REVIEW_ROUNDS:
-            gate.status = StageStatus.PAUSED_FOR_REVIEW
-            gate.progress.detail = (
-                f"{gate.progress.detail} — review limit reached ({rounds} rounds); "
-                "flagged cards left for human review."
-            )
-            self.state.overall_status = PipelineStatus.PAUSED
-            save_state(self.state)
-            self.bus.stage_update(
-                gate.stage_id,
-                gate.status,
-                gate.progress.model_dump(mode="json"),
-                instance_id=gate.instance_id,
-                result=gate.result,
-            )
-            self.bus.pipeline_status(self.state.overall_status, gate.instance_id)
-            logger.info(
-                "Gate %s exhausted %d rounds with flags remaining — pausing for review",
-                gate.display_name,
-                rounds,
-            )
-            return "exhausted"
 
         # Mark the flagging gate complete, then insert the regen span after it.
         gate.status = StageStatus.COMPLETED
@@ -504,8 +473,7 @@ class PipelineEngine:
         """Fresh PENDING instances for the canonical stage span ``rerun_from..gate_sid``.
 
         Each gets the next free ordinal for its stage_id and an AUTO review_mode
-        so the inserted span runs without pausing — only a re-flag bounces again
-        or, at the cap, pauses.
+        so the inserted span runs without pausing — only a re-flag bounces again.
         """
         canonical = [d["stage_id"] for d in STAGE_DEFINITIONS]
         defn_by_id = {d["stage_id"]: d for d in STAGE_DEFINITIONS}
