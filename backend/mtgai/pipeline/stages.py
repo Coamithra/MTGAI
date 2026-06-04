@@ -1503,16 +1503,57 @@ def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter)
 
 
 def run_char_portraits(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Generate character reference portraits."""
-    from mtgai.art.character_portraits import generate_character_portraits
+    """Detect recurring entities, generate neutral reference images, attach refs.
 
-    result = generate_character_portraits()
+    The reworked Character References stage (card 6a20aa84): it reads each card's
+    ``art_prompt`` (so it runs after ``art_prompts``), LLM-detects the named
+    characters/locations that appear on more than one card, generates a neutral
+    canonical reference image per entity (ComfyUI/Flux), and writes
+    ``art_character_refs`` back onto the relevant cards for the Art Generation
+    stage to consume (PuLID/IP-Adapter). Holds the app-wide AI lock for the LLM
+    detection + image loop and threads the cancel hook so the Cancel button halts
+    at the next entity/image boundary; entities stream live to the tab.
+    """
+    from mtgai.art.character_portraits import generate_character_refs
+    from mtgai.pipeline.stage_hooks import build_char_refs_hooks
+    from mtgai.runtime import ai_lock
+
+    emitter.phase("running", "Finding recurring entities")
+    hooks = build_char_refs_hooks(emitter)
+    with ai_lock.hold("Character references") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+        with make_poller("char_portraits", emitter.phase, activity_prefix="Finding entities"):
+            result = generate_character_refs(
+                should_cancel=ai_lock.is_cancelled,
+                on_reset=hooks.on_reset,
+                on_entity_start=hooks.on_entity_start,
+                on_entity_image=hooks.on_entity_image,
+            )
 
     generated = result.get("generated", 0)
+    entities = result.get("entities", 0)
+    modified = result.get("cards_modified", 0)
+    if result.get("cancelled"):
+        emitter.phase("done", "Character references cancelled")
+        return StageResult(
+            success=False,
+            total_items=entities,
+            completed_items=generated,
+            cost_usd=result.get("cost_usd", 0.0),
+            error_message="Character references cancelled by user.",
+        )
+
+    emitter.phase("done", f"Referenced {entities} recurring entities ({modified} cards updated)")
     return StageResult(
-        total_items=generated,
+        total_items=entities,
         completed_items=generated,
-        detail=f"Generated portraits for {generated} characters",
+        failed_items=result.get("failed", 0),
+        cost_usd=result.get("cost_usd", 0.0),
+        detail=f"Generated references for {entities} entities; attached to {modified} cards",
     )
 
 
@@ -1796,9 +1837,16 @@ def clear_char_portraits() -> None:
     ``<set>/art-direction/character-refs``. The surrounding
     ``art-direction/`` folder also holds visual-references.json,
     which is an upstream input — only the ``character-refs``
-    subdirectory belongs to this stage.
+    subdirectory belongs to this stage. The stage ALSO writes
+    ``art_character_refs`` onto the cards, so a cascade/edit re-run must clear
+    those too (else stale refs survive a regenerated entity set).
     """
-    _remove_path(_set_dir() / "art-direction" / "character-refs")
+    from mtgai.art.character_portraits import clear_refs_on_cards
+
+    set_dir = _set_dir()
+    _remove_path(set_dir / "art-direction" / "character-refs")
+    _remove_path(set_dir / "char_portraits")
+    clear_refs_on_cards(set_dir / "cards")
 
 
 def clear_art_gen() -> None:

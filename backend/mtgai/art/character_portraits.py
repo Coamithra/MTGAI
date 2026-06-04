@@ -1,23 +1,43 @@
-"""Character reference portrait generator.
+"""Character / location reference-image generator (the ``char_portraits`` stage).
 
-Generates neutral headshot portraits for legendary characters using ComfyUI + Flux.
-These serve as identity references for later character-consistent card art generation.
+Reworked from the old always-on, ASD-hardcoded portrait stage into a *targeted*
+reference-image stage (card 6a20aa84). It runs AFTER ``art_prompts`` (it reads
+each card's ``art_prompt``) and does three things:
 
-Portraits are front-facing, plain background, even lighting — designed for
-identity reference, not card art. 3 versions per character for selection.
+1. **Detect recurring entities** — an LLM scans the finished card pool (names,
+   type lines, oracle/flavor text, and the art prompts) and returns the named
+   characters / locations / elements that appear on MORE THAN ONE card. A
+   one-card entity gets no reference (nothing to be consistent with).
 
-Output: output/sets/<SET>/art-direction/character-refs/<slug>_v<N>.png
+2. **Generate a NEUTRAL reference image per entity** — a plain canonical
+   identity/appearance depiction ("what this person / place / thing looks
+   like"), NOT styled card art: no dramatic composition, no artist style. The
+   appearance is pulled from the art-direction dictionary
+   (``art-direction/visual-references.json``) so the reference matches the set's
+   established look. ``VERSIONS_PER_ENTITY`` versions per entity for selection.
+
+3. **Attach references to the cards, structured** — every card featuring a
+   recurring entity gets ``art_character_refs`` populated
+   (``[ArtCharacterRef(entity_key, ref_image_path)]``). This replaces the old
+   scan-at-render-time ``get_character_ref_paths`` approach with an explicit
+   produced artifact the Art Generation stage reads to feed PuLID / IP-Adapter.
+
+Output images: ``<asset>/art-direction/character-refs/<slug>_v<N>.png``
+LLM transcripts: ``<asset>/char_portraits/logs`` (convention §16).
 
 CLI usage:
-    python -m mtgai.art.character_portraits --mtg path/to/project.mtg [--char feretha] [--dry-run]
+    python -m mtgai.art.character_portraits --mtg path/to/project.mtg [--dry-run]
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 import logging
 import re
 import time
-import traceback
+from collections.abc import Callable
+from pathlib import Path
 
 from mtgai.art.image_generator import (
     ensure_comfyui,
@@ -25,423 +45,603 @@ from mtgai.art.image_generator import (
     is_comfyui_running,
     kill_comfyui,
 )
+from mtgai.generation import temperatures as temps
+from mtgai.generation.llm_client import cost_from_result, generate_with_tool
+from mtgai.generation.token_budgets import STANDARD
 from mtgai.io.atomic import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
-# Portrait settings — taller than wide for headshots
-PORTRAIT_WIDTH = 768
-PORTRAIT_HEIGHT = 1024
-VERSIONS_PER_CHARACTER = 3
-RESTART_EVERY_N = 0  # Disabled — flush_comfyui() now clears CUDA caches after each image
+# Reference-image settings — taller than wide for a clean identity shot.
+REF_WIDTH = 768
+REF_HEIGHT = 1024
+VERSIONS_PER_ENTITY = 3
 
-# Style prefix for all portraits — matches style guide
-STYLE_PREFIX = (
-    "Stylized digital illustration, bold shapes, strong silhouettes, "
-    "painterly texture, concept art style. "
-    "Not photorealistic, slightly exaggerated proportions. "
-)
+# The art-direction dictionary's keyed sub-dicts that hold appearance prose, in
+# priority order. ``entity_key`` slugs in ``art_character_refs`` are keys in one
+# of these (contract: plans/art-render-contracts.md §2).
+_REF_CATEGORIES = ("legendary_characters", "creature_types", "factions", "landmarks")
 
-# Suffix for all portraits — neutral reference shot
-PORTRAIT_SUFFIX = (
-    "Front-facing portrait, head and upper shoulders, "
-    "plain dark neutral background, even soft studio lighting, "
-    "character reference sheet style, clean composition, "
-    "sharp focus on face and defining features"
+# Neutral-reference style: a clean canonical depiction, NOT styled card art.
+# Deliberately omits any artist style or dramatic composition so the image is
+# usable as identity conditioning (PuLID / IP-Adapter) rather than finished art.
+_NEUTRAL_STYLE_SUFFIX = (
+    "Clean reference-sheet depiction, plain neutral grey background, "
+    "even soft studio lighting, no dramatic composition, no action, "
+    "centered subject, sharp focus on defining identifying features."
 )
 
 
 def _slugify(name: str) -> str:
-    """Convert character name to filesystem-safe slug."""
+    """Convert an entity name to a filesystem-safe slug."""
     slug = name.lower().strip()
     slug = re.sub(r"[^a-z0-9]+", "_", slug)
     return slug.strip("_")
 
 
-def _build_portrait_prompts(visual_refs: dict) -> list[dict]:
-    """Build Flux-optimized portrait prompts from character descriptions.
-
-    Returns list of dicts with keys: key, name, prompt, description.
-    """
-    characters = visual_refs.get("legendary_characters", {})
-    flux_replacements = visual_refs.get("flux_term_replacements", {})
-
-    prompts = []
-    for key, description in characters.items():
-        # Extract character name (everything before the first colon)
-        name_match = re.match(r"^([^:]+):", description)
-        char_name = name_match.group(1).strip() if name_match else key.title()
-
-        # Build the visual description — strip the character name prefix
-        visual_desc = description
-        if ":" in visual_desc:
-            visual_desc = visual_desc.split(":", 1)[1].strip()
-
-        # Apply Flux term replacements for setting-specific terms
-        for term, replacement in flux_replacements.items():
-            visual_desc = re.sub(
-                rf"\b{re.escape(term)}\b", replacement, visual_desc, flags=re.IGNORECASE
-            )
-
-        # Extract the most portrait-relevant details (appearance, clothing, features)
-        # Keep it under ~60 words for Flux optimal range
-        portrait_desc = _extract_portrait_details(key, visual_desc)
-
-        prompt = f"{STYLE_PREFIX}{portrait_desc}. {PORTRAIT_SUFFIX}"
-
-        prompts.append(
-            {
-                "key": key,
-                "name": char_name,
-                "slug": _slugify(char_name),
-                "prompt": prompt,
-                "description": description,
-            }
-        )
-
-    return prompts
+# ---------------------------------------------------------------------------
+# Step 1 — recurring-entity detection (LLM)
+# ---------------------------------------------------------------------------
 
 
-def _extract_portrait_details(key: str, description: str) -> str:
-    """Extract portrait-relevant visual details from a character description.
+def _card_summary_line(card: dict) -> str:
+    """One compact line per card for the detection prompt: the fields an entity
+    name surfaces in (name / type / oracle / flavor) plus the art prompt."""
+    cn = str(card.get("collector_number") or "?")
+    name = str(card.get("name") or "")
+    type_line = str(card.get("type_line") or "")
+    oracle = str(card.get("oracle_text") or "").replace("\n", " ")
+    flavor = str(card.get("flavor_text") or "").replace("\n", " ")
+    art_prompt = str(card.get("art_prompt") or "").replace("\n", " ")
+    parts = [f"[{cn}] {name} — {type_line}"]
+    if oracle:
+        parts.append(f"text: {oracle}")
+    if flavor:
+        parts.append(f"flavor: {flavor}")
+    if art_prompt:
+        parts.append(f"art: {art_prompt}")
+    return " | ".join(parts)
 
-    Focuses on face, clothing, and distinguishing features. Strips action/lore
-    details that aren't relevant to a neutral headshot.
-    """
-    # Character-specific portrait extractions — hand-tuned for best Flux results
-    # These focus on what you'd SEE in a close-up portrait
-    portraits = {
-        "feretha": (
-            "Dead wizard-ruler, desiccated corpse on a technological throne. "
-            "Hollow skull with cables and fluid tubes plugged into it, "
-            "golden crown that doubles as a neural interface headset. "
-            "Empty open eyes, decayed royal robes, ancient server rack behind him. "
-            "Sickly green-gold glow from machinery"
+
+def _build_detection_tool_schema() -> dict:
+    return {
+        "name": "report_recurring_entities",
+        "description": (
+            "Report named characters, locations, and other concrete visual entities "
+            "that appear on MORE THAN ONE card in the set."
         ),
-        "koyl": (
-            "50-year-old man with sharp calculating eyes, clean-shaven, lean build. "
-            "Immaculately dressed in dark formal robes with subtle embroidery. "
-            "Quiet absolute authority in his expression. "
-            "Former slave who became a ruler — dignified, precise, dangerous"
-        ),
-        "marcus tyro": (
-            "Battle-scarred military commander, weathered face, short-cropped hair. "
-            "Practical uniform with splint mail armor, ceremonial insignia on armor. "
-            "Large revolver-style pistol holstered at side. "
-            "Pragmatic, tired, unyielding expression. Warm sandstone lighting"
-        ),
-        "fereyn": (
-            "A wizard sitting inside a giant detachable stone head — "
-            "the upper portion of a 60-foot statue with a 20-foot bearded stone face. "
-            "Glowing blue eyes on the stone face that fire lasers. "
-            "The wizard operates controls inside, speaks through a microphone. "
-            "Majestic and absurd, treated with complete seriousness"
-        ),
-        "monsator": (
-            "Gaunt wizard in a ragged black cloak, mounted on a draft horse. "
-            "Commands animated stalks of corn that walk on root-like feet. "
-            "Weathered face, dark eyes, agricultural menace. "
-            "Cornstalk warriors with crude wooden spears visible behind him"
-        ),
-        "head scientist": (
-            "Towering figure standing 12 feet tall on concealed stilts. "
-            "Enormous lab coat hiding the stilts completely. "
-            "Multiple prosthetic tool-arms extending from the coat. "
-            "Goggles pushed up on forehead, wild unkempt hair, manic expression. "
-            "Tattered lab coat over improvised protective gear"
-        ),
-        "karak": (
-            "Large scarred bandit king draped in stolen finery mixed with scavenged tech. "
-            "Gold chains, fur-lined cloak, rings on every finger. "
-            "Many visible weapons. He grins too wide — menacing smile. "
-            "Rough face with prominent scars, dangerous charisma"
-        ),
-        "jace": (
-            "Young man with glowing blue eyes, short dark hair, lean build. "
-            "Clean blue robes with geometric patterns — no grime or wear. "
-            "Distinctly out of place, too clean for this world. "
-            "Calm intelligence in expression. Blue geometric light patterns around him"
-        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entities": {
+                    "type": "array",
+                    "description": (
+                        "One entry per recurring entity (appears on 2+ cards). Omit "
+                        "entities that appear on only a single card."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "entity_key": {
+                                "type": "string",
+                                "description": (
+                                    "Lowercase snake_case slug identifying the entity "
+                                    "(e.g. 'storm_knight', 'the_drowned_spire'). Prefer "
+                                    "the slug from the art-direction dictionary when the "
+                                    "entity matches one of its keys."
+                                ),
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Human-readable display name.",
+                            },
+                            "kind": {
+                                "type": "string",
+                                "description": (
+                                    "What kind of entity: 'character', 'location', "
+                                    "'faction', 'creature', or 'element'."
+                                ),
+                            },
+                            "cards": {
+                                "type": "array",
+                                "description": (
+                                    "Collector numbers of the cards this entity appears "
+                                    "on (the bracketed [..] ids from the card list)."
+                                ),
+                                "items": {"type": "string"},
+                            },
+                            "note": {
+                                "type": "string",
+                                "description": "Optional one-line note on what it is.",
+                            },
+                        },
+                        "required": ["entity_key", "name", "kind", "cards"],
+                    },
+                }
+            },
+            "required": ["entities"],
+        },
     }
 
-    return portraits.get(key, description[:200])
+
+def _build_detection_prompt(cards: list[dict], visual_refs: dict) -> tuple[str, str, str]:
+    """Return (system, context_block, user) for the recurring-entity detection.
+
+    The static persona + output spec ride in system block #1; the art-direction
+    dictionary keys ride in a cached system block #2 (so the model prefers the
+    canonical slugs); the per-run card list is the user turn. Caching no-ops on
+    llamacpp (the blocks flatten to one joined system string).
+    """
+    system = (
+        "You are a Magic: The Gathering set continuity editor. You scan a whole "
+        "card set and identify the named characters, locations, factions, and other "
+        "concrete visual entities that RECUR across the set — i.e. appear on MORE "
+        "THAN ONE card (by name, in the art prompt, or unmistakably referenced).\n\n"
+        "Only report an entity if it appears on 2+ cards: a one-card entity needs no "
+        "shared reference. Report BOTH characters AND locations (and recurring "
+        "creatures / factions / distinctive objects) — not just humanoid characters. "
+        "Use the art-direction dictionary's existing slug as the entity_key whenever "
+        "the entity matches one of its keys, so the reference links back to the "
+        "dictionary's appearance prose. List the collector numbers each entity "
+        "appears on. Return your findings through the report_recurring_entities tool."
+    )
+
+    dict_keys: list[str] = []
+    for category in _REF_CATEGORIES:
+        sub = visual_refs.get(category, {})
+        if isinstance(sub, dict):
+            dict_keys.extend(f"- {key} ({category})" for key in sub)
+    keys_block = "\n".join(dict_keys) if dict_keys else "(the dictionary is empty)"
+    context_block = (
+        "## Art-direction dictionary keys\n"
+        "These are the known entities with appearance prose. Prefer these slugs as "
+        "entity_key when an entity matches one:\n"
+        f"{keys_block}"
+    )
+
+    card_lines = "\n".join(_card_summary_line(c) for c in cards) or "(no cards)"
+    user = (
+        f"# Card pool ({len(cards)} cards)\n"
+        "Each line: [collector_number] name — type | text | flavor | art.\n\n"
+        f"{card_lines}\n\n"
+        "Identify every entity that recurs across 2+ of these cards and report it."
+    )
+    return system, context_block, user
 
 
-def generate_character_portraits(
-    char_filter: str | None = None,
+def detect_recurring_entities(
+    cards: list[dict],
+    visual_refs: dict,
+    *,
+    model_id: str,
+    log_dir: Path | None = None,
+) -> tuple[list[dict], float]:
+    """LLM-detect entities that appear on more than one card.
+
+    Returns ``(entities, cost_usd)`` where each entity is
+    ``{entity_key, name, kind, cards: [collector_number], note}`` and only
+    multi-card entities are kept (the model is asked for 2+ but we enforce it
+    here too, so a stray single-card hit can't slip a useless reference through).
+    """
+    if not cards:
+        return [], 0.0
+
+    system, context_block, user = _build_detection_prompt(cards, visual_refs)
+    response = generate_with_tool(
+        system_blocks=[(system, True), (context_block, True)],
+        user_prompt=user,
+        tool_schema=_build_detection_tool_schema(),
+        model=model_id,
+        temperature=temps.ANALYTICAL,
+        max_tokens=STANDARD,
+        log_dir=log_dir,
+    )
+    cost = cost_from_result(response)
+    raw = response.get("result", {}).get("entities", []) or []
+
+    valid_cards = {str(c.get("collector_number") or "") for c in cards}
+    entities: list[dict] = []
+    seen_keys: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        key = _slugify(str(item.get("entity_key") or item.get("name") or ""))
+        if not key or key in seen_keys:
+            continue
+        # Keep only collector numbers that actually exist in the pool, deduped.
+        cns = [
+            cn
+            for cn in dict.fromkeys(str(c) for c in (item.get("cards") or []))
+            if cn in valid_cards
+        ]
+        # Enforce the >1-card rule regardless of what the model returned.
+        if len(cns) < 2:
+            continue
+        seen_keys.add(key)
+        entities.append(
+            {
+                "entity_key": key,
+                "name": str(item.get("name") or key.replace("_", " ").title()),
+                "kind": str(item.get("kind") or "entity"),
+                "cards": cns,
+                "note": str(item.get("note") or ""),
+            }
+        )
+    return entities, cost
+
+
+# ---------------------------------------------------------------------------
+# Step 2 — neutral reference-image prompt
+# ---------------------------------------------------------------------------
+
+
+def _appearance_for_entity(entity: dict, visual_refs: dict) -> str:
+    """Pull the entity's appearance prose from the art-direction dictionary.
+
+    Looks the ``entity_key`` up across the keyed sub-dicts; falls back to the
+    entity's own note when the dictionary has no entry (a recurring entity the
+    LLM found that isn't yet in the dictionary). No ASD-hardcoded descriptions —
+    the appearance always comes from the per-project dictionary or the note.
+    """
+    key = entity.get("entity_key", "")
+    for category in _REF_CATEGORIES:
+        sub = visual_refs.get(category, {})
+        if isinstance(sub, dict) and key in sub:
+            desc = str(sub[key])
+            # Strip a leading "Name:" prefix the dictionary prose often carries.
+            if ":" in desc:
+                desc = desc.split(":", 1)[1].strip()
+            return desc
+    return str(entity.get("note") or entity.get("name") or key.replace("_", " "))
+
+
+def build_neutral_prompt(entity: dict, visual_refs: dict) -> str:
+    """Build the neutral reference-image prompt for an entity.
+
+    Applies the dictionary's Flux term replacements so invented set words become
+    renderable phrases, then frames the subject as a person OR a place depending
+    on the entity kind and appends the neutral reference-sheet style suffix.
+    """
+    appearance = _appearance_for_entity(entity, visual_refs)
+    replacements = visual_refs.get("flux_term_replacements", {})
+    if isinstance(replacements, dict):
+        for term, replacement in replacements.items():
+            appearance = re.sub(
+                rf"\b{re.escape(str(term))}\b",
+                str(replacement),
+                appearance,
+                flags=re.IGNORECASE,
+            )
+
+    kind = (entity.get("kind") or "").lower()
+    if kind in ("location", "landmark", "place"):
+        framing = "A clear establishing view of this place:"
+    elif kind == "faction":
+        framing = "A representative depiction of this faction's look:"
+    else:
+        framing = "A neutral identity reference of this character:"
+
+    appearance = appearance.rstrip(". ")
+    return f"{framing} {appearance}. {_NEUTRAL_STYLE_SUFFIX}"
+
+
+# ---------------------------------------------------------------------------
+# Step 3 — attach references to cards
+# ---------------------------------------------------------------------------
+
+
+def attach_refs_to_cards(
+    entities: list[dict],
+    ref_paths: dict[str, str],
+    cards_dir: Path,
+) -> int:
+    """Populate ``art_character_refs`` on every card featuring a recurring entity.
+
+    ``ref_paths`` maps ``entity_key`` → the chosen reference image path
+    (repo-relative under the asset folder). Cards are rewritten immutably via the
+    Card model so the on-disk JSON stays schema-valid. Each card's refs for the
+    entities this stage produced are replaced (so a re-run is idempotent), while
+    refs for entities NOT in this run's set are preserved. Returns the number of
+    cards modified.
+    """
+    from mtgai.io.card_io import load_card, save_card
+    from mtgai.models.card import ArtCharacterRef
+
+    # Build collector_number -> [(entity_key, ref_image_path)] for entities that
+    # actually have a generated reference image.
+    by_card: dict[str, list[tuple[str, str]]] = {}
+    produced_keys: set[str] = set()
+    for entity in entities:
+        key = entity["entity_key"]
+        path = ref_paths.get(key)
+        if not path:
+            continue
+        produced_keys.add(key)
+        for cn in entity["cards"]:
+            by_card.setdefault(cn, []).append((key, path))
+
+    if not cards_dir.exists():
+        return 0
+
+    modified = 0
+    set_dir = cards_dir.parent
+    for card_file in sorted(cards_dir.glob("*.json")):
+        try:
+            card = load_card(card_file)
+        except Exception:
+            logger.warning("Skipping unreadable card %s", card_file.name)
+            continue
+        cn = card.collector_number
+        new_for_card = by_card.get(cn, [])
+        # Keep any pre-existing refs whose entity_key this run did NOT produce
+        # (don't clobber refs for entities outside this run); replace the rest.
+        kept = [r for r in card.art_character_refs if r.entity_key not in produced_keys]
+        rebuilt = kept + [
+            ArtCharacterRef(entity_key=key, ref_image_path=path) for key, path in new_for_card
+        ]
+        # Only rewrite when the ref list actually changed (stable serialization).
+        before = [(r.entity_key, r.ref_image_path) for r in card.art_character_refs]
+        after = [(r.entity_key, r.ref_image_path) for r in rebuilt]
+        if before == after:
+            continue
+        updated = card.model_copy(update={"art_character_refs": rebuilt})
+        save_card(updated, set_dir=set_dir)
+        modified += 1
+    return modified
+
+
+def clear_refs_on_cards(cards_dir: Path) -> int:
+    """Strip ``art_character_refs`` from every card. Used by the stage clearer so
+    a cascade/edit re-run starts from a clean slate. Returns cards modified."""
+    from mtgai.io.card_io import load_card, save_card
+
+    if not cards_dir.exists():
+        return 0
+    modified = 0
+    set_dir = cards_dir.parent
+    for card_file in sorted(cards_dir.glob("*.json")):
+        try:
+            card = load_card(card_file)
+        except Exception:
+            continue
+        if not card.art_character_refs:
+            continue
+        save_card(card.model_copy(update={"art_character_refs": []}), set_dir=set_dir)
+        modified += 1
+    return modified
+
+
+# ---------------------------------------------------------------------------
+# Stage entry point
+# ---------------------------------------------------------------------------
+
+
+def _rel_ref_path(dest: Path, set_dir: Path) -> str:
+    """Reference image path as a POSIX string relative to the asset folder
+    (the form ``ArtCharacterRef.ref_image_path`` stores)."""
+    try:
+        return dest.relative_to(set_dir).as_posix()
+    except ValueError:
+        return dest.as_posix()
+
+
+def generate_character_refs(
     dry_run: bool = False,
     force: bool = False,
+    should_cancel: Callable[[], bool] | None = None,
+    on_entity_start: Callable[[dict], None] | None = None,
+    on_entity_image: Callable[[str, str], None] | None = None,
+    on_reset: Callable[[], None] | None = None,
 ) -> dict:
-    """Generate character reference portraits for all legendary characters in the active project.
+    """Generate neutral reference images for recurring entities and attach them.
 
     Args:
-        char_filter: Optional character key to generate only one.
-        dry_run: Log without generating.
-        force: Regenerate even if portraits exist.
+        dry_run: Detect + persist entities but don't generate images or write cards.
+        force: Regenerate even if reference images already exist.
+        should_cancel: Polled at image boundaries; stop early (keep partial output).
+        on_entity_start: ``on_entity_start(entity)`` before an entity's images gen.
+        on_entity_image: ``on_entity_image(entity_key, ref_image_rel_path)`` after
+            each saved image (per-version live stream).
+        on_reset: fired once before image generation begins.
 
-    Returns summary dict.
+    Returns a summary dict.
     """
     from mtgai.io.asset_paths import set_artifact_dir
     from mtgai.runtime.active_project import require_active_project
 
-    set_code = require_active_project().set_code
+    project = require_active_project()
+    set_code = project.set_code
     set_dir = set_artifact_dir()
     refs_path = set_dir / "art-direction" / "visual-references.json"
-    if not refs_path.exists():
-        raise FileNotFoundError(f"Visual references not found: {refs_path}")
+    visual_refs: dict = {}
+    if refs_path.exists():
+        try:
+            loaded = json.loads(refs_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                visual_refs = loaded
+        except Exception:
+            logger.warning("Could not parse %s; proceeding with empty dictionary", refs_path)
 
-    visual_refs = json.loads(refs_path.read_text(encoding="utf-8"))
-    prompts = _build_portrait_prompts(visual_refs)
-
-    if char_filter:
-        prompts = [p for p in prompts if p["key"] == char_filter or char_filter in p["slug"]]
-        if not prompts:
-            raise ValueError(f"No character matching '{char_filter}'")
+    cards_dir = set_dir / "cards"
+    cards: list[dict] = []
+    if cards_dir.exists():
+        for path in sorted(cards_dir.glob("*.json")):
+            try:
+                loaded_card = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(loaded_card, dict):
+                cards.append(loaded_card)
 
     out_dir = set_dir / "art-direction" / "character-refs"
+    log_dir = set_dir / "char_portraits" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    model_id = project.settings.get_llm_model_id("char_portraits")
+
+    # Step 1 — detect recurring entities.
+    logger.info("Detecting recurring entities across %d cards...", len(cards))
+    entities, cost = detect_recurring_entities(
+        cards, visual_refs, model_id=model_id, log_dir=log_dir
+    )
+    logger.info("Found %d recurring entities", len(entities))
+    for e in entities:
+        logger.info("  %s (%s) on %d cards", e["name"], e["kind"], len(e["cards"]))
+
+    # Persist the detection result as the durable artifact the tab reads.
     out_dir.mkdir(parents=True, exist_ok=True)
-    log_dir = out_dir / "logs"
-    log_dir.mkdir(exist_ok=True)
+    atomic_write_text(out_dir / "entities.json", json.dumps(entities, indent=2, ensure_ascii=False))
 
-    # Log all prompts
-    logger.info("=" * 60)
-    logger.info("Character Reference Portrait Generation")
-    logger.info("=" * 60)
-    logger.info("Characters: %d", len(prompts))
-    logger.info("Versions per character: %d", VERSIONS_PER_CHARACTER)
-    logger.info("Total images: %d", len(prompts) * VERSIONS_PER_CHARACTER)
-    logger.info("Resolution: %dx%d", PORTRAIT_WIDTH, PORTRAIT_HEIGHT)
-    logger.info("Output: %s", out_dir)
-    logger.info("")
-
-    for p in prompts:
-        logger.info("  %s (%s)", p["name"], p["key"])
-        logger.info("    Prompt: %s", p["prompt"][:120] + "...")
-    logger.info("")
+    base_summary = {
+        "set_code": set_code,
+        "entities": len(entities),
+        "generated": 0,
+        "skipped": 0,
+        "failed": 0,
+        "cards_modified": 0,
+        "cost_usd": round(cost, 4),
+        "errors": [],
+    }
 
     if dry_run:
-        logger.info("[DRY RUN] Would generate %d images", len(prompts) * VERSIONS_PER_CHARACTER)
-        return {
-            "set_code": set_code,
-            "characters": len(prompts),
-            "generated": 0,
-            "skipped": 0,
-            "failed": 0,
-            "errors": [],
-            "dry_run": True,
-        }
+        return {**base_summary, "dry_run": True}
 
-    # Build flat work list for progress tracking
-    work_items = []
-    for p in prompts:
-        for version in range(1, VERSIONS_PER_CHARACTER + 1):
-            work_items.append((p, version))
-    total_items = len(work_items)
+    if not entities:
+        logger.info("No recurring entities — nothing to reference.")
+        atomic_write_text(
+            out_dir / "summary.json", json.dumps({**base_summary, "dry_run": False}, indent=2)
+        )
+        return {**base_summary, "dry_run": False}
 
-    # Ensure ComfyUI is running — log output to file for crash diagnosis
-    comfyui_proc = ensure_comfyui(log_dir=log_dir)
+    if on_reset is not None:
+        on_reset()
 
     generated = 0
     skipped = 0
     failed = 0
-    errors = []
-    start_time = time.time()
+    errors: list[dict] = []
+    cancelled = False
+    # entity_key -> chosen reference image (the first available, repo-relative).
+    ref_paths: dict[str, str] = {}
 
-    # Progress file — written after every image so we know exactly where a crash happened
-    progress_path = log_dir / "progress.json"
-
-    def _save_progress():
-        progress = {
-            "generated": generated,
-            "skipped": skipped,
-            "failed": failed,
-            "errors": errors,
-            "elapsed_seconds": round(time.time() - start_time, 1),
-            "last_completed": None,
-        }
-        atomic_write_text(progress_path, json.dumps(progress, indent=2))
-
+    comfyui_proc = ensure_comfyui(log_dir=log_dir)
     try:
-        for idx, (p, version) in enumerate(work_items, 1):
-            slug = p["slug"]
-            dest = out_dir / f"{slug}_v{version}.png"
-            progress_label = f"[{idx}/{total_items}]"
+        for entity in entities:
+            if should_cancel is not None and should_cancel():
+                cancelled = True
+                break
+            key = entity["entity_key"]
+            slug = _slugify(entity["name"]) or key
+            prompt = build_neutral_prompt(entity, visual_refs)
+            if on_entity_start is not None:
+                on_entity_start(entity)
 
-            if dest.exists() and not force:
-                logger.info("%s SKIP %s v%d — already exists", progress_label, p["name"], version)
-                skipped += 1
-                continue
+            for version in range(1, VERSIONS_PER_ENTITY + 1):
+                if should_cancel is not None and should_cancel():
+                    cancelled = True
+                    break
+                dest = out_dir / f"{slug}_v{version}.png"
+                rel = _rel_ref_path(dest, set_dir)
+                if dest.exists() and not force:
+                    skipped += 1
+                    ref_paths.setdefault(key, rel)
+                    if on_entity_image is not None:
+                        on_entity_image(key, rel)
+                    continue
 
-            # Health check — restart ComfyUI if it died between images
-            if not is_comfyui_running():
-                logger.warning("ComfyUI is not responding — restarting...")
-                kill_comfyui(comfyui_proc)
-                time.sleep(3)
-                comfyui_proc = ensure_comfyui(log_dir=log_dir)
-                logger.info("ComfyUI restarted, continuing generation")
+                if not is_comfyui_running():
+                    logger.warning("ComfyUI not responding — restarting...")
+                    kill_comfyui(comfyui_proc)
+                    time.sleep(3)
+                    comfyui_proc = ensure_comfyui(log_dir=log_dir)
 
-            logger.info("%s GENERATE %s v%d...", progress_label, p["name"], version)
-
-            try:
-                image_data, metadata = generate_image_comfyui(
-                    prompt=p["prompt"],
-                    width=PORTRAIT_WIDTH,
-                    height=PORTRAIT_HEIGHT,
-                )
-
-                dest.write_bytes(image_data)
-                logger.info(
-                    "  SAVED %s (%.1fs, %s bytes)",
-                    dest.name,
-                    metadata["elapsed_seconds"],
-                    f"{len(image_data):,}",
-                )
-
-                # Save generation log
-                log_entry = {
-                    "character": p["key"],
-                    "name": p["name"],
-                    "version": version,
-                    "prompt": p["prompt"],
-                    "output_path": str(dest),
-                    "file_size_bytes": len(image_data),
-                    **metadata,
-                }
-                log_path = log_dir / f"{slug}_v{version}.json"
-                atomic_write_text(log_path, json.dumps(log_entry, indent=2))
-
-                generated += 1
-
-                # Update crash-safe progress after every successful image
-                progress_data = {
-                    "generated": generated,
-                    "skipped": skipped,
-                    "failed": failed,
-                    "errors": errors,
-                    "elapsed_seconds": round(time.time() - start_time, 1),
-                    "last_completed": f"{p['name']} v{version}",
-                }
-                atomic_write_text(progress_path, json.dumps(progress_data, indent=2))
-
-            except Exception as e:
-                logger.error("%s FAILED %s v%d: %s", progress_label, p["name"], version, e)
-                failed += 1
-                errors.append({"character": p["key"], "version": version, "error": str(e)})
-
-    except KeyboardInterrupt:
-        logger.info("\nInterrupted! Progress saved. Re-run to resume from where you left off.")
-        _save_progress()
-        raise
-    except Exception as e:
-        tb = traceback.format_exc()
-        logger.error("CRASH after %d generated, %d skipped, %d failed", generated, skipped, failed)
-        logger.error("Exception: %s", e)
-        logger.error("Traceback:\n%s", tb)
-        # Save crash info so we can diagnose without scrolling terminal history
-        crash_data = {
-            "generated": generated,
-            "skipped": skipped,
-            "failed": failed,
-            "errors": errors,
-            "elapsed_seconds": round(time.time() - start_time, 1),
-            "crash": str(e),
-            "traceback": tb,
-        }
-        crash_path = log_dir / "crash.json"
-        atomic_write_text(crash_path, json.dumps(crash_data, indent=2))
-        logger.error("Crash details saved to %s", crash_path)
-        logger.info("Re-run to resume from where you left off.")
-        raise
+                logger.info("GENERATE %s v%d...", entity["name"], version)
+                try:
+                    image_data, metadata = generate_image_comfyui(
+                        prompt=prompt, width=REF_WIDTH, height=REF_HEIGHT
+                    )
+                    dest.write_bytes(image_data)
+                    generated += 1
+                    ref_paths.setdefault(key, rel)
+                    log_entry = {
+                        "entity_key": key,
+                        "name": entity["name"],
+                        "version": version,
+                        "prompt": prompt,
+                        "output_path": str(dest),
+                        **metadata,
+                    }
+                    atomic_write_text(
+                        log_dir / f"{slug}_v{version}.json", json.dumps(log_entry, indent=2)
+                    )
+                    if on_entity_image is not None:
+                        on_entity_image(key, rel)
+                except Exception as e:
+                    logger.error("FAILED %s v%d: %s", entity["name"], version, e)
+                    failed += 1
+                    errors.append({"entity": key, "version": version, "error": str(e)})
+            if cancelled:
+                break
     finally:
         kill_comfyui(comfyui_proc)
 
-    elapsed = time.time() - start_time
+    # Step 3 — attach the chosen references to the cards.
+    cards_modified = attach_refs_to_cards(entities, ref_paths, cards_dir)
+    logger.info("Attached references to %d cards", cards_modified)
 
     summary = {
-        "set_code": set_code,
-        "characters": len(prompts),
+        **base_summary,
         "generated": generated,
         "skipped": skipped,
         "failed": failed,
+        "cards_modified": cards_modified,
         "errors": errors,
-        "elapsed_seconds": round(elapsed, 1),
         "dry_run": False,
     }
-
-    # Save summary
-    summary_path = log_dir / "summary.json"
-    atomic_write_text(summary_path, json.dumps(summary, indent=2))
-
-    # Save prompt reference (all prompts in one file for easy review)
-    prompt_ref = {p["key"]: {"name": p["name"], "prompt": p["prompt"]} for p in prompts}
-    prompt_ref_path = out_dir / "prompts.json"
-    atomic_write_text(prompt_ref_path, json.dumps(prompt_ref, indent=2))
-
+    if cancelled:
+        summary["cancelled"] = True
+    atomic_write_text(out_dir / "summary.json", json.dumps(summary, indent=2))
     return summary
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate character reference portraits via ComfyUI + Flux"
+        description="Generate neutral reference images for recurring entities via ComfyUI + Flux"
     )
     parser.add_argument(
         "--mtg",
         required=True,
         help="Path to a .mtg project file (the project's asset_folder must be set)",
     )
-    parser.add_argument("--char", default=None, help="Single character key (e.g. feretha, koyl)")
-    parser.add_argument("--dry-run", action="store_true", help="Log actions without generating")
-    parser.add_argument("--force", action="store_true", help="Regenerate existing portraits")
+    parser.add_argument("--dry-run", action="store_true", help="Detect only; don't generate")
+    parser.add_argument("--force", action="store_true", help="Regenerate existing references")
     args = parser.parse_args()
 
-    # Pin the .mtg as the active project before any artifact-path helper runs.
     from mtgai.runtime.cli_shim import activate_from_mtg
 
     activate_from_mtg(args.mtg)
-
-    # Log to both console AND file — if the process gets killed, the file survives.
-    # Routed through set_artifact_dir so the log lands in the project's
-    # asset_folder when configured (matches generate_character_portraits).
-    from mtgai.io.asset_paths import set_artifact_dir
-
-    log_file = set_artifact_dir() / "art-direction" / "character-refs" / "logs" / "run.log"
-    log_file.parent.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler(str(log_file), mode="a", encoding="utf-8"),
-        ],
     )
 
-    import os
-
-    logger.info("=" * 40)
-    logger.info("Process PID: %d", os.getpid())
-    logger.info("Log file: %s", log_file)
-    logger.info("=" * 40)
-    summary = generate_character_portraits(
-        char_filter=args.char,
-        dry_run=args.dry_run,
-        force=args.force,
-    )
+    summary = generate_character_refs(dry_run=args.dry_run, force=args.force)
 
     print(f"\n{'=' * 60}")
-    print(f"Character Portraits — {summary['set_code']}")
+    print(f"Character References — {summary['set_code']}")
     print(f"{'=' * 60}")
-    print(f"Characters: {summary['characters']}")
-    print(f"Generated:  {summary['generated']}")
-    print(f"Skipped:    {summary['skipped']}")
-    print(f"Failed:     {summary['failed']}")
-    if not summary["dry_run"]:
-        print(f"Elapsed:    {summary['elapsed_seconds']:.0f}s")
+    print(f"Recurring entities: {summary['entities']}")
+    print(f"Images generated:   {summary['generated']}")
+    print(f"Skipped:            {summary['skipped']}")
+    print(f"Failed:             {summary['failed']}")
+    print(f"Cards modified:     {summary['cards_modified']}")
+    print(f"Cost:               ${summary['cost_usd']:.4f}")
     if summary["errors"]:
         print("\nErrors:")
         for e in summary["errors"]:
-            print(f"  {e['character']} v{e['version']}: {e['error']}")
+            print(f"  {e['entity']} v{e['version']}: {e['error']}")
 
 
 if __name__ == "__main__":

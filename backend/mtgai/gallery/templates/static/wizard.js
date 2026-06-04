@@ -543,6 +543,19 @@
       });
     });
 
+    // Character References streaming. Each recurring entity pops onto the
+    // Character References tab as its image generation starts (char_refs_entity
+    // — tile + attached-cards list + a "generating" badge), then each saved
+    // version's image lands (char_refs_image — routes to the entity's tile). A
+    // single char_refs_reset fires before a from-scratch run. The Character
+    // References tab listens via the W.onCharPortraitsStream bridge.
+    ['char_refs_reset', 'char_refs_entity', 'char_refs_image'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onCharPortraitsStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     // Mechanics generation streaming: each accepted draft pops onto the
     // Mechanics tab (mechanic_candidate_drafted, pre-review); the council loop
     // then reports live (mechanic_council_update — reviewer thumbs + synth
