@@ -502,9 +502,9 @@
       <li class="wiz-ar-change">
         <span class="wiz-ar-change-field">${escHtml(c.label || c.field || '')}</span>
         <span class="wiz-ar-change-ba">
-          <span class="wiz-ar-change-before">${escHtml(c.before || '—')}</span>
+          <span class="wiz-ar-change-before">${escHtml(c.before)}</span>
           <span class="wiz-ar-change-arrow">→</span>
-          <span class="wiz-ar-change-after">${escHtml(c.after || '—')}</span>
+          <span class="wiz-ar-change-after">${escHtml(c.after)}</span>
         </span>
       </li>`).join('');
     return `

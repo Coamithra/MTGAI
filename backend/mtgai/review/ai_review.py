@@ -1165,30 +1165,35 @@ def _render_field_value(value: object) -> str:
 
 
 def _norm_field_value(value: object) -> object:
-    """Comparison key that ignores cosmetic differences (list order, None vs '')."""
+    """Comparison key that ignores cosmetic differences (list order, None vs ''/[])."""
     if value is None:
         return ""
     if isinstance(value, list):
-        return sorted(str(v) for v in value)
+        return sorted(str(v) for v in value) if value else ""
     return str(value).strip()
 
 
-def summarize_revision(original: dict, current: dict) -> list[dict]:
-    """Field-level before/after diff of the design fields a review may change.
+def summarize_revision(original: dict, revised: dict) -> list[dict]:
+    """Field-level before/after diff of the design fields a review changed.
 
     ``original`` is the card as it entered review (``CardReviewResult.original_card``);
-    ``current`` is the card on disk after the council revised it in place. Returns
-    one ``{field, label, before, after}`` entry per design field whose value
-    actually changed, in display order — the data behind the tab's "what changed"
-    box. Cosmetic-only differences (colour list reordering, ``None`` vs ``""``) are
-    not reported. Empty list when nothing design-relevant differs (e.g. the review
-    revised then reverted a field), in which case the tab shows a bare "tweaked"
+    ``revised`` is the review's ``revised_card`` (the AI's applied revision — the
+    fields it actually returned). Returns one ``{field, label, before, after}``
+    entry per design field the revision changed, in display order — the data behind
+    the tab's "what changed" box. A field the revision did not return is skipped
+    (``_apply_revision`` only applies provided fields, so its absence means "not
+    changed"); diffing the AI's revision rather than the live card keeps the diff
+    AI-attributed even after a later manual edit. Cosmetic-only differences (colour
+    list reordering, ``None`` vs ``""``/``[]``) are not reported. Empty list when
+    nothing design-relevant differs, in which case the tab shows a bare "tweaked"
     mark.
     """
     changes: list[dict] = []
     for field, label in _REVISION_FIELD_LABELS:
+        if field not in revised:
+            continue
         before = original.get(field)
-        after = current.get(field)
+        after = revised.get(field)
         if _norm_field_value(before) == _norm_field_value(after):
             continue
         changes.append(
@@ -1230,11 +1235,14 @@ def review_tile(card: dict, review: CardReviewResult | None) -> dict:
     tile["verdict"] = review.final_verdict
     tile["issues"] = [i.model_dump() for i in review.final_issues]
     tile["card_was_changed"] = review.card_was_changed
-    # What the review changed: diff the pre-review snapshot against the live card
-    # so the tab can show a per-field before/after. Only computed when the review
-    # actually revised the card (the council saves revisions in place).
+    # What the review changed: diff the pre-review snapshot against the review's own
+    # revised_card (the AI's applied revision), not the live card — so a later manual
+    # edit can't masquerade as an AI tweak. Only computed when the review revised the
+    # card (the council saves revisions in place).
     tile["changes"] = (
-        summarize_revision(review.original_card, card) if review.card_was_changed else []
+        summarize_revision(review.original_card, review.revised_card)
+        if review.card_was_changed and review.revised_card
+        else []
     )
     tile["review_tier"] = review.review_tier
     # Compact per-reviewer summary for the (resolved) council panel: verdict +
