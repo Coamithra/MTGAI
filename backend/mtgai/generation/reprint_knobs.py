@@ -17,6 +17,7 @@ model can honour it, but a near miss is fine.
 from __future__ import annotations
 
 import contextlib
+import math
 import random
 
 from pydantic import BaseModel, model_validator
@@ -65,8 +66,16 @@ class ReprintKnobs(BaseModel):
         for r in RARITIES:
             v = getattr(self, r)
             if v is not None:
+                # ``v`` is already an int here — Pydantic rejects a non-finite
+                # float for the int field upstream (clean ValidationError, not a
+                # 500), so int() is safe.
                 object.__setattr__(self, r, max(0, min(_MAX_PER_RARITY, int(v))))
-        object.__setattr__(self, "jitter_pct", max(0.0, min(1.0, float(self.jitter_pct))))
+        # ``jitter_pct`` is a plain float field, so Pydantic admits inf/NaN here;
+        # NaN can't be clamped by min/max (it propagates), so coerce it to 0 first.
+        jp = float(self.jitter_pct)
+        if math.isnan(jp):
+            jp = 0.0
+        object.__setattr__(self, "jitter_pct", max(0.0, min(1.0, jp)))
         return self
 
     def provenance(self) -> dict[str, str]:
@@ -82,8 +91,8 @@ def default_knobs() -> ReprintKnobs:
 def from_payload(raw: object) -> ReprintKnobs:
     """Build knobs from an untrusted dict, tolerating junk.
 
-    A rarity value of ``None``/missing/blank/non-numeric means auto. Clamping
-    happens in the model validator.
+    A rarity value of ``None``/missing/blank/non-numeric/non-finite means auto.
+    Clamping happens in the model validator.
     """
     data = raw if isinstance(raw, dict) else {}
     payload: dict[str, object] = {}
@@ -92,10 +101,17 @@ def from_payload(raw: object) -> ReprintKnobs:
         if val in (None, ""):
             continue  # auto
         with contextlib.suppress(TypeError, ValueError):
-            payload[r] = int(float(val))
+            f = float(val)
+            if not math.isfinite(f):
+                continue  # inf/NaN -> auto (int(inf) would OverflowError)
+            payload[r] = int(f)
     if "jitter_pct" in data:
         with contextlib.suppress(TypeError, ValueError):
-            payload["jitter_pct"] = float(data["jitter_pct"])
+            f = float(data["jitter_pct"])
+            # inf/NaN jitter falls back to the field default (auto), matching how
+            # a non-finite rarity drops to auto.
+            if math.isfinite(f):
+                payload["jitter_pct"] = f
     return ReprintKnobs.model_validate(payload)
 
 
