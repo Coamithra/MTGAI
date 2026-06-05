@@ -97,8 +97,9 @@ def _golden_candidates() -> list[dict[str, str]]:
     ``theme.json``. Searches, in order: ``$MTGAI_QA_GOLDEN`` (an explicit
     override path), the repo's ``sets (new)/*`` projects, and ``output/sets/*``.
     Returns ``[{path, name}]`` newest-mtime first so the panel can default to
-    the freshest. QA-run clones under ``output/qa-runs`` are excluded so a clone
-    can't become its own source.
+    the freshest. The ``output/qa-runs`` exclusion is belt-and-suspenders: the
+    searched roots never contain it, but the guard keeps a clone out should a
+    future root be added.
     """
     seen: set[Path] = set()
     found: list[Path] = []
@@ -240,9 +241,17 @@ async def debug_quick_project(request: Request) -> JSONResponse:
     sp = SetParams(set_name=f"{set_code} QA", set_size=set_size, mechanic_count=2)
     theme_input = settings.theme_input
     if isinstance(theme_text, str) and theme_text.strip():
+        # Mirror the prose to disk AND set a synthetic upload_id: the Start
+        # endpoint requires a non-empty upload_id before it falls back to the
+        # theme_source.txt mirror, so without the id a theme_text quick-project
+        # would 400 on Start. The id is never in _upload_cache, so the mirror
+        # path (reading this file) is exactly what fires.
         (asset_dir / "theme_source.txt").write_text(theme_text, encoding="utf-8")
         theme_input = ThemeInputSource(
-            kind="text", filename="theme_source.txt", char_count=len(theme_text)
+            kind="text",
+            filename="theme_source.txt",
+            upload_id="qa-debug-theme",
+            char_count=len(theme_text),
         )
     new = settings.model_copy(
         update={
@@ -252,6 +261,13 @@ async def debug_quick_project(request: Request) -> JSONResponse:
         }
     )
     apply_settings(new)
+    # Re-dump the .mtg AFTER the per-project knobs land so the on-disk file
+    # matches the active project — otherwise reopening it via open-path would
+    # lose set_size / prefab / theme (which _write_active_qa_project wrote
+    # before these were applied).
+    from mtgai.settings.model_settings import dump_project_toml
+
+    (asset_dir / "qa.mtg").write_text(dump_project_toml(set_code, new), encoding="utf-8")
 
     return JSONResponse(
         {
@@ -286,7 +302,12 @@ async def debug_seed_stage(request: Request) -> JSONResponse:
         body = {}
 
     from mtgai.pipeline import engine
-    from mtgai.pipeline.models import STAGE_DEFINITIONS, PipelineStatus, StageStatus
+    from mtgai.pipeline.models import (
+        STAGE_DEFINITIONS,
+        PipelineStatus,
+        StageProgress,
+        StageStatus,
+    )
 
     target = str(body.get("target_stage") or "").strip()
     valid = {d["stage_id"] for d in STAGE_DEFINITIONS}
@@ -337,9 +358,11 @@ async def debug_seed_stage(request: Request) -> JSONResponse:
         if idx <= target_idx:
             s.status = StageStatus.COMPLETED
         else:
+            # Reset wholesale: a fresh StageProgress so a downstream tab can't
+            # show the clone's stale "277/277 finished" on a not-yet-run stage.
             s.status = StageStatus.PENDING
             s.result = {}
-            s.progress.error_message = None
+            s.progress = StageProgress()
     state.stages = backbone
     state.current_instance_id = target
     state.overall_status = PipelineStatus.PAUSED
@@ -401,7 +424,9 @@ async def debug_save_mtg() -> JSONResponse:
 
     The wizard's Save button normally calls ``showSaveFilePicker()`` (an OS
     dialog). In debug mode the client routes here instead so a bot can "Save"
-    headlessly. Writes ``<asset_folder>/<set_code or qa>.mtg``.
+    headlessly. Writes back to the project's own ``.mtg`` (its ``mtg_path``,
+    set by every debug open/create path) so Save doesn't mint a second file;
+    falls back to ``<asset_folder>/qa.mtg`` when no path is recorded.
     """
     from mtgai.runtime import active_project
     from mtgai.settings.model_settings import dump_project_toml
@@ -412,10 +437,8 @@ async def debug_save_mtg() -> JSONResponse:
     folder = proj.settings.asset_folder
     if not folder:
         return JSONResponse({"error": "Active project has no asset folder"}, status_code=409)
-    dest_dir = Path(folder)
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    name = _slug(proj.set_code) if proj.set_code else "qa"
-    dest = dest_dir / f"{name}.mtg"
+    dest = proj.mtg_path or (Path(folder) / "qa.mtg")
+    dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(dump_project_toml(proj.set_code, proj.settings), encoding="utf-8")
     return JSONResponse({"success": True, "path": str(dest)})
 

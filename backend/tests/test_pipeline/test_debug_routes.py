@@ -20,6 +20,7 @@ from mtgai.pipeline.models import (
     PipelineConfig,
     PipelineState,
     PipelineStatus,
+    StageProgress,
     StageState,
     StageStatus,
 )
@@ -57,15 +58,24 @@ def _make_golden(folder, *, last_completed: str) -> None:
     (folder / "theme.json").write_text(json.dumps({"setting": "test"}), encoding="utf-8")
     order = [d["stage_id"] for d in STAGE_DEFINITIONS]
     cut = order.index(last_completed)
-    stages = [
-        StageState(
-            stage_id=d["stage_id"],
-            display_name=d["display_name"],
-            review_eligible=d["review_eligible"],
-            status=StageStatus.COMPLETED if i <= cut else StageStatus.PENDING,
+    stages = []
+    for i, d in enumerate(STAGE_DEFINITIONS):
+        done = i <= cut
+        stages.append(
+            StageState(
+                stage_id=d["stage_id"],
+                display_name=d["display_name"],
+                review_eligible=d["review_eligible"],
+                status=StageStatus.COMPLETED if done else StageStatus.PENDING,
+                # Stamp real progress on completed stages so the seed-stage reset
+                # has something stale to clear (otherwise the assertion is moot).
+                progress=(
+                    StageProgress(total_items=42, completed_items=42, detail="done")
+                    if done
+                    else StageProgress()
+                ),
+            )
         )
-        for i, d in enumerate(STAGE_DEFINITIONS)
-    ]
     state = PipelineState(
         config=PipelineConfig(set_code="GOLD", set_name="Gold"),
         stages=stages,
@@ -98,6 +108,16 @@ def test_attach_debug_routes_gated(monkeypatch):
     assert debug_routes.attach_debug_routes(app) is False
     monkeypatch.setenv(debug_routes.DEBUG_ENV, "1")
     assert debug_routes.attach_debug_routes(app) is True
+
+
+def test_routes_absent_when_disabled(monkeypatch):
+    """The "invisible by default" property: a non-mounted app 404s /api/debug/*."""
+    monkeypatch.delenv(debug_routes.DEBUG_ENV, raising=False)
+    app = FastAPI()
+    debug_routes.attach_debug_routes(app)  # off → not mounted
+    c = TestClient(app)
+    assert c.get("/api/debug/state").status_code == 404
+    assert c.post("/api/debug/quick-project", json={}).status_code == 404
 
 
 # ---------------------------------------------------------------------------
@@ -139,12 +159,21 @@ def test_quick_project_creates_and_activates(client):
     assert proj.settings.debug.use_prefab_cards is True
     assert proj.settings.set_params.set_size == 30
     assert proj.settings.theme_input.kind == "text"
+    # upload_id must be set or the Start endpoint 400s before the mirror fallback.
+    assert proj.settings.theme_input.upload_id
     # The .mtg + theme source were written server-side (no picker).
     from pathlib import Path
 
     folder = Path(proj.settings.asset_folder)
     assert (folder / "qa.mtg").is_file()
     assert (folder / "theme_source.txt").read_text(encoding="utf-8") == "a world"
+    # The on-disk .mtg reflects the per-project knobs (re-dumped after apply).
+    from mtgai.settings.model_settings import parse_project_toml
+
+    _, reopened = parse_project_toml((folder / "qa.mtg").read_text(encoding="utf-8"))
+    assert reopened.set_params.set_size == 30
+    assert reopened.debug.use_prefab_cards is True
+    assert reopened.theme_input.upload_id
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +207,9 @@ def test_seed_stage_jumps_to_target(client, _sandbox):
     assert by_id["card_gen"].status == StageStatus.COMPLETED  # target inclusive
     assert by_id["conformance"].status == StageStatus.PENDING  # downstream reset
     assert by_id["ai_review"].status == StageStatus.PENDING
+    # Reset downstream stages must not carry the clone's stale progress.
+    assert by_id["conformance"].progress.completed_items == 0
+    assert by_id["conformance"].progress.finished_at is None
     # Cloned artifacts came along.
     from pathlib import Path
 
