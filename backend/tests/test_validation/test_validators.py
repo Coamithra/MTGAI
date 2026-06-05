@@ -27,7 +27,7 @@ from mtgai.validation import (
     validate_card_from_raw,
 )
 from mtgai.validation.color_pie import validate_color_pie
-from mtgai.validation.power_level import validate_power_level
+from mtgai.validation.power_level import classify_pt, validate_power_level
 from mtgai.validation.uniqueness import (
     validate_collector_number,
     validate_mechanical_similarity,
@@ -984,28 +984,99 @@ class TestPowerLevel:
     directly here (not through ``validate_card``, which now only runs format
     hygiene) and aggregated by ``analysis.heuristic_checks`` in production."""
 
-    def test_common_overstatted(self):
-        # 4/4 for 2 mana common with abilities -> P+T=8, CMC+2=4, way over
+    def test_vanilla_over_frontier_flagged(self):
+        # 6/6 for 2 mana common vanilla -> printed 2-mana vanillas top out ~3/3.
         card = _make_card(
             mana_cost="{1}{G}",
             cmc=2.0,
-            power="4",
-            toughness="4",
+            power="6",
+            toughness="6",
+            rarity=Rarity.COMMON,
+            oracle_text="",
+        )
+        errors = validate_power_level(card)
+        assert _has_error(errors, validator="power_level", severity="MANUAL")
+        assert any(e.error_code == "power_level.pt_over" for e in errors)
+
+    def test_vanilla_under_frontier_flagged(self):
+        # 3/3 for 7 mana common vanilla -> below the printed 7-mana vanilla floor.
+        card = _make_card(
+            mana_cost="{6}{G}",
+            cmc=7.0,
+            power="3",
+            toughness="3",
+            rarity=Rarity.COMMON,
+            oracle_text="",
+        )
+        errors = validate_power_level(card)
+        assert any(e.error_code == "power_level.pt_under" for e in errors)
+
+    def test_big_vanilla_is_fair(self):
+        # 7/7 for 7 mana vanilla -> a fair big beater; must NOT be flagged
+        # (the regression that started this: it used to be nuked as "overstatted").
+        card = _make_card(
+            mana_cost="{6}{G}",
+            cmc=7.0,
+            power="7",
+            toughness="7",
+            rarity=Rarity.COMMON,
+            oracle_text="",
+        )
+        errors = validate_power_level(card)
+        assert not any(
+            e.error_code in ("power_level.pt_over", "power_level.pt_under") for e in errors
+        )
+
+    def test_ability_creature_not_pt_flagged(self):
+        # A creature WITH abilities is exempt from the body-only P/T check entirely.
+        card = _make_card(
+            mana_cost="{1}{G}",
+            cmc=2.0,
+            power="6",
+            toughness="6",
             rarity=Rarity.COMMON,
             oracle_text="Trample",
         )
         errors = validate_power_level(card)
-        assert _has_error(errors, validator="power_level", severity="MANUAL")
+        assert not any(
+            e.error_code in ("power_level.pt_over", "power_level.pt_under") for e in errors
+        )
+
+    def test_mythic_vanilla_never_over(self):
+        # A splashy mythic vanilla body is uncapped on the OVER side (e.g. 10/10-for-5).
+        card = _make_card(
+            mana_cost="{4}{G}",
+            cmc=5.0,
+            power="10",
+            toughness="10",
+            rarity=Rarity.MYTHIC,
+            oracle_text="",
+        )
+        errors = validate_power_level(card)
+        assert not any(e.error_code == "power_level.pt_over" for e in errors)
 
     def test_common_vanilla_fine(self):
-        # 3/3 for 3 mana vanilla common -> P+T=6, CMC+3=6, exactly at limit
+        # 3/3 for 3 mana vanilla common -> squarely within the printed frontier.
         card = _make_card(
             oracle_text="",
             power="3",
             toughness="3",
         )
         errors = validate_power_level(card)
-        assert not any("P+T" in e.message or "Power" in e.message for e in errors)
+        assert not any("P/T" in e.message or "Power" in e.message for e in errors)
+
+    def test_classify_pt_frontier_and_rarity(self):
+        # Big fair beater is fair; over/under are caught; rarity raises the ceiling.
+        assert classify_pt(7, 7, 7, Rarity.COMMON) == "fair"
+        assert classify_pt(2, 6, 6, Rarity.COMMON) == "over"
+        assert classify_pt(7, 3, 3, Rarity.COMMON) == "under"
+        # 6/6-for-5 is over at common but the rare ceiling bonus makes it fair.
+        assert classify_pt(5, 6, 6, Rarity.COMMON) == "over"
+        assert classify_pt(5, 6, 6, Rarity.RARE) == "fair"
+        # Mythic is never over.
+        assert classify_pt(5, 12, 12, Rarity.MYTHIC) != "over"
+        # A lopsided body within the stat budget is fine (distribution is a choice).
+        assert classify_pt(4, 6, 2, Rarity.COMMON) == "fair"
 
     def test_nwo_modal_at_common(self):
         card = _make_card(oracle_text="Choose one —\n• Draw a card.\n• ~ deals 2 damage.")
@@ -1592,11 +1663,7 @@ class TestIntegration:
             card_types=["Creature"],
             type_line="Creature — Serpent",
             subtypes=["Serpent"],
-            oracle_text=(
-                "Haste\n"
-                "When Flame Serpent enters the battlefield, "
-                "Flame Serpent deals 3 damage to any target"
-            ),
+            oracle_text=("Haste\nWhen Flame Serpent enters the battlefield, draw two cards"),
             power="5",
             toughness="5",
             rarity=Rarity.COMMON,
@@ -1608,12 +1675,12 @@ class TestIntegration:
         assert "mana" in validators_hit, "CMC mismatch should be caught"
         assert "rules_text" in validators_hit, "ETB/self-ref should be caught"
 
-        # The design-tier MANUAL (overstatted 5/5 common at CMC 3) now lives
-        # in heuristic_checks, not validate_card — verify it's findable there.
+        # Design-tier MANUAL checks live in heuristic_checks, not validate_card —
+        # verify they're findable there (red card with blue card-draw -> color_pie).
         from mtgai.analysis.heuristic_checks import check_card_heuristics
 
         heuristic_findings = check_card_heuristics(card)
-        assert any(f.validator == "power_level" for f in heuristic_findings)
+        assert any(f.validator == "color_pie" for f in heuristic_findings)
 
     def test_auto_fix_then_only_manual_remain(self):
         """After auto-fixing, only MANUAL errors should remain."""

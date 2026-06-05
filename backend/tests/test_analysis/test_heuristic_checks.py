@@ -43,14 +43,15 @@ class TestCheckCardHeuristics:
         card = _make_card(oracle_text="", rarity=Rarity.UNCOMMON)
         assert check_card_heuristics(card) == []
 
-    def test_overstatted_common_surfaces_power_level(self):
+    def test_over_frontier_vanilla_surfaces_power_level(self):
+        # A vanilla body well past the printed frontier surfaces a power_level hint.
         card = _make_card(
             mana_cost="{1}{G}",
             cmc=2.0,
-            power="4",
-            toughness="4",
+            power="6",
+            toughness="6",
             rarity=Rarity.COMMON,
-            oracle_text="Trample",
+            oracle_text="",
         )
         findings = check_card_heuristics(card)
         assert any(f.validator == "power_level" for f in findings)
@@ -76,10 +77,10 @@ class TestCheckCardHeuristics:
         card = _make_card(
             mana_cost="{1}{G}",
             cmc=2.0,
-            power="5",
-            toughness="5",
+            power="6",
+            toughness="6",
             rarity=Rarity.COMMON,
-            oracle_text="Trample",
+            oracle_text="",
         )
         findings = check_card_heuristics(card)
         assert findings  # something was flagged
@@ -123,7 +124,7 @@ class TestFormatFindingsForPrompt:
             ),
         ]
         rendered = format_findings_for_prompt(findings)
-        assert "Validation Warnings" in rendered
+        assert "hints" in rendered.lower()
         assert "Way too big for the mana cost" in rendered
         assert "Counterspell in red is off-pie" in rendered
 

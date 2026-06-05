@@ -38,15 +38,6 @@ EVERGREEN_KEYWORDS = {
     "protection",
 }
 
-DOWNSIDE_PATTERNS = [
-    re.compile(r"\bcan't block\b", re.IGNORECASE),
-    re.compile(r"\bdefender\b", re.IGNORECASE),
-    re.compile(r"\benters .+ tapped\b", re.IGNORECASE),
-    re.compile(r"\bsacrifice ~\b", re.IGNORECASE),
-    re.compile(r"\byou lose \d+ life\b", re.IGNORECASE),
-    re.compile(r"\b~ doesn't untap\b", re.IGNORECASE),
-]
-
 NWO_VIOLATION_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
     (
         re.compile(r"choose (?:one|two|three)", re.IGNORECASE),
@@ -75,13 +66,129 @@ NWO_VIOLATION_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
     ),
 ]
 
-# P+T thresholds indexed by (rarity, category) -> max allowed = CMC + delta
-# Category: "vanilla" (no abilities), "abilities" (has abilities), "downside"
-_PT_THRESHOLDS: dict[Rarity, dict[str, int | None]] = {
-    Rarity.COMMON: {"vanilla": 3, "abilities": 2, "downside": 4},
-    Rarity.UNCOMMON: {"vanilla": 4, "abilities": 3, "downside": 5},
-    Rarity.RARE: {"vanilla": 5, "abilities": 4, "downside": None},
-    Rarity.MYTHIC: {"vanilla": None, "abilities": None, "downside": None},
+# Fair vanilla power/toughness by mana value, derived from REAL printed cards
+# (not a hand-rolled formula). Source query, reproducible:
+#   (is:vanilla or is:frenchvanilla) t:creature game:paper -t:token -is:funny
+# (~1397 cards on Scryfall) keeping each (power, toughness) printed on >=3 distinct
+# cards, so one-off freaks (e.g. Gigantosaurus 10/10-for-5) drop out. Used only as a
+# soft HINT to the AI design reviewer (see classify_pt + the wording in the
+# heuristic consumers) — color intensity, downsides and pushed rarity legitimately
+# move real fairness and this body-only frontier cannot see them.
+FAIR_VANILLA_PT: dict[int, frozenset[tuple[int, int]]] = {
+    0: frozenset({(0, 1)}),
+    1: frozenset({(1, 1), (0, 3), (1, 2), (2, 1), (0, 4), (2, 2)}),
+    2: frozenset(
+        {
+            (1, 1),
+            (1, 2),
+            (2, 1),
+            (0, 4),
+            (1, 3),
+            (2, 2),
+            (3, 1),
+            (0, 5),
+            (1, 4),
+            (2, 3),
+            (3, 2),
+            (4, 1),
+            (3, 3),
+        }
+    ),
+    3: frozenset(
+        {
+            (1, 1),
+            (1, 2),
+            (2, 1),
+            (1, 3),
+            (2, 2),
+            (3, 1),
+            (0, 5),
+            (1, 4),
+            (2, 3),
+            (3, 2),
+            (4, 1),
+            (1, 5),
+            (2, 4),
+            (3, 3),
+            (4, 2),
+            (0, 7),
+            (3, 4),
+        }
+    ),
+    4: frozenset(
+        {
+            (2, 1),
+            (2, 2),
+            (3, 1),
+            (2, 3),
+            (3, 2),
+            (1, 5),
+            (2, 4),
+            (3, 3),
+            (4, 2),
+            (5, 1),
+            (1, 6),
+            (2, 5),
+            (3, 4),
+            (4, 3),
+            (5, 2),
+            (4, 4),
+            (4, 5),
+        }
+    ),
+    5: frozenset(
+        {
+            (3, 1),
+            (3, 2),
+            (2, 4),
+            (3, 3),
+            (4, 2),
+            (2, 5),
+            (3, 4),
+            (4, 3),
+            (6, 1),
+            (3, 5),
+            (4, 4),
+            (5, 3),
+            (6, 2),
+            (3, 6),
+            (4, 5),
+            (5, 4),
+            (6, 3),
+            (5, 5),
+            (7, 3),
+        }
+    ),
+    6: frozenset(
+        {
+            (3, 3),
+            (3, 4),
+            (4, 3),
+            (4, 4),
+            (3, 6),
+            (4, 5),
+            (5, 4),
+            (4, 6),
+            (5, 5),
+            (6, 4),
+            (5, 6),
+            (6, 5),
+            (6, 6),
+            (7, 6),
+        }
+    ),
+    7: frozenset({(4, 4), (5, 5), (6, 4), (5, 6), (6, 5), (6, 6), (6, 7), (7, 7), (8, 8)}),
+    8: frozenset({(6, 6), (7, 6)}),
+}
+
+# How far the OVER ceiling rises by rarity above the common (common-printed) max.
+# A pushed rare/mythic vanilla is fine; mythic is uncapped (a splashy mythic body
+# never flags OVER). The UNDER floor is rarity-independent — a weak rare is still weak.
+RARITY_CEIL_BONUS: dict[Rarity, int | None] = {
+    Rarity.COMMON: 0,
+    Rarity.UNCOMMON: 1,
+    Rarity.RARE: 3,
+    Rarity.MYTHIC: None,
 }
 
 
@@ -114,14 +221,52 @@ def _is_numeric(value: str | None) -> bool:
         return False
 
 
-def _has_downside(oracle_text: str) -> bool:
-    return any(pat.search(oracle_text) for pat in DOWNSIDE_PATTERNS)
-
-
 def _count_keyword_abilities(oracle_text: str) -> int:
     """Count how many distinct evergreen keyword abilities appear."""
     text_lower = oracle_text.lower()
     return sum(1 for kw in EVERGREEN_KEYWORDS if kw in text_lower)
+
+
+def _fair_band(cmc: int) -> tuple[frozenset[tuple[int, int]], int, int] | None:
+    """Fair vanilla pairs + (floor_total, common_ceil_total) for a mana value.
+
+    Returns ``None`` for mana values with no usable basis (no hint emitted). For
+    mana values past the sampled range a band with an empty pair set is returned,
+    extrapolated as ``P+T`` in ``[2*cmc-3, 2*cmc+2]`` (no dominance data).
+    """
+    pairs = FAIR_VANILLA_PT.get(cmc)
+    if pairs:
+        totals = [p + t for p, t in pairs]
+        return pairs, min(totals), max(totals)
+    if cmc >= 9:
+        return frozenset(), 2 * cmc - 3, 2 * cmc + 2
+    return None
+
+
+def classify_pt(cmc: int, power: int, toughness: int, rarity: Rarity) -> str:
+    """Classify a VANILLA creature's body as ``"over"`` / ``"under"`` / ``"fair"``.
+
+    The fair stat *budget* for a mana value is the total-``P+T`` range printed on
+    real vanilla cards (:data:`FAIR_VANILLA_PT` — its ``floor``..``common_ceil``).
+    A body is OVER when its total beats the rarity-adjusted ceiling
+    (``common_ceil + RARITY_CEIL_BONUS``; mythic is uncapped, never OVER) and UNDER
+    when its total is below the floor. Distribution within the budget is deliberately
+    NOT policed — a 6/2 and a 4/4 cost the same budget, so a lopsided split is a
+    design choice, not a power problem. This is a hint only — color intensity,
+    downsides and pushed rarity (which it can't see) move real fairness, so callers
+    must frame it as guidance, not a rule.
+    """
+    band = _fair_band(cmc)
+    if band is None:
+        return "fair"
+    _pairs, floor_total, common_ceil = band
+    total = power + toughness
+    bonus = RARITY_CEIL_BONUS.get(rarity, 0)
+    if bonus is not None and total > common_ceil + bonus:
+        return "over"
+    if total < floor_total:
+        return "under"
+    return "fair"
 
 
 # ---------------------------------------------------------------------------
@@ -139,37 +284,53 @@ def validate_power_level(card: Card) -> list[ValidationError]:
     oracle = card.oracle_text or ""
 
     # ------------------------------------------------------------------
-    # 1. Creature P+T vs CMC
+    # 1. Vanilla creature P/T vs the printed-vanilla frontier (HINT only)
     # ------------------------------------------------------------------
-    if is_creature and _is_numeric(card.power) and _is_numeric(card.toughness):
+    # Only VANILLA creatures (no rules text): an ability-bearing creature pays for
+    # its ability in stats, which this body-only frontier can't weigh, so we leave
+    # those to the reviewer. The finding is a soft hint (consumers frame it as
+    # guidance, not a rule) — color intensity, downsides and pushed rarity all
+    # legitimately move fair stats and ``classify_pt`` cannot see them.
+    if (
+        is_creature
+        and not oracle.strip()
+        and _is_numeric(card.power)
+        and _is_numeric(card.toughness)
+    ):
         p = int(card.power)  # type: ignore[arg-type]
         t = int(card.toughness)  # type: ignore[arg-type]
-        pt = p + t
-
-        thresholds = _PT_THRESHOLDS.get(card.rarity)
-        if thresholds is not None:
-            has_abilities = bool(oracle.strip())
-            downside = _has_downside(oracle)
-
-            if downside:
-                category = "downside"
-            elif has_abilities:
-                category = "abilities"
-            else:
-                category = "vanilla"
-
-            delta = thresholds[category]
-            if delta is not None and pt > cmc + delta:
-                errors.append(
-                    _manual(
-                        "power/toughness",
-                        f"Power {p} + Toughness {t} = {pt} on a CMC {cmc} "
-                        f"{card.rarity.value} creature exceeds "
-                        f"P+T <= CMC+{delta} guideline",
-                        "Consider raising the mana cost or lowering stats.",
-                        error_code="power_level.overstatted",
-                    )
+        verdict = classify_pt(int(cmc), p, t, card.rarity)
+        band = _fair_band(int(cmc))
+        if verdict in ("over", "under") and band is not None:
+            pairs, floor_total, common_ceil = band
+            if verdict == "over":
+                examples = ", ".join(
+                    f"{sp}/{st}" for sp, st in sorted(pairs, key=lambda x: -(x[0] + x[1]))[:3]
                 )
+                message = (
+                    f"P/T {p}/{t} is bigger than printed {int(cmc)}-mana vanillas, "
+                    f"which top out around {common_ceil} total"
+                    + (f" (e.g. {examples})" if examples else "")
+                    + ". Rough hint only -- color cost, downsides or pushed rarity "
+                    "may well justify it."
+                )
+            else:
+                examples = ", ".join(
+                    f"{sp}/{st}" for sp, st in sorted(pairs, key=lambda x: x[0] + x[1])[:3]
+                )
+                message = (
+                    f"P/T {p}/{t} is below printed {int(cmc)}-mana vanillas, "
+                    f"which start around {floor_total} total"
+                    + (f" (e.g. {examples})" if examples else "")
+                    + ". Rough hint only."
+                )
+            errors.append(
+                _manual(
+                    "power/toughness",
+                    message,
+                    error_code=f"power_level.pt_{verdict}",
+                )
+            )
 
     # ------------------------------------------------------------------
     # 2. Negative P/T
