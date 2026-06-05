@@ -49,6 +49,15 @@ logger = logging.getLogger(__name__)
 TEMPERATURE = temps.CREATIVE  # open design-council review (see temperatures.py)
 MAX_ITERATIONS = 5  # single-reviewer (C/U) self-iteration budget — unchanged
 
+# Per-call transient-failure retries inside ONE review/synth call. A local model
+# routinely returns prose instead of a parseable tool call (every retry inside
+# llm_client exhausted → ``generate_with_tool`` raises), or the transport blips —
+# both transient. Without an outer retry a single such failure dropped the card
+# out of review entirely (the "Skyguard Sentinel: every LLM review call failed"
+# bug). We re-attempt the SAME call up to this many times, only flagging the card
+# for manual attention once genuine retries are exhausted.
+MAX_CALL_ATTEMPTS = 3
+
 # Council tier (R/M + planeswalkers/sagas): after the initial independent panel, the
 # synthesizer revises in place and a FRESH full council re-judges the revision. This
 # is the number of fresh-council *review* rounds after the initial panel — so a
@@ -71,6 +80,93 @@ def _safe_council(on_council, event):
 def _verdict_glyph(verdict):
     """Map an LLM verdict string to the council slot state the wizard renders."""
     return "ok" if verdict == "OK" else "revise"
+
+
+def _coerce_verdict_data(result: object) -> dict:
+    """Normalize a ``generate_with_tool`` ``result["result"]`` into a usable dict.
+
+    A local model occasionally returns the tool payload in the wrong shape — a bare
+    string, a list, ``None`` — or a dict with malformed keys. Everything downstream
+    (``verdict_data.get("verdict")``, ``verdict_data["verdict"] = …``) assumes a dict,
+    so a non-dict here is what produced the ``string indices must be integers`` crash.
+    Coerce to ``{}`` when it isn't a dict so the caller falls back to a safe default
+    verdict instead of raising.
+    """
+    return result if isinstance(result, dict) else {}
+
+
+def _coerce_issues(raw: object) -> list[ReviewIssue]:
+    """Parse an LLM ``issues`` array into ``ReviewIssue`` models, dropping junk.
+
+    A local model can return ``issues`` items that aren't well-formed dicts (a bare
+    string, a dict missing the required ``severity``/``category``/``description``
+    keys). ``ReviewIssue(**i)`` then raises (``TypeError`` for a string,
+    ``ValidationError`` for a missing key) and crashes the whole review. We instead
+    fill sane defaults for missing keys and skip anything that still can't be parsed,
+    so one bad issue never sinks the card's review.
+    """
+    if not isinstance(raw, list):
+        return []
+    out: list[ReviewIssue] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        try:
+            out.append(
+                ReviewIssue(
+                    severity=str(item.get("severity") or "WARN"),
+                    category=str(item.get("category") or "other"),
+                    description=str(item.get("description") or ""),
+                )
+            )
+        except Exception:
+            logger.debug("Dropping unparseable review issue: %r", item)
+    return out
+
+
+def _review_call(
+    *,
+    user_prompt: str,
+    tool_schema: dict,
+    review_model: str,
+    review_effort: str | None,
+    review_thinking: str | None,
+    label: str,
+    should_cancel: Callable[[], bool] | None = None,
+) -> dict | None:
+    """One review/synth ``generate_with_tool`` call with transient-failure retries.
+
+    A local model often fails to emit a parseable tool call (so ``generate_with_tool``
+    raises after exhausting its own internal retries) or the transport blips — both
+    transient. We retry the SAME call up to :data:`MAX_CALL_ATTEMPTS` times before
+    giving up, bumping the temperature by :data:`temps.RETRY_TEMP_STEP` per attempt
+    (capped at ``CREATIVE``) so a re-roll isn't byte-identical. Returns the
+    ``generate_with_tool`` result dict, or ``None`` when every attempt failed (the
+    caller then records an error slot / flags the card — the existing contract).
+
+    ``should_cancel`` is polled before each attempt so a Cancel doesn't burn the
+    remaining retries on a card the user is abandoning.
+    """
+    for attempt in range(1, MAX_CALL_ATTEMPTS + 1):
+        if should_cancel is not None and should_cancel():
+            return None
+        temperature = min(TEMPERATURE + (attempt - 1) * temps.RETRY_TEMP_STEP, temps.CREATIVE)
+        try:
+            return generate_with_tool(
+                system_prompt=REVIEW_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                tool_schema=tool_schema,
+                model=review_model,
+                temperature=temperature,
+                max_tokens=HEAVY,
+                effort=review_effort,
+                thinking=review_thinking,
+            )
+        except Exception:
+            logger.exception(
+                "    %s call failed (attempt %d/%d)", label, attempt, MAX_CALL_ATTEMPTS
+            )
+    return None
 
 
 def _review_model() -> str:
@@ -338,7 +434,14 @@ Do NOT flag:
 - Balance concerns where the card has a meaningful drawback that compensates
 - A card being above-rate when a custom mechanic embeds an inherent drawback that \
 compensates -- the drawback IS the cost
-- Vanilla/french vanilla creatures being simple -- that's intentional at common"""
+- Vanilla/french vanilla creatures being simple -- that's intentional at common
+
+When you REVISE a card, write its ``oracle_text`` WITHOUT any parenthetical \
+reminder text. Reminder text (the italicized "(To energize, ...)" explanations in \
+parentheses) is added programmatically after review -- never write it yourself. Keep \
+custom-mechanic keywords bare (e.g. "When this enters, energize." not "When this \
+enters, energize. (To energize, ...)"). Do not flag a card for missing reminder text, \
+and do not add reminder text to fix it."""
 
 
 def _format_card_for_review(card: dict) -> str:
@@ -353,8 +456,14 @@ def _format_card_for_review(card: dict) -> str:
     skipped here; it's a set-level concern (the old render_qa stage that
     surfaced it was dropped in the art/render topology reorg).
     """
+    # ``card`` may be an LLM-produced ``revised_card`` (e.g. an iteration / council
+    # revision), which a local model sometimes returns malformed — a missing ``name``
+    # key, a non-dict, etc. Read every field with ``.get`` (never ``card['name']``)
+    # so a bad revision can't crash the prompt builder with ``KeyError: 'name'``.
+    if not isinstance(card, dict):
+        return ""
     lines = [
-        f"Name: {card['name']}",
+        f"Name: {card.get('name', '???')}",
         f"Mana Cost: {card.get('mana_cost', '')}",
         f"Type: {card.get('type_line', '')}",
         f"Rarity: {card.get('rarity', '')}",
@@ -366,9 +475,9 @@ def _format_card_for_review(card: dict) -> str:
     if flavor:
         lines.append(f"Flavor Text: {flavor}")
     if card.get("power") is not None:
-        lines.append(f"P/T: {card['power']}/{card['toughness']}")
+        lines.append(f"P/T: {card.get('power')}/{card.get('toughness')}")
     if card.get("loyalty") is not None:
-        lines.append(f"Loyalty: {card['loyalty']}")
+        lines.append(f"Loyalty: {card.get('loyalty')}")
     notes = card.get("design_notes")
     if notes:
         lines.append(f"Design Notes: {notes}")
@@ -418,10 +527,19 @@ def _build_review_prompt(
         card_colors = {"W", "U", "B", "R", "G"}
     mech_block = format_mechanic_block(mechanics, card_colors)
 
-    # Build pointed questions section
+    # Build pointed questions section. A pointed question is normally a dict with a
+    # ``question`` key, but tolerate a malformed entry (a bare string, a missing key)
+    # so a bad pointed-questions.json can't crash review with ``string indices``.
     pq_lines = []
     for i, pq in enumerate(pointed_questions, 1):
-        pq_lines.append(f"{i}. {pq['question']}")
+        if isinstance(pq, dict):
+            question = pq.get("question")
+        elif isinstance(pq, str):
+            question = pq
+        else:
+            question = None
+        if question:
+            pq_lines.append(f"{i}. {question}")
     pq_text = "\n".join(pq_lines)
 
     return (
@@ -441,10 +559,20 @@ def _build_review_prompt(
 def _build_iteration_prompt(previous_verdict: dict) -> str:
     """Build the follow-up prompt for an iteration after a REVISE verdict."""
     issues_text = ""
-    for issue in previous_verdict.get("issues", []):
-        issues_text += f"- [{issue['severity']}] {issue['category']}: {issue['description']}\n"
+    # ``issues`` comes straight from the raw LLM verdict, so each item may be a
+    # malformed dict (or not a dict at all). Read defensively — a bad item must not
+    # crash the iteration-prompt builder with ``KeyError``/``string indices``.
+    raw_issues = previous_verdict.get("issues", []) if isinstance(previous_verdict, dict) else []
+    if isinstance(raw_issues, list):
+        for issue in raw_issues:
+            if not isinstance(issue, dict):
+                continue
+            sev = issue.get("severity", "?")
+            cat = issue.get("category", "?")
+            desc = issue.get("description", "?")
+            issues_text += f"- [{sev}] {cat}: {desc}\n"
 
-    revised = previous_verdict.get("revised_card")
+    revised = previous_verdict.get("revised_card") if isinstance(previous_verdict, dict) else None
     card_text = _format_card_for_review(revised) if revised else "(no revised card provided)"
 
     return (
@@ -611,19 +739,16 @@ def _review_single(
         _safe_council(on_council, {"kind": "round", "round": iteration, "verdicts": []})
 
         t0 = time.time()
-        try:
-            result = generate_with_tool(
-                system_prompt=REVIEW_SYSTEM_PROMPT,
-                user_prompt=user_prompt,
-                tool_schema=REVIEW_TOOL_SCHEMA,
-                model=review_model,
-                temperature=TEMPERATURE,
-                max_tokens=HEAVY,
-                effort=review_effort,
-                thinking=review_thinking,
-            )
-        except Exception:
-            logger.exception("    API call failed on iteration %d", iteration)
+        result = _review_call(
+            user_prompt=user_prompt,
+            tool_schema=REVIEW_TOOL_SCHEMA,
+            review_model=review_model,
+            review_effort=review_effort,
+            review_thinking=review_thinking,
+            label=f"Iteration {iteration}",
+        )
+        if result is None:
+            logger.error("    API call failed on iteration %d (retries exhausted)", iteration)
             _safe_council(on_council, {"kind": "round", "round": iteration, "verdicts": ["error"]})
             break
 
@@ -639,9 +764,9 @@ def _review_single(
         total_cost += cost
         total_latency += latency
 
-        verdict_data = result["result"]
+        verdict_data = _coerce_verdict_data(result["result"])
         verdict = verdict_data.get("verdict", "OK")
-        issues = [ReviewIssue(**i) for i in verdict_data.get("issues", [])]
+        issues = _coerce_issues(verdict_data.get("issues"))
 
         _safe_council(
             on_council,
@@ -829,19 +954,21 @@ def _run_council_panel(
             break
         logger.info("    Round %d reviewer %d/%d...", round_no, member_id, num_reviewers)
         t0 = time.time()
-        try:
-            result = generate_with_tool(
-                system_prompt=REVIEW_SYSTEM_PROMPT,
-                user_prompt=user_prompt,
-                tool_schema=REVIEW_TOOL_SCHEMA,
-                model=review_model,
-                temperature=TEMPERATURE,
-                max_tokens=HEAVY,
-                effort=review_effort,
-                thinking=review_thinking,
+        result = _review_call(
+            user_prompt=user_prompt,
+            tool_schema=REVIEW_TOOL_SCHEMA,
+            review_model=review_model,
+            review_effort=review_effort,
+            review_thinking=review_thinking,
+            label=f"Round {round_no} reviewer {member_id}",
+            should_cancel=should_cancel,
+        )
+        if result is None:
+            logger.error(
+                "    Round %d reviewer %d API call failed (retries exhausted)",
+                round_no,
+                member_id,
             )
-        except Exception:
-            logger.exception("    Round %d reviewer %d API call failed", round_no, member_id)
             panel_verdicts.append("error")
             _safe_council(
                 on_council,
@@ -850,10 +977,10 @@ def _run_council_panel(
             continue
         latency = time.time() - t0
         cost = acc.record(result, latency)
-        verdict_data = result["result"]
+        verdict_data = _coerce_verdict_data(result["result"])
         verdict = verdict_data.get("verdict", "OK")
         verdict_data["verdict"] = verdict  # ensure key exists for the synthesis prompt
-        issues = [ReviewIssue(**i) for i in verdict_data.get("issues", [])]
+        issues = _coerce_issues(verdict_data.get("issues"))
         logger.info(
             "    Round %d reviewer %d: %s (%d issues), $%.4f",
             round_no,
@@ -917,24 +1044,21 @@ def _run_synth(
         },
     )
     t0 = time.time()
-    try:
-        result = generate_with_tool(
-            system_prompt=REVIEW_SYSTEM_PROMPT,
-            user_prompt=synthesis_prompt,
-            tool_schema=COUNCIL_SYNTHESIS_TOOL_SCHEMA,
-            model=review_model,
-            temperature=TEMPERATURE,
-            max_tokens=HEAVY,
-            effort=review_effort,
-            thinking=review_thinking,
-        )
-    except Exception:
-        logger.exception("    Round %d synthesis (revise) call failed", round_no)
+    result = _review_call(
+        user_prompt=synthesis_prompt,
+        tool_schema=COUNCIL_SYNTHESIS_TOOL_SCHEMA,
+        review_model=review_model,
+        review_effort=review_effort,
+        review_thinking=review_thinking,
+        label=f"Round {round_no} synthesis (revise)",
+    )
+    if result is None:
+        logger.error("    Round %d synthesis (revise) call failed (retries exhausted)", round_no)
         return None, acc, None
     latency = time.time() - t0
     cost = acc.record(result, latency)
-    verdict_data = result["result"]
-    issues = [ReviewIssue(**i) for i in verdict_data.get("issues", [])]
+    verdict_data = _coerce_verdict_data(result["result"])
+    issues = _coerce_issues(verdict_data.get("issues"))
     _safe_council(
         on_council,
         {
@@ -1218,7 +1342,17 @@ def _apply_revision(original_card: Card, revised_data: dict) -> Card:
 
     Only updates fields that the AI review is allowed to change (game data,
     not pipeline metadata).
+
+    Reminder text is **never** LLM-authored (CLAUDE.md: it's stripped + injected
+    programmatically by ``reminder_injector`` at ``finalize``). A reviewer/synth that
+    "helpfully" bakes parenthesized reminder text into ``oracle_text`` would write
+    un-canonical reminder text into the card *before* finalize, which finalize then
+    has to re-strip (and could conflict with). So we strip any parenthetical reminder
+    text from a revised ``oracle_text`` here, keeping cards in their pre-reminder
+    canonical form through review — the same ``strip_reminder_text`` finalize uses.
     """
+    from mtgai.generation.reminder_injector import strip_reminder_text
+
     update: dict = {}
     for field in (
         "name",
@@ -1236,7 +1370,10 @@ def _apply_revision(original_card: Card, revised_data: dict) -> Card:
         "design_notes",
     ):
         if field in revised_data:
-            update[field] = revised_data[field]
+            value = revised_data[field]
+            if field == "oracle_text" and isinstance(value, str):
+                value = strip_reminder_text(value)
+            update[field] = value
     update["updated_at"] = datetime.now(UTC)
     return original_card.model_copy(update=update)
 
