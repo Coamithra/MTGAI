@@ -31,7 +31,7 @@ from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 
-from llmfacade import LLM, Provider, SystemBlock, Tool
+from llmfacade import LLM, DrySampler, Provider, SystemBlock, Tool
 from llmfacade.exceptions import LLMError
 
 from mtgai.io.paths import repo_root
@@ -585,12 +585,13 @@ def _generate_llamacpp(
     log_dir: Any = True,
     repeat_penalty: float | None = None,
     thinking: str | None = None,
+    dry: DrySampler | None = None,
 ) -> dict:
     """Call a local model through llmfacade's llamacpp provider.
 
     llmfacade handles the transport (managed-mode llama-swap → llama-server,
     OpenAI-compatible /v1/chat/completions) and forwards llama.cpp-specific
-    samplers (top_k, min_p, repeat_penalty) through ``extra_body``. We layer
+    samplers (top_k, min_p, repeat_penalty, dry) through ``extra_body``. We layer
     on our own retry + JSON-extraction fallback because local models often
     return tool args inline as text instead of as a structured tool call.
     Tiktoken-based pre-call budget check + post-call truncation guard remain.
@@ -599,6 +600,10 @@ def _generate_llamacpp(
     for this call. Structured tool-use callers pass a low value (≈1.0) because
     JSON output *must* repeat its scaffolding (``{"slot_id":``, ``"text":`` …)
     and a prose-tuned penalty corrupts it. ``None`` keeps the provider default.
+
+    ``dry`` enables llama.cpp's DRY (Don't Repeat Yourself) sampler for this call
+    — a structural anti-repetition knob the gates escalate to on a truncation
+    retry. ``None`` leaves it off (llamacpp-only; never sent to Anthropic).
     """
     from mtgai.generation.token_utils import (
         check_post_call_response,
@@ -647,6 +652,9 @@ def _generate_llamacpp(
         # Per-call override of the provider-default repeat_penalty, forwarded by
         # llmfacade through OpenAI-compat extra_body to llama-server.
         convo_kwargs["repeat_penalty"] = repeat_penalty
+    if dry is not None:
+        # DRY sampler — cascades like repeat_penalty (llamacpp-only).
+        convo_kwargs["dry"] = dry
     convo = facade_model.new_conversation(**convo_kwargs)
 
     next_user: str | None = user_prompt
@@ -788,6 +796,7 @@ def generate_with_tool(
     log_dir: Any | None = None,
     repeat_penalty: float | None = None,
     thinking: str | None = None,
+    dry: DrySampler | None = None,
     *,
     system_blocks: list[str | tuple[str, bool]] | None = None,
     cache_user: bool = False,
@@ -818,6 +827,12 @@ def generate_with_tool(
 
     ``repeat_penalty`` (llamacpp only; ignored on Anthropic) overrides the
     provider-default repeat penalty for this call — see :func:`_generate_llamacpp`.
+
+    ``dry`` (a :class:`DrySampler`; llamacpp only; ignored on Anthropic) enables
+    llama.cpp's DRY anti-repetition sampler for this call. Setting it on a hosted
+    model would raise ``UnsupportedFeature`` in llmfacade, so callers must only
+    pass it when the resolved model is local — here we simply drop it on the
+    Anthropic branch. ``None`` leaves DRY off.
 
     ``thinking`` (llamacpp only; ignored on Anthropic) overrides the assigned
     model's registry ``thinking`` for this call — pass ``"disabled"`` to turn off
@@ -856,6 +871,7 @@ def generate_with_tool(
             log_dir=effective_log_dir,
             repeat_penalty=repeat_penalty,
             thinking=thinking,
+            dry=dry,
         )
 
     return _generate_anthropic(
@@ -1045,6 +1061,7 @@ def _stream_text_llamacpp(
     repeat_penalty: float | None,
     name: str,
     thinking: str | None = None,
+    dry: DrySampler | None = None,
 ) -> Iterator[dict]:
     """Streaming local generation. Yields ``text_delta`` events, then one
     ``complete`` event carrying the full text + usage.
@@ -1076,6 +1093,8 @@ def _stream_text_llamacpp(
     }
     if repeat_penalty is not None:
         convo_kwargs["repeat_penalty"] = repeat_penalty
+    if dry is not None:
+        convo_kwargs["dry"] = dry
     convo = facade_model.new_conversation(**convo_kwargs)
 
     # Marker spans the whole stream consumption: the blocking decode happens as
@@ -1165,6 +1184,7 @@ def stream_text(
     repeat_penalty: float | None = None,
     name: str = "stream_text",
     thinking: str | None = None,
+    dry: DrySampler | None = None,
 ) -> Iterator[dict]:
     """Streaming free-text generation — the streaming counterpart to
     :func:`generate_text`.
@@ -1181,6 +1201,11 @@ def stream_text(
     errors are raised, not yielded, so a caller's retry loop can ``except`` them
     exactly as it does around :func:`generate_text`. Provider + ``repeat_penalty``
     semantics match :func:`generate_text`.
+
+    ``dry`` (a :class:`DrySampler`; llamacpp only) enables llama.cpp's DRY
+    anti-repetition sampler — dropped on the Anthropic branch (it would raise
+    ``UnsupportedFeature``). The review gates escalate to it on a truncation retry
+    for a local model. ``None`` leaves DRY off.
     """
     provider = _resolve_provider(model)
     effective_log_dir = True if log_dir is None else log_dir
@@ -1196,6 +1221,7 @@ def stream_text(
             repeat_penalty=repeat_penalty,
             name=name,
             thinking=thinking,
+            dry=dry,
         )
         return
 

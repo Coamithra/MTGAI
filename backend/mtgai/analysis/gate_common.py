@@ -26,7 +26,12 @@ import re
 from collections.abc import Callable
 
 from mtgai.generation import temperatures as temps
-from mtgai.generation.llm_client import cost_from_result, generate_with_tool, stream_text
+from mtgai.generation.llm_client import (
+    DrySampler,
+    cost_from_result,
+    generate_with_tool,
+    stream_text,
+)
 from mtgai.generation.token_utils import OutputTruncatedError
 from mtgai.models.card import Card
 from mtgai.runtime import ai_lock
@@ -38,6 +43,40 @@ logger = logging.getLogger(__name__)
 # (the verified lever where ``repeat_penalty`` is not — see
 # ``learnings/gemma-repetition-loops.md``).
 MAX_BATCH_ATTEMPTS = 3
+
+# DRY (Don't Repeat Yourself) sampler enabled as the *escalation* step on a
+# truncation retry, on top of the temperature bump. A plain temp bump usually
+# breaks a Gemma repetition loop, but DRY structurally penalizes repeated token
+# sequences and catches the loops that survive 0.6+. ``multiplier`` is the
+# enabling knob (>0 required); the rest of llama.cpp's DRY defaults are fine.
+RETRY_DRY_MULTIPLIER = 0.8
+
+
+def _local_retry_dry(model: str | None) -> DrySampler | None:
+    """A :class:`DrySampler` for the truncation-retry — only for a local model.
+
+    DRY is a llama.cpp-only sampler; setting it on a hosted (Anthropic) model
+    raises ``UnsupportedFeature`` in llmfacade, so we send it only when the
+    resolved model is local. The local-vs-hosted gate mirrors
+    :func:`temperatures.floor_for_local` exactly — a provider-aware, best-effort
+    registry lookup keyed on ``provider == "llamacpp"`` that degrades to "not
+    local" (``None``) on an unknown / no-registry model rather than raising (this
+    runs inside the gate retry loop). Returns ``None`` for a hosted / unknown /
+    missing model so DRY is never sent where it would 400.
+    """
+    if not model:
+        return None
+    try:
+        from mtgai.settings.model_registry import get_registry
+
+        info = get_registry().get_llm_by_model_id(model)
+    except Exception:
+        return None
+    if info is not None and info.provider == "llamacpp":
+        return DrySampler(multiplier=RETRY_DRY_MULTIPLIER)
+    return None
+
+
 # Re-scan the growing stream buffer for newly-closed ``--CARD`` blocks every
 # this-many new chars (not every token), so the per-card UI push stays O(cards)
 # rather than O(stream²). A block is short, so 80 lands roughly one scan per
@@ -76,13 +115,17 @@ def generate_gate_tool(
     # decode terminates instead of looping; the per-retry bump still stacks on
     # top of the floored base (see temperatures.floor_for_local).
     base_temperature = temps.floor_for_local(base_temperature, kwargs.get("model"))
+    # DRY escalation for the retry — local-only (UnsupportedFeature on Anthropic),
+    # applied from the 2nd attempt on, beyond the temperature bump.
+    retry_dry = _local_retry_dry(kwargs.get("model"))
     last_exc: OutputTruncatedError | None = None
     for attempt in range(retries + 1):
         if attempt and ai_lock.is_cancelled():
             raise last_exc if last_exc else RuntimeError("gate cancelled")
         temperature = base_temperature + temperature_step * attempt
+        dry = retry_dry if attempt else None
         try:
-            return generate_with_tool(temperature=temperature, **kwargs)
+            return generate_with_tool(temperature=temperature, dry=dry, **kwargs)
         except OutputTruncatedError as exc:
             last_exc = exc
             logger.warning(
@@ -185,11 +228,16 @@ def stream_flag_batch(
     # decode terminates instead of looping; the per-retry bump still stacks on
     # top of the floored base (see temperatures.floor_for_local).
     base_temperature = temps.floor_for_local(base_temperature, model)
+    # DRY escalation for the truncation retry — only for a local model (it would
+    # raise UnsupportedFeature on Anthropic). Resolved once; applied from the 2nd
+    # attempt on, beyond the temperature bump.
+    retry_dry = _local_retry_dry(model)
     cost = 0.0
     for attempt in range(1, MAX_BATCH_ATTEMPTS + 1):
         if attempt > 1 and ai_lock.is_cancelled():
             break
         temperature = base_temperature + temps.RETRY_TEMP_STEP * (attempt - 1)
+        dry = retry_dry if attempt > 1 else None
         buf = ""
         scanned = 0
         emitted: set[str] = set()  # block ids already fired this attempt
@@ -205,6 +253,7 @@ def stream_flag_batch(
                 log_dir=log_dir,
                 name=name,
                 thinking=thinking,
+                dry=dry,
             ):
                 if ev.get("type") == "text_delta":
                     buf += ev.get("text", "")
