@@ -2725,7 +2725,9 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
     clicks Start to re-extract), otherwise at the first stage that will
     re-run.
     """
+    from mtgai.generation.mechanic_generator import MAX_MECHANIC_COUNT
     from mtgai.settings.model_settings import (
+        MAX_SET_SIZE,
         SetParams,
         ThemeInputSource,
         apply_settings,
@@ -2807,9 +2809,23 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
                     {"error": "set_params_patch.set_size must be a positive int"},
                     status_code=400,
                 )
+            if new_size > MAX_SET_SIZE:
+                return JSONResponse(
+                    {"error": f"set_params_patch.set_size cannot exceed {MAX_SET_SIZE}"},
+                    status_code=400,
+                )
             if not isinstance(new_mech, int) or new_mech < 0:
                 return JSONResponse(
                     {"error": "set_params_patch.mechanic_count must be a non-negative int"},
+                    status_code=400,
+                )
+            if new_mech > MAX_MECHANIC_COUNT:
+                return JSONResponse(
+                    {
+                        "error": (
+                            f"set_params_patch.mechanic_count cannot exceed {MAX_MECHANIC_COUNT}"
+                        )
+                    },
                     status_code=400,
                 )
             new_sp = SetParams(
