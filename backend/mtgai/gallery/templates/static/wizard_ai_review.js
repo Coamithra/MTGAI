@@ -264,6 +264,17 @@
   // Merge one streamed council ``event`` (mechanics-shaped) into a card's panel.
   function applyCouncil(local, cn, event) {
     if (!cn) return;
+    // In-progress revision: the loop pushes the revised card body each round so the
+    // tile updates live while still "Reviewing…" (the final stamped tile lands on
+    // card_done). Mutate the existing tile in place (shared ref with local.cards).
+    if (event.kind === 'card') {
+      if (event.card) {
+        const existing = local.byCn[cn];
+        if (existing) Object.assign(existing, event.card);
+        else mergeTile(local, Object.assign({ collector_number: cn }, event.card));
+      }
+      return;
+    }
     const c = local.council[cn] || (local.council[cn] = { size: 1, maxRounds: 0, steps: [] });
     if (event.kind === 'round') {
       const verdicts = Array.isArray(event.verdicts) ? event.verdicts : [];

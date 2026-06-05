@@ -321,3 +321,129 @@ class TestReviewCouncilFreshLoop:
         assert result.card_was_changed is True  # round-1 revision kept
         assert len(result.council_reviews) == 3  # only round 1 produced reviews
         assert any(i.category == "design" for i in result.final_issues)
+
+
+_UNCOMMON_CARD = {
+    "collector_number": "W-U-20",
+    "name": "Ark Bear",
+    "rarity": "uncommon",
+    "type_line": "Artifact Creature — Bear",
+    "mana_cost": "{4}{W}{W}",
+    "oracle_text": "Vigilance",
+    "power": "5",
+    "toughness": "5",
+    "colors": ["W"],
+}
+
+
+class TestPartialRevisionMerge:
+    """A partial ``revised_card`` (the model omits a field) must not blank that field
+    for the next round's judge, and the accumulated revision must keep it.
+
+    Regression for the loop feeding the raw partial revise dict forward: when round 1
+    dropped ``mana_cost`` while only setting ``cmc``, round 2 judged a blank-cost,
+    colorless card and burned a round on a phantom color-pie REVISE (the
+    Ark-Class Peacekeeper case). The loop now accumulates each revision onto the
+    current card via ``_merge_revision_into_dict``.
+    """
+
+    def test_single_omitted_field_preserved_and_accumulated(self, monkeypatch):
+        judge_prompts: list[str] = []
+
+        def stub(**kwargs):
+            name = kwargs["tool_schema"]["name"]
+            if name == "submit_revision":
+                # Partial revision: change oracle_text + power, but DROP mana_cost.
+                return {
+                    "result": {
+                        "verdict": "REVISE",
+                        "issues": [],
+                        "revised_card": {
+                            "name": "Ark Bear",
+                            "type_line": "Artifact Creature — Bear",
+                            "oracle_text": "Vigilance\nWhen Ark Bear dies, create a 1/1 token.",
+                            "power": "6",
+                        },
+                    },
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "model": "test-model",
+                }
+            judge_prompts.append(kwargs["user_prompt"])
+            verdict = "REVISE" if len(judge_prompts) == 1 else "OK"
+            issues = (
+                [{"category": "balance", "description": "too low", "severity": "FAIL"}]
+                if verdict == "REVISE"
+                else []
+            )
+            return {
+                "result": {"verdict": verdict, "issues": issues},
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "model": "test-model",
+            }
+
+        monkeypatch.setattr(ai_review, "generate_with_tool", stub)
+
+        result = ai_review._review_single(
+            _UNCOMMON_CARD, _MECHANICS, _POINTED_QUESTIONS, "test-model", None
+        )
+
+        assert result.final_verdict == "OK"
+        assert result.card_was_changed is True
+        # The omitted field survives; the model's edits are accumulated.
+        assert result.revised_card["mana_cost"] == "{4}{W}{W}"
+        assert "dies" in result.revised_card["oracle_text"]
+        assert result.revised_card["power"] == "6"
+        # The round-2 judge saw the preserved mana cost, not a blanked one.
+        assert "{4}{W}{W}" in judge_prompts[1]
+
+    def test_in_progress_revision_streamed_to_council(self, monkeypatch):
+        """Each round's revision is pushed as a ``{"kind": "card"}`` council event so
+        the tab's tile can update mid-loop."""
+        events: list[dict] = []
+
+        def stub(**kwargs):
+            name = kwargs["tool_schema"]["name"]
+            if name == "submit_revision":
+                return {
+                    "result": {
+                        "verdict": "REVISE",
+                        "issues": [],
+                        "revised_card": {"power": "6", "toughness": "6"},
+                    },
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "model": "test-model",
+                }
+            verdict = "REVISE" if not any(e.get("kind") == "card" for e in events) else "OK"
+            issues = (
+                [{"category": "balance", "description": "x", "severity": "FAIL"}]
+                if verdict == "REVISE"
+                else []
+            )
+            return {
+                "result": {"verdict": verdict, "issues": issues},
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "model": "test-model",
+            }
+
+        monkeypatch.setattr(ai_review, "generate_with_tool", stub)
+
+        ai_review._review_single(
+            _UNCOMMON_CARD,
+            _MECHANICS,
+            _POINTED_QUESTIONS,
+            "test-model",
+            None,
+            on_council=events.append,
+        )
+
+        card_events = [e for e in events if e.get("kind") == "card"]
+        assert len(card_events) == 1
+        tile = card_events[0]["card"]
+        # Carries the live (merged) display body: the revised P/T over the kept cost.
+        assert tile["mana_cost"] == "{4}{W}{W}"
+        assert tile["power"] == "6"
+        assert tile["toughness"] == "6"
