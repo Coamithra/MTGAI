@@ -1371,6 +1371,7 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
     """
     from mtgai.settings.model_settings import (
         MAX_ART_VERSIONS,
+        MAX_SET_SIZE,
         MIN_ART_VERSIONS,
         SetParams,
         apply_settings,
@@ -1410,6 +1411,13 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
         )
     if not isinstance(size, int) or size <= 0:
         return JSONResponse({"error": "set_size must be a positive int"}, status_code=400)
+    # Cap the target size so an absurd value can't spawn a runaway pipeline run
+    # (mirrors the mechanic_count cap + the UI field's max attribute).
+    if size > MAX_SET_SIZE:
+        return JSONResponse(
+            {"error": f"set_size cannot exceed {MAX_SET_SIZE} (maximum set size); got {size}"},
+            status_code=400,
+        )
     # art_versions_per_card is a plain number knob (no downstream artifact to
     # cascade-clear — it only governs the next art run), so it applies live.
     if not isinstance(art_versions, int) or not (
@@ -2754,7 +2762,9 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
     clicks Start to re-extract), otherwise at the first stage that will
     re-run.
     """
+    from mtgai.generation.mechanic_generator import MAX_MECHANIC_COUNT
     from mtgai.settings.model_settings import (
+        MAX_SET_SIZE,
         SetParams,
         ThemeInputSource,
         apply_settings,
@@ -2836,9 +2846,23 @@ async def wizard_edit_accept(request: Request) -> JSONResponse:
                     {"error": "set_params_patch.set_size must be a positive int"},
                     status_code=400,
                 )
+            if new_size > MAX_SET_SIZE:
+                return JSONResponse(
+                    {"error": f"set_params_patch.set_size cannot exceed {MAX_SET_SIZE}"},
+                    status_code=400,
+                )
             if not isinstance(new_mech, int) or new_mech < 0:
                 return JSONResponse(
                     {"error": "set_params_patch.mechanic_count must be a non-negative int"},
+                    status_code=400,
+                )
+            if new_mech > MAX_MECHANIC_COUNT:
+                return JSONResponse(
+                    {
+                        "error": (
+                            f"set_params_patch.mechanic_count cannot exceed {MAX_MECHANIC_COUNT}"
+                        )
+                    },
                     status_code=400,
                 )
             new_sp = SetParams(

@@ -274,6 +274,11 @@ ThemeInputKind = Literal["none", "pdf", "text", "existing"]
 MIN_ART_VERSIONS = 1
 MAX_ART_VERSIONS = 6
 
+# Upper bound on a set's target card count. A premier set is ~277 cards; this
+# ceiling is a generous backstop against an absurd value (e.g. 50000) that would
+# spawn a runaway pipeline run. Mirrors the Project Settings UI field's max.
+MAX_SET_SIZE = 500
+
 
 class SetParams(BaseModel):
     """Numeric / structural parameters for a set.

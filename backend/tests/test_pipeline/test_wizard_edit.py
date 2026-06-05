@@ -397,10 +397,12 @@ def test_accept_409_when_extraction_running(client):
 
 
 def test_accept_400_for_invalid_set_size(client):
+    from mtgai.settings.model_settings import MAX_SET_SIZE
+
     _make_set("TST", theme={"code": "TST"})
     _seed_state("TST", overall_status=PipelineStatus.PAUSED)
 
-    for bad in (-3, 0, "abc", None):
+    for bad in (-3, 0, "abc", None, MAX_SET_SIZE + 1):
         resp = client.post(
             "/api/wizard/edit/accept",
             json={
@@ -413,17 +415,22 @@ def test_accept_400_for_invalid_set_size(client):
 
 
 def test_accept_400_for_negative_mechanic_count(client):
+    from mtgai.generation.mechanic_generator import MAX_MECHANIC_COUNT
+
     _make_set("TST", theme={"code": "TST"})
     _seed_state("TST", overall_status=PipelineStatus.PAUSED)
-    resp = client.post(
-        "/api/wizard/edit/accept",
-        json={
-            "set_code": "TST",
-            "from_stage": "project",
-            "set_params_patch": {"mechanic_count": -1},
-        },
-    )
-    assert resp.status_code == 400
+    for bad in (-1, MAX_MECHANIC_COUNT + 1):
+        resp = client.post(
+            "/api/wizard/edit/accept",
+            json={
+                "set_code": "TST",
+                "from_stage": "project",
+                "set_params_patch": {"mechanic_count": bad},
+            },
+        )
+        assert resp.status_code == 400, (
+            f"Expected 400 for mechanic_count={bad!r}, got {resp.status_code}"
+        )
 
 
 def test_accept_400_for_non_dict_patch(client):

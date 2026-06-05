@@ -242,6 +242,32 @@ def test_save_params_rejects_mechanic_count_above_max(client):
     assert resp.status_code == 200
 
 
+def test_save_params_rejects_set_size_above_max(client):
+    """``set_size`` is capped at ``MAX_SET_SIZE``.
+
+    Without this backstop an absurd value (e.g. 50000) is accepted and
+    persisted, which would spawn a runaway pipeline run. Mirrors the
+    mechanic_count cap and the Project Settings UI field's max attribute.
+    """
+    from mtgai.settings.model_settings import MAX_SET_SIZE
+
+    _open_project("TST")
+    resp = client.post(
+        "/api/wizard/project/params",
+        json={"set_code": "TST", "set_size": MAX_SET_SIZE + 1},
+    )
+    assert resp.status_code == 400
+    assert "maximum set size" in resp.json()["error"]
+    # Boundary: exactly MAX_SET_SIZE is allowed.
+    resp = client.post(
+        "/api/wizard/project/params",
+        json={"set_code": "TST", "set_size": MAX_SET_SIZE},
+    )
+    assert resp.status_code == 200
+    settings = active_project.require_active_project().settings
+    assert settings.set_params.set_size == MAX_SET_SIZE
+
+
 def test_save_params_blocks_set_size_change_post_pipeline(client):
     """set_size lives behind the cascade-clear gate once a pipeline-state.json exists."""
     _open_project("TST")
