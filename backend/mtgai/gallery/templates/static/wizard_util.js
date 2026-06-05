@@ -232,8 +232,8 @@
   //   isLocked()    — return true to no-op (the own-lock re-entrancy guard).
   //   setLocked(b)  — the tab's form-lock toggle (see W.setTabLocked).
   //   confirm       — string, or a () => string|'' thunk; '' / falsy skips the
-  //                   native confirm() (e.g. an initial generate has nothing to
-  //                   overwrite, or the confirm is conditional on dirty state).
+  //                   MTGAIDialog.confirm() (e.g. an initial generate has nothing
+  //                   to overwrite, or the confirm is conditional on dirty state).
   //   busyLabel     — initial global-progress-strip label (W.showBusy).
   //   onSettle()    — optional teardown run in the finally, before setLocked(false)
   //                   (e.g. clearing a streaming-mode flag) — runs on success,
@@ -254,7 +254,7 @@
     if (isLocked()) return false;
     if (opts.confirm) {
       const msg = typeof opts.confirm === 'function' ? opts.confirm() : opts.confirm;
-      if (msg && !window.confirm(msg)) return false;
+      if (msg && !(await window.MTGAIDialog.confirm(msg))) return false;
     }
     if (opts.setLocked) opts.setLocked(true);
     if (opts.busyLabel && W.showBusy) W.showBusy(opts.busyLabel);

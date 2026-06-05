@@ -740,10 +740,10 @@
         return;
       }
       if (local.picks.size > 0) {
-        if (!confirm('Picks are set on this strip. Refreshing will replace AI-flagged rows; user-edited rows survive. Continue?')) {
+        if (!(await window.MTGAIDialog.confirm('Picks are set on this strip. Refreshing will replace AI-flagged rows; user-edited rows survive. Continue?'))) {
           return;
         }
-      } else if (!confirm(`Regenerate ${aiIndices.length} AI-flagged candidate${aiIndices.length === 1 ? '' : 's'}? Edited rows stay.`)) {
+      } else if (!(await window.MTGAIDialog.confirm(`Regenerate ${aiIndices.length} AI-flagged candidate${aiIndices.length === 1 ? '' : 's'}? Edited rows stay.`))) {
         return;
       }
     }
