@@ -702,6 +702,8 @@
       // previous tip — if they navigated back to inspect an earlier tab, don't
       // yank focus. A "Stop after this step" pause never starts the next stage,
       // so no new instance appends and this never fires (the desired exception).
+      // A review->regen insertion (e.g. card_gen.2, no pause) also appends and
+      // auto-opens — intended: focus follows the live tip through the loop.
       if (state.activeTabId === prevLatest) {
         showTab(instanceId, /* push */ true);
         openedNewTip = true;

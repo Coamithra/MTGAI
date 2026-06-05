@@ -2571,17 +2571,26 @@ def _apply_downstream_clear(state: PipelineState, idx: int) -> None:
     from mtgai.pipeline.stages import clear_stage_artifacts
 
     try:
+        # The edited stage's own stage_id must never be passed to a clearer:
+        # loop stages (card_gen / conformance / ai_review) share one live
+        # working set keyed by stage_id, so clearing a downstream regen
+        # duplicate (e.g. ``card_gen.2``) would wipe the backbone's kept output
+        # — the exact thing the unlock path promises to preserve. We still drop
+        # the duplicate's history snapshot + truncate it from the stage list
+        # below; only its artifact-clear is skipped.
+        edited_stage_id = state.stages[idx].stage_id
         downstream = list(state.stages[idx + 1 :])
         for stage in downstream:
             history.delete_snapshot(stage.instance_id)
-            try:
-                clear_stage_artifacts(stage.stage_id)
-            except (OSError, KeyError) as e:
-                logger.warning(
-                    "Downstream clear for %s raised %s; continuing",
-                    stage.stage_id,
-                    e,
-                )
+            if stage.stage_id != edited_stage_id:
+                try:
+                    clear_stage_artifacts(stage.stage_id)
+                except (OSError, KeyError) as e:
+                    logger.warning(
+                        "Downstream clear for %s raised %s; continuing",
+                        stage.stage_id,
+                        e,
+                    )
             stage.status = StageStatus.PENDING
             stage.progress = stage.progress.model_copy(
                 update={

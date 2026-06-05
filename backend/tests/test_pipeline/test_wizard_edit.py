@@ -581,11 +581,21 @@ def test_cascade_clear_keeps_full_prefix_when_start_is_zero():
 
 
 def test_downstream_clear_keeps_edited_stage_and_drops_regen_instances():
-    _make_set("TST")
+    set_dir = _make_set("TST")
+    # The edited backbone card_gen's live output must survive — even though a
+    # downstream regen duplicate (card_gen.2) shares its stage_id, whose clearer
+    # would otherwise wipe the shared cards/ dir.
+    cards = set_dir / "cards"
+    cards.mkdir()
+    (cards / "001_foo.json").write_text("{}", encoding="utf-8")
+
     state = _loop_state("TST")
     # Unlock the backbone card_gen (index 1): keep lands + card_gen, discard
     # everything after, drop the regen-inserted .2 duplicates.
     pipeline_server._apply_downstream_clear(state, 1)
+
+    # The edited stage's own card files are preserved (the unlock invariant).
+    assert (cards / "001_foo.json").exists()
 
     ids = [s.instance_id for s in state.stages]
     assert ids == ["lands", "card_gen", "conformance", "ai_review"]

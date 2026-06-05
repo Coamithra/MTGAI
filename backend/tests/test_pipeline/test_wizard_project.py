@@ -464,6 +464,19 @@ def test_save_model_ok_for_other_stage_while_one_runs(client, monkeypatch):
     assert active_project.require_active_project().settings.llm_assignments["card_gen"] == "haiku"
 
 
+def test_save_model_409_for_theme_extract_while_extracting(client):
+    """theme_extract is virtual (runs before the engine), so its 'running'
+    signal is the theme extractor worker, not a pipeline stage."""
+    _open_project("TST")
+    extraction_run.start_run("upload-xyz")
+    resp = client.post(
+        "/api/wizard/project/models",
+        json={"set_code": "TST", "kind": "llm", "stage_id": "theme_extract", "value": "haiku"},
+    )
+    assert resp.status_code == 409
+    assert "running" in resp.json()["error"].lower()
+
+
 # ---------------------------------------------------------------------------
 # Presets
 # ---------------------------------------------------------------------------
