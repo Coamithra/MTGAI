@@ -291,7 +291,7 @@
 
   async function onNewClick(state) {
     if (local.data && hasUnsavedChanges()) {
-      const ok = confirm('Discard the current project and start a new one? Unsaved changes will be lost.');
+      const ok = await window.MTGAIDialog.confirm('Discard the current project and start a new one? Unsaved changes will be lost.');
       if (!ok) return;
     }
     try {
@@ -1136,7 +1136,7 @@
   // points). Presets cover only assignment-shaped fields — set params,
   // theme input, and asset folder are kept.
   async function onApplyPreset(state, name) {
-    if (!confirm(`Apply preset "${name}"? This replaces the current model assignments and break points.`)) return;
+    if (!(await window.MTGAIDialog.confirm(`Apply preset "${name}"? This replaces the current model assignments and break points.`))) return;
     try {
       const resp = await postJSON('/api/wizard/project/preset/apply', { name });
       if (!resp.ok) {
@@ -1156,7 +1156,7 @@
   // under output/settings/<name>.toml. set_params + theme_input +
   // asset_folder are excluded (project-specific, not template-able).
   async function onSavePreset(state) {
-    const name = (window.prompt('Save preset as (letters, digits, dash, underscore):') || '').trim();
+    const name = (await window.MTGAIDialog.prompt('Save preset as (letters, digits, dash, underscore):') || '').trim();
     if (!name) return;
     const breakPointsDict = breakPointsListToDict(
       local.data.break_points || [],
@@ -1184,7 +1184,7 @@
   }
 
   async function onDeletePreset(state, name) {
-    if (!confirm(`Delete preset "${name}"? This can't be undone.`)) return;
+    if (!(await window.MTGAIDialog.confirm(`Delete preset "${name}"? This can't be undone.`))) return;
     try {
       const resp = await fetch(`/api/settings/profile/${encodeURIComponent(name)}`, { method: 'DELETE' });
       const data = await resp.json().catch(() => ({}));
@@ -1541,7 +1541,7 @@
       let busy = null;
       try { busy = await resp.json(); } catch (_) { /* not JSON */ }
       const action = (busy && busy.running_action) ? busy.running_action : 'An AI action';
-      const ok = window.confirm(`${action} is in progress. Cancel it and continue?`);
+      const ok = await window.MTGAIDialog.confirm(`${action} is in progress. Cancel it and continue?`);
       if (!ok) return null;
       resp = await postJSON(url, { ...payload, force: true });
     }

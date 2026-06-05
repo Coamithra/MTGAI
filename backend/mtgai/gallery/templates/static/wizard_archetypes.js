@@ -316,7 +316,7 @@
         W.toast('No AI-written archetypes to refresh — every pair has been edited.', 'warn');
         return;
       }
-      if (!confirm(`Regenerate ${pairs.length} AI-written archetype${pairs.length === 1 ? '' : 's'}? Pairs you edited stay.`)) {
+      if (!(await window.MTGAIDialog.confirm(`Regenerate ${pairs.length} AI-written archetype${pairs.length === 1 ? '' : 's'}? Pairs you edited stay.`))) {
         return;
       }
     }

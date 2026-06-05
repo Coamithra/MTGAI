@@ -728,7 +728,7 @@
       W.toast('Setting prose is empty — write something first.', 'error');
       return;
     }
-    if (!confirm(`Re-extract ${kind === 'constraints' ? 'constraints' : 'card requests'} from the current setting prose? This replaces AI-generated entries (your edits stay).`)) return;
+    if (!(await window.MTGAIDialog.confirm(`Re-extract ${kind === 'constraints' ? 'constraints' : 'card requests'} from the current setting prose? This replaces AI-generated entries (your edits stay).`))) return;
     refreshState.fullActive = false;
 
     // Clear AI items immediately so the user sees a blank slate while
@@ -763,7 +763,7 @@
   }
 
   async function onRefreshTheme(state, overwriteConstraints, overwriteCards) {
-    if (!confirm('Re-run the full theme extraction from the source upload? Replaces the setting prose.')) return;
+    if (!(await window.MTGAIDialog.confirm('Re-run the full theme extraction from the source upload? Replaces the setting prose.'))) return;
     refreshState.fullActive = true;
     refreshState.overwriteConstraints = overwriteConstraints;
     refreshState.overwriteCards = overwriteCards;
