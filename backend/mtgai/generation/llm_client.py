@@ -31,8 +31,8 @@ from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 
-from llmfacade import LLM, DrySampler, Provider, SystemBlock, Tool
-from llmfacade.exceptions import LLMError
+from llmfacade import LLM, DrySampler, Provider, RepetitionGuard, SystemBlock, Tool
+from llmfacade.exceptions import LLMError, RepetitionLoopError
 
 from mtgai.io.paths import repo_root
 
@@ -108,6 +108,22 @@ except ValueError:
 # architecture. theme_extractor's streaming path overrides per-call on
 # JSON-subcall retries; the structured tool-use path here uses this default.
 LLAMACPP_REPEAT_PENALTY = 1.1
+
+# Repetition-loop guard for local (llamacpp) calls. Detection is delegated to
+# llmfacade's RepetitionGuard, whose default bands (tail 4096, max_period 120,
+# check_every 64) reproduce MTGAI's former hand-rolled detector byte-for-byte (it
+# was ported from here). It scans assistant output text + tool-call args (not
+# thinking blocks — same as the detector it replaces). ``escalate_dry`` turns on
+# llama.cpp's DRY sampler on a send-retry, beyond the default repeat_penalty bump.
+#   - ``_LLAMACPP_REP_GUARD``      send (tool) + stream calls. send retries
+#     transparently then raises RepetitionLoopError; stream aborts + raises on the
+#     first hit (consumers already treat a mid-stream raise as a retryable failure).
+#   - ``_LLAMACPP_REP_GUARD_TEXT`` free-text generate_text: returns the last
+#     (looping) attempt instead of raising, preserving its "a partial reply is
+#     still useful" contract.
+# Never set on the Anthropic path — cloud models don't fall into Gemma-style loops.
+_LLAMACPP_REP_GUARD = RepetitionGuard(escalate_dry=True)
+_LLAMACPP_REP_GUARD_TEXT = RepetitionGuard(escalate_dry=True, on_exhausted="return_last")
 
 # Pricing per 1M tokens (2026). Mirrors models.toml; calc_cost falls back to the
 # registry for any model_id not listed here.
@@ -606,6 +622,7 @@ def _generate_llamacpp(
     retry. ``None`` leaves it off (llamacpp-only; never sent to Anthropic).
     """
     from mtgai.generation.token_utils import (
+        OutputTruncatedError,
         check_post_call_response,
         check_pre_call,
         count_messages_tokens,
@@ -647,6 +664,11 @@ def _generate_llamacpp(
         "temperature": temperature,
         "log_dir": log_dir,
         "cache_dir": _active_cache_dir(),
+        # Catch degenerate repetition loops (output text + tool args) — see
+        # _LLAMACPP_REP_GUARD. A loop the guard can't shake is surfaced as an
+        # OutputTruncatedError below so the existing truncation-retry handlers
+        # (gates, reprints, slot grouper, mechanic escalation) treat it uniformly.
+        "repetition_detection": _LLAMACPP_REP_GUARD,
     }
     if repeat_penalty is not None:
         # Per-call override of the provider-default repeat_penalty, forwarded by
@@ -662,6 +684,15 @@ def _generate_llamacpp(
         try:
             with _local_call_marker():
                 resp = convo.send(next_user)
+        except RepetitionLoopError as e:
+            # The model looped and the guard's own retries couldn't break it. Treat
+            # an unrecoverable loop as a truncation (no usable tool output) so the
+            # caller's truncation-retry path handles it uniformly.
+            raise OutputTruncatedError(
+                f"llamacpp [{model}] repetition loop: {e.detail}",
+                eval_count=0,  # output token count unknown on a guard abort
+                num_predict=max_tokens,
+            ) from e
         except LLMError as e:
             raise ValueError(f"llamacpp [{model}] error: {e}") from e
 
@@ -932,6 +963,9 @@ def _generate_text_llamacpp(
         "temperature": temperature,
         "log_dir": log_dir,
         "cache_dir": _active_cache_dir(),
+        # return_last → a hopeless loop yields the last attempt rather than
+        # raising, preserving the "a partial reply is still useful" contract.
+        "repetition_detection": _LLAMACPP_REP_GUARD_TEXT,
     }
     if repeat_penalty is not None:
         convo_kwargs["repeat_penalty"] = repeat_penalty
@@ -940,6 +974,11 @@ def _generate_text_llamacpp(
     try:
         with _local_call_marker():
             resp = convo.send(user_prompt)
+    # No RepetitionLoopError arm here on purpose: _LLAMACPP_REP_GUARD_TEXT uses
+    # on_exhausted="return_last", so a loop returns the last attempt rather than
+    # raising (preserving the no-raise-on-truncation contract). If that guard is
+    # ever switched to on_exhausted="error", add a RepetitionLoopError arm BEFORE
+    # this one (it subclasses LLMError) to avoid an opaque ValueError.
     except LLMError as e:
         raise ValueError(f"llamacpp [{model}] error: {e}") from e
 
@@ -1090,6 +1129,10 @@ def _stream_text_llamacpp(
         "temperature": temperature,
         "log_dir": log_dir,
         "cache_dir": _active_cache_dir(),
+        # A detected loop aborts the stream + raises RepetitionLoopError mid-
+        # iteration; both consumers (gate_common.stream_flag_batch,
+        # skeleton_relabel) already catch it as a retryable mid-stream failure.
+        "repetition_detection": _LLAMACPP_REP_GUARD,
     }
     if repeat_penalty is not None:
         convo_kwargs["repeat_penalty"] = repeat_penalty

@@ -823,3 +823,119 @@ class TestSystemBlocks:
             )
         blocks = model.new_conversation.call_args.kwargs["system_blocks"]
         assert [b.text for b in blocks] == ["kept"]
+
+
+# ── Repetition guard wiring (llmfacade RepetitionGuard adoption) ──────
+
+
+class TestRepetitionGuard:
+    """The local-call repetition guard is configured + wired, and an
+    unrecoverable loop on a tool call surfaces as a truncation so the existing
+    truncation-retry handlers absorb it. Detection itself lives in (and is tested
+    by) llmfacade; here we only pin MTGAI's adoption contract."""
+
+    def test_module_guards_are_configured(self):
+        from llmfacade import RepetitionGuard
+
+        assert isinstance(llm_client._LLAMACPP_REP_GUARD, RepetitionGuard)
+        assert isinstance(llm_client._LLAMACPP_REP_GUARD_TEXT, RepetitionGuard)
+        # Free-text returns the last attempt rather than raising (preserves the
+        # "a partial reply is still useful" contract of generate_text).
+        assert llm_client._LLAMACPP_REP_GUARD_TEXT.on_exhausted == "return_last"
+
+    def test_llamacpp_tool_call_forwards_guard(self):
+        """The llamacpp tool path sets repetition_detection on the convo; the
+        Anthropic path never does (cloud models don't loop)."""
+        resp = _make_response(tool_calls=[_make_tool_call("generate_card", SAMPLE_CARD)])
+        provider, _ = _build_facade_provider_mock(resp)
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+                model="vlad-gemma4-26b-dynamic",
+            )
+        kwargs = model.new_conversation.call_args.kwargs
+        assert kwargs.get("repetition_detection") is llm_client._LLAMACPP_REP_GUARD
+
+    def test_llamacpp_text_call_forwards_return_last_guard(self):
+        """The free-text path uses the return_last guard (no raise on a loop)."""
+        resp = _make_response(text="ok", usage=_make_usage(10, 5))
+        provider, _ = _build_facade_provider_mock(resp)
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            generate_text(system_prompt="Sys", user_prompt="User", model="vlad-gemma4-26b-dynamic")
+        kwargs = model.new_conversation.call_args.kwargs
+        assert kwargs.get("repetition_detection") is llm_client._LLAMACPP_REP_GUARD_TEXT
+
+    def test_llamacpp_stream_call_forwards_guard(self):
+        """stream_text sets the guard on the convo (abort+raise on a loop)."""
+        delta = MagicMock(text_delta="hello", usage=None, finish_reason=None)
+        end = MagicMock(text_delta="", usage=_make_usage(10, 5), finish_reason="stop")
+        provider, convo = _build_facade_provider_mock(_make_response())
+        convo.stream.return_value = [delta, end]
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            list(
+                llm_client.stream_text(
+                    system_prompt="Sys", user_prompt="User", model="vlad-gemma4-26b-dynamic"
+                )
+            )
+        kwargs = model.new_conversation.call_args.kwargs
+        assert kwargs.get("repetition_detection") is llm_client._LLAMACPP_REP_GUARD
+
+    def test_anthropic_tool_call_has_no_guard(self):
+        resp = _make_response(
+            tool_calls=[_make_tool_call("generate_card", SAMPLE_CARD)],
+            finish_reason="tool_use",
+        )
+        provider, _ = _build_facade_provider_mock(resp)
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="anthropic"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+                model="claude-sonnet-4-6",
+            )
+        assert "repetition_detection" not in model.new_conversation.call_args.kwargs
+
+    def test_repetition_loop_becomes_output_truncated(self):
+        """A RepetitionLoopError the guard couldn't shake is re-raised as an
+        OutputTruncatedError so generate_gate_tool / reprint / slot_grouper /
+        mechanic-escalation handlers treat a loop exactly like a real truncation."""
+        from llmfacade.exceptions import RepetitionLoopError
+
+        from mtgai.generation.token_utils import OutputTruncatedError
+
+        loop = RepetitionLoopError(
+            "Period 'spam ' (len=5) repeated 10+ times at tail",
+            attempts=3,
+            partial_text="spam spam spam ",
+        )
+        # A list with an exception member → MagicMock raises it on send().
+        provider, _ = _build_facade_provider_mock([loop])
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+            pytest.raises(OutputTruncatedError, match="repetition loop"),
+        ):
+            generate_with_tool(
+                system_prompt="Sys",
+                user_prompt="User",
+                tool_schema=SAMPLE_TOOL,
+                model="vlad-gemma4-26b-dynamic",
+            )
