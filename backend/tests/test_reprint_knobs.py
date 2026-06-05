@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import random
 
+import pytest
+from pydantic import ValidationError
+
 from mtgai.generation.reprint_knobs import (
     RARITY_WEIGHTS,
     REPRINT_RARITY_RATES,
@@ -55,6 +58,44 @@ class TestFromPayload:
 
     def test_non_dict_is_default(self):
         assert from_payload(None).common is None
+
+    def test_infinity_is_auto(self):
+        # JSON ``1e400`` parses to ``float('inf')``; int(inf) raised an
+        # uncaught OverflowError -> 500. Now it drops to auto (None), like junk.
+        for val in (float("inf"), float("-inf"), "1e400", "-1e400", float("nan")):
+            k = from_payload({"common": val})
+            assert k.common is None, val
+
+    def test_infinity_jitter_is_default(self):
+        # A non-finite jitter falls back to the field default (0.25), no crash.
+        for val in (float("inf"), float("-inf"), "1e400", float("nan")):
+            k = from_payload({"jitter_pct": val})
+            assert k.jitter_pct == 0.25, val
+
+    def test_infinity_across_all_rarities(self):
+        k = from_payload(
+            {"common": "1e400", "uncommon": "-1e400", "rare": float("inf"), "mythic": float("nan")}
+        )
+        assert k.common is None and k.uncommon is None
+        assert k.rare is None and k.mythic is None
+
+
+class TestModelDirectConstructionNonFinite:
+    """Direct ``ReprintKnobs(...)`` construction must not crash on non-finite input."""
+
+    def test_inf_int_field_raises_clean_validation_error(self):
+        # An int rarity field rejects a non-finite float at the Pydantic coercion
+        # layer (a catchable ValidationError, NOT an uncaught OverflowError/500).
+        for val in (float("inf"), float("-inf"), float("nan")):
+            with pytest.raises(ValidationError):
+                ReprintKnobs(common=val)
+
+    def test_inf_jitter_clamps(self):
+        # jitter_pct is a plain float field, so it reaches the model validator,
+        # which clamps inf/-inf into [0, 1] and coerces NaN to 0.
+        assert ReprintKnobs(jitter_pct=float("inf")).jitter_pct == 1.0
+        assert ReprintKnobs(jitter_pct=float("-inf")).jitter_pct == 0.0
+        assert ReprintKnobs(jitter_pct=float("nan")).jitter_pct == 0.0
 
 
 class TestAutoTarget:

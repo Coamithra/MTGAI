@@ -29,6 +29,7 @@ ever produce an illegal skeleton.
 
 from __future__ import annotations
 
+import math
 from enum import StrEnum
 from typing import Any
 
@@ -619,9 +620,14 @@ class SkeletonKnobs(BaseModel):
             for spec in KNOB_SPECS:
                 if spec.kind == KnobKind.INT and spec.key in data:
                     try:
-                        data[spec.key] = round(float(data[spec.key]))
+                        f = float(data[spec.key])
                     except (TypeError, ValueError):
                         data.pop(spec.key)  # let the field default kick in
+                        continue
+                    if not math.isfinite(f):
+                        data.pop(spec.key)  # inf/NaN -> default (round() would raise)
+                        continue
+                    data[spec.key] = round(f)
         return data
 
     @model_validator(mode="after")
@@ -675,6 +681,12 @@ class SkeletonKnobs(BaseModel):
                 val = float(data[spec.key])
             except (TypeError, ValueError):
                 warnings.append(f"{spec.label}: ignored non-numeric value")
+                provenance[spec.key] = "default"
+                continue
+            if not math.isfinite(val):
+                # inf/NaN can't be rounded/clamped to an int (OverflowError); treat
+                # like a non-numeric value and fall back to the default.
+                warnings.append(f"{spec.label}: ignored non-finite value")
                 provenance[spec.key] = "default"
                 continue
             clamped = spec.clamp(val)
@@ -794,6 +806,8 @@ class SkeletonKnobs(BaseModel):
 
 
 def _fmt(v: float) -> str:
+    if not math.isfinite(v):  # round()/int() raise OverflowError on inf
+        return str(v)
     return str(int(v)) if abs(v - round(v)) < 1e-9 else f"{v:.2f}"
 
 

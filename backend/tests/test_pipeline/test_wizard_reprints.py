@@ -184,6 +184,25 @@ def test_knobs_persist_and_clamp(client, isolated_output):
     assert on_disk["common"] == 0 and on_disk["rare"] == 40
 
 
+def test_knobs_infinity_does_not_500(client, isolated_output):
+    # Regression: JSON ``1e400`` parses to ``float('inf')`` server-side; the int()
+    # path raised an uncaught OverflowError -> 500. It must now clamp to auto (200).
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset)
+    _write_skeleton(asset)
+    resp = client.post(
+        "/api/wizard/reprints/knobs",
+        content='{"knobs": {"common": 1e400, "uncommon": -1e400, "jitter_pct": 1e400}}',
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    # Non-finite values drop to auto (None) — never a crash.
+    assert data["knobs"]["common"] is None
+    assert data["knobs"]["uncommon"] is None
+    assert data["knobs"]["jitter_pct"] == 0.25  # non-finite jitter -> default
+
+
 def test_knobs_409_when_no_active_project(client):
     resp = client.post("/api/wizard/reprints/knobs", json={"knobs": {}})
     assert resp.status_code == 409

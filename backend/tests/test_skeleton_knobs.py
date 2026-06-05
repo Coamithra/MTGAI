@@ -112,6 +112,26 @@ class TestFromPayload:
         assert knobs.rarity_rare == KNOB_SPEC_BY_KEY["rarity_rare"].default
         assert any("non-numeric" in w for w in warnings)
 
+    def test_non_finite_int_knob_ignored_with_warning(self):
+        # JSON ``1e400`` parses to ``float('inf')``; ``round(inf)`` raised an
+        # uncaught OverflowError -> 500. Now it falls back to default like junk.
+        for val in (float("inf"), float("-inf"), "1e400", "-1e400", float("nan")):
+            knobs, warnings = SkeletonKnobs.from_payload({"rarity_rare": val})
+            assert knobs.rarity_rare == KNOB_SPEC_BY_KEY["rarity_rare"].default, val
+            assert any("non-finite" in w or "non-numeric" in w for w in warnings), val
+
+    def test_non_finite_float_knob_ignored_with_warning(self):
+        for val in (float("inf"), float("-inf"), "1e400", float("nan")):
+            knobs, warnings = SkeletonKnobs.from_payload({"multicolor_rare": val})
+            assert knobs.multicolor_rare == KNOB_SPEC_BY_KEY["multicolor_rare"].default, val
+            assert any("non-finite" in w or "non-numeric" in w for w in warnings), val
+
+    def test_non_finite_int_knob_direct_construction(self):
+        # The mode="before" rounder must drop a non-finite int knob so the field
+        # default kicks in (no OverflowError on round(inf)).
+        knobs = SkeletonKnobs(rarity_rare=float("inf"))
+        assert knobs.rarity_rare == KNOB_SPEC_BY_KEY["rarity_rare"].default
+
     def test_unknown_keys_ignored(self):
         knobs, warnings = SkeletonKnobs.from_payload({"made_up_knob": 5})
         assert warnings == []
