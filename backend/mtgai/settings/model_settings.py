@@ -216,6 +216,17 @@ PRESETS: dict[str, dict] = {
         "image": dict(DEFAULT_IMAGE_ASSIGNMENTS),
         "effort": {},
     },
+    "qa": {
+        # The QA-harness preset (card "QA Bot"): every LLM stage on the cheapest
+        # 2-bit Gemma with thinking DISABLED everywhere. The point is raw speed for
+        # self-driving QA runs -- cards may come out janky, but QA exercises the app
+        # *plumbing*, not card quality. Applied via /api/wizard/project/preset/apply
+        # (or the --debug quick-project helper) so a QA bot never pays full freight.
+        "llm": {k: "gemma4-26b-iq2m" for k in DEFAULT_LLM_ASSIGNMENTS},
+        "image": dict(DEFAULT_IMAGE_ASSIGNMENTS),
+        "effort": {},
+        "thinking": {k: "disabled" for k in DEFAULT_LLM_ASSIGNMENTS},
+    },
 }
 
 BUILTIN_PRESET_NAMES = frozenset(PRESETS)

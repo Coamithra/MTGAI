@@ -16,6 +16,14 @@
 - Python 3.12+ (uv-managed). Lint: `ruff check .` / `ruff format .` from `backend/`. Tests: `pytest` from `backend/`.
 - **Before starting the server, pull latest `master` first.** Whenever the user asks to start/run the server (`python -m mtgai.review serve --open`, the `/run` skill, etc.), run `git pull` (fast-forward) on `master` *before* launching — fixes land on `master` from parallel worktree branches, so a stale local checkout makes the user re-report bugs that are already fixed. If the pull isn't clean (diverged / uncommitted WIP that would conflict), say so and let the user decide rather than force it.
 
+## QA / debug harness
+- **`serve --debug` (`MTGAI_DEBUG=1`)** mounts the QA/debug surface for the self-driving **QA Bot** (`/qa-bot` skill). Off by default — invisible in a normal run. It mounts `mtgai/pipeline/debug_routes.py` (`attach_debug_routes`, gated by `is_debug_enabled()`) and injects the floating 🐛 **QA Debug** panel (`gallery/templates/static/wizard_debug.js`, included by `wizard.html` only when the `debug_enabled` template flag is set in `_render_wizard`).
+- **Why it exists**: a browser agent (claude-in-chrome) can't touch the native OS save/open picker (`window.showSaveFilePicker()` is invisible to the DOM) and can't afford the slow early pipeline phases. The debug endpoints route around both:
+  - `POST /api/debug/quick-project` — create + activate a QA project **server-side** (no picker), applying the **`qa` preset** (every LLM stage → `gemma4-26b-iq2m`, thinking `disabled`; in `model_settings.PRESETS`) + small `set_size` + `use_prefab_{cards,mechanics}` on.
+  - `POST /api/debug/seed-stage {target_stage, source_dir?}` — clone a finished "golden" project (auto-detected, or `MTGAI_QA_GOLDEN`) into `output/qa-runs/<name>/`, rewrite `pipeline-state.json` so stages ≤ target are COMPLETED and the rest reset PENDING, and land the wizard on that tab with real upstream artifacts present. The "skip to a state" debug jump.
+  - `POST /api/debug/open-path {path}` — open a `.mtg` from a server path (no picker); `POST /api/debug/save-mtg` — write the active project's `.mtg` to its asset folder (the Save-button bypass `wizard_project.js` routes to when `window.MTGAI_DEBUG`).
+- **The `/qa-bot` skill** (`.claude/skills/qa-bot/`) is the methodology: one serial QA orchestrator drives the app via claude-in-chrome (single live app + AI mutex ⇒ serial driving), files each confirmed bug to Trello (`bug` label), and farms the fix to a subagent that runs `CONTRIBUTING.md` end-to-end (full auto self-merge) in its own worktree (code fixes parallelize even though driving doesn't); it restarts the server + hands off to a fresh orchestrator once enough fixes have merged.
+
 ## Code Style
 - Pydantic v2 for all data structures. StrEnum for enumerations.
 - `X | Y` union syntax (not `Union[X, Y]`). `list[X]` (not `List[X]`).

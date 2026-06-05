@@ -460,6 +460,24 @@
   }
 
   async function writeMtgFile(tomlText) {
+    // Debug-mode bypass: a self-driving QA bot can't touch the native OS save
+    // picker, so route Save through the server-side debug endpoint instead.
+    // The active project's settings already live in server memory, so the body
+    // is empty — the server serializes the active project to its asset folder.
+    if (window.MTGAI_DEBUG) {
+      try {
+        const resp = await fetch('/api/debug/save-mtg', { method: 'POST' });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'save failed');
+        W.toast(`Saved (debug) ${data.path}`, 'success');
+        markClean();
+        rerenderProjectTab(W.getState ? W.getState() : MTGAIWizard.getState());
+        return;
+      } catch (e) {
+        W.toast(`Debug save failed: ${e.message}`, 'error');
+        return;
+      }
+    }
     if (fsAccessSupported()) {
       let handle = local.fileHandle;
       if (!handle) {
