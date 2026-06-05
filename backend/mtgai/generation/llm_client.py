@@ -974,6 +974,11 @@ def _generate_text_llamacpp(
     try:
         with _local_call_marker():
             resp = convo.send(user_prompt)
+    # No RepetitionLoopError arm here on purpose: _LLAMACPP_REP_GUARD_TEXT uses
+    # on_exhausted="return_last", so a loop returns the last attempt rather than
+    # raising (preserving the no-raise-on-truncation contract). If that guard is
+    # ever switched to on_exhausted="error", add a RepetitionLoopError arm BEFORE
+    # this one (it subclasses LLMError) to avoid an opaque ValueError.
     except LLMError as e:
         raise ValueError(f"llamacpp [{model}] error: {e}") from e
 

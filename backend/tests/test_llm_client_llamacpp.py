@@ -862,6 +862,38 @@ class TestRepetitionGuard:
         kwargs = model.new_conversation.call_args.kwargs
         assert kwargs.get("repetition_detection") is llm_client._LLAMACPP_REP_GUARD
 
+    def test_llamacpp_text_call_forwards_return_last_guard(self):
+        """The free-text path uses the return_last guard (no raise on a loop)."""
+        resp = _make_response(text="ok", usage=_make_usage(10, 5))
+        provider, _ = _build_facade_provider_mock(resp)
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            generate_text(system_prompt="Sys", user_prompt="User", model="vlad-gemma4-26b-dynamic")
+        kwargs = model.new_conversation.call_args.kwargs
+        assert kwargs.get("repetition_detection") is llm_client._LLAMACPP_REP_GUARD_TEXT
+
+    def test_llamacpp_stream_call_forwards_guard(self):
+        """stream_text sets the guard on the convo (abort+raise on a loop)."""
+        delta = MagicMock(text_delta="hello", usage=None, finish_reason=None)
+        end = MagicMock(text_delta="", usage=_make_usage(10, 5), finish_reason="stop")
+        provider, convo = _build_facade_provider_mock(_make_response())
+        convo.stream.return_value = [delta, end]
+        model = provider.new_model.return_value
+        with (
+            patch("mtgai.generation.llm_client._resolve_provider", return_value="llamacpp"),
+            patch("mtgai.generation.llm_client._get_provider", return_value=provider),
+        ):
+            list(
+                llm_client.stream_text(
+                    system_prompt="Sys", user_prompt="User", model="vlad-gemma4-26b-dynamic"
+                )
+            )
+        kwargs = model.new_conversation.call_args.kwargs
+        assert kwargs.get("repetition_detection") is llm_client._LLAMACPP_REP_GUARD
+
     def test_anthropic_tool_call_has_no_guard(self):
         resp = _make_response(
             tool_calls=[_make_tool_call("generate_card", SAMPLE_CARD)],

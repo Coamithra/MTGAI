@@ -50,7 +50,7 @@ Operational notes for the local-LLM transport. For per-model benchmark numbers a
 - `repeat_penalty=1.1` set provider-wide via llmfacade (rides `extra_body` onto the llama-server wire).
 - JSON-subcall retries escalate per attempt: `_RETRY_REPEAT_PENALTIES = [None, 1.15, 1.20]` in `theme_extractor`. Override threads through `_attempt_json_subcall → _stream_single_call → _stream_llamacpp_call`.
 - Temperature is intentionally NOT escalated (higher temperatures produce malformed JSON on smaller models; repeat_penalty alone breaks loops in practice).
-- The mid-stream `_detect_tandem_repeat` (suffix periodicity scan, every 64 chars) is the primary runaway guard — it catches loops within 64 chars, before the sampler-level penalty would have taken effect.
+- Mid-stream loop detection is **llmfacade's `RepetitionGuard`** (set on every llamacpp convo in `llm_client`; suffix periodicity scan every 64 chars — the bands were ported from MTGAI's old `_detect_tandem_repeat`, since removed). It's the primary runaway guard, catching loops before the sampler-level penalty would have taken effect. See CLAUDE.md "Local LLMs" → "Repetition-loop detection".
 
 ## VRAM math
 
