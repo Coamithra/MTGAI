@@ -58,6 +58,7 @@ from mtgai.runtime import active_project, ai_lock, extraction_run
 from mtgai.runtime.runtime_state import compute_runtime_state
 
 if TYPE_CHECKING:
+    from mtgai.settings.model_settings import ModelSettings
     from mtgai.skeleton.knobs import SkeletonKnobs
 
 logger = logging.getLogger(__name__)
@@ -1230,31 +1231,20 @@ def _model_stage_lists() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     return llm, image
 
 
-def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
-    """Bundle everything the Project Settings tab needs on first paint."""
+def _registry_model_lists() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Lightweight registry slices the Project Settings dropdowns render.
+
+    Enough for the LLM + image model pickers to show name/tier/flags without
+    a second fetch. Served verbatim in BOTH project payloads (full
+    ``/api/wizard/project`` and the blank ``/api/project/new`` draft) so a
+    per-model flag added here can never drift between the two — the bug that
+    left ``supports_thinking`` / ``thinking_overrides`` out of the New draft
+    and crashed the model table on the first LLM stage (``theme_extract``).
+    Returns ``(llm_models, image_models)``.
+    """
     from mtgai.settings.model_registry import get_registry
-    from mtgai.settings.model_settings import (
-        PRESETS,
-        list_profiles,
-    )
 
-    set_code = project.set_code
-    settings = project.settings
     registry = get_registry()
-    try:
-        pipeline_started = (set_artifact_dir() / "pipeline-state.json").exists()
-    except NoAssetFolderError:
-        # No asset folder yet — the user hasn't picked one. The Project
-        # Settings tab is exactly where they fix that, so render the
-        # form with ``pipeline_started=False`` instead of bouncing off
-        # a 409.
-        pipeline_started = False
-    er = extraction_run.current()
-    extraction_active = er is not None and er.status == "running"
-
-    # Lightweight registry slice — enough for the dropdowns to render
-    # name + tier without a second fetch. Image models too because the
-    # Project Settings tab dropdowns include both.
     llm_models = [
         {
             "key": m.key,
@@ -1273,6 +1263,46 @@ def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
     image_models = [
         {"key": m.key, "name": m.name, "implemented": m.implemented} for m in registry.list_image()
     ]
+    return llm_models, image_models
+
+
+def _assignment_overrides_payload(settings: ModelSettings) -> dict[str, Any]:
+    """The per-stage model-assignment + override dicts both project payloads
+    carry, derived from a ``ModelSettings``.
+
+    Shared by the full payload (active project) and the New draft (the
+    preset-seeded blank settings) so the set of override channels —
+    ``thinking_overrides`` was the one that drifted — stays in lock-step.
+    """
+    return {
+        "llm_assignments": dict(settings.llm_assignments),
+        "image_assignments": dict(settings.image_assignments),
+        "effort_overrides": dict(settings.effort_overrides),
+        "thinking_overrides": dict(settings.thinking_overrides),
+    }
+
+
+def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
+    """Bundle everything the Project Settings tab needs on first paint."""
+    from mtgai.settings.model_settings import (
+        PRESETS,
+        list_profiles,
+    )
+
+    set_code = project.set_code
+    settings = project.settings
+    try:
+        pipeline_started = (set_artifact_dir() / "pipeline-state.json").exists()
+    except NoAssetFolderError:
+        # No asset folder yet — the user hasn't picked one. The Project
+        # Settings tab is exactly where they fix that, so render the
+        # form with ``pipeline_started=False`` instead of bouncing off
+        # a 409.
+        pipeline_started = False
+    er = extraction_run.current()
+    extraction_active = er is not None and er.status == "running"
+
+    llm_models, image_models = _registry_model_lists()
     llm_stages, image_stages = _model_stage_lists()
 
     return {
@@ -1281,10 +1311,7 @@ def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
         "theme_input": settings.theme_input.model_dump(mode="json"),
         "asset_folder": settings.asset_folder,
         "break_points": _break_points_payload(settings),
-        "llm_assignments": dict(settings.llm_assignments),
-        "image_assignments": dict(settings.image_assignments),
-        "effort_overrides": dict(settings.effort_overrides),
-        "thinking_overrides": dict(settings.thinking_overrides),
+        **_assignment_overrides_payload(settings),
         "debug": settings.debug.model_dump(),
         "llm_models": llm_models,
         "image_models": image_models,
@@ -1837,7 +1864,6 @@ async def project_new(request: Request) -> JSONResponse:
     can prompt for confirmation; with it, the in-flight action is
     cancelled before the pointer is cleared.
     """
-    from mtgai.settings.model_registry import get_registry
     from mtgai.settings.model_settings import (
         DEFAULT_BREAK_POINTS,
         PRESETS,
@@ -1871,8 +1897,8 @@ async def project_new(request: Request) -> JSONResponse:
     # cosmetic), set_params + theme_input + asset_folder are blank.
     active_project.write_active_project(active_project.ProjectState(set_code="", settings=seeded))
 
-    registry = get_registry()
     break_points = _break_points_payload(seeded)
+    llm_models, image_models = _registry_model_lists()
     llm_stages, image_stages = _model_stage_lists()
     return JSONResponse(
         {
@@ -1883,24 +1909,10 @@ async def project_new(request: Request) -> JSONResponse:
                 "theme_input": {"kind": "none"},
                 "asset_folder": "",
                 "break_points": break_points,
-                "llm_assignments": dict(seeded.llm_assignments),
-                "image_assignments": dict(seeded.image_assignments),
-                "effort_overrides": dict(seeded.effort_overrides),
+                **_assignment_overrides_payload(seeded),
                 "debug": seeded.debug.model_dump(),
-                "llm_models": [
-                    {
-                        "key": m.key,
-                        "name": m.name,
-                        "tier": m.tier,
-                        "supports_effort": m.supports_effort,
-                        "effort_levels": list(m.effort_levels),
-                    }
-                    for m in registry.list_llm()
-                ],
-                "image_models": [
-                    {"key": m.key, "name": m.name, "implemented": m.implemented}
-                    for m in registry.list_image()
-                ],
+                "llm_models": llm_models,
+                "image_models": image_models,
                 "llm_stages": llm_stages,
                 "image_stages": image_stages,
                 "builtin_presets": sorted(PRESETS),
