@@ -9,14 +9,23 @@ final-QA time — they don't ride along on the saved card.
 Two things trigger an LLM retry (capped at ``MAX_RETRIES``):
 
 * Schema parse failure — the card can't be parsed as a ``Card`` at all.
-* A regen-trigger validation finding (text overflow, a malformed P/T, or a
-  non-land with no mana cost; see ``mtgai.validation._REGEN_TRIGGER_CODES``).
-  These usually mean the LLM lost the plot; regenerate rather than ship a card
-  that won't fit on the frame or can't be cast.
+* A regen-trigger validation finding (content overflow of name/oracle/flavor, a
+  malformed P/T, or a non-land with no mana cost; see
+  ``mtgai.validation._REGEN_TRIGGER_CODES``). These usually mean the LLM lost
+  the plot; regenerate rather than ship a card that won't fit on the frame or
+  can't be cast. (Type-line overflow is NOT here — it's AUTO-shortened by
+  trimming trailing subtypes, so it never reaches this loop.)
 
 Validation surfaces these as a single ``regen_required`` flag from
 :func:`mtgai.validation.validate_card_from_raw`, so this module reacts to one
 signal regardless of which check tripped.
+
+A slot is **never silently dropped**. If every retry still trips a regen
+trigger but at least one attempt parsed into a ``Card``, the best-effort
+attempt is saved flagged (``regen_reason`` / ``flagged_by="card_gen"``) so a
+downstream gate or human can fix it — the set never finishes a card short over
+a soft guideline. Only a total parse failure (no ``Card`` on any attempt)
+records the slot as failed.
 
 Usage:
     python -m mtgai.generation.card_generator          # generate all unfilled slots
@@ -685,7 +694,11 @@ def _process_batch_result(
                     slot_rarity=slot.get("rarity", ""),
                     slot_type=slot.get("card_type", ""),
                 )
-            card = _retry_card(
+            # The first attempt's card is a best-effort fallback when it parsed
+            # but only trips a *soft* regen trigger (e.g. a guideline overflow):
+            # we'd rather ship it flagged than drop the slot entirely.
+            first_attempt_card = card
+            clean_card, retry_best = _retry_card(
                 slot,
                 feedback,
                 mechanics,
@@ -698,15 +711,40 @@ def _process_batch_result(
                 thinking=thinking,
                 archetypes=archetypes,
             )
-            if card is None:
+            if clean_card is not None:
+                card = clean_card
+            else:
+                # Every retry still tripped a regen trigger (or failed to parse).
+                # Never silently drop the slot — the set must not finish a card
+                # short over a soft guideline. Save the best parsable attempt,
+                # flagged for review, so a gate / human can clean it up. Only a
+                # total parse failure (no Card at all, on any attempt) is fatal.
+                best = retry_best or first_attempt_card
+                if best is None:
+                    logger.error(
+                        "  [%s] FAILED after %d retries — no parsable card; "
+                        "flagging slot for manual review",
+                        slot_id,
+                        MAX_RETRIES,
+                    )
+                    progress.failed_slots[slot_id] = (
+                        f"Regen failed after {MAX_RETRIES} retries (unparsable)"
+                    )
+                    progress.save()
+                    continue
+                reason = (
+                    f"card_gen could not satisfy validation after {MAX_RETRIES} retries; "
+                    "saved best-effort attempt — review and fix or regenerate"
+                )
                 logger.error(
-                    "  [%s] FAILED after %d retries — flagging for manual review",
+                    "  [%s] FAILED after %d retries — saving best-effort card "
+                    "'%s' flagged for review (set stays complete)",
                     slot_id,
                     MAX_RETRIES,
+                    best.name,
                 )
-                progress.failed_slots[slot_id] = f"Regen failed after {MAX_RETRIES} retries"
-                progress.save()
-                continue
+                card = best.model_copy(update={"regen_reason": reason, "flagged_by": "card_gen"})
+                progress.failed_slots.pop(slot_id, None)
 
         # Card parsed — set pipeline fields
         update_fields: dict = {
@@ -779,13 +817,24 @@ def _retry_card(
     effort: str | None = None,
     thinking: str | None = None,
     archetypes: list[dict] | None = None,
-) -> Card | None:
+) -> tuple[Card | None, Card | None]:
     """Retry a card that hit a regen trigger (schema parse failure or text overflow).
 
     ``error_msg`` is the LLM-facing feedback for the retry — typically the
     output of :func:`format_validation_feedback` for overflow, or a stringified
     error list for a parse failure (where no parsed card exists yet).
+
+    Returns ``(clean_card, best_effort_card)``:
+
+    * ``clean_card`` is a card that fully passed validation (no regen trigger),
+      or ``None`` if no attempt produced one.
+    * ``best_effort_card`` is the last attempt that at least *parsed* into a
+      ``Card`` (it may still trip a soft regen trigger), or ``None`` if every
+      attempt failed even to parse. The caller saves this — flagged — rather
+      than dropping the slot, so the set is never left a card short over a
+      guideline overshoot. When ``clean_card`` is non-None it equals it.
     """
+    best_effort: Card | None = None
     for attempt in range(2, MAX_RETRIES + 1):
         result = _retry_single_card(
             slot,
@@ -861,9 +910,13 @@ def _retry_card(
                 attempt,
                 card.name,
             )
-            return card
+            return card, card
         # Either schema still failed (card is None) or a regen-trigger validation
         # finding still trips the regen flag; rebuild feedback for the next attempt.
+        # Keep the latest *parsable* card as the best-effort fallback so a slot
+        # that never fully conforms is still filled (flagged) rather than dropped.
+        if card is not None:
+            best_effort = card
         logger.warning(
             "    Retry %d FAILED: %s",
             attempt,
@@ -881,7 +934,7 @@ def _retry_card(
                 slot_type=slot.get("card_type", ""),
             )
 
-    return None
+    return None, best_effort
 
 
 # ---------------------------------------------------------------------------

@@ -1164,8 +1164,8 @@ class TestTextOverflow:
         # 350 < 400 limit for noncreature, so no error
         assert not any("oracle" in e.field for e in errors)
 
-    def test_overflow_triggers_regen_required(self):
-        """Text overflow is a regen trigger from validate_card_from_raw —
+    def test_oracle_overflow_triggers_regen_required(self):
+        """Content overflow (oracle) is a regen trigger from validate_card_from_raw —
         the card-gen retry loop reacts to ``regen_required`` to re-prompt."""
         raw = {
             "name": "Verbose Beast",
@@ -1181,7 +1181,55 @@ class TestTextOverflow:
         card, errors, _fixes, regen = validate_card_from_raw(raw)
         assert card is not None  # schema still parsed
         assert regen is True
-        assert any(e.error_code and e.error_code.startswith("text_overflow.") for e in errors)
+        assert any(e.error_code == "text_overflow.oracle" for e in errors)
+
+    def test_long_type_line_is_auto_fixed_not_regen(self):
+        """A type line a few chars over the guideline is AUTO-shortened by
+        trimming trailing subtypes — NOT a regen trigger. This is the
+        Megatron / slot-009 fix: a 47-char ``Legendary Artifact Creature —
+        Decepticon Leader`` must not be regenerated-then-dropped."""
+        raw = {
+            "name": "Megatron",
+            "type_line": "Legendary Artifact Creature — Decepticon Leader",
+            "mana_cost": "{2}{W}{B}",
+            "oracle_text": "Trample",
+            "power": "5",
+            "toughness": "5",
+            "rarity": "mythic",
+        }
+        card, errors, fixes, regen = validate_card_from_raw(raw, auto_fix=True)
+        assert card is not None
+        assert regen is False  # auto-fixed, never reaches the regen loop
+        assert len(card.type_line) <= 45
+        assert card.type_line.startswith("Legendary Artifact Creature")
+        assert any("type_line" in f for f in fixes)
+        assert not any(e.error_code == "text_overflow.type_line" for e in errors)
+
+    def test_type_line_overflow_fixer_trims_minimal_subtypes(self):
+        """The fixer drops only as many trailing subtypes as needed to fit,
+        keeping as much flavor as possible."""
+        from mtgai.validation import ValidationError, ValidationSeverity
+        from mtgai.validation.text_overflow import fix_type_line_overflow
+
+        # 48 chars: "Legendary Creature — Eldrazi Horror Aberration Spawn"
+        card = _make_card(
+            type_line="Legendary Creature — Eldrazi Horror Aberration Spawn",
+            card_types=["Creature"],
+            supertypes=["Legendary"],
+            subtypes=["Eldrazi", "Horror", "Aberration", "Spawn"],
+        )
+        err = ValidationError(
+            validator="text_overflow",
+            severity=ValidationSeverity.AUTO,
+            field="type_line",
+            message="too long",
+            error_code="text_overflow.type_line",
+        )
+        fixed = fix_type_line_overflow(card, err)
+        assert len(fixed.type_line) <= 45
+        # Kept the leading subtypes, dropped only trailing ones.
+        assert fixed.type_line.startswith("Legendary Creature — Eldrazi Horror")
+        assert "Spawn" not in fixed.subtypes
 
 
 # ===========================================================================
