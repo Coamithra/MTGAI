@@ -2685,7 +2685,7 @@ async def wizard_edit_unlock(request: Request) -> JSONResponse:
     Refuses with 409 if the engine or theme extraction is running (same as
     ``/edit/accept``).
     """
-    global _engine
+    global _engine, _engine_task
 
     _require_active_project()
     body, err = await _read_request_json(request)
@@ -2739,8 +2739,10 @@ async def wizard_edit_unlock(request: Request) -> JSONResponse:
     # kick it off: the unlock contract leaves the edited stage PAUSED_FOR_REVIEW
     # as the editable tip, and the user's Save & Continue resumes from there —
     # auto-starting here would defeat the edit. The engine guard above already
-    # ensured nothing was running, so there's no live thread to orphan.
+    # ensured nothing was running, so there's no live thread to orphan; clear
+    # the (now-finished) task handle to match the kickoff path's bookkeeping.
     _engine = PipelineEngine(state, event_bus)
+    _engine_task = None
 
     return JSONResponse(
         {

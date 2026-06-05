@@ -658,8 +658,8 @@ def test_unlock_resyncs_stale_in_memory_engine(client):
     retained in memory (e.g. after a regen loop). ``_get_current_state()``
     prefers ``_engine.state`` whenever an engine exists, so the unlock used to
     rewrite pipeline-state.json correctly but leave the UI serving the
-    pre-unlock 24-stage state (deleted regen tabs, a now-removed tip) until a
-    server restart.
+    pre-unlock state (deleted regen tabs, a now-removed tip) until a server
+    restart.
     """
     _make_set("TST", theme={"code": "TST"})
     state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
