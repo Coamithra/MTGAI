@@ -33,15 +33,30 @@ from mtgai.pipeline.stages import STAGE_RUNNERS, StageResult
 
 logger = logging.getLogger(__name__)
 
-# Review→regen loop cap. A gate (conformance / ai_review) that flags cards
-# bounces the pipeline to ``card_gen`` for another round; this caps how many
-# generation rounds the *automatic* loop will run before it gives up and
-# accepts the still-flagged cards as-is. The count is "card_gen instances so
-# far" — the backbone run plus one per prior bounce — so MAX_REGEN_ROUNDS=5
-# allows the backbone generation + up to 5 regen rounds, then stops. It is a
-# safety valve against a never-conforming card looping forever, NOT a quality
-# target: most sets settle in 0-2 rounds.
-MAX_REGEN_ROUNDS = 5
+# Review→regen loop caps, *per gate*. A gate (conformance / ai_review) that
+# flags cards bounces the pipeline to ``card_gen`` for another round; these cap
+# how many generation rounds the *automatic* loop runs for each gate before it
+# gives up and accepts the still-flagged cards as-is. The budgets are SEPARATE
+# so conformance churn (fixing early conformance/interaction flaws) cannot
+# starve the later council (ai_review) of its own regen rounds: without a
+# per-gate split, a card that burned the whole shared budget on conformance
+# fixes would reach the council with nothing left, and a genuine council flag
+# would be silently accepted as-is.
+#
+# Counting (derived from the plan, no stored counter): every bounce — from
+# either gate — inserts exactly one ``card_gen`` and one ``conformance``
+# instance (their spans both start at card_gen and reach at least conformance);
+# only an ``ai_review`` bounce additionally inserts an ``ai_review`` instance.
+# So, with N_x = number of instances of stage x:
+#   ai_review regen rounds   = N_ai_review - 1
+#   conformance regen rounds = N_card_gen - N_ai_review
+# Each is compared to its own budget below. Total card_gen is bounded by
+# 1 + MAX_REGEN_ROUNDS + MAX_AI_REVIEW_REGEN, so the loop still always finishes.
+#
+# These are safety valves against a never-conforming card looping forever, NOT
+# quality targets: most sets settle in 0-2 rounds per gate.
+MAX_REGEN_ROUNDS = 5  # conformance & interactions gate
+MAX_AI_REVIEW_REGEN = 2  # design-review council → 3 total council passes
 
 
 def _state_path() -> Path:
@@ -445,11 +460,14 @@ class PipelineEngine:
         inserted right after ``index``. Returns ``"inserted"`` so the walk steps
         into the regen span.
 
-        **Round cap** (``MAX_REGEN_ROUNDS``): the loop is capped, not infinite.
-        Once the automatic loop has run ``card_gen`` that many regen rounds, a
-        further flag no longer bounces — the gate just completes and the
-        still-flagged cards are accepted as-is so the pipeline can finish. This
-        is a safety valve against a never-conforming card, not a quality bar.
+        **Round cap** (per gate — ``MAX_REGEN_ROUNDS`` for the conformance gate,
+        ``MAX_AI_REVIEW_REGEN`` for the design-review council): the loop is
+        capped, not infinite, and each gate spends its OWN budget so conformance
+        churn can't starve the council. Once a gate has run its share of regen
+        rounds, a further flag from it no longer bounces — the gate just
+        completes and its still-flagged cards are accepted as-is so the pipeline
+        can finish. A safety valve against a never-conforming card, not a
+        quality bar.
 
         Returns ``None`` when there's nothing to re-run (a clean pass / non-gate
         stage) or when the cap has been hit, leaving the normal review-pause /
@@ -461,19 +479,26 @@ class PipelineEngine:
         gate = self.state.stages[index]
         gate_sid = gate.stage_id
 
-        # Cap the review->regen loop. The number of ``card_gen`` instances
-        # already in the plan is the rounds run so far (backbone generation plus
-        # one per prior bounce); past MAX_REGEN_ROUNDS we stop looping and accept
-        # the flagged cards as-is rather than bouncing forever. Returning None
-        # lets the caller's normal "stage completed" path mark this gate done and
-        # walk forward.
-        regen_rounds = sum(1 for s in self.state.stages if s.stage_id == result.rerun_from) - 1
-        if regen_rounds >= MAX_REGEN_ROUNDS:
+        # Cap the review->regen loop, PER GATE (see MAX_REGEN_ROUNDS /
+        # MAX_AI_REVIEW_REGEN). Each gate spends its own budget so conformance
+        # churn can't starve the council. Derive each gate's rounds-so-far from
+        # the plan (every bounce inserts one card_gen + one conformance; only an
+        # ai_review bounce also inserts an ai_review), then compare to the cap
+        # for the gate that actually flagged. Past its cap we stop looping and
+        # accept the flagged cards as-is; returning None lets the caller's normal
+        # "stage completed" path mark this gate done and walk forward.
+        n_card_gen = sum(1 for s in self.state.stages if s.stage_id == "card_gen")
+        n_ai_review = sum(1 for s in self.state.stages if s.stage_id == "ai_review")
+        if gate_sid == "ai_review":
+            regen_rounds, cap = n_ai_review - 1, MAX_AI_REVIEW_REGEN
+        else:
+            regen_rounds, cap = n_card_gen - n_ai_review, MAX_REGEN_ROUNDS
+        if regen_rounds >= cap:
             logger.warning(
-                "Gate %s flagged cards, but the review->regen loop hit its cap "
+                "Gate %s flagged cards, but its review->regen loop hit its cap "
                 "(%d rounds) -- accepting the flagged cards as-is and continuing.",
                 gate.display_name,
-                MAX_REGEN_ROUNDS,
+                cap,
             )
             return None
 

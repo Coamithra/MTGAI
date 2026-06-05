@@ -2,8 +2,9 @@
 
 Covers the engine's forward-only re-entrancy (a gate that flags cards bounces to
 ``card_gen`` by inserting a fresh instance span and walking into it; the loop is
-capped at ``MAX_REGEN_ROUNDS`` rounds, after which a still-flagging gate just
-completes and the cards are accepted as-is), the span scope (cost rule: a
+capped *per gate* — ``MAX_REGEN_ROUNDS`` for conformance, ``MAX_AI_REVIEW_REGEN``
+for the council — after which that gate just completes and its cards are accepted
+as-is, and conformance churn can't starve the council), the span scope (cost rule: a
 conformance bounce re-inserts only ``[card_gen, conformance]``), the card-flag
 substrate
 (``regen_reason`` collected by card_gen, archived, threaded into the prompt,
@@ -120,41 +121,97 @@ def test_gate_loop_flags_then_passes_under_cap(project, monkeypatch):
     never pauses the pipeline for human review."""
     state = _state(_SPAN)
     counter = [0]
-    _patch_clean(monkeypatch, "card_gen", "conformance", "finalize")
-    # Flag 4 times (under MAX_REGEN_ROUNDS) then pass.
-    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "ai_review", _flagging(4, counter))
+    _patch_clean(monkeypatch, "card_gen", "ai_review", "finalize")
+    # Flag 4 times (under MAX_REGEN_ROUNDS=5) then pass.
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "conformance", _flagging(4, counter))
 
     PipelineEngine(state, EventBus()).run()
 
-    ar = [s for s in state.stages if s.stage_id == "ai_review"]
-    # 4 flagging rounds + 1 clean = 5 ai_review instances, all completed.
-    assert len(ar) == 5, [s.instance_id for s in state.stages]
-    assert all(s.status == StageStatus.COMPLETED for s in ar)
+    conf = [s for s in state.stages if s.stage_id == "conformance"]
+    # 4 flagging rounds + 1 clean = 5 conformance instances, all completed.
+    assert len(conf) == 5, [s.instance_id for s in state.stages]
+    assert all(s.status == StageStatus.COMPLETED for s in conf)
     assert state.overall_status == PipelineStatus.COMPLETED
     assert all(s.status == StageStatus.COMPLETED for s in state.stages)
 
 
-def test_gate_loop_caps_at_max_regen_rounds(project, monkeypatch):
-    """The loop is capped: a gate that flags every single round stops bouncing
-    after MAX_REGEN_ROUNDS card_gen rounds, then completes and accepts the
-    still-flagged cards as-is so the pipeline can finish (never an infinite loop,
-    never a human-review pause)."""
+def test_conformance_loop_caps_at_max_regen_rounds(project, monkeypatch):
+    """The conformance loop is capped: a conformance gate that flags every single
+    round stops bouncing after MAX_REGEN_ROUNDS card_gen rounds, then completes
+    and accepts the still-flagged cards as-is so the pipeline can finish (never an
+    infinite loop, never a human-review pause)."""
+    state = _state(_SPAN)
+    counter = [0]
+    _patch_clean(monkeypatch, "card_gen", "ai_review", "finalize")
+    # Flag far more times than the cap — the engine must stop us well before this.
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "conformance", _flagging(50, counter))
+
+    PipelineEngine(state, EventBus()).run()
+
+    # backbone card_gen + MAX_REGEN_ROUNDS conformance regen rounds, then accept.
+    n = engine_mod.MAX_REGEN_ROUNDS + 1
+    ids = [s.instance_id for s in state.stages]
+    assert sum(1 for s in state.stages if s.stage_id == "card_gen") == n, ids
+    assert sum(1 for s in state.stages if s.stage_id == "conformance") == n, ids
+    # A conformance bounce never re-inserts ai_review, so it stays at 1.
+    assert sum(1 for s in state.stages if s.stage_id == "ai_review") == 1, ids
+    # conformance ran n times and flagged on every one (incl. the last, accepted) —
+    # the cap, not the runner finally passing, is what stopped the loop.
+    assert counter[0] == n
+    assert state.overall_status == PipelineStatus.COMPLETED
+    assert all(s.status == StageStatus.COMPLETED for s in state.stages)
+
+
+def test_ai_review_loop_caps_at_its_own_smaller_budget(project, monkeypatch):
+    """The council (ai_review) loop is capped independently at MAX_AI_REVIEW_REGEN
+    (smaller than conformance's budget): flagging every round stops bouncing after
+    that many rounds and accepts the still-flagged cards as-is."""
     state = _state(_SPAN)
     counter = [0]
     _patch_clean(monkeypatch, "card_gen", "conformance", "finalize")
-    # Flag far more times than the cap — the engine must stop us well before this.
     monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "ai_review", _flagging(50, counter))
 
     PipelineEngine(state, EventBus()).run()
 
-    # backbone card_gen + MAX_REGEN_ROUNDS regen rounds, then accept-as-is.
-    n = engine_mod.MAX_REGEN_ROUNDS + 1
+    # backbone ai_review + MAX_AI_REVIEW_REGEN regen rounds, then accept-as-is.
+    n = engine_mod.MAX_AI_REVIEW_REGEN + 1
     ids = [s.instance_id for s in state.stages]
-    assert sum(1 for s in state.stages if s.stage_id == "card_gen") == n, ids
     assert sum(1 for s in state.stages if s.stage_id == "ai_review") == n, ids
-    # ai_review ran n times and flagged on every one (incl. the last, accepted) —
-    # the cap, not the runner finally passing, is what stopped the loop.
+    assert sum(1 for s in state.stages if s.stage_id == "card_gen") == n, ids
     assert counter[0] == n
+    assert state.overall_status == PipelineStatus.COMPLETED
+    assert all(s.status == StageStatus.COMPLETED for s in state.stages)
+
+
+def test_conformance_churn_does_not_starve_the_council(project, monkeypatch):
+    """The per-gate-budget fix: even when conformance flags every round and burns
+    its entire MAX_REGEN_ROUNDS budget, the later council (ai_review) still gets
+    its OWN full MAX_AI_REVIEW_REGEN regen rounds — conformance churn no longer
+    silently starves a genuine council flag of any regen at all."""
+    state = _state(_SPAN)
+    conf_counter = [0]
+    ar_counter = [0]
+    _patch_clean(monkeypatch, "card_gen", "finalize")
+    # Both gates flag on every call (far past either cap).
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "conformance", _flagging(50, conf_counter))
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "ai_review", _flagging(50, ar_counter))
+
+    PipelineEngine(state, EventBus()).run()
+
+    ids = [s.instance_id for s in state.stages]
+    # The council ran its full independent budget despite conformance exhausting
+    # its own first.
+    assert sum(1 for s in state.stages if s.stage_id == "ai_review") == (
+        engine_mod.MAX_AI_REVIEW_REGEN + 1
+    ), ids
+    # Total card_gen rounds = backbone + each gate's full budget (the loop is
+    # bounded by the sum, never the old shared single counter).
+    assert sum(1 for s in state.stages if s.stage_id == "card_gen") == (
+        1 + engine_mod.MAX_REGEN_ROUNDS + engine_mod.MAX_AI_REVIEW_REGEN
+    ), ids
+    assert sum(1 for s in state.stages if s.stage_id == "conformance") == (
+        1 + engine_mod.MAX_REGEN_ROUNDS + engine_mod.MAX_AI_REVIEW_REGEN
+    ), ids
     assert state.overall_status == PipelineStatus.COMPLETED
     assert all(s.status == StageStatus.COMPLETED for s in state.stages)
 
