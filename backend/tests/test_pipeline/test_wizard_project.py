@@ -114,6 +114,46 @@ def test_project_payload_serves_full_per_stage_model_lists(client):
     assert all(row["label"] for row in data["llm_stages"] + data["image_stages"])
 
 
+def test_new_draft_and_full_payload_agree_on_model_and_override_shape(client):
+    """The blank ``/api/project/new`` draft and the full ``/api/wizard/project``
+    payload must carry the same model-registry slice + per-stage override channels.
+
+    These two payloads are served by separate handlers but feed the SAME
+    Project Settings form, so any divergence crashes the model-assignment
+    table. Regression guard for the ``thinking_overrides`` /
+    ``supports_thinking`` drift: the New draft lacked both, so the table's
+    ``data.thinking_overrides[stage.id]`` read blew up on the first LLM
+    stage (``theme_extract``). Both now flow from the shared
+    ``_registry_model_lists`` / ``_assignment_overrides_payload`` helpers.
+    """
+    new_draft = client.post("/api/project/new", json={}).json()["draft"]
+    # /new pins the seeded settings as the active project, so the full
+    # payload resolves without a second open.
+    full = client.get("/api/wizard/project").json()
+
+    # The four per-stage override channels are present in both.
+    override_keys = (
+        "llm_assignments",
+        "image_assignments",
+        "effort_overrides",
+        "thinking_overrides",
+    )
+    for key in override_keys:
+        assert key in new_draft, f"New draft missing {key}"
+        assert key in full, f"Full payload missing {key}"
+
+    # The registry slice is byte-identical (same helper), and every LLM
+    # model carries the flags the model table reads — supports_thinking is
+    # the one that drifted.
+    assert new_draft["llm_models"] == full["llm_models"]
+    assert new_draft["image_models"] == full["image_models"]
+    assert all("supports_thinking" in m for m in new_draft["llm_models"])
+
+    # The stage rows match too (already shared via _model_stage_lists).
+    assert new_draft["llm_stages"] == full["llm_stages"]
+    assert new_draft["image_stages"] == full["image_stages"]
+
+
 def test_get_project_payload_409_when_no_project_open(client):
     """Endpoint reads from the active project — 409 ``no_active_project`` when none is open.
 
