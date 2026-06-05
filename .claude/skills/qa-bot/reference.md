@@ -30,6 +30,37 @@ You can also export `MTGAI_QA_GOLDEN=<path>` to force which finished project
 seed-stage clones from (otherwise it auto-picks the newest under `sets (new)/`
 or `output/sets/`).
 
+## QA journal (cross-session coverage memory)
+
+Path: `output/qa-runs/QA-JOURNAL.md` (repo-relative, gitignored — persists
+locally across sessions, no commit churn). Trello holds *bugs*; this holds
+*coverage* (what was tested and found clean), so a fresh orchestrator doesn't
+re-probe blind. Read it at startup, append one row per probe, summarise it at
+handoff (SKILL §1.5 / §3.6 / §5).
+
+Append-only table; one row per probe; never delete rows:
+
+```markdown
+# QA Journal — MTGAI wizard
+
+Persistent cross-session QA coverage log. Each probe appends one row.
+Outcome: `clean` / `bug` (link the card) / `partial` (say why).
+Default: a recorded area is covered — skip it, find new ground. Re-test only on
+the user's explicit order.
+
+| Date | SHA | Area / Tab | What was exercised | Outcome | Card / Notes |
+|------|-----|-----------|--------------------|---------|--------------|
+| 2026-06-06 | a1b2c3d | Skeleton | knob out-of-range, refresh, edit+save | clean | — |
+| 2026-06-06 | a1b2c3d | Theme | upload text, section refresh, cancel mid-extract | bug | trello.com/c/… 500 on cancel |
+```
+
+Stamp each row with `git rev-parse --short HEAD` so a result records the code it
+ran against. **By default the journal means "don't repeat":** any area it
+records (clean or bug, any SHA) is covered — skip it and find new ground. The SHA
+is metadata, **not** a re-test trigger; re-running a covered probe (re-verifying a
+fix, re-checking an old-SHA clean) happens **only when the user explicitly orders
+it**.
+
 ## Probe-area checklist (rotate for broad coverage)
 
 **Project Settings** — set code/size/mechanic-count bounds; preset apply/save;

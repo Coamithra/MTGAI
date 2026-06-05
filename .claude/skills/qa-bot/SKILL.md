@@ -21,6 +21,12 @@ card): `serve --debug`, the floating 🐛 QA Debug panel, and the
 `/api/debug/*` endpoints. See `reference.md` for the endpoint + probe-area
 cheatsheet.
 
+**Coverage memory.** Trello records *bugs*; it does not record what you tested
+and found **clean**. So a fresh orchestrator (after a handoff) would re-probe the
+same areas blind. The fix is the **QA journal** — a persistent cross-session log
+of every probe and its outcome. Read it at startup, append to it after every
+probe, summarise it at handoff. Format + location: see §1.5 and `reference.md`.
+
 ## 0. Preconditions (check first, don't assume)
 
 - **Chrome extension connected.** This skill drives the app with the
@@ -43,6 +49,40 @@ cheatsheet.
    mode is live. If it's missing, the server didn't get `--debug`; fix that
    before continuing.
 
+## 1.5. Load the QA journal (cross-session memory)
+
+The journal lives at `output/qa-runs/QA-JOURNAL.md` (repo-relative;
+gitignored, so it persists locally across sessions with no commit churn).
+
+1. **Read it now**, before the first probe. If it doesn't exist yet, create it
+   with the header below. It is the record of what prior sessions already
+   exercised and what they found.
+2. **Note the current `master` short-SHA** (`git rev-parse --short HEAD`) to stamp
+   new entries. The SHA is metadata — it records what each result ran against — but
+   by default it does **not** trigger re-testing (see step 3).
+3. **Default behaviour: never re-test. Always look for new problems.** Treat
+   *any* journal entry — clean **or** bug-filed, at any SHA — as already covered,
+   and spend the session on ground the journal does **not** yet cover. Re-running
+   a probe an earlier session already did (including re-checking a fix or a
+   stale-SHA clean) happens **only when the user explicitly asks for it** (e.g.
+   "re-verify the skeleton fixes", "re-run the theme probes"). Absent such an
+   order, prefer untested areas and skip everything in the journal.
+
+Journal format — a single append-only table:
+
+```markdown
+# QA Journal — MTGAI wizard
+
+Persistent cross-session QA coverage log. Each probe appends one row.
+Outcome: `clean` (exercised, no bug) / `bug` (filed — link the Trello card) /
+`partial` (couldn't fully exercise — say why, e.g. ComfyUI not running).
+Default: a recorded area is covered — skip it and find new ground. Re-test only
+when the user explicitly orders it.
+
+| Date | SHA | Area / Tab | What was exercised | Outcome | Card / Notes |
+|------|-----|-----------|--------------------|---------|--------------|
+```
+
 ## 2. Configure for cheap, fast runs
 
 Per the card: always use the cheapest 2-bit Gemma with thinking disabled — QA
@@ -63,10 +103,14 @@ exercises the app *plumbing*, not card quality, so janky cards are fine.
 
 Repeat until the **restart trigger** (§5):
 
-1. **Pick the next probe area** from the checklist in `reference.md` (rotate so
-   coverage stays broad: project settings → theme → mechanics → skeleton →
-   card_gen → gates → ai_review → finalize → art/render tabs → cross-cutting
-   like cancel-mid-run, tab-switch, edit-past-stage, bad input).
+1. **Pick the next probe area** from the checklist in `reference.md`, steered by
+   the **QA journal** (§1.5): pick areas — and within an area, controls/inputs —
+   the journal does **not** yet cover; skip what it already records (clean or bug),
+   unless the user explicitly ordered a re-test. The goal each session is *new*
+   ground, not re-verification. Rotate so coverage stays broad: project settings →
+   theme → mechanics → skeleton → card_gen → gates → ai_review → finalize →
+   art/render tabs → cross-cutting like cancel-mid-run, tab-switch,
+   edit-past-stage, bad input.
 
 2. **Spawn a QA probe subagent** (fresh context) for that ONE area. Give it:
    - the area + the exact tab URL,
@@ -97,7 +141,14 @@ Repeat until the **restart trigger** (§5):
    parallel (only the browser driving is serial). Pass the card id + your full
    repro so they can act cold.
 
-6. **Keep driving.** Don't wait for fixes to land before the next probe —
+6. **Log it in the journal** (every probe, bug or not — this is the
+   coverage memory). Append one row to `output/qa-runs/QA-JOURNAL.md` with the
+   date, the session SHA, the area/tab, a terse "what was exercised", the outcome
+   (`clean` / `bug` / `partial`), and the Trello card link or a short note. A
+   probe that found nothing still gets a `clean` row — that is the whole point, so
+   the next session doesn't re-run it. One row per probe; never delete prior rows.
+
+7. **Keep driving.** Don't wait for fixes to land before the next probe —
    queue them and continue QA. Track how many fixes have merged.
 
 ## 4. Bug report contract (probe → orchestrator)
@@ -122,13 +173,16 @@ fixes, or any fix to server/engine/stage code, or the app gets wedged), do a
 
 1. Stop driving; let in-flight fix subagents finish + merge.
 2. Kill the server process.
-3. **Hand off to a fresh orchestrator**: post a short status (bugs found, cards
-   filed, fixes merged, areas still uncovered) and re-invoke this skill from a
-   clean context (a new `/qa-bot`, or `/loop /qa-bot` for unattended cycles).
-   A fresh orchestrator avoids context rot across long sessions.
-4. The new orchestrator pulls master (picking up the merged fixes), reboots
-   `serve --debug`, and resumes the loop — prioritising areas the prior session
-   left uncovered + re-checking the bugs that were just fixed.
+3. **Flush the journal first.** Make sure every probe from this session has its
+   row in `output/qa-runs/QA-JOURNAL.md` — that table, not your context, is what
+   survives the handoff. Then post a short status (bugs found, cards filed, fixes
+   merged, areas still uncovered) and re-invoke this skill from a clean context (a
+   new `/qa-bot`, or `/loop /qa-bot` for unattended cycles). A fresh orchestrator
+   avoids context rot across long sessions.
+4. The new orchestrator pulls master (picking up the merged fixes), **reads the
+   journal**, reboots `serve --debug`, and resumes the loop on areas the journal
+   does **not** yet cover. It does **not** re-check the just-merged fixes on its
+   own — confirming a fix is a re-test, which only happens when the user asks.
 
 ## 6. Stop conditions
 
