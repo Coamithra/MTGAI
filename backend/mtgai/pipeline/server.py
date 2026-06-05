@@ -6501,7 +6501,8 @@ def _skeleton_knobs_from_body(body: dict) -> tuple[SkeletonKnobs, list[str]]:
     """
     from mtgai.skeleton.knobs import SkeletonKnobs
 
-    payload = dict(body.get("knobs") or {})
+    knobs_value = body.get("knobs")
+    payload = dict(knobs_value) if isinstance(knobs_value, dict) else {}
     payload["cycles"] = body.get("cycles", payload.get("cycles", []))
     payload["pinned"] = body.get("pinned", [])
     payload["provenance"] = body.get("provenance", {})
@@ -6525,6 +6526,9 @@ async def wizard_skeleton_knobs(request: Request) -> JSONResponse:
         return err
     if not isinstance(body, dict):
         return JSONResponse({"error": "JSON body required"}, status_code=400)
+    knobs_value = body.get("knobs")
+    if knobs_value is not None and not isinstance(knobs_value, dict):
+        return JSONResponse({"error": "knobs must be an object"}, status_code=400)
     asset = set_artifact_dir()
 
     skeleton = _read_json(asset / "skeleton.json", {})
@@ -6743,6 +6747,12 @@ async def wizard_skeleton_save(request: Request) -> JSONResponse:
     skeleton = _read_json(asset / "skeleton.json", {})
     if not isinstance(skeleton, dict) or not skeleton.get("slots"):
         return JSONResponse({"error": "No skeleton.json to save into."}, status_code=400)
+    known_ids = {slot.get("slot_id") for slot in skeleton["slots"]}
+    unknown = [sid for sid in edits if sid not in known_ids]
+    if unknown:
+        return JSONResponse(
+            {"error": f"unknown slot_id(s): {', '.join(sorted(unknown))}"}, status_code=400
+        )
     for slot in skeleton["slots"]:
         text = edits.get(slot.get("slot_id"))
         if text is not None:

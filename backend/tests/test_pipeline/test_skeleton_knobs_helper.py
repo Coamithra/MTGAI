@@ -7,6 +7,8 @@ overlay is threaded into ``SkeletonKnobs.from_payload``; both call sites now rou
 through it, so these tests pin the overlay contract once.
 """
 
+import pytest
+
 from mtgai.pipeline.server import _skeleton_knobs_from_body
 from mtgai.skeleton.knobs import SkeletonKnobs, default_knobs
 
@@ -71,6 +73,16 @@ def test_out_of_range_value_is_clamped_with_warning():
     knobs, warnings = _skeleton_knobs_from_body({"knobs": {"rarity_common": 9999}})
     assert knobs.rarity_common != 9999  # clamped down to the spec max
     assert warnings  # the clamp is reported
+
+
+@pytest.mark.parametrize("bad_knobs", ["hello", [1, 2, 3], 5, True, None])
+def test_non_dict_knobs_value_does_not_crash(bad_knobs):
+    # A non-dict ``knobs`` (the bug behind the /knobs 500) is treated as "no
+    # edits" — defaults, no crash. The endpoint rejects it with 400 first, but
+    # the helper stays defensive (it's also called by /knobs/tune).
+    knobs, warnings = _skeleton_knobs_from_body({"knobs": bad_knobs})
+    assert isinstance(knobs, SkeletonKnobs)
+    assert isinstance(warnings, list)
 
 
 def test_both_call_sites_overlay_identically():

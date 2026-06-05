@@ -158,6 +158,24 @@ class TestFromPayload:
         assert knobs.irregular_subtypes == []
         assert "irregular_subtypes" not in knobs.provenance
 
+    def test_irregular_subtypes_unknown_dropped_with_warning(self):
+        # Out-of-bucket picks are dropped + warned (mirrors numeric clamp), the
+        # real one kept (card 6a235147 secondary A).
+        knobs, warnings = SkeletonKnobs.from_payload(
+            {"irregular_subtypes": ["not_a_subtype", "saga", "rooms"]}
+        )
+        assert knobs.irregular_subtypes == ["saga"]
+        assert any("not_a_subtype" in w for w in warnings)
+        assert any("rooms" in w for w in warnings)
+
+    def test_irregular_subtype_names_match_generator_bucket(self):
+        # The lowercase name set duplicated in knobs.py (it can't import the
+        # generator — circular) must stay in sync with the real bucket.
+        from mtgai.skeleton.generator import IRREGULAR_SUBTYPE_NAMES as GEN_NAMES
+        from mtgai.skeleton.knobs import IRREGULAR_SUBTYPE_NAMES as KNOB_NAMES
+
+        assert frozenset(GEN_NAMES) == KNOB_NAMES
+
     def test_pinned_filtered_to_real_knobs(self):
         knobs, _ = SkeletonKnobs.from_payload({"pinned": ["multicolor_rare", "bogus"]})
         assert knobs.pinned == ["multicolor_rare"]
