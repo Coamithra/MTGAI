@@ -1645,10 +1645,12 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
 async def wizard_project_apply_preset(request: Request) -> JSONResponse:
     """Apply a built-in preset or saved profile to this set's settings.
 
-    Per §6.8 / §6.4, model assignments and break points come from the
-    preset; per-set values (set_params, theme_input) are NOT touched.
-    Live-apply — no cascade clear — because model swaps don't
-    invalidate already-generated artifacts.
+    Model assignments + effort + thinking overrides come from the
+    preset; per-project values (set_params, theme_input, break_points)
+    are NOT touched — break points are a per-project workflow choice,
+    not part of a model-assignment template. Live-apply — no cascade
+    clear — because model swaps don't invalidate already-generated
+    artifacts.
     """
     from mtgai.settings.model_settings import ModelSettings, apply_settings
 
@@ -1672,7 +1674,6 @@ async def wizard_project_apply_preset(request: Request) -> JSONResponse:
             "image_assignments": dict(preset.image_assignments),
             "effort_overrides": dict(preset.effort_overrides),
             "thinking_overrides": dict(preset.thinking_overrides),
-            "break_points": dict(preset.break_points),
         }
     )
     apply_settings(merged)
@@ -1681,7 +1682,11 @@ async def wizard_project_apply_preset(request: Request) -> JSONResponse:
 
 @router.post("/api/wizard/project/preset/save")
 async def wizard_project_save_preset(request: Request) -> JSONResponse:
-    """Save the active project's model assignments + break points as a profile."""
+    """Save the active project's model + effort + thinking assignments as a profile.
+
+    Break points are deliberately excluded — they're a per-project
+    workflow choice, not part of a reusable model-assignment template.
+    """
     project = _require_active_project()
     settings = project.settings
     body, err = await _read_request_json(request)

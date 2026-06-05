@@ -398,14 +398,17 @@ def test_save_model_effort_clears_on_empty_value(client):
 # ---------------------------------------------------------------------------
 
 
-def test_apply_preset_replaces_models_and_breaks_only(client):
-    """Built-in presets travel with model + break-point changes; per-set
-    set_params and theme_input are kept."""
+def test_apply_preset_replaces_models_only(client):
+    """Applying a preset swaps model assignments; per-project values
+    (set_params, theme_input, break_points) are kept."""
     _open_project(
         "TST",
         set_params=ms.SetParams(set_name="MySet", set_size=80),
         theme_input=ms.ThemeInputSource(kind="pdf", filename="x.pdf"),
     )
+    # Layer a per-project break point on top after open.
+    settings = active_project.require_active_project().settings
+    ms.apply_settings(settings.model_copy(update={"break_points": {"card_gen": "review"}}))
 
     resp = client.post(
         "/api/wizard/project/preset/apply",
@@ -415,9 +418,10 @@ def test_apply_preset_replaces_models_and_breaks_only(client):
     after = active_project.require_active_project().settings
     # Models swapped.
     assert after.llm_assignments["card_gen"] == "haiku"
-    # Per-set fields preserved.
+    # Per-project fields preserved — break points are NOT part of a preset.
     assert after.set_params.set_name == "MySet"
     assert after.theme_input.kind == "pdf"
+    assert after.break_points == {"card_gen": "review"}
 
 
 def test_apply_preset_rejects_unknown_name(client):
@@ -429,15 +433,22 @@ def test_apply_preset_rejects_unknown_name(client):
     assert resp.status_code == 400
 
 
-def test_save_profile_excludes_set_params_and_theme_input(client):
+def test_save_profile_excludes_set_params_theme_input_and_break_points(client):
     _open_project(
         "TST",
         set_params=ms.SetParams(set_name="MySet", set_size=80),
         theme_input=ms.ThemeInputSource(kind="pdf", filename="x.pdf"),
     )
-    # Layer break_points on top after open.
+    # Layer break_points + thinking on top after open.
     settings = active_project.require_active_project().settings
-    ms.apply_settings(settings.model_copy(update={"break_points": {"card_gen": "review"}}))
+    ms.apply_settings(
+        settings.model_copy(
+            update={
+                "break_points": {"card_gen": "review"},
+                "thinking_overrides": {"mechanics": "disabled"},
+            }
+        )
+    )
 
     resp = client.post(
         "/api/wizard/project/preset/save",
@@ -451,7 +462,10 @@ def test_save_profile_excludes_set_params_and_theme_input(client):
         data = tomllib.load(f)
     assert "set_params" not in data
     assert "theme_input" not in data
-    assert data.get("break_points") == {"card_gen": "review"}
+    # Break points are per-project — they must NOT travel with the profile.
+    assert "break_points" not in data
+    # Thinking overrides DO travel with the profile.
+    assert data.get("thinking_overrides") == {"mechanics": "disabled"}
 
 
 # ---------------------------------------------------------------------------

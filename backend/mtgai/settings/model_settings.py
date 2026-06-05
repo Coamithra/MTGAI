@@ -470,12 +470,13 @@ class ModelSettings(BaseModel):
     def to_toml_doc(self, *, profile_only: bool = False) -> TOMLDocument:
         """Build a tomlkit document for this settings instance.
 
-        ``profile_only`` strips per-set fields (``set_params``,
-        ``theme_input``, ``debug``) so the document is a portable template
-        — used when saving a profile to the global library. Break points
-        stay because they're a meaningful part of a workflow profile
-        (§6.8); debug toggles stay out because they're per-project state
-        you flip while iterating, not a workflow template.
+        ``profile_only`` strips per-set / per-project fields (``set_params``,
+        ``theme_input``, ``debug``, ``break_points``) so the document is a
+        portable template — used when saving a profile to the global
+        library. Break points stay out because they're a per-project
+        workflow choice (where to pause for review on *this* run), not a
+        model-assignment template; the model + effort + thinking
+        assignments are the reusable part.
         """
         import tomlkit
 
@@ -494,10 +495,10 @@ class ModelSettings(BaseModel):
                 "thinking_overrides",
                 {k: v for k, v in self.thinking_overrides.items() if v},
             )
-        if self.break_points:
-            doc.add(tomlkit.nl())
-            doc.add("break_points", dict(self.break_points))
         if not profile_only:
+            if self.break_points:
+                doc.add(tomlkit.nl())
+                doc.add("break_points", dict(self.break_points))
             if self.asset_folder:
                 doc.add(tomlkit.nl())
                 doc.add("asset_folder", self.asset_folder)
@@ -534,8 +535,9 @@ class ModelSettings(BaseModel):
     def save_profile(self, name: str) -> Path:
         """Save these settings as a named profile in the global library.
 
-        Per design §6.8, profiles capture model assignments + break
-        points but exclude per-set values (set parameters, theme input).
+        Profiles capture model assignments + effort + thinking overrides
+        but exclude per-project values (set parameters, theme input,
+        debug toggles, and break points).
         """
         import tomlkit
 

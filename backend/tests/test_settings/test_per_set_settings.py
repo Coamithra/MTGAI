@@ -283,12 +283,18 @@ def test_from_preset_raises_for_unknown_name():
         ms.ModelSettings.from_preset("does-not-exist")
 
 
-def test_save_profile_strips_set_params_and_theme_input():
-    """Profiles are reusable templates — per-set values must not leak in."""
+def test_save_profile_strips_set_params_theme_input_and_break_points():
+    """Profiles are reusable templates — per-project values must not leak in.
+
+    Break points are a per-project workflow choice (where to pause on
+    *this* run), not part of a model-assignment template, so they stay
+    out; the model/effort/thinking assignments are the reusable part.
+    """
     s = ms.ModelSettings(
         set_params=ms.SetParams(set_name="My Set", set_size=99),
         theme_input=ms.ThemeInputSource(kind="pdf", filename="x.pdf"),
         break_points={"card_gen": "review"},
+        thinking_overrides={"mechanics": "disabled"},
     )
     path = s.save_profile("templ")
 
@@ -298,8 +304,10 @@ def test_save_profile_strips_set_params_and_theme_input():
         data = tomllib.load(f)
     assert "set_params" not in data
     assert "theme_input" not in data
-    # Break points DO travel with the profile (§6.8).
-    assert data.get("break_points") == {"card_gen": "review"}
+    # Break points are per-project and must NOT travel with the profile.
+    assert "break_points" not in data
+    # Thinking overrides DO travel with the profile.
+    assert data.get("thinking_overrides") == {"mechanics": "disabled"}
 
 
 # ---------------------------------------------------------------------------
