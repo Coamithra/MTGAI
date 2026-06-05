@@ -1,7 +1,12 @@
 """Validator 8: Text Overflow — character count limits per field.
 
 Flags cards whose name, type line, oracle text, or flavor text may not fit
-on a physical card. All checks are MANUAL (need AI/human to shorten).
+on a physical card. Name / oracle / flavor / combined overflows are MANUAL
+(need AI/human to shorten). The type-line overflow is AUTO: it's almost always
+a couple of chars of flavor subtype past the 45-char guideline, and the safe,
+deterministic remedy is to trim trailing subtypes until it fits — far cheaper
+and more reliable than regenerating the whole card (which the model tends to
+re-emit with the same over-long, thematically-locked subtype).
 """
 
 from __future__ import annotations
@@ -13,6 +18,10 @@ from mtgai.validation import ValidationError, ValidationSeverity
 
 # Matches parenthesized reminder text (20+ chars) — stripped before measuring.
 _REMINDER_RE = re.compile(r"\s*\([^)]{20,}\)\.?")
+
+# Splits a type line into "<supertypes + card types>" and "<subtypes>" on an
+# em-dash, en-dash, or double-hyphen (matches schema._parse_type_line's split).
+_TYPE_DASH_RE = re.compile(r"\s*(?:\u2014|\u2013|--)\s*")
 
 # --- Character limits ---
 NAME_LIMIT = 30
@@ -40,6 +49,46 @@ def _manual(
         suggestion=suggestion,
         error_code=error_code,
     )
+
+
+def _auto(
+    field: str, message: str, suggestion: str | None = None, *, error_code: str
+) -> ValidationError:
+    return ValidationError(
+        validator="text_overflow",
+        severity=ValidationSeverity.AUTO,
+        field=field,
+        message=message,
+        suggestion=suggestion,
+        error_code=error_code,
+    )
+
+
+def fix_type_line_overflow(card: Card, _error: ValidationError) -> Card:
+    """Shorten an over-long type line by trimming trailing subtypes.
+
+    Subtypes are flavor; dropping the trailing one keeps the card a legal
+    Magic object and still renders. Trim from the end until the line fits the
+    guideline (or no subtypes remain — at which point the line is just the
+    supertypes + card types and can't be shortened further without changing
+    the card). Returns the original card untouched if it can't be improved.
+    """
+    parts = _TYPE_DASH_RE.split(card.type_line, maxsplit=1)
+    main_part = parts[0].strip()
+    if len(parts) < 2 or not parts[1].strip():
+        return card  # no subtypes to trim
+
+    subtypes = parts[1].split()
+    while subtypes:
+        candidate = f"{main_part} — {' '.join(subtypes)}"
+        if len(candidate) <= TYPE_LINE_LIMIT:
+            new_card = card.model_copy(update={"type_line": candidate})
+            return new_card.model_copy(update={"subtypes": list(subtypes)})
+        subtypes.pop()
+
+    # All subtypes dropped — fall back to the bare main type line.
+    new_card = card.model_copy(update={"type_line": main_part})
+    return new_card.model_copy(update={"subtypes": []})
 
 
 def _oracle_limit(card: Card) -> int:
@@ -74,14 +123,15 @@ def validate_text_overflow(card: Card) -> list[ValidationError]:
             )
         )
 
-    # 2. Type line length
+    # 2. Type line length — AUTO: trim trailing subtypes to fit (see fixer).
     type_len = len(card.type_line)
     if type_len > TYPE_LINE_LIMIT:
         errors.append(
-            _manual(
+            _auto(
                 "type_line",
                 f"Type line is {type_len} characters,"
                 f" exceeding the {TYPE_LINE_LIMIT}-char guideline",
+                "Trim trailing subtypes so the line fits.",
                 error_code="text_overflow.type_line",
             )
         )

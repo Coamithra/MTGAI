@@ -13,7 +13,13 @@ helpers the cycle-sort redesign introduced:
 
 from __future__ import annotations
 
-from mtgai.generation.card_generator import _card_one_liner, group_slots_into_batches
+from mtgai.generation import card_generator as cg
+from mtgai.generation.card_generator import (
+    GenerationProgress,
+    _card_one_liner,
+    _retry_card,
+    group_slots_into_batches,
+)
 from mtgai.generation.prompts import build_user_prompt, format_cycle_siblings
 from mtgai.validation import (
     ValidationError,
@@ -239,6 +245,133 @@ def _verr(code: str, message: str) -> ValidationError:
         message=message,
         error_code=code,
     )
+
+
+# ---------------------------------------------------------------------------
+# _retry_card best-effort fallback — a slot is never silently dropped
+# ---------------------------------------------------------------------------
+
+
+def _fake_result(card_dict: dict) -> dict:
+    """A minimal ``generate_with_tool`` result shape (the keys card_gen reads)."""
+    return {
+        "result": card_dict,
+        "model": "claude-test",
+        "input_tokens": 10,
+        "output_tokens": 20,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+    }
+
+
+def _overflowing_creature(name: str) -> dict:
+    """A parsable creature whose oracle text is past the 300-char limit — a
+    genuine, unfixable regen trigger (unlike type-line overflow, which now
+    auto-fixes). Used to exercise the never-fully-conforms path."""
+    return {
+        "name": name,
+        "mana_cost": "{2}{G}",
+        "type_line": "Creature — Beast",
+        "oracle_text": "Whenever this attacks, draw a card. " * 12,  # >300 chars
+        "power": "3",
+        "toughness": "3",
+        "rarity": "common",
+    }
+
+
+def test_retry_card_returns_best_effort_when_never_conforms(tmp_path, monkeypatch) -> None:
+    """When every retry still trips a regen trigger, ``_retry_card`` returns
+    ``(None, best_effort_card)`` so the caller can save the slot flagged rather
+    than drop it — the slot-009 "missing a card is not acceptable" fix."""
+    calls = {"n": 0}
+
+    def fake_retry_single(slot, error_msg, *a, **k):
+        calls["n"] += 1
+        return _fake_result(_overflowing_creature(f"Megatron {calls['n']}"))
+
+    monkeypatch.setattr(cg, "_retry_single_card", fake_retry_single)
+    monkeypatch.setattr(cg, "_save_generation_log", lambda *a, **k: None)
+    progress = GenerationProgress(path=tmp_path / "progress.json")
+    slot = {"slot_id": "009", "color": "B", "rarity": "mythic", "card_type": "creature"}
+
+    clean, best = _retry_card(
+        slot,
+        "overflow",
+        mechanics=[],
+        existing_cards=[],
+        theme=None,
+        model="m",
+        progress=progress,
+        set_code="TST",
+    )
+
+    assert clean is None  # never fully conformed
+    assert best is not None  # but a parsable best-effort survived
+    assert best.name.startswith("Megatron")
+    # It exhausted the retry budget (attempts 2..MAX_RETRIES).
+    assert calls["n"] == cg.MAX_RETRIES - 1
+
+
+def test_retry_card_returns_none_best_effort_when_unparsable(tmp_path, monkeypatch) -> None:
+    """If no attempt even parses into a Card, best-effort is None and the caller
+    must treat the slot as a hard failure (no card to ship)."""
+
+    def fake_retry_single(slot, error_msg, *a, **k):
+        return _fake_result({"name": "X"})  # no type_line → unparsable
+
+    monkeypatch.setattr(cg, "_retry_single_card", fake_retry_single)
+    monkeypatch.setattr(cg, "_save_generation_log", lambda *a, **k: None)
+    progress = GenerationProgress(path=tmp_path / "progress.json")
+    slot = {"slot_id": "009", "color": "B", "rarity": "mythic", "card_type": "creature"}
+
+    clean, best = _retry_card(
+        slot,
+        "parse fail",
+        mechanics=[],
+        existing_cards=[],
+        theme=None,
+        model="m",
+        progress=progress,
+        set_code="TST",
+    )
+    assert clean is None
+    assert best is None
+
+
+def test_retry_card_returns_clean_card_on_success(tmp_path, monkeypatch) -> None:
+    """A retry that fully conforms returns ``(card, card)``."""
+
+    def fake_retry_single(slot, error_msg, *a, **k):
+        return _fake_result(
+            {
+                "name": "Optimus Prime",
+                "mana_cost": "{2}{W}",
+                "type_line": "Creature — Robot",
+                "oracle_text": "Vigilance",
+                "power": "4",
+                "toughness": "5",
+                "rarity": "rare",
+            }
+        )
+
+    monkeypatch.setattr(cg, "_retry_single_card", fake_retry_single)
+    monkeypatch.setattr(cg, "_save_generation_log", lambda *a, **k: None)
+    progress = GenerationProgress(path=tmp_path / "progress.json")
+    slot = {"slot_id": "010", "color": "W", "rarity": "rare", "card_type": "creature"}
+
+    clean, best = _retry_card(
+        slot,
+        "feedback",
+        mechanics=[],
+        existing_cards=[],
+        theme=None,
+        model="m",
+        progress=progress,
+        set_code="TST",
+    )
+    assert clean is not None
+    assert clean is best
+    assert clean.name == "Optimus Prime"
 
 
 def test_regen_feedback_includes_all_regen_triggers_not_just_overflow() -> None:

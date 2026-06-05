@@ -154,7 +154,14 @@ def validate_card_from_raw(
 # call, so a finding lands here only if the card is *uninterpretable* as a
 # Magic object (won't render, can't be cast, P/T is garbage).
 _REGEN_TRIGGER_CODES: tuple[str, ...] = (
-    "text_overflow.",  # field exceeds the printed-card char limit
+    # Type-line overflow is deliberately NOT here: it's AUTO-fixed by trimming
+    # trailing subtypes (text_overflow.fix_type_line_overflow), so it never needs
+    # a regenerate. Only the content overflows below — which need a real rewrite
+    # the deterministic fixers can't do — kick the regen loop.
+    "text_overflow.name",  # card name too long to fit
+    "text_overflow.oracle",  # rules text too long for the frame
+    "text_overflow.flavor",  # flavor text too long
+    "text_overflow.combined",  # oracle + flavor together too long
     "type_check.pt_slash",  # ``power="1/1"`` etc. (both stats in one field)
     "type_check.pt_literal_null",  # ``"null"`` / ``"None"`` / ``"-"`` sentinels in stats
     "type_check.pt_nonstandard",  # non-numeric, non-``*``/``X`` garbage in stats
@@ -211,6 +218,7 @@ def _register_auto_fixers() -> None:
         fix_oracle_type_prefix,
         fix_tap_colon,
     )
+    from mtgai.validation.text_overflow import fix_type_line_overflow
     from mtgai.validation.type_check import fix_enchantment_artifact
     from mtgai.validation.uniqueness import fix_collector_number
 
@@ -237,6 +245,7 @@ def _register_auto_fixers() -> None:
             "keyword_ordering.misplaced": fix_keyword_ordering,
             "uniqueness.collector_number_collision": fix_collector_number,
             "type_check.enchantment_artifact": fix_enchantment_artifact,
+            "text_overflow.type_line": fix_type_line_overflow,
         }
     )
 
