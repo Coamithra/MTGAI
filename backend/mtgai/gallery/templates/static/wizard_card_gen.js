@@ -241,7 +241,9 @@
       }
       .wiz-cardgen-card:hover { border-color: #4a9eff44; }
       /* A card this instance (re)generated, vs one carried over from the prior
-         instance. Only applied on a review->regen instance (see paintGrid). */
+         instance. Only applied on a review->regen instance — primarily inside
+         the dedicated "Regenerated this round" section, where the per-tile badge
+         is suppressed and this border is the highlight (see paintGrid). */
       .wiz-cardgen-card.is-new {
         border-color: #45c98a;
         background: #102016;
@@ -663,7 +665,12 @@
     // below. Suppressed until at least one regenerated card is actually present:
     // a /state poll early in the run (before any card re-saved) would otherwise
     // show an empty "Regenerated" header.
-    const newCards = highlightNew ? filtered.filter(c => c.is_new) : [];
+    // Sort the dedicated section by collector number so it shows the same
+    // deterministic order as the (rarity/colour-ordered) carried-over groups,
+    // rather than SSE arrival order.
+    const newCards = highlightNew
+      ? filtered.filter(c => c.is_new).sort(byCollectorNumber)
+      : [];
     const restCards = newCards.length ? filtered.filter(c => !c.is_new) : filtered;
 
     // Dedicated "Regenerated this round" group on top — flat grid (the header
@@ -748,6 +755,12 @@
         ${slotText ? `<div class="wiz-cardgen-card-slot-text" title="Skeleton slot ${escAttr(cn)}">${escHtml(cn)} — ${escHtml(slotText)}</div>` : ''}
       </article>
     `;
+  }
+
+  // Stable, numeric-aware sort by collector_number (e.g. "0007" < "0012").
+  function byCollectorNumber(a, b) {
+    return String(a.collector_number || '').localeCompare(
+      String(b.collector_number || ''), undefined, { numeric: true });
   }
 
   // Derives a single-char colour key for grouping.
