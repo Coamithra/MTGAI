@@ -34,6 +34,16 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
+# The valid irregular-subtype bucket members (canonical lowercase ``SlotCardSubtype``
+# values). ``from_payload`` validates picks against this and drops unknowns with a
+# warning, mirroring the numeric-knob clamp behaviour. The bucket itself lives in
+# ``skeleton.generator`` (``IRREGULAR_SUBTYPE_NAMES``), which imports *this* module,
+# so it can't be imported here (circular). Kept in sync by
+# ``test_skeleton_knobs::test_irregular_subtype_names_match_generator_bucket``.
+IRREGULAR_SUBTYPE_NAMES: frozenset[str] = frozenset(
+    {"saga", "class", "shrine", "enchantment_creature", "colored_artifact"}
+)
+
 # ---------------------------------------------------------------------------
 # Knob specs — one source of truth for bounds (AI clamp + manual validate + UI)
 # ---------------------------------------------------------------------------
@@ -685,19 +695,24 @@ class SkeletonKnobs(BaseModel):
             except Exception:  # drop malformed cycle, keep the rest
                 warnings.append("Dropped a malformed cycle entry")
 
-        # Theme-driven irregular-subtype picks: normalize shape only (lowercase,
-        # strip, dedupe, drop blanks/non-strings). Bucket membership is enforced
-        # later in the generator (knobs.py can't import the bucket). Stamp a single
-        # "irregular_subtypes" provenance key so the UI can badge the picks.
+        # Theme-driven irregular-subtype picks: normalize shape (lowercase, strip,
+        # dedupe, drop blanks/non-strings) and validate bucket membership, dropping
+        # unknown subtypes with a warning (mirrors the numeric-knob clamp+warn).
+        # Stamp a single "irregular_subtypes" provenance key so the UI can badge
+        # the picks.
         irregular_subtypes: list[str] = []
         seen_subtypes: set[str] = set()
         for item in data.get("irregular_subtypes") or []:
             if not isinstance(item, str):
                 continue
             norm = item.strip().lower()
-            if norm and norm not in seen_subtypes:
-                irregular_subtypes.append(norm)
-                seen_subtypes.add(norm)
+            if not norm or norm in seen_subtypes:
+                continue
+            if norm not in IRREGULAR_SUBTYPE_NAMES:
+                warnings.append(f"Irregular subtype: dropped unknown value {norm!r}")
+                continue
+            irregular_subtypes.append(norm)
+            seen_subtypes.add(norm)
         if source and irregular_subtypes:
             provenance["irregular_subtypes"] = source
 
