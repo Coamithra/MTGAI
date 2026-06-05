@@ -129,4 +129,4 @@ Standalone pages **/theme**, **/review**, **/progress**, **/booster** were remov
 ## Git
 - Card JSON is version-controlled. Art and rendered images are gitignored.
 - Full ignore patterns in `.gitignore` at repo root.
-- **Shipping a change (default workflow): PR + auto self-merge in one shot.** When the user asks to push/ship/merge, branch off `master`, commit, push, then `gh pr create --fill` followed immediately by `gh pr merge --squash --delete-branch`. `master` is an unprotected branch on a solo public repo, so self-merge needs **no approval** (GitHub disables the "Approve" button on your own PRs, but approval is only *required* under a branch-protection rule, which this repo has none). This gives a PR record/URL without any clicking. Don't stop to ask the user to approve or open the PR by hand. (If the user says "just merge / direct", skip the PR and fast-forward `master` instead.)
+- **Shipping a change**: PR + auto self-merge is the default — see `CONTRIBUTING.md` (Phase 6 "Review & Ship" + the "Quick ship" note at the top). No approval needed.
