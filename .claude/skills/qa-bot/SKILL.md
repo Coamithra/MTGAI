@@ -115,6 +115,13 @@ Repeat until the **restart trigger** (§5):
 2. **Spawn a QA probe subagent** (fresh context) for that ONE area. Give it:
    - the area + the exact tab URL,
    - the claude-in-chrome tools to use,
+   - **the click-first mandate** (§3.5): drive the *real UI* — click the actual
+     control, type into the actual field, press the actual Save/Refresh/Re-pick
+     button, and read the outcome back from the *rendered DOM / a screenshot*, one
+     screenshot per meaningful step. Direct `fetch()`/`javascript_tool` calls to
+     `/api/*` are a **fallback only**, for inputs the UI cannot express (malformed
+     JSON bodies, `Infinity`, out-of-order endpoint calls, ids the form would
+     never submit),
    - the adversarial brief: *click every control, feed empty/huge/weird input,
      double-click, cancel mid-run, switch tabs mid-run, edit a past stage,
      reload mid-action, hit endpoints out of order* — try to break it,
@@ -151,6 +158,35 @@ Repeat until the **restart trigger** (§5):
 7. **Keep driving.** Don't wait for fixes to land before the next probe —
    queue them and continue QA. Track how many fixes have merged.
 
+## 3.5. Click-first: drive the UI, not the API
+
+The whole point of a claude-in-chrome QA bot is to exercise the app the way a
+real user does. A probe that fires `fetch()` at `/api/*` tests only the **server
+contract**: it bypasses button wiring, event handlers, client-side validation,
+the exact request shape the UI builds, the in-app dialog system, SSE repaint, and
+layout. Endpoint-only probing reliably finds 500s and missing server validation,
+but it **silently skips the entire UI layer**, so dead controls, mis-wired
+handlers, a button that posts the wrong body, or a modal that will not close go
+uncaught. (Not hypothetical: an early run of this skill drifted almost entirely
+to `fetch()`, and every bug it found was an endpoint-level 500 while the UI layer
+went untested.)
+
+Rules for every probe:
+- **Primary is real interaction.** Click the control, type into the field, press
+  the real button. Read the outcome back from the **rendered DOM / a screenshot**,
+  not from the JSON response. One screenshot per meaningful step, as evidence.
+- **Fallback is `fetch()`.** Use it only for inputs the UI genuinely cannot
+  express: malformed JSON bodies, non-finite numbers, calling endpoints out of
+  order, a nonexistent id the form would never submit. These test the durable
+  server backstop and are worth keeping, as the *supplement*, not the main course.
+- **Report the split.** Each probe states, per thing exercised, whether it was
+  *clicked* or *fetched*, so endpoint-only drift is visible at triage (§4).
+
+Journal implication (§1.5): a `clean` row is only as strong as the layer it
+tested. An area exercised **only via `fetch()`** is `partial` (UI layer
+untested), **not** `clean`, so a later UI-first re-probe of it is new ground, not
+a re-test, and is **not** blocked by the "skip covered areas" default.
+
 ## 4. Bug report contract (probe → orchestrator)
 
 A probe reports a JSON-ish list of confirmed bugs. Each:
@@ -158,6 +194,8 @@ A probe reports a JSON-ish list of confirmed bugs. Each:
 - `area` / `tab`
 - `repro` — numbered steps a cold reader can replay
 - `expected` vs `actual`
+- `how`: per thing exercised, *clicked* (real UI) or *fetched* (direct `/api/*`);
+  see §3.5. An area covered only by `fetch()` is `partial`, not `clean`.
 - `console` — relevant console errors (verbatim)
 - `network` — any 4xx/5xx the action caused (method + path + status)
 - `screenshot` — path/ref

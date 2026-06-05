@@ -44,7 +44,7 @@ Append-only table; one row per probe; never delete rows:
 # QA Journal — MTGAI wizard
 
 Persistent cross-session QA coverage log. Each probe appends one row.
-Outcome: `clean` / `bug` (link the card) / `partial` (say why).
+Outcome: `clean` / `bug` (link the card) / `partial` (say why, e.g. fetch-only / UI layer untested, or ComfyUI off).
 Default: a recorded area is covered — skip it, find new ground. Re-test only on
 the user's explicit order.
 
@@ -62,6 +62,13 @@ fix, re-checking an old-SHA clean) happens **only when the user explicitly order
 it**.
 
 ## Probe-area checklist (rotate for broad coverage)
+
+**Drive the real UI (click-first).** For every item below, the default is to
+*click the control / type into the field / press the real button* and verify from
+the rendered DOM + a screenshot. Reserve `fetch()`/`javascript_tool` for inputs
+the UI cannot express (malformed JSON, `Infinity`, out-of-order calls, ids the
+form would never submit). Endpoint-only coverage is `partial`, not `clean` (see
+SKILL §3.5). Report per item whether it was *clicked* or *fetched*.
 
 **Project Settings** — set code/size/mechanic-count bounds; preset apply/save;
 model + thinking + break-point toggles; asset folder; debug toggles; Save;
