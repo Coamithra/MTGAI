@@ -159,13 +159,14 @@
       state.editDrafts.delete(tabId);
       renderTabStrip();
     },
-    async preview({ from_stage, clear_theme_json }) {
+    async preview({ from_stage, clear_theme_json, after_only }) {
       const resp = await fetch('/api/wizard/edit/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from_stage,
           clear_theme_json: !!clear_theme_json,
+          after_only: !!after_only,
         }),
       });
       if (!resp.ok) {
@@ -173,6 +174,26 @@
         throw new Error(data.error || `HTTP ${resp.status}`);
       }
       return await resp.json();
+    },
+    /**
+     * Unlock a completed stage tab for editing: delete every tab after
+     * ``from_stage`` (keeping this stage's output) and make it the active
+     * editable tip. The simple "Edit" model — no draft, no revert. Returns
+     * ``{success, navigate_to}``; caller hard-navs so the strip rebuilds.
+     */
+    async unlock({ from_stage }) {
+      const resp = await fetch('/api/wizard/edit/unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_stage }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        const err = new Error(data.error || `HTTP ${resp.status}`);
+        err.status = resp.status;
+        throw err;
+      }
+      return data;
     },
     async accept({ from_stage, clear_theme_json, theme_payload, set_params_patch, theme_input }) {
       const body = {
@@ -201,14 +222,14 @@
      * (or backdrop-close). Pipeline-running case auto-rejects with a
      * toast so the modal isn't shown — Accept would 409 anyway.
      */
-    async confirmCascade({ from_stage, clear_theme_json, title, body }) {
+    async confirmCascade({ from_stage, clear_theme_json, title, body, after_only }) {
       if (this.isPipelineRunning()) {
         showToast('Cancel the running stage first, then retry the edit.', 'warn');
         return false;
       }
       let preview;
       try {
-        preview = await this.preview({ from_stage, clear_theme_json });
+        preview = await this.preview({ from_stage, clear_theme_json, after_only });
       } catch (err) {
         showToast('Preview failed: ' + err.message, 'error');
         return false;
@@ -660,6 +681,7 @@
     if (result !== undefined && result !== null) stage.result = result;
 
     const tabIdx = state.tabs.findIndex(t => t.id === instanceId);
+    let openedNewTip = false;
     if (tabIdx >= 0) {
       state.tabs[tabIdx].status = status;
     } else if (status !== 'pending') {
@@ -667,6 +689,7 @@
       // snapshot didn't include it but the visibility rule (compute_visible_tabs
       // in wizard.py) now would. Append the tab so the strip surfaces
       // it without forcing the user to refresh.
+      const prevLatest = state.latestTabId;
       state.tabs.push({
         id: instanceId,
         title: stage.display_name,
@@ -674,9 +697,22 @@
         status,
       });
       state.latestTabId = instanceId;
+      // Auto-open the freshly-active stage tab (the card's "next stage
+      // automatically opens"), but ONLY when the user is currently on the
+      // previous tip — if they navigated back to inspect an earlier tab, don't
+      // yank focus. A "Stop after this step" pause never starts the next stage,
+      // so no new instance appends and this never fires (the desired exception).
+      // A review->regen insertion (e.g. card_gen.2, no pause) also appends and
+      // auto-opens — intended: focus follows the live tip through the loop.
+      if (state.activeTabId === prevLatest) {
+        showTab(instanceId, /* push */ true);
+        openedNewTip = true;
+      }
     }
     renderTabStrip();
-    rerenderActiveStageBody();
+    // showTab already re-rendered the (now active) new tip's body; avoid a
+    // redundant repaint of the prior tab we just navigated away from.
+    if (!openedNewTip) rerenderActiveStageBody();
   }
 
   // Lazy hydrator for the case where the bootstrap had no pipeline_state

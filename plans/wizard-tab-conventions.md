@@ -279,28 +279,49 @@ controls. This replaced three divergent badge markups (`wiz-ai-badge`,
 
 A tab is "past" once a later tab exists in the strip
 (`isPast: tabId !== state.latestTabId`). Past tabs cannot be saved
-directly — the only commit path is the Edit cascade, which warns the
-user that downstream content will be discarded:
+directly — the only commit path is the Edit button, which warns the
+user that downstream content will be discarded. There are **two edit
+models**, by tab kind:
+
+### Stage tabs → "unlock" (delete downstream, edit in place)
+
+A completed **stage** tab's Edit is destructive-but-simple: one confirm,
+then the tab is unlocked in place and every later tab is discarded. No
+draft, no revert (the user opted out of the backup-and-cancel complexity).
 
 1. Tab header renders an `Edit` button (gated by
-   `W.editFlow.isPipelineRunning()` — hidden mid-run).
-2. Click → `W.editFlow.confirmCascade({ from_stage, title, body })`
-   shows the modal warning. The body should be specific about *what*
-   gets discarded (e.g. "Editing the Theme tab will discard all
-   generated content from Skeleton onward").
-3. On confirm, `W.editFlow.setDraft(tabId, …)` stashes a draft
-   marker and the tab swaps:
-   * Header: hide Edit, show "Editing" pencil/banner.
-   * Body action row: show **Cancel** + **Accept Edits**.
-   * Footer: replaced with a "Saving via Accept above" hint.
-   * Banner: a yellow `wiz-edit-banner` reminding the user that Accept
-     is destructive.
-4. **Cancel** discards the draft, repopulates the form from
-   `state.theme` / equivalent, restores the original UI.
-5. **Accept Edits** calls `W.editFlow.accept({ from_stage, ... payload })`
-   which routes through `/api/wizard/edit/accept`. The endpoint
-   clears all downstream stage outputs, persists the new payload, and
-   returns a `navigate_to` for the post-edit tab.
+   `W.editFlow.isPipelineRunning()` — hidden mid-run; the only entry
+   to Edit is "no LLM is running").
+2. Click → `W.editFlow.confirmCascade({ from_stage, after_only: true,
+   title, body })` shows the modal warning, listing the
+   *downstream-only* tabs that will be discarded (`after_only` lists the
+   stages *after* `from_stage`; the edited stage's own output is kept).
+3. On confirm → `W.editFlow.unlock({ from_stage })` →
+   `POST /api/wizard/edit/unlock`. The endpoint (`_apply_downstream_clear`)
+   clears `stages[idx+1:]` (artifacts + history + regen-inserted duplicate
+   instances), **keeps** the edited stage's output, sets it
+   `PAUSED_FOR_REVIEW` + the pipeline `PAUSED`, and returns a `navigate_to`.
+4. The client hard-navs; the edited stage is now `latestTabId` +
+   `PAUSED_FOR_REVIEW`, so its own renderer shows the editable grid +
+   Refresh AI (reroll) + the Next-step footer that resumes the engine into
+   the cleared downstream. **There is no stage-tab draft/Cancel/Accept** —
+   `wizard_stage.js` no longer renders an editing banner.
+
+### Content tabs (Theme, Project Settings) → draft (deferred, revertable)
+
+Theme + Project Settings keep the deferred draft flow — their content is
+form fields cheap to revert, and editing them legitimately invalidates the
+whole pipeline (stage 0 onward), so there's no "keep this stage" notion:
+
+1. Edit → `W.editFlow.confirmCascade({ from_stage, ... })` (no `after_only` —
+   the cascade includes stage 0 onward).
+2. On confirm → `W.editFlow.setDraft(tabId, …)`: header shows the "Editing"
+   pencil/banner, the body action row shows **Cancel** + **Accept Edits**.
+3. **Cancel** discards the draft, repopulates from `state.theme` / equivalent.
+4. **Accept Edits** → `W.editFlow.accept({ from_stage, ...payload })` →
+   `POST /api/wizard/edit/accept` (`_apply_cascade_clear`, which clears
+   `stages[idx:]` *including* stage 0 and re-runs), persists the payload,
+   returns `navigate_to`.
 
 The `editFlow` surface is in `wizard.js` (`window.MTGAIWizard.editFlow`).
 Don't reinvent it — every editable tab routes destructive past-tab
@@ -309,6 +330,23 @@ edits through it.
 **Latest tab edits** are different: they go directly through the
 tab's regular Save / Save-and-Continue. No cascade needed because
 nothing is downstream yet.
+
+### Auto-open the next tab
+
+When the engine completes a stage and auto-advances (no "Stop after this
+step"), the next stage's tab **auto-opens in the UI** — but only when the
+user is currently viewing the tip (`activeTabId === prevLatest` in
+`updateStageStatus`). If they've navigated back to inspect an earlier tab,
+focus is left where it is. A break-point pause never starts the next stage,
+so no new tab appends and the auto-open never fires (the "Stop after this
+step" exception falls out for free).
+
+### Sort / view controls stay live during a run
+
+Pure view controls (card_gen's Group-by / Filter) change neither data nor
+process, so they are **excluded from the form lock** (`setTabLocked`
+selectors) and stay usable while an LLM run is in flight. Only AI-triggering
+controls (Refresh / Generate) + the Save & Continue footer lock.
 
 **Live-apply edits** (Project Settings only, currently): each input
 change posts immediately to a granular endpoint

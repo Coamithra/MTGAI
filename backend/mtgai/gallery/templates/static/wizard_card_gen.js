@@ -862,10 +862,11 @@
     local.locked = !!locked;
     W.setTabLocked(root, aiBusy(local), {
       lockClass: 'wiz-cardgen-locked',
+      // Group-by / filter are pure view controls (they change neither data nor
+      // process), so they stay live during an AI run — only the AI-triggering
+      // Refresh button + the advance footer get locked.
       selectors: [
         '[data-role="cg-refresh-btn"]',
-        '[data-role="cg-group-by"]',
-        '[data-role="cg-filter"]',
       ],
       footerSelector: '[data-role="cg-advance"]',
     });
