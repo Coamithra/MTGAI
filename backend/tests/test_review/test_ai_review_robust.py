@@ -64,11 +64,19 @@ class TestMalformedShapesDoNotCrash:
         prompt = ai_review._build_review_prompt(_CARD, _MECHANICS, ["plain string question"])
         assert "plain string question" in prompt
 
-    def test_build_iteration_prompt_with_string_issue(self):
-        """An ``issues`` item that's a bare string must not ``string indices`` crash."""
-        verdict = {"verdict": "REVISE", "issues": ["a bare string issue"], "revised_card": None}
-        # Must not raise (the bad item is skipped).
-        ai_review._build_iteration_prompt(verdict)
+    def test_build_single_revise_prompt_renders_issues(self):
+        """The single-tier revise prompt lists the judge's issues and asks for a card."""
+        issues = [
+            ai_review.ReviewIssue(severity="WARN", category="design", description="too swingy"),
+        ]
+        prompt = ai_review._build_single_revise_prompt(_CARD, issues, _MECHANICS, [])
+        assert "too swingy" in prompt
+        assert "revised card" in prompt.lower()
+
+    def test_build_single_revise_prompt_no_issues(self):
+        """An empty issues list still builds a usable revise prompt (no crash)."""
+        prompt = ai_review._build_single_revise_prompt(_CARD, [], _MECHANICS, [])
+        assert "revised card" in prompt.lower()
 
     def test_coerce_verdict_data_non_dict(self):
         """A non-dict tool result coerces to ``{}`` (the source of the string-index crash)."""

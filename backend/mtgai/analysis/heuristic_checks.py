@@ -52,7 +52,9 @@ def format_findings_for_prompt(findings: list[ValidationError]) -> str:
     """Render heuristic findings as a deduped bullet list for an LLM prompt.
 
     Returns an empty string when there are no findings, so the caller can
-    skip the whole "Validation Warnings" section without an extra check.
+    skip the whole hints section without an extra check. The findings are framed
+    as *hints* (not hard rules) — power-level/color-pie heuristics are advisory
+    and the reviewer is told to override them when the card warrants it.
     """
     if not findings:
         return ""
@@ -64,4 +66,4 @@ def format_findings_for_prompt(findings: list[ValidationError]) -> str:
             continue
         seen.add(key)
         lines.append(f"  - {f.message}")
-    return "Validation Warnings (from auto-validator):\n" + "\n".join(lines)
+    return "Auto-validator hints (rough guidance, not rules):\n" + "\n".join(lines)

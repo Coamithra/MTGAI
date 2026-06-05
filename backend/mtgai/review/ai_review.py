@@ -342,6 +342,111 @@ REVIEW_TOOL_SCHEMA = {
     },
 }
 
+# Single-reviewer JUDGE schema: judge ONLY (no ``revised_card``). The single tier
+# splits judging from revising — the reviewer decides OK/REVISE + issues, and a
+# REVISE triggers a separate dedicated revise call (``REVISE_TOOL_SCHEMA``). This
+# avoids the failure mode where a local model voted REVISE but omitted the revised
+# card, leaving the loop to churn on a non-existent revision. (The council tier
+# keeps ``REVIEW_TOOL_SCHEMA`` — its reviewers' proposed revisions feed the synth.)
+JUDGE_TOOL_SCHEMA = {
+    "name": "submit_review",
+    "description": "Submit a structured review verdict for an MTG card.",
+    "input_schema": {
+        "type": "object",
+        "required": ["analysis", "verdict", "issues"],
+        "properties": {
+            "analysis": {
+                "type": "string",
+                "description": (
+                    "Your detailed analysis of the card covering templating, "
+                    "mechanics, balance, design, and color pie."
+                ),
+            },
+            "verdict": {
+                "type": "string",
+                "enum": ["OK", "REVISE"],
+                "description": (
+                    "OK = card is good as-is, no changes needed. "
+                    "REVISE = card has issues that should be fixed."
+                ),
+            },
+            "issues": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "severity": {
+                            "type": "string",
+                            "enum": ["FAIL", "WARN"],
+                        },
+                        "category": {
+                            "type": "string",
+                            "description": (
+                                "Issue category: keyword_negated, "
+                                "redundant_conditional, above_rate_balance, kitchen_sink, "
+                                "false_variability, keyword_collision, enters_tapped_irrelevant, "
+                                "templating, color_pie, design, balance, other"
+                            ),
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "One-sentence description of the issue.",
+                        },
+                    },
+                    "required": ["severity", "category", "description"],
+                },
+                "description": "List of issues found. Empty array if OK.",
+            },
+        },
+    },
+}
+
+# Single-reviewer REVISE schema: produce the fixed card ONLY (paired with
+# ``JUDGE_TOOL_SCHEMA`` above and used by the manual ``revise_card_in_place``).
+REVISE_TOOL_SCHEMA = {
+    "name": "submit_revision",
+    "description": "Return a complete revised MTG card that fixes the noted issues.",
+    "input_schema": {
+        "type": "object",
+        "required": ["revised_card"],
+        "properties": {
+            "notes": {
+                "type": "string",
+                "description": "Brief note on what you changed and why.",
+            },
+            "revised_card": {
+                "type": "object",
+                "description": (
+                    "The complete revised card with ALL fields (name, mana_cost, "
+                    "type_line, oracle_text, flavor_text, power, toughness, loyalty, "
+                    "rarity, colors, color_identity, cmc, design_notes)."
+                ),
+                "properties": {
+                    "name": {"type": "string"},
+                    "mana_cost": {"type": "string"},
+                    "type_line": {"type": "string"},
+                    "oracle_text": {"type": "string"},
+                    "flavor_text": {"type": ["string", "null"]},
+                    "power": {"type": ["string", "null"]},
+                    "toughness": {"type": ["string", "null"]},
+                    "loyalty": {"type": ["string", "null"]},
+                    "rarity": {"type": "string"},
+                    "colors": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "color_identity": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "cmc": {"type": "number"},
+                    "design_notes": {"type": "string"},
+                },
+            },
+        },
+    },
+}
+
 COUNCIL_SYNTHESIS_TOOL_SCHEMA = {
     "name": "submit_synthesis",
     "description": "Synthesize council reviews into a final verdict.",
@@ -434,6 +539,17 @@ Do NOT flag:
 - A card being above-rate when a custom mechanic embeds an inherent drawback that \
 compensates -- the drawback IS the cost
 - Vanilla/french vanilla creatures being simple -- that's intentional at common
+
+Power/Toughness hints. The card data may carry an auto-generated power/toughness \
+hint, derived purely from statistics of printed vanilla creatures at the same mana \
+value. Treat it as a loose sanity check, never a rule. Fair stats legitimately swing \
+with factors the hint cannot see: color intensity (a {G}{G}{G}{G}{G} cost supports far \
+bigger stats than {4}{G} at the same mana value), downsides or drawbacks on the card, \
+and pushed rares/mythics that are deliberately above the vanilla curve. A vanilla \
+creature's large body IS its compensation for having no abilities -- a big "dumb" \
+beater (e.g. a 7/7 for 7) is fair, not overstatted. Only act on a P/T hint if, after \
+weighing these, you independently agree the stats are genuinely off. Never set REVISE \
+on a card solely because the hint fired.
 
 When you REVISE a card, write its ``oracle_text`` WITHOUT any parenthetical \
 reminder text. Reminder text (the italicized "(To energize, ...)" explanations in \
@@ -555,33 +671,28 @@ def _build_review_prompt(
     )
 
 
-def _build_iteration_prompt(previous_verdict: dict) -> str:
-    """Build the follow-up prompt for an iteration after a REVISE verdict."""
-    issues_text = ""
-    # ``issues`` comes straight from the raw LLM verdict, so each item may be a
-    # malformed dict (or not a dict at all). Read defensively — a bad item must not
-    # crash the iteration-prompt builder with ``KeyError``/``string indices``.
-    raw_issues = previous_verdict.get("issues", []) if isinstance(previous_verdict, dict) else []
-    if isinstance(raw_issues, list):
-        for issue in raw_issues:
-            if not isinstance(issue, dict):
-                continue
-            sev = issue.get("severity", "?")
-            cat = issue.get("category", "?")
-            desc = issue.get("description", "?")
-            issues_text += f"- [{sev}] {cat}: {desc}\n"
+def _build_single_revise_prompt(
+    card: dict,
+    issues: list[ReviewIssue],
+    mechanics: list[dict],
+    pointed_questions: list[dict],
+) -> str:
+    """Build the dedicated revise prompt for the single tier (judge → revise).
 
-    revised = previous_verdict.get("revised_card") if isinstance(previous_verdict, dict) else None
-    card_text = _format_card_for_review(revised) if revised else "(no revised card provided)"
-
+    Given the current card plus the issues the judge raised, ask for the complete
+    fixed card via ``REVISE_TOOL_SCHEMA``. Mirrors the council synthesizer's
+    revise-in-place: the model only revises here — judging is a separate call.
+    """
+    base_prompt = _build_review_prompt(card, mechanics, pointed_questions)
+    issues_text = "".join(f"- [{i.severity}] {i.category}: {i.description}\n" for i in issues)
     return (
-        f"You revised the card. Here is your revision:\n\n{card_text}\n\n"
-        f"Issues you identified:\n{issues_text}\n"
-        f"Now review YOUR REVISION with the same rigor. Does the revised card "
-        f"fix all the issues without introducing new ones? Check templating, "
-        f"balance, design, color pie, and the pointed questions again.\n\n"
-        f"If the revised card is now good, verdict is OK. If it still needs "
-        f"changes, verdict is REVISE with a new revision."
+        f"{base_prompt}\n\n---\n\n"
+        f"## Fix Required\n\n"
+        f"A reviewer rated this card REVISE for the following issues:\n\n"
+        f"{issues_text or '(no specific issues listed)'}\n"
+        f"Produce the COMPLETE revised card that fixes these issues without "
+        f"introducing new ones, keeping everything else intact and templating clean. "
+        f"Return all fields."
     )
 
 
@@ -703,17 +814,29 @@ def _review_single(
     on_council: Callable[[dict], None] | None = None,
     review_thinking: str | None = None,
 ) -> CardReviewResult:
-    """Single Opus reviewer + iteration loop for C/U cards.
+    """Judge → revise → re-judge loop for C/U cards (judge split from revise).
+
+    Each round the reviewer JUDGES the current card (``JUDGE_TOOL_SCHEMA`` — verdict
+    + issues, no revised card). On REVISE a SEPARATE dedicated call produces the fixed
+    card (``REVISE_TOOL_SCHEMA``); the next round judges that revision. This avoids the
+    old failure where one call had to both judge and revise: a local model that voted
+    REVISE but returned no ``revised_card`` made the loop churn on a phantom revision
+    for the whole budget. Now a revise that yields no card stops the loop and leaves
+    the card REVISE → flagged for a from-scratch regen (mirrors the council's "synth
+    produced no revision" guard).
 
     ``review_model`` / ``review_effort`` are resolved once by the caller
     (``review_set``) before the per-card loop starts so a mid-run settings
     change can't swap the model between cards.
 
-    ``on_council`` (optional) reports live progress for the wizard tab: each
-    iteration is a one-reviewer "round" with a single verdict slot, so a card
-    being reviewed shows the same 👍/👎 timeline the council tier does. It is
-    best-effort — a hook raising never breaks the review.
+    ``on_council`` (optional) reports live progress for the wizard tab: each round is
+    a one-reviewer panel with a single verdict slot (plus a ``synth`` slot while the
+    revise call runs), so the tab shows the same 👍/👎 timeline the council tier does.
+    Best-effort — a hook raising never breaks the review. Cancellation
+    (``ai_lock.is_cancelled``) is polled at each round/call boundary.
     """
+    from mtgai.runtime import ai_lock
+
     collector_number = card.get("collector_number", card.get("slot_id", "???"))
     card_name = card.get("name", "???")
     rarity = card.get("rarity", "???")
@@ -725,34 +848,16 @@ def _review_single(
     total_out = 0
     total_cost = 0.0
     total_latency = 0.0
+    effective_model = review_model
+    current_card = card
+    revised_card: dict | None = None
+    card_was_changed = False
+    final_verdict: str | None = None
+    final_issues: list[ReviewIssue] = []
 
-    # First iteration
-    user_prompt = _build_review_prompt(card, mechanics, pointed_questions)
-
-    for iteration in range(1, max_iterations + 1):
-        logger.info("    Iteration %d/%d...", iteration, max_iterations)
-
-        # Live council: a single-reviewer iteration is one "round" with one
-        # verdict slot. Announce the reviewer reading (no verdict yet) so the
-        # tab's spinner shows, then fill the slot once the verdict lands.
-        _safe_council(on_council, {"kind": "round", "round": iteration, "verdicts": []})
-
-        t0 = time.time()
-        result = _review_call(
-            user_prompt=user_prompt,
-            tool_schema=REVIEW_TOOL_SCHEMA,
-            review_model=review_model,
-            review_effort=review_effort,
-            review_thinking=review_thinking,
-            label=f"Iteration {iteration}",
-        )
-        if result is None:
-            logger.error("    API call failed on iteration %d (retries exhausted)", iteration)
-            _safe_council(on_council, {"kind": "round", "round": iteration, "verdicts": ["error"]})
-            break
-
-        latency = time.time() - t0
-        effective_model = result.get("model", review_model)
+    def _fold(result: dict, latency: float) -> float:
+        nonlocal total_in, total_out, total_cost, total_latency, effective_model
+        effective_model = result.get("model", effective_model)
         cost = cost_from_result(result)
         total_in += (
             result["input_tokens"]
@@ -762,82 +867,145 @@ def _review_single(
         total_out += result["output_tokens"]
         total_cost += cost
         total_latency += latency
+        return cost
 
+    for round_no in range(1, max_iterations + 1):
+        if ai_lock.is_cancelled():
+            break
+        logger.info("    Round %d/%d: judge...", round_no, max_iterations)
+        _safe_council(on_council, {"kind": "round", "round": round_no, "verdicts": []})
+
+        judge_prompt = _build_review_prompt(current_card, mechanics, pointed_questions)
+        t0 = time.time()
+        result = _review_call(
+            user_prompt=judge_prompt,
+            tool_schema=JUDGE_TOOL_SCHEMA,
+            review_model=review_model,
+            review_effort=review_effort,
+            review_thinking=review_thinking,
+            label=f"Judge {round_no}",
+            should_cancel=ai_lock.is_cancelled,
+        )
+        if result is None:
+            logger.error("    Judge call failed on round %d (retries exhausted)", round_no)
+            _safe_council(on_council, {"kind": "round", "round": round_no, "verdicts": ["error"]})
+            break
+        elapsed = time.time() - t0
+        cost = _fold(result, elapsed)
         verdict_data = _coerce_verdict_data(result["result"])
         verdict = verdict_data.get("verdict", "OK")
         issues = _coerce_issues(verdict_data.get("issues"))
-
         _safe_council(
             on_council,
-            {"kind": "round", "round": iteration, "verdicts": [_verdict_glyph(verdict)]},
+            {"kind": "round", "round": round_no, "verdicts": [_verdict_glyph(verdict)]},
         )
-
         logger.info(
-            "    Verdict: %s (%d issues), $%.4f, %.1fs",
-            verdict,
-            len(issues),
-            cost,
-            latency,
+            "    Round %d verdict: %s (%d issues), $%.4f", round_no, verdict, len(issues), cost
         )
-
-        iterations.append(
-            ReviewIteration(
-                iteration=iteration,
-                prompt=user_prompt,
-                response=verdict_data,
-                verdict=verdict,
-                issues=issues,
-                model=effective_model,
-                input_tokens=result["input_tokens"],
-                output_tokens=result["output_tokens"],
-                cost_usd=cost,
-                latency_s=latency,
-            )
+        iteration = ReviewIteration(
+            iteration=round_no,
+            prompt=judge_prompt,
+            response=verdict_data,
+            verdict=verdict,
+            issues=issues,
+            model=effective_model,
+            input_tokens=result["input_tokens"],
+            output_tokens=result["output_tokens"],
+            cost_usd=cost,
+            latency_s=elapsed,
         )
+        iterations.append(iteration)
 
         if verdict == "OK":
+            final_verdict = "OK"
+            final_issues = []
             break
 
-        # Card was revised — iterate on the revision
-        if iteration < max_iterations:
-            user_prompt = _build_iteration_prompt(verdict_data)
-        # else: loop ends, we keep the last REVISE verdict
+        # REVISE. After the final round there's no budget left to fix it; flag it.
+        if round_no == max_iterations:
+            final_verdict = "REVISE"
+            final_issues = issues
+            break
+        if ai_lock.is_cancelled():
+            final_verdict = "REVISE"
+            final_issues = issues
+            break
 
-    # Final result. If every LLM call failed (``iterations`` empty), the card was
-    # never actually reviewed — surface a REVISE/error verdict so the runner flags
-    # it for human attention rather than silently passing it as OK (the bug this
-    # guards against). The exception itself was already logged via
-    # ``logger.exception`` above; log the empty-iterations outcome explicitly so
-    # the silent-pass cause is observable in the review log.
+        # Dedicated revise call (judging is done — this only produces the fixed card).
+        _safe_council(
+            on_council,
+            {
+                "kind": "round",
+                "round": round_no,
+                "verdicts": [_verdict_glyph(verdict)],
+                "synth": "running",
+            },
+        )
+        rt0 = time.time()
+        rresult = _review_call(
+            user_prompt=_build_single_revise_prompt(
+                current_card, issues, mechanics, pointed_questions
+            ),
+            tool_schema=REVISE_TOOL_SCHEMA,
+            review_model=review_model,
+            review_effort=review_effort,
+            review_thinking=review_thinking,
+            label=f"Revise {round_no}",
+            should_cancel=ai_lock.is_cancelled,
+        )
+        _safe_council(
+            on_council,
+            {
+                "kind": "round",
+                "round": round_no,
+                "verdicts": [_verdict_glyph(verdict)],
+                "synth": "done",
+            },
+        )
+        if rresult is None:
+            logger.error("    Revise call failed on round %d — flagging for regen", round_no)
+            final_verdict = "REVISE"
+            final_issues = issues
+            break
+        _fold(rresult, time.time() - rt0)
+        revised = _coerce_verdict_data(rresult["result"]).get("revised_card")
+        if not isinstance(revised, dict):
+            logger.info("    Round %d revise produced no card — flagging for regen", round_no)
+            final_verdict = "REVISE"
+            final_issues = issues
+            break
+        # Record the revision on this round's iteration log (so the markdown shows it)
+        # and judge it next round.
+        iteration.response["revised_card"] = revised
+        current_card = revised
+        revised_card = revised
+        card_was_changed = True
+
+    # Every judge call failed → the card was never reviewed; flag REVISE/error so the
+    # runner doesn't silently pass it as OK (mirrors the council empty-panel guard).
     if not iterations:
         logger.error(
-            "  [%s] Review produced no iterations (all LLM calls failed) — "
+            "  [%s] Review produced no iterations (all judge calls failed) — "
             "flagging REVISE instead of defaulting OK",
             collector_number,
         )
         return _error_review_result(
-            card, "single", review_model, collector_number, card_name, rarity
+            card,
+            "single",
+            review_model,
+            collector_number,
+            card_name,
+            rarity,
+            total_input_tokens=total_in,
+            total_output_tokens=total_out,
+            total_cost_usd=total_cost,
+            total_latency_s=total_latency,
         )
 
-    last = iterations[-1]
-    final_verdict = last.verdict
-    final_issues = last.issues
-    revised_card = last.response.get("revised_card") if final_verdict == "OK" else None
-
-    # If the last iteration was REVISE, we accept the revision
-    if final_verdict == "REVISE":
-        revised_card = last.response.get("revised_card")
-
-    # Check if any iteration produced a revision (even if final is OK,
-    # the OK might be approving a previously revised card)
-    card_was_changed = False
-    for it in iterations:
-        if it.response.get("revised_card") is not None:
-            card_was_changed = True
-            # Track the latest revision
-            revised_card = it.response.get("revised_card")
-
-    effective_model = iterations[0].model
+    # Cancelled mid-loop before a verdict was decided: keep partial, don't claim OK.
+    if final_verdict is None:
+        final_verdict = "REVISE"
+        final_issues = iterations[-1].issues
 
     return CardReviewResult(
         collector_number=collector_number,
@@ -1722,28 +1890,28 @@ def revise_card_in_place(
 ) -> dict | None:
     """Run a single user-directed revision of ``card`` (mirrors council revise-in-place).
 
-    Builds a review prompt from the current card plus the user's free-text
-    ``instructions``, runs ONE ``generate_with_tool`` call with the review tool
-    schema, and returns the revised-card dict the LLM produced (or ``None`` if it
-    declined to change anything / the call failed). The caller applies it via
-    :func:`_apply_revision` and saves. This is the manual-review analogue of the
-    council's in-place revision — one targeted call, no iteration loop.
+    Builds a revise prompt from the current card plus the user's free-text
+    ``instructions``, runs ONE ``generate_with_tool`` call with the revise tool
+    schema (``REVISE_TOOL_SCHEMA``), and returns the revised-card dict the LLM
+    produced (or ``None`` if it returned none / the call failed). The caller applies
+    it via :func:`_apply_revision` and saves. This is the manual-review analogue of
+    the council's in-place revision — one targeted call, no iteration loop.
     """
     base_prompt = _build_review_prompt(card, mechanics, pointed_questions)
     user_prompt = (
         f"{base_prompt}\n\n---\n\n"
         f"## Reviewer's Requested Change\n\n"
         f"A human reviewer asked for this specific change:\n\n{instructions.strip()}\n\n"
-        f"Apply it. Set verdict to REVISE and return the COMPLETE revised card with "
-        f"ALL fields, keeping everything else intact and templating clean. Only set "
-        f"verdict OK (with no revised_card) if the request is already satisfied or "
-        f"cannot be applied without breaking the card."
+        f"Apply it and return the COMPLETE revised card with ALL fields, keeping "
+        f"everything else intact and templating clean. If the request is already "
+        f"satisfied or cannot be applied without breaking the card, return the card "
+        f"unchanged."
     )
     try:
         result = generate_with_tool(
             system_prompt=REVIEW_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            tool_schema=REVIEW_TOOL_SCHEMA,
+            tool_schema=REVISE_TOOL_SCHEMA,
             model=review_model,
             temperature=TEMPERATURE,
             max_tokens=HEAVY,
