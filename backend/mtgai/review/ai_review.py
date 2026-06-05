@@ -1922,9 +1922,17 @@ def revise_card_in_place(
     except Exception:
         logger.exception("Manual revise-in-place call failed")
         return None
-    verdict_data = result.get("result", {})
+    verdict_data = _coerce_verdict_data(result.get("result"))
     revised = verdict_data.get("revised_card")
-    return revised if isinstance(revised, dict) else None
+    if not isinstance(revised, dict):
+        return None
+    # The revise schema requires a card, so the model echoes it unchanged when the
+    # request is already satisfied or can't be applied. Treat a no-op revision as
+    # "nothing changed" (None) so the endpoint surfaces that instead of recording a
+    # vacuous approval (the old REVIEW_TOOL_SCHEMA signalled this with verdict=OK).
+    if not summarize_revision(card, revised):
+        return None
+    return revised
 
 
 # ---------------------------------------------------------------------------

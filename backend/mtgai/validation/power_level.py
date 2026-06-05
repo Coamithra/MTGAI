@@ -246,32 +246,25 @@ def _fair_band(cmc: int) -> tuple[frozenset[tuple[int, int]], int, int] | None:
 def classify_pt(cmc: int, power: int, toughness: int, rarity: Rarity) -> str:
     """Classify a VANILLA creature's body as ``"over"`` / ``"under"`` / ``"fair"``.
 
-    Checks the card against the printed-vanilla frontier (:data:`FAIR_VANILLA_PT`):
-    a body is OVER when it exceeds every fair pair on both axes *and* its total
-    beats the rarity-adjusted ceiling; UNDER when it is below every fair pair on
-    both axes *and* under the floor. Mythic is never OVER. This is a hint only —
-    color intensity, downsides and pushed rarity (which it can't see) move real
-    fairness, so callers must frame it as guidance, not a rule.
+    The fair stat *budget* for a mana value is the total-``P+T`` range printed on
+    real vanilla cards (:data:`FAIR_VANILLA_PT` — its ``floor``..``common_ceil``).
+    A body is OVER when its total beats the rarity-adjusted ceiling
+    (``common_ceil + RARITY_CEIL_BONUS``; mythic is uncapped, never OVER) and UNDER
+    when its total is below the floor. Distribution within the budget is deliberately
+    NOT policed — a 6/2 and a 4/4 cost the same budget, so a lopsided split is a
+    design choice, not a power problem. This is a hint only — color intensity,
+    downsides and pushed rarity (which it can't see) move real fairness, so callers
+    must frame it as guidance, not a rule.
     """
     band = _fair_band(cmc)
     if band is None:
         return "fair"
-    pairs, floor_total, common_ceil = band
+    _pairs, floor_total, common_ceil = band
     total = power + toughness
     bonus = RARITY_CEIL_BONUS.get(rarity, 0)
-
-    if not pairs:  # extrapolated band beyond the sample — total-only
-        if bonus is not None and total > common_ceil + bonus:
-            return "over"
-        if total < floor_total:
-            return "under"
-        return "fair"
-
-    covered_above = any(sp >= power and st >= toughness for sp, st in pairs)
-    covered_below = any(sp <= power and st <= toughness for sp, st in pairs)
-    if bonus is not None and not covered_above and total > common_ceil + bonus:
+    if bonus is not None and total > common_ceil + bonus:
         return "over"
-    if not covered_below and total < floor_total:
+    if total < floor_total:
         return "under"
     return "fair"
 
