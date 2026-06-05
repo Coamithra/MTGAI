@@ -974,12 +974,16 @@ def _review_single(
             final_verdict = "REVISE"
             final_issues = issues
             break
-        # Record the revision on this round's iteration log (so the markdown shows it)
-        # and judge it next round.
+        # Record the revision on this round's iteration log (so the markdown shows the
+        # raw model output) and judge it next round. Accumulate the revision onto the
+        # current card rather than feeding the raw partial dict forward: a model that
+        # omits a field (e.g. mana_cost) must not blank it for the next round's judge.
         iteration.response["revised_card"] = revised
-        current_card = revised
-        revised_card = revised
+        current_card = _merge_revision_into_dict(current_card, revised)
+        revised_card = current_card
         card_was_changed = True
+        # Live: push the in-progress revised body so the tab's tile updates mid-loop.
+        _safe_council(on_council, {"kind": "card", "card": _live_tile_fields(current_card)})
 
     # Every judge call failed → the card was never reviewed; flag REVISE/error so the
     # runner doesn't silently pass it as OK (mirrors the council empty-panel guard).
@@ -1433,8 +1437,12 @@ def _review_council(
             final_verdict = "REVISE"
             final_issues = _dedup_issues(reviews)
             break
-        current_card = revised
+        # Accumulate onto the current card (not the raw partial synth dict) so an
+        # omitted field can't blank the card for the next fresh council, and the final
+        # save keeps every round's edit. Push the in-progress body to the tab's tile.
+        current_card = _merge_revision_into_dict(current_card, revised)
         card_was_changed = True
+        _safe_council(on_council, {"kind": "card", "card": _live_tile_fields(current_card)})
 
     # Cancelled before a verdict was decided: don't claim OK. Keep whatever was
     # reviewed (the runner skips flagging on a cancelled run anyway). A cancel before
@@ -1504,43 +1512,75 @@ def _select_tier(card: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _apply_revision(original_card: Card, revised_data: dict) -> Card:
-    """Apply a revision from the AI review to the original Card model.
+# Whitelisted design fields a review revision may change (game data, not pipeline
+# metadata). Single source for both the Card-level apply (final save) and the
+# dict-level in-loop merge below.
+_REVISION_ALLOWED_FIELDS: tuple[str, ...] = (
+    "name",
+    "mana_cost",
+    "type_line",
+    "oracle_text",
+    "flavor_text",
+    "power",
+    "toughness",
+    "loyalty",
+    "rarity",
+    "colors",
+    "color_identity",
+    "cmc",
+    "design_notes",
+)
 
-    Only updates fields that the AI review is allowed to change (game data,
-    not pipeline metadata).
 
-    Reminder text is **never** LLM-authored (CLAUDE.md: it's stripped + injected
-    programmatically by ``reminder_injector`` at ``finalize``). A reviewer/synth that
-    "helpfully" bakes parenthesized reminder text into ``oracle_text`` would write
-    un-canonical reminder text into the card *before* finalize, which finalize then
-    has to re-strip (and could conflict with). So we strip any parenthetical reminder
-    text from a revised ``oracle_text`` here, keeping cards in their pre-reminder
-    canonical form through review — the same ``strip_reminder_text`` finalize uses.
+def _revision_field_updates(revised_data: dict) -> dict:
+    """The whitelisted ``{field: value}`` updates an AI revision carries.
+
+    Only fields present in ``revised_data`` are returned (a missing field means
+    "not changed"). Reminder text is stripped from a revised ``oracle_text`` —
+    reminder text is **never** LLM-authored (CLAUDE.md: it's stripped + injected
+    programmatically by ``reminder_injector`` at ``finalize``); baking parenthetical
+    reminder text into ``oracle_text`` before finalize would write un-canonical text
+    finalize then has to re-strip. Shared by :func:`_apply_revision` (Card copy) and
+    :func:`_merge_revision_into_dict` (in-loop dict merge) so the two never drift.
     """
     from mtgai.generation.reminder_injector import strip_reminder_text
 
     update: dict = {}
-    for field in (
-        "name",
-        "mana_cost",
-        "type_line",
-        "oracle_text",
-        "flavor_text",
-        "power",
-        "toughness",
-        "loyalty",
-        "rarity",
-        "colors",
-        "color_identity",
-        "cmc",
-        "design_notes",
-    ):
+    for field in _REVISION_ALLOWED_FIELDS:
         if field in revised_data:
             value = revised_data[field]
             if field == "oracle_text" and isinstance(value, str):
                 value = strip_reminder_text(value)
             update[field] = value
+    return update
+
+
+def _merge_revision_into_dict(current: dict, revised: dict) -> dict:
+    """Accumulate an AI revision onto the current card dict for in-loop re-judging.
+
+    The dict-level analogue of :func:`_apply_revision`: whitelisted design fields
+    are taken from ``revised`` and **every field the model omitted keeps its current
+    value**. A local model routinely returns a *partial* ``revised_card`` (e.g.
+    dropping ``mana_cost`` while only changing ``cmc``); feeding that raw dict forward
+    as the next round's card blanks the omitted fields and provokes phantom regressions
+    (a dropped mana cost reads as a colorless, 0-CMC card and draws a bogus color-pie
+    REVISE). Merging keeps the card whole and makes the result the running accumulation
+    of every round's edits, so the final save can't lose an earlier round's change to a
+    later partial revision.
+    """
+    merged = dict(current)
+    merged.update(_revision_field_updates(revised))
+    return merged
+
+
+def _apply_revision(original_card: Card, revised_data: dict) -> Card:
+    """Apply a revision from the AI review to the original Card model.
+
+    Only updates fields that the AI review is allowed to change (game data,
+    not pipeline metadata); see :func:`_revision_field_updates` for the whitelist
+    and the reminder-text stripping rationale.
+    """
+    update = _revision_field_updates(revised_data)
     update["updated_at"] = datetime.now(UTC)
     return original_card.model_copy(update=update)
 
@@ -1564,6 +1604,15 @@ _TILE_CARD_FIELDS = (
     "colors",
     "collector_number",
 )
+
+
+def _live_tile_fields(card: dict) -> dict:
+    """Display-only card fields for an in-loop tile update (mirrors ``review_tile``'s
+    body). Streamed mid-loop via the council ``{"kind": "card"}`` event so the tab's
+    tile shows each round's revision while the card is still "Reviewing…"; the final,
+    verdict-stamped tile still lands on ``card_done``.
+    """
+    return {f: card.get(f) for f in _TILE_CARD_FIELDS}
 
 
 # Design fields a review may change (mirrors ``_apply_revision``), each with a
