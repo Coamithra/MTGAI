@@ -575,6 +575,126 @@ def test_cascade_clear_keeps_full_prefix_when_start_is_zero():
 
 
 # ---------------------------------------------------------------------------
+# _apply_downstream_clear + /api/wizard/edit/unlock — keep edited stage,
+# discard downstream (the "Edit" model)
+# ---------------------------------------------------------------------------
+
+
+def test_downstream_clear_keeps_edited_stage_and_drops_regen_instances():
+    _make_set("TST")
+    state = _loop_state("TST")
+    # Unlock the backbone card_gen (index 1): keep lands + card_gen, discard
+    # everything after, drop the regen-inserted .2 duplicates.
+    pipeline_server._apply_downstream_clear(state, 1)
+
+    ids = [s.instance_id for s in state.stages]
+    assert ids == ["lands", "card_gen", "conformance", "ai_review"]
+    by_id = {s.instance_id: s for s in state.stages}
+    # The edited stage keeps its output and becomes the paused, editable tip.
+    assert by_id["lands"].status == StageStatus.COMPLETED  # untouched prefix
+    assert by_id["card_gen"].status == StageStatus.PAUSED_FOR_REVIEW
+    # Downstream reset to PENDING.
+    assert by_id["conformance"].status == StageStatus.PENDING
+    assert by_id["ai_review"].status == StageStatus.PENDING
+    assert state.current_instance_id == "card_gen"
+    assert state.overall_status == PipelineStatus.PAUSED
+
+
+def test_unlock_endpoint_keeps_stage_clears_downstream(client):
+    set_dir = _make_set("TST", theme={"code": "TST"})
+    (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
+    (set_dir / "reprint_selection.json").write_text("{}", encoding="utf-8")
+
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
+    # mechanics[0], archetypes[1], skeleton[2], reprints[3], lands[4]...
+    for i in range(5):
+        state.stages[i].status = StageStatus.COMPLETED
+    state.current_instance_id = state.stages[4].instance_id
+    save_state(state)
+
+    resp = client.post("/api/wizard/edit/unlock", json={"from_stage": "skeleton"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert data["navigate_to"] == "/pipeline/skeleton"
+
+    # The edited stage keeps its artifact; downstream is cleared.
+    assert (set_dir / "skeleton.json").exists()
+    assert not (set_dir / "reprint_selection.json").exists()
+
+    reloaded = load_state()
+    by_id = {s.stage_id: s for s in reloaded.stages}
+    assert by_id["mechanics"].status == StageStatus.COMPLETED  # upstream untouched
+    assert by_id["archetypes"].status == StageStatus.COMPLETED
+    assert by_id["skeleton"].status == StageStatus.PAUSED_FOR_REVIEW  # kept + active
+    for sid in ("reprints", "lands"):
+        assert by_id[sid].status == StageStatus.PENDING
+    assert reloaded.overall_status == PipelineStatus.PAUSED
+    assert reloaded.current_instance_id == by_id["skeleton"].instance_id
+
+
+def test_unlock_409_when_engine_running(client, monkeypatch):
+    set_dir = _make_set("TST", theme={"code": "TST"})
+    (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
+    seeded = _seed_state("TST", overall_status=PipelineStatus.RUNNING)
+    seeded.stages[2].status = StageStatus.COMPLETED
+    save_state(seeded)
+    seeded_dump = load_state().model_dump(mode="json")
+
+    class _BusyEngine:
+        is_running = True
+
+        def __init__(self) -> None:
+            self.state = create_pipeline_state(
+                PipelineConfig(set_code="TST", set_name="TST", set_size=20),
+            )
+
+    monkeypatch.setattr(pipeline_server, "_engine", _BusyEngine())
+
+    resp = client.post("/api/wizard/edit/unlock", json={"from_stage": "skeleton"})
+    assert resp.status_code == 409
+    assert "running" in resp.json()["error"].lower()
+    # No mutation on a 409.
+    assert (set_dir / "skeleton.json").exists()
+    assert load_state().model_dump(mode="json") == seeded_dump
+
+
+def test_unlock_400_for_project_or_theme(client):
+    _make_set("TST", theme={"code": "TST"})
+    _seed_state("TST", overall_status=PipelineStatus.PAUSED)
+    for bad in ("project", "theme"):
+        resp = client.post("/api/wizard/edit/unlock", json={"from_stage": bad})
+        assert resp.status_code == 400
+
+
+def test_unlock_400_for_unknown_stage(client):
+    _make_set("TST", theme={"code": "TST"})
+    _seed_state("TST", overall_status=PipelineStatus.PAUSED)
+    resp = client.post("/api/wizard/edit/unlock", json={"from_stage": "garbage"})
+    assert resp.status_code == 400
+
+
+def test_preview_after_only_lists_downstream_only(client):
+    _make_set("TST", theme={"code": "TST"})
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
+    # skeleton[2], reprints[3], lands[4] all completed.
+    for i in (2, 3, 4):
+        state.stages[i].status = StageStatus.COMPLETED
+        state.stages[i].progress.completed_items = 5
+    save_state(state)
+
+    resp = client.post(
+        "/api/wizard/edit/preview",
+        json={"from_stage": "skeleton", "after_only": True},
+    )
+    assert resp.status_code == 200
+    cleared_ids = [c["stage_id"] for c in resp.json()["cleared"]]
+    # skeleton itself is kept (after_only) — only downstream is listed.
+    assert "skeleton" not in cleared_ids
+    assert cleared_ids[:2] == ["reprints", "lands"]
+
+
+# ---------------------------------------------------------------------------
 # _resolve_stage_instance / status + heal prefer the active regen instance
 # ---------------------------------------------------------------------------
 

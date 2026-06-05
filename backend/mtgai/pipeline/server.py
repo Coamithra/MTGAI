@@ -1511,6 +1511,29 @@ async def wizard_project_save_theme_input(request: Request) -> JSONResponse:
     return JSONResponse({"success": True, "theme_input": new.theme_input.model_dump(mode="json")})
 
 
+def _stage_is_running(stage_id: str) -> bool:
+    """True when ``stage_id`` is the stage currently executing.
+
+    The phase-flow card's exception: a model change is allowed mid-run for any
+    stage *except* the one in flight. The running stage is the engine's RUNNING
+    stage (matched by ``stage_id``, so any instance of it counts), or the
+    virtual ``theme_extract`` while the theme extractor worker is going.
+    """
+    if stage_id == "theme_extract":
+        er = extraction_run.current()
+        if er is not None and er.status == "running":
+            return True
+    if _engine is None or not _engine.is_running:
+        return False
+    try:
+        state = load_state()
+    except NoAssetFolderError:
+        return False
+    if state is None:
+        return False
+    return any(s.stage_id == stage_id and s.status == StageStatus.RUNNING for s in state.stages)
+
+
 @router.post("/api/wizard/project/breaks")
 async def wizard_project_save_break(request: Request) -> JSONResponse:
     """Toggle one break point on or off (live-apply).
@@ -1613,6 +1636,23 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
         return JSONResponse({"error": "stage_id required"}, status_code=400)
     if not isinstance(value, str):
         return JSONResponse({"error": "value must be a string"}, status_code=400)
+
+    # A model change for a stage that is *currently running* would silently
+    # not apply to the in-flight call (and could confuse a mid-run resume), so
+    # block only that stage — other stages stay freely re-assignable mid-run
+    # (the phase-flow card's explicit "unless that stage is already running"
+    # exception). The running stage is the engine's RUNNING stage, or
+    # ``theme_extract`` while the theme extractor worker is going.
+    if _stage_is_running(stage_id):
+        return JSONResponse(
+            {
+                "error": (
+                    f"The {stage_id} stage is currently running — cancel it first, "
+                    "then change its model."
+                )
+            },
+            status_code=409,
+        )
 
     if kind == "llm":
         new_map = dict(settings.llm_assignments)
@@ -2357,6 +2397,7 @@ def _compute_cascade_preview(
     from_stage: str,
     *,
     clear_theme_json: bool,
+    after_only: bool = False,
 ) -> dict[str, Any]:
     """Enumerate what the §9 cascade-clear would remove.
 
@@ -2370,12 +2411,19 @@ def _compute_cascade_preview(
     paused, failed, or skipped artifacts all get reported. PENDING stages
     have nothing to clear so they're omitted from the list (the modal
     looks empty for those, which is the right "nothing to lose" signal).
+
+    ``after_only`` lists the stages *after* ``from_stage`` (downstream-only),
+    matching the ``/edit/unlock`` flow where the edited stage's output is kept
+    and only later tabs are discarded. The default (cascade) includes the edited
+    stage itself.
     """
     try:
         state = load_state()
     except NoAssetFolderError:
         state = None
     start_idx = _resolve_edit_point(from_stage, state)
+    if after_only:
+        start_idx += 1
     cleared: list[dict[str, Any]] = []
     if state is not None:
         for stage in state.stages[start_idx:]:
@@ -2418,9 +2466,14 @@ async def wizard_edit_preview(request: Request) -> JSONResponse:
     if not isinstance(from_stage, str) or not from_stage:
         return JSONResponse({"error": "from_stage required"}, status_code=400)
     clear_theme_json = bool(body.get("clear_theme_json"))
+    after_only = bool(body.get("after_only"))
 
     try:
-        return JSONResponse(_compute_cascade_preview(from_stage, clear_theme_json=clear_theme_json))
+        return JSONResponse(
+            _compute_cascade_preview(
+                from_stage, clear_theme_json=clear_theme_json, after_only=after_only
+            )
+        )
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
 
@@ -2497,6 +2550,133 @@ def _apply_cascade_clear(state: PipelineState, start_idx: int) -> None:
             state.overall_status = PipelineStatus.NOT_STARTED
     finally:
         save_state(state)
+
+
+def _apply_downstream_clear(state: PipelineState, idx: int) -> None:
+    """Clear stages *after* ``idx``, keeping ``stages[idx]``'s output as the tip.
+
+    The "Edit" path on a completed stage tab: the user wants to revise this
+    stage by hand (or reroll it) without losing the right to do so, so we keep
+    its generated output and unlock it as the active tab, while discarding
+    everything downstream (its artifacts, history snapshots, and regen-inserted
+    duplicate instances). The edited stage returns to ``PAUSED_FOR_REVIEW`` and
+    the pipeline to ``PAUSED`` so the tab's Save & Continue resumes the engine
+    into the cleared downstream — exactly the normal review-pause state.
+
+    Contrast ``_apply_cascade_clear``, which starts at ``idx`` (discards the
+    edited stage too and re-runs it from scratch). Persists in a ``finally`` so
+    a partially-applied clear is durable.
+    """
+    from mtgai.pipeline import history
+    from mtgai.pipeline.stages import clear_stage_artifacts
+
+    try:
+        downstream = list(state.stages[idx + 1 :])
+        for stage in downstream:
+            history.delete_snapshot(stage.instance_id)
+            try:
+                clear_stage_artifacts(stage.stage_id)
+            except (OSError, KeyError) as e:
+                logger.warning(
+                    "Downstream clear for %s raised %s; continuing",
+                    stage.stage_id,
+                    e,
+                )
+            stage.status = StageStatus.PENDING
+            stage.progress = stage.progress.model_copy(
+                update={
+                    "total_items": 0,
+                    "completed_items": 0,
+                    "failed_items": 0,
+                    "current_item": None,
+                    "detail": "",
+                    "cost_usd": 0.0,
+                    "started_at": None,
+                    "finished_at": None,
+                    "error_message": None,
+                }
+            )
+
+        # Drop regen-inserted duplicate instances downstream (keep each stage's
+        # backbone), mirroring _apply_cascade_clear's truncation so the engine's
+        # index-driven walk doesn't re-run stale duplicate rounds.
+        del state.stages[idx + 1 :]
+        state.stages.extend(s for s in downstream if s.instance_id == s.stage_id)
+
+        # The edited stage keeps its output and becomes the active tip awaiting
+        # the user's edits + Save & Continue.
+        edited = state.stages[idx]
+        edited.status = StageStatus.PAUSED_FOR_REVIEW
+        state.current_instance_id = edited.instance_id
+        state.overall_status = PipelineStatus.PAUSED
+    finally:
+        save_state(state)
+
+
+@router.post("/api/wizard/edit/unlock")
+async def wizard_edit_unlock(request: Request) -> JSONResponse:
+    """Unlock a completed stage tab for editing, discarding downstream tabs.
+
+    Body: ``{from_stage: <instance_id>}``. The simple "Edit" model (per the
+    phase-flow card): confirm → delete every tab after ``from_stage`` → keep
+    this stage's output → make it the active, editable, restartable tip
+    (``PAUSED_FOR_REVIEW``). The user then edits / rerolls in place and clicks
+    the tab's Next-step button to resume the engine into the cleared downstream.
+
+    Pre-pipeline surfaces (``project`` / ``theme``) have no "keep this stage"
+    notion — they reset stage 0 onward and route through ``/edit/accept``.
+    Refuses with 409 if the engine or theme extraction is running (same as
+    ``/edit/accept``).
+    """
+    _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    from_stage = body.get("from_stage")
+    if not isinstance(from_stage, str) or not from_stage:
+        return JSONResponse({"error": "from_stage required"}, status_code=400)
+    if from_stage in ("project", "theme"):
+        return JSONResponse(
+            {"error": "Use /edit/accept for project / theme edits"}, status_code=400
+        )
+
+    if _engine is not None and _engine.is_running:
+        return JSONResponse(
+            {
+                "error": (
+                    "A pipeline stage is currently running. Cancel it from the "
+                    "global progress strip, then retry the edit."
+                )
+            },
+            status_code=409,
+        )
+    er = extraction_run.current()
+    if er is not None and er.status == "running":
+        return JSONResponse(
+            {
+                "error": (
+                    "Theme extraction is currently running. Cancel it from the "
+                    "global progress strip, then retry the edit."
+                )
+            },
+            status_code=409,
+        )
+
+    state = load_state()
+    if state is None:
+        return JSONResponse({"error": "No pipeline state to edit"}, status_code=400)
+    try:
+        idx = _resolve_edit_point(from_stage, state)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+    _apply_downstream_clear(state, idx)
+    return JSONResponse(
+        {
+            "success": True,
+            "navigate_to": f"/pipeline/{from_stage}",
+        }
+    )
 
 
 @router.post("/api/wizard/edit/accept")

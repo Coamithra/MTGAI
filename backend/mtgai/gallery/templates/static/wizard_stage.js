@@ -45,8 +45,10 @@
       return;
     }
 
-    const editing = !!(W.editFlow && W.editFlow.getDraft(tab.id));
-    const custom = !editing ? customStageRenderers[stage.stage_id] : null;
+    // Stage tabs no longer enter a draft "editing" mode. The Edit button on a
+    // completed stage tab discards downstream and unlocks this stage in place
+    // (it becomes the latest, editable tip) — see bindEditButton.
+    const custom = customStageRenderers[stage.stage_id];
 
     if (custom) {
       // Custom renderer owns content + footer. We still update the
@@ -61,20 +63,14 @@
         content.innerHTML = '<div class="wiz-stage-error">Stage renderer failed — see console.</div>';
       }
     } else {
-      const banner = editing
-        ? '<div class="wiz-edit-banner">Editing — Accept will discard everything from this stage onward and re-run.</div>'
-        : '';
-      content.innerHTML = banner + stageBodyHtml(stage);
+      content.innerHTML = stageBodyHtml(stage);
 
       if (footer) {
-        const desiredFooter = editing
-          ? editFooterHtml()
-          : stageFooterHtml(stage, state);
+        const desiredFooter = stageFooterHtml(stage, state);
         if (footer.dataset.lastFooter !== desiredFooter) {
           footer.innerHTML = desiredFooter;
           footer.dataset.lastFooter = desiredFooter;
-          if (editing) bindStageEditActions(footer, tab, state);
-          else bindNextStepButton(footer, state);
+          bindNextStepButton(footer, state);
         }
       }
     }
@@ -89,7 +85,6 @@
       const fingerprint = JSON.stringify({
         bp: !!state.breakPoints[stage.stage_id],
         editVisible: shouldShowEditButton(stage),
-        editing,
       });
       if (headerActions.dataset.actionsFp !== fingerprint) {
         headerActions.innerHTML = breakPointToggleHtml(stage, state)
@@ -126,11 +121,14 @@
 
   function editButtonHtml(stage) {
     if (!shouldShowEditButton(stage)) return '';
-    const editing = !!W.editFlow.getDraft(stage.instance_id);
-    if (editing) return '';
     return `<button type="button" class="wiz-btn-secondary" data-role="stage-edit">Edit</button>`;
   }
 
+  // Edit a completed stage tab: confirm (warning that every later tab is
+  // discarded) → unlock this stage in place. On Yes the downstream tabs' data
+  // is deleted, this stage's output is kept, and it becomes the active,
+  // editable, restartable tip (a hard nav lands on it). No draft / revert —
+  // the user opted into the destructive-but-simple model.
   function bindEditButton(container, tab, state) {
     const btn = container.querySelector('button[data-role="stage-edit"]');
     if (!btn) return;
@@ -139,75 +137,28 @@
       try {
         const ok = await W.editFlow.confirmCascade({
           from_stage: tab.id,
-          title: `Edit ${tab.title}`,
+          after_only: true,
+          title: `Edit ${tab.title}?`,
           body:
-            `Editing ${tab.title} will discard all generated content from this stage onward `
-            + `(${tab.title} itself will re-run on Accept).`,
+            `This deletes every tab after ${tab.title} and all their generated `
+            + `content. ${tab.title} stays and becomes editable — you can revise it `
+            + `or re-run the AI, then continue to regenerate everything after it.`,
         });
         if (!ok) return;
-        // No editable form on stage tabs in v1 — store an empty draft so
-        // the pencil + banner show, then the Accept button cascades.
-        W.editFlow.setDraft(tab.id, { dirty: false, payload: {} });
-        // Re-render this tab's body to swap in the edit banner + actions.
-        const body = document.querySelector(
-          `.wiz-tab-body[data-tab-id="${cssEsc(tab.id)}"]`,
-        );
-        if (body) renderStageTab({ tab, root: body, state });
-      } finally {
+        const data = await W.editFlow.unlock({ from_stage: tab.id });
+        // Hard-nav so the wizard rebuilds the strip + state from the
+        // freshly-cleared pipeline-state.json (matches the edit-accept path).
+        window.location.assign(data.navigate_to || `/pipeline/${tab.id}`);
+      } catch (err) {
+        if (err && err.status === 409) {
+          W.toast(err.message, 'warn');
+        } else if (err) {
+          W.toast('Edit failed: ' + err.message, 'error');
+        }
         btn.disabled = false;
       }
     });
   }
-
-  function editFooterHtml() {
-    return `
-      <div class="wiz-edit-actions">
-        <button type="button" class="wiz-btn-secondary" data-role="stage-edit-cancel">Cancel</button>
-        <button type="button" class="wiz-btn-primary" data-role="stage-edit-accept">Accept</button>
-      </div>
-    `;
-  }
-
-  function bindStageEditActions(footer, tab, state) {
-    const cancel = footer.querySelector('button[data-role="stage-edit-cancel"]');
-    const accept = footer.querySelector('button[data-role="stage-edit-accept"]');
-    if (cancel) {
-      cancel.onclick = () => {
-        W.editFlow.clearDraft(tab.id);
-        const body = document.querySelector(
-          `.wiz-tab-body[data-tab-id="${cssEsc(tab.id)}"]`,
-        );
-        if (body) renderStageTab({ tab, root: body, state });
-      };
-    }
-    if (accept) {
-      accept.onclick = async () => {
-        accept.disabled = true;
-        const original = accept.textContent;
-        accept.textContent = 'Applying…';
-        try {
-          const data = await W.editFlow.accept({ from_stage: tab.id });
-          W.editFlow.clearDraft(tab.id);
-          if (data.warning) W.toast(data.warning, 'warn');
-          // Hard-reload so the wizard rebuilds the tab strip + state
-          // from the freshly-cleared pipeline-state.json. Soft repaint
-          // would work but reload keeps the bootstrap payload as the
-          // source of truth (matches the Theme→Skeleton handoff).
-          window.location.assign(data.navigate_to || '/pipeline');
-        } catch (err) {
-          accept.disabled = false;
-          accept.textContent = original;
-          if (err.status === 409) {
-            W.toast(err.message, 'warn');
-          } else {
-            W.toast('Accept failed: ' + err.message, 'error');
-          }
-        }
-      };
-    }
-  }
-
-  const cssEsc = W.cssEsc;
 
   // ------------------------------------------------------------------
   // Break-point toggle (per design §6.7 / §8.2)

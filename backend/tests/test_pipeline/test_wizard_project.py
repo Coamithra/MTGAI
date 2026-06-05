@@ -393,6 +393,77 @@ def test_save_model_effort_clears_on_empty_value(client):
     assert "card_gen" not in active_project.require_active_project().settings.effort_overrides
 
 
+def _seed_running_stage(code: str, stage_id: str) -> None:
+    """Seed pipeline-state.json with ``stage_id`` RUNNING for the active set."""
+    from mtgai.pipeline.engine import save_state
+    from mtgai.pipeline.models import PipelineConfig, StageStatus, create_pipeline_state
+
+    state = create_pipeline_state(PipelineConfig(set_code=code, set_name=code, set_size=20))
+    for s in state.stages:
+        if s.stage_id == stage_id:
+            s.status = StageStatus.RUNNING
+    save_state(state)
+
+
+def test_save_model_409_for_currently_running_stage(client, monkeypatch):
+    """A model change for the stage in flight is blocked (the card's
+    'unless that stage is already running' exception)."""
+    from mtgai.pipeline import server as pipeline_server
+
+    _open_project("TST")
+    _seed_running_stage("TST", "skeleton")
+
+    class _BusyEngine:
+        is_running = True
+
+        def __init__(self) -> None:
+            from mtgai.pipeline.models import PipelineConfig, create_pipeline_state
+
+            self.state = create_pipeline_state(
+                PipelineConfig(set_code="TST", set_name="TST", set_size=20),
+            )
+
+    monkeypatch.setattr(pipeline_server, "_engine", _BusyEngine())
+
+    resp = client.post(
+        "/api/wizard/project/models",
+        json={"set_code": "TST", "kind": "llm", "stage_id": "skeleton", "value": "haiku"},
+    )
+    assert resp.status_code == 409
+    assert "running" in resp.json()["error"].lower()
+    # The assignment was NOT applied.
+    assert (
+        active_project.require_active_project().settings.llm_assignments.get("skeleton") != "haiku"
+    )
+
+
+def test_save_model_ok_for_other_stage_while_one_runs(client, monkeypatch):
+    """Another stage's model stays freely re-assignable mid-run."""
+    from mtgai.pipeline import server as pipeline_server
+
+    _open_project("TST")
+    _seed_running_stage("TST", "skeleton")
+
+    class _BusyEngine:
+        is_running = True
+
+        def __init__(self) -> None:
+            from mtgai.pipeline.models import PipelineConfig, create_pipeline_state
+
+            self.state = create_pipeline_state(
+                PipelineConfig(set_code="TST", set_name="TST", set_size=20),
+            )
+
+    monkeypatch.setattr(pipeline_server, "_engine", _BusyEngine())
+
+    resp = client.post(
+        "/api/wizard/project/models",
+        json={"set_code": "TST", "kind": "llm", "stage_id": "card_gen", "value": "haiku"},
+    )
+    assert resp.status_code == 200
+    assert active_project.require_active_project().settings.llm_assignments["card_gen"] == "haiku"
+
+
 # ---------------------------------------------------------------------------
 # Presets
 # ---------------------------------------------------------------------------
