@@ -13,9 +13,9 @@
  *    tag, dimmed).
  *  - A live council panel while a card is under review — 👍/👎 thumbs per
  *    reviewer, round by round, mirroring the mechanics council.
- *  - A "✎ Tweaked by AI" mark on any card the review revised in place, with a
- *    collapsible per-field before→after of what changed (the ``changes`` tile
- *    field; a bare mark when no field-level diff is available).
+ *  - A "✎ Tweaked by AI" mark on any card the review revised in place, with
+ *    an always-visible per-field before→after of what changed (the ``changes``
+ *    tile field; a bare mark when no field-level diff is available).
  *  - A per-card submenu (⋯): Approve / Revise… (inline textbox → in-place LLM
  *    revision, executed immediately, re-opens for another round) / Regenerate
  *    (flags the slot back to Card Generation).
@@ -510,10 +510,8 @@
     return `
       <div class="wiz-ar-tweak">
         ${badge}
-        <details class="wiz-ar-details">
-          <summary>What changed (${changes.length})</summary>
-          <ul class="wiz-ar-changes">${rows}</ul>
-        </details>
+        <div class="wiz-ar-changes-label">What changed (${changes.length})</div>
+        <ul class="wiz-ar-changes">${rows}</ul>
       </div>`;
   }
 
