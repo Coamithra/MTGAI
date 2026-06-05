@@ -22,7 +22,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from llmfacade import SystemBlock
+from llmfacade import RepetitionGuard, SystemBlock
+from llmfacade.exceptions import RepetitionLoopError
 
 from mtgai.generation import temperatures as temps
 from mtgai.generation.phase_poller import NullPoller, PromptEvalPoller
@@ -55,10 +56,10 @@ _LLAMACPP_STOP_SEQUENCES = [
 ]
 
 # Hard cap on JSON subcall output (constraints / card_suggestions). Without
-# this, a model in a repetition loop can fill the entire context window
-# before the post-hoc detector runs. Mid-stream repetition detection
-# (`_detect_tandem_repeat`, run every 64 chars of new content) is the primary
-# runaway guard; this cap is just a backstop.
+# this, a model in a repetition loop can fill the entire context window. The
+# primary runaway guard is llmfacade's RepetitionGuard (set on the streaming
+# convo below), which aborts mid-stream on a detected loop; this cap is just a
+# backstop.
 # Constraints output is tiny (3-8 short strings). Card suggestions (3-5 cards
 # with descriptions) needs more room - local models sometimes pad descriptions
 # or emit extra cards before the JSON closes.
@@ -1494,6 +1495,12 @@ def _stream_llamacpp_call(
         "temperature": effective_temperature,
         "log_path": log_path,
         "log_max_message_lines": _LOG_MAX_MESSAGE_LINES,
+        # Loop detection is delegated to llmfacade. Defaults reproduce MTGAI's
+        # former hand-rolled detector bands exactly (tail 4096, max_period 120,
+        # check_every 64). On a stream the guard aborts + raises
+        # RepetitionLoopError on the first hit (caught below), mirroring the old
+        # mid-stream break → repetition_abort path.
+        "repetition_detection": RepetitionGuard(),
     }
     if json_mode:
         convo_kwargs["output_format"] = "json"
@@ -1506,7 +1513,6 @@ def _stream_llamacpp_call(
 
     theme_text = ""
     loop_err: str | None = None
-    chars_since_check = 0
     last_usage = None
     last_finish_reason: str | None = None
     frames_total = 0
@@ -1555,23 +1561,22 @@ def _stream_llamacpp_call(
                         theme_text += ev.text_delta
                         if stream_to_ui:
                             yield {"type": "theme_chunk", "text": ev.text_delta}
-                        chars_since_check += len(ev.text_delta)
-                        if chars_since_check >= 64:
-                            chars_since_check = 0
-                            loop_err = _detect_repetition_loop(theme_text)
-                            if loop_err:
-                                logger.warning(
-                                    "Repetition loop detected mid-stream after %d chars: %s",
-                                    len(theme_text),
-                                    loop_err,
-                                )
-                                break
                     if ev.usage is not None:
                         last_usage = ev.usage
                     if ev.finish_reason is not None:
                         last_finish_reason = ev.finish_reason
         except _CancelledError:
             raise
+        except RepetitionLoopError as e:
+            # The guard aborted the stream on a detected loop. Fall through to the
+            # repetition_abort path below (the deltas streamed so far are already
+            # in theme_text). e.detail is the human-readable hit description.
+            loop_err = e.detail
+            logger.warning(
+                "Repetition loop detected mid-stream after %d chars: %s",
+                len(theme_text),
+                loop_err,
+            )
         except Exception as e:
             logger.error("llamacpp streaming call failed: %s", e, exc_info=True)
             meta["outcome"] = "stream_exception"
@@ -1685,89 +1690,6 @@ def _stream_llamacpp_call(
 
 
 # =============================================================================
-# Repetition loop detection
-# =============================================================================
-
-
-# Tail size for the suffix-periodicity scan. Bounded so the detector cost
-# stays trivial regardless of total stream length.
-_REPETITION_TAIL_CHARS = 4096
-
-# Largest period we scan for. Beyond this, the per-call cost grows and real
-# LLM loops are vanishingly rare (degeneration cycles are short phrases).
-_REPETITION_MAX_PERIOD = 120
-
-
-# Period-length-aware confidence thresholds. Index = period in characters.
-# A hit requires both: (1) at least MIN_REPS[p] consecutive copies of the
-# period at the suffix, and (2) total repeated content >= MIN_TOTAL[p] chars.
-# Probability of a random tandem repeat at the suffix falls geometrically
-# with period length, so longer periods need fewer reps to be confident.
-def _build_repetition_thresholds() -> tuple[list[int], list[int]]:
-    reps = [0] * (_REPETITION_MAX_PERIOD + 1)
-    total = [0] * (_REPETITION_MAX_PERIOD + 1)
-    bands = [
-        (1, 1, 20, 20),
-        (2, 4, 8, 24),
-        (5, 10, 5, 30),
-        (11, 25, 4, 50),
-        (26, 60, 3, 90),
-        (61, _REPETITION_MAX_PERIOD, 2, 130),
-    ]
-    for lo, hi, r, t in bands:
-        for p in range(lo, hi + 1):
-            reps[p] = r
-            total[p] = t
-    return reps, total
-
-
-_MIN_REPS_BY_PERIOD, _MIN_TOTAL_BY_PERIOD = _build_repetition_thresholds()
-
-
-def _detect_tandem_repeat(text: str) -> str | None:
-    """Detect a tandem repeat at the suffix of ``text``.
-
-    Scans the last ``_REPETITION_TAIL_CHARS`` of the buffer for the smallest
-    period ``p`` (1..``_REPETITION_MAX_PERIOD``) such that the suffix consists
-    of at least ``_MIN_REPS_BY_PERIOD[p]`` consecutive copies of a ``p``-char
-    window, totalling at least ``_MIN_TOTAL_BY_PERIOD[p]`` characters.
-
-    Iterating ``p`` upward and returning on the first hit guarantees the
-    canonical smallest period (Fine and Wilf): reporting ``p=8 "thethethe"``
-    when the real period is ``3 "the"`` would distort the threshold check.
-
-    The period window must contain at least one alphanumeric character. This
-    suppresses realistic non-loop patterns that look superficially periodic
-    (ASCII-art separators, markdown horizontal rules ``"-"*N``, table borders
-    ``"|---|---|"``, blank-fill underscores, runs of whitespace). Real LLM
-    repetition loops always cycle through tokens with letters/digits.
-
-    Returns a human-readable hit description or ``None``.
-    """
-    if not text:
-        return None
-    tail = text[-_REPETITION_TAIL_CHARS:]
-    n = len(tail)
-    max_p = min(_REPETITION_MAX_PERIOD, n // 2)
-    for p in range(1, max_p + 1):
-        window = tail[n - p :]
-        if not any(c.isalnum() for c in window):
-            continue
-        copies = 1
-        while n - p * (copies + 1) >= 0 and (tail[n - p * (copies + 1) : n - p * copies] == window):
-            copies += 1
-        if copies >= _MIN_REPS_BY_PERIOD[p] and p * copies >= _MIN_TOTAL_BY_PERIOD[p]:
-            display = window if len(window) <= 40 else window[:37] + "..."
-            return f"Period {display!r} (len={p}) repeated {copies}+ times at tail"
-    return None
-
-
-def _detect_repetition_loop(text: str) -> str | None:
-    """Public detector entry point. See :func:`_detect_tandem_repeat`."""
-    return _detect_tandem_repeat(text)
-
-
-# =============================================================================
 # Constraints + card-suggestions extraction (second pass)
 # =============================================================================
 
@@ -1833,11 +1755,11 @@ def _attempt_json_subcall(
         logger.exception("subcall stream raised")
 
     if stream_err:
+        # A repetition loop in a subcall is caught mid-stream by the guard on the
+        # streaming convo: it surfaces here as an "error" event → stream_err, so
+        # the retry loop re-rolls with an escalated repeat_penalty. No separate
+        # post-call detector needed.
         return [], f"Stream failed: {stream_err}", raw
-
-    loop_err = _detect_repetition_loop(raw)
-    if loop_err:
-        return [], loop_err, raw
 
     try:
         parsed = _json.loads(_strip_json_fence(raw))

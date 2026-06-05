@@ -2,6 +2,14 @@
 
 Researched: 2026-04-23
 
+> **Update (2026-06):** runtime *detection* of these loops is now delegated to
+> llmfacade's `RepetitionGuard` (configured centrally in `generation/llm_client.py`
+> for all llamacpp calls; see CLAUDE.md "Local LLMs" → "Repetition-loop
+> detection"). MTGAI's former hand-rolled detector in `theme_extractor` was
+> removed (its period bands were ported into llmfacade, so behaviour is
+> unchanged). The temperature floor + DRY/temp-on-truncation escalation below are
+> still our preventive levers; the guard is the detector that backs them up.
+
 ## Question
 Is it a known issue that Gemma models go into repetition loops, and is it related to quantization?
 
