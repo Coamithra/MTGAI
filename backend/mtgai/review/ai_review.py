@@ -2010,6 +2010,26 @@ def _save_review_log(
     return json_path
 
 
+def _as_markdown_text(value: object) -> str:
+    """Coerce an LLM-produced field into a markdown-safe string.
+
+    A reviewer/synth ``analysis`` (or ``synthesis``) is *supposed* to be a string,
+    but a local model sometimes returns a nested dict/list there. Appending that
+    raw into the markdown ``lines`` list makes ``"\\n".join(lines)`` crash with
+    ``sequence item N: expected str instance, dict found``, taking the whole
+    AI-review stage down. Stringify defensively (JSON for dict/list, ``str`` for
+    everything else) so a malformed payload degrades to readable text instead.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (dict, list)):
+        try:
+            return json.dumps(value, indent=2, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return str(value)
+    return str(value)
+
+
 def _review_to_markdown(r: CardReviewResult) -> str:
     """Render a CardReviewResult as readable markdown."""
     lines = [
@@ -2048,7 +2068,7 @@ def _review_to_markdown(r: CardReviewResult) -> str:
             lines.append("")
             analysis = cr.response.get("analysis", "")
             if analysis:
-                lines.append(analysis)
+                lines.append(_as_markdown_text(analysis))
                 lines.append("")
             for issue in cr.issues:
                 lines.append(f"- **[{issue.severity}] {issue.category}:** {issue.description}")
@@ -2091,7 +2111,7 @@ def _review_to_markdown(r: CardReviewResult) -> str:
             if analysis:
                 lines.append("**Analysis:**")
                 lines.append("")
-                lines.append(analysis)
+                lines.append(_as_markdown_text(analysis))
                 lines.append("")
 
             for issue in it.issues:
