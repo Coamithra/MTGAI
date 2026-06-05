@@ -49,8 +49,11 @@
  * mtgai/models/card.py: name, mana_cost, type_line, oracle_text, rarity, power,
  * toughness, loyalty, colors, collector_number, flavor_text, status, plus
  * is_new (true for a card this instance regenerated). The /state response also
- * carries is_regen_instance — true on a review->regen instance, which gates the
- * new-vs-carried-over highlight (the first card_gen run is all-new, so no badge).
+ * carries is_regen_instance — true on a review->regen instance. On such an
+ * instance the cards this round regenerated are pulled into their own dedicated
+ * "Regenerated this round" section at the top of the grid (instead of being
+ * interleaved + badged within their rarity/colour groups); the first card_gen
+ * run is all-new, so the section never appears there.
  */
 
 (function () {
@@ -238,7 +241,9 @@
       }
       .wiz-cardgen-card:hover { border-color: #4a9eff44; }
       /* A card this instance (re)generated, vs one carried over from the prior
-         instance. Only applied on a review->regen instance (see paintGrid). */
+         instance. Only applied on a review->regen instance — primarily inside
+         the dedicated "Regenerated this round" section, where the per-tile badge
+         is suppressed and this border is the highlight (see paintGrid). */
       .wiz-cardgen-card.is-new {
         border-color: #45c98a;
         background: #102016;
@@ -257,22 +262,18 @@
         padding: 1px 5px;
         align-self: flex-start;
       }
-      /* One-line legend shown above the grid on a regen instance. */
-      .wiz-cardgen-legend {
-        font-size: 0.74rem;
-        color: #9fb3c8;
-        margin-bottom: 0.7rem;
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
+      /* Dedicated "Regenerated this round" section on a regen instance: a green
+         accent header + a faint tinted band so the block reads as distinct from
+         the carried-over rarity/colour groups below it. */
+      .wiz-cardgen-group--new {
+        background: #0d1a12;
+        border: 1px solid #45c98a33;
+        border-radius: 6px;
+        padding: 0.6rem 0.7rem 0.2rem;
       }
-      .wiz-cardgen-legend-swatch {
-        display: inline-block;
-        width: 0.8rem;
-        height: 0.8rem;
-        border-radius: 3px;
-        border: 1px solid #45c98a;
-        background: #102016;
+      .wiz-cardgen-group-label--new {
+        color: #45c98a;
+        border-bottom-color: #45c98a33;
       }
       .wiz-cardgen-card-name {
         font-weight: 700;
@@ -654,22 +655,33 @@
       return;
     }
 
-    // Group. Only a review->regen instance highlights new-vs-carried-over —
-    // on the first card_gen every card is "new", so the distinction is noise.
+    // Only a review->regen instance distinguishes new-vs-carried-over — on the
+    // first card_gen every card is "new", so the distinction is noise.
     const highlightNew = !!local.isRegenInstance;
-    // Suppress the legend until at least one regenerated card is present: a
-    // /state poll early in the run (before any card re-saved) would otherwise
-    // show the legend over a grid with nothing highlighted.
-    const anyNew = highlightNew && local.cards.some(c => c.is_new);
-    const legend = anyNew
-      ? `<div class="wiz-cardgen-legend">
-           <span class="wiz-cardgen-legend-swatch"></span>
-           Highlighted cards were regenerated this round; the rest carried over.
-         </div>`
+    // The cards THIS instance regenerated get their own dedicated section at the
+    // TOP of the grid (instead of being interleaved + merely badged within their
+    // rarity/colour groups), so the user can scan what changed this round at a
+    // glance. The carried-over cards keep the normal rarity/colour grouping
+    // below. Suppressed until at least one regenerated card is actually present:
+    // a /state poll early in the run (before any card re-saved) would otherwise
+    // show an empty "Regenerated" header.
+    // Sort the dedicated section by collector number so it shows the same
+    // deterministic order as the (rarity/colour-ordered) carried-over groups,
+    // rather than SSE arrival order.
+    const newCards = highlightNew
+      ? filtered.filter(c => c.is_new).sort(byCollectorNumber)
+      : [];
+    const restCards = newCards.length ? filtered.filter(c => !c.is_new) : filtered;
+
+    // Dedicated "Regenerated this round" group on top — flat grid (the header
+    // already states what these are, so the per-tile badge is suppressed; the
+    // green highlight border is kept for continuity).
+    const newSection = newCards.length
+      ? groupHtml('__new__', 'Regenerated this round', newCards, true, true)
       : '';
-    const groups = buildGroups(filtered, local);
-    slot.innerHTML = legend + groups
-      .map(({ key, label, cards }) => groupHtml(key, label, cards, highlightNew))
+    const groups = buildGroups(restCards, local);
+    slot.innerHTML = newSection + groups
+      .map(({ key, label, cards }) => groupHtml(key, label, cards, false))
       .join('');
   }
 
@@ -693,18 +705,23 @@
       .filter(g => g.cards.length > 0);
   }
 
-  function groupHtml(key, label, cards, highlightNew) {
+  // ``isNewSection`` marks the dedicated "Regenerated this round" group: it gets
+  // an accent label and its tiles drop the redundant per-tile badge (the header
+  // already says it) while keeping the green highlight border.
+  function groupHtml(key, label, cards, highlightNew, isNewSection) {
+    const groupClass = isNewSection ? ' wiz-cardgen-group--new' : '';
+    const labelClass = isNewSection ? ' wiz-cardgen-group-label--new' : '';
     return `
-      <div class="wiz-cardgen-group">
-        <div class="wiz-cardgen-group-label">${escHtml(label)} (${cards.length})</div>
+      <div class="wiz-cardgen-group${groupClass}">
+        <div class="wiz-cardgen-group-label${labelClass}">${escHtml(label)} (${cards.length})</div>
         <div class="wiz-cardgen-grid">
-          ${cards.map(c => cardTileHtml(c, highlightNew)).join('')}
+          ${cards.map(c => cardTileHtml(c, highlightNew, isNewSection)).join('')}
         </div>
       </div>
     `;
   }
 
-  function cardTileHtml(card, highlightNew) {
+  function cardTileHtml(card, highlightNew, suppressBadge) {
     const isNew = highlightNew && !!card.is_new;
     const rarity = (card.rarity || 'common').toLowerCase();
     const hasStats = card.power != null && card.toughness != null;
@@ -721,7 +738,7 @@
 
     return `
       <article class="wiz-cardgen-card${isNew ? ' is-new' : ''}">
-        ${isNew ? '<span class="wiz-cardgen-new-badge">Regenerated</span>' : ''}
+        ${isNew && !suppressBadge ? '<span class="wiz-cardgen-new-badge">Regenerated</span>' : ''}
         <div class="wiz-cardgen-card-name">${escHtml(card.name || '(unnamed)')}</div>
         ${card.mana_cost ? `<div class="wiz-cardgen-card-cost">${escHtml(card.mana_cost)}</div>` : ''}
         ${card.type_line ? `<div class="wiz-cardgen-card-type">${escHtml(card.type_line)}</div>` : ''}
@@ -738,6 +755,12 @@
         ${slotText ? `<div class="wiz-cardgen-card-slot-text" title="Skeleton slot ${escAttr(cn)}">${escHtml(cn)} — ${escHtml(slotText)}</div>` : ''}
       </article>
     `;
+  }
+
+  // Stable, numeric-aware sort by collector_number (e.g. "0007" < "0012").
+  function byCollectorNumber(a, b) {
+    return String(a.collector_number || '').localeCompare(
+      String(b.collector_number || ''), undefined, { numeric: true });
   }
 
   // Derives a single-char colour key for grouping.
