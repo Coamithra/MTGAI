@@ -50,4 +50,9 @@
 <script src="/static/wizard_char_refs.js"></script>
 <script src="/static/wizard_art_gen.js"></script>
 <script src="/static/wizard_rendering.js"></script>
+{% if debug_enabled %}
+{# QA/debug panel — only injected under `serve --debug` (MTGAI_DEBUG=1). #}
+<script>window.MTGAI_DEBUG = true;</script>
+<script src="/static/wizard_debug.js"></script>
+{% endif %}
 {% endblock %}

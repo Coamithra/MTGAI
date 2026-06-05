@@ -415,16 +415,32 @@ def finalize(
 def serve(
     port: Annotated[int, typer.Option("--port", "-p", help="Server port.")] = 8080,
     open_browser: Annotated[bool, typer.Option("--open", help="Open browser on startup.")] = False,
+    debug: Annotated[
+        bool,
+        typer.Option(
+            "--debug",
+            help="Mount the QA/debug surface (debug endpoints + wizard panel). "
+            "Off by default; sets MTGAI_DEBUG=1 for the QA Bot harness.",
+        ),
+    ] = False,
 ) -> None:
     """Start the local review server (FastAPI + uvicorn).
 
     The active project is chosen in the wizard (New / Open), not on the CLI;
     artifact paths resolve from the open project's asset folder.
     """
+    import os
     import threading
     import webbrowser
 
     import uvicorn
+
+    # Set BEFORE importing/creating the FastAPI app so debug_routes.is_debug_enabled()
+    # sees it at mount time. uvicorn.run imports the app module fresh in-process here,
+    # so the env var is in scope.
+    if debug:
+        os.environ["MTGAI_DEBUG"] = "1"
+        console.print("[yellow]Debug mode ON — QA/debug endpoints + panel mounted.[/yellow]")
 
     if open_browser:
         threading.Timer(1.5, lambda: webbrowser.open(f"http://localhost:{port}")).start()

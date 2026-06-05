@@ -371,11 +371,14 @@ def _render_wizard(request: Request, requested_tab: str | None) -> HTMLResponse 
             url=f"/pipeline/{ws.active_tab_id}",
             status_code=302,
         )
+    from mtgai.pipeline.debug_routes import is_debug_enabled
+
     return templates.TemplateResponse(
         "wizard.html",
         {
             "request": request,
             "wizard_state": serialize_wizard_state(ws),
+            "debug_enabled": is_debug_enabled(),
         },
     )
 

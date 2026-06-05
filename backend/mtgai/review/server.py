@@ -116,6 +116,13 @@ templates = Jinja2Templates(directory=str(_templates_dir()))
 app.include_router(pipeline_router)
 app.include_router(pipeline_api_router)
 
+# Mount the QA/debug surface only when launched as `serve --debug` (MTGAI_DEBUG=1).
+# No-op in a normal run, so the debug endpoints are invisible by default.
+from mtgai.pipeline.debug_routes import attach_debug_routes  # noqa: E402
+
+if attach_debug_routes(app):
+    logging.getLogger(__name__).warning("QA/debug routes mounted (MTGAI_DEBUG enabled)")
+
 # Translate the wizard's guard exceptions (no project open / no asset folder)
 # into their 409 payloads once, app-wide, so endpoints can let them propagate
 # instead of each wrapping the guard in a try/except.
