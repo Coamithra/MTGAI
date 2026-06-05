@@ -379,6 +379,71 @@ def test_save_model_llm(client):
     assert active_project.require_active_project().settings.llm_assignments["card_gen"] == "haiku"
 
 
+def test_save_model_rejects_unknown_model_id(client):
+    """An LLM value not in the registry is a 400 (not silently persisted)."""
+    _open_project("TST")
+    resp = client.post(
+        "/api/wizard/project/models",
+        json={
+            "set_code": "TST",
+            "kind": "llm",
+            "stage_id": "card_gen",
+            "value": "totally-fake-model-zzz",
+        },
+    )
+    assert resp.status_code == 400
+    assert "totally-fake-model-zzz" in resp.json()["error"]
+    # Unchanged: the bad value never reaches the assignments map.
+    settings = active_project.require_active_project().settings
+    assert settings.llm_assignments.get("card_gen") != "totally-fake-model-zzz"
+
+
+def test_save_model_rejects_unknown_stage_id(client):
+    """A stage_id not in the LLM stage registry is a 400."""
+    _open_project("TST")
+    resp = client.post(
+        "/api/wizard/project/models",
+        json={
+            "set_code": "TST",
+            "kind": "llm",
+            "stage_id": "not_a_real_stage",
+            "value": "haiku",
+        },
+    )
+    assert resp.status_code == 400
+    assert "not_a_real_stage" in resp.json()["error"]
+    settings = active_project.require_active_project().settings
+    assert "not_a_real_stage" not in settings.llm_assignments
+
+
+def test_save_model_rejects_unknown_image_model_id(client):
+    """An image value not in the registry is a 400."""
+    _open_project("TST")
+    resp = client.post(
+        "/api/wizard/project/models",
+        json={
+            "set_code": "TST",
+            "kind": "image",
+            "stage_id": "art_gen",
+            "value": "not-a-real-image-model",
+        },
+    )
+    assert resp.status_code == 400
+    assert "not-a-real-image-model" in resp.json()["error"]
+
+
+def test_save_model_image_valid_pairing_persists(client):
+    """A valid image stage + image model id round-trips with 200."""
+    _open_project("TST")
+    resp = client.post(
+        "/api/wizard/project/models",
+        json={"set_code": "TST", "kind": "image", "stage_id": "art_gen", "value": "flux-local"},
+    )
+    assert resp.status_code == 200
+    settings = active_project.require_active_project().settings
+    assert settings.image_assignments["art_gen"] == "flux-local"
+
+
 def test_save_model_effort_clears_on_empty_value(client):
     _open_project("TST")
     # Default has card_gen effort = max
