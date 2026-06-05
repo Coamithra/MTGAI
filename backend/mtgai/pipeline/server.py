@@ -1640,6 +1640,43 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
     if not isinstance(value, str):
         return JSONResponse({"error": "value must be a string"}, status_code=400)
 
+    # Validate stage_id + value against the registries before persisting — the
+    # endpoint is reachable via API / hand-edited .mtg state (the UI <select>
+    # only offers valid options), and an unknown model id or stage_id silently
+    # persisted into the assignments only blows up later at generation time.
+    from mtgai.settings.model_registry import get_registry
+    from mtgai.settings.model_settings import (
+        IMAGE_STAGE_NAMES,
+        LLM_STAGE_NAMES,
+    )
+
+    # effort/thinking are per-LLM-stage overrides, so they share the LLM stage
+    # registry; only "image" uses the image stage registry.
+    valid_stages = IMAGE_STAGE_NAMES if kind == "image" else LLM_STAGE_NAMES
+    if stage_id not in valid_stages:
+        return JSONResponse(
+            {
+                "error": (
+                    f"Unknown stage_id {stage_id!r} for kind {kind!r}. "
+                    f"Valid stages: {', '.join(sorted(valid_stages))}"
+                )
+            },
+            status_code=400,
+        )
+
+    # Model value: "llm"/"image" name a registry model key; "effort"/"thinking"
+    # carry a free-form override value (empty clears it) and aren't model ids.
+    if kind in ("llm", "image"):
+        registry = get_registry()
+        known = registry.get_llm(value) if kind == "llm" else registry.get_image(value)
+        if known is None:
+            options = registry.list_llm() if kind == "llm" else registry.list_image()
+            valid_ids = ", ".join(sorted(m.key for m in options))
+            return JSONResponse(
+                {"error": (f"Unknown {kind} model id {value!r}. Valid ids: {valid_ids}")},
+                status_code=400,
+            )
+
     # A model change for a stage that is *currently running* would silently
     # not apply to the in-flight call (and could confuse a mid-run resume), so
     # block only that stage — other stages stay freely re-assignable mid-run
