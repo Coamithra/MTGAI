@@ -1148,6 +1148,7 @@
       llm_assignments: local.data.llm_assignments || {},
       image_assignments: local.data.image_assignments || {},
       effort_overrides: local.data.effort_overrides || {},
+      thinking_overrides: local.data.thinking_overrides || {},
       break_points: breakPointsDict,
     };
     try {
