@@ -35,6 +35,14 @@
     return div.innerHTML;
   }
 
+  // escHtml escapes < > & but NOT quotes; attribute values (input value,
+  // aria-label) live in double-quoted attrs, so they also need " escaped.
+  function escAttr(text) {
+    return escHtml(text).replace(/"/g, '&quot;');
+  }
+
+  let dialogSeq = 0;
+
   let stylesInjected = false;
   function injectStyles() {
     if (stylesInjected) return;
@@ -70,6 +78,7 @@
   function openDialog(kind, message, opts) {
     opts = opts || {};
     injectStyles();
+    // Per-kind sentinels: `cancelled` on Cancel/Esc/backdrop, `okValue` on OK.
     const cancelled = kind === 'prompt' ? null : kind === 'alert' ? undefined : false;
 
     return new Promise(resolve => {
@@ -81,10 +90,16 @@
       const showCancel = kind !== 'alert';
       const okLabel = opts.okLabel || (kind === 'alert' ? 'OK' : kind === 'prompt' ? 'OK' : 'Confirm');
       const cancelLabel = opts.cancelLabel || 'Cancel';
-      const titleHtml = opts.title ? `<h2>${escHtml(opts.title)}</h2>` : '';
+      // Name the dialog for screen readers: aria-labelledby the title when one
+      // exists, else aria-label the message (mirrors openCascadeModal).
+      const titleId = `mtgai-dialog-title-${++dialogSeq}`;
+      const titleHtml = opts.title ? `<h2 id="${titleId}">${escHtml(opts.title)}</h2>` : '';
+      const nameAttr = opts.title
+        ? `aria-labelledby="${titleId}"`
+        : `aria-label="${escAttr(message)}"`;
       const inputHtml = kind === 'prompt'
         ? `<input type="text" class="mtgai-dialog-input" data-testid="mtgai-dialog-input"
-                  value="${escHtml(opts.defaultValue || '')}" />`
+                  value="${escAttr(opts.defaultValue || '')}" />`
         : '';
       const cancelBtn = showCancel
         ? `<button type="button" class="wiz-btn-secondary" data-dialog-action="cancel"
@@ -93,7 +108,7 @@
 
       overlay.innerHTML = `
         <div class="wiz-modal" role="${kind === 'alert' ? 'alertdialog' : 'dialog'}"
-             aria-modal="true">
+             aria-modal="true" ${nameAttr}>
           ${titleHtml}
           <p class="mtgai-dialog-message">${escHtml(message)}</p>
           ${inputHtml}
@@ -119,7 +134,8 @@
         resolve(result);
       }
       function confirmResult() {
-        close(kind === 'prompt' ? (input ? input.value : '') : kind === 'alert' ? undefined : true);
+        const okValue = kind === 'prompt' ? (input ? input.value : '') : kind === 'alert' ? undefined : true;
+        close(okValue);
       }
       // Tab cycles only the dialog's own controls (focus trap).
       function focusables() {
