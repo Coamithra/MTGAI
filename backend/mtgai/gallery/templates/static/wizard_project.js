@@ -687,7 +687,7 @@
             <input type="number" id="wiz-pp-size" value="${sp.set_size}" min="1" max="500" ${sizeAttrs}>
           </label>
           <label><span>Mechanic count${requiredMark()}</span>
-            <input type="number" id="wiz-pp-mech" value="${sp.mechanic_count}" min="0" max="20">
+            <input type="number" id="wiz-pp-mech" value="${sp.mechanic_count}" min="0" max="6">
           </label>
         </div>
       </section>
@@ -746,6 +746,10 @@
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
         W.toast(data.error || 'Save failed', 'error');
+        // The server rejected the edit and kept the prior value, so revert the
+        // field to the last good persisted value rather than leaving the
+        // rejected one displayed (widget would otherwise be out of sync).
+        revertParamFields();
         return;
       }
       const data = await resp.json();
@@ -754,6 +758,16 @@
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
     }
+  }
+
+  function revertParamFields() {
+    const sp = local.data.set_params || {};
+    const name = document.getElementById('wiz-pp-name');
+    const size = document.getElementById('wiz-pp-size');
+    const mech = document.getElementById('wiz-pp-mech');
+    if (name && sp.set_name != null) name.value = sp.set_name;
+    if (size && sp.set_size != null) size.value = sp.set_size;
+    if (mech && sp.mechanic_count != null) mech.value = sp.mechanic_count;
   }
 
   // ------------------------------------------------------------------
