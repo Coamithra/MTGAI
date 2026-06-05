@@ -5198,18 +5198,24 @@ def _ai_review_tiles(
         decision = decisions.get(cn)
         flagged = bool(card.get("regen_reason"))
         tile["flagged"] = flagged
-        tile["effective"] = _effective_decision(tile, decision, flagged)
+        tile["effective"] = _effective_decision(
+            tile, decision, flagged, card.get("regen_reason") or ""
+        )
         tiles.append(tile)
     return tiles
 
 
-def _effective_decision(tile: dict, decision: dict | None, flagged: bool) -> dict:
+def _effective_decision(
+    tile: dict, decision: dict | None, flagged: bool, regen_reason: str = ""
+) -> dict:
     """Resolve a card's effective review state for the stamp.
 
     Precedence: an explicit user decision wins; else a flagged card (bound for
     regen) is "rejected"; else a reviewed card maps OK→approved / REVISE→rejected;
     else "pending" (not yet reviewed). ``reason`` is the rejection blurb shown
-    under the card.
+    under the card. For a flagged card it's the card's own ``regen_reason`` (the
+    actual "why" the review/gate recorded), falling back to a generic blurb only
+    when no reason was stamped.
     """
     if isinstance(decision, dict) and decision.get("verdict") in ("approved", "rejected"):
         return {
@@ -5218,7 +5224,11 @@ def _effective_decision(tile: dict, decision: dict | None, flagged: bool) -> dic
             "source": decision.get("source") or "user",
         }
     if flagged:
-        return {"verdict": "rejected", "reason": "Flagged for regeneration.", "source": "ai"}
+        return {
+            "verdict": "rejected",
+            "reason": (regen_reason or "").strip() or "Flagged for regeneration.",
+            "source": "ai",
+        }
     if not tile.get("reviewed"):
         return {"verdict": "pending", "reason": "", "source": ""}
     if tile.get("verdict") == "OK":
@@ -5308,7 +5318,7 @@ def _ai_review_single_tile(asset: Path, collector_number: str) -> dict | None:
     flagged = bool(card.get("regen_reason"))
     tile["flagged"] = flagged
     tile["effective"] = _effective_decision(
-        tile, load_decisions(asset).get(collector_number), flagged
+        tile, load_decisions(asset).get(collector_number), flagged, card.get("regen_reason") or ""
     )
     return tile
 

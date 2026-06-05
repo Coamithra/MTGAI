@@ -103,9 +103,15 @@
       .wiz-ar-card-rarity.uncommon { background: #6c8ebf20; color: #6c8ebf; border: 1px solid #6c8ebf40; }
       .wiz-ar-card-rarity.common { background: #33333320; color: #888; border: 1px solid #33333350; }
       .wiz-ar-pending-tag { font-size: 0.62rem; color: #8b949e; font-style: italic; align-self: flex-start; }
+      /* Section label shared by the "why rejected" + "what changed" boxes */
+      .wiz-ar-reject-label, .wiz-ar-changes-label {
+        font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+        color: #8b949e;
+      }
+      .wiz-ar-reject { display: flex; flex-direction: column; gap: 0.18rem; margin-top: 0.1rem; }
       .wiz-ar-reject-reason {
         font-size: 0.72rem; color: #f8b4b4; background: #3a0c0c40; border-left: 2px solid #8a3030;
-        padding: 0.3rem 0.45rem; border-radius: 0 4px 4px 0; line-height: 1.35;
+        padding: 0.3rem 0.45rem; border-radius: 0 4px 4px 0; line-height: 1.35; white-space: pre-wrap;
       }
       /* Issues list (collapsible details) */
       .wiz-ar-issues { margin: 0.2rem 0 0; padding: 0; list-style: none; }
@@ -425,10 +431,18 @@
     setLocked(root, local, local.locked);
   }
 
-  // The effective decision drives the stamp. The tile carries it from the
-  // server; default to pending if absent (a freshly streamed council card).
+  // The effective decision drives the stamp. The server-built tile (/state)
+  // carries ``effective`` (with the persisted regen_reason as the "why"); the
+  // live-streamed tile (ai_review_card_done) does not, so derive it here from the
+  // verdict + issues so a freshly-rejected card still shows its reason before the
+  // next /state reload.
   function effective(tile) {
-    return tile.effective || { verdict: tile.reviewed ? (tile.verdict === 'OK' ? 'approved' : 'rejected') : 'pending', reason: '' };
+    if (tile.effective) return tile.effective;
+    if (!tile.reviewed) return { verdict: 'pending', reason: '' };
+    if (tile.verdict === 'OK') return { verdict: 'approved', reason: '' };
+    const issues = Array.isArray(tile.issues) ? tile.issues : [];
+    const reason = issues.map((i) => i && i.description).filter(Boolean).join('; ');
+    return { verdict: 'rejected', reason };
   }
 
   function tileHtml(tile, local) {
@@ -450,7 +464,10 @@
     const councilPanel = reviewing ? councilPanelHtml(local.council[cn]) : '';
     const pendingTag = (!reviewing && verdict === 'pending') ? '<span class="wiz-ar-pending-tag">To review</span>' : '';
     const rejectReason = (verdict === 'rejected' && eff.reason)
-      ? `<div class="wiz-ar-reject-reason">${escHtml(eff.reason)}</div>` : '';
+      ? `<div class="wiz-ar-reject">
+           <div class="wiz-ar-reject-label">Why rejected</div>
+           <div class="wiz-ar-reject-reason">${escHtml(eff.reason)}</div>
+         </div>` : '';
 
     const issues = Array.isArray(tile.issues) ? tile.issues : [];
     const issuesBlock = (!reviewing && issues.length)
