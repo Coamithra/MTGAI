@@ -716,9 +716,10 @@ def _process_batch_result(
             else:
                 # Every retry still tripped a regen trigger (or failed to parse).
                 # Never silently drop the slot — the set must not finish a card
-                # short over a soft guideline. Save the best parsable attempt,
-                # flagged for review, so a gate / human can clean it up. Only a
-                # total parse failure (no Card at all, on any attempt) is fatal.
+                # short. Save the best parsable attempt (even one that still trips
+                # a hard trigger), flagged for review, so a gate / human / the next
+                # regen round can clean it up. Only a total parse failure (no Card
+                # at all, on any attempt) is fatal.
                 best = retry_best or first_attempt_card
                 if best is None:
                     logger.error(

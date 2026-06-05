@@ -139,8 +139,8 @@ def _review_call(
     A local model often fails to emit a parseable tool call (so ``generate_with_tool``
     raises after exhausting its own internal retries) or the transport blips — both
     transient. We retry the SAME call up to :data:`MAX_CALL_ATTEMPTS` times before
-    giving up, bumping the temperature by :data:`temps.RETRY_TEMP_STEP` per attempt
-    (capped at ``CREATIVE``) so a re-roll isn't byte-identical. Returns the
+    giving up. The review temperature is already ``CREATIVE`` (1.0), so each retry
+    re-rolls non-deterministically without a temperature bump. Returns the
     ``generate_with_tool`` result dict, or ``None`` when every attempt failed (the
     caller then records an error slot / flags the card — the existing contract).
 
@@ -150,14 +150,13 @@ def _review_call(
     for attempt in range(1, MAX_CALL_ATTEMPTS + 1):
         if should_cancel is not None and should_cancel():
             return None
-        temperature = min(TEMPERATURE + (attempt - 1) * temps.RETRY_TEMP_STEP, temps.CREATIVE)
         try:
             return generate_with_tool(
                 system_prompt=REVIEW_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
                 tool_schema=tool_schema,
                 model=review_model,
-                temperature=temperature,
+                temperature=TEMPERATURE,
                 max_tokens=HEAVY,
                 effort=review_effort,
                 thinking=review_thinking,
