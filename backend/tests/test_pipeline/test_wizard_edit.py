@@ -650,6 +650,55 @@ def test_unlock_endpoint_keeps_stage_clears_downstream(client):
     assert reloaded.current_instance_id == by_id["skeleton"].instance_id
 
 
+def test_unlock_resyncs_stale_in_memory_engine(client):
+    """Regression: after an unlock, ``_get_current_state()`` must serve the
+    freshly-cleared on-disk state, not a stale in-memory engine.
+
+    Repro (the filed bug): the project paused at a tip with the engine still
+    retained in memory (e.g. after a regen loop). ``_get_current_state()``
+    prefers ``_engine.state`` whenever an engine exists, so the unlock used to
+    rewrite pipeline-state.json correctly but leave the UI serving the
+    pre-unlock 24-stage state (deleted regen tabs, a now-removed tip) until a
+    server restart.
+    """
+    _make_set("TST", theme={"code": "TST"})
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
+    # A full run paused downstream: mechanics..lands done, card_gen the tip.
+    for i in range(6):
+        state.stages[i].status = StageStatus.COMPLETED
+    state.current_instance_id = state.stages[5].instance_id  # card_gen
+    save_state(state)
+
+    # An engine retained in memory holding the PRE-unlock snapshot — exactly the
+    # stale state _get_current_state() would otherwise keep serving (it prefers
+    # _engine.state whenever an engine exists). Idle, so the running-guard lets
+    # the unlock proceed. Capture the pre-unlock view to prove it's stale after.
+    pre = load_state()
+    pipeline_server._engine = pipeline_server.PipelineEngine(pre, pipeline_server.event_bus)
+    assert pipeline_server._engine.is_running is False
+    assert pipeline_server._get_current_state().stages[5].status == StageStatus.COMPLETED
+
+    resp = client.post("/api/wizard/edit/unlock", json={"from_stage": "skeleton"})
+    assert resp.status_code == 200
+
+    # WITHOUT a server/engine restart, the served state must match the on-disk
+    # state (the bug: the engine kept serving the pre-unlock state until restart).
+    served = pipeline_server._get_current_state()
+    on_disk = load_state()
+    assert served is not None and on_disk is not None
+    assert served.model_dump(mode="json") == on_disk.model_dump(mode="json")
+
+    by_id = {s.stage_id: s for s in served.stages}
+    # The edited stage is the paused, editable tip; downstream reset to PENDING.
+    assert by_id["skeleton"].status == StageStatus.PAUSED_FOR_REVIEW
+    assert served.current_instance_id == by_id["skeleton"].instance_id
+    assert served.overall_status == PipelineStatus.PAUSED
+    for sid in ("reprints", "lands", "card_gen"):
+        assert by_id[sid].status == StageStatus.PENDING
+    # And the in-memory engine itself was repointed (not just the disk).
+    assert pipeline_server._engine.state.current_instance_id == by_id["skeleton"].instance_id
+
+
 def test_unlock_409_when_engine_running(client, monkeypatch):
     set_dir = _make_set("TST", theme={"code": "TST"})
     (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")

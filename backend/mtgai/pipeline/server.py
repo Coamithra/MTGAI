@@ -2685,6 +2685,8 @@ async def wizard_edit_unlock(request: Request) -> JSONResponse:
     Refuses with 409 if the engine or theme extraction is running (same as
     ``/edit/accept``).
     """
+    global _engine
+
     _require_active_project()
     body, err = await _read_request_json(request)
     if err is not None:
@@ -2728,6 +2730,18 @@ async def wizard_edit_unlock(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(e)}, status_code=400)
 
     _apply_downstream_clear(state, idx)
+
+    # Resync the in-memory engine to the freshly-cleared on-disk state.
+    # _get_current_state() prefers _engine.state whenever an engine exists,
+    # so without this the UI keeps serving the pre-unlock stage list (deleted
+    # regen tabs, a now-removed tip) until a server restart. We rebuild the
+    # engine idle (PipelineEngine.__init__ doesn't run anything) rather than
+    # kick it off: the unlock contract leaves the edited stage PAUSED_FOR_REVIEW
+    # as the editable tip, and the user's Save & Continue resumes from there —
+    # auto-starting here would defeat the edit. The engine guard above already
+    # ensured nothing was running, so there's no live thread to orphan.
+    _engine = PipelineEngine(state, event_bus)
+
     return JSONResponse(
         {
             "success": True,
