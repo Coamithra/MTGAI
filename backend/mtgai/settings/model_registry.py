@@ -139,6 +139,12 @@ _CONTEXT_TIER_TWINS: tuple[_TierTwin, ...] = (
         context_window=48000,
         name="Gemma 4 26B Unsloth UD-IQ2_M (Local, 48k — fully GPU-resident)",
     ),
+    _TierTwin(
+        base="gemma4-12b-q5km",
+        suffix="48k",
+        context_window=48000,
+        name="Gemma 4 12B it Q5_K_M (Local, 48k downstream tier)",
+    ),
 )
 
 

@@ -136,6 +136,24 @@ cache_type_k = "q8_0"
 cache_type_v = "q8_0"
 thinking = "adaptive"
 
+# Dense Gemma 4 12B (NOT the 26B-A4B MoE above) at Q5_K_M (~7.8 GB weights). A
+# smaller, fully-dense alternative local base; same q8_0 KV + all-GPU + fit-on.
+[llm.gemma4-12b-q5km]
+name = "Gemma 4 12B it Q5_K_M (Local, dense)"
+provider = "llamacpp"
+model_id = "gemma4-12b-q5km"
+gguf_path = "C:/Models/gemma-4-12b-it-Q5_K_M.gguf"
+tier = 0
+input_price = 0.00
+output_price = 0.00
+context_window = 128000
+supports_vision = false
+supports_caching = false
+n_gpu_layers = -1
+cache_type_k = "q8_0"
+cache_type_v = "q8_0"
+thinking = "adaptive"
+
 # ── Image Generation Models ─────────────────────────────────────────────────
 
 [image.flux-local]
