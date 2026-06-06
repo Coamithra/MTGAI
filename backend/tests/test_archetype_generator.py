@@ -149,6 +149,71 @@ def test_dedupe_and_complete_keeps_one_per_pair_in_order() -> None:
     assert wu["name"] == "First WU (unordered code)"
 
 
+def test_sanitize_archetype_name_passes_clean_name() -> None:
+    assert ag.sanitize_archetype_name("Sky Wardens", "WU") == "Sky Wardens"
+    # A name with ordinary punctuation (apostrophe, comma, hyphen, ampersand)
+    # survives — only markup/JSON characters are rejected.
+    assert ag.sanitize_archetype_name("Yenna's Aether-Brigade & Co", "WU") == (
+        "Yenna's Aether-Brigade & Co"
+    )
+
+
+def test_sanitize_archetype_name_rejects_blob_from_card() -> None:
+    # The exact failure from card 6a23fa75: the UG name absorbed a chat special
+    # token, JSON punctuation, and the start of the next entry's content.
+    blob = "'Predacon' Ambush<|\"|>],[color_pair': 'RG', 'description': \"Win by ..."
+    out = ag.sanitize_archetype_name(blob, "UG")
+    assert out == "Blue-Green"  # clean derived label for the UG pair
+    # The garbage is gone.
+    assert "color_pair" not in out
+    assert "<|" not in out and "],[" not in out
+
+
+def test_sanitize_archetype_name_rejects_markup_chars() -> None:
+    for bad in ("Name {with brace", "Name [bracket", "Name <tag>", "Name |pipe"):
+        assert ag.sanitize_archetype_name(bad, "WB") == "White-Black"
+
+
+def test_sanitize_archetype_name_rejects_overlong() -> None:
+    overlong = "A" * (ag._MAX_NAME_LEN + 1)
+    assert ag.sanitize_archetype_name(overlong, "RG") == "Red-Green"
+    # Right at the cap is fine.
+    at_cap = "B" * ag._MAX_NAME_LEN
+    assert ag.sanitize_archetype_name(at_cap, "RG") == at_cap
+
+
+def test_sanitize_archetype_name_handles_empty_and_non_string() -> None:
+    assert ag.sanitize_archetype_name("", "UG") == "Blue-Green"
+    assert ag.sanitize_archetype_name("   ", "UG") == "Blue-Green"
+    assert ag.sanitize_archetype_name(None, "UG") == "Blue-Green"
+    assert ag.sanitize_archetype_name(42, "UG") == "Blue-Green"
+
+
+def test_sanitize_archetype_name_unknown_pair_falls_back_to_unnamed() -> None:
+    # A bad/unknown pair has no clean derived label, so degrade to "(unnamed)".
+    assert ag.sanitize_archetype_name("bad{name", "ZZ") == "(unnamed)"
+
+
+def test_dedupe_and_complete_sanitizes_leaked_name() -> None:
+    # The card's bug end-to-end: a malformed local-model payload where the UG
+    # entry's name absorbed the next entry. dedupe_and_complete must persist a
+    # clean derived name, not the raw blob.
+    raw = [
+        {"color_pair": "WU", "name": "Sky Wardens", "description": "win in the air"},
+        {
+            "color_pair": "UG",
+            "name": "'Predacon' Ambush<|\"|>],[color_pair': 'RG', 'description': \"Win by ...",
+            "description": "ramp into giant threats",
+        },
+    ]
+    out = ag.dedupe_and_complete(raw)
+    by_pair = {a["color_pair"]: a for a in out}
+    assert by_pair["WU"]["name"] == "Sky Wardens"  # clean name untouched
+    assert by_pair["UG"]["name"] == "Blue-Green"  # blob rejected -> derived label
+    # The description (a free-text field, not sanitized as a label) is preserved.
+    assert by_pair["UG"]["description"] == "ramp into giant threats"
+
+
 def test_dedupe_and_complete_drops_stray_keys() -> None:
     # A model (especially a local one) can emit extra fields the slimmed
     # schema doesn't define; dedupe projects to exactly color_pair/name/
