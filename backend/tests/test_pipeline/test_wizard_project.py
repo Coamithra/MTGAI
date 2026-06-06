@@ -701,3 +701,69 @@ def test_malformed_body_still_409s_when_no_project_open(client):
     resp = client.post("/api/wizard/project/breaks", content=b"this is not json")
     assert resp.status_code == 409
     assert resp.json()["code"] == "no_active_project"
+
+
+# ---------------------------------------------------------------------------
+# Project-switch drops the SSE replay buffer (no stale FAILED/PENDING leak)
+# ---------------------------------------------------------------------------
+
+
+def _seed_buffer() -> None:
+    """Push a terminal failed-status event into the replay buffer.
+
+    Reproduces the leak source: a prior project's run leaves a
+    ``pipeline_status: failed`` event in the per-run buffer that would
+    otherwise replay onto the next project's fresh page.
+    """
+    from mtgai.pipeline.server import event_bus
+
+    event_bus.publish("pipeline_status", {"overall_status": "failed"})
+    assert event_bus._buffer, "buffer should hold the seeded event"
+
+
+def _buffer_len() -> int:
+    from mtgai.pipeline.server import event_bus
+
+    return len(event_bus._buffer)
+
+
+def test_project_new_clears_replay_buffer(client):
+    """``/api/project/new`` drops the prior run's SSE replay buffer."""
+    _open_project("TST")
+    _seed_buffer()
+    resp = client.post("/api/project/new", json={})
+    assert resp.status_code == 200
+    assert _buffer_len() == 0
+
+
+def test_project_open_clears_replay_buffer(client):
+    """``/api/project/open`` drops the prior run's SSE replay buffer."""
+    _open_project("AAA")
+    _seed_buffer()
+    toml = ms.dump_project_toml("BBB", ms.ModelSettings.from_preset("recommended"))
+    resp = client.post("/api/project/open", json={"toml": toml})
+    assert resp.status_code == 200
+    assert _buffer_len() == 0
+
+
+def test_project_materialize_clears_replay_buffer(client):
+    """``/api/project/materialize`` drops the prior run's SSE replay buffer."""
+    _open_project("TST")
+    _seed_buffer()
+    resp = client.post("/api/project/materialize", json={"set_code": "NEW"})
+    assert resp.status_code == 200
+    assert _buffer_len() == 0
+
+
+def test_busy_switch_without_force_keeps_buffer(client, monkeypatch):
+    """A busy 409 (no ``force``) is a *rejected* switch — the buffer stays.
+
+    The reset only fires on the proceed paths, so an interrupted switch
+    request can't wipe the in-flight run's replay buffer.
+    """
+    _open_project("TST")
+    _seed_buffer()
+    monkeypatch.setattr(ai_lock, "is_running", lambda: True)
+    resp = client.post("/api/project/new", json={})
+    assert resp.status_code == 409
+    assert _buffer_len() > 0

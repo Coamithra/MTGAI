@@ -1010,6 +1010,15 @@
   // stage's own tab (its Refresh button + editable result), per design §14.
   let _failureShownSig = null;
 
+  // A project switch that happens in-place (no full reload — e.g.
+  // ``/api/project/new`` re-renders the Project Settings tab without
+  // navigating) must clear this latch so a stale FAILED signature from
+  // the *previous* project can't suppress (or, on its inverse, re-pop) a
+  // modal against the new project. The server also drops its SSE replay
+  // buffer on every switch, so no terminal event from the old run is
+  // replayed; this is the matching client-side belt-and-suspenders.
+  window.MTGAIWizard.resetFailureLatch = () => { _failureShownSig = null; };
+
   function maybeShowFailureModal(instanceId) {
     if (!state.pipeline || !state.pipeline.stages) return;
     let stage = instanceId
