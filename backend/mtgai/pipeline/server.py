@@ -1926,8 +1926,18 @@ async def _project_switch_guard(body: object) -> JSONResponse | None:
 
     Returns None when it's safe to proceed; returns the JSONResponse to
     return otherwise.
+
+    On every proceed path it also drops the SSE replay buffer
+    (:meth:`EventBus.reset_buffer`): the buffer is per-run scratch replayed
+    to late-attaching subscribers, so without this a switch to a different
+    project would replay the *previous* project's terminal
+    ``pipeline_status`` / ``phase`` events (a phantom FAILED/PENDING badge
+    + a stale failure modal) onto the new project's fresh page. The new
+    project's true state comes from the page bootstrap + on-disk
+    ``pipeline-state.json``, never the buffer.
     """
     if not ai_lock.is_running():
+        event_bus.reset_buffer()
         return None
     force = isinstance(body, dict) and body.get("force") is True
     if not force:
@@ -1938,6 +1948,7 @@ async def _project_switch_guard(body: object) -> JSONResponse | None:
             "AI lock did not release within deadline after cancel; "
             "proceeding with project switch anyway"
         )
+    event_bus.reset_buffer()
     return None
 
 

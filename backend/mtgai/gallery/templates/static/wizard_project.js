@@ -310,6 +310,9 @@
       // Mark untitled so footer label / Save behaviour can branch.
       local.data.untitled = true;
       state.activeSet = '';
+      // In-place switch (no reload): clear the stale per-project failure
+      // latch so a prior project's FAILED signature can't leak across.
+      if (W && typeof W.resetFailureLatch === 'function') W.resetFailureLatch();
       rerenderProjectTab(state);
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');

@@ -153,6 +153,22 @@ def _write_active_qa_project(set_code: str, asset_dir: Path, *, preset: str = "q
             set_code=set_code, settings=settings, mtg_path=asset_dir / "qa.mtg"
         )
     )
+    _reset_event_buffer()
+
+
+def _reset_event_buffer() -> None:
+    """Drop the SSE replay buffer on a debug-driven project switch.
+
+    Mirrors the ``/api/project/*`` switch path (``_project_switch_guard``):
+    the per-run buffer is replayed to late-attaching subscribers, so a debug
+    quick-project / seed-stage / open-path that doesn't clear it would let the
+    prior run's terminal ``pipeline_status`` / ``phase`` events leak onto the
+    new project's fresh page (a phantom FAILED/PENDING badge + a stale failure
+    modal). Imported lazily because ``server`` imports this module.
+    """
+    from mtgai.pipeline.server import event_bus
+
+    event_bus.reset_buffer()
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +430,7 @@ async def debug_open_path(request: Request) -> JSONResponse:
     active_project.write_active_project(
         active_project.ProjectState(set_code=set_code, settings=settings, mtg_path=p)
     )
+    _reset_event_buffer()
     cleanup_orphan_running_stages()
     return JSONResponse({"success": True, "set_code": set_code, "path": str(p)})
 
