@@ -7,10 +7,29 @@ pipeline-specific fields. Reference: https://scryfall.com/docs/api/cards
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 
 from mtgai.models.enums import CardLayout, CardStatus, Color, Rarity
+
+
+def _normalize_colors(value: object) -> object:
+    """Coerce each entry of a color list to a canonical WUBRG ``Color``.
+
+    Accepts the Scryfall-canonical letter (``"U"``) AND the full color name
+    (``"blue"`` / ``"White"``, case-insensitive), normalizing every entry to the
+    letter form so name-form colors persisted out-of-band can never mis-group
+    downstream (e.g. ``"blue"`` collapsing to the Black ``"B"`` key in the UI).
+    A non-list value is returned untouched for Pydantic to reject normally.
+    """
+    if not isinstance(value, (list, tuple)):
+        return value
+    return [Color.coerce(item) for item in value]
+
+
+# ``list[Color]`` that also accepts full color names, normalizing to WUBRG letters.
+ColorList = Annotated[list[Color], BeforeValidator(_normalize_colors)]
 
 
 class ManaCost(BaseModel):
@@ -18,7 +37,7 @@ class ManaCost(BaseModel):
 
     raw: str
     cmc: float
-    colors: list[Color] = Field(default_factory=list)
+    colors: ColorList = Field(default_factory=list)
     generic: int = 0
     white: int = 0
     blue: int = 0
@@ -60,7 +79,7 @@ class CardFace(BaseModel):
     power: str | None = None
     toughness: str | None = None
     loyalty: str | None = None
-    colors: list[Color] = Field(default_factory=list)
+    colors: ColorList = Field(default_factory=list)
     art_path: str | None = None
     art_prompt: str | None = None
 
@@ -96,8 +115,8 @@ class Card(BaseModel):
     mana_cost: str | None = None
     mana_cost_parsed: ManaCost | None = None
     cmc: float = 0.0
-    colors: list[Color] = Field(default_factory=list)
-    color_identity: list[Color] = Field(default_factory=list)
+    colors: ColorList = Field(default_factory=list)
+    color_identity: ColorList = Field(default_factory=list)
 
     # === Typeline ===
     type_line: str
