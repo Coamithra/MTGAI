@@ -133,6 +133,74 @@ class TestSchemaValidation:
 
 
 # ===========================================================================
+# Color normalization (name-form -> canonical WUBRG letters)
+# ===========================================================================
+
+
+class TestColorNormalization:
+    """``colors`` / ``color_identity`` accept full color names and normalize them
+    to canonical WUBRG letters at validation, so name-form colors persisted
+    out-of-band ('blue', 'White') can't mis-group downstream (e.g. 'blue' as 'B').
+    """
+
+    def test_name_form_blue_normalizes_to_letter(self):
+        card = Card.model_validate({"name": "x", "type_line": "Creature", "colors": ["blue"]})
+        assert card.colors == [Color.BLUE]
+        assert [c.value for c in card.colors] == ["U"]
+
+    def test_name_form_titlecase_white_normalizes(self):
+        card = Card.model_validate({"name": "x", "type_line": "Creature", "colors": ["White"]})
+        assert card.colors == [Color.WHITE]
+
+    def test_mixed_name_form_multicolor_normalizes_each(self):
+        card = Card.model_validate(
+            {"name": "x", "type_line": "Creature", "colors": ["white", "blue"]}
+        )
+        assert card.colors == [Color.WHITE, Color.BLUE]
+        assert [c.value for c in card.colors] == ["W", "U"]
+
+    def test_canonical_letter_unchanged(self):
+        card = Card.model_validate({"name": "x", "type_line": "Creature", "colors": ["U"]})
+        assert card.colors == [Color.BLUE]
+
+    def test_lowercase_canonical_letter_normalizes(self):
+        card = Card.model_validate({"name": "x", "type_line": "Creature", "colors": ["u"]})
+        assert card.colors == [Color.BLUE]
+
+    def test_color_identity_also_normalized(self):
+        card = Card.model_validate(
+            {
+                "name": "x",
+                "type_line": "Creature",
+                "colors": ["red"],
+                "color_identity": ["red", "green"],
+            }
+        )
+        assert card.colors == [Color.RED]
+        assert card.color_identity == [Color.RED, Color.GREEN]
+
+    def test_validate_card_from_raw_round_trip(self):
+        raw = {
+            "name": "Cybertronian Data-Link",
+            "type_line": "Artifact",
+            "mana_cost": "{U}",
+            "oracle_text": "",
+            "colors": ["blue"],
+            "color_identity": ["blue"],
+        }
+        card, _errors, _fixes, _regen = validate_card_from_raw(raw)
+        assert card is not None
+        assert card.colors == [Color.BLUE]
+        assert card.color_identity == [Color.BLUE]
+
+    def test_invalid_color_still_rejected(self):
+        import pydantic
+
+        with pytest.raises(pydantic.ValidationError):
+            Card.model_validate({"name": "x", "type_line": "Creature", "colors": ["purple"]})
+
+
+# ===========================================================================
 # Mana consistency
 # ===========================================================================
 

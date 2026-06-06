@@ -129,11 +129,28 @@ def test_invalid_rarity_rejected(bad_rarity):
         Card(name="Bad", type_line="Instant", rarity=bad_rarity)
 
 
-@pytest.mark.parametrize("bad_color", ["X", "white", "w", "1", ""])
+@pytest.mark.parametrize("bad_color", ["X", "1", "", "purple", "blu"])
 def test_invalid_color_rejected(bad_color):
-    """Pydantic rejects invalid color values in the colors list."""
+    """Pydantic rejects color values that are neither a WUBRG letter nor a name."""
     with pytest.raises(ValidationError):
         Card(name="Bad", type_line="Instant", colors=[bad_color])
+
+
+@pytest.mark.parametrize(
+    ("raw_color", "expected"),
+    [
+        ("U", Color.BLUE),
+        ("u", Color.BLUE),
+        ("blue", Color.BLUE),
+        ("Blue", Color.BLUE),
+        ("white", Color.WHITE),
+        ("w", Color.WHITE),
+    ],
+)
+def test_color_name_or_letter_normalized(raw_color, expected):
+    """Full color names and letters (any case) normalize to canonical WUBRG."""
+    card = Card(name="x", type_line="Instant", colors=[raw_color])
+    assert card.colors == [expected]
 
 
 @pytest.mark.parametrize("bad_status", ["pending", "deleted", "DRAFT", "1", ""])
