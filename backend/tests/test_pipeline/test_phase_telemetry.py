@@ -9,6 +9,7 @@ the wiring around the emit helper.
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 
 import pytest
 
@@ -95,6 +96,76 @@ def test_emit_phase_structural_override_ignores_module_state():
         "attempt_total": 3,
     }
     assert "section_index" not in seen[0]["structural"]
+
+
+def test_emit_phase_includes_title_when_set():
+    """A human-readable strip title rides on the event when provided; the
+    wizard prefers it over the raw phase token (json_subcall → Json_subcall)."""
+    seen: list[dict] = []
+    te.set_phase_emitter(seen.append)
+    te._emit_phase(phase="json_subcall", activity="Constraints", title="Refresh set constraints")
+    te._emit_phase(phase="json_subcall", activity="Constraints")
+
+    assert seen[0]["title"] == "Refresh set constraints"
+    # Omitting title leaves the key off so existing paths are unaffected.
+    assert "title" not in seen[1]
+
+
+def test_section_extraction_emits_terminal_done_phase(monkeypatch):
+    """Regression for the stuck-strip bug: a per-section refresh must emit a
+    terminal phase=done (so the wizard hides the strip live + the SSE replay
+    buffer's tail is terminal, not a stale json_subcall) and tag its
+    json_subcall phase with the human action-name title."""
+    # Isolate from the active-project log dir + the real LLM subcall.
+    monkeypatch.setattr(te, "_init_run_log_dir", lambda: None)
+    monkeypatch.setattr(te.ai_lock, "update_log_path", lambda _p: None)
+    monkeypatch.setattr(te, "_resolve_model_info", lambda _k: SimpleNamespace(model_id="dummy"))
+
+    def _fake_subcall(_theme, _model, kind, phase_title=None):
+        # Mirror _run_json_subcall's first-attempt phase emit so the title
+        # threading is exercised end to end, then yield a clean result.
+        te._emit_phase(phase="json_subcall", activity="Constraints", title=phase_title)
+        yield {"type": "constraints", "constraints": [{"text": "x"}]}
+
+    monkeypatch.setattr(te, "_stream_section_subcall", _fake_subcall)
+
+    seen: list[dict] = []
+    te.set_phase_emitter(seen.append)
+    events = list(te.stream_section_extraction("theme", "model", "constraints"))
+
+    # Lifecycle: the section result then the terminal done.
+    assert events[-1] == {"type": "done", "cost_usd": 0.0}
+
+    phases = [e for e in seen if e.get("type") == "phase"]
+    # The json_subcall phase carries the action-name title.
+    subcall = next(e for e in phases if e["phase"] == "json_subcall")
+    assert subcall["title"] == "Refresh set constraints"
+    # A terminal phase=done is the LAST phase event (hides the strip + leaves
+    # the SSE replay buffer terminal so a reconnect doesn't re-show "running").
+    assert phases[-1]["phase"] == "done"
+
+
+def test_section_extraction_card_suggestions_title(monkeypatch):
+    """The card-suggestions section uses its own action-name title."""
+    monkeypatch.setattr(te, "_init_run_log_dir", lambda: None)
+    monkeypatch.setattr(te.ai_lock, "update_log_path", lambda _p: None)
+    monkeypatch.setattr(te, "_resolve_model_info", lambda _k: SimpleNamespace(model_id="dummy"))
+
+    captured: list[str | None] = []
+
+    def _fake_subcall(_theme, _model, kind, phase_title=None):
+        captured.append(phase_title)
+        yield {"type": "card_suggestions", "suggestions": []}
+
+    monkeypatch.setattr(te, "_stream_section_subcall", _fake_subcall)
+
+    seen: list[dict] = []
+    te.set_phase_emitter(seen.append)
+    list(te.stream_section_extraction("theme", "model", "card_suggestions"))
+
+    assert captured == ["Refresh card requests"]
+    phases = [e for e in seen if e.get("type") == "phase"]
+    assert phases[-1]["phase"] == "done"
 
 
 def test_emit_phase_includes_prompt_eval_and_generation():

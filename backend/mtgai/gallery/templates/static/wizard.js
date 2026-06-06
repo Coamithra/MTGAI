@@ -851,7 +851,12 @@
     const stageObj = state.pipeline
       ? state.pipeline.stages.find(s => s.instance_id === instanceId)
       : null;
-    stageEl.textContent = stageObj ? stageObj.display_name : (instanceId || phaseDisplayLabel(phase));
+    // `data.title` is an explicit human-readable strip title for phases whose
+    // raw `phase` token would otherwise show verbatim (e.g. the theme section
+    // refresh's `json_subcall` → "Json_subcall"). Prefer it over the token.
+    stageEl.textContent = stageObj
+      ? stageObj.display_name
+      : (data.title || instanceId || phaseDisplayLabel(phase));
     activityEl.textContent = data.activity || '';
 
     // Seed the elapsed clock from this event and paint now; the interval
