@@ -240,6 +240,7 @@ def _emit_phase(
     *,
     phase: str,
     activity: str,
+    title: str | None = None,
     prompt_eval: dict[str, Any] | None = None,
     generation: dict[str, Any] | None = None,
     structural_override: dict[str, Any] | None = None,
@@ -249,6 +250,10 @@ def _emit_phase(
     ``structural_override`` lets a caller override the module-level
     :class:`_StructuralState` snapshot for a single emit (used to tag
     JSON-subcall phases with no section grid even mid-extraction).
+
+    ``title`` is a human-readable strip title for phases whose ``phase``
+    token would otherwise be shown raw (e.g. ``json_subcall`` →
+    "Json_subcall"); the wizard prefers it over ``phaseDisplayLabel(phase)``.
     """
     fn = _phase_emit_fn
     if fn is None:
@@ -262,6 +267,8 @@ def _emit_phase(
         "activity": activity,
         "elapsed_s": round(elapsed, 2),
     }
+    if title is not None:
+        event["title"] = title
     if structural is not None:
         event["structural"] = structural
     if prompt_eval is not None:
@@ -1788,6 +1795,7 @@ def _run_json_subcall(
     prompt_file: str,
     json_key: str,
     output_budget: int,
+    phase_title: str | None = None,
 ) -> Generator[dict, None, tuple[list, str | None, str]]:
     from mtgai.generation.llm_client import MAX_RETRIES
 
@@ -1818,6 +1826,7 @@ def _run_json_subcall(
             _emit_phase(
                 phase="json_subcall",
                 activity=label,
+                title=phase_title,
                 structural_override={
                     "section_name": label,
                     "attempt": attempt,
@@ -1837,6 +1846,7 @@ def _run_json_subcall(
                 activity=(
                     f"{label}: retry {attempt}/{MAX_RETRIES} (prev failed: {last_err}{knob_note})"
                 ),
+                title=phase_title,
                 structural_override={
                     "section_name": label,
                     "attempt": attempt,
@@ -1927,10 +1937,15 @@ _SECTION_SPECS: dict[str, dict[str, Any]] = {
 }
 
 
-def _stream_section_subcall(theme_text: str, model_info, kind: str) -> Iterator[dict[str, Any]]:
+def _stream_section_subcall(
+    theme_text: str, model_info, kind: str, phase_title: str | None = None
+) -> Iterator[dict[str, Any]]:
     """Yield status + result events for one section subcall.
 
     Used by both the full constraints pass and the per-section refresh path.
+    ``phase_title`` is a human-readable strip title for the ``json_subcall``
+    phase (the per-section refresh passes the action name so the strip reads
+    "Refresh set constraints" instead of the raw "Json_subcall" token).
     """
     spec = _SECTION_SPECS[kind]
     gen = _run_json_subcall(
@@ -1940,6 +1955,7 @@ def _stream_section_subcall(theme_text: str, model_info, kind: str) -> Iterator[
         spec["prompt_file"],
         spec["json_key"],
         spec["output_budget"],
+        phase_title=phase_title,
     )
     try:
         while True:
@@ -2067,12 +2083,20 @@ def stream_section_extraction(
         _structural.reset()
 
         try:
-            yield from _stream_section_subcall(theme_text, model_info, kind)
+            yield from _stream_section_subcall(
+                theme_text, model_info, kind, phase_title=action_name
+            )
 
+            # Mirror the full-extraction path: a terminal phase=done hides the
+            # wizard's progress strip live AND replaces the non-terminal
+            # json_subcall event at the tail of the SSE replay buffer, so a
+            # reconnect doesn't re-show a stale "running" strip.
+            _emit_phase(phase="done", activity=f"{action_name} complete")
             yield {"type": "done", "cost_usd": 0.0}
         except _CancelledError:
             if _run_stats:
                 _run_stats.cancelled = True
+            _emit_phase(phase="done", activity="Cancelled")
             yield {"type": "cancelled"}
 
 
