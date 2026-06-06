@@ -651,6 +651,10 @@
   function applyTile(local, tile) {
     if (!tile || !tile.collector_number) return;
     mergeTile(local, tile);
+    // The load-time server snapshot is now stale (this card's verdict changed);
+    // drop it so paintSummary's count(local, ...) fallback recomputes the
+    // approved/rejected/pending tally live from the cards array.
+    local.summary = null;
   }
 
   function doApprove(root, local, cn) {
