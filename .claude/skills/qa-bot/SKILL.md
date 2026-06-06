@@ -14,7 +14,13 @@ You are the **QA orchestrator**. Your job: keep the MTGAI wizard under continuou
 adversarial test, turn every bug you find into a tracked + fixed Trello card, and
 keep the cycle going. The app is a single live instance behind an app-wide AI
 mutex (one AI call at a time), so **QA driving is serial** — one probe at a time.
-Only the *fixes* (code edits in separate worktrees) run in parallel.
+
+**Drive the app yourself, in this (master) chat.** Do **not** spawn subagents for
+QA driving — the user wants to watch the probing happen live, and a subagent's
+browser session is opaque. You hold the single browser session and drive every
+probe directly. The *only* thing you delegate is the **bug fixing** (code edits in
+separate worktrees), which genuinely parallelizes — see §5. So: QA driving =
+master chat, serial; fixes = subagents, parallel.
 
 This skill assumes the Part-A debug harness exists (it ships with the QA Bot
 card): `serve --debug`, the floating 🐛 QA Debug panel, and the
@@ -68,19 +74,28 @@ gitignored, so it persists locally across sessions with no commit churn).
    "re-verify the skeleton fixes", "re-run the theme probes"). Absent such an
    order, prefer untested areas and skip everything in the journal.
 
-Journal format — a single append-only table:
+Journal format — probes are grouped under a `## <date>` header and a
+`### <short-SHA>` subheader, with one append-only table per SHA. Add a new
+`### <short-SHA>` table when the SHA changes within a day, and a new `## <date>`
+header when the date rolls over:
 
 ```markdown
 # QA Journal — MTGAI wizard
 
-Persistent cross-session QA coverage log. Each probe appends one row.
+Persistent cross-session QA coverage log. Each probe appends one row, grouped
+under a `## <date>` header and a `### <short-SHA>` subheader (the `master`
+commit the probes ran against — useful for tracing regressions).
 Outcome: `clean` (exercised, no bug) / `bug` (filed — link the Trello card) /
 `partial` (couldn't fully exercise — say why, e.g. ComfyUI not running).
 Default: a recorded area is covered — skip it and find new ground. Re-test only
 when the user explicitly orders it.
 
-| Date | SHA | Area / Tab | What was exercised | Outcome | Card / Notes |
-|------|-----|-----------|--------------------|---------|--------------|
+## 2026-06-06
+
+### b754962
+
+| Area / Tab | What was exercised | Outcome | Card / Notes |
+|-----------|--------------------|---------|--------------|
 ```
 
 ## 2. Configure for cheap, fast runs
@@ -112,9 +127,9 @@ Repeat until the **restart trigger** (§5):
    art/render tabs → cross-cutting like cancel-mid-run, tab-switch,
    edit-past-stage, bad input.
 
-2. **Spawn a QA probe subagent** (fresh context) for that ONE area. Give it:
-   - the area + the exact tab URL,
-   - the claude-in-chrome tools to use,
+2. **Drive the probe yourself** for that ONE area — in this chat, not a subagent
+   (see the intro). For that area:
+   - go to the exact tab URL and drive it with the claude-in-chrome tools,
    - **the click-first mandate** (§3.5): drive the *real UI* — click the actual
      control, type into the actual field, press the actual Save/Refresh/Re-pick
      button, and read the outcome back from the *rendered DOM / a screenshot*, one
@@ -125,14 +140,13 @@ Repeat until the **restart trigger** (§5):
    - the adversarial brief: *click every control, feed empty/huge/weird input,
      double-click, cancel mid-run, switch tabs mid-run, edit a past stage,
      reload mid-action, hit endpoints out of order* — try to break it,
-   - the **bug report contract** (§4): report back ONLY confirmed bugs, each
-     with repro steps, expected vs actual, console errors
-     (`read_console_messages`), failing network calls (`read_network_requests`),
-     and a screenshot.
+   - for each confirmed bug, capture the evidence in §4 (repro steps, expected
+     vs actual, console errors via `read_console_messages`, failing network calls
+     via `read_network_requests`, a screenshot).
    Because the app is serial, run probes **one at a time** — never two browser
    drivers at once.
 
-3. **Triage each reported bug.** Confirm it's real and not test-harness noise
+3. **Triage each bug you hit.** Confirm it's real and not test-harness noise
    (a 409 "AI busy" during a deliberate concurrent action is *expected*, not a
    bug). Dedupe against bugs already filed this session.
 
@@ -149,11 +163,13 @@ Repeat until the **restart trigger** (§5):
    repro so they can act cold.
 
 6. **Log it in the journal** (every probe, bug or not — this is the
-   coverage memory). Append one row to `output/qa-runs/QA-JOURNAL.md` with the
-   date, the session SHA, the area/tab, a terse "what was exercised", the outcome
-   (`clean` / `bug` / `partial`), and the Trello card link or a short note. A
-   probe that found nothing still gets a `clean` row — that is the whole point, so
-   the next session doesn't re-run it. One row per probe; never delete prior rows.
+   coverage memory). Append one row to `output/qa-runs/QA-JOURNAL.md` under the
+   `## <date>` / `### <short-SHA>` table for this session (create the header +
+   subheader + table if the date or SHA is new) with the area/tab, a terse "what
+   was exercised", the outcome (`clean` / `bug` / `partial`), and the Trello card
+   link or a short note. A probe that found nothing still gets a `clean` row —
+   that is the whole point, so the next session doesn't re-run it. One row per
+   probe; never delete prior rows.
 
 7. **Keep driving.** Don't wait for fixes to land before the next probe —
    queue them and continue QA. Track how many fixes have merged.
@@ -179,17 +195,19 @@ Rules for every probe:
   express: malformed JSON bodies, non-finite numbers, calling endpoints out of
   order, a nonexistent id the form would never submit. These test the durable
   server backstop and are worth keeping, as the *supplement*, not the main course.
-- **Report the split.** Each probe states, per thing exercised, whether it was
-  *clicked* or *fetched*, so endpoint-only drift is visible at triage (§4).
+- **Record the split.** For each thing exercised, note whether it was *clicked*
+  or *fetched*, so endpoint-only drift is visible at triage (§4) and in the
+  journal row.
 
 Journal implication (§1.5): a `clean` row is only as strong as the layer it
 tested. An area exercised **only via `fetch()`** is `partial` (UI layer
 untested), **not** `clean`, so a later UI-first re-probe of it is new ground, not
 a re-test, and is **not** blocked by the "skip covered areas" default.
 
-## 4. Bug report contract (probe → orchestrator)
+## 4. Bug evidence to capture
 
-A probe reports a JSON-ish list of confirmed bugs. Each:
+For each confirmed bug, capture the following — it's what goes on the Trello card
+(§3 step 4) and backs the journal row (§3 step 6):
 - `title` — short imperative ("Skeleton refresh 500s on empty knobs")
 - `area` / `tab`
 - `repro` — numbered steps a cold reader can replay
@@ -200,7 +218,7 @@ A probe reports a JSON-ish list of confirmed bugs. Each:
 - `network` — any 4xx/5xx the action caused (method + path + status)
 - `screenshot` — path/ref
 - `severity` — crash / broken-feature / cosmetic
-No bug ⇒ report "clean: <what was exercised>" so coverage is auditable.
+No bug ⇒ note "clean: <what was exercised>" so coverage is auditable.
 
 ## 5. Restart trigger + handoff
 

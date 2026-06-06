@@ -38,24 +38,32 @@ locally across sessions, no commit churn). Trello holds *bugs*; this holds
 re-probe blind. Read it at startup, append one row per probe, summarise it at
 handoff (SKILL §1.5 / §3.6 / §5).
 
-Append-only table; one row per probe; never delete rows:
+Probes are grouped under a `## <date>` header and a `### <short-SHA>` subheader,
+with one append-only table per SHA; one row per probe; never delete rows:
 
 ```markdown
 # QA Journal — MTGAI wizard
 
-Persistent cross-session QA coverage log. Each probe appends one row.
+Persistent cross-session QA coverage log. Each probe appends one row, grouped
+under a `## <date>` header and a `### <short-SHA>` subheader.
 Outcome: `clean` / `bug` (link the card) / `partial` (say why, e.g. fetch-only / UI layer untested, or ComfyUI off).
 Default: a recorded area is covered — skip it, find new ground. Re-test only on
 the user's explicit order.
 
-| Date | SHA | Area / Tab | What was exercised | Outcome | Card / Notes |
-|------|-----|-----------|--------------------|---------|--------------|
-| 2026-06-06 | a1b2c3d | Skeleton | knob out-of-range, refresh, edit+save | clean | — |
-| 2026-06-06 | a1b2c3d | Theme | upload text, section refresh, cancel mid-extract | bug | trello.com/c/… 500 on cancel |
+## 2026-06-06
+
+### a1b2c3d
+
+| Area / Tab | What was exercised | Outcome | Card / Notes |
+|-----------|--------------------|---------|--------------|
+| Skeleton | knob out-of-range, refresh, edit+save | clean | — |
+| Theme | upload text, section refresh, cancel mid-extract | bug | trello.com/c/… 500 on cancel |
 ```
 
-Stamp each row with `git rev-parse --short HEAD` so a result records the code it
-ran against. **By default the journal means "don't repeat":** any area it
+Stamp the `### <short-SHA>` subheader with `git rev-parse --short HEAD` so each
+table records the code its probes ran against (start a new subheader + table when
+the SHA changes, a new `## <date>` header when the date rolls over). **By default
+the journal means "don't repeat":** any area it
 records (clean or bug, any SHA) is covered — skip it and find new ground. The SHA
 is metadata, **not** a re-test trigger; re-running a covered probe (re-verifying a
 fix, re-checking an old-SHA clean) happens **only when the user explicitly orders
