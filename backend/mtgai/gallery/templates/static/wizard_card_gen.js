@@ -763,12 +763,24 @@
       String(b.collector_number || ''), undefined, { numeric: true });
   }
 
+  // Maps a colour value to its canonical WUBRG letter. Accepts the canonical
+  // letter ('U') AND full color names ('blue' / 'White') that some card JSON
+  // persists out-of-band — without this, 'blue' would charAt(0) to 'B' and
+  // collide with the Black group key.
+  const COLOR_LETTER = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
+  function colorLetter(value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    const named = COLOR_LETTER[text.toLowerCase()];
+    return named || text.charAt(0).toUpperCase();
+  }
+
   // Derives a single-char colour key for grouping.
   function cardColorKey(card) {
     const colors = Array.isArray(card.colors) ? card.colors : [];
     if (colors.length === 0) return 'C'; // colorless
     if (colors.length > 1) return 'M';   // multicolor
-    return colors[0].charAt(0).toUpperCase();
+    return colorLetter(colors[0]);
   }
 
   // --------------------------------------------------------------------

@@ -58,6 +58,18 @@ def pair_label(pair: str) -> str:
 # occasionally merges two adjacent pairs) but bail if it's badly under.
 MIN_ARCHETYPES = 8
 
+# Sane upper bound for an archetype *name* — a short flavorful label, never
+# prose. A payload longer than this is a malformed-serialization leak, not a
+# name.
+_MAX_NAME_LEN = 60
+
+# Characters/substrings that never appear in a real archetype name but are
+# tell-tale signs of a leaked tool-call serialization fragment: chat special
+# tokens (``<|"|>``), JSON structure (``],[`` and ``"color_pair":``), and the
+# start of an adjacent entry's content bleeding into this one.
+_NAME_MARKUP_CHARS = frozenset("{}[]<>|")
+_NAME_LEAK_SUBSTRINGS: tuple[str, ...] = ("color_pair", "description", "<|", "|>")
+
 # ---------------------------------------------------------------------------
 # Tool schema: defines the structured output the LLM must return
 # ---------------------------------------------------------------------------
@@ -265,6 +277,46 @@ def normalize_color_pair(raw: object) -> str | None:
     return pair if pair in COLOR_PAIRS else None
 
 
+def sanitize_archetype_name(raw: object, pair: str) -> str:
+    """Coerce a model's ``name`` field into a clean short label.
+
+    Defends against a malformed local-model tool payload (the QA preset uses a
+    2-bit Gemma that can emit broken escaping / chat special tokens) that leaks
+    a serialization fragment into the ``name`` field — e.g.
+    ``'Predacon Ambush<|"|>],[color_pair': 'RG', 'description': "...``, where one
+    entry has absorbed JSON punctuation, a special token, and the start of the
+    NEXT entry's content. Such a blob then persists to ``archetypes.json`` and
+    pollutes the signpost card's card-gen prompt.
+
+    Mirrors ai_review's ``_coerce_*`` defensiveness: a non-string, an over-long
+    blob, or a name carrying markup/JSON characters (``{[<|>]}``) or tell-tale
+    leak substrings (``color_pair``, ``description``, ``<|``, ``|>``) is rejected
+    and we fall back to a clean derived label from the color pair
+    (e.g. ``"White-Blue"``); an empty/whitespace name degrades to ``"(unnamed)"``.
+    """
+    name = raw.strip() if isinstance(raw, str) else ""
+    if not name:
+        return _derived_name(pair)
+    if len(name) > _MAX_NAME_LEN:
+        return _derived_name(pair)
+    if any(c in _NAME_MARKUP_CHARS for c in name):
+        return _derived_name(pair)
+    lowered = name.lower()
+    if any(sub in lowered for sub in _NAME_LEAK_SUBSTRINGS):
+        return _derived_name(pair)
+    return name
+
+
+def _derived_name(pair: str) -> str:
+    """Clean fallback name for a pair: ``"WU"`` -> ``"White-Blue"``.
+
+    Falls back to ``"(unnamed)"`` if the pair somehow isn't a known WUBRG pair.
+    """
+    if pair in COLOR_PAIRS:
+        return "-".join(_COLOR_FULL.get(c, c) for c in pair)
+    return "(unnamed)"
+
+
 def dedupe_and_complete(archetypes: list[Any]) -> list[dict]:
     """Normalize color pairs, drop malformed/duplicate entries, sort to order.
 
@@ -278,7 +330,10 @@ def dedupe_and_complete(archetypes: list[Any]) -> list[dict]:
     (``color_pair`` / ``name`` / ``description``). The tool schema only
     constrains what's *required*, so a model — especially a local one —
     can still emit stray keys (``speed``, ``signpost_uncommon``, …); this
-    drops them so the on-disk archetype is strictly name + intent.
+    drops them so the on-disk archetype is strictly name + intent. The
+    ``name`` is additionally run through :func:`sanitize_archetype_name`,
+    which rejects a malformed-serialization blob and substitutes a clean
+    derived label.
     """
     by_pair: dict[str, dict] = {}
     for arch in archetypes:
@@ -289,7 +344,7 @@ def dedupe_and_complete(archetypes: list[Any]) -> list[dict]:
             continue
         by_pair[pair] = {
             "color_pair": pair,
-            "name": str(arch.get("name") or ""),
+            "name": sanitize_archetype_name(arch.get("name"), pair),
             "description": str(arch.get("description") or ""),
         }
     return [by_pair[p] for p in COLOR_PAIRS if p in by_pair]

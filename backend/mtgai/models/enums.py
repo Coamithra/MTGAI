@@ -10,6 +10,41 @@ class Color(StrEnum):
     RED = "R"
     GREEN = "G"
 
+    @classmethod
+    def coerce(cls, value: object) -> "Color":
+        """Map a canonical WUBRG letter OR a full color name to a ``Color``.
+
+        Card JSON is sometimes persisted with full color names (``"blue"``,
+        ``"White"``) instead of the Scryfall-canonical single letter. Both are
+        accepted here, case-insensitively, and normalized to the letter — so
+        ``"blue"`` and ``"u"`` both yield ``Color.BLUE`` (``"U"``). Already-canonical
+        ``Color`` instances pass through. Raises ``ValueError`` on anything else.
+        """
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, str):
+            raise ValueError(f"invalid color: {value!r}")
+        text = value.strip()
+        # Canonical letter (case-insensitive: 'U' / 'u').
+        try:
+            return cls(text.upper())
+        except ValueError:
+            pass
+        # Full color name (case-insensitive: 'blue' / 'Blue').
+        named = _COLOR_NAME_TO_LETTER.get(text.lower())
+        if named is not None:
+            return cls(named)
+        raise ValueError(f"invalid color: {value!r}")
+
+
+_COLOR_NAME_TO_LETTER: dict[str, str] = {
+    "white": "W",
+    "blue": "U",
+    "black": "B",
+    "red": "R",
+    "green": "G",
+}
+
 
 class Rarity(StrEnum):
     COMMON = "common"
