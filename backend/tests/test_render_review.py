@@ -71,12 +71,25 @@ class TestParseCollectorNumber:
     def test_three_color_prefix(self):
         assert parse_collector_number("WUB-U-01") == ("WUB-U", 1, 2)
 
+    def test_bare_numeric_is_prefixless_group(self):
+        # The form every ordinary card carries: a plain zero-padded slot id.
+        assert parse_collector_number("002") == ("", 2, 3)
+        assert parse_collector_number("001") == ("", 1, 3)
+
+    def test_bare_numeric_wide_padding(self):
+        # A 4-digit set (id_width 4) stamps "0042".
+        assert parse_collector_number("0042") == ("", 42, 4)
+
+    def test_bare_numeric_single_digit(self):
+        assert parse_collector_number("7") == ("", 7, 1)
+
     def test_no_index_suffix_is_none(self):
         assert parse_collector_number("PROMO") is None
         assert parse_collector_number("") is None
+        assert parse_collector_number("L-") is None  # dash but no trailing digits
 
     def test_round_trip(self):
-        for cn in ("B-C-02", "L-3", "BLOG-01", "WG-R-05"):
+        for cn in ("B-C-02", "L-3", "BLOG-01", "WG-R-05", "002", "0042", "7"):
             prefix, index, pad = parse_collector_number(cn)
             assert format_collector_number(prefix, index, pad) == cn
 
@@ -163,6 +176,46 @@ class TestPlanRenumber:
         assert set(remap) == {"B-C-04"}  # only the trailing card shifts
         assert "B-C-01" not in remap
         assert "B-C-02" not in remap
+
+    def test_bare_numeric_middle_removal_shifts_trailing(self):
+        # The real bug: ordinary cards use plain "001"/"002"/… and must renumber
+        # densely (003→002 after removing 002), not leave a permanent gap.
+        remaining = ["001", "003", "004"]
+        remap = plan_renumber(remaining, "002")
+        assert remap == {"003": "002", "004": "003"}
+
+    def test_bare_numeric_first_removal_shifts_all(self):
+        remaining = ["002", "003", "004"]
+        remap = plan_renumber(remaining, "001")
+        assert remap == {"002": "001", "003": "002", "004": "003"}
+
+    def test_bare_numeric_last_removal_no_shift(self):
+        remaining = ["001", "002", "003"]
+        remap = plan_renumber(remaining, "004")
+        assert remap == {}
+
+    def test_bare_numeric_does_not_touch_dashed_groups(self):
+        # Plain-numeric (prefix "") and dashed land/special ids are distinct groups:
+        # removing an ordinary card never renumbers the L-* lands and vice versa.
+        remaining = ["001", "003", "L-01", "L-02"]
+        remap = plan_renumber(remaining, "002")
+        assert remap == {"003": "002"}
+        assert "L-01" not in remap
+        assert "L-02" not in remap
+
+    def test_dashed_removal_does_not_touch_bare_numeric_group(self):
+        remaining = ["001", "002", "L-01", "L-03"]
+        remap = plan_renumber(remaining, "L-02")
+        assert remap == {"L-03": "L-02"}
+        assert "001" not in remap
+        assert "002" not in remap
+
+    def test_bare_numeric_padding_preserved_on_rollover(self):
+        # 3-wide padding stays 3-wide through a double-digit shift.
+        remaining = ["001", "002", "004", "005", "006", "007", "008", "009", "010"]
+        remap = plan_renumber(remaining, "003")
+        assert remap["004"] == "003"
+        assert remap["010"] == "009"
 
     def test_double_digit_rollover(self):
         remaining = [

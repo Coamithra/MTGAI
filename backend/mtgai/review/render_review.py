@@ -49,25 +49,37 @@ from mtgai.review.finalize import finalize_card
 from mtgai.validation import ValidationError
 
 # A collector number ends in a ``-<digits>`` index; everything before is the group.
-_CN_RE = re.compile(r"^(?P<prefix>.+)-(?P<index>\d+)$")
+# The ``-<prefix>`` part is optional so a bare zero-padded number (``002``) parses as
+# the prefixless group — that's the shape the skeleton generator stamps onto every
+# ordinary card (``001``, ``002``, …); only land/special ids carry a dashed prefix.
+_CN_RE = re.compile(r"^(?:(?P<prefix>.+)-)?(?P<index>\d+)$")
 
 
 def parse_collector_number(cn: str) -> tuple[str, int, int] | None:
     """Split ``<prefix>-<NN>`` into ``(prefix, index, pad_width)``.
 
-    ``B-C-02`` -> ``("B-C", 2, 2)``; ``L-3`` -> ``("L", 3, 1)``. Returns ``None``
-    for a collector number that doesn't end in a ``-<digits>`` run (it's then its
-    own ungrouped singleton — never renumbered).
+    ``B-C-02`` -> ``("B-C", 2, 2)``; ``L-3`` -> ``("L", 3, 1)``. A bare numeric
+    collector number (no dashed prefix) parses as the prefixless group:
+    ``002`` -> ``("", 2, 3)`` — this is the form every ordinary card carries
+    (the skeleton stamps plain zero-padded slot ids). Returns ``None`` for a
+    collector number with no trailing ``<digits>`` run at all (e.g. ``PROMO``);
+    it's then its own ungrouped singleton — never renumbered.
     """
     m = _CN_RE.match(cn or "")
     if not m:
         return None
     index_str = m.group("index")
-    return m.group("prefix"), int(index_str), len(index_str)
+    return m.group("prefix") or "", int(index_str), len(index_str)
 
 
 def format_collector_number(prefix: str, index: int, pad_width: int) -> str:
-    """Inverse of :func:`parse_collector_number` — ``("B-C", 2, 2)`` -> ``B-C-02``."""
+    """Inverse of :func:`parse_collector_number`.
+
+    ``("B-C", 2, 2)`` -> ``B-C-02``; the prefixless group emits just the
+    zero-padded number: ``("", 2, 3)`` -> ``002``.
+    """
+    if not prefix:
+        return f"{index:0{pad_width}d}"
     return f"{prefix}-{index:0{pad_width}d}"
 
 
