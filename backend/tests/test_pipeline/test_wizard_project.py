@@ -703,6 +703,41 @@ def test_malformed_body_still_409s_when_no_project_open(client):
     assert resp.json()["code"] == "no_active_project"
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/wizard/project/params",
+        "/api/wizard/project/models",
+        "/api/wizard/project/breaks",
+        "/api/wizard/project/theme-input",
+        "/api/wizard/project/preset/apply",
+        "/api/wizard/project/preset/save",
+    ],
+)
+@pytest.mark.parametrize("body", [b"123", b'"a string"', b"[1, 2, 3]", b"true"])
+def test_non_object_body_returns_400_not_500(client, path, body):
+    """A valid-JSON-but-non-object body is a clean 400 via ``_read_request_json``.
+
+    The handlers call ``body.get(...)``; a scalar/list payload would
+    otherwise ``AttributeError`` into a 500. The shared gate now rejects
+    any non-dict top-level body before it reaches the handler.
+    """
+    _open_project("TST")
+    resp = client.post(path, content=body, headers={"content-type": "application/json"})
+    assert resp.status_code == 400
+    assert "JSON object" in resp.json()["error"]
+
+
+def test_object_body_still_accepted(client):
+    """The non-object guard doesn't reject a legitimate dict body."""
+    _open_project("TST")
+    resp = client.post(
+        "/api/wizard/project/params",
+        json={"set_code": "TST", "set_name": "Avoria", "mechanic_count": 4},
+    )
+    assert resp.status_code == 200
+
+
 # ---------------------------------------------------------------------------
 # Project-switch drops the SSE replay buffer (no stale FAILED/PENDING leak)
 # ---------------------------------------------------------------------------

@@ -3245,11 +3245,19 @@ async def _read_request_json(request: Request) -> tuple[Any, JSONResponse | None
     Mirrors the inline ``request.json()`` calls elsewhere in this
     module but turns a malformed payload into a clean 400 instead of a
     500 from the FastAPI default error path.
+
+    Also rejects a valid-JSON-but-non-object body (e.g. ``123``,
+    ``"str"``, ``[1, 2, 3]``, ``true``) with a 400: every caller treats
+    the parsed value as a dict (``body.get(...)``), so a non-object
+    payload would otherwise ``AttributeError`` into a 500. No caller in
+    this module expects a list/scalar top-level body.
     """
     try:
         body = await request.json()
     except (json.JSONDecodeError, ValueError):
         return None, JSONResponse({"error": "Request body must be valid JSON"}, status_code=400)
+    if not isinstance(body, dict):
+        return None, JSONResponse({"error": "Request body must be a JSON object"}, status_code=400)
     return body, None
 
 
