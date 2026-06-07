@@ -366,6 +366,17 @@ async def debug_seed_stage(request: Request) -> JSONResponse:
     order = [d["stage_id"] for d in STAGE_DEFINITIONS]
     target_idx = order.index(target)
     backbone = [s for s in state.stages if s.instance_id == s.stage_id]
+
+    # The regen-loop instances we're about to drop from state (``card_gen.2`` …)
+    # carry cloned ``history/<instance_id>/`` snapshot dirs from the source. Once
+    # they leave ``state.stages`` the unlock/clear path (which only walks
+    # ``state.stages``) can never reach them, so delete their snapshots now — else
+    # they're orphaned the moment the project is seeded.
+    from mtgai.pipeline import history
+
+    for s in state.stages:
+        if s.instance_id != s.stage_id:
+            history.delete_snapshot(s.instance_id, dest)
     for s in backbone:
         try:
             idx = order.index(s.stage_id)
