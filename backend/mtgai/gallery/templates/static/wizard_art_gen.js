@@ -108,6 +108,7 @@
     judgeModel: '',
     provider: '',
     stageStatus: 'pending',
+    canAdvance: false,    // COMPLETED tip, pipeline PAUSED, a pending successor waits
     locked: false,
     bootstrapping: false,
   };
@@ -193,6 +194,7 @@
       local.judgeModel = data.judge_model || '';
       local.provider = data.provider || '';
       local.stageStatus = data.stage_status || local.stageStatus;
+      local.canAdvance = !!data.can_advance;
     }
     paintSummary(root, state);
     paintGrid(root);
@@ -386,6 +388,7 @@
       local.hasContent = !!data.has_content;
     }
     if (data.stage_status) local.stageStatus = data.stage_status;
+    if ('can_advance' in data) local.canAdvance = !!data.can_advance;
     const root = bodyRoot();
     if (root) {
       paintSummary(root);
@@ -407,7 +410,11 @@
     let html;
     if (!isLatest) {
       html = `<span class="wiz-footer-note">Art review completed — read-only on a past tab.</span>`;
-    } else if (status === 'paused_for_review') {
+    } else if (status === 'paused_for_review' || (status === 'completed' && local.canAdvance)) {
+      // 'completed' + canAdvance is the saved/reopened dead-end: art finished but
+      // the pipeline persisted PAUSED with rendering still pending and no
+      // PAUSED_FOR_REVIEW pause. Surface the same Next-step button so the user
+      // isn't stuck — advance() resumes the engine into the pending stage.
       html = `<button type="button" class="wiz-btn-primary" data-role="ag-advance">Next step: ${escHtml(nextName)}</button>`;
     } else if (status === 'running') {
       html = `<span class="wiz-footer-note">Art generation is in progress…</span>`;
