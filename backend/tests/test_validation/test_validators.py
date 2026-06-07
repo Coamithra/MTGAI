@@ -403,6 +403,110 @@ class TestTypeConsistency:
         assert any("Equip" in e.message for e in errors)
 
 
+class TestTypeLineOrdering:
+    """Type lines must read <supertypes> <card types> — <subtypes>.
+
+    LLMs strand a card type after the dash ("Creature — Artifact Peacekeeper")
+    or order the main types wrong; the structured parts come out right but the
+    raw string — what renders — keeps the bad order. The AUTO fixer rebuilds it.
+    """
+
+    def test_stranded_card_type_is_auto_flagged(self):
+        card = _make_card(
+            type_line="Creature — Artifact Peacekeeper",
+            card_types=["Creature", "Artifact"],
+            subtypes=["Peacekeeper"],
+        )
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        assert any(e.error_code == "type_check.type_line_order" for e in errors)
+        assert all(
+            e.severity == ValidationSeverity.AUTO
+            for e in errors
+            if e.error_code == "type_check.type_line_order"
+        )
+
+    def test_auto_fix_moves_card_type_before_dash(self):
+        raw = {
+            "name": "Brass Sentinel",
+            "type_line": "Creature — Artifact Peacekeeper",
+            "mana_cost": "{3}",
+            "cmc": 3.0,
+            "oracle_text": "Vigilance",
+            "power": "2",
+            "toughness": "4",
+            "rarity": "common",
+        }
+        card, _errors, fixes, regen = validate_card_from_raw(raw)
+        assert regen is False
+        assert card.type_line == "Artifact Creature — Peacekeeper"
+        assert set(card.card_types) == {"Artifact", "Creature"}
+        assert card.subtypes == ["Peacekeeper"]
+        assert any("type_line_order" in f for f in fixes)
+
+    def test_auto_fix_subtypeless_artifact_creature(self):
+        """'Creature — Artifact' (no real subtype) collapses to 'Artifact Creature'."""
+        raw = {
+            "name": "Iron Husk",
+            "type_line": "Creature — Artifact",
+            "mana_cost": "{2}",
+            "cmc": 2.0,
+            "oracle_text": "",
+            "power": "1",
+            "toughness": "3",
+            "rarity": "common",
+        }
+        card, _errors, _fixes, _regen = validate_card_from_raw(raw)
+        assert card.type_line == "Artifact Creature"
+        assert set(card.card_types) == {"Artifact", "Creature"}
+        assert card.subtypes == []
+
+    def test_main_type_order_normalized(self):
+        """Card types before the dash get sorted into printed order too."""
+        card = _make_card(
+            type_line="Creature Artifact — Golem",
+            card_types=["Creature", "Artifact"],
+            subtypes=["Golem"],
+        )
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        order = next(e for e in errors if e.error_code == "type_check.type_line_order")
+        assert "Artifact Creature — Golem" in order.message
+
+    def test_dash_style_preserved(self):
+        """The card's existing dash (-- vs —) survives the rebuild."""
+        card = _make_card(
+            type_line="Creature -- Artifact Peacekeeper",
+            card_types=["Creature", "Artifact"],
+            subtypes=["Peacekeeper"],
+        )
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.type_line == "Artifact Creature -- Peacekeeper"
+
+    def test_already_canonical_is_untouched(self):
+        card = _make_card(
+            type_line="Artifact Creature — Insect Beast",
+            card_types=["Artifact", "Creature"],
+            subtypes=["Insect", "Beast"],
+        )
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        assert not any(e.error_code == "type_check.type_line_order" for e in errors)
+
+    def test_plain_creature_is_untouched(self):
+        card = _make_card()  # "Creature — Beast"
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        assert not any(e.error_code == "type_check.type_line_order" for e in errors)
+
+    def test_supertype_ordering(self):
+        """A misplaced supertype is pulled to the front of the main types."""
+        card = _make_card(
+            type_line="Creature Legendary — Spirit",
+            card_types=["Creature"],
+            supertypes=["Legendary"],
+            subtypes=["Spirit"],
+        )
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.type_line == "Legendary Creature — Spirit"
+
+
 # ===========================================================================
 # Structural shape checks — power / toughness / loyalty garbage, missing cost.
 # All of these are regen triggers: a card can't be saved with garbage in its
