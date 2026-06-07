@@ -49,8 +49,74 @@ POLL_INTERVAL = 3  # seconds between completion checks
 GENERATION_TIMEOUT = 600  # 10 minutes max per image (cold start model loading can take 3-5 min)
 
 
-# Minimum free VRAM required (MB) — Flux Q8_0 needs ~9.6GB for models + ~1GB compute
-MIN_VRAM_FREE_MB = 10_200
+# VRAM-aware Flux quant selection
+# ---------------------------------------------------------------------------
+# The current ComfyUI build loads flux1-dev-Q8_0 at a ~12.2GB VRAM footprint
+# (a regression vs the older build's ~9.6GB), so on a 12GB card Q8 spills ~2.8GB
+# to CPU and runs ~12x slower (~31-37s/step vs ~2.9s/step). flux1-dev-Q5_K_S
+# (~8.3GB) loads fully on 12GB and is the safe default/floor; Q8 is only chosen
+# when there's comfortable headroom for its larger footprint (>=16GB cards).
+#
+# Both GGUFs live in ComfyUI's models/unet/ — the workflow JSON's UnetLoaderGGUF
+# node names the file, and generate_image_comfyui overwrites it per-run with the
+# VRAM-chosen quant (the JSON default mirrors FLUX_QUANT_DEFAULT as a fallback).
+FLUX_QUANT_DEFAULT = "flux1-dev-Q5_K_S.gguf"  # safe floor — fits fully on 12GB
+FLUX_QUANT_HIGH_VRAM = "flux1-dev-Q8_0.gguf"  # higher quality, needs headroom
+# Free VRAM (MB) at/above which Q8 loads fully under the current ComfyUI (its
+# ~12.2GB footprint + text encoder + activations).
+FLUX_Q8_MIN_FREE_MB = 14_000
+
+# Minimum free VRAM required (MB) — Q5_K_S needs ~8GB for models + ~1GB compute;
+# the gate sits below FLUX_Q8_MIN_FREE_MB so a 12GB card passes and runs Q5.
+MIN_VRAM_FREE_MB = 9_000
+
+# Per-process cache of the resolved quant. The choice must be made ONCE from the
+# pre-load VRAM state and reused for the whole ComfyUI session: once Flux is
+# resident, free VRAM has dropped below FLUX_Q8_MIN_FREE_MB, so a per-image
+# re-query would flip Q8->Q5 and force a costly model reload (and quality drift)
+# mid-set. ``ensure_comfyui`` resets it when it (re)starts ComfyUI.
+_SELECTED_FLUX_QUANT: str | None = None
+
+
+def select_flux_quant(free_mb: int | None = None) -> str:
+    """Pick the Flux GGUF quant that fits the available VRAM.
+
+    Returns ``FLUX_QUANT_HIGH_VRAM`` (Q8_0) only when free VRAM comfortably
+    exceeds its current-ComfyUI footprint (``FLUX_Q8_MIN_FREE_MB``); otherwise
+    ``FLUX_QUANT_DEFAULT`` (Q5_K_S), the safe floor that loads fully on a 12GB
+    card. ``free_mb`` is queried via nvidia-smi when not supplied; any query
+    failure degrades to the safe default rather than risking the partial-offload
+    slowdown.
+
+    The result is cached per process (``reset_flux_quant`` clears it) so the
+    quant is decided once from the pre-load VRAM and stays stable across every
+    image in a ComfyUI session. Passing an explicit ``free_mb`` always recomputes
+    and does not touch the cache (the pure-decision path, for callers/tests).
+    """
+    if free_mb is not None:
+        return FLUX_QUANT_HIGH_VRAM if free_mb >= FLUX_Q8_MIN_FREE_MB else FLUX_QUANT_DEFAULT
+
+    global _SELECTED_FLUX_QUANT
+    if _SELECTED_FLUX_QUANT is not None:
+        return _SELECTED_FLUX_QUANT
+    try:
+        free = get_vram_info()["free_mb"]
+        chosen = FLUX_QUANT_HIGH_VRAM if free >= FLUX_Q8_MIN_FREE_MB else FLUX_QUANT_DEFAULT
+    except Exception:
+        chosen = FLUX_QUANT_DEFAULT
+    _SELECTED_FLUX_QUANT = chosen
+    return chosen
+
+
+def reset_flux_quant() -> None:
+    """Clear the cached quant so the next ``select_flux_quant()`` re-queries VRAM.
+
+    Called when a new ComfyUI session starts (the VRAM picture is fresh) so a
+    later run on a now-different GPU state re-decides instead of reusing a stale
+    choice.
+    """
+    global _SELECTED_FLUX_QUANT
+    _SELECTED_FLUX_QUANT = None
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +371,9 @@ def ensure_comfyui(log_dir: Path | None = None) -> subprocess.Popen | None:
     # something, re-query a few times before failing — a cloud-only / other-app
     # shortfall (nothing unloaded) still fails fast with the actionable message.
     _check_vram_with_retry() if unloaded else check_vram()
+    # Fresh ComfyUI session -> re-decide the Flux quant from the now-freed VRAM
+    # on the next generation (and not a stale earlier-session choice).
+    reset_flux_quant()
     return start_comfyui(log_dir=log_dir)
 
 
@@ -549,6 +618,12 @@ def generate_image_comfyui(
     """
     workflow = _load_workflow()
 
+    # Pick the Flux quant that fits the GPU and inject it into the UnetLoaderGGUF
+    # node (the JSON default is the safe floor; this upgrades to Q8 when there's
+    # headroom and re-pins Q5 when there isn't).
+    quant = select_flux_quant()
+    workflow["1"]["inputs"]["unet_name"] = quant
+
     # Inject parameters
     workflow["4"]["inputs"]["text"] = prompt
     workflow["6"]["inputs"]["guidance"] = guidance
@@ -581,7 +656,7 @@ def generate_image_comfyui(
         "height": height,
         "elapsed_seconds": round(result["elapsed"], 1),
         "backend": "comfyui_local",
-        "model": "flux1-dev-Q8_0",
+        "model": quant.removesuffix(".gguf"),
         "character_refs_applied": refs_applied,
     }
     return image_data, metadata
