@@ -149,3 +149,120 @@ def test_judge_model_resolves_from_art_select_assignment(monkeypatch, tmp_path):
     assert seen["stage_id"] == "art_select"
     assert seen["model"] == "claude-haiku-judge"
     assert result["pick"] == "v1"
+
+
+# ---------------------------------------------------------------------------
+# Judge-unavailable fallback (no Anthropic credits / keyless / local env)
+# ---------------------------------------------------------------------------
+
+
+def _active_project(tmp_path):
+    from mtgai.runtime import active_project
+    from mtgai.settings.model_settings import ModelSettings
+
+    active_project.write_active_project(
+        active_project.ProjectState(
+            set_code="TST", settings=ModelSettings(asset_folder=str(tmp_path))
+        )
+    )
+
+
+def _write_card(tmp_path, cn: str, name: str):
+    """Write a minimal card JSON + 2 art version PNGs (so the judge path runs)."""
+    from mtgai.io.card_io import save_card
+    from mtgai.io.paths import card_slug
+    from mtgai.models.card import Card
+
+    card = Card(name=name, type_line="Creature", art_prompt="a knight")
+    card = card.model_copy(update={"collector_number": cn})
+    save_card(card, set_dir=tmp_path)
+
+    art_dir = tmp_path / "art"
+    art_dir.mkdir(parents=True, exist_ok=True)
+    slug = card_slug(cn, name)
+    files = []
+    for v in (1, 2):
+        f = art_dir / f"{slug}_v{v}.png"
+        f.write_bytes(b"x")
+        files.append(f.name)
+    return files
+
+
+def test_judge_failure_falls_back_to_v1(tmp_path, monkeypatch):
+    """When the vision judge raises for a 2-version card, select_art_for_set
+    must still stamp art_path to v1 and record an ``auto_fallback`` decision —
+    mirroring the single-version auto-pick — so every card ends with art even
+    in a keyless / out-of-credits env. The summary must reflect the fallback.
+    """
+    from mtgai.art import art_selector
+    from mtgai.io.card_io import load_card
+    from mtgai.runtime import active_project
+
+    _active_project(tmp_path)
+    try:
+        v_files = _write_card(tmp_path, "W-C-01", "Test Card")
+
+        def _boom(**kwargs):
+            raise RuntimeError(
+                "Error code: 400 - Your credit balance is too low to access the Anthropic API."
+            )
+
+        monkeypatch.setattr(art_selector, "select_best_version", _boom)
+
+        summary = art_selector.select_art_for_set()
+
+        # Every card still gets a stamped art_path -> v1.
+        card = load_card(tmp_path / "cards" / "W-C-01_test_card.json")
+        assert card.art_path == f"art/{v_files[0]}"
+
+        # The decision records the fallback distinctly.
+        decisions = art_selector.load_art_decisions(tmp_path)
+        assert decisions["W-C-01"]["pick"] == "v1"
+        assert decisions["W-C-01"]["source"] == "auto_fallback"
+        assert "judge unavailable" in decisions["W-C-01"]["reasoning"].lower()
+
+        # The summary surfaces the fallback and counts the card as selected
+        # (reviewed), not as a hard error.
+        assert summary["judge_failed"] == 1
+        assert summary["reviewed"] == 1
+        assert summary["errors"] == 0
+        result = next(r for r in summary["results"] if r.get("collector_number") == "W-C-01")
+        assert result["pick"] == "v1"
+        assert result["judge_failed"] is True
+    finally:
+        active_project.clear_active_project()
+
+
+def test_judge_success_path_unchanged(tmp_path, monkeypatch):
+    """The happy path must be identical: a working judge yields a real pick with
+    source 'auto' and NO judge_failed flag/count."""
+    from mtgai.art import art_selector
+    from mtgai.runtime import active_project
+
+    _active_project(tmp_path)
+    try:
+        _write_card(tmp_path, "W-C-01", "Test Card")
+
+        def _ok(**kwargs):
+            return {
+                "pick": "v2",
+                "confidence": "high",
+                "reasoning": "v2 is cleaner.",
+                "artifacts_found": [],
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "model": "claude-haiku-judge",
+            }
+
+        monkeypatch.setattr(art_selector, "select_best_version", _ok)
+
+        summary = art_selector.select_art_for_set()
+
+        decisions = art_selector.load_art_decisions(tmp_path)
+        assert decisions["W-C-01"]["source"] == "auto"
+        assert decisions["W-C-01"]["pick"] == "v2"
+        assert summary["judge_failed"] == 0
+        assert summary["reviewed"] == 1
+        assert summary["errors"] == 0
+    finally:
+        active_project.clear_active_project()

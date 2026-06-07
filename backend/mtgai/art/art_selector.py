@@ -186,6 +186,14 @@ def select_best_version(
         model = require_active_project().settings.get_llm_model_id("art_select")
 
     tool_schema = _build_tool_schema(len(image_paths))
+    # The best-of-N judge is a VISION call, which currently only the Anthropic
+    # provider supports here — so the provider is pinned to "anthropic" rather
+    # than resolved from the art_select model's registry provider. A local /
+    # keyless / out-of-credits env therefore cannot judge and this call raises;
+    # ``select_art_for_set`` catches that and falls back to auto-picking v1
+    # (source "auto_fallback"), so every card still ends with stamped art. If a
+    # local vision judge is added later, swap this to honour the model's real
+    # provider (see ``llm_client._resolve_provider``).
     provider = _get_provider("anthropic")
     facade_model = provider.new_model(model)
     convo = facade_model.new_conversation(
@@ -287,6 +295,7 @@ def select_art_for_set(
     total_output_tokens = 0
     results = []
     skipped = 0
+    judge_failed = 0
 
     cancelled = False
     for card_file in card_files:
@@ -409,8 +418,39 @@ def select_art_for_set(
             time.sleep(0.1)  # rate limit
 
         except Exception as e:
-            logger.error("  ERROR on %s: %s", cn, e)
-            results.append({"card": cn, "name": card.name, "error": str(e)})
+            # Judge unavailable (e.g. no Anthropic credits, keyless env, or the
+            # assigned vision model can't run): DON'T leave the card with no art.
+            # Fall back to auto-picking v1 — stamp art_path + record a distinct
+            # ``auto_fallback`` decision — exactly like the single-version path,
+            # so every card always ends with selected art and rendering has
+            # something to render. The user can still re-pick in the tab.
+            judge_failed += 1
+            short_err = str(e).splitlines()[0][:120] if str(e) else type(e).__name__
+            logger.error("  ERROR on %s: %s — defaulting to v1 (judge unavailable)", cn, e)
+            pick = "v1"
+            reasoning = f"Judge unavailable ({short_err}) — defaulted to v1."
+            _stamp_art_path(card, set_dir, version_files[0])
+            decisions[cn] = {
+                "pick": pick,
+                "source": "auto_fallback",
+                "reasoning": reasoning,
+                "error": str(e),
+                "version_files": version_files,
+            }
+            save_art_decisions(set_dir, decisions)
+            result = {
+                "collector_number": cn,
+                "name": card.name,
+                "versions_reviewed": len(versions),
+                "pick": pick,
+                "confidence": "low",
+                "reasoning": reasoning,
+                "artifacts_found": [],
+                "version_files": version_files,
+                "judge_failed": True,
+            }
+            results.append(result)
+            atomic_write_text(log_dir / f"{cn}.json", json.dumps(result, indent=2))
 
     est_cost = (total_input_tokens * 0.80 / 1_000_000) + (total_output_tokens * 4.0 / 1_000_000)
 
@@ -418,7 +458,11 @@ def select_art_for_set(
         "set_code": set_code,
         "reviewed": len([r for r in results if "pick" in r]),
         "skipped": skipped,
-        "errors": len([r for r in results if "error" in r]),
+        # ``errors`` counts only results with NO pick (hard failures). A judge
+        # failure that fell back to v1 has a pick + ``judge_failed`` flag, so it
+        # is a successful selection, not an error — surfaced via ``judge_failed``.
+        "errors": len([r for r in results if "pick" not in r and "error" in r]),
+        "judge_failed": judge_failed,
         "results": results,
         "total_input_tokens": total_input_tokens,
         "total_output_tokens": total_output_tokens,

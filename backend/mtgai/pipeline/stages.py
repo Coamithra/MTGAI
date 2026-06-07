@@ -1755,13 +1755,21 @@ def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
             error_message="Art judging cancelled by user.",
         )
 
-    emitter.phase("done", f"Generated art for {generated} cards, judged {reviewed}")
+    judge_failed = sel_result.get("judge_failed", 0)
+    detail = f"Generated art for {generated} cards, judged {reviewed}"
+    if judge_failed:
+        # The vision judge was unavailable (no credits / keyless / local model);
+        # those cards fell back to v1 so rendering still has art. Surface it so
+        # the tab + state don't silently look like a clean best-of-N pass.
+        detail += f" (judge unavailable — defaulted {judge_failed} to v1)"
+
+    emitter.phase("done", detail)
     return StageResult(
         total_items=generated + gen_result.get("skipped", 0),
         completed_items=generated,
         failed_items=gen_result.get("failed", 0),
         cost_usd=sel_cost,
-        detail=f"Generated art for {generated} cards, judged {reviewed}",
+        detail=detail,
     )
 
 
