@@ -60,6 +60,9 @@ LLM_STAGE_NAMES: dict[str, str] = {
     "card_gen": "Card Generation",
     "conformance": "Conformance & Interactions",
     "ai_review": "AI Design Review",
+    # Finalization runs a light LLM sanity check (review/sanity_check.py) over the
+    # finished pool, so it resolves an LLM model like the gates do.
+    "finalize": "Finalization",
     "visual_refs": "Visual References & Artists",
     "art_prompts": "Art Prompt Generation",
     # char_portraits ("Character References") needs BOTH an LLM (recurring-entity
@@ -122,6 +125,7 @@ DEFAULT_LLM_ASSIGNMENTS: dict[str, str] = {
     "card_gen": _LOCAL_DEFAULT,
     "conformance": _LOCAL_DEFAULT,
     "ai_review": _LOCAL_DEFAULT,
+    "finalize": _LOCAL_DEFAULT,
     "art_prompts": _LOCAL_DEFAULT,
     # char_portraits' LLM key drives its recurring-entity detection call
     # (get_llm_model_id("char_portraits")); without a default it fell back to
@@ -186,6 +190,7 @@ PRESETS: dict[str, dict] = {
             "card_gen": "opus",
             "conformance": "sonnet",
             "ai_review": "opus",
+            "finalize": "haiku",
             "art_prompts": "haiku",
             "char_portraits": "haiku",
             "art_select": "haiku",

@@ -959,6 +959,13 @@ def generate_art_for_set(
             card = load_card(card_file)
             cn = card.collector_number
 
+            # Skip cards the finalize sanity gate soft-excluded (defence in depth —
+            # they normally have no art_prompt, so the next check would catch them).
+            if card.sanity_excluded:
+                logger.info("SKIP %s — excluded by finalize sanity check", cn)
+                skipped += 1
+                continue
+
             # Skip if no art prompt
             if not card.art_prompt:
                 logger.warning("SKIP %s — no art_prompt on card", cn)

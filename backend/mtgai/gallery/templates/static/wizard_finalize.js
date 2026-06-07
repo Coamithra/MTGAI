@@ -49,6 +49,7 @@
     report: null,
     locked: false,
     bootstrapping: false,
+    sanityLive: {},     // cn -> {ok, reason} streamed live during the sanity pass
     filter: { rarity: 'all', edited: 'all', errors: 'all' },
   };
 
@@ -126,6 +127,31 @@
       }
       .wiz-finalize-card.is-auto  { border-color: #8a6d2e66; }
       .wiz-finalize-card.is-user  { border-color: #4a9eff66; }
+      /* Sanity-check excluded: darkened/muted, with a banner + Undo. */
+      .wiz-finalize-card.is-excluded {
+        border-color: #7a2a2a; opacity: 0.55; filter: grayscale(0.4);
+      }
+      .wiz-finalize-card.is-excluded:hover { opacity: 0.85; }
+      .wiz-finalize-card.is-checking { border-color: #4a9eff44; }
+      .wiz-finalize-excluded-banner {
+        display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+        background: #2a0f0f; border: 1px solid #7a2a2a; border-radius: 6px;
+        padding: 0.5rem 0.65rem; font-size: 0.8rem; color: #f3b0b0;
+      }
+      .wiz-finalize-excluded-banner .reason { flex: 1; }
+      .wiz-finalize-excluded-banner button {
+        padding: 0.25rem 0.6rem; background: #1a1a2e; border: 1px solid #4a9eff;
+        border-radius: 5px; color: #cfe2ff; font-size: 0.76rem; cursor: pointer;
+        font-family: inherit; white-space: nowrap;
+      }
+      .wiz-finalize-excluded-banner button:hover { background: #21314d; }
+      .wiz-finalize-excluded-banner button:disabled { opacity: 0.5; cursor: not-allowed; }
+      .wiz-finalize-warning {
+        background: #3a1505; border: 1px solid #b4500f; border-radius: 6px;
+        padding: 0.6rem 0.8rem; margin-bottom: 0.85rem; font-size: 0.82rem;
+        color: #ffc591; line-height: 1.5;
+      }
+      .wiz-finalize-warning strong { color: #ffd9b0; }
 
       .wiz-finalize-card-head {
         display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap;
@@ -278,6 +304,8 @@
       local.hasContent = local.cards.length > 0;
       local.report = data.report || null;
       if (data.stage_status) local.stageStatus = data.stage_status;
+      // Merge any live verdicts that streamed in before the grid finished loading.
+      applySanityLive();
     }
 
     paintHelp(root);
@@ -313,18 +341,27 @@
   // ---------------------------------------------------------------------------
 
   function paintSummary(root) {
-    const slot = root.querySelector('[data-role="fin-summary"]');
+    const slot = root && root.querySelector('[data-role="fin-summary"]');
     if (!slot) return;
     const r = local.report;
     if (!r) { slot.innerHTML = ''; return; }
     const manual = r.total_manual_errors || 0;
     const ts = r.timestamp ? new Date(r.timestamp).toLocaleString() : '';
+    // Prefer the live count of excluded cards in the pool (reflects Undo); fall
+    // back to the report's static count.
+    const excluded = local.cards.filter(c => c.sanity_excluded).length;
+    const capBreached = !!r.sanity_cap_breached;
+    const warnHtml = capBreached
+      ? `<div class="wiz-finalize-warning">⚠️ <strong>Sanity check flagged ${escHtml(String(r.sanity_flagged_count || 0))} of ${escHtml(String(r.sanity_checked_count || 0))} cards</strong> — over the 5% safety cap, so <strong>none were excluded automatically</strong>. The model may have misbehaved; review the cards manually.</div>`
+      : '';
     slot.innerHTML = `
+      ${warnHtml}
       <div class="wiz-finalize-summary-bar">
         <span><strong>${escHtml(String(r.total_cards || 0))}</strong> cards</span>
         <span><strong>${escHtml(String(r.cards_modified || 0))}</strong> auto-edited</span>
         <span><strong>${escHtml(String(r.total_auto_fixes || 0))}</strong> auto-fixes</span>
         <span class="${manual > 0 ? 'warn' : ''}"><strong>${escHtml(String(manual))}</strong> manual error${manual !== 1 ? 's' : ''}</span>
+        ${excluded > 0 ? `<span class="warn"><strong>${escHtml(String(excluded))}</strong> sanity-excluded</span>` : ''}
         ${ts ? `<span>Finalized: ${escHtml(ts)}</span>` : ''}
       </div>
     `;
@@ -414,7 +451,9 @@
   function cardHtml(c) {
     const userBadge = (c.user_edited || c._dirty);
     const prov = userBadge ? 'user' : (c.auto_edited ? 'auto' : 'default');
-    const cls = userBadge ? 'is-user' : (c.auto_edited ? 'is-auto' : '');
+    let cls = userBadge ? 'is-user' : (c.auto_edited ? 'is-auto' : '');
+    if (c.sanity_excluded) cls += ' is-excluded';
+    else if (c._sanity_checking) cls += ' is-checking';
 
     return `
       <article class="wiz-finalize-card ${cls}" data-cn="${escAttr(c.collector_number)}">
@@ -425,6 +464,7 @@
           ${W.provenanceBadge(prov, { role: 'ai-badge' })}
           <span class="wiz-finalize-saved-tick" data-role="fin-saved">Saved ✓</span>
         </div>
+        ${excludedBannerHtml(c)}
         ${c.slot_text ? `<div class="wiz-finalize-slot">Slot: ${escHtml(c.slot_text)}</div>` : ''}
         ${changedBlockHtml(c)}
         ${manualBlockHtml(c)}
@@ -475,6 +515,18 @@
     `;
   }
 
+  function excludedBannerHtml(c) {
+    if (!c.sanity_excluded) return '';
+    const reason = c.sanity_exclusion_reason || 'Failed the final sanity check.';
+    return `
+      <div class="wiz-finalize-excluded-banner">
+        <span>🚫</span>
+        <span class="reason"><strong>Did not pass sanity check:</strong> ${escHtml(reason)}</span>
+        <button type="button" data-role="fin-restore">Undo — keep this card</button>
+      </div>
+    `;
+  }
+
   function changedBlockHtml(c) {
     if (!c.auto_edited) return '';
     const fixes = (c.fixes_applied || []).map(f => `<li>${escHtml(f)}</li>`).join('');
@@ -512,6 +564,8 @@
   function bindCard(slot, cn) {
     const el = slot.querySelector(`.wiz-finalize-card[data-cn="${W.cssEsc(cn)}"]`);
     if (!el) return;
+    const restoreBtn = el.querySelector('[data-role="fin-restore"]');
+    if (restoreBtn) restoreBtn.onclick = () => restoreCard(cn);
     el.querySelectorAll('[data-field]').forEach(input => {
       input.oninput = () => {
         const field = input.dataset.field;
@@ -561,6 +615,90 @@
     } catch (err) {
       W.toast('Network error saving card: ' + (err && err.message ? err.message : err), 'error');
     }
+  }
+
+  async function restoreCard(cn) {
+    if (local.locked) return;
+    try {
+      const resp = await W.postJSON('/api/wizard/finalize/restore-card', {
+        collector_number: cn,
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) { W.reportError(resp, data, 'Restore failed'); return; }
+      updateCard(cn, { sanity_excluded: false, sanity_exclusion_reason: null });
+      paintGrid(bodyRoot());
+      paintSummary(bodyRoot());
+      W.toast('Card restored — it will be kept in the set.', 'success');
+    } catch (err) {
+      W.toast('Network error restoring card: ' + (err && err.message ? err.message : err), 'error');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Live sanity-check stream (sanity_reset / sanity_card) — fills the checklist
+  // as the LLM decides each card, mirroring the conformance / ai_review streams.
+  // ---------------------------------------------------------------------------
+
+  W.onFinalizeSanityStream = function (name, data) {
+    if (name === 'sanity_reset') {
+      local.sanityLive = {};
+      // The cards exist on disk once the finalize loop has run; pull them in so
+      // verdicts have tiles to land on while the stage is still running.
+      if (!local.hasContent && !local.bootstrapping) {
+        local.bootstrapping = true;
+        bootstrap(bodyRoot(), null)
+          .catch(() => {})
+          .finally(() => { local.bootstrapping = false; });
+      } else {
+        markAllChecking();
+        paintGrid(bodyRoot());
+      }
+      return;
+    }
+    if (name === 'sanity_card') {
+      const cn = data && data.collector_number;
+      if (!cn) return;
+      local.sanityLive = local.sanityLive || {};
+      local.sanityLive[cn] = { ok: data.ok, reason: data.reason };
+      // ok === false → flagged/excluded; ok === true/null → keep (not excluded).
+      updateCard(cn, {
+        _sanity_checking: false,
+        sanity_excluded: data.ok === false,
+        sanity_exclusion_reason: data.ok === false ? (data.reason || '') : null,
+      });
+      repaintTile(cn);
+      paintSummary(bodyRoot());
+    }
+  };
+
+  function markAllChecking() {
+    local.cards.forEach(c => { c._sanity_checking = true; });
+  }
+
+  function applySanityLive() {
+    // Live verdicts are only an in-flight preview. Once the stage finishes, the
+    // reloaded /state (post-cap, post-Undo) is authoritative — never let a stale
+    // live "flagged" override the server's decision (e.g. a cap breach excludes
+    // none even though the stream showed cards flagged).
+    if (!local.sanityLive || local.stageStatus !== 'running') return;
+    local.cards.forEach(c => {
+      const v = local.sanityLive[c.collector_number];
+      if (v) {
+        c._sanity_checking = false;
+        c.sanity_excluded = v.ok === false;
+        c.sanity_exclusion_reason = v.ok === false ? (v.reason || '') : null;
+      }
+    });
+  }
+
+  function repaintTile(cn) {
+    const root = bodyRoot();
+    const grid = root && root.querySelector('[data-role="fin-grid"]');
+    const el = grid && grid.querySelector(`.wiz-finalize-card[data-cn="${W.cssEsc(cn)}"]`);
+    const c = local.cards.find(x => x.collector_number === cn);
+    if (!el || !c) { paintGrid(root); return; }
+    el.outerHTML = cardHtml(c);
+    bindCard(grid, cn);
   }
 
   function showTick(el) {
@@ -644,6 +782,7 @@
       lockClass: 'wiz-finalize-locked',
       selectors: [
         '.wiz-finalize-card [data-field]',
+        '[data-role="fin-restore"]',
         '[data-role="fin-filter-rarity"]',
         '[data-role="fin-filter-edited"]',
         '[data-role="fin-filter-errors"]',

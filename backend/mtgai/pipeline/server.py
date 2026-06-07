@@ -5983,6 +5983,9 @@ def _finalize_card_view(
         "original_oracle_text": entry.get("original_oracle_text"),
         "manual_errors": entry.get("manual_errors") or [],
         "user_edited": cn in user_edited,
+        # Finalize sanity-check exclusion — the tab darkens the card + shows an Undo.
+        "sanity_excluded": bool(card.get("sanity_excluded")),
+        "sanity_exclusion_reason": card.get("sanity_exclusion_reason"),
     }
 
 
@@ -6079,12 +6082,20 @@ async def wizard_finalize_state() -> JSONResponse:
 
     summary = None
     if report is not None:
+        # Recount live exclusions from the pool (authoritative — an Undo clears the
+        # card's marker, which the static report's excluded_cards list may lag).
+        excluded_now = sum(1 for c in view_cards.values() if c.get("sanity_excluded"))
         summary = {
             "total_cards": report.get("total_cards", 0),
             "cards_modified": report.get("cards_modified", 0),
             "total_auto_fixes": report.get("total_auto_fixes", 0),
             "total_manual_errors": report.get("total_manual_errors", 0),
             "timestamp": report.get("timestamp"),
+            "sanity_excluded_count": excluded_now,
+            "sanity_cap_breached": bool(report.get("sanity_cap_breached")),
+            "sanity_flagged_count": report.get("sanity_flagged_count", 0),
+            "sanity_checked_count": report.get("sanity_checked_count", 0),
+            "sanity_warning": report.get("sanity_warning"),
         }
 
     return JSONResponse(
@@ -6164,6 +6175,56 @@ async def wizard_finalize_save_card(request: Request) -> JSONResponse:
             "manual_errors": manual_payload,
         }
     )
+
+
+@router.post("/api/wizard/finalize/restore-card")
+async def wizard_finalize_restore_card(request: Request) -> JSONResponse:
+    """Undo a sanity-check exclusion so the card re-enters the set.
+
+    Body: ``{collector_number}``. Clears ``sanity_excluded`` +
+    ``sanity_exclusion_reason`` on the card (the reversible marker the finalize
+    sanity gate set — see ``review/sanity_check.py``), re-saves it, drops it from
+    the finalize report's ``excluded_cards`` list so the summary count is right,
+    and heals a stuck FAILED finalize stage. No AI lock — a pure local edit.
+    """
+    _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON body required"}, status_code=400)
+
+    cn = str(body.get("collector_number") or "").strip()
+    if not cn:
+        return JSONResponse({"error": "collector_number is required"}, status_code=400)
+
+    asset = set_artifact_dir()
+    cards_dir = asset / "cards"
+    view_cards = _load_card_gen_cards(cards_dir)
+    paths = _card_paths_by_cn(cards_dir)
+    if cn not in view_cards:
+        return JSONResponse({"error": f"No card {cn!r} in the current pool"}, status_code=404)
+
+    updated = dict(view_cards[cn])
+    updated["sanity_excluded"] = False
+    updated["sanity_exclusion_reason"] = None
+    _persist_finalize_edit(asset, updated, paths[cn])
+
+    # Drop the card from the report's excluded_cards so the header count is right.
+    report = _finalize_report(asset)
+    if isinstance(report, dict) and isinstance(report.get("excluded_cards"), list):
+        report["excluded_cards"] = [
+            c
+            for c in report["excluded_cards"]
+            if not (isinstance(c, dict) and str(c.get("collector_number")) == cn)
+        ]
+        atomic_write_text(
+            asset / "reports" / "finalize-report.json",
+            json.dumps(report, indent=2, ensure_ascii=False),
+        )
+
+    _heal_failed_stage("finalize")
+    return JSONResponse({"success": True, "collector_number": cn})
 
 
 @router.post("/api/wizard/finalize/save")
@@ -6419,7 +6480,13 @@ async def wizard_rendering_state() -> JSONResponse:
 
     slots_by_id = slots_by_id_from_skeleton(asset / "skeleton.json")
     view_cards = _load_all_cards(asset / "cards")
-    cards = [_rendering_card_view(view_cards[cn], asset, slots_by_id) for cn in sorted(view_cards)]
+    # Hide cards the finalize sanity check soft-excluded — they're not rendered and
+    # aren't part of the print set (the user manages/restores them on the Finalize tab).
+    cards = [
+        _rendering_card_view(view_cards[cn], asset, slots_by_id)
+        for cn in sorted(view_cards)
+        if not view_cards[cn].get("sanity_excluded")
+    ]
 
     report = _read_json(asset / "reports" / "render-summary.json", None)
     summary = None

@@ -152,6 +152,13 @@ class Card(BaseModel):
     # Persisted + gallery-visible so the flag survives restarts.
     regen_reason: str | None = None
     flagged_by: str | None = None  # which gate flagged it: conformance|balance|ai_review
+    # Finalize sanity-check exclusion. The terminal sanity gate (review/sanity_check.py)
+    # soft-excludes a card with an obvious defect (missing P/T, garbled text, bogus mana
+    # symbol) it can't auto-fix: the card stays on disk but is marked here so the
+    # Finalization tab shows it darkened (with the reason + an Undo) and every downstream
+    # art/render stage skips it. Reversible — clearing both fields restores the card.
+    sanity_excluded: bool = False
+    sanity_exclusion_reason: str | None = None
 
     # === File Paths (relative to output/sets/<set-code>/) ===
     art_path: str | None = None

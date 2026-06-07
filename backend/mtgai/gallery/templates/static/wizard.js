@@ -567,6 +567,16 @@
       });
     });
 
+    // Finalize sanity-check streaming: a sanity_reset lays out every card pending,
+    // then each sanity_card flips a card to pass ✓ / flagged ✗ as the LLM decides.
+    // The Finalization tab listens via the W.onFinalizeSanityStream bridge.
+    ['sanity_reset', 'sanity_card'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onFinalizeSanityStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     // Rendering & Final Review streaming: each card's print-ready image pops onto
     // the gallery as it renders (render_card → refresh that thumbnail), with a
     // render_reset at the start of a run. The Rendering tab listens via the

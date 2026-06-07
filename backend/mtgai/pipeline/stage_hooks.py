@@ -377,6 +377,48 @@ def build_ai_review_hooks(emitter: StageEmitter) -> AiReviewStreamHooks:
 
 
 # ---------------------------------------------------------------------------
+# Finalize sanity-check stream hooks
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SanityStreamHooks:
+    """The finalize sanity-check (``review/sanity_check.py``) streaming callbacks.
+
+    Mirrors the gate streams so the Finalization tab fills in a live checklist as
+    the sanity pass runs: a ``sanity_reset`` lays out every card pending up front
+    (``on_start``), then each card flips to ✓ pass / ✗ flagged as it is decided
+    (``on_card`` → ``sanity_card``). ``on_progress`` drives the coarse strip label.
+    """
+
+    on_start: Callable[[list[dict]], None]
+    on_card: Callable[[dict], None]
+    on_progress: Callable[[str], None]
+
+
+def build_sanity_hooks(emitter: StageEmitter) -> SanityStreamHooks:
+    """Build the finalize sanity-check streaming hooks.
+
+    Owns the canonical ``sanity_reset`` / ``sanity_card`` payloads. ``sanity_reset``
+    carries the full ``cards`` list (``{collector_number, card_name}``) so the tab
+    can render every card pending; each ``sanity_card`` carries
+    ``{collector_number, card_name, ok, reason}`` (``ok`` is ``None`` when the
+    card's batch truncated past it). Coarse progress rides the stage phase strip.
+    """
+
+    def on_start(cards: list[dict]) -> None:
+        emitter.event("sanity_reset", cards=cards)
+
+    def on_card(record: dict) -> None:
+        emitter.event("sanity_card", **record)
+
+    def on_progress(message: str) -> None:
+        emitter.phase("running", message)
+
+    return SanityStreamHooks(on_start, on_card, on_progress)
+
+
+# ---------------------------------------------------------------------------
 # Character References stream hooks
 # ---------------------------------------------------------------------------
 

@@ -631,6 +631,13 @@ def generate_prompts_for_set(
 
         card = load_card(card_file)
 
+        # Skip cards the finalize sanity gate soft-excluded — no point spending an
+        # art prompt (and downstream art/render) on a card that won't reach print.
+        if card.sanity_excluded:
+            logger.info("SKIP %s — excluded by finalize sanity check", card.collector_number)
+            skipped += 1
+            continue
+
         # Skip cards that already have prompts (resumable) unless forced. A
         # single-card filter run always regenerates (the user targeted it).
         if card.art_prompt and not card_filter and not force:
