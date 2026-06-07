@@ -1546,17 +1546,53 @@ def run_ai_review(progress_cb: ProgressCallback | None, emitter: StageEmitter) -
 
 
 def run_finalize(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
-    """Run post-review finalization (reminder text injection + validation)."""
-    from mtgai.review.finalize import finalize_set
+    """Run post-review finalization (reminder injection + validation + sanity gate).
 
-    result = finalize_set()
+    After the algorithmic reminder/validate/auto-fix pass, a final LLM **sanity
+    check** soft-excludes any card with an obvious unfixable defect (capped at
+    :data:`~mtgai.review.finalize.SANITY_CAP_FRACTION`; nondestructive + reversible
+    in the Finalization tab). That pass makes LLM calls, so — unlike the old
+    lockless finalize — hold the app-wide AI lock for the duration (also what makes
+    the strip's Cancel button work: ``request_cancel`` is a no-op unless the lock
+    is held, and ``check_sanity`` polls ``is_cancelled`` at each batch boundary),
+    wrap a tok/s poller, and stream the sanity checklist to the tab.
+    """
+    from mtgai.pipeline.stage_hooks import build_sanity_hooks
+    from mtgai.review.finalize import finalize_set
+    from mtgai.runtime import ai_lock
+
+    emitter.phase("running", "Finalizing cards")
+    hooks = build_sanity_hooks(emitter)
+
+    with ai_lock.hold("Finalization") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+        with make_poller("finalize", emitter.phase, activity_prefix="Sanity-checking cards"):
+            result = finalize_set(
+                on_sanity_start=hooks.on_start,
+                on_sanity_card=hooks.on_card,
+                on_sanity_progress=hooks.on_progress,
+                should_cancel=ai_lock.is_cancelled,
+            )
 
     modified = result.get("cards_modified", 0)
     manual = result.get("total_manual_errors", 0)
+    excluded = result.get("excluded_cards", []) or []
+    detail = f"Finalized — {modified} cards modified, {manual} manual errors remaining"
+    if result.get("sanity_cap_breached"):
+        flagged_n = result.get("sanity_flagged_count", 0)
+        detail += f"; sanity check flagged {flagged_n} (>cap, none excluded)"
+    elif excluded:
+        detail += f", {len(excluded)} excluded by sanity check"
+    emitter.phase("done", detail)
     return StageResult(
         total_items=result.get("total_cards", 0),
         completed_items=result.get("total_cards", 0),
-        detail=f"Finalized — {modified} cards modified, {manual} manual errors remaining",
+        cost_usd=result.get("sanity_cost", 0.0),
+        detail=detail,
     )
 
 

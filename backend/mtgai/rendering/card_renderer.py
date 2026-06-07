@@ -922,6 +922,14 @@ class CardRenderer:
 
             cn = card.collector_number
 
+            # The hard print gate: a card the finalize sanity check soft-excluded
+            # (and the user never restored) is NOT rendered, so it can never reach
+            # the print-ready set. Reversible — restoring it re-admits it next run.
+            if card.sanity_excluded:
+                logger.info("SKIP %s — excluded by finalize sanity check", cn)
+                skipped += 1
+                continue
+
             # Check if render already exists. set_dir was resolved at
             # the top of render_set via set_artifact_dir, so this honours
             # the project's asset_folder.

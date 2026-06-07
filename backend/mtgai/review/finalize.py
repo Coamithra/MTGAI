@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -34,6 +35,13 @@ from mtgai.validation import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Runaway-safeguard: if the sanity check flags MORE than this fraction of the
+# checked pool, the local model almost certainly misbehaved (looped / hallucinated
+# defects), so we exclude NOTHING and surface a loud warning for manual review
+# instead of auto-gutting the set. A real set has only a handful of genuinely
+# broken cards; a flag rate above 5% is a red flag, not a verdict.
+SANITY_CAP_FRACTION = 0.05
 
 
 # ---------------------------------------------------------------------------
@@ -85,8 +93,20 @@ def finalize_set(
     *,
     dry_run: bool = False,
     card_filter: str | None = None,
+    on_sanity_start: Callable[[list[dict]], None] | None = None,
+    on_sanity_card: Callable[[dict], None] | None = None,
+    on_sanity_progress: Callable[[str], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict:
     """Finalize all cards in the active project after AI review.
+
+    Runs reminder-text injection + validation + auto-fix on every card, then a
+    final LLM **sanity check** (``review/sanity_check.py``) that soft-excludes any
+    card with an obvious unfixable defect (missing P/T, garbled text, bogus mana
+    symbol) — capped at :data:`SANITY_CAP_FRACTION` of the pool (see
+    ``_apply_sanity_check``). The ``on_sanity_*`` / ``should_cancel`` hooks stream
+    the sanity pass into the Finalization tab + honour the Cancel button; they are
+    no-ops for the CLI caller.
 
     Returns a summary dict with counts and per-card details.
     """
@@ -100,6 +120,7 @@ def finalize_set(
         card_paths = [p for p in card_paths if card_filter.upper() in p.stem.upper()]
 
     results: list[dict] = []
+    finalized_cards: list[Card] = []
     total_fixes = 0
     total_manual = 0
     cards_modified = 0
@@ -128,6 +149,7 @@ def finalize_set(
         original_oracle = card.oracle_text
 
         finalized, fixes, manual_errors = finalize_card(card, mechanics)
+        finalized_cards.append(finalized)
 
         modified = finalized.oracle_text != original_oracle or len(fixes) > 0
 
@@ -182,6 +204,18 @@ def finalize_set(
         if not dry_run and modified:
             save_card(finalized, set_dir=set_dir)
 
+    # Final LLM sanity pass — soft-exclude any card with an obvious unfixable
+    # defect (capped at SANITY_CAP_FRACTION; nondestructive + reversible).
+    sanity = _apply_sanity_check(
+        finalized_cards,
+        set_dir,
+        dry_run=dry_run,
+        on_start=on_sanity_start,
+        on_card=on_sanity_card,
+        on_progress=on_sanity_progress,
+        should_cancel=should_cancel,
+    )
+
     summary = {
         "set_code": set_code,
         "timestamp": datetime.now(UTC).isoformat(),
@@ -191,6 +225,7 @@ def finalize_set(
         "total_auto_fixes": total_fixes,
         "total_manual_errors": total_manual,
         "cards": results,
+        **sanity,
     }
 
     # Write report
@@ -199,14 +234,105 @@ def finalize_set(
         _write_report_json(summary)
 
     logger.info(
-        "Finalization complete: %d cards, %d modified, %d auto-fixes, %d MANUAL errors",
+        "Finalization complete: %d cards, %d modified, %d auto-fixes, %d MANUAL errors, "
+        "%d sanity-excluded%s",
         len(results),
         cards_modified,
         total_fixes,
         total_manual,
+        len(sanity.get("excluded_cards", [])),
+        " (cap breached — none excluded)" if sanity.get("sanity_cap_breached") else "",
     )
 
     return summary
+
+
+def _apply_sanity_check(
+    cards: list[Card],
+    set_dir: Path,
+    *,
+    dry_run: bool,
+    on_start: Callable[[list[dict]], None] | None,
+    on_card: Callable[[dict], None] | None,
+    on_progress: Callable[[str], None] | None,
+    should_cancel: Callable[[], bool] | None,
+) -> dict:
+    """Run the LLM sanity check over the finalized pool and apply the result.
+
+    Flags are applied as the reversible ``sanity_excluded`` marker (cleared again
+    on a re-run when a card is no longer flagged), UNLESS the flag rate exceeds
+    :data:`SANITY_CAP_FRACTION` — then nothing is excluded (prior flags are
+    cleared) and a warning is surfaced. Returns the sanity portion of the
+    finalize summary.
+    """
+    from mtgai.analysis.gate_common import filter_gate_cards
+    from mtgai.review.sanity_check import check_sanity
+
+    checkable = [c for c in filter_gate_cards(cards) if c.collector_number]
+    checked = len(checkable)
+    base = {
+        "sanity_checked_count": checked,
+        "sanity_flagged_count": 0,
+        "sanity_cap_breached": False,
+        "sanity_warning": None,
+        "sanity_cost": 0.0,
+        "sanity_analysis": "",
+        "excluded_cards": [],
+    }
+    # Dry-run is a side-effect-free preview — don't spend LLM calls on the sanity
+    # pass (and nothing would be persisted anyway).
+    if checked == 0 or dry_run:
+        return base
+
+    flagged, analysis, cost = check_sanity(
+        cards,
+        on_start=on_start,
+        on_card=on_card,
+        on_progress=on_progress,
+        should_cancel=should_cancel,
+    )
+
+    breached = (len(flagged) / checked) > SANITY_CAP_FRACTION
+    effective = {} if breached else flagged
+
+    excluded: list[dict] = []
+    for card in cards:
+        cn = card.collector_number
+        if not cn:
+            continue
+        want = cn in effective
+        reason = effective.get(cn) if want else None
+        cur_reason = card.sanity_exclusion_reason or None
+        changed = bool(card.sanity_excluded) != want or cur_reason != reason
+        if changed and not dry_run:
+            save_card(
+                card.model_copy(
+                    update={"sanity_excluded": want, "sanity_exclusion_reason": reason}
+                ),
+                set_dir=set_dir,
+            )
+        if want:
+            excluded.append({"collector_number": cn, "name": card.name, "reason": reason})
+
+    warning = None
+    if breached:
+        pct = int(SANITY_CAP_FRACTION * 100)
+        warning = (
+            f"Sanity check flagged {len(flagged)} of {checked} cards "
+            f"(over the {pct}% safety cap) — none were excluded automatically. "
+            "The model may have misbehaved; review the flagged cards manually."
+        )
+        logger.warning(warning)
+
+    return {
+        "sanity_checked_count": checked,
+        "sanity_flagged_count": len(flagged),
+        "sanity_cap_breached": breached,
+        "sanity_warning": warning,
+        "sanity_cost": cost,
+        "sanity_analysis": analysis,
+        "excluded_cards": excluded,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -231,8 +357,25 @@ def _write_report(summary: dict) -> Path:
         f"**Cards modified:** {summary['cards_modified']}",
         f"**Auto-fixes applied:** {summary['total_auto_fixes']}",
         f"**MANUAL errors for review:** {summary['total_manual_errors']}",
+        f"**Sanity-excluded cards:** {len(summary.get('excluded_cards') or [])}",
         "",
     ]
+
+    # Sanity-check section — the cards soft-excluded for an obvious defect (or the
+    # cap-breach warning when the model flagged too many to trust).
+    if summary.get("sanity_cap_breached"):
+        lines.append("## Sanity Check — Cap Breached")
+        lines.append("")
+        lines.append(summary.get("sanity_warning") or "Too many cards flagged; none excluded.")
+        lines.append("")
+    elif summary.get("excluded_cards"):
+        lines.append("## Sanity Check — Excluded Cards")
+        lines.append("")
+        lines.append("These cards failed the final sanity check and were excluded from the set:")
+        lines.append("")
+        for c in summary["excluded_cards"]:
+            lines.append(f"- **{c['collector_number']} — {c['name']}**: {c.get('reason') or ''}")
+        lines.append("")
 
     # Auto-fixes section
     fix_cards = [c for c in summary["cards"] if c["fixes_applied"]]

@@ -482,7 +482,9 @@ def generate_character_refs(
                 loaded_card = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
-            if isinstance(loaded_card, dict):
+            # Skip cards the finalize sanity gate soft-excluded — they won't reach
+            # print, so they shouldn't seed a recurring-entity reference.
+            if isinstance(loaded_card, dict) and not loaded_card.get("sanity_excluded"):
                 cards.append(loaded_card)
 
     out_dir = set_dir / "art-direction" / "character-refs"
