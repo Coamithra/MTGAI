@@ -275,43 +275,70 @@ def interrupt_local_inference() -> bool:
 
 
 def unload_local_models() -> bool:
-    """Free local GPU VRAM by unloading the managed llama-swap model(s).
+    """Free local GPU VRAM by SHUTTING DOWN the managed llama-swap subprocess.
 
     Best-effort, for handing the GPU off to another VRAM consumer (the art tail's
     ComfyUI/Flux): on a single GPU the resident local LLM (~9-13GB) and Flux
     (needs ~10GB free) cannot coexist, so the art stages call this before
     ``ensure_comfyui()`` to release the LLM's VRAM first.
 
+    A plain model *unload* (``POST /api/models/unload``) evicts the weights from
+    VRAM but leaves the idle ``llama-server``/``llama-swap`` PROCESSES alive,
+    each still holding a live **CUDA context** that contends with Flux on the
+    same GPU — measured at a ~7x slowdown on the art tail (~10s/step vs
+    ~1.6s/step). So we fully ``shutdown()`` the provider's managed subprocess,
+    which releases the CUDA context, then DROP the now-dead provider from
+    ``_PROVIDERS`` so the next :func:`_get_provider` rebuilds a fresh one and the
+    next LLM call cold-starts ``llama-swap`` cleanly (a ~20-30s model reload — an
+    acceptable trade for the ~7x art speedup; in the art tail this is at most one
+    reload, after ComfyUI has been killed).
+
     No-op (returns ``False``) unless the llamacpp provider has actually been
     constructed — a cloud-only or no-open-project setup never spawned a
-    llama-server, so there is nothing to unload (and we must NOT construct one
-    just to unload it). Mirrors :func:`interrupt_local_inference`: grab the
-    cached provider if present, call its ``unload_all()`` (``POST
-    /api/models/unload``), and swallow ``UnsupportedFeature`` (bare llama-server
-    with no llama-swap) plus any other error so a quirky setup degrades to the
-    old behaviour rather than crashing the art stage.
+    llama-server, so there is nothing to tear down (and we must NOT construct one
+    just to shut it down). Mirrors :func:`interrupt_local_inference`: grab the
+    cached provider if present, call ``unload_all()`` (harmless pre-step) then
+    ``shutdown()``, and swallow ``UnsupportedFeature`` (bare llama-server with no
+    llama-swap) plus any other error so a quirky setup degrades to the old
+    behaviour rather than crashing the art stage.
 
-    Returns ``True`` if an unload request was issued, else ``False``.
+    Returns ``True`` if the managed subprocess was shut down, else ``False``.
     """
     with _PROVIDERS_LOCK:
         prov = _PROVIDERS.get("llamacpp")
     if prov is None:
         return False
-    unload_all = getattr(prov, "unload_all", None)
-    if not callable(unload_all):
+    shutdown = getattr(prov, "shutdown", None)
+    if not callable(shutdown):
         logger.debug(
-            "llamacpp provider has no unload_all() — cannot free local VRAM before ComfyUI"
+            "llamacpp provider has no shutdown() — cannot free local CUDA context before ComfyUI"
         )
         return False
+    # Best-effort unload first (harmless; shutdown() is what frees the CUDA
+    # context by killing the subprocess). A missing/unsupported unload_all is
+    # fine — we only need shutdown() to succeed.
+    unload_all = getattr(prov, "unload_all", None)
+    if callable(unload_all):
+        try:
+            unload_all()
+        except Exception:
+            logger.debug("unload_all() before shutdown() failed (continuing to shutdown)")
     try:
-        unload_all()
+        shutdown()
     except UnsupportedFeature:
-        logger.debug("unload_all() unsupported (bare llama-server, no llama-swap) — no-op")
+        logger.debug("shutdown() unsupported (no managed subprocess) — no-op")
         return False
     except Exception:
-        logger.info("Best-effort unload_local_models() failed; continuing", exc_info=True)
+        logger.info("Best-effort unload_local_models() shutdown failed; continuing", exc_info=True)
         return False
-    logger.info("Unloaded local llama-swap model(s) to free GPU VRAM")
+    # The provider's supervisor is now torn down (and marks itself shutdown-done,
+    # so it won't lazily respawn on the SAME object). Drop it so the next
+    # _get_provider("llamacpp") builds a fresh provider whose first call
+    # cold-starts llama-swap cleanly.
+    with _PROVIDERS_LOCK:
+        if _PROVIDERS.get("llamacpp") is prov:
+            del _PROVIDERS["llamacpp"]
+    logger.info("Shut down local llama-swap subprocess to free GPU VRAM + CUDA context")
     return True
 
 
