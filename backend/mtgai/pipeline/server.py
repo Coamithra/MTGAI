@@ -3154,27 +3154,25 @@ def _stage_status_in_state(stage_id: str) -> str:
     return stage.status.value if stage is not None else "pending"
 
 
-def _stage_advance_state(stage_id: str) -> tuple[str | None, bool]:
-    """Overall pipeline status + whether ``stage_id`` is an advanceable tip.
+def _stage_is_advanceable_tip(stage_id: str) -> bool:
+    """Whether ``stage_id`` is a COMPLETED tip the pipeline can advance past.
 
-    ``can_advance`` is True when this stage's active instance has COMPLETED, the
-    pipeline overall is PAUSED, and a later stage is still PENDING — the
-    saved/reopened dead-end where the engine *can* resume into the next stage but
-    no PAUSED_FOR_REVIEW pause exists to key the footer's Next-step button off.
-    Lets a review-eligible tab surface that button without a false PAUSED_FOR_REVIEW.
+    True when this stage's active instance has COMPLETED, the pipeline overall is
+    PAUSED, and a later stage is still PENDING — the saved/reopened dead-end where
+    the engine *can* resume into the next stage but no PAUSED_FOR_REVIEW pause
+    exists to key the footer's Next-step button off. Lets a review-eligible tab
+    surface that button without a false PAUSED_FOR_REVIEW.
     """
     state = _get_current_state()
     if state is None:
-        return None, False
-    overall = state.overall_status.value
+        return False
     stage = _resolve_stage_instance(state, stage_id)
-    can_advance = (
+    return (
         stage is not None
         and stage.status == StageStatus.COMPLETED
         and state.overall_status == PipelineStatus.PAUSED
         and state.next_pending_stage() is not None
     )
-    return overall, can_advance
 
 
 def _stage_state_base(stage_id: str, settings: Any) -> dict:
@@ -7021,7 +7019,6 @@ async def wizard_art_gen_state() -> JSONResponse:
     project = _require_active_project()
     cards = _art_gen_cards()
     sp = project.settings.set_params
-    overall, can_advance = _stage_advance_state("art_gen")
     return JSONResponse(
         {
             "set_params": sp.model_dump(),
@@ -7030,8 +7027,7 @@ async def wizard_art_gen_state() -> JSONResponse:
             # Lets the footer surface a Next-step button on a COMPLETED tip that
             # is paused with a pending successor (the saved/reopened dead-end),
             # not just on PAUSED_FOR_REVIEW.
-            "overall_status": overall,
-            "can_advance": can_advance,
+            "can_advance": _stage_is_advanceable_tip("art_gen"),
             "cards": cards,
             "has_content": any(c["versions"] for c in cards),
             "versions_per_card": sp.art_versions_per_card,

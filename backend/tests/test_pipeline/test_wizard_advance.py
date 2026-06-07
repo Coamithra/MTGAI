@@ -316,12 +316,16 @@ def test_advance_resumes_from_completed_tip_with_pending_successor(
     stage) instead of returning a false success or refusing."""
     _make_set("TST")
     state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
-    # art_gen completed, rendering still pending — current points at the completed tip.
-    state.stages[0].status = StageStatus.COMPLETED
-    state.stages[1].status = StageStatus.COMPLETED
+    # Every stage up to and including art_gen completed; rendering still pending —
+    # current points at the completed art_gen tip (the saved/reopened dead-end).
     art_gen = next(s for s in state.stages if s.stage_id == "art_gen")
     rendering = next(s for s in state.stages if s.stage_id == "rendering")
-    art_gen.status = StageStatus.COMPLETED
+    reached_art_gen = True
+    for stage in state.stages:
+        if reached_art_gen:
+            stage.status = StageStatus.COMPLETED
+        if stage.stage_id == "art_gen":
+            reached_art_gen = False
     rendering.status = StageStatus.PENDING
     state.current_instance_id = art_gen.instance_id
     save_state(state)
