@@ -4,6 +4,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+from llmfacade.exceptions import UnsupportedFeature
 
 from mtgai.generation import llm_client
 from mtgai.generation.llm_client import (
@@ -674,6 +675,71 @@ class TestInterruptLocalInference:
         from mtgai.runtime import ai_lock
 
         assert llm_client.interrupt_local_inference in ai_lock._cancel_hooks
+
+
+# ── Free local VRAM before ComfyUI (unload_local_models) ─────────────
+
+
+class TestUnloadLocalModels:
+    """``unload_local_models`` evicts the managed llama-swap model so the art
+    tail's ComfyUI/Flux can claim the GPU — but only when a local provider was
+    actually constructed, and never raises (best-effort)."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate_providers(self):
+        saved_providers = dict(llm_client._PROVIDERS)
+        yield
+        with llm_client._PROVIDERS_LOCK:
+            llm_client._PROVIDERS.clear()
+            llm_client._PROVIDERS.update(saved_providers)
+
+    def _set_provider(self, prov):
+        with llm_client._PROVIDERS_LOCK:
+            llm_client._PROVIDERS["llamacpp"] = prov
+
+    def test_calls_unload_all_when_provider_cached(self):
+        prov = MagicMock()
+        self._set_provider(prov)
+        assert llm_client.unload_local_models() is True
+        prov.unload_all.assert_called_once_with()
+
+    def test_noop_when_no_provider_cached(self):
+        # Cloud-only / no-open-project: never constructed a llama-server, nothing
+        # to unload — and we must NOT construct one just to unload.
+        with llm_client._PROVIDERS_LOCK:
+            llm_client._PROVIDERS.pop("llamacpp", None)
+        assert llm_client.unload_local_models() is False
+
+    def test_unsupported_feature_is_swallowed(self):
+        # Bare llama-server with no llama-swap → unload_all() raises
+        # UnsupportedFeature; degrade to the old behaviour, no crash.
+        prov = MagicMock()
+        prov.unload_all.side_effect = UnsupportedFeature("no llama-swap", "llamacpp", None)
+        self._set_provider(prov)
+        assert llm_client.unload_local_models() is False
+
+    def test_generic_exception_is_swallowed(self):
+        prov = MagicMock()
+        prov.unload_all.side_effect = RuntimeError("kaboom")
+        self._set_provider(prov)
+        assert llm_client.unload_local_models() is False
+
+    def test_missing_unload_all_method_degrades(self):
+        class NoUnload:
+            pass
+
+        self._set_provider(NoUnload())
+        assert llm_client.unload_local_models() is False
+
+    def test_does_not_construct_provider(self):
+        # No llamacpp cached + a poisoned _get_provider: unload_local_models must
+        # never trigger construction (it reads the cache directly).
+        with llm_client._PROVIDERS_LOCK:
+            llm_client._PROVIDERS.pop("llamacpp", None)
+        with patch.object(
+            llm_client, "_get_provider", side_effect=AssertionError("must not construct")
+        ):
+            assert llm_client.unload_local_models() is False
 
 
 # Multi-block system + cached-user prefix (system_blocks / cache_user primitive)
