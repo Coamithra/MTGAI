@@ -261,6 +261,25 @@ def start_comfyui(log_dir: Path | None = None) -> subprocess.Popen:
     raise TimeoutError("ComfyUI failed to start within 120 seconds")
 
 
+def _check_vram_with_retry(attempts: int = 3, delay_s: float = 1.0) -> None:
+    """``check_vram`` with a short bounded poll for VRAM to be reclaimed.
+
+    Used right after unloading the local LLM: the driver can lag the unload's
+    HTTP ack by a beat, so a single immediate check could spuriously fail.
+    Retries on the ``RuntimeError`` ``check_vram`` raises; the final attempt
+    re-raises so the actionable message still surfaces if VRAM never frees.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            check_vram()
+            return
+        except RuntimeError:
+            if attempt >= attempts:
+                raise
+            logger.info("VRAM not yet reclaimed (attempt %d/%d) — retrying...", attempt, attempts)
+            time.sleep(delay_s)
+
+
 def ensure_comfyui(log_dir: Path | None = None) -> subprocess.Popen | None:
     """Ensure ComfyUI is running. Starts it if needed. Returns process or None.
 
@@ -280,8 +299,12 @@ def ensure_comfyui(log_dir: Path | None = None) -> subprocess.Popen | None:
     # layer, so this stays one-directional with no module-load coupling.
     from mtgai.generation.llm_client import unload_local_models
 
-    unload_local_models()
-    check_vram()
+    unloaded = unload_local_models()
+    # VRAM reclamation after the llama-swap unload is near-immediate, but the
+    # driver may lag the HTTP ack by a beat. Only when we actually unloaded
+    # something, re-query a few times before failing — a cloud-only / other-app
+    # shortfall (nothing unloaded) still fails fast with the actionable message.
+    _check_vram_with_retry() if unloaded else check_vram()
     return start_comfyui(log_dir=log_dir)
 
 

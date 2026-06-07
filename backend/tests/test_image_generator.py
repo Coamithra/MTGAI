@@ -244,3 +244,58 @@ def test_ensure_comfyui_skips_unload_when_already_running(monkeypatch):
 
     assert ig.ensure_comfyui() is None
     assert called == []
+
+
+def test_ensure_comfyui_fast_fails_when_nothing_unloaded(monkeypatch):
+    """Nothing unloaded (cloud-only / another app holds the VRAM) -> a single
+    check_vram, no retry poll, so the actionable error surfaces immediately."""
+    n_checks = []
+
+    def _boom():
+        n_checks.append(1)
+        raise RuntimeError("Insufficient VRAM")
+
+    monkeypatch.setattr(ig, "is_comfyui_running", lambda: False)
+    monkeypatch.setattr(ig, "check_vram", _boom)
+
+    import mtgai.generation.llm_client as llm_client
+
+    monkeypatch.setattr(llm_client, "unload_local_models", lambda: False)
+
+    with pytest.raises(RuntimeError):
+        ig.ensure_comfyui()
+    assert len(n_checks) == 1  # no retry when nothing was unloaded
+
+
+def test_check_vram_with_retry_succeeds_after_lag(monkeypatch):
+    """VRAM reclamation lags one beat: the first check_vram raises, the second
+    succeeds -> _check_vram_with_retry returns without raising."""
+    attempts = []
+
+    def _flaky():
+        attempts.append(1)
+        if len(attempts) < 2:
+            raise RuntimeError("Insufficient VRAM")
+
+    monkeypatch.setattr(ig, "check_vram", _flaky)
+    monkeypatch.setattr(ig.time, "sleep", lambda _s: None)
+
+    ig._check_vram_with_retry(attempts=3, delay_s=0.0)
+    assert len(attempts) == 2
+
+
+def test_check_vram_with_retry_reraises_after_budget(monkeypatch):
+    """VRAM never frees: the final attempt re-raises so the actionable message
+    still surfaces."""
+    attempts = []
+
+    def _never():
+        attempts.append(1)
+        raise RuntimeError("Insufficient VRAM")
+
+    monkeypatch.setattr(ig, "check_vram", _never)
+    monkeypatch.setattr(ig.time, "sleep", lambda _s: None)
+
+    with pytest.raises(RuntimeError):
+        ig._check_vram_with_retry(attempts=3, delay_s=0.0)
+    assert len(attempts) == 3
