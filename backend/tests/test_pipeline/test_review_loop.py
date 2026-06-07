@@ -248,6 +248,130 @@ def test_build_rerun_span_ordinals_and_scope(project):
 
 
 # ----------------------------------------------------------------------
+# resume() from a COMPLETED tip with a PENDING successor (dead-end recovery)
+# ----------------------------------------------------------------------
+
+
+def test_resume_from_completed_tip_advances_to_pending_successor(project, monkeypatch):
+    """A project saved/reopened after a review-eligible stage finished but before
+    its successor ran persists as overall=PAUSED, tip=COMPLETED, successor=PENDING.
+    resume() must NOT no-op there: it re-points the engine at the pending stage and
+    runs it, instead of leaving the user permanently stuck.
+
+    Uses two non-review-eligible stages so the successor runs to COMPLETED (a
+    review-eligible successor like the real ``rendering`` would correctly pause
+    again for its own review — covered separately below)."""
+    state = _state(["lands", "card_gen"])
+    state.stages[0].status = StageStatus.COMPLETED
+    state.stages[1].status = StageStatus.PENDING
+    state.current_instance_id = "lands"
+    state.overall_status = PipelineStatus.PAUSED
+    _patch_clean(monkeypatch, "card_gen")
+
+    PipelineEngine(state, EventBus()).resume()
+
+    successor = state.stages[1]
+    assert successor.status == StageStatus.COMPLETED, [s.status for s in state.stages]
+    assert state.overall_status == PipelineStatus.COMPLETED
+    # The already-completed tip is left completed (not re-run, not re-paused).
+    assert state.stages[0].status == StageStatus.COMPLETED
+
+
+def test_resume_from_completed_tip_into_review_successor_pauses_again(project, monkeypatch):
+    """The real art_gen→rendering shape: rendering is review-eligible (default
+    break point "review"), so resuming from the completed art_gen tip advances
+    INTO rendering, runs it, and pauses it for its own review — the dead-end is
+    broken (the successor actually ran) even though the pipeline stays PAUSED."""
+    state = _state(["art_gen", "rendering"])
+    state.stages[0].status = StageStatus.COMPLETED
+    state.stages[1].status = StageStatus.PENDING
+    state.current_instance_id = "art_gen"
+    state.overall_status = PipelineStatus.PAUSED
+
+    ran: list[str] = []
+    monkeypatch.setitem(
+        engine_mod.STAGE_RUNNERS,
+        "rendering",
+        lambda _pc, _em: (ran.append("rendering"), StageResult(detail="ok"))[1],
+    )
+
+    PipelineEngine(state, EventBus()).resume()
+
+    rendering = state.stages[1]
+    assert ran == ["rendering"]  # the successor actually executed
+    assert rendering.status == StageStatus.PAUSED_FOR_REVIEW
+    assert state.overall_status == PipelineStatus.PAUSED
+    assert state.current_instance_id == rendering.instance_id
+
+
+def test_resume_from_completed_tip_does_not_rerun_the_tip(project, monkeypatch):
+    """The completed tip's runner must not fire again on resume — only the pending
+    successor runs. Guards against a regression that re-enters the tip and discards
+    its prior (human-reviewed) output."""
+    state = _state(["art_gen", "rendering"])
+    state.stages[0].status = StageStatus.COMPLETED
+    state.stages[1].status = StageStatus.PENDING
+    state.current_instance_id = "art_gen"
+    state.overall_status = PipelineStatus.PAUSED
+
+    calls: list[str] = []
+
+    def _track(sid):
+        def run(_pc, _em):
+            calls.append(sid)
+            return StageResult(detail="ok")
+
+        return run
+
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "art_gen", _track("art_gen"))
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "rendering", _track("rendering"))
+
+    PipelineEngine(state, EventBus()).resume()
+
+    assert calls == ["rendering"]
+
+
+def test_resume_no_ops_when_completed_tip_has_no_successor(project, monkeypatch):
+    """A paused state whose tip completed with nothing left to run can't advance —
+    resume() leaves it untouched (no crash, no spurious re-run)."""
+    state = _state(["art_gen", "rendering"])
+    state.stages[0].status = StageStatus.COMPLETED
+    state.stages[1].status = StageStatus.COMPLETED
+    state.current_instance_id = "art_gen"
+    state.overall_status = PipelineStatus.PAUSED
+
+    calls: list[str] = []
+    for sid in ("art_gen", "rendering"):
+        monkeypatch.setitem(
+            engine_mod.STAGE_RUNNERS,
+            sid,
+            (lambda s: lambda _pc, _em: (calls.append(s), StageResult(detail="ok"))[1])(sid),
+        )
+
+    PipelineEngine(state, EventBus()).resume()
+
+    assert calls == []
+    assert state.overall_status == PipelineStatus.PAUSED
+
+
+def test_resume_normal_paused_for_review_still_completes_tip(project, monkeypatch):
+    """The normal break-point path is unchanged: a PAUSED_FOR_REVIEW tip is marked
+    COMPLETED and the loop walks forward into the successor."""
+    state = _state(["lands", "card_gen"])
+    state.stages[0].status = StageStatus.PAUSED_FOR_REVIEW
+    state.stages[1].status = StageStatus.PENDING
+    state.current_instance_id = "lands"
+    state.overall_status = PipelineStatus.PAUSED
+    _patch_clean(monkeypatch, "card_gen")
+
+    PipelineEngine(state, EventBus()).resume()
+
+    assert state.stages[0].status == StageStatus.COMPLETED
+    assert state.stages[1].status == StageStatus.COMPLETED
+    assert state.overall_status == PipelineStatus.COMPLETED
+
+
+# ----------------------------------------------------------------------
 # Mid-run "Stop after this step" toggle (re-resolved from live break points)
 # ----------------------------------------------------------------------
 

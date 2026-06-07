@@ -566,6 +566,27 @@ class PipelineEngine:
             logger.warning("resume() called but no current stage")
             return
         if current.status != StageStatus.PAUSED_FOR_REVIEW:
+            # The tip already completed (e.g. a project saved/reopened after a
+            # review-eligible stage finished but before its successor ran), yet
+            # overall_status is still PAUSED with a pending stage waiting. Don't
+            # no-op into a dead-end: re-point the engine at that pending stage
+            # and walk the loop forward. _run_loop skips COMPLETED stages, so a
+            # plain run() picks up the first pending one from here.
+            if (
+                current.status in (StageStatus.COMPLETED, StageStatus.SKIPPED)
+                and self.state.overall_status == PipelineStatus.PAUSED
+            ):
+                nxt = self.state.next_pending_stage()
+                if nxt is not None:
+                    logger.info(
+                        "resume() from completed tip %s — advancing to pending stage %s",
+                        current.stage_id,
+                        nxt.stage_id,
+                    )
+                    self.state.current_instance_id = nxt.instance_id
+                    save_state(self.state)
+                    self.run()
+                    return
             logger.warning(
                 "resume() called but current stage %s is %s, not paused",
                 current.stage_id,

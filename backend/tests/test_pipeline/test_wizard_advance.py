@@ -308,6 +308,54 @@ def test_advance_paused_refuses_when_engine_already_running(client, monkeypatch)
     assert "already running" in resp.json()["error"].lower()
 
 
+def test_advance_resumes_from_completed_tip_with_pending_successor(
+    client, no_thread_start, monkeypatch
+):
+    """The saved/reopened dead-end: overall=PAUSED, tip=COMPLETED, successor=PENDING.
+    advance() must still schedule resume() (which now advances into the pending
+    stage) instead of returning a false success or refusing."""
+    _make_set("TST")
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
+    # art_gen completed, rendering still pending — current points at the completed tip.
+    state.stages[0].status = StageStatus.COMPLETED
+    state.stages[1].status = StageStatus.COMPLETED
+    art_gen = next(s for s in state.stages if s.stage_id == "art_gen")
+    rendering = next(s for s in state.stages if s.stage_id == "rendering")
+    art_gen.status = StageStatus.COMPLETED
+    rendering.status = StageStatus.PENDING
+    state.current_instance_id = art_gen.instance_id
+    save_state(state)
+
+    scheduled: list[str] = []
+
+    async def _capture_to_thread(fn, *_a, **_kw):
+        scheduled.append(getattr(fn, "__name__", repr(fn)))
+        return None
+
+    monkeypatch.setattr(pipeline_server.asyncio, "to_thread", _capture_to_thread)
+
+    resp = client.post("/api/wizard/advance", json={"set_code": "TST"})
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
+    assert scheduled == ["resume"]
+
+
+def test_advance_409s_when_paused_tip_completed_with_no_successor(client):
+    """No false success: a PAUSED state whose tip already completed and has no
+    pending stage left can't advance — the endpoint returns an actionable 409
+    rather than {success: true} with no effect."""
+    _make_set("TST")
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
+    for stage in state.stages:
+        stage.status = StageStatus.COMPLETED
+    state.current_instance_id = state.stages[-1].instance_id
+    save_state(state)
+
+    resp = client.post("/api/wizard/advance", json={"set_code": "TST"})
+    assert resp.status_code == 409
+    assert "no stage to advance" in resp.json()["error"].lower()
+
+
 def test_advance_400s_when_failed(client):
     _make_set("TST")
     state = _seed_state("TST", overall_status=PipelineStatus.FAILED)

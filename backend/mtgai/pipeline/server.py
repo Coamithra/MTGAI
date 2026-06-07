@@ -2410,6 +2410,22 @@ async def wizard_advance() -> JSONResponse:
         if _engine is not None and _engine.is_running:
             return JSONResponse({"error": "A pipeline is already running"}, status_code=409)
 
+        # Don't claim success when resume() can't actually do anything. resume()
+        # handles two cases: the current stage is PAUSED_FOR_REVIEW (the normal
+        # break-point path), or the tip already completed but a pending successor
+        # is waiting (the saved/reopened dead-end this guards against). If neither
+        # holds — a paused state with a non-paused tip and nothing left to run —
+        # resume would silently no-op, so surface a real error instead of a false
+        # ``{success: true}``.
+        current = existing.current_stage()
+        tip_paused = current is not None and current.status == StageStatus.PAUSED_FOR_REVIEW
+        has_pending = existing.next_pending_stage() is not None
+        if not tip_paused and not has_pending:
+            return JSONResponse(
+                {"error": "Pipeline is paused but has no stage to advance to"},
+                status_code=409,
+            )
+
         _engine = PipelineEngine(existing, event_bus)
         _engine_task = asyncio.create_task(asyncio.to_thread(_engine.resume))
         # Don't return navigate_to on resume: the user clicked Next-step
@@ -3136,6 +3152,29 @@ def _stage_status_in_state(stage_id: str) -> str:
         return "pending"
     stage = _resolve_stage_instance(state, stage_id)
     return stage.status.value if stage is not None else "pending"
+
+
+def _stage_advance_state(stage_id: str) -> tuple[str | None, bool]:
+    """Overall pipeline status + whether ``stage_id`` is an advanceable tip.
+
+    ``can_advance`` is True when this stage's active instance has COMPLETED, the
+    pipeline overall is PAUSED, and a later stage is still PENDING — the
+    saved/reopened dead-end where the engine *can* resume into the next stage but
+    no PAUSED_FOR_REVIEW pause exists to key the footer's Next-step button off.
+    Lets a review-eligible tab surface that button without a false PAUSED_FOR_REVIEW.
+    """
+    state = _get_current_state()
+    if state is None:
+        return None, False
+    overall = state.overall_status.value
+    stage = _resolve_stage_instance(state, stage_id)
+    can_advance = (
+        stage is not None
+        and stage.status == StageStatus.COMPLETED
+        and state.overall_status == PipelineStatus.PAUSED
+        and state.next_pending_stage() is not None
+    )
+    return overall, can_advance
 
 
 def _stage_state_base(stage_id: str, settings: Any) -> dict:
@@ -6982,11 +7021,17 @@ async def wizard_art_gen_state() -> JSONResponse:
     project = _require_active_project()
     cards = _art_gen_cards()
     sp = project.settings.set_params
+    overall, can_advance = _stage_advance_state("art_gen")
     return JSONResponse(
         {
             "set_params": sp.model_dump(),
             "theme_summary": _theme_summary(read_theme_or_none()),
             "stage_status": _stage_status_in_state("art_gen"),
+            # Lets the footer surface a Next-step button on a COMPLETED tip that
+            # is paused with a pending successor (the saved/reopened dead-end),
+            # not just on PAUSED_FOR_REVIEW.
+            "overall_status": overall,
+            "can_advance": can_advance,
             "cards": cards,
             "has_content": any(c["versions"] for c in cards),
             "versions_per_card": sp.art_versions_per_card,
