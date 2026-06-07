@@ -5,6 +5,8 @@ resolution + clamping, provider dispatch + the hosted-provider stub raising,
 and the character-reference conditioning wiring decision.
 """
 
+import json
+
 import pytest
 
 from mtgai.art import image_generator as ig
@@ -299,3 +301,99 @@ def test_check_vram_with_retry_reraises_after_budget(monkeypatch):
     with pytest.raises(RuntimeError):
         ig._check_vram_with_retry(attempts=3, delay_s=0.0)
     assert len(attempts) == 3
+
+
+# ---------------------------------------------------------------------------
+# VRAM-aware Flux quant selection
+# ---------------------------------------------------------------------------
+
+
+def test_select_flux_quant_uses_q5_on_12gb_card():
+    """A 12GB-class card (~10GB free) gets the safe Q5_K_S floor — Q8 partially
+    offloads to CPU under the current ComfyUI and runs ~12x slower."""
+    assert ig.select_flux_quant(free_mb=10_000) == ig.FLUX_QUANT_DEFAULT
+    assert ig.select_flux_quant(free_mb=10_000) == "flux1-dev-Q5_K_S.gguf"
+
+
+def test_select_flux_quant_uses_q8_on_high_vram_card():
+    """A 16GB+ card with comfortable headroom gets the higher-quality Q8_0."""
+    assert ig.select_flux_quant(free_mb=16_000) == ig.FLUX_QUANT_HIGH_VRAM
+    assert ig.select_flux_quant(free_mb=16_000) == "flux1-dev-Q8_0.gguf"
+
+
+def test_select_flux_quant_boundary():
+    """Exactly at the Q8 threshold picks Q8; one MB below falls to Q5."""
+    assert ig.select_flux_quant(free_mb=ig.FLUX_Q8_MIN_FREE_MB) == ig.FLUX_QUANT_HIGH_VRAM
+    assert ig.select_flux_quant(free_mb=ig.FLUX_Q8_MIN_FREE_MB - 1) == ig.FLUX_QUANT_DEFAULT
+
+
+def test_select_flux_quant_queries_vram_when_unset(monkeypatch):
+    """No free_mb arg -> query nvidia-smi via get_vram_info."""
+    monkeypatch.setattr(ig, "get_vram_info", lambda: {"free_mb": 10_000})
+    assert ig.select_flux_quant() == ig.FLUX_QUANT_DEFAULT
+
+
+def test_select_flux_quant_degrades_to_safe_default_on_query_failure(monkeypatch):
+    """A VRAM query failure must not risk the partial-offload slowdown — fall back
+    to the safe Q5 floor, never Q8."""
+
+    def _boom():
+        raise RuntimeError("nvidia-smi not found")
+
+    monkeypatch.setattr(ig, "get_vram_info", _boom)
+    assert ig.select_flux_quant() == ig.FLUX_QUANT_DEFAULT
+
+
+def test_min_vram_free_mb_fits_q5():
+    """The VRAM gate must be low enough that a 12GB card running Q5 passes it."""
+    assert ig.MIN_VRAM_FREE_MB <= 9_000
+
+
+def test_workflow_json_default_is_q5():
+    """The bundled workflow's UnetLoaderGGUF default must be the safe Q5 floor, so
+    a from-JSON load (no VRAM query) never names the partial-offload Q8."""
+    workflow = json.loads(ig.WORKFLOW_PATH.read_text(encoding="utf-8"))
+    assert workflow["1"]["class_type"] == "UnetLoaderGGUF"
+    assert workflow["1"]["inputs"]["unet_name"] == "flux1-dev-Q5_K_S.gguf"
+    assert workflow["1"]["inputs"]["unet_name"] == ig.FLUX_QUANT_DEFAULT
+
+
+def test_generate_image_comfyui_injects_vram_chosen_quant(monkeypatch, tmp_path):
+    """generate_image_comfyui rewrites the workflow's unet_name from the VRAM-aware
+    selection at submit time (overriding the JSON default)."""
+    captured = {}
+
+    def _fake_queue(workflow):
+        captured["unet_name"] = workflow["1"]["inputs"]["unet_name"]
+        return "promptid"
+
+    monkeypatch.setattr(ig, "select_flux_quant", lambda: "flux1-dev-Q8_0.gguf")
+    monkeypatch.setattr(ig, "_queue_prompt", _fake_queue)
+    monkeypatch.setattr(
+        ig, "_poll_completion", lambda pid: {"filename": "x.png", "subfolder": "", "elapsed": 1.0}
+    )
+    monkeypatch.setattr(ig, "_download_image", lambda f, s: b"img")
+    monkeypatch.setattr(ig, "flush_comfyui", lambda: None)
+
+    _data, meta = ig.generate_image_comfyui("a cat")
+    assert captured["unet_name"] == "flux1-dev-Q8_0.gguf"
+    assert meta["model"] == "flux1-dev-Q8_0"
+
+
+def test_generate_image_comfyui_uses_safe_default_when_low_vram(monkeypatch):
+    """Low VRAM -> the submitted workflow names Q5 even though Q8 might be on disk."""
+    captured = {}
+
+    monkeypatch.setattr(ig, "select_flux_quant", lambda: "flux1-dev-Q5_K_S.gguf")
+    monkeypatch.setattr(
+        ig, "_queue_prompt", lambda wf: captured.update(unet=wf["1"]["inputs"]["unet_name"]) or "id"
+    )
+    monkeypatch.setattr(
+        ig, "_poll_completion", lambda pid: {"filename": "x.png", "subfolder": "", "elapsed": 1.0}
+    )
+    monkeypatch.setattr(ig, "_download_image", lambda f, s: b"img")
+    monkeypatch.setattr(ig, "flush_comfyui", lambda: None)
+
+    _data, meta = ig.generate_image_comfyui("a cat")
+    assert captured["unet"] == "flux1-dev-Q5_K_S.gguf"
+    assert meta["model"] == "flux1-dev-Q5_K_S"

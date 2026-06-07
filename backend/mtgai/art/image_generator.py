@@ -49,8 +49,44 @@ POLL_INTERVAL = 3  # seconds between completion checks
 GENERATION_TIMEOUT = 600  # 10 minutes max per image (cold start model loading can take 3-5 min)
 
 
-# Minimum free VRAM required (MB) — Flux Q8_0 needs ~9.6GB for models + ~1GB compute
-MIN_VRAM_FREE_MB = 10_200
+# VRAM-aware Flux quant selection
+# ---------------------------------------------------------------------------
+# The current ComfyUI build loads flux1-dev-Q8_0 at a ~12.2GB VRAM footprint
+# (a regression vs the older build's ~9.6GB), so on a 12GB card Q8 spills ~2.8GB
+# to CPU and runs ~12x slower (~31-37s/step vs ~2.9s/step). flux1-dev-Q5_K_S
+# (~8.3GB) loads fully on 12GB and is the safe default/floor; Q8 is only chosen
+# when there's comfortable headroom for its larger footprint (>=16GB cards).
+#
+# Both GGUFs live in ComfyUI's models/unet/ — the workflow JSON's UnetLoaderGGUF
+# node names the file, and generate_image_comfyui overwrites it per-run with the
+# VRAM-chosen quant (the JSON default mirrors FLUX_QUANT_DEFAULT as a fallback).
+FLUX_QUANT_DEFAULT = "flux1-dev-Q5_K_S.gguf"  # safe floor — fits fully on 12GB
+FLUX_QUANT_HIGH_VRAM = "flux1-dev-Q8_0.gguf"  # higher quality, needs headroom
+# Free VRAM (MB) at/above which Q8 loads fully under the current ComfyUI (its
+# ~12.2GB footprint + text encoder + activations).
+FLUX_Q8_MIN_FREE_MB = 14_000
+
+# Minimum free VRAM required (MB) — Q5_K_S needs ~8GB for models + ~1GB compute;
+# the gate sits below FLUX_Q8_MIN_FREE_MB so a 12GB card passes and runs Q5.
+MIN_VRAM_FREE_MB = 9_000
+
+
+def select_flux_quant(free_mb: int | None = None) -> str:
+    """Pick the Flux GGUF quant that fits the available VRAM.
+
+    Returns ``FLUX_QUANT_HIGH_VRAM`` (Q8_0) only when free VRAM comfortably
+    exceeds its current-ComfyUI footprint (``FLUX_Q8_MIN_FREE_MB``); otherwise
+    ``FLUX_QUANT_DEFAULT`` (Q5_K_S), the safe floor that loads fully on a 12GB
+    card. ``free_mb`` is queried via nvidia-smi when not supplied; any query
+    failure degrades to the safe default rather than risking the partial-offload
+    slowdown.
+    """
+    if free_mb is None:
+        try:
+            free_mb = get_vram_info()["free_mb"]
+        except Exception:
+            return FLUX_QUANT_DEFAULT
+    return FLUX_QUANT_HIGH_VRAM if free_mb >= FLUX_Q8_MIN_FREE_MB else FLUX_QUANT_DEFAULT
 
 
 # ---------------------------------------------------------------------------
@@ -549,6 +585,12 @@ def generate_image_comfyui(
     """
     workflow = _load_workflow()
 
+    # Pick the Flux quant that fits the GPU and inject it into the UnetLoaderGGUF
+    # node (the JSON default is the safe floor; this upgrades to Q8 when there's
+    # headroom and re-pins Q5 when there isn't).
+    quant = select_flux_quant()
+    workflow["1"]["inputs"]["unet_name"] = quant
+
     # Inject parameters
     workflow["4"]["inputs"]["text"] = prompt
     workflow["6"]["inputs"]["guidance"] = guidance
@@ -581,7 +623,7 @@ def generate_image_comfyui(
         "height": height,
         "elapsed_seconds": round(result["elapsed"], 1),
         "backend": "comfyui_local",
-        "model": "flux1-dev-Q8_0",
+        "model": quant.removesuffix(".gguf"),
         "character_refs_applied": refs_applied,
     }
     return image_data, metadata
