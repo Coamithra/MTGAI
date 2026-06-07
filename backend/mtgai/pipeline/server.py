@@ -7101,9 +7101,10 @@ async def wizard_art_gen_reroll(request: Request) -> JSONResponse:
         if guard.busy:
             return guard.busy_response
 
-        def _reroll_progress(card_no, completed, total, message, cost):
+        def _reroll_progress(cn, completed, total, message, cost):
             # Keep the progress strip + Cancel alive through the unpolled image
-            # phase (card 6a256732).
+            # phase (card 6a256732). Single-card reroll, so no per-card tile —
+            # the tab re-bootstraps from /state when the action ends.
             emitter.phase("running", "Generating art…")
 
         def _reroll():
