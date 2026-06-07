@@ -454,3 +454,162 @@ def test_run_art_gen_halts_on_select_cancel(monkeypatch) -> None:
     assert result.success is False
     assert "cancelled" in (result.error_message or "").lower()
     assert "done" in [name for name, _ in spy.calls]
+
+
+# ---------------------------------------------------------------------------
+# The LLM tok/s poller must NEVER wrap the ComfyUI image-generation phase of an
+# art stage (card 6a25497b). The poller probes a model-specific llama-swap
+# endpoint, which forces a (re)load of the model that was deliberately unloaded
+# before ComfyUI — re-contending VRAM with Flux and crushing the step rate.
+# These pin: (1) char_portraits scopes its poller to step-1 detection only, and
+# (2) art_gen runs the pure-ComfyUI generate phase with NO poller while keeping
+#     the LLM judge phase polled (so LLM-phase telemetry doesn't regress).
+# ---------------------------------------------------------------------------
+
+
+class _TrackingPoller:
+    """Stand-in poller recording whether it's currently active (entered).
+
+    Used to prove the poller's ``with`` span does not overlap the ComfyUI
+    image-generation call: the image-gen stub asserts the poller is NOT active
+    while it runs.
+    """
+
+    def __init__(self) -> None:
+        self.active = False
+        self.entered = False
+
+    def __enter__(self):
+        self.active = True
+        self.entered = True
+        return self
+
+    def __exit__(self, *_exc) -> None:
+        self.active = False
+
+
+def test_char_portraits_poller_excludes_image_gen(monkeypatch, tmp_path) -> None:
+    """``run_char_portraits`` must wrap its tok/s poller around ONLY the step-1
+    LLM detection, never the ComfyUI image-gen phase. We assert the real
+    ``generate_character_refs`` enters the passed ``detect_poller`` while the
+    image-generation function (``generate_image_comfyui``) runs with the poller
+    inactive."""
+    pollers: list[_TrackingPoller] = []
+
+    def fake_make_poller(stage, _emit, **_kw):
+        assert stage == "char_portraits"
+        p = _TrackingPoller()
+        pollers.append(p)
+        return p
+
+    monkeypatch.setattr(stages, "make_poller", fake_make_poller)
+
+    # Drive the real generate_character_refs against a 2-card pool with one
+    # recurring entity so it reaches the image loop. Stub the LLM detection
+    # (asserting the poller is active during it) and ComfyUI (asserting it is
+    # NOT). Image gen runs out-of-band of the poller span = the fix.
+    cp = "mtgai.art.character_portraits"
+    poller_state: dict[str, bool] = {}
+
+    def fake_detect(*_a, **_k):
+        # The poller wraps this call — it must be active here.
+        poller_state["active_during_detect"] = pollers[0].active
+        return [
+            {"entity_key": "hero", "name": "Hero", "kind": "character", "cards": ["1", "2"]}
+        ], 0.0
+
+    def fake_ensure_comfyui(**_k):
+        return None
+
+    def fake_image(*_a, **_k):
+        # The poller must NOT be active during the ComfyUI image-generation call.
+        poller_state["active_during_image"] = pollers[0].active
+        return (b"png-bytes", {})
+
+    monkeypatch.setattr(f"{cp}.detect_recurring_entities", fake_detect)
+    monkeypatch.setattr(f"{cp}.ensure_comfyui", fake_ensure_comfyui)
+    monkeypatch.setattr(f"{cp}.is_comfyui_running", lambda: True)
+    monkeypatch.setattr(f"{cp}.kill_comfyui", lambda *_a, **_k: None)
+    monkeypatch.setattr(f"{cp}.generate_image_comfyui", fake_image)
+    monkeypatch.setattr(f"{cp}.attach_refs_to_cards", lambda *_a, **_k: 0)
+
+    # Stub the project/asset-folder plumbing generate_character_refs needs.
+    tmp = tmp_path
+    cards_dir = tmp / "cards"
+    cards_dir.mkdir()
+    for i in (1, 2):
+        (cards_dir / f"00{i}.json").write_text(
+            f'{{"collector_number": "{i}", "name": "C{i}"}}', encoding="utf-8"
+        )
+
+    class _FakeSettings:
+        def get_llm_model_id(self, _stage):
+            return "fake-model"
+
+        def get_thinking(self, _stage):
+            return None
+
+    class _FakeProject:
+        set_code = "TST"
+        settings = _FakeSettings()
+
+    # These are imported inside generate_character_refs, so patch them at source.
+    monkeypatch.setattr(
+        "mtgai.runtime.active_project.require_active_project", lambda: _FakeProject()
+    )
+    monkeypatch.setattr("mtgai.io.asset_paths.set_artifact_dir", lambda: tmp)
+
+    spy = _SpyEmitter()
+    result = stages.run_char_portraits(progress_cb=None, emitter=spy)
+
+    assert result.success is True
+    assert pollers and pollers[0].entered, "detection poller was never entered"
+    assert poller_state.get("active_during_detect") is True, (
+        "poller must be active during step-1 LLM detection"
+    )
+    assert poller_state.get("active_during_image") is False, (
+        "poller must NOT be active during the ComfyUI image-generation phase"
+    )
+
+
+def test_art_gen_no_poller_around_image_gen_but_judge_polled(monkeypatch) -> None:
+    """``run_art_gen`` must run the pure-ComfyUI generate phase with NO poller
+    (so it can't reload the unloaded LLM), while the LLM judge phase keeps its
+    poller (LLM-phase telemetry must not regress)."""
+    pollers: dict[str, _TrackingPoller] = {}
+
+    def fake_make_poller(stage, _emit, **_kw):
+        p = _TrackingPoller()
+        pollers[stage] = p
+        return p
+
+    monkeypatch.setattr(stages, "make_poller", fake_make_poller)
+
+    state: dict[str, object] = {}
+
+    def fake_gen(**_k):
+        # No poller may exist/be active during the ComfyUI generate phase.
+        state["judge_poller_exists_during_gen"] = "art_select" in pollers
+        state["gen_poller_made"] = "art_gen" in pollers
+        return {"generated": 2, "skipped": 0, "failed": 0}
+
+    def fake_select(**_k):
+        state["judge_poller_active"] = pollers["art_select"].active
+        return {"reviewed": 2, "estimated_cost_usd": 0.0, "cancelled": False}
+
+    monkeypatch.setattr("mtgai.art.image_generator.generate_art_for_set", fake_gen)
+    monkeypatch.setattr("mtgai.art.art_selector.select_art_for_set", fake_select)
+
+    spy = _SpyEmitter()
+    result = stages.run_art_gen(progress_cb=None, emitter=spy)
+
+    assert result.success is True
+    # The image-gen phase makes NO poller at all (no "art_gen" poller built).
+    assert state.get("gen_poller_made") is False, (
+        "image-generation phase must not build an LLM poller"
+    )
+    # The judge poller isn't even constructed until after image gen.
+    assert state.get("judge_poller_exists_during_gen") is False
+    # But the judge phase IS polled — telemetry preserved.
+    assert "art_select" in pollers and pollers["art_select"].entered
+    assert state.get("judge_poller_active") is True

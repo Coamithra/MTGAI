@@ -1633,13 +1633,20 @@ def run_char_portraits(progress_cb: ProgressCallback | None, emitter: StageEmitt
                 success=False,
                 error_message="Another AI action holds the lock; try again later.",
             )
-        with make_poller("char_portraits", emitter.phase, activity_prefix="Finding entities"):
-            result = generate_character_refs(
-                should_cancel=ai_lock.is_cancelled,
-                on_reset=hooks.on_reset,
-                on_entity_start=hooks.on_entity_start,
-                on_entity_image=hooks.on_entity_image,
-            )
+        # The LLM tok/s poller wraps ONLY the step-1 entity-detection call, NOT
+        # the ComfyUI image-generation phase that follows: polling a llama-swap
+        # model endpoint during image gen would reload the (deliberately
+        # unloaded) LLM into VRAM and starve Flux (card 6a25497b). Pass it down
+        # as detect_poller so generate_character_refs scopes it to detection.
+        result = generate_character_refs(
+            should_cancel=ai_lock.is_cancelled,
+            on_reset=hooks.on_reset,
+            on_entity_start=hooks.on_entity_start,
+            on_entity_image=hooks.on_entity_image,
+            detect_poller=make_poller(
+                "char_portraits", emitter.phase, activity_prefix="Finding entities"
+            ),
+        )
 
     generated = result.get("generated", 0)
     entities = result.get("entities", 0)
@@ -1706,12 +1713,16 @@ def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
                 error_message="Another AI action holds the lock; try again later.",
             )
 
+        # No LLM tok/s poller around image generation: this is a pure
+        # ComfyUI/Flux phase with NO LLM call, and polling a llama-swap model
+        # endpoint here would reload the (deliberately unloaded) LLM into VRAM
+        # and starve Flux (card 6a25497b). The per-card art_gen_card events carry
+        # the live progress; only the judge phase below gets a poller.
         emitter.phase("running", "Generating art")
-        with make_poller("art_gen", emitter.phase, activity_prefix="Generating art"):
-            gen_result = generate_art_for_set(
-                progress_callback=gen_progress,
-                should_cancel=ai_lock.is_cancelled,
-            )
+        gen_result = generate_art_for_set(
+            progress_callback=gen_progress,
+            should_cancel=ai_lock.is_cancelled,
+        )
         generated = gen_result.get("generated", 0)
 
         if gen_result.get("cancelled"):

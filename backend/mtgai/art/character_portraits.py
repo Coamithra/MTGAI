@@ -37,6 +37,7 @@ import logging
 import re
 import time
 from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 
 from mtgai.art.image_generator import (
@@ -437,6 +438,7 @@ def generate_character_refs(
     on_entity_start: Callable[[dict], None] | None = None,
     on_entity_image: Callable[[str, str], None] | None = None,
     on_reset: Callable[[], None] | None = None,
+    detect_poller: AbstractContextManager | None = None,
 ) -> dict:
     """Generate neutral reference images for recurring entities and attach them.
 
@@ -448,6 +450,11 @@ def generate_character_refs(
         on_entity_image: ``on_entity_image(entity_key, ref_image_rel_path)`` after
             each saved image (per-version live stream).
         on_reset: fired once before image generation begins.
+        detect_poller: optional context manager wrapping ONLY the step-1 LLM
+            detection call (the tok/s telemetry poller). It must NOT span the
+            ComfyUI image-generation phase — polling a llama-swap model endpoint
+            there would reload the (deliberately unloaded) LLM into VRAM and
+            starve Flux (card 6a25497b). Defaults to a no-op context.
 
     Returns a summary dict.
     """
@@ -485,11 +492,14 @@ def generate_character_refs(
     model_id = project.settings.get_llm_model_id("char_portraits")
     thinking = project.settings.get_thinking("char_portraits")
 
-    # Step 1 — detect recurring entities.
+    # Step 1 — detect recurring entities. The tok/s poller (if any) wraps ONLY
+    # this LLM call — never the ComfyUI image phase below, where polling would
+    # reload the unloaded LLM and contend with Flux (card 6a25497b).
     logger.info("Detecting recurring entities across %d cards...", len(cards))
-    entities, cost = detect_recurring_entities(
-        cards, visual_refs, model_id=model_id, log_dir=log_dir, thinking=thinking
-    )
+    with detect_poller or nullcontext():
+        entities, cost = detect_recurring_entities(
+            cards, visual_refs, model_id=model_id, log_dir=log_dir, thinking=thinking
+        )
     logger.info("Found %d recurring entities", len(entities))
     for e in entities:
         logger.info("  %s (%s) on %d cards", e["name"], e["kind"], len(e["cards"]))
