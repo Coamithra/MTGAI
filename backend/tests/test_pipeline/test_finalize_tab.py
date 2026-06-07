@@ -42,6 +42,12 @@ def _write_card(asset: Path, fname: str, body: dict) -> None:
     (asset / "cards" / fname).write_text(json.dumps(body), encoding="utf-8")
 
 
+def _seed_mechanics(asset: Path) -> None:
+    """The per-card finalize pass (save-card) reads mechanics/approved.json."""
+    (asset / "mechanics").mkdir(parents=True, exist_ok=True)
+    (asset / "mechanics" / "approved.json").write_text("[]", encoding="utf-8")
+
+
 def _card_body(cn: str, name: str, **extra) -> dict:
     base = {
         "name": name,
@@ -99,6 +105,7 @@ def test_state_lists_cards_and_badges_auto_edits(client, project: Path) -> None:
 
 def test_save_card_persists_edit_and_marks_user_edited(client, project: Path) -> None:
     _write_card(project, "001_alpha.json", _card_body("001", "Alpha"))
+    _seed_mechanics(project)
 
     resp = client.post(
         "/api/wizard/finalize/save-card",
@@ -118,6 +125,7 @@ def test_save_card_persists_edit_and_marks_user_edited(client, project: Path) ->
 def test_save_card_rename_on_name_change_no_duplicate(client, project: Path) -> None:
     """Editing the name must not fork a second file (the slug is name-derived)."""
     _write_card(project, "001_alpha.json", _card_body("001", "Alpha"))
+    _seed_mechanics(project)
 
     resp = client.post(
         "/api/wizard/finalize/save-card",
@@ -133,6 +141,43 @@ def test_save_card_rename_on_name_change_no_duplicate(client, project: Path) -> 
     # And /state still shows a single card for cn 001.
     state = client.get("/api/wizard/finalize/state").json()
     assert [c["collector_number"] for c in state["cards"]] == ["001"]
+
+
+def test_save_card_runs_validator_suite_on_mtg_invalid_edit(client, project: Path) -> None:
+    """A hand-edited MTG-invalid field is no longer persisted verbatim.
+
+    Regression for the finalize/save-card-skips-validation bug: the endpoint must
+    route through the per-card finalize pass (validator suite + auto-fix) like the
+    sibling Rendering tab, so an invalid mana cost is auto-fixed/flagged rather than
+    written through unchecked. The Card schema alone accepts any str as a mana_cost.
+    """
+    _write_card(project, "001_alpha.json", _card_body("001", "Alpha"))
+    _seed_mechanics(project)
+
+    garbage = "{ZZZ}{99}garbage{{"
+    resp = client.post(
+        "/api/wizard/finalize/save-card",
+        json={"collector_number": "001", "fields": {"mana_cost": garbage}},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    # The validator suite fired: AUTO fixes were applied (not a verbatim passthrough).
+    assert body["fixes_applied"]
+
+    # The garbage mana cost is gone from disk — auto-fixed to canonical MTG syntax.
+    saved = json.loads((project / "cards" / "001_alpha.json").read_text(encoding="utf-8"))
+    assert saved["mana_cost"] != garbage
+
+    # The finalize report sidecar now carries this card's result, so /state's
+    # provenance (auto-edit badge + "Manual errors only" filter) reflects the edit.
+    report = json.loads(
+        (project / "reports" / "finalize-report.json").read_text(encoding="utf-8")
+    )
+    entry = next(c for c in report["cards"] if c["collector_number"] == "001")
+    assert entry["fixes_applied"]
+    state = client.get("/api/wizard/finalize/state").json()
+    card = next(c for c in state["cards"] if c["collector_number"] == "001")
+    assert card["auto_edited"] is True
 
 
 def test_save_card_rejects_non_editable_field(client, project: Path) -> None:

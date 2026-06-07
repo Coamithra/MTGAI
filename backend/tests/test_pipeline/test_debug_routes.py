@@ -216,6 +216,56 @@ def test_seed_stage_jumps_to_target(client, _sandbox):
     assert (Path(data["asset_folder"]) / "cards" / "001_x.json").is_file()
 
 
+def test_seed_stage_drops_orphaned_regen_history(client, _sandbox):
+    """seed-stage must delete cloned history/ snapshots for instances it drops.
+
+    Regression: seed-stage rewrites pipeline-state.json to the backbone instances
+    only, dropping any regen-loop duplicate (``card_gen.2`` …), but used to leave
+    those instances' cloned ``history/<id>/`` dirs behind — orphaned the moment the
+    project is seeded (the unlock/clear path only walks ``state.stages``, so it can
+    never reach an instance the seed already removed from state).
+    """
+    from pathlib import Path
+
+    _root, out = _sandbox
+    src = out / "sets" / "GOLDEN"
+    _make_golden(src, last_completed="ai_review")
+    (src / "cards").mkdir()
+    (src / "cards" / "001_x.json").write_text("{}", encoding="utf-8")
+
+    # Add a regen-loop instance (card_gen.2) + its cloned history snapshot dir.
+    state_path = src / "pipeline-state.json"
+    raw = json.loads(state_path.read_text(encoding="utf-8"))
+    raw["stages"].append(
+        StageState(
+            stage_id="card_gen",
+            instance_id="card_gen.2",
+            display_name="Card Generation 2",
+            review_eligible=False,
+            status=StageStatus.COMPLETED,
+        ).model_dump(mode="json")
+    )
+    state_path.write_text(json.dumps(raw, default=str), encoding="utf-8")
+    snap_cards = src / "history" / "card_gen.2" / "cards"
+    snap_cards.mkdir(parents=True)
+    (snap_cards / "001_x.json").write_text("{}", encoding="utf-8")
+
+    resp = client.post(
+        "/api/debug/seed-stage", json={"target_stage": "rendering", "source_dir": str(src)}
+    )
+    assert resp.status_code == 200, resp.text
+    asset = Path(resp.json()["asset_folder"])
+
+    # The dropped instance's history snapshot must not be orphaned in the clone...
+    assert not (asset / "history" / "card_gen.2").exists()
+    # ...and the rewritten state is backbone-only (the regen instance is gone).
+    from mtgai.pipeline import engine
+
+    state = engine.load_state()
+    assert state is not None
+    assert all(s.instance_id == s.stage_id for s in state.stages)
+
+
 def test_seed_stage_rejects_bad_stage(client, _sandbox):
     _root, out = _sandbox
     src = out / "sets" / "GOLDEN"

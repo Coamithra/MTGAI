@@ -5934,6 +5934,70 @@ def _finalize_card_view(
     }
 
 
+def _update_finalize_report_card(
+    asset: Path,
+    collector_number: str,
+    name: str,
+    fixes: list[str],
+    manual_errors: list,
+) -> list[dict]:
+    """Merge a per-card finalize result back into the finalize report JSON.
+
+    The Finalization tab reads each card's ``manual_errors`` + ``fixes_applied``
+    from ``reports/finalize-report.json`` (the stage's sidecar), so a hand-edit's
+    re-validation result must be written there for the "Manual errors only" filter
+    + auto-edit badges to reflect it. Updates (or inserts) the card's entry,
+    preserves any prior before/after ``original_oracle_text`` diff, and recomputes
+    the summary totals. Creates a minimal report if the stage sidecar isn't present
+    yet. Returns the serialized ``manual_errors`` for the endpoint response.
+    """
+    manual_payload = [
+        {
+            "code": e.error_code,
+            "field": e.field,
+            "message": e.message,
+            "suggestion": e.suggestion,
+        }
+        for e in manual_errors
+    ]
+    report = _finalize_report(asset) or {}
+    cards = report.get("cards")
+    if not isinstance(cards, list):
+        cards = []
+
+    prior = next(
+        (
+            c
+            for c in cards
+            if isinstance(c, dict) and str(c.get("collector_number")) == collector_number
+        ),
+        None,
+    )
+    original_oracle_text = prior.get("original_oracle_text") if isinstance(prior, dict) else None
+    entry = {
+        "collector_number": collector_number,
+        "name": name,
+        "fixes_applied": fixes,
+        "original_oracle_text": original_oracle_text,
+        "manual_errors": manual_payload,
+        "modified": bool(fixes) or original_oracle_text is not None,
+    }
+    cards = [entry if c is prior else c for c in cards] if prior is not None else [*cards, entry]
+
+    report["cards"] = cards
+    valid = [c for c in cards if isinstance(c, dict)]
+    report["total_cards"] = len(valid)
+    report["cards_modified"] = sum(1 for c in valid if c.get("modified"))
+    report["total_auto_fixes"] = sum(len(c.get("fixes_applied") or []) for c in valid)
+    report["total_manual_errors"] = sum(len(c.get("manual_errors") or []) for c in valid)
+
+    atomic_write_text(
+        asset / "reports" / "finalize-report.json",
+        json.dumps(report, indent=2, ensure_ascii=False),
+    )
+    return manual_payload
+
+
 @router.get("/api/wizard/finalize/state")
 async def wizard_finalize_state() -> JSONResponse:
     """First-paint state for the Finalization tab.
@@ -5986,7 +6050,13 @@ async def wizard_finalize_save_card(request: Request) -> JSONResponse:
     """Persist a single manual card edit from the Finalization tab.
 
     Body: ``{collector_number, fields: {name, mana_cost, oracle_text, ...}}``.
-    Applies only the editable fields, validates through :class:`Card`, writes the
+    Applies only the editable fields, validates through :class:`Card`, then runs
+    the lightweight per-card finalize pass (reminder re-injection + the full
+    validator suite + auto-fix via ``finalize_one_card``) — matching the sibling
+    Rendering tab's save-card so MTG-syntax validators fire on a hand-edit rather
+    than persisting an invalid field (e.g. a malformed mana cost) unflagged. AUTO
+    errors are fixed in place; any remaining MANUAL errors are merged back into the
+    finalize report so the "Manual errors only" filter surfaces them. Writes the
     card JSON back, marks the card as user-edited (so its badge survives reload),
     and heals a stuck FAILED finalize stage. No AI lock — a pure local edit.
     """
@@ -6018,11 +6088,30 @@ async def wizard_finalize_save_card(request: Request) -> JSONResponse:
     except Exception as exc:  # Pydantic ValidationError, etc.
         return JSONResponse({"error": f"Invalid card edit: {exc}"}, status_code=400)
 
-    _persist_finalize_edit(asset, updated, paths[cn])
-    _mark_finalize_user_edit(asset, cn)
+    from mtgai.models.card import Card
+    from mtgai.review.finalize import _load_mechanics
+    from mtgai.review.render_review import finalize_one_card
+
+    mechanics = _load_mechanics()
+    finalized, fixes, manual_errors = finalize_one_card(Card.model_validate(updated), mechanics)
+    final_json = finalized.model_dump(mode="json")
+    new_cn = final_json.get("collector_number") or cn
+
+    _persist_finalize_edit(asset, final_json, paths[cn])
+    _mark_finalize_user_edit(asset, new_cn)
+    manual_payload = _update_finalize_report_card(
+        asset, new_cn, finalized.name, fixes, manual_errors
+    )
     _heal_failed_stage("finalize")
 
-    return JSONResponse({"success": True, "collector_number": cn})
+    return JSONResponse(
+        {
+            "success": True,
+            "collector_number": new_cn,
+            "fixes_applied": fixes,
+            "manual_errors": manual_payload,
+        }
+    )
 
 
 @router.post("/api/wizard/finalize/save")
