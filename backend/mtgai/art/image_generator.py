@@ -296,7 +296,6 @@ def start_comfyui(log_dir: Path | None = None) -> subprocess.Popen:
             "127.0.0.1",
             "--port",
             "8188",
-            "--disable-cuda-malloc",  # Avoid cudaMallocAsync instability
         ],
         stdout=stdout_dest,
         stderr=stderr_dest,
