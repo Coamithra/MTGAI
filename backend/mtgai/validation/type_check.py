@@ -13,8 +13,77 @@ from mtgai.models.card import Card
 from mtgai.validation import ValidationError, ValidationSeverity
 
 # ---------------------------------------------------------------------------
+# Canonical type-line ordering
+# ---------------------------------------------------------------------------
+
+# Printed MTG ordering of supertypes / card types. A type line reads
+# ``<supertypes> <card types> — <subtypes>``; within each group the words have a
+# fixed order on real cards ("Legendary Enchantment", "Artifact Creature",
+# "Enchantment Artifact", "Land Creature", "Kindred Sorcery"). Lower rank prints
+# first; an unknown word sorts last but keeps its relative position (stable sort).
+_SUPERTYPE_ORDER = {"Basic": 0, "Legendary": 1, "Snow": 2, "World": 3}
+_CARD_TYPE_ORDER = {
+    "Kindred": 0,
+    "Tribal": 0,
+    "Enchantment": 1,
+    "Artifact": 2,
+    "Land": 3,
+    "Creature": 4,
+    "Planeswalker": 5,
+    "Battle": 6,
+    "Instant": 7,
+    "Sorcery": 7,
+}
+
+# The three separators we accept between card types and subtypes (em dash, en
+# dash, double hyphen). We reuse whichever the card already had when rebuilding.
+_TYPE_SEP_RE = re.compile(r"\s(\u2014|\u2013|--)\s")
+
+
+def _detect_type_sep(type_line: str) -> str:
+    """Return the dash separator the type line uses, defaulting to an em dash."""
+    match = _TYPE_SEP_RE.search(type_line)
+    return match.group(1) if match else "—"
+
+
+def canonical_type_line(card: Card) -> str:
+    """Build the correctly-ordered type line from a card's structured parts.
+
+    ``<supertypes> <card types> [— <subtypes>]`` with each group in printed MTG
+    order (so "Creature — Artifact Peacekeeper" becomes "Artifact Creature —
+    Peacekeeper"). Card types and supertypes come from ``card_types`` /
+    ``supertypes`` (which the schema parser derives from the raw line, correctly
+    pulling a card type written after the dash back to the main side); the
+    subtypes and dash style are preserved as-is. Returns the original line
+    untouched if no card type is recognised (nothing safe to rebuild from).
+    """
+    supers = sorted(card.supertypes, key=lambda t: _SUPERTYPE_ORDER.get(t, 50))
+    types = sorted(card.card_types, key=lambda t: _CARD_TYPE_ORDER.get(t, 50))
+    if not types:
+        return card.type_line
+    main = " ".join(supers + types)
+    if card.subtypes:
+        sep = _detect_type_sep(card.type_line)
+        return f"{main} {sep} {' '.join(card.subtypes)}"
+    return main
+
+
+# ---------------------------------------------------------------------------
 # Auto-fixers
 # ---------------------------------------------------------------------------
+
+
+def fix_type_line_order(card: Card, _error: ValidationError) -> Card:
+    """Rewrite ``type_line`` (and structured parts) into canonical order.
+
+    Re-derives ``supertypes`` / ``card_types`` / ``subtypes`` from the current
+    line (so a card type stranded after the dash is reclassified) and rebuilds
+    the string in printed MTG order, keeping every type the card already had.
+    """
+    from mtgai.validation.schema import _parse_type_line
+
+    parsed = _parse_type_line(card)
+    return parsed.model_copy(update={"type_line": canonical_type_line(parsed)})
 
 
 def fix_enchantment_artifact(card: Card, _error: ValidationError) -> Card:
@@ -299,6 +368,33 @@ def validate_type_consistency(card: Card) -> list[ValidationError]:
                 error_code="type_check.enchantment_artifact",
             )
         )
+
+    # 8b. Type line must be in canonical printed order: supertypes, then card
+    #     types, then a dash, then subtypes. LLMs frequently strand a card type
+    #     after the dash ("Creature — Artifact Peacekeeper") or order the main
+    #     types wrong ("Creature Artifact"); the structured parts come out right
+    #     but the raw string — what renders — keeps the bad order. AUTO-rebuild it.
+    if card.type_line:
+        parsed = card if card.card_types else None
+        if parsed is None:
+            from mtgai.validation.schema import _parse_type_line
+
+            parsed = _parse_type_line(card)
+        if parsed.card_types and card.type_line != canonical_type_line(parsed):
+            errors.append(
+                ValidationError(
+                    validator="type_check",
+                    severity=ValidationSeverity.AUTO,
+                    field="type_line",
+                    message=(
+                        f"Type line '{card.type_line}' is out of canonical order — "
+                        f"rewriting to '{canonical_type_line(parsed)}' "
+                        "(card types before the dash, subtypes after)."
+                    ),
+                    suggestion="Order the type line as <supertypes> <card types> — <subtypes>.",
+                    error_code="type_check.type_line_order",
+                )
+            )
 
     # 9. Type line matches card_types/subtypes/supertypes
     if card.type_line:

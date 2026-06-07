@@ -219,7 +219,7 @@ def _register_auto_fixers() -> None:
         fix_tap_colon,
     )
     from mtgai.validation.text_overflow import fix_type_line_overflow
-    from mtgai.validation.type_check import fix_enchantment_artifact
+    from mtgai.validation.type_check import fix_enchantment_artifact, fix_type_line_order
     from mtgai.validation.uniqueness import fix_collector_number
 
     _AUTO_FIX_REGISTRY.update(
@@ -245,6 +245,7 @@ def _register_auto_fixers() -> None:
             "keyword_ordering.misplaced": fix_keyword_ordering,
             "uniqueness.collector_number_collision": fix_collector_number,
             "type_check.enchantment_artifact": fix_enchantment_artifact,
+            "type_check.type_line_order": fix_type_line_order,
             "text_overflow.type_line": fix_type_line_overflow,
         }
     )

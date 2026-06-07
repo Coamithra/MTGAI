@@ -76,6 +76,7 @@ Return valid JSON matching this schema:
 ### Field Rules
 - power and toughness are strings (to support */*, X/X, etc.).
 - Include flavor_text for most cards. Omit it only if rules text is very long.
+- type_line order: supertypes, then ALL card types, then ' — ', then subtypes. Artifact/Creature/Enchantment/Land are card types and go BEFORE the dash — write 'Artifact Creature — Peacekeeper', never 'Creature — Artifact Peacekeeper'. Only subtypes (Peacekeeper, Human, Equipment, …) go after the dash.
 
 ## Constraints
 
