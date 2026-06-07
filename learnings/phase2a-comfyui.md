@@ -1,5 +1,14 @@
 # Phase 2A Learnings: ComfyUI + Flux + Art Pipeline
 
+> **STALE PERF NUMBERS — see `art-tail-shared-gpu.md`.** The Performance section
+> below ("Flux Q8_0 fits comfortably ~9.6 GB", "~40 s/image") was accurate for
+> the **standalone ASD art script on a pristine GPU + older ComfyUI**. It is
+> **no longer true for the in-pipeline path** on 12 GB: a later ComfyUI update
+> loads Q8 at ~12.2 GB (spills to CPU), and the pipeline shares the GPU with the
+> local LLM. The art tail now defaults to **Q5_K_S** with LLM shutdown + scoped
+> pollers. Read `art-tail-shared-gpu.md` before trusting any Q8/12 GB/40 s claim
+> here.
+
 ## What We Built
 
 - ComfyUI installed at `C:\Programming\ComfyUI` with Python 3.12 venv
