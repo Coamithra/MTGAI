@@ -70,6 +70,13 @@ FLUX_Q8_MIN_FREE_MB = 14_000
 # the gate sits below FLUX_Q8_MIN_FREE_MB so a 12GB card passes and runs Q5.
 MIN_VRAM_FREE_MB = 9_000
 
+# Per-process cache of the resolved quant. The choice must be made ONCE from the
+# pre-load VRAM state and reused for the whole ComfyUI session: once Flux is
+# resident, free VRAM has dropped below FLUX_Q8_MIN_FREE_MB, so a per-image
+# re-query would flip Q8->Q5 and force a costly model reload (and quality drift)
+# mid-set. ``ensure_comfyui`` resets it when it (re)starts ComfyUI.
+_SELECTED_FLUX_QUANT: str | None = None
+
 
 def select_flux_quant(free_mb: int | None = None) -> str:
     """Pick the Flux GGUF quant that fits the available VRAM.
@@ -80,13 +87,36 @@ def select_flux_quant(free_mb: int | None = None) -> str:
     card. ``free_mb`` is queried via nvidia-smi when not supplied; any query
     failure degrades to the safe default rather than risking the partial-offload
     slowdown.
+
+    The result is cached per process (``reset_flux_quant`` clears it) so the
+    quant is decided once from the pre-load VRAM and stays stable across every
+    image in a ComfyUI session. Passing an explicit ``free_mb`` always recomputes
+    and does not touch the cache (the pure-decision path, for callers/tests).
     """
-    if free_mb is None:
-        try:
-            free_mb = get_vram_info()["free_mb"]
-        except Exception:
-            return FLUX_QUANT_DEFAULT
-    return FLUX_QUANT_HIGH_VRAM if free_mb >= FLUX_Q8_MIN_FREE_MB else FLUX_QUANT_DEFAULT
+    if free_mb is not None:
+        return FLUX_QUANT_HIGH_VRAM if free_mb >= FLUX_Q8_MIN_FREE_MB else FLUX_QUANT_DEFAULT
+
+    global _SELECTED_FLUX_QUANT
+    if _SELECTED_FLUX_QUANT is not None:
+        return _SELECTED_FLUX_QUANT
+    try:
+        free = get_vram_info()["free_mb"]
+        chosen = FLUX_QUANT_HIGH_VRAM if free >= FLUX_Q8_MIN_FREE_MB else FLUX_QUANT_DEFAULT
+    except Exception:
+        chosen = FLUX_QUANT_DEFAULT
+    _SELECTED_FLUX_QUANT = chosen
+    return chosen
+
+
+def reset_flux_quant() -> None:
+    """Clear the cached quant so the next ``select_flux_quant()`` re-queries VRAM.
+
+    Called when a new ComfyUI session starts (the VRAM picture is fresh) so a
+    later run on a now-different GPU state re-decides instead of reusing a stale
+    choice.
+    """
+    global _SELECTED_FLUX_QUANT
+    _SELECTED_FLUX_QUANT = None
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +371,9 @@ def ensure_comfyui(log_dir: Path | None = None) -> subprocess.Popen | None:
     # something, re-query a few times before failing — a cloud-only / other-app
     # shortfall (nothing unloaded) still fails fast with the actionable message.
     _check_vram_with_retry() if unloaded else check_vram()
+    # Fresh ComfyUI session -> re-decide the Flux quant from the now-freed VRAM
+    # on the next generation (and not a stale earlier-session choice).
+    reset_flux_quant()
     return start_comfyui(log_dir=log_dir)
 
 

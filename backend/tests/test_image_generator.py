@@ -329,19 +329,52 @@ def test_select_flux_quant_boundary():
 
 def test_select_flux_quant_queries_vram_when_unset(monkeypatch):
     """No free_mb arg -> query nvidia-smi via get_vram_info."""
+    ig.reset_flux_quant()
     monkeypatch.setattr(ig, "get_vram_info", lambda: {"free_mb": 10_000})
     assert ig.select_flux_quant() == ig.FLUX_QUANT_DEFAULT
+    ig.reset_flux_quant()
 
 
 def test_select_flux_quant_degrades_to_safe_default_on_query_failure(monkeypatch):
     """A VRAM query failure must not risk the partial-offload slowdown — fall back
     to the safe Q5 floor, never Q8."""
+    ig.reset_flux_quant()
 
     def _boom():
         raise RuntimeError("nvidia-smi not found")
 
     monkeypatch.setattr(ig, "get_vram_info", _boom)
     assert ig.select_flux_quant() == ig.FLUX_QUANT_DEFAULT
+    ig.reset_flux_quant()
+
+
+def test_select_flux_quant_caches_choice_for_the_session(monkeypatch):
+    """The no-arg choice is decided ONCE from the pre-load VRAM and reused: once
+    Flux is resident free VRAM drops below the Q8 threshold, so a per-image
+    re-query would flip Q8->Q5 and force a reload. The cache prevents that."""
+    ig.reset_flux_quant()
+    free = {"free_mb": 16_000}
+    monkeypatch.setattr(ig, "get_vram_info", lambda: dict(free))
+
+    assert ig.select_flux_quant() == ig.FLUX_QUANT_HIGH_VRAM  # first read: lots free
+    free["free_mb"] = 3_000  # Flux now resident -> would pick Q5 if re-queried
+    assert ig.select_flux_quant() == ig.FLUX_QUANT_HIGH_VRAM  # cached, no flip-flop
+
+    ig.reset_flux_quant()
+    assert ig.select_flux_quant() == ig.FLUX_QUANT_DEFAULT  # reset -> re-decides
+    ig.reset_flux_quant()
+
+
+def test_explicit_free_mb_never_touches_cache(monkeypatch):
+    """Passing free_mb is the pure-decision path: it must not read or write the
+    session cache."""
+    ig.reset_flux_quant()
+    monkeypatch.setattr(ig, "get_vram_info", lambda: {"free_mb": 3_000})
+    assert ig.select_flux_quant(free_mb=16_000) == ig.FLUX_QUANT_HIGH_VRAM
+    assert ig._SELECTED_FLUX_QUANT is None  # unchanged
+    # The cached no-arg path still reads the real (low) VRAM, not the explicit arg.
+    assert ig.select_flux_quant() == ig.FLUX_QUANT_DEFAULT
+    ig.reset_flux_quant()
 
 
 def test_min_vram_free_mb_fits_q5():
@@ -358,7 +391,7 @@ def test_workflow_json_default_is_q5():
     assert workflow["1"]["inputs"]["unet_name"] == ig.FLUX_QUANT_DEFAULT
 
 
-def test_generate_image_comfyui_injects_vram_chosen_quant(monkeypatch, tmp_path):
+def test_generate_image_comfyui_injects_vram_chosen_quant(monkeypatch):
     """generate_image_comfyui rewrites the workflow's unet_name from the VRAM-aware
     selection at submit time (overriding the JSON default)."""
     captured = {}
