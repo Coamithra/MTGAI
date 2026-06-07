@@ -4813,15 +4813,21 @@ async def wizard_char_refs_refresh() -> JSONResponse:
     with guarded_ai("Character references", stage_id="char_portraits") as guard:
         if guard.busy:
             return guard.busy_response
-        with _bus_poller("char_portraits", activity_prefix="Finding entities"):
-            result = await asyncio.to_thread(
-                generate_character_refs,
-                force=True,
-                should_cancel=ai_lock.is_cancelled,
-                on_reset=hooks.on_reset,
-                on_entity_start=hooks.on_entity_start,
-                on_entity_image=hooks.on_entity_image,
-            )
+        # The tok/s poller is passed as ``detect_poller`` so it wraps ONLY the
+        # step-1 entity-detection LLM call inside the worker thread, NOT the
+        # ComfyUI image-generation phase that follows: polling a llama-swap model
+        # endpoint during image gen would reload the (deliberately unloaded) LLM
+        # into VRAM and starve Flux (cards 6a25497b / 6a254d60). Do NOT also
+        # ``with`` it here — generate_character_refs enters it internally.
+        result = await asyncio.to_thread(
+            generate_character_refs,
+            force=True,
+            should_cancel=ai_lock.is_cancelled,
+            on_reset=hooks.on_reset,
+            on_entity_start=hooks.on_entity_start,
+            on_entity_image=hooks.on_entity_image,
+            detect_poller=_bus_poller("char_portraits", activity_prefix="Finding entities"),
+        )
         if isinstance(result, dict) and result.get("cancelled"):
             guard.skip_heal = True
 
@@ -7029,14 +7035,20 @@ async def wizard_art_gen_refresh(request: Request) -> JSONResponse:
         emitter.event("art_gen_reset")
 
         def _run():
+            # No tok/s poller around generate_art_for_set: it's a pure
+            # ComfyUI/Flux phase with NO LLM call, and polling a llama-swap model
+            # endpoint here would reload the (deliberately unloaded) LLM into
+            # VRAM and starve Flux (cards 6a25497b / 6a254d60). Only the judge
+            # phase below gets a poller, resolving the ``art_select`` model
+            # (matching ``stages.run_art_gen``).
             gen = generate_art_for_set(should_cancel=ai_lock.is_cancelled)
             if gen.get("cancelled"):
                 return gen, None
-            sel = select_art_for_set(should_cancel=ai_lock.is_cancelled)
+            with _bus_poller("art_select", activity_prefix="Judging art"):
+                sel = select_art_for_set(should_cancel=ai_lock.is_cancelled)
             return gen, sel
 
-        with _bus_poller("art_gen", activity_prefix="Generating art"):
-            gen_result, sel_result = await asyncio.to_thread(_run)
+        gen_result, sel_result = await asyncio.to_thread(_run)
         cancelled = gen_result.get("cancelled") or (
             sel_result is not None and sel_result.get("cancelled")
         )
@@ -7069,11 +7081,14 @@ async def wizard_art_gen_reroll(request: Request) -> JSONResponse:
             return guard.busy_response
 
         def _reroll():
+            # ComfyUI image gen runs with NO tok/s poller (it would reload the
+            # unloaded LLM and starve Flux — cards 6a25497b / 6a254d60); only the
+            # ``art_select`` judge phase is polled, matching art_gen/refresh.
             generate_art_for_set(card_filter=cn, force=True, should_cancel=ai_lock.is_cancelled)
-            select_art_for_set(card_filter=cn, should_cancel=ai_lock.is_cancelled)
+            with _bus_poller("art_select", activity_prefix="Judging art"):
+                select_art_for_set(card_filter=cn, should_cancel=ai_lock.is_cancelled)
 
-        with _bus_poller("art_gen", activity_prefix="Rerolling art"):
-            await asyncio.to_thread(_reroll)
+        await asyncio.to_thread(_reroll)
     return await wizard_art_gen_state()
 
 
