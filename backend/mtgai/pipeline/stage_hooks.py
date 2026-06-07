@@ -414,6 +414,14 @@ def build_char_refs_hooks(emitter: StageEmitter) -> CharRefsStreamHooks:
 
     def on_entity_start(entity: dict) -> None:
         emitter.event("char_refs_entity", entity=entity)
+        # Keep the global progress strip + its Cancel button alive through the
+        # ComfyUI/Flux image phase. Detection's tok/s poller is deliberately
+        # scoped to step 1 only (no llama-swap polling during image gen), and on
+        # the refresh path its exit otherwise tears the strip down — see
+        # ``server.py`` ``wizard_char_refs_refresh`` / card 6a256732. An
+        # indeterminate (no-live-stats) "running" phase re-shows the strip; the
+        # client renders an honest animated bar (no faked % for image gen).
+        emitter.phase("running", "Generating reference images…")
 
     def on_entity_image(entity_key: str, ref_image_path: str) -> None:
         emitter.event("char_refs_image", entity_key=entity_key, ref_image_path=ref_image_path)
