@@ -430,3 +430,54 @@ def test_generate_image_comfyui_uses_safe_default_when_low_vram(monkeypatch):
     _data, meta = ig.generate_image_comfyui("a cat")
     assert captured["unet"] == "flux1-dev-Q5_K_S.gguf"
     assert meta["model"] == "flux1-dev-Q5_K_S"
+
+
+# ---------------------------------------------------------------------------
+# start_comfyui Popen args — the async CUDA allocator must NOT be disabled
+# ---------------------------------------------------------------------------
+
+
+def _start_comfyui_capturing_popen(monkeypatch, tmp_path):
+    """Run start_comfyui against a fake ComfyUI root, returning the Popen argv.
+
+    Patches the subprocess + readiness probe so no real ComfyUI is launched.
+    """
+    fake_root = tmp_path / "ComfyUI"
+    (fake_root / "venv" / "Scripts").mkdir(parents=True)
+    (fake_root / "venv" / "Scripts" / "python.exe").write_text("", encoding="utf-8")
+    (fake_root / "main.py").write_text("", encoding="utf-8")
+    monkeypatch.setattr(ig, "COMFYUI_ROOT", fake_root)
+
+    captured = {}
+
+    class _FakeProc:
+        def poll(self):
+            return None
+
+    def _fake_popen(args, **kwargs):
+        captured["args"] = args
+        return _FakeProc()
+
+    monkeypatch.setattr(ig.subprocess, "Popen", _fake_popen)
+    monkeypatch.setattr(ig, "is_comfyui_running", lambda: True)  # ready on first poll
+    monkeypatch.setattr(ig.time, "sleep", lambda _s: None)
+
+    ig.start_comfyui()
+    return captured["args"]
+
+
+def test_start_comfyui_does_not_disable_cuda_malloc(monkeypatch, tmp_path):
+    """The async CUDA allocator (cudaMallocAsync, ComfyUI's default) is required
+    for fast diffusion: --disable-cuda-malloc forces the sync allocator, which
+    stalls per-step memory allocation (~13x slowdown, ~40s/step vs ~2.9s/step on
+    the same Q5 full-GPU load). It must never be passed to ComfyUI."""
+    args = _start_comfyui_capturing_popen(monkeypatch, tmp_path)
+    assert "--disable-cuda-malloc" not in args
+
+
+def test_start_comfyui_passes_listen_and_port(monkeypatch, tmp_path):
+    """Sanity: the expected ComfyUI launch flags are still present (so the absence
+    assertion above isn't passing because the argv shape changed out from under it)."""
+    args = _start_comfyui_capturing_popen(monkeypatch, tmp_path)
+    assert "--listen" in args
+    assert "8188" in args
