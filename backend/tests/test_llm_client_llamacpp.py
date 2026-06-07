@@ -681,9 +681,12 @@ class TestInterruptLocalInference:
 
 
 class TestUnloadLocalModels:
-    """``unload_local_models`` evicts the managed llama-swap model so the art
-    tail's ComfyUI/Flux can claim the GPU — but only when a local provider was
-    actually constructed, and never raises (best-effort)."""
+    """``unload_local_models`` fully SHUTS DOWN the managed llama-swap subprocess
+    (not just an in-VRAM unload) so the art tail's ComfyUI/Flux gets the GPU back
+    AND the idle CUDA context is released — but only when a local provider was
+    actually constructed, and never raises (best-effort). After a shutdown the
+    dead provider is dropped from ``_PROVIDERS`` so the next call cold-starts a
+    fresh one."""
 
     @pytest.fixture(autouse=True)
     def _isolate_providers(self):
@@ -697,38 +700,81 @@ class TestUnloadLocalModels:
         with llm_client._PROVIDERS_LOCK:
             llm_client._PROVIDERS["llamacpp"] = prov
 
-    def test_calls_unload_all_when_provider_cached(self):
+    def test_calls_shutdown_when_provider_cached(self):
         prov = MagicMock()
         self._set_provider(prov)
         assert llm_client.unload_local_models() is True
+        # shutdown() is what frees the CUDA context (kills the subprocess).
+        prov.shutdown.assert_called_once_with()
+        # unload_all() is a harmless pre-step but still called.
         prov.unload_all.assert_called_once_with()
+
+    def test_drops_dead_provider_so_next_call_rebuilds(self):
+        # CRITICAL re-spawn path: after shutdown() the cached provider holds a
+        # torn-down (shutdown-done) supervisor, so it must be dropped — the next
+        # _get_provider("llamacpp") then constructs a FRESH provider whose first
+        # call cold-starts llama-swap cleanly instead of reusing a dead handle.
+        dead = MagicMock()
+        self._set_provider(dead)
+        assert llm_client.unload_local_models() is True
+        with llm_client._PROVIDERS_LOCK:
+            assert "llamacpp" not in llm_client._PROVIDERS
+
+        # The next _get_provider builds a brand-new provider object (manager
+        # mocked so no real llama-swap is spawned in the test).
+        fresh = MagicMock()
+        fake_manager = MagicMock()
+        fake_manager.new_provider.return_value = fresh
+        with patch.object(llm_client.LLM, "default", return_value=fake_manager):
+            rebuilt = llm_client._get_provider("llamacpp")
+        assert rebuilt is fresh
+        assert rebuilt is not dead
+        fake_manager.new_provider.assert_called_once()
 
     def test_noop_when_no_provider_cached(self):
         # Cloud-only / no-open-project: never constructed a llama-server, nothing
-        # to unload — and we must NOT construct one just to unload.
+        # to shut down — and we must NOT construct one just to tear it down.
         with llm_client._PROVIDERS_LOCK:
             llm_client._PROVIDERS.pop("llamacpp", None)
         assert llm_client.unload_local_models() is False
 
     def test_unsupported_feature_is_swallowed(self):
-        # Bare llama-server with no llama-swap → unload_all() raises
-        # UnsupportedFeature; degrade to the old behaviour, no crash.
+        # Bare llama-server with no managed subprocess → shutdown() raises
+        # UnsupportedFeature; degrade to the old behaviour, no crash, provider
+        # stays cached (nothing was torn down).
         prov = MagicMock()
-        prov.unload_all.side_effect = UnsupportedFeature("no llama-swap", "llamacpp", None)
+        prov.shutdown.side_effect = UnsupportedFeature("no llama-swap", "llamacpp", None)
         self._set_provider(prov)
         assert llm_client.unload_local_models() is False
+        with llm_client._PROVIDERS_LOCK:
+            assert llm_client._PROVIDERS.get("llamacpp") is prov
 
     def test_generic_exception_is_swallowed(self):
+        # shutdown() raising any error must not crash the art stage; the provider
+        # is left cached (its state is unknown but tearing down failed).
         prov = MagicMock()
-        prov.unload_all.side_effect = RuntimeError("kaboom")
+        prov.shutdown.side_effect = RuntimeError("kaboom")
         self._set_provider(prov)
         assert llm_client.unload_local_models() is False
+        with llm_client._PROVIDERS_LOCK:
+            assert llm_client._PROVIDERS.get("llamacpp") is prov
 
-    def test_missing_unload_all_method_degrades(self):
-        class NoUnload:
+    def test_unload_all_failure_still_shuts_down(self):
+        # A flaky unload_all() (the harmless pre-step) must NOT block the
+        # CUDA-context-freeing shutdown().
+        prov = MagicMock()
+        prov.unload_all.side_effect = RuntimeError("unload hiccup")
+        self._set_provider(prov)
+        assert llm_client.unload_local_models() is True
+        prov.shutdown.assert_called_once_with()
+        with llm_client._PROVIDERS_LOCK:
+            assert "llamacpp" not in llm_client._PROVIDERS
+
+    def test_missing_shutdown_method_degrades(self):
+        class NoShutdown:
             pass
 
-        self._set_provider(NoUnload())
+        self._set_provider(NoShutdown())
         assert llm_client.unload_local_models() is False
 
     def test_does_not_construct_provider(self):
