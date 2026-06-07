@@ -304,6 +304,49 @@ def build_art_prompt_user_message(
     return "\n\n".join(sections)
 
 
+# A local 2-bit model (gemma4-26b-iq2m) sometimes emits a MALFORMED tool-call
+# argument KEY while the VALUE is fine, e.g. ``{"art_prompt{art_prompt": "A small..."}``
+# or a key with a stray non-ASCII char. A raw ``result["art_prompt"]`` access then
+# KeyErrors and silently drops the card's prompt. Bound the retry-on-malformed loop.
+_MAX_PROMPT_ATTEMPTS = 3
+
+
+def _extract_art_prompt(payload: object) -> str | None:
+    """Defensively pull the authored prompt out of a tool-call result payload.
+
+    Tolerates the malformed-key family local models produce (mirrors the
+    ``_coerce_verdict_data`` / gate-salvage robustness patterns elsewhere):
+
+    1. Exact ``"art_prompt"`` key (the well-formed cloud/normal case).
+    2. Any key that *contains* ``"art_prompt"`` (case-insensitive) — catches a
+       corrupted/duplicated key like ``"art_prompt{art_prompt"``.
+    3. The lone string value, when the dict has exactly one usable string field.
+
+    Returns the prompt text, or ``None`` when there is genuinely no usable string.
+    """
+    if not isinstance(payload, dict):
+        return payload.strip() if isinstance(payload, str) and payload.strip() else None
+
+    exact = payload.get("art_prompt")
+    if isinstance(exact, str) and exact.strip():
+        return exact.strip()
+
+    for key, value in payload.items():
+        if (
+            isinstance(key, str)
+            and "art_prompt" in key.lower()
+            and isinstance(value, str)
+            and value.strip()
+        ):
+            return value.strip()
+
+    string_values = [v.strip() for v in payload.values() if isinstance(v, str) and v.strip()]
+    if len(string_values) == 1:
+        return string_values[0]
+
+    return None
+
+
 def generate_art_prompt(
     card: Card,
     *,
@@ -317,6 +360,11 @@ def generate_art_prompt(
 
     Returns ``(art_prompt, input_tokens, output_tokens)``. The returned prompt is
     NOT yet Flux-sanitized — the caller applies :func:`_sanitize_for_flux`.
+
+    The prompt is extracted defensively (:func:`_extract_art_prompt`) so a local
+    model's malformed tool-call key (good value, corrupted key) doesn't drop the
+    card. A genuinely unusable payload is retried at a bumped temperature (escaping
+    a local repetition loop) up to :data:`_MAX_PROMPT_ATTEMPTS` times before raising.
     """
     visual_refs = get_visual_references(
         card.name,
@@ -337,19 +385,35 @@ def generate_art_prompt(
     from mtgai.runtime.active_project import require_active_project
 
     _settings = require_active_project().settings
-    result = generate_with_tool(
-        system_prompt=SYSTEM_PROMPT,
-        user_prompt=user_message,
-        tool_schema=TOOL_SCHEMA,
-        model=_settings.get_llm_model_id("art_prompts"),
-        thinking=_settings.get_thinking("art_prompts"),
-        temperature=temps.GROUNDED,
-        max_tokens=640,
-        log_dir=log_dir,
-    )
+    model_id = _settings.get_llm_model_id("art_prompts")
+    thinking = _settings.get_thinking("art_prompts")
 
-    prompt = result["result"]["art_prompt"]
-    return prompt, result["input_tokens"], result["output_tokens"]
+    last_payload: object = None
+    for attempt in range(1, _MAX_PROMPT_ATTEMPTS + 1):
+        temperature = min(temps.GROUNDED + temps.RETRY_TEMP_STEP * (attempt - 1), temps.CREATIVE)
+        result = generate_with_tool(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=user_message,
+            tool_schema=TOOL_SCHEMA,
+            model=model_id,
+            thinking=thinking,
+            temperature=temperature,
+            max_tokens=640,
+            log_dir=log_dir,
+        )
+        last_payload = result["result"]
+        prompt = _extract_art_prompt(last_payload)
+        if prompt:
+            return prompt, result["input_tokens"], result["output_tokens"]
+        logger.warning(
+            "art_prompt extraction failed for %s (attempt %d/%d), payload=%r",
+            card.collector_number,
+            attempt,
+            _MAX_PROMPT_ATTEMPTS,
+            last_payload,
+        )
+
+    raise ValueError(f"no usable art_prompt in tool result after retries: {last_payload!r}")
 
 
 # ---------------------------------------------------------------------------
