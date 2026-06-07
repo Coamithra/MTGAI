@@ -308,6 +308,135 @@ def test_user_message_omits_empty_sections():
 
 
 # ---------------------------------------------------------------------------
+# Defensive art_prompt extraction (local-model malformed tool-call keys)
+# ---------------------------------------------------------------------------
+
+
+def test_extract_art_prompt_exact_key():
+    assert pb._extract_art_prompt({"art_prompt": "A battered knight."}) == "A battered knight."
+
+
+def test_extract_art_prompt_corrupted_duplicated_key():
+    # card 001 from the QA repro: the value is fine, the key is corrupted.
+    assert pb._extract_art_prompt({"art_prompt{art_prompt": "A small fox."}) == "A small fox."
+
+
+def test_extract_art_prompt_corrupted_key_with_stray_char():
+    # card 003: corrupted key with a stray Japanese 'ri' char (り).
+    assert pb._extract_art_prompt({"art_promptり{art_prompt": "A bulky ogre."}) == "A bulky ogre."
+
+
+def test_extract_art_prompt_lone_string_value_fallback():
+    # No key contains 'art_prompt' at all — fall back to the single string value.
+    assert pb._extract_art_prompt({"prmpt": "A glowing rune."}) == "A glowing rune."
+
+
+def test_extract_art_prompt_strips_whitespace():
+    assert pb._extract_art_prompt({"art_prompt": "  spaced  "}) == "spaced"
+
+
+def test_extract_art_prompt_bare_string():
+    assert pb._extract_art_prompt("A direct string.") == "A direct string."
+
+
+def test_extract_art_prompt_none_when_no_usable_string():
+    assert pb._extract_art_prompt({}) is None
+    assert pb._extract_art_prompt({"art_prompt": ""}) is None
+    assert pb._extract_art_prompt(None) is None
+    assert pb._extract_art_prompt({"a": 1, "b": 2}) is None
+    # Ambiguous: two unrelated string values, neither key matches → no guess.
+    assert pb._extract_art_prompt({"x": "one", "y": "two"}) is None
+
+
+def _patch_generate_art_prompt_deps(monkeypatch):
+    import mtgai.runtime.active_project as active_project
+
+    monkeypatch.setattr(pb, "get_visual_references", lambda *a, **k: "")
+    settings = type(
+        "S",
+        (),
+        {"get_llm_model_id": lambda self, _s: "m", "get_thinking": lambda self, _s: "disabled"},
+    )()
+    monkeypatch.setattr(
+        active_project,
+        "require_active_project",
+        lambda: type("P", (), {"settings": settings})(),
+    )
+
+
+def test_generate_art_prompt_recovers_malformed_key_no_retry(monkeypatch):
+    """A good-value / malformed-key payload is extracted on the first call (no retry)."""
+    _patch_generate_art_prompt_deps(monkeypatch)
+    calls: list[float] = []
+
+    def fake_generate(**kwargs):
+        calls.append(kwargs["temperature"])
+        return {
+            "result": {"art_prompt{art_prompt": "A small fox."},
+            "input_tokens": 5,
+            "output_tokens": 9,
+        }
+
+    monkeypatch.setattr(pb, "generate_with_tool", fake_generate)
+    prompt, in_tok, out_tok = pb.generate_art_prompt(
+        _make_card(),
+        artist_style="",
+        set_art_direction="",
+        setting_prose="",
+        cameo=None,
+    )
+    assert prompt == "A small fox."
+    assert (in_tok, out_tok) == (5, 9)
+    assert len(calls) == 1  # extraction succeeded, no retry
+
+
+def test_generate_art_prompt_retries_at_bumped_temp_then_succeeds(monkeypatch):
+    """A genuinely-unusable payload is retried at a higher temperature."""
+    _patch_generate_art_prompt_deps(monkeypatch)
+    temps_seen: list[float] = []
+    results = [
+        {"result": {}, "input_tokens": 1, "output_tokens": 1},
+        {"result": {"art_prompt": "A bulky ogre."}, "input_tokens": 2, "output_tokens": 3},
+    ]
+
+    def fake_generate(**kwargs):
+        temps_seen.append(kwargs["temperature"])
+        return results.pop(0)
+
+    monkeypatch.setattr(pb, "generate_with_tool", fake_generate)
+    prompt, _i, _o = pb.generate_art_prompt(
+        _make_card(),
+        artist_style="",
+        set_art_direction="",
+        setting_prose="",
+        cameo=None,
+    )
+    assert prompt == "A bulky ogre."
+    assert len(temps_seen) == 2
+    assert temps_seen[1] > temps_seen[0]  # second attempt bumped the temperature
+
+
+def test_generate_art_prompt_raises_after_exhausted_retries(monkeypatch):
+    _patch_generate_art_prompt_deps(monkeypatch)
+    n_calls: list[int] = []
+
+    def fake_generate(**kwargs):
+        n_calls.append(1)
+        return {"result": {}, "input_tokens": 0, "output_tokens": 0}
+
+    monkeypatch.setattr(pb, "generate_with_tool", fake_generate)
+    with pytest.raises(ValueError):
+        pb.generate_art_prompt(
+            _make_card(),
+            artist_style="",
+            set_art_direction="",
+            setting_prose="",
+            cameo=None,
+        )
+    assert len(n_calls) == pb._MAX_PROMPT_ATTEMPTS
+
+
+# ---------------------------------------------------------------------------
 # Knobs round-trip
 # ---------------------------------------------------------------------------
 
