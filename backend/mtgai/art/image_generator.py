@@ -273,6 +273,14 @@ def ensure_comfyui(log_dir: Path | None = None) -> subprocess.Popen | None:
     if is_comfyui_running():
         logger.info("ComfyUI already running at %s", COMFYUI_URL)
         return None
+    # Hand the GPU off to Flux: free the managed local LLM's VRAM (it owns a
+    # llama-server subprocess) before the VRAM check, so the art tail can run
+    # after any local-LLM stage on a single GPU. Best-effort, no-op when no
+    # local model is resident. Lazy import — llm_client never imports the art
+    # layer, so this stays one-directional with no module-load coupling.
+    from mtgai.generation.llm_client import unload_local_models
+
+    unload_local_models()
     check_vram()
     return start_comfyui(log_dir=log_dir)
 

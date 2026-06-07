@@ -206,3 +206,41 @@ def test_resolve_ref_paths_keeps_absolute(tmp_path):
 def test_resolve_ref_paths_empty_for_no_refs(tmp_path):
     card = Card(name="Plain", type_line="Creature")
     assert ig._resolve_ref_paths(card, tmp_path) == []
+
+
+# ---------------------------------------------------------------------------
+# ensure_comfyui frees local LLM VRAM before the VRAM check (single-GPU art tail)
+# ---------------------------------------------------------------------------
+
+
+def test_ensure_comfyui_unloads_local_models_before_check_vram(monkeypatch):
+    """On a single GPU the resident local LLM must be unloaded BEFORE check_vram,
+    so the check sees the freed VRAM and ComfyUI/Flux can start."""
+    calls = []
+    monkeypatch.setattr(ig, "is_comfyui_running", lambda: False)
+    monkeypatch.setattr(ig, "check_vram", lambda: calls.append("check_vram"))
+    monkeypatch.setattr(ig, "start_comfyui", lambda log_dir=None: calls.append("start_comfyui"))
+
+    import mtgai.generation.llm_client as llm_client
+
+    monkeypatch.setattr(
+        llm_client, "unload_local_models", lambda: calls.append("unload_local_models") or True
+    )
+
+    ig.ensure_comfyui()
+
+    assert calls == ["unload_local_models", "check_vram", "start_comfyui"]
+
+
+def test_ensure_comfyui_skips_unload_when_already_running(monkeypatch):
+    """ComfyUI already up -> no VRAM check, no unload (the LLM can stay resident
+    because Flux is already loaded / running its own process)."""
+    called = []
+    monkeypatch.setattr(ig, "is_comfyui_running", lambda: True)
+
+    import mtgai.generation.llm_client as llm_client
+
+    monkeypatch.setattr(llm_client, "unload_local_models", lambda: called.append("unload") or True)
+
+    assert ig.ensure_comfyui() is None
+    assert called == []

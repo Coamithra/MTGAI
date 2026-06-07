@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Any
 
 from llmfacade import LLM, DrySampler, Provider, RepetitionGuard, SystemBlock, Tool
-from llmfacade.exceptions import LLMError, RepetitionLoopError
+from llmfacade.exceptions import LLMError, RepetitionLoopError, UnsupportedFeature
 
 from mtgai.io.paths import repo_root
 
@@ -272,6 +272,47 @@ def interrupt_local_inference() -> bool:
     if killed:
         logger.info("Cancel: hard-killed in-flight local llama-server inference")
     return killed
+
+
+def unload_local_models() -> bool:
+    """Free local GPU VRAM by unloading the managed llama-swap model(s).
+
+    Best-effort, for handing the GPU off to another VRAM consumer (the art tail's
+    ComfyUI/Flux): on a single GPU the resident local LLM (~9-13GB) and Flux
+    (needs ~10GB free) cannot coexist, so the art stages call this before
+    ``ensure_comfyui()`` to release the LLM's VRAM first.
+
+    No-op (returns ``False``) unless the llamacpp provider has actually been
+    constructed — a cloud-only or no-open-project setup never spawned a
+    llama-server, so there is nothing to unload (and we must NOT construct one
+    just to unload it). Mirrors :func:`interrupt_local_inference`: grab the
+    cached provider if present, call its ``unload_all()`` (``POST
+    /api/models/unload``), and swallow ``UnsupportedFeature`` (bare llama-server
+    with no llama-swap) plus any other error so a quirky setup degrades to the
+    old behaviour rather than crashing the art stage.
+
+    Returns ``True`` if an unload request was issued, else ``False``.
+    """
+    with _PROVIDERS_LOCK:
+        prov = _PROVIDERS.get("llamacpp")
+    if prov is None:
+        return False
+    unload_all = getattr(prov, "unload_all", None)
+    if not callable(unload_all):
+        logger.debug(
+            "llamacpp provider has no unload_all() — cannot free local VRAM before ComfyUI"
+        )
+        return False
+    try:
+        unload_all()
+    except UnsupportedFeature:
+        logger.debug("unload_all() unsupported (bare llama-server, no llama-swap) — no-op")
+        return False
+    except Exception:
+        logger.info("Best-effort unload_local_models() failed; continuing", exc_info=True)
+        return False
+    logger.info("Unloaded local llama-swap model(s) to free GPU VRAM")
+    return True
 
 
 def _register_cancel_hook() -> None:
