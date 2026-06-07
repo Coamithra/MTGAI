@@ -170,9 +170,7 @@ def test_save_card_runs_validator_suite_on_mtg_invalid_edit(client, project: Pat
 
     # The finalize report sidecar now carries this card's result, so /state's
     # provenance (auto-edit badge + "Manual errors only" filter) reflects the edit.
-    report = json.loads(
-        (project / "reports" / "finalize-report.json").read_text(encoding="utf-8")
-    )
+    report = json.loads((project / "reports" / "finalize-report.json").read_text(encoding="utf-8"))
     entry = next(c for c in report["cards"] if c["collector_number"] == "001")
     assert entry["fixes_applied"]
     state = client.get("/api/wizard/finalize/state").json()

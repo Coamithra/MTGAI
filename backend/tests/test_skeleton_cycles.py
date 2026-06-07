@@ -210,8 +210,9 @@ class TestCycleExpansion:
     def test_nonland_cycle_cmc0_resolves_to_curve_center(self):
         # The tuner leaving cmc_target=0 on a non-land cycle means "unspecified",
         # not a free 0-drop — the skeleton commits to a concrete mana value.
-        cyc = Cycle(id="s", name="Signposts", span=CycleSpan.PAIRS10, card_type="creature",
-                    cmc_target=0)
+        cyc = Cycle(
+            id="s", name="Signposts", span=CycleSpan.PAIRS10, card_type="creature", cmc_target=0
+        )
         assert cyc.cmc_target == 3
         assert all(m["cmc_target"] == 3 for m in _expand_cycle(cyc))
 
