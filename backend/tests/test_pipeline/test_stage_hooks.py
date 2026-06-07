@@ -16,6 +16,7 @@ from mtgai.pipeline.events import EventBus, StageEmitter
 from mtgai.pipeline.stage_hooks import (
     build_ai_review_hooks,
     build_card_gen_hooks,
+    build_char_refs_hooks,
     build_mechanic_hooks,
     build_skeleton_hooks,
     card_tile_dict,
@@ -321,3 +322,37 @@ def test_ai_review_hooks_emit_canonical_payloads() -> None:
     assert council["event"]["verdicts"] == ["ok"]
     done = _only(bus, "ai_review_card_done")[0]
     assert done["tile"]["verdict"] == "OK"
+
+
+# ---------------------------------------------------------------------------
+# Character References
+# ---------------------------------------------------------------------------
+
+
+def test_char_refs_on_entity_start_emits_phase_tick_to_keep_strip_alive() -> None:
+    """``on_entity_start`` fires during the ComfyUI/Flux image phase. It must emit
+    an indeterminate ``phase:"running"`` strip tick so the global progress strip +
+    its Cancel button stay visible through the long image phase (card 6a256732),
+    alongside the canonical ``char_refs_entity`` tile event."""
+    bus = EventBus()
+    hooks = build_char_refs_hooks(_emitter(bus, "char_portraits"))
+
+    hooks.on_reset()
+    hooks.on_entity_start({"entity_key": "decepticon", "name": "Decepticon", "cards": []})
+    hooks.on_entity_image("decepticon", "art-direction/character-refs/decepticon_v1.png")
+
+    assert _only(bus, "char_refs_reset")
+    entity = _only(bus, "char_refs_entity")[0]
+    assert entity["entity"]["entity_key"] == "decepticon"
+    img = _only(bus, "char_refs_image")[0]
+    assert img["entity_key"] == "decepticon"
+
+    # The image-phase strip tick: an indeterminate (no live-stats) running phase.
+    phases = [e["data"] for e in bus._buffer if e["type"] == "phase"]
+    running = [p for p in phases if p["phase"] == "running"]
+    assert running, "on_entity_start must emit a phase:'running' tick"
+    assert running[0]["activity"] == "Generating reference images…"
+    assert running[0]["stage_id"] == "char_portraits"
+    # No fake live stats — the client must render an honest indeterminate bar.
+    assert "prompt_eval" not in running[0]
+    assert "generation" not in running[0]

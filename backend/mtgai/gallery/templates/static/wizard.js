@@ -842,6 +842,13 @@
     }
 
     showProgressStrip();
+    // A `phase` event only fires for a real, in-flight, cancellable AI run, so
+    // the engine Cancel button belongs visible. A preceding `showBusy()` (the
+    // runAiAction busyLabel path) hid it; the long ComfyUI/Flux image phases of
+    // char_portraits + art_gen drive indeterminate "running" ticks here precisely
+    // so this restores Cancel for the whole image phase (card 6a256732).
+    const cancelEl = document.getElementById('wiz-progress-cancel');
+    if (cancelEl) cancelEl.style.display = '';
     const stageEl = document.getElementById('wiz-progress-stage');
     const activityEl = document.getElementById('wiz-progress-activity');
     const fillEl = document.getElementById('wiz-progress-bar-fill');

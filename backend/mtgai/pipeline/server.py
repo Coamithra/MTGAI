@@ -4819,6 +4819,13 @@ async def wizard_char_refs_refresh() -> JSONResponse:
         # endpoint during image gen would reload the (deliberately unloaded) LLM
         # into VRAM and starve Flux (cards 6a25497b / 6a254d60). Do NOT also
         # ``with`` it here — generate_character_refs enters it internally.
+        #
+        # ``emit_done=False``: this poller wraps only detection, not the whole
+        # action, so its terminal ``phase:"done"`` would hide the strip + Cancel
+        # for the entire image phase that follows (card 6a256732). The image
+        # phase's ``on_entity_start`` hook re-paints an indeterminate "running"
+        # strip tick to keep Cancel visible; ``runAiAction``'s ``clearBusy()``
+        # in its ``finally`` is the single teardown when the action ends.
         result = await asyncio.to_thread(
             generate_character_refs,
             force=True,
@@ -4826,7 +4833,9 @@ async def wizard_char_refs_refresh() -> JSONResponse:
             on_reset=hooks.on_reset,
             on_entity_start=hooks.on_entity_start,
             on_entity_image=hooks.on_entity_image,
-            detect_poller=_bus_poller("char_portraits", activity_prefix="Finding entities"),
+            detect_poller=_bus_poller(
+                "char_portraits", activity_prefix="Finding entities", emit_done=False
+            ),
         )
         if isinstance(result, dict) and result.get("cancelled"):
             guard.skip_heal = True
@@ -7034,6 +7043,15 @@ async def wizard_art_gen_refresh(request: Request) -> JSONResponse:
 
         emitter.event("art_gen_reset")
 
+        def _gen_progress(cn, completed, total, message, cost):
+            # Keep the global progress strip + its Cancel button alive through the
+            # ComfyUI/Flux image phase (which runs first, with no tok/s poller —
+            # see below): an indeterminate "running" tick re-shows the strip, and
+            # a per-card tile streams to the tab (matching the engine path's
+            # ``art_gen_card``). Card 6a256732.
+            emitter.phase("running", "Generating art…")
+            emitter.event("art_gen_card", collector_number=cn, phase="generated", detail=message)
+
         def _run():
             # No tok/s poller around generate_art_for_set: it's a pure
             # ComfyUI/Flux phase with NO LLM call, and polling a llama-swap model
@@ -7041,7 +7059,9 @@ async def wizard_art_gen_refresh(request: Request) -> JSONResponse:
             # VRAM and starve Flux (cards 6a25497b / 6a254d60). Only the judge
             # phase below gets a poller, resolving the ``art_select`` model
             # (matching ``stages.run_art_gen``).
-            gen = generate_art_for_set(should_cancel=ai_lock.is_cancelled)
+            gen = generate_art_for_set(
+                progress_callback=_gen_progress, should_cancel=ai_lock.is_cancelled
+            )
             if gen.get("cancelled"):
                 return gen, None
             with _bus_poller("art_select", activity_prefix="Judging art"):
@@ -7076,15 +7096,26 @@ async def wizard_art_gen_reroll(request: Request) -> JSONResponse:
 
     from mtgai.art.art_selector import select_art_for_set
 
+    emitter = _refresh_emitter("art_gen")
     with guarded_ai("Art reroll", stage_id="art_gen") as guard:
         if guard.busy:
             return guard.busy_response
+
+        def _reroll_progress(card_no, completed, total, message, cost):
+            # Keep the progress strip + Cancel alive through the unpolled image
+            # phase (card 6a256732).
+            emitter.phase("running", "Generating art…")
 
         def _reroll():
             # ComfyUI image gen runs with NO tok/s poller (it would reload the
             # unloaded LLM and starve Flux — cards 6a25497b / 6a254d60); only the
             # ``art_select`` judge phase is polled, matching art_gen/refresh.
-            generate_art_for_set(card_filter=cn, force=True, should_cancel=ai_lock.is_cancelled)
+            generate_art_for_set(
+                card_filter=cn,
+                force=True,
+                progress_callback=_reroll_progress,
+                should_cancel=ai_lock.is_cancelled,
+            )
             with _bus_poller("art_select", activity_prefix="Judging art"):
                 select_art_for_set(card_filter=cn, should_cancel=ai_lock.is_cancelled)
 

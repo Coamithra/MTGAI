@@ -25,6 +25,8 @@ from contextlib import contextmanager
 import pytest
 from fastapi.testclient import TestClient
 
+from mtgai.generation import phase_poller
+from mtgai.generation.phase_poller import PromptEvalPoller
 from mtgai.pipeline import server
 from mtgai.review.server import app
 from mtgai.runtime import active_project, ai_lock, extraction_run
@@ -219,3 +221,119 @@ def test_art_gen_reroll_polls_only_judge_not_image_gen(client, isolated_output, 
     assert "art_select" in built and built["art_select"].entered
     assert state.get("judge_poller_active") is True
     assert "art_gen" not in built
+
+
+# ---------------------------------------------------------------------------
+# _bus_poller emit_done contract (card 6a256732)
+#
+# A poller scoped to a *sub-phase* of a longer guarded action (char_refs'
+# detection step, which the image phase follows) must NOT emit a terminal
+# ``phase:"done"`` on exit — that "done" hides the global progress strip + its
+# Cancel button on the client for the whole remaining image phase, leaving the
+# long Flux phase uncancellable via the UI. ``emit_done=False`` suppresses it.
+# ---------------------------------------------------------------------------
+
+
+class _FakeLivePoller(PromptEvalPoller):
+    """A ``PromptEvalPoller`` whose background thread is a no-op.
+
+    ``_bus_poller`` only treats a poller as "live" (the path that emits the
+    terminal ``done``) when ``isinstance(poller, PromptEvalPoller)``, so the
+    stub must really be one — but we don't want it touching ``/slots``.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(provider=object(), model_id="stub", emit=lambda *a, **k: None)
+
+    def __enter__(self):  # type: ignore[override]
+        return self
+
+    def __exit__(self, *_exc) -> None:  # type: ignore[override]
+        return None
+
+
+def _capture_stage_phases(monkeypatch):
+    """Force ``_bus_poller`` to build a live poller + record stage_phase calls."""
+    monkeypatch.setattr(phase_poller, "make_poller", lambda *a, **k: _FakeLivePoller())
+    calls: list[tuple] = []
+    orig = server.event_bus.stage_phase
+
+    def spy(stage_id, phase, activity, *a, **k):
+        calls.append((stage_id, phase))
+        return orig(stage_id, phase, activity, *a, **k)
+
+    monkeypatch.setattr(server.event_bus, "stage_phase", spy)
+    return calls
+
+
+def test_bus_poller_emit_done_true_emits_terminal_done(monkeypatch):
+    calls = _capture_stage_phases(monkeypatch)
+    with server._bus_poller("char_portraits", activity_prefix="Finding entities"):
+        pass
+    assert ("char_portraits", "done") in calls, (
+        "default _bus_poller (emit_done=True) must emit a terminal phase:'done'"
+    )
+
+
+def test_bus_poller_emit_done_false_suppresses_terminal_done(monkeypatch):
+    calls = _capture_stage_phases(monkeypatch)
+    with server._bus_poller("char_portraits", activity_prefix="Finding entities", emit_done=False):
+        pass
+    assert ("char_portraits", "done") not in calls, (
+        "emit_done=False must NOT emit a terminal phase:'done' (it would hide the "
+        "strip + Cancel for the image phase that follows — card 6a256732)"
+    )
+
+
+def test_char_refs_refresh_detect_poller_does_not_hide_strip_during_image_phase(
+    client, isolated_output, monkeypatch
+):
+    """The char_refs detect_poller must be built with emit_done=False so detection
+    ending does not tear the strip down, AND the image phase must drive a
+    ``phase:"running"`` tick (via on_entity_start) to keep Cancel visible."""
+    _seed_project(isolated_output)
+
+    seen_kwargs: dict[str, object] = {}
+    real_bus_poller = server._bus_poller
+
+    def spy_bus_poller(stage_id, **kw):
+        seen_kwargs.update(kw)
+        return real_bus_poller(stage_id, **kw)
+
+    monkeypatch.setattr(server, "_bus_poller", spy_bus_poller)
+
+    phases: list[tuple] = []
+    orig = server.event_bus.stage_phase
+
+    def spy_phase(stage_id, phase, activity, *a, **k):
+        phases.append((stage_id, phase, activity))
+        return orig(stage_id, phase, activity, *a, **k)
+
+    monkeypatch.setattr(server.event_bus, "stage_phase", spy_phase)
+
+    def fake_generate_character_refs(*_a, on_entity_start=None, detect_poller=None, **_k):
+        from contextlib import nullcontext
+
+        with detect_poller or nullcontext():
+            pass
+        # Simulate the image phase firing the per-entity hook.
+        if on_entity_start is not None:
+            on_entity_start({"entity_key": "decepticon", "name": "Decepticon", "cards": []})
+        return {"generated": 1, "entities": 1, "cards_modified": 1, "failed": 0, "cost_usd": 0.0}
+
+    monkeypatch.setattr(
+        "mtgai.art.character_portraits.generate_character_refs",
+        fake_generate_character_refs,
+    )
+
+    resp = client.post("/api/wizard/char_refs/refresh")
+    assert resp.status_code == 200, resp.text
+
+    assert seen_kwargs.get("emit_done") is False, (
+        "char_refs/refresh must pass emit_done=False to the detect_poller"
+    )
+    # The image phase re-painted an indeterminate 'running' strip tick (keeps
+    # the strip + Cancel alive) — and did NOT emit a terminal 'done' from the
+    # detect poller mid-action.
+    assert ("char_portraits", "running", "Generating reference images…") in phases
+    assert ("char_portraits", "done") not in [(s, p) for (s, p, _a) in phases]
