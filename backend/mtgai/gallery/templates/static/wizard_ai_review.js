@@ -72,6 +72,16 @@
         display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
         gap: 0.7rem;
       }
+      /* Full-width separator between the to-review group and the carried-over
+         already-reviewed group (regen instances). */
+      .wiz-ar-divider {
+        grid-column: 1 / -1; display: flex; align-items: center; gap: 0.6rem;
+        font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+        color: #6e7681; margin: 0.35rem 0 0.1rem;
+      }
+      .wiz-ar-divider::after {
+        content: ''; flex: 1 1 auto; height: 1px; background: #1f2540;
+      }
       .wiz-ar-card {
         position: relative; background: #0f1729; border: 1px solid #1f2540;
         border-radius: 6px; padding: 0.65rem 0.7rem 0.55rem; font-size: 0.78rem;
@@ -438,8 +448,49 @@
       slot.innerHTML = `<div class="wiz-ar-empty">No cards match this filter.</div>`;
       return;
     }
-    slot.innerHTML = `<div class="wiz-ar-grid">${visible.map((t) => tileHtml(t, local)).join('')}</div>`;
+    // Surface the actionable cards first: reviewing → to-review → rejected →
+    // approved, then collector_number asc. Array.sort is stable, and local.cards
+    // arrives in collector-number order, so equal-priority tiles keep that order.
+    // Most valuable on regen instances (ai_review.2) where only the flagged
+    // subset is re-reviewed and the to-review cards would otherwise be scattered
+    // among the carried-over approvals.
+    visible.sort((a, b) => sortPriority(a, local) - sortPriority(b, local));
+    slot.innerHTML = `<div class="wiz-ar-grid">${gridInnerHtml(visible, local)}</div>`;
     setLocked(root, local, local.locked);
+  }
+
+  // 0 reviewing (live) · 1 to-review · 2 rejected · 3 approved. The first two
+  // are "needs attention"; the last two are already-reviewed (carried over in a
+  // regen instance).
+  function sortPriority(tile, local) {
+    const cn = tile.collector_number || '';
+    if (local.reviewing.has(cn)) return 0;
+    const v = effective(tile).verdict;
+    if (v === 'pending') return 1;
+    if (v === 'rejected') return 2;
+    return 3;
+  }
+
+  // Render the sorted tiles, dropping one full-width divider between the
+  // needs-attention group (priority < 2) and the already-reviewed group
+  // (priority ≥ 2) — only in the unfiltered view and only when both groups are
+  // present, so the user can see where the carried-over cards begin.
+  function gridInnerHtml(visible, local) {
+    const parts = [];
+    let dividerDropped = false;
+    visible.forEach((t) => {
+      if (
+        local.filter === 'all' &&
+        !dividerDropped &&
+        sortPriority(t, local) >= 2 &&
+        parts.length > 0
+      ) {
+        parts.push('<div class="wiz-ar-divider">Already reviewed</div>');
+        dividerDropped = true;
+      }
+      parts.push(tileHtml(t, local));
+    });
+    return parts.join('');
   }
 
   // The effective decision drives the stamp. The server-built tile (/state)
