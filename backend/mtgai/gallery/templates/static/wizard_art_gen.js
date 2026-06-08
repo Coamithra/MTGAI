@@ -409,10 +409,12 @@
 
     // 'completed' + can-advance is the saved/reopened dead-end: art finished but
     // the pipeline persisted PAUSED with rendering still pending and no
-    // PAUSED_FOR_REVIEW pause. Accept either the server-fed local.canAdvance or
-    // the shared client-side computation off the live pipeline state (the
-    // latter stays correct even if the server /state payload is stale).
-    const canAdvanceTip = local.canAdvance || W.completedTipCanAdvance(state, STAGE_ID);
+    // PAUSED_FOR_REVIEW pause. The server-fed local.canAdvance survives an
+    // SSE repaint that passes state=null (the client helper needs live state);
+    // gate it on the live status==='completed' so a stale-true flag can't show
+    // the button mid-run. The client helper is the state-fresh second path.
+    const canAdvanceTip =
+      (status === 'completed' && local.canAdvance) || W.completedTipCanAdvance(state, STAGE_ID);
     let html;
     if (!isLatest) {
       html = `<span class="wiz-footer-note">Art review completed — read-only on a past tab.</span>`;
