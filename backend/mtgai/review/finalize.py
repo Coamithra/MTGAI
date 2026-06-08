@@ -74,8 +74,8 @@ def _describe_load_failure(path: Path, exc: Exception) -> dict:
     the model-boundary coercion, or unparseable JSON), so pull
     ``collector_number``/``name`` straight from the raw JSON when it parses,
     falling back to the filename. Used to record the skipped card in the finalize
-    report so the Finalization tab (which renders the live raw JSON) can surface
-    it for a hand fix instead of the stage aborting on it.
+    report (and, when the JSON parses, the Finalization tab — which renders the
+    live raw JSON) so it can be hand-fixed instead of the stage aborting on it.
     """
     collector_number = ""
     name = ""
@@ -85,6 +85,8 @@ def _describe_load_failure(path: Path, exc: Exception) -> dict:
             collector_number = str(raw.get("collector_number") or "")
             name = str(raw.get("name") or "")
     except Exception:
+        # Best-effort: if the JSON itself won't parse, the original exc already
+        # describes the parse failure — fall back to the filename below.
         pass
     return {
         "file": path.name,
@@ -138,9 +140,10 @@ def finalize_set(
     **Per-card resilience:** a card that can't even be loaded as a :class:`Card`
     (an unanticipated malformation past the model-boundary coercion, or unparseable
     JSON) is **skipped + recorded** in ``summary["load_failures"]`` rather than
-    raising and aborting the entire stage — the rest of the pool still finalizes,
-    and the tab surfaces the skipped card (it renders the live raw JSON) for a hand
-    fix.
+    raising and aborting the entire stage — the rest of the pool still finalizes.
+    When the file's JSON parses (the common coercion-failure case), the tab also
+    surfaces the skipped card (it renders the live raw JSON) for a hand fix; an
+    unparseable file shows up only in the report.
 
     Returns a summary dict with counts and per-card details.
     """
@@ -270,6 +273,8 @@ def finalize_set(
         "set_code": set_code,
         "timestamp": datetime.now(UTC).isoformat(),
         "dry_run": dry_run,
+        # Successfully-finalized cards only — excludes basic lands and any
+        # load_failures (skipped), so it can be < the number of files on disk.
         "total_cards": len(results),
         "cards_modified": cards_modified,
         "total_auto_fixes": total_fixes,

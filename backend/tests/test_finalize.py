@@ -143,27 +143,28 @@ class TestFinalizeSetResilience:
 
     def test_unloadable_card_is_skipped_and_recorded(self, active_asset: Path) -> None:
         cards_dir = active_asset / "cards"
-        # Two healthy cards finalize normally...
-        (cards_dir / "001_alpha.json").write_text(
-            _make_card(name="Alpha", collector_number="001").model_dump_json(),
-            encoding="utf-8",
-        )
-        (cards_dir / "002_beta.json").write_text(
-            _make_card(name="Beta", collector_number="002").model_dump_json(),
-            encoding="utf-8",
-        )
-        # ...while a card with an unanticipated malformation (invalid rarity enum)
-        # is valid JSON but fails the strict Card load.
-        (cards_dir / "003_broken.json").write_text(
+        # The broken card sorts FIRST (card_paths is sorted), so it guards the
+        # original bug: a malformed card aborting every card after it. It's valid
+        # JSON but fails the strict Card load (unanticipated invalid rarity enum).
+        (cards_dir / "001_broken.json").write_text(
             json.dumps(
                 {
                     "name": "Broken",
-                    "collector_number": "003",
+                    "collector_number": "001",
                     "set_code": "TST",
                     "type_line": "Creature — Beast",
                     "rarity": "ultramega",
                 }
             ),
+            encoding="utf-8",
+        )
+        # ...and the two healthy cards after it still finalize normally.
+        (cards_dir / "002_alpha.json").write_text(
+            _make_card(name="Alpha", collector_number="002").model_dump_json(),
+            encoding="utf-8",
+        )
+        (cards_dir / "003_beta.json").write_text(
+            _make_card(name="Beta", collector_number="003").model_dump_json(),
             encoding="utf-8",
         )
 
@@ -178,9 +179,9 @@ class TestFinalizeSetResilience:
         failures = summary["load_failures"]
         assert len(failures) == 1
         failure = failures[0]
-        assert failure["collector_number"] == "003"
+        assert failure["collector_number"] == "001"
         assert failure["name"] == "Broken"
-        assert failure["file"] == "003_broken.json"
+        assert failure["file"] == "001_broken.json"
         assert failure["error"]
 
     def test_no_failures_when_pool_is_clean(self, active_asset: Path) -> None:
