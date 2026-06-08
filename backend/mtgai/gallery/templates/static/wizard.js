@@ -43,6 +43,10 @@
     // chunks. Stays static after bootstrap (subsequent runs flip the
     // flag inside wizard_theme.js as needed).
     extractionActive: !!WIZARD_STATE.extraction_active,
+    // The project's theme-input bookmark ({kind, upload_id, ...}) or null.
+    // The Theme tab reads it to decide whether a re-extractable source
+    // upload exists before enabling its full "Refresh AI…" button.
+    themeInput: WIZARD_STATE.theme_input || null,
     builtBodies: new Set(),
     eventSource: null,
     // tabId -> { dirty: bool, payload?: object } — held in browser memory
