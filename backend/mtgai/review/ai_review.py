@@ -532,6 +532,11 @@ Focus on:
 - Design quality (focused purpose, no kitchen sink, real variability)
 - Keyword interactions and nonbos
 - Color pie adherence
+- A Vehicle (any card whose type line includes "Vehicle") MUST have printed \
+power/toughness -- it is a non-creature that fights when crewed, and a Vehicle with \
+no P/T is non-functional. This is a HARD REVISE, never something to rationalize or \
+pass: if a Vehicle is missing P/T, set REVISE and give it stats. Do NOT treat a \
+"non-creatures have no P/T" rule of thumb as a reason to accept a P/T-less Vehicle.
 Do NOT flag:
 - JSON metadata issues (e.g., keywords field) -- that's a data format concern
 - Missing reminder text -- it is added programmatically after review
@@ -559,7 +564,7 @@ enters, energize. (To energize, ...)"). Do not flag a card for missing reminder 
 and do not add reminder text to fix it."""
 
 
-def _format_card_for_review(card: dict) -> str:
+def _format_card_for_review(card: dict, *, include_design_notes: bool = False) -> str:
     """Format a card dict into a readable text block.
 
     Heuristic design-judgment warnings (power level, color pie) are computed
@@ -570,6 +575,18 @@ def _format_card_for_review(card: dict) -> str:
     original gen-time draft. Mechanical similarity (cross-set) is intentionally
     skipped here; it's a set-level concern (the old render_qa stage that
     surfaced it was dropped in the art/render topology reorg).
+
+    ``design_notes`` are **excluded by default** (``include_design_notes=False``).
+    They are card_gen's generation rationale describing the ORIGINAL slot intent
+    (a specific CMC, a ``-2/-2``, french-vanilla simplicity), NOT a spec the
+    design-review council should enforce. The council's job is precisely to
+    rebalance (cost / P-T / effect magnitude); feeding it the stale notes makes
+    reviewers flag every rebalance as "contradicts the design notes" and loop
+    REVISE until the budget is exhausted, with the card never converging. Slot
+    conformance is already enforced upstream by the conformance gate, so the notes
+    add nothing to review but the self-inflicted contradiction. The human-readable
+    markdown report passes ``include_design_notes=True`` to keep its transcript
+    complete.
     """
     # ``card`` may be an LLM-produced ``revised_card`` (e.g. an iteration / council
     # revision), which a local model sometimes returns malformed — a missing ``name``
@@ -593,9 +610,10 @@ def _format_card_for_review(card: dict) -> str:
         lines.append(f"P/T: {card.get('power')}/{card.get('toughness')}")
     if card.get("loyalty") is not None:
         lines.append(f"Loyalty: {card.get('loyalty')}")
-    notes = card.get("design_notes")
-    if notes:
-        lines.append(f"Design Notes: {notes}")
+    if include_design_notes:
+        notes = card.get("design_notes")
+        if notes:
+            lines.append(f"Design Notes: {notes}")
 
     # Fresh heuristic checks — power level, color pie. Wrapped so a card dict
     # that can't be parsed (e.g. a malformed mid-review revision) doesn't
@@ -2050,7 +2068,7 @@ def _review_to_markdown(r: CardReviewResult) -> str:
     # Original card
     lines.append("## Original Card")
     lines.append("")
-    for line in _format_card_for_review(r.original_card).splitlines():
+    for line in _format_card_for_review(r.original_card, include_design_notes=True).splitlines():
         lines.append(f"> {line}")
     lines.append("")
 
@@ -2076,7 +2094,9 @@ def _review_to_markdown(r: CardReviewResult) -> str:
                 lines.append("")
                 lines.append("**Proposed revision:**")
                 lines.append("")
-                for line in _format_card_for_review(cr.response["revised_card"]).splitlines():
+                for line in _format_card_for_review(
+                    cr.response["revised_card"], include_design_notes=True
+                ).splitlines():
                     lines.append(f"> {line}")
             lines.append("")
 
@@ -2121,7 +2141,9 @@ def _review_to_markdown(r: CardReviewResult) -> str:
                 lines.append("")
                 lines.append("**Revised card:**")
                 lines.append("")
-                for line in _format_card_for_review(it.response["revised_card"]).splitlines():
+                for line in _format_card_for_review(
+                    it.response["revised_card"], include_design_notes=True
+                ).splitlines():
                     lines.append(f"> {line}")
             lines.append("")
 
@@ -2129,7 +2151,7 @@ def _review_to_markdown(r: CardReviewResult) -> str:
     if r.card_was_changed and r.revised_card:
         lines.append("## Final Revised Card")
         lines.append("")
-        for line in _format_card_for_review(r.revised_card).splitlines():
+        for line in _format_card_for_review(r.revised_card, include_design_notes=True).splitlines():
             lines.append(f"> {line}")
         lines.append("")
 
