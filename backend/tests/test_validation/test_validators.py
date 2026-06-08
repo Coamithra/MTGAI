@@ -402,6 +402,86 @@ class TestTypeConsistency:
         assert _has_error(errors, validator="type_check", severity="MANUAL")
         assert any("Equip" in e.message for e in errors)
 
+    def test_noncreature_vehicle_without_pt_is_manual(self):
+        # A non-creature Vehicle (Artifact — Vehicle) with no P/T is the bug:
+        # it slips past the creature rule but is non-functional once crewed.
+        card = _make_card(
+            card_types=["Artifact"],
+            subtypes=["Vehicle"],
+            type_line="Artifact — Vehicle",
+            oracle_text="Crew 2",
+            power=None,
+            toughness=None,
+        )
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        assert any(e.error_code == "type_check.vehicle_missing_pt" for e in errors)
+        assert _has_error(errors, validator="type_check", severity="MANUAL")
+
+    def test_noncreature_vehicle_with_pt_is_ok(self):
+        # A non-creature Vehicle WITH P/T is correct — it must not trip the
+        # "non-creature has P/T" or "P/T without Creature" rules.
+        card = _make_card(
+            card_types=["Artifact"],
+            subtypes=["Vehicle"],
+            type_line="Artifact — Vehicle",
+            oracle_text="Crew 2",
+            power="3",
+            toughness="4",
+        )
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        codes = {e.error_code for e in errors}
+        assert "type_check.vehicle_missing_pt" not in codes
+        assert "type_check.noncreature_has_pt" not in codes
+        assert "type_check.pt_without_creature" not in codes
+
+    def test_creature_vehicle_without_pt_is_manual(self):
+        # A Creature — Vehicle missing P/T fails too: both the creature rule and
+        # the vehicle rule fire; either is enough to block it.
+        card = _make_card(
+            card_types=["Artifact", "Creature"],
+            subtypes=["Vehicle"],
+            type_line="Artifact Creature — Vehicle",
+            oracle_text="Crew 2",
+            power=None,
+            toughness=None,
+        )
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        codes = {e.error_code for e in errors}
+        assert "type_check.vehicle_missing_pt" in codes
+        assert "type_check.creature_missing_pt" in codes
+
+    def test_vehicle_with_only_one_stat_is_manual(self):
+        # The rule fires when EITHER stat is missing, not just both.
+        card = _make_card(
+            card_types=["Artifact"],
+            subtypes=["Vehicle"],
+            type_line="Artifact — Vehicle",
+            oracle_text="Crew 2",
+            power="3",
+            toughness=None,
+        )
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        assert any(e.error_code == "type_check.vehicle_missing_pt" for e in errors)
+
+    def test_vehicle_subtype_detection_is_case_insensitive(self):
+        # The schema parser stores subtypes verbatim, so a "Artifact — vehicle"
+        # type line yields a lowercase subtype. The Vehicle P/T rule must still
+        # fire — this is the realistic path the bug travels.
+        from mtgai.validation.schema import _parse_type_line
+
+        raw = _make_card(
+            card_types=[],
+            subtypes=[],
+            type_line="Artifact — vehicle",
+            oracle_text="Crew 2",
+            power=None,
+            toughness=None,
+        )
+        card = _parse_type_line(raw)
+        assert card.subtypes == ["vehicle"]
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        assert any(e.error_code == "type_check.vehicle_missing_pt" for e in errors)
+
 
 class TestTypeLineOrdering:
     """Type lines must read <supertypes> <card types> — <subtypes>.
