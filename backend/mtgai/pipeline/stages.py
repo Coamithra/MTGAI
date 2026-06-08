@@ -2077,7 +2077,7 @@ def clear_finalize() -> None:
     - **Reports** (``reports/finalize-report.{json,md}`` + ``reports/finalize-user-edits.json``):
       ``/api/wizard/finalize/state`` reads the JSON sidecar back, so a leftover report
       paints the full *completed* summary (cap-breach banner, auto-edited badges) over a
-      reset stage.
+      reset stage. The sanity gate's LLM transcripts (``finalize/logs/``) go too.
     - **Per-card sanity markers** (``sanity_excluded`` + ``sanity_exclusion_reason``,
       stamped by the finalize sanity gate — ``review/sanity_check.py``): these live on
       ``cards/*.json``, and the renderer + ``/api/wizard/rendering/state`` *hide*
@@ -2096,6 +2096,7 @@ def clear_finalize() -> None:
     _remove_path(reports_dir / "finalize-report.json")
     _remove_path(reports_dir / "finalize-report.md")
     _remove_path(reports_dir / "finalize-user-edits.json")
+    _remove_path(set_dir / "finalize")  # sanity-gate LLM transcripts (finalize/logs)
 
     cards_dir = set_dir / "cards"
     if cards_dir.exists():

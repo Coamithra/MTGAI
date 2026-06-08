@@ -268,6 +268,10 @@ def test_clear_finalize_removes_reports_and_resets_sanity_markers(
     (reports_dir / "finalize-report.md").write_text("# report", encoding="utf-8")
     (reports_dir / "finalize-user-edits.json").write_text('{"001": true}', encoding="utf-8")
 
+    logs_dir = set_dir / "finalize" / "logs"
+    logs_dir.mkdir(parents=True)
+    (logs_dir / "sanity.html").write_text("<html></html>", encoding="utf-8")
+
     cards_dir = set_dir / "cards"
     cards_dir.mkdir(parents=True)
     excluded = cards_dir / "001_foo.json"
@@ -292,10 +296,11 @@ def test_clear_finalize_removes_reports_and_resets_sanity_markers(
 
     stages_mod.clear_stage_artifacts("finalize")
 
-    # Reports gone.
+    # Reports + sanity-gate transcripts gone.
     assert not (reports_dir / "finalize-report.json").exists()
     assert not (reports_dir / "finalize-report.md").exists()
     assert not (reports_dir / "finalize-user-edits.json").exists()
+    assert not (set_dir / "finalize").exists(), "sanity-gate finalize/logs should be cleared"
 
     # Card files survive; only the two finalize-owned fields were reset, other fields intact.
     assert excluded.exists(), "card files are card_gen-owned and must not be deleted"
