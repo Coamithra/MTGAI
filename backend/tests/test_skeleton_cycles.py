@@ -141,6 +141,80 @@ class TestScalarKnobs:
 
 
 # ---------------------------------------------------------------------------
+# Small-set card-type pooling (card 6a26d7a1)
+# ---------------------------------------------------------------------------
+
+
+class TestSmallSetTypeMix:
+    """Per-block type rounding used to collapse spells + inflate creatures on
+    small sets; pooling the split across the rarity fixes both.
+    """
+
+    def _spell_counts(self, slots) -> dict[str, int]:
+        out = {"instant": 0, "sorcery": 0, "enchantment": 0}
+        for s in slots:
+            if s.card_type in out and s.color != "colorless":
+                out[s.card_type] += 1
+        return out
+
+    def test_small_set_keeps_spells_under_artifact_skew(self):
+        # The exact regression: a 60-card artifact-matters set whose AI-tuned
+        # knobs put the highest weight on artifact still must yield real spells
+        # — not an all-permanent, spell-less set. (Per-type positivity is NOT
+        # guaranteed at every size/weight, so assert the aggregate, which is the
+        # actual regression.)
+        k = SkeletonKnobs(
+            noncreature_instant=0.35,
+            noncreature_sorcery=0.30,
+            noncreature_enchantment=0.35,
+            noncreature_artifact=0.50,
+        )
+        r = generate_skeleton(_cfg(60), knobs=k)
+        spells = self._spell_counts(r.slots)
+        assert sum(spells.values()) > 0, spells
+
+    def test_small_set_creature_density_near_knob(self):
+        # The max(1)-per-block floor inflated creature density (~72% vs a 53%
+        # knob). Pooling keeps the realized density close to the target.
+        r = generate_skeleton(_cfg(60), knobs=SkeletonKnobs())
+        non_land = [s for s in r.slots if s.card_type != SlotCardType.LAND]
+        creatures = sum(1 for s in non_land if s.card_type == SlotCardType.CREATURE)
+        pct = creatures / len(non_land)
+        assert pct <= 0.62, pct  # was ~0.72 with per-block rounding
+
+    @pytest.mark.parametrize("size", [25, 40, 50, 60, 100])
+    @pytest.mark.parametrize(
+        "knobs",
+        [
+            SkeletonKnobs(),
+            SkeletonKnobs(noncreature_artifact=0.50),
+            # A low creature knob must still bend up to the hard density floor.
+            SkeletonKnobs(
+                creature_common=0.45,
+                creature_uncommon=0.45,
+                creature_rare=0.45,
+                creature_mythic=0.45,
+            ),
+            # An all-instant skew must not starve the per-color common floor.
+            SkeletonKnobs(
+                noncreature_instant=1.0,
+                noncreature_sorcery=0.0,
+                noncreature_enchantment=0.0,
+                noncreature_artifact=0.0,
+            ),
+        ],
+    )
+    def test_pooled_split_passes_hard_constraints(self, size: int, knobs: SkeletonKnobs):
+        # Pooling must never ship an illegal skeleton: the set-wide 50% creature
+        # floor and the per-color 40%-at-common floor both hold even on small sets
+        # with low-creature / spell-skewed knobs (where per-block rounding used to
+        # break them).
+        r = generate_skeleton(_cfg(size), knobs=knobs)
+        fails = [c.name for c in r.balance_report.constraints if c.is_hard and not c.passed]
+        assert r.balance_report.all_hard_passed is True, fails
+
+
+# ---------------------------------------------------------------------------
 # Cycles
 # ---------------------------------------------------------------------------
 

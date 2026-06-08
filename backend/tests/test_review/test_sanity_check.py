@@ -139,6 +139,44 @@ def test_check_sanity_skips_basics_and_reprints(project, monkeypatch):
     assert flagged == {}
 
 
+def test_check_sanity_drops_all_clear_block(project, monkeypatch):
+    """A --CARD block whose body says the card is fine ("No defects.") is dropped.
+
+    A drifting local model that ignores the flag-only contract must not soft-remove
+    a good card from print by emitting an all-clear block for it."""
+    from mtgai.review import sanity_check as sc
+
+    cards = [_make_card("001"), _make_card("002")]
+    fake = _fake_stream({"001": "No defects. Looks fine."})  # false flag for a fine card
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    streamed: list[dict] = []
+    flagged, analysis, _cost = sc.check_sanity(cards, on_card=lambda rec: streamed.append(rec))
+
+    # The all-clear block was dropped: nothing flagged, both cards OK.
+    assert flagged == {}
+    assert {(r["collector_number"], r["ok"]) for r in streamed} == {
+        ("001", True),
+        ("002", True),
+    }
+    assert "2/2" in analysis
+
+
+def test_check_sanity_keeps_real_defect_starting_with_no(project, monkeypatch):
+    """A real defect reason opening with "no" ("No loyalty…") must NOT be dropped —
+    only defect-noun all-clears ("No defects.") drop, not "no power"/"no loyalty"."""
+    from mtgai.review import sanity_check as sc
+
+    cards = [_make_card("001"), _make_card("002", type_line="Planeswalker — Test")]
+    fake = _fake_stream({"002": "No loyalty on planeswalker."})
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    flagged, _analysis, _cost = sc.check_sanity(cards)
+    assert flagged == {"002": "No loyalty on planeswalker."}
+
+
 def test_check_sanity_truncation_marks_unknown(project, monkeypatch):
     from mtgai.review import sanity_check as sc
 

@@ -120,6 +120,41 @@ def fix_enchantment_artifact(card: Card, _error: ValidationError) -> Card:
     return card.model_copy(update={"type_line": new_type_line, "card_types": new_card_types})
 
 
+def fix_pt_in_oracle(card: Card, _error: ValidationError) -> Card:
+    """Move a leaked bare ``N/N`` oracle line into power/toughness and strip it.
+
+    The local card-gen model frequently writes a creature's stats as a standalone
+    ``"2/2"`` line in ``oracle_text`` (sometimes omitting the structured fields).
+    This recovers it deterministically: fill only currently-empty stat fields (a
+    real structured value wins over the leaked line), drop the bare line from the
+    rules box, and eat a blank line left dangling above it so no stray gap renders.
+    """
+    oracle = card.oracle_text or ""
+    found: tuple[str, str] | None = None
+    new_lines: list[str] = []
+    for line in oracle.split("\n"):
+        m = BARE_PT_LINE_RE.match(line.strip())
+        if m is not None:
+            # Strip every bare P/T line (the model occasionally emits more than
+            # one) so none renders; the first supplies the recovered stats.
+            if found is None:
+                found = (m.group("power"), m.group("toughness"))
+            while new_lines and not new_lines[-1].strip():
+                new_lines.pop()
+            continue
+        new_lines.append(line)
+
+    if found is None:
+        return card
+
+    updates: dict[str, str] = {"oracle_text": "\n".join(new_lines).rstrip("\n")}
+    if card.power is None:
+        updates["power"] = found[0]
+    if card.toughness is None:
+        updates["toughness"] = found[1]
+    return card.model_copy(update=updates)
+
+
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
@@ -148,6 +183,28 @@ _VALID_PT_VALUES_RE = re.compile(r"^(?:-?\d+|\*|[12]\+\*|\*\+1|X)$")
 # it means "no value here". We have to catch them explicitly because the schema
 # accepts ``str | None`` and these all parse as strings. Case-insensitive.
 _PT_SENTINELS = frozenset({"null", "none", "n/a", "na", "-", "—", ""})
+
+# A standalone "N/N" line — the local card-gen model's habit of writing a
+# creature's stats as a bare line in oracle_text instead of populating the
+# structured power/toughness fields (e.g. ``"Energize 1\n\n2/2."``). Matches a
+# line that is *entirely* a P/T pair (each side an integer, ``*``, or ``X``,
+# optionally period-terminated) so it never catches an inline ``+1/+1`` counter
+# clause. Shared with ``rules_text`` so the line-period fixer doesn't cement a
+# period onto the leaked stats. ``rules_text`` imports this; keep it public.
+BARE_PT_LINE_RE = re.compile(r"^(?P<power>-?\d+|\*|X)\s*/\s*(?P<toughness>-?\d+|\*|X)\.?$")
+
+
+def find_bare_pt_line(oracle_text: str | None) -> tuple[str, str] | None:
+    """Return the ``(power, toughness)`` of a bare ``N/N`` line leaked into oracle.
+
+    Returns the first standalone P/T line's values, or ``None`` if none is
+    present. See :data:`BARE_PT_LINE_RE` for the (deliberately narrow) match.
+    """
+    for line in (oracle_text or "").split("\n"):
+        m = BARE_PT_LINE_RE.match(line.strip())
+        if m:
+            return m.group("power"), m.group("toughness")
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -260,13 +317,27 @@ def validate_type_consistency(card: Card) -> list[ValidationError]:
 
     is_creature = "Creature" in card.card_types
     is_planeswalker = "Planeswalker" in card.card_types
+    # A Vehicle is a non-creature permanent that MUST carry printed power/toughness
+    # so it can fight once crewed — the one non-creature type that has stats. It
+    # therefore inverts the "non-creatures omit P/T" rules below. Match
+    # case-insensitively: the schema parser stores subtypes verbatim, so an LLM
+    # type line of "Artifact — vehicle" yields subtypes=["vehicle"].
+    is_vehicle = any(s.strip().casefold() == "vehicle" for s in card.subtypes)
     has_power = card.power is not None
     has_toughness = card.toughness is not None
     has_loyalty = card.loyalty is not None
     has_faces = card.card_faces is not None and len(card.card_faces) > 0
 
-    # 1. Creatures must have power and toughness
-    if is_creature and (not has_power or not has_toughness):
+    # A bare "N/N" line leaked into oracle_text — the local model writing stats
+    # as rules text. Recoverable (AUTO) in 1b below.
+    leaked_pt = find_bare_pt_line(card.oracle_text) if is_creature else None
+
+    # 1. Creatures must have power and toughness. When the stats are genuinely
+    #    absent and *not* recoverable from a leaked oracle line, this is a regen
+    #    trigger (see _REGEN_TRIGGER_CODES) — the card can't ship as a P/T-less
+    #    creature. When a bare "N/N" line is present, 1b recovers it instead, so
+    #    don't also flag for regen.
+    if is_creature and (not has_power or not has_toughness) and leaked_pt is None:
         errors.append(
             _manual(
                 "power/toughness",
@@ -276,8 +347,43 @@ def validate_type_consistency(card: Card) -> list[ValidationError]:
             )
         )
 
-    # 2. Non-creatures must NOT have power/toughness (skip DFCs)
-    if not is_creature and (has_power or has_toughness) and not has_faces:
+    # 1b. Vehicles must have power and toughness too — even when they aren't
+    #     creatures. A crewed Vehicle with no printed P/T can't fight; the model
+    #     tends to omit them because it's been told "non-creatures have no P/T".
+    #     Skip DFCs (P/T lives on the faces), mirroring rule 2.
+    if is_vehicle and (not has_power or not has_toughness) and not has_faces:
+        errors.append(
+            _manual(
+                "power/toughness",
+                "Vehicle is missing power and/or toughness — a Vehicle must have "
+                "printed P/T to function when crewed",
+                "Set power and toughness for this Vehicle.",
+                error_code="type_check.vehicle_missing_pt",
+            )
+        )
+
+    # 1c. A bare "N/N" P/T line leaked into oracle_text — AUTO-move it to the
+    #     structured stat fields and strip it from the rules box. Fires whenever
+    #     the line is present (even if the stats are also set) so the redundant
+    #     line never renders as a stray "2/2." in the text box.
+    if is_creature and leaked_pt is not None:
+        errors.append(
+            ValidationError(
+                validator="type_check",
+                severity=ValidationSeverity.AUTO,
+                field="power/toughness",
+                message=(
+                    f'Power/toughness "{leaked_pt[0]}/{leaked_pt[1]}" leaked into '
+                    "oracle_text as a bare line — moving it to the stat fields."
+                ),
+                suggestion="Put creature stats in power/toughness, not oracle_text.",
+                error_code="type_check.pt_in_oracle",
+            )
+        )
+
+    # 2. Non-creatures must NOT have power/toughness (skip DFCs and Vehicles,
+    #    which legitimately carry stats while not being creatures).
+    if not is_creature and not is_vehicle and (has_power or has_toughness) and not has_faces:
         errors.append(
             _manual(
                 "power/toughness",
@@ -446,7 +552,8 @@ def validate_type_consistency(card: Card) -> list[ValidationError]:
             )
 
     # 9. Cards with power/toughness should include "Creature" in card_types
-    if has_power and has_toughness and not is_creature:
+    #    (Vehicles are the exception — they carry P/T without being creatures).
+    if has_power and has_toughness and not is_creature and not is_vehicle:
         errors.append(
             _manual(
                 "card_types",
