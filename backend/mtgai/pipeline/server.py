@@ -2440,14 +2440,19 @@ def _auto_resume_after_recovery(stage_id: str) -> None:
 
     Best-effort: logs and no-ops if the resume can't fire (e.g. an engine raced
     into running). Must be called AFTER the ``guarded_ai`` block so the AI lock is
-    released before the resumed engine tries to acquire it. See
-    :func:`_should_auto_resume_recovered` for the gating contract.
+    released before the resumed engine tries to acquire it. Runs *after* the
+    refresh already succeeded, so it must never raise — a failure here would turn
+    a successful refresh into a 500. See :func:`_should_auto_resume_recovered` for
+    the gating contract.
     """
-    if not _should_auto_resume_recovered(stage_id):
-        return
-    err = _resume_paused_engine()
-    if err is not None:
-        logger.info("Auto-resume after %s recovery skipped: %s", stage_id, err)
+    try:
+        if not _should_auto_resume_recovered(stage_id):
+            return
+        err = _resume_paused_engine()
+        if err is not None:
+            logger.info("Auto-resume after %s recovery skipped: %s", stage_id, err)
+    except Exception:
+        logger.exception("Auto-resume after %s recovery failed", stage_id)
 
 
 @router.post("/api/wizard/advance")

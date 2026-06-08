@@ -510,7 +510,9 @@ def test_state_surfaces_pick_rationale(client, isolated_output):
 
 def _full_gen_stub(monkeypatch) -> None:
     """Tool-aware stub: generation → 6 mechanics; council reviewers OK; picker
-    selects candidates 1/3/5 (0-based 0/2/4)."""
+    selects candidates 1/3/5 (0-based 0/2/4). The ``select_best_mechanics`` arm is
+    needed because ``refresh-all`` re-runs the AI picker internally after it
+    regenerates candidates."""
 
     def stub(*args, **kwargs):
         schema = kwargs.get("tool_schema") or (args[2] if len(args) >= 3 else {})
@@ -616,6 +618,9 @@ def test_pick_auto_resumes_recovered_auto_mechanics(client, isolated_output, mon
     resp = client.post("/api/wizard/mechanics/pick", json={"candidates": candidates})
     assert resp.status_code == 200
     assert len(resumes) == 1
+    reloaded = pipeline_server.load_state()
+    assert reloaded is not None
+    assert reloaded.overall_status == PipelineStatus.PAUSED  # heal ran before resume
 
 
 def test_refresh_all_no_resume_when_not_previously_failed(client, isolated_output, monkeypatch):
