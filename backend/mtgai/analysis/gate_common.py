@@ -206,6 +206,7 @@ def stream_flag_batch(
     name: str,
     valid_ids: set[str],
     on_block: Callable[[str, str], None],
+    is_flag_block: Callable[[str], bool] | None = None,
     thinking: str | None = None,
 ) -> tuple[bool, float]:
     """Stream a flag-only free-text gate reply, retrying on truncation.
@@ -218,6 +219,14 @@ def stream_flag_batch(
     slot_id). The trailing (possibly cut-off) block is never fired on a truncated
     attempt, so a partial reason is never committed — it is re-streamed whole on
     the retry. Honours cancellation between attempts.
+
+    ``is_flag_block(block_text)`` is an optional guard against a drifting local
+    model that ignores the flag-only contract and emits a ``--CARD`` block for a
+    *non-flagged* card too (e.g. conformance bodies ending "Conforms."). When
+    supplied, a parsed block is forwarded to ``on_block`` only if the predicate
+    returns True; a block it rejects is dropped (the card is treated as never
+    flagged). With no predicate every block is a flag (the original contract).
+    The drop applies uniformly to the live-stride and trailing parses.
 
     Returns ``(completed, cost_usd)`` — ``completed`` is False only when every
     attempt truncated/errored, so the caller can treat the unreached items as
@@ -233,6 +242,16 @@ def stream_flag_batch(
     # attempt on, beyond the temperature bump.
     retry_dry = _local_retry_dry(model)
     cost = 0.0
+
+    def _process(sid: str, block: str, emitted: set[str]) -> None:
+        """Fire ``on_block`` once per block, dropping non-flag (OK) blocks."""
+        if sid in emitted:
+            return
+        emitted.add(sid)
+        if is_flag_block is not None and not is_flag_block(block):
+            return  # drifting model emitted a block for a non-flagged card
+        on_block(sid, block)
+
     for attempt in range(1, MAX_BATCH_ATTEMPTS + 1):
         if attempt > 1 and ai_lock.is_cancelled():
             break
@@ -240,7 +259,7 @@ def stream_flag_batch(
         dry = retry_dry if attempt > 1 else None
         buf = ""
         scanned = 0
-        emitted: set[str] = set()  # block ids already fired this attempt
+        emitted: set[str] = set()  # block ids already processed (fired or dropped) this attempt
         response: dict | None = None
         errored = False
         try:
@@ -262,9 +281,7 @@ def stream_flag_batch(
                         for sid, block in closed_blocks(
                             buf, valid_ids, by_int, include_trailing=False
                         ):
-                            if sid not in emitted:
-                                emitted.add(sid)
-                                on_block(sid, block)
+                            _process(sid, block, emitted)
                 elif ev.get("type") == "complete":
                     response = ev
         except Exception as exc:  # transport / context overflow (possibly mid-stream)
@@ -282,9 +299,7 @@ def stream_flag_batch(
         # Fire any blocks the live stride skipped. The trailing block is included
         # only on a clean finish, so a cut-off reason is never committed.
         for sid, block in closed_blocks(buf, valid_ids, by_int, include_trailing=not truncated):
-            if sid not in emitted:
-                emitted.add(sid)
-                on_block(sid, block)
+            _process(sid, block, emitted)
         if not truncated:
             return True, cost
         logger.warning(

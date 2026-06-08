@@ -59,6 +59,42 @@ class TestMalformedShapesDoNotCrash:
         """A non-dict card (a stray string) returns empty, never raises."""
         assert ai_review._format_card_for_review("not a card") == ""  # type: ignore[arg-type]
 
+
+_CARD_WITH_NOTES = {
+    "name": "Quintesson Logic Engine",
+    "rarity": "rare",
+    "type_line": "Artifact",
+    "oracle_text": "When this enters, target creature gets -5/-5.",
+    "design_notes": "Black CMC6 rare artifact with french_vanilla-style simplicity; -2/-2.",
+}
+
+
+class TestDesignNotesExcludedFromReviewPrompt:
+    """design_notes describe the ORIGINAL slot intent (CMC, a specific P/T, simplicity).
+
+    Feeding them to the design-review council makes reviewers flag every rebalance as
+    "contradicts the design notes" and loop REVISE until the budget is exhausted — the
+    card never converges. So the review prompt must NOT carry design_notes; only the
+    human-readable markdown report opts in.
+    """
+
+    def test_review_block_omits_design_notes_by_default(self):
+        block = ai_review._format_card_for_review(_CARD_WITH_NOTES)
+        assert "Design Notes" not in block
+        assert "-2/-2" not in block  # the stale value the council would 'contradict'
+        assert "-5/-5" in block  # the actual oracle still shows
+
+    def test_review_prompt_omits_design_notes(self):
+        """The full single-reviewer prompt the council sees carries no design_notes."""
+        prompt = ai_review._build_review_prompt(_CARD_WITH_NOTES, _MECHANICS, [])
+        assert "Design Notes" not in prompt
+
+    def test_report_includes_design_notes_when_asked(self):
+        """The debug markdown report keeps design_notes for human transcript fidelity."""
+        block = ai_review._format_card_for_review(_CARD_WITH_NOTES, include_design_notes=True)
+        assert "Design Notes" in block
+        assert "french_vanilla-style simplicity" in block
+
     def test_build_review_prompt_with_string_pointed_question(self):
         """A pointed question that's a bare string (not a dict) must not crash."""
         prompt = ai_review._build_review_prompt(_CARD, _MECHANICS, ["plain string question"])

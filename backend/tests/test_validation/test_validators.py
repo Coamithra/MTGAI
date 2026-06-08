@@ -402,6 +402,86 @@ class TestTypeConsistency:
         assert _has_error(errors, validator="type_check", severity="MANUAL")
         assert any("Equip" in e.message for e in errors)
 
+    def test_noncreature_vehicle_without_pt_is_manual(self):
+        # A non-creature Vehicle (Artifact — Vehicle) with no P/T is the bug:
+        # it slips past the creature rule but is non-functional once crewed.
+        card = _make_card(
+            card_types=["Artifact"],
+            subtypes=["Vehicle"],
+            type_line="Artifact — Vehicle",
+            oracle_text="Crew 2",
+            power=None,
+            toughness=None,
+        )
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        assert any(e.error_code == "type_check.vehicle_missing_pt" for e in errors)
+        assert _has_error(errors, validator="type_check", severity="MANUAL")
+
+    def test_noncreature_vehicle_with_pt_is_ok(self):
+        # A non-creature Vehicle WITH P/T is correct — it must not trip the
+        # "non-creature has P/T" or "P/T without Creature" rules.
+        card = _make_card(
+            card_types=["Artifact"],
+            subtypes=["Vehicle"],
+            type_line="Artifact — Vehicle",
+            oracle_text="Crew 2",
+            power="3",
+            toughness="4",
+        )
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        codes = {e.error_code for e in errors}
+        assert "type_check.vehicle_missing_pt" not in codes
+        assert "type_check.noncreature_has_pt" not in codes
+        assert "type_check.pt_without_creature" not in codes
+
+    def test_creature_vehicle_without_pt_is_manual(self):
+        # A Creature — Vehicle missing P/T fails too: both the creature rule and
+        # the vehicle rule fire; either is enough to block it.
+        card = _make_card(
+            card_types=["Artifact", "Creature"],
+            subtypes=["Vehicle"],
+            type_line="Artifact Creature — Vehicle",
+            oracle_text="Crew 2",
+            power=None,
+            toughness=None,
+        )
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        codes = {e.error_code for e in errors}
+        assert "type_check.vehicle_missing_pt" in codes
+        assert "type_check.creature_missing_pt" in codes
+
+    def test_vehicle_with_only_one_stat_is_manual(self):
+        # The rule fires when EITHER stat is missing, not just both.
+        card = _make_card(
+            card_types=["Artifact"],
+            subtypes=["Vehicle"],
+            type_line="Artifact — Vehicle",
+            oracle_text="Crew 2",
+            power="3",
+            toughness=None,
+        )
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        assert any(e.error_code == "type_check.vehicle_missing_pt" for e in errors)
+
+    def test_vehicle_subtype_detection_is_case_insensitive(self):
+        # The schema parser stores subtypes verbatim, so a "Artifact — vehicle"
+        # type line yields a lowercase subtype. The Vehicle P/T rule must still
+        # fire — this is the realistic path the bug travels.
+        from mtgai.validation.schema import _parse_type_line
+
+        raw = _make_card(
+            card_types=[],
+            subtypes=[],
+            type_line="Artifact — vehicle",
+            oracle_text="Crew 2",
+            power=None,
+            toughness=None,
+        )
+        card = _parse_type_line(raw)
+        assert card.subtypes == ["vehicle"]
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        assert any(e.error_code == "type_check.vehicle_missing_pt" for e in errors)
+
 
 class TestTypeLineOrdering:
     """Type lines must read <supertypes> <card types> — <subtypes>.
@@ -629,6 +709,147 @@ class TestStatShape:
         _card, errors, _fixes, regen = validate_card_from_raw(raw)
         assert regen is True
         assert any(e.error_code == "type_check.pt_slash" for e in errors)
+
+
+# ===========================================================================
+# P/T leaked into oracle_text (local card-gen model habit)
+# ===========================================================================
+# The local Gemma model frequently writes a creature's stats as a bare "N/N"
+# line in oracle_text instead of populating the structured fields. These tests
+# pin: (a) the AUTO recovery (move to fields + strip the line), (b) that the
+# rules_text line-period fixer no longer cements a period onto the leak, and
+# (c) that a genuinely P/T-less creature (no recoverable line) still regens.
+# ===========================================================================
+
+
+class TestPTLeakedIntoOracle:
+    def test_leak_with_null_stats_is_recovered_auto(self):
+        """The exact bug: stats leak into oracle and the fields are null.
+
+        AUTO-move "2/2" into power/toughness and strip it from the rules box.
+        """
+        card = _make_card(
+            oracle_text="Energize 1\n\n2/2.",
+            power=None,
+            toughness=None,
+        )
+        errors = validate_card(card)
+        assert any(e.error_code == "type_check.pt_in_oracle" for e in errors)
+        # Not flagged as an unrecoverable missing-P/T (which would force a regen).
+        assert not any(e.error_code == "type_check.creature_missing_pt" for e in errors)
+
+        result = auto_fix_card(card, errors)
+        assert result.card.power == "2"
+        assert result.card.toughness == "2"
+        assert "2/2" not in result.card.oracle_text
+        assert result.card.oracle_text.startswith("Energize 1")
+        assert any("pt_in_oracle" in f for f in result.applied_fixes)
+
+    def test_leak_with_null_stats_does_not_trigger_regen(self):
+        """A recoverable leak round-trips clean — no wasted regen."""
+        raw = {
+            "name": "Leaky Bot",
+            "type_line": "Creature — Robot",
+            "mana_cost": "{2}{R}",
+            "oracle_text": "Haste\n\n2/2.",
+            "power": None,
+            "toughness": None,
+            "rarity": "common",
+            "colors": ["R"],
+            "color_identity": ["R"],
+            "card_types": ["Creature"],
+            "subtypes": ["Robot"],
+        }
+        card, _errors, fixes, regen = validate_card_from_raw(raw)
+        assert regen is False
+        assert card is not None
+        assert card.power == "2"
+        assert card.toughness == "2"
+        assert "2/2" not in card.oracle_text
+        assert any("pt_in_oracle" in f for f in fixes)
+
+    def test_redundant_leak_line_stripped_when_stats_already_set(self):
+        """Stats are correct but a redundant "2/2" line also leaked — strip it,
+        keep the existing structured values (the line never overwrites them)."""
+        card = _make_card(
+            oracle_text="Trample\n2/2.",
+            power="2",
+            toughness="2",
+        )
+        errors = validate_card(card)
+        assert any(e.error_code == "type_check.pt_in_oracle" for e in errors)
+        result = auto_fix_card(card, errors)
+        assert result.card.power == "2"
+        assert result.card.toughness == "2"
+        assert result.card.oracle_text == "Trample"
+
+    def test_leak_does_not_overwrite_existing_stat(self):
+        """Only empty stat fields are filled from the leaked line."""
+        card = _make_card(oracle_text="Flying\n3/4.", power="5", toughness=None)
+        errors = validate_card(card)
+        result = auto_fix_card(card, errors)
+        assert result.card.power == "5"  # kept, not clobbered by the leak's "3"
+        assert result.card.toughness == "4"  # filled from the leak
+        assert "3/4" not in result.card.oracle_text
+
+    def test_multiple_leak_lines_all_stripped(self):
+        """If the model emits more than one bare P/T line, strip them all (the
+        first supplies the stats) so none renders as stray rules text."""
+        card = _make_card(oracle_text="Trample\n2/2\n3/3", power=None, toughness=None)
+        errors = validate_card(card)
+        result = auto_fix_card(card, errors)
+        assert result.card.power == "2"
+        assert result.card.toughness == "2"
+        assert "2/2" not in result.card.oracle_text
+        assert "3/3" not in result.card.oracle_text
+
+    def test_star_pt_leak_is_recovered(self):
+        """``*/*`` is a legal stat shape and recovers like a numeric leak."""
+        card = _make_card(
+            oracle_text="~ has power equal to your life total.\n*/*",
+            power=None,
+            toughness=None,
+        )
+        errors = validate_card(card)
+        result = auto_fix_card(card, errors)
+        assert result.card.power == "*"
+        assert result.card.toughness == "*"
+
+    def test_line_period_fixer_does_not_cement_pt_leak(self):
+        """rules_text.line_period must not append a period to a bare "2/2" line."""
+        from mtgai.validation.rules_text import fix_line_periods, validate_rules_text
+
+        card = _make_card(oracle_text="Menace\n2/2", power=None, toughness=None)
+        rt_errors = validate_rules_text(card)
+        assert not any(e.error_code == "rules_text.line_period" for e in rt_errors)
+        # fix_line_periods re-scans all lines (it ignores the error arg), so even
+        # invoked directly it must leave the leaked "2/2" line untouched.
+        fixed = fix_line_periods(card, _DUMMY_ERR)
+        assert "2/2." not in fixed.oracle_text
+
+    def test_creature_missing_pt_without_leak_still_triggers_regen(self):
+        """A genuinely P/T-less creature (no recoverable line) regenerates."""
+        raw = {
+            "name": "Stat-less Beast",
+            "type_line": "Creature — Beast",
+            "mana_cost": "{2}{G}",
+            "oracle_text": "Trample",
+            "power": None,
+            "toughness": None,
+            "rarity": "common",
+            "colors": ["G"],
+            "color_identity": ["G"],
+            "card_types": ["Creature"],
+            "subtypes": ["Beast"],
+        }
+        _card, errors, _fixes, regen = validate_card_from_raw(raw)
+        assert regen is True
+        assert any(e.error_code == "type_check.creature_missing_pt" for e in errors)
+
+
+_DUMMY_ERR = ValidationError(
+    validator="rules_text", severity=ValidationSeverity.AUTO, field="oracle_text", message=""
+)
 
 
 class TestNonlandMissingCost:

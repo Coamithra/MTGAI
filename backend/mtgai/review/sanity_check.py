@@ -111,9 +111,40 @@ emit a block — and ONLY for broken cards:
 <one short line naming the defect>
 
 Use the id shown in the listing (the value after ``--CARD-ID``). Output NOTHING \
-for a card that is fine — skip it silently. If every card in the batch is fine, \
-output nothing at all. No preamble, summary, or commentary; emit only ``--CARD`` \
-blocks for the cards you are flagging."""
+for a card that is fine — skip it silently. Do NOT emit a ``--CARD`` block to say \
+a card is fine or valid; a block means the card has a defect. If every card in \
+the batch is fine, output nothing at all. No preamble, summary, or commentary; \
+emit only ``--CARD`` blocks for the cards you are flagging."""
+
+
+# A drifting local model sometimes ignores the flag-only contract and emits a
+# ``--CARD`` block for a CLEAN card too (body "No defects." / "Looks fine."). Here
+# a false flag soft-removes a good card from print, so the parser guard matters
+# even more than in the conformance gate. ``_is_sanity_flag`` drops a block only
+# when its body OPENS with an unambiguous all-clear verdict — a real defect reason
+# ("Creature with no power/toughness", "Garbled rules text", "No loyalty on
+# planeswalker") never starts with one, and the ``no <X>`` opener is restricted to
+# defect-nouns so "no power"/"no loyalty" stay genuine flags.
+_SANITY_CLEAN_RE = re.compile(
+    r"^(?:none|n/?a|fine|ok(?:ay)?|valid|legal|clean|all\s+clear|nothing(?:\s+wrong)?"
+    r"|no\s+(?:defects?|issues?|problems?|errors?|concerns?)"
+    r"|looks?\s+(?:fine|ok(?:ay)?|valid|good)|is\s+(?:fine|ok(?:ay)?|valid))\b",
+    re.IGNORECASE,
+)
+
+
+def _is_sanity_flag(block: str) -> bool:
+    """True when a ``--CARD`` block is a genuine sanity-defect flag.
+
+    Returns False (drop) only when the body opens with an unambiguous all-clear
+    verdict, so a real defect reason is never newly dropped — the worst case is a
+    verbose all-clear note left as a flag (the pre-fix behaviour), not a card
+    wrongly kept in print.
+    """
+    body = " ".join(block.split())
+    if not body:
+        return True  # bare flag — honour it (parse defaults the reason)
+    return not _SANITY_CLEAN_RE.match(body)
 
 
 def _build_batch_prompt(batch: list[tuple[str, Card]]) -> str:
@@ -204,6 +235,7 @@ def _check_batch(
         name="check_sanity",
         valid_ids=valid_ids,
         on_block=_on_block,
+        is_flag_block=_is_sanity_flag,
         thinking=thinking,
     )
 
