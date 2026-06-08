@@ -537,3 +537,86 @@ def test_art_versions_for_card_disambiguates_collector_numbers(tmp_path):
 def test_art_versions_for_card_none_when_absent(tmp_path):
     (tmp_path / "art").mkdir()
     assert ig.art_versions_for_card(tmp_path, "1", "Lightning Bolt") == []
+
+
+# ---------------------------------------------------------------------------
+# Periodic ComfyUI recycle (VRAM-leak mitigation)
+# ---------------------------------------------------------------------------
+
+
+def test_recycle_comfyui_kills_then_ensures(monkeypatch):
+    """recycle = kill the old process, then bring a fresh one up."""
+    order = []
+    monkeypatch.setattr(ig, "kill_comfyui", lambda proc=None: order.append(("kill", proc)))
+    monkeypatch.setattr(ig.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(
+        ig, "ensure_comfyui", lambda log_dir=None: order.append(("ensure", log_dir)) or "new_proc"
+    )
+
+    result = ig.recycle_comfyui("old_proc", log_dir=None)
+
+    assert result == "new_proc"
+    assert order == [("kill", "old_proc"), ("ensure", None)]
+
+
+class _StubCard:
+    def __init__(self, cn: str):
+        self.collector_number = cn
+        self.name = f"Card {cn}"
+        self.sanity_excluded = False
+        self.art_prompt = "a prompt"
+        self.art_character_refs = []
+
+
+def _wire_art_loop(monkeypatch, tmp_path, n_cards: int):
+    """Seed a tmp project + mock every external seam of generate_art_for_set."""
+    set_dir = tmp_path / "set"
+    (set_dir / "cards").mkdir(parents=True)
+    for i in range(1, n_cards + 1):
+        (set_dir / "cards" / f"{i:03d}_c.json").write_text("{}", encoding="utf-8")
+
+    class _Proj:
+        set_code = "TST"
+
+    monkeypatch.setattr("mtgai.runtime.active_project.require_active_project", lambda: _Proj())
+    monkeypatch.setattr("mtgai.io.asset_paths.set_artifact_dir", lambda: set_dir)
+    monkeypatch.setattr(ig, "load_card", lambda p: _StubCard(p.stem.split("_")[0]))
+    monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 1)
+    monkeypatch.setattr(ig, "_resolve_image_model", lambda: None)  # provider == comfyui
+    monkeypatch.setattr(ig, "_resolve_ref_paths", lambda card, set_dir: [])
+    monkeypatch.setattr(ig, "ensure_comfyui", lambda log_dir=None: "proc0")
+    monkeypatch.setattr(ig, "kill_comfyui", lambda proc=None: None)
+    monkeypatch.setattr(ig, "generate_image", lambda *a, **k: (b"img", {"elapsed_seconds": 1.0}))
+    return set_dir
+
+
+def test_art_loop_recycles_comfyui_at_threshold(monkeypatch, tmp_path):
+    """Every COMFYUI_RECYCLE_EVERY images ComfyUI is recycled — but never on the
+    last card (a restart right before the finally-kill is pointless)."""
+    _wire_art_loop(monkeypatch, tmp_path, n_cards=8)
+    recycles = []
+    monkeypatch.setattr(
+        ig, "recycle_comfyui", lambda proc, log_dir=None: recycles.append(proc) or "procN"
+    )
+    monkeypatch.setattr(ig, "COMFYUI_RECYCLE_EVERY", 4)
+
+    summary = ig.generate_art_for_set()
+
+    assert summary["generated"] == 8
+    # 1 image/card → recycle fires after card 4; the would-be fire after card 8
+    # is suppressed because it's the last card.
+    assert len(recycles) == 1
+
+
+def test_art_loop_recycle_disabled_when_zero(monkeypatch, tmp_path):
+    """COMFYUI_RECYCLE_EVERY == 0 disables the periodic recycle entirely."""
+    _wire_art_loop(monkeypatch, tmp_path, n_cards=8)
+    recycles = []
+    monkeypatch.setattr(
+        ig, "recycle_comfyui", lambda proc, log_dir=None: recycles.append(proc) or "procN"
+    )
+    monkeypatch.setattr(ig, "COMFYUI_RECYCLE_EVERY", 0)
+
+    ig.generate_art_for_set()
+
+    assert recycles == []

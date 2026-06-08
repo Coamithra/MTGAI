@@ -100,7 +100,16 @@ async def _lifespan(application: FastAPI) -> AsyncGenerator[None]:
     stage from a crashed prior process) runs at project-open time
     instead — see :func:`mtgai.pipeline.engine.cleanup_orphan_running_stages`
     for the per-project demote pass.
+
+    When launched under the supervisor (``serve --supervised`` sets
+    ``MTGAI_SUPERVISED_CHILD=1``) a liveness heartbeat thread is started so
+    a silent OS/native kill leaves a last-alive + VRAM breadcrumb on disk.
+    No-op in a normal run.
     """
+    from mtgai.runtime import heartbeat
+
+    if heartbeat.is_supervised_child():
+        heartbeat.start_heartbeat()
     yield
 
 

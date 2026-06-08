@@ -233,7 +233,8 @@ def cleanup_orphan_running_stages() -> list[str]:
 
     if demoted:
         logger.warning(
-            "Demoted %d orphan RUNNING stage(s) on project open: %s",
+            "Previous run likely died while %d stage(s) were RUNNING (silent crash / "
+            "restart) — demoted to FAILED on project open: %s. Use 'Retry this step' to resume.",
             len(demoted),
             ", ".join(demoted),
         )
