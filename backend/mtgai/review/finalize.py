@@ -67,6 +67,33 @@ def _is_basic_land(card: Card) -> bool:
     return "Basic" in card.supertypes and "Land" in card.card_types
 
 
+def _describe_load_failure(path: Path, exc: Exception) -> dict:
+    """Best-effort identity for a card whose strict :class:`Card` load failed.
+
+    The file can't be loaded as a ``Card`` (an unanticipated malformation past
+    the model-boundary coercion, or unparseable JSON), so pull
+    ``collector_number``/``name`` straight from the raw JSON when it parses,
+    falling back to the filename. Used to record the skipped card in the finalize
+    report so the Finalization tab (which renders the live raw JSON) can surface
+    it for a hand fix instead of the stage aborting on it.
+    """
+    collector_number = ""
+    name = ""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            collector_number = str(raw.get("collector_number") or "")
+            name = str(raw.get("name") or "")
+    except Exception:
+        pass
+    return {
+        "file": path.name,
+        "collector_number": collector_number,
+        "name": name or path.stem,
+        "error": str(exc),
+    }
+
+
 def finalize_card(
     card: Card,
     mechanics: list[dict],
@@ -108,6 +135,13 @@ def finalize_set(
     the sanity pass into the Finalization tab + honour the Cancel button; they are
     no-ops for the CLI caller.
 
+    **Per-card resilience:** a card that can't even be loaded as a :class:`Card`
+    (an unanticipated malformation past the model-boundary coercion, or unparseable
+    JSON) is **skipped + recorded** in ``summary["load_failures"]`` rather than
+    raising and aborting the entire stage — the rest of the pool still finalizes,
+    and the tab surfaces the skipped card (it renders the live raw JSON) for a hand
+    fix.
+
     Returns a summary dict with counts and per-card details.
     """
     from mtgai.runtime.active_project import require_active_project
@@ -121,6 +155,7 @@ def finalize_set(
 
     results: list[dict] = []
     finalized_cards: list[Card] = []
+    load_failures: list[dict] = []
     total_fixes = 0
     total_manual = 0
     cards_modified = 0
@@ -139,7 +174,22 @@ def finalize_set(
     set_dir = set_artifact_dir()
 
     for path in card_paths:
-        card = load_card(path)
+        try:
+            card = load_card(path)
+        except Exception as exc:
+            # Defense-in-depth: a card that still fails to load/validate (an
+            # UNANTICIPATED malformation past the model-boundary coercion, or
+            # unparseable JSON) must not abort the whole stage. Skip it, record
+            # it for the report so the Finalization tab surfaces it for a hand
+            # fix, and finalize the rest.
+            failure = _describe_load_failure(path, exc)
+            load_failures.append(failure)
+            logger.warning(
+                "  %s: failed to load (%s) — skipped, flagged for manual review",
+                failure["file"],
+                failure["error"],
+            )
+            continue
 
         # Skip basic lands — nothing to finalize
         if _is_basic_land(card):
@@ -225,6 +275,9 @@ def finalize_set(
         "total_auto_fixes": total_fixes,
         "total_manual_errors": total_manual,
         "cards": results,
+        # Cards that couldn't even be loaded as a Card (skipped, not aborted on);
+        # surfaced in the report so the tab can flag them for a manual fix.
+        "load_failures": load_failures,
         **sanity,
     }
 
@@ -235,13 +288,14 @@ def finalize_set(
 
     logger.info(
         "Finalization complete: %d cards, %d modified, %d auto-fixes, %d MANUAL errors, "
-        "%d sanity-excluded%s",
+        "%d sanity-excluded%s, %d load-failure(s)",
         len(results),
         cards_modified,
         total_fixes,
         total_manual,
         len(sanity.get("excluded_cards", [])),
         " (cap breached — none excluded)" if sanity.get("sanity_cap_breached") else "",
+        len(load_failures),
     )
 
     return summary
@@ -358,8 +412,27 @@ def _write_report(summary: dict) -> Path:
         f"**Auto-fixes applied:** {summary['total_auto_fixes']}",
         f"**MANUAL errors for review:** {summary['total_manual_errors']}",
         f"**Sanity-excluded cards:** {len(summary.get('excluded_cards') or [])}",
+        f"**Cards that failed to load:** {len(summary.get('load_failures') or [])}",
         "",
     ]
+
+    # Load-failure section — cards that couldn't be parsed/validated as a Card and
+    # were skipped (the stage no longer aborts on them); listed so the human knows
+    # to hand-fix the raw JSON in the Finalization tab.
+    load_failures = summary.get("load_failures") or []
+    if load_failures:
+        lines.append("## Cards That Failed to Load (Skipped)")
+        lines.append("")
+        lines.append(
+            "These cards could not be loaded/validated and were skipped — fix the raw "
+            "JSON by hand in the Finalization tab:"
+        )
+        lines.append("")
+        for f in load_failures:
+            cn = f.get("collector_number") or "?"
+            name = f.get("name") or f.get("file") or "?"
+            lines.append(f"- **{cn} — {name}** (`{f.get('file')}`): {f.get('error') or ''}")
+        lines.append("")
 
     # Sanity-check section — the cards soft-excluded for an obvious defect (or the
     # cap-breach warning when the model flagged too many to trust).
