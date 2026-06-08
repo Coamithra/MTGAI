@@ -496,12 +496,12 @@ def test_card_names_by_collector_number_reads_cards(tmp_path):
     cards = tmp_path / "cards"
     cards.mkdir()
     (cards / "001_bolt.json").write_text(
-        json.dumps({"collector_number": "1", "name": "Lightning Bolt"})
+        json.dumps({"collector_number": "1", "name": "Lightning Bolt"}), encoding="utf-8"
     )
     (cards / "010_giant.json").write_text(
-        json.dumps({"collector_number": "10", "name": "Hill Giant"})
+        json.dumps({"collector_number": "10", "name": "Hill Giant"}), encoding="utf-8"
     )
-    (cards / "broken.json").write_text("{ not json")  # skipped, not fatal
+    (cards / "broken.json").write_text("{ not json", encoding="utf-8")  # skipped, not fatal
     names = ig.card_names_by_collector_number(tmp_path)
     assert names == {"1": "Lightning Bolt", "10": "Hill Giant"}
 

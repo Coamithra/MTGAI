@@ -238,6 +238,10 @@
   async function bootstrap(root, state) {
     const data = await W.fetchStageState(STAGE_ID);
     if (data) {
+      // A bootstrap loads the durable on-disk truth — drop any mid-stream
+      // highlight state so a finished/judged card can't keep a phantom active
+      // border once the grid is repainted from disk.
+      local.streaming = {};
       local.cards = Array.isArray(data.cards) ? data.cards : [];
       local.byCn = {};
       local.cards.forEach((c) => { local.byCn[c.collector_number] = c; });
