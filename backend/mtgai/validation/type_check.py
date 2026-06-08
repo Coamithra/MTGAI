@@ -133,9 +133,12 @@ def fix_pt_in_oracle(card: Card, _error: ValidationError) -> Card:
     found: tuple[str, str] | None = None
     new_lines: list[str] = []
     for line in oracle.split("\n"):
-        m = BARE_PT_LINE_RE.match(line.strip()) if found is None else None
+        m = BARE_PT_LINE_RE.match(line.strip())
         if m is not None:
-            found = (m.group("power"), m.group("toughness"))
+            # Strip every bare P/T line (the model occasionally emits more than
+            # one) so none renders; the first supplies the recovered stats.
+            if found is None:
+                found = (m.group("power"), m.group("toughness"))
             while new_lines and not new_lines[-1].strip():
                 new_lines.pop()
             continue
@@ -144,7 +147,7 @@ def fix_pt_in_oracle(card: Card, _error: ValidationError) -> Card:
     if found is None:
         return card
 
-    updates: dict = {"oracle_text": "\n".join(new_lines).rstrip("\n")}
+    updates: dict[str, str] = {"oracle_text": "\n".join(new_lines).rstrip("\n")}
     if card.power is None:
         updates["power"] = found[0]
     if card.toughness is None:

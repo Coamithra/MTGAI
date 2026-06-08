@@ -712,6 +712,17 @@ class TestPTLeakedIntoOracle:
         assert result.card.toughness == "4"  # filled from the leak
         assert "3/4" not in result.card.oracle_text
 
+    def test_multiple_leak_lines_all_stripped(self):
+        """If the model emits more than one bare P/T line, strip them all (the
+        first supplies the stats) so none renders as stray rules text."""
+        card = _make_card(oracle_text="Trample\n2/2\n3/3", power=None, toughness=None)
+        errors = validate_card(card)
+        result = auto_fix_card(card, errors)
+        assert result.card.power == "2"
+        assert result.card.toughness == "2"
+        assert "2/2" not in result.card.oracle_text
+        assert "3/3" not in result.card.oracle_text
+
     def test_star_pt_leak_is_recovered(self):
         """``*/*`` is a legal stat shape and recovers like a numeric leak."""
         card = _make_card(
@@ -731,8 +742,9 @@ class TestPTLeakedIntoOracle:
         card = _make_card(oracle_text="Menace\n2/2", power=None, toughness=None)
         rt_errors = validate_rules_text(card)
         assert not any(e.error_code == "rules_text.line_period" for e in rt_errors)
-        # Even if the fixer is invoked directly, it leaves the leaked line alone.
-        fixed = fix_line_periods(card, rt_errors[0] if rt_errors else _DUMMY_ERR)
+        # fix_line_periods re-scans all lines (it ignores the error arg), so even
+        # invoked directly it must leave the leaked "2/2" line untouched.
+        fixed = fix_line_periods(card, _DUMMY_ERR)
         assert "2/2." not in fixed.oracle_text
 
     def test_creature_missing_pt_without_leak_still_triggers_regen(self):
