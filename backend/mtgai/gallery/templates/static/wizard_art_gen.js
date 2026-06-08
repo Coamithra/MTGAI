@@ -72,6 +72,15 @@
         position: absolute; top: 2px; left: 2px; font-size: 0.6rem; line-height: 1;
         padding: 1px 3px; border-radius: 3px; background: #1a3a2a; color: #4ade80;
       }
+      .wiz-ag-zoom {
+        position: absolute; top: 2px; right: 2px; width: 1.25rem; height: 1.25rem;
+        padding: 0; border-radius: 4px; border: 1px solid #2a3550; background: #0b1120cc;
+        color: #cdd; font-size: 0.72rem; line-height: 1; cursor: zoom-in;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0; transition: opacity 0.12s;
+      }
+      .wiz-ag-version:hover .wiz-ag-zoom, .wiz-ag-zoom:focus { opacity: 1; }
+      .wiz-ag-zoom:hover { background: #16213e; border-color: #4a9eff; color: #fff; }
 
       .wiz-ag-reason {
         font-size: 0.72rem; color: #9aa; line-height: 1.35; margin: 0;
@@ -182,9 +191,28 @@
     versionsEl.innerHTML = versions.length
       ? versions.map((v, i) => versionHtml(card, v, i + 1)).join('')
       : '<div class="wiz-ag-empty-thumb">(no art)</div>';
-    versionsEl.querySelectorAll('.wiz-ag-version').forEach((vEl) => {
-      vEl.onclick = () => onRepick(cn, vEl.getAttribute('data-pick'));
-    });
+    versionsEl.querySelectorAll('.wiz-ag-version').forEach((vEl) => bindVersionTile(vEl, cn));
+  }
+
+  // Bind a version tile: click = pick it (the tab's interaction model), the
+  // hover ⤢ button = open the full-scale lightbox (stopPropagation so it never
+  // also picks). The full-size URL is read off the tile's own <img> so it tracks
+  // a reroll/upload that swapped the src.
+  function bindVersionTile(vEl, cn) {
+    const pick = vEl.getAttribute('data-pick');
+    vEl.onclick = () => onRepick(cn, pick);
+    const zoomBtn = vEl.querySelector('[data-act="zoom"]');
+    if (zoomBtn) {
+      zoomBtn.onclick = (e) => {
+        e.stopPropagation();
+        const img = vEl.querySelector('.wiz-ag-thumb');
+        const url = img && img.getAttribute('src');
+        if (!url || !window.MTGAILightbox) return;
+        const card = local.byCn[cn];
+        const nm = (card && card.name) || cn;
+        window.MTGAILightbox.open(url, { alt: `${nm} ${pick}`, caption: `${nm} · ${pick}` });
+      };
+    }
   }
 
   // ── Top-level render ────────────────────────────────────────────────────────
@@ -340,6 +368,8 @@
       <div class="wiz-ag-version ${isPicked ? 'picked' : ''}" data-pick="${escAttr(label)}"
            title="Click to pick ${label}">
         ${isPicked ? '<span class="wiz-ag-pickbadge">PICK</span>' : ''}
+        <button type="button" class="wiz-ag-zoom" data-act="zoom"
+                title="View full size" aria-label="View ${escAttr(label)} full size">⤢</button>
         <img class="wiz-ag-thumb" src="${escAttr(v.url)}" alt="${escAttr(label)}"
              onerror="this.style.visibility='hidden'">
         <div class="wiz-ag-vlabel">${label}</div>
@@ -349,9 +379,7 @@
   function bindCardActions(slot) {
     slot.querySelectorAll('.wiz-ag-card').forEach((cardEl) => {
       const cn = cardEl.getAttribute('data-cn');
-      cardEl.querySelectorAll('.wiz-ag-version').forEach((vEl) => {
-        vEl.onclick = () => onRepick(cn, vEl.getAttribute('data-pick'));
-      });
+      cardEl.querySelectorAll('.wiz-ag-version').forEach((vEl) => bindVersionTile(vEl, cn));
       const rerollBtn = cardEl.querySelector('[data-act="reroll"]');
       if (rerollBtn) rerollBtn.onclick = () => onReroll(cn);
       const uploadBtn = cardEl.querySelector('[data-act="upload"]');

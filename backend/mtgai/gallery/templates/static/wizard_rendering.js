@@ -169,7 +169,7 @@
         background: #06080f; border-radius: 6px; overflow: hidden;
         display: flex; align-items: center; justify-content: center;
       }
-      .wiz-rendering-thumb { width: 100%; height: 100%; object-fit: contain; display: block; }
+      .wiz-rendering-thumb { width: 100%; height: 100%; object-fit: contain; display: block; cursor: zoom-in; }
       .wiz-rendering-thumb-missing { color: #555; font-size: 0.8rem; font-style: italic; }
 
       .wiz-rendering-fields { display: none; flex-direction: column; gap: 0.45rem; }
@@ -509,6 +509,20 @@
 
     const removeBtn = el.querySelector('[data-role="rnd-remove"]');
     if (removeBtn) removeBtn.onclick = () => removeCard(cn);
+
+    // Click the rendered thumbnail to open it full-scale. Bound on the wrap (not
+    // the <img>) because refreshThumb swaps the wrap's innerHTML on re-render; the
+    // wrap itself persists, so this binding survives. Reads the live <img> src so
+    // a cache-busted re-render shows the latest pixels.
+    const wrap = el.querySelector('[data-role="rnd-thumb-wrap"]');
+    if (wrap) wrap.onclick = () => {
+      const c = local.cards.find(x => x.collector_number === cn);
+      if (!c || !c.has_render || !window.MTGAILightbox) return;
+      const img = wrap.querySelector('[data-role="rnd-thumb"]');
+      const url = (img && img.getAttribute('src')) || imgUrl(cn);
+      const nm = (c && c.name) || cn;
+      window.MTGAILightbox.open(url, { alt: nm, caption: `${nm} · ${cn}` });
+    };
   }
 
   function gatherFields(cn) {
