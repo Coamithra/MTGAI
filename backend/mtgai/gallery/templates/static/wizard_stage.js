@@ -174,6 +174,10 @@
   const STRUCTURAL_BREAK_STAGES = new Set();
 
   function breakPointToggleHtml(stage, state) {
+    // A review-ineligible stage (e.g. ``lands``, ``art_prompts``) never pauses
+    // for review — the engine forces it AUTO. Don't render a "Stop after this
+    // step" toggle the engine won't honour (a dead, misleading control).
+    if (stage.review_eligible === false) return '';
     const checked = !!state.breakPoints[stage.stage_id];
     const structural = STRUCTURAL_BREAK_STAGES.has(stage.stage_id);
     const title = structural

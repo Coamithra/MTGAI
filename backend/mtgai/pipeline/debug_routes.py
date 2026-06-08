@@ -322,7 +322,9 @@ async def debug_seed_stage(request: Request) -> JSONResponse:
         STAGE_DEFINITIONS,
         PipelineStatus,
         StageProgress,
+        StageReviewMode,
         StageStatus,
+        _resolve_break_point,
     )
 
     target = str(body.get("target_stage") or "").strip()
@@ -367,6 +369,17 @@ async def debug_seed_stage(request: Request) -> JSONResponse:
     target_idx = order.index(target)
     backbone = [s for s in state.stages if s.instance_id == s.stage_id]
 
+    # The cloned golden carries its source project's persisted ``review_mode``
+    # per stage, which can be stale relative to *this* QA project's break points
+    # (e.g. a review-ineligible ``lands`` cloned as "review" would pause the seeded
+    # run — the engine guards against this too, but a clean seed shouldn't rely on
+    # that). Re-resolve every backbone stage's review_mode from the active QA
+    # project's live break points, mirroring ``build_stages``.
+    from mtgai.runtime import active_project
+
+    qa_proj = active_project.read_active_project()
+    break_points = qa_proj.settings.break_points if qa_proj is not None else {}
+
     # The regen-loop instances we're about to drop from state (``card_gen.2`` …)
     # carry cloned ``history/<instance_id>/`` snapshot dirs from the source. Once
     # they leave ``state.stages`` the unlock/clear path (which only walks
@@ -382,6 +395,11 @@ async def debug_seed_stage(request: Request) -> JSONResponse:
             idx = order.index(s.stage_id)
         except ValueError:
             continue
+        s.review_mode = (
+            StageReviewMode.REVIEW
+            if s.review_eligible and _resolve_break_point(s.stage_id, break_points)
+            else StageReviewMode.AUTO
+        )
         if idx <= target_idx:
             s.status = StageStatus.COMPLETED
         else:

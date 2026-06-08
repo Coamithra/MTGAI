@@ -21,6 +21,7 @@ from mtgai.pipeline.models import (
     PipelineState,
     PipelineStatus,
     StageProgress,
+    StageReviewMode,
     StageState,
     StageStatus,
 )
@@ -264,6 +265,40 @@ def test_seed_stage_drops_orphaned_regen_history(client, _sandbox):
     state = engine.load_state()
     assert state is not None
     assert all(s.instance_id == s.stage_id for s in state.stages)
+
+
+def test_seed_stage_clears_stale_review_mode_for_ineligible_stage(client, _sandbox):
+    """A golden source persists per-stage ``review_mode``; a review-INELIGIBLE
+    stage (``lands``) cloned as "review" must not survive into the seeded run, or
+    the engine would pause an ineligible stage. seed-stage re-resolves every
+    backbone stage's review_mode from the QA project's live break points, so an
+    ineligible stage lands AUTO regardless of the clone's stale mode.
+    """
+    _root, out = _sandbox
+    src = out / "sets" / "GOLDEN"
+    _make_golden(src, last_completed="reprints")
+
+    # Stamp the stale "review" mode the transformers golden actually carries on
+    # its review-ineligible lands stage.
+    state_path = src / "pipeline-state.json"
+    raw = json.loads(state_path.read_text(encoding="utf-8"))
+    for s in raw["stages"]:
+        if s["stage_id"] == "lands":
+            s["review_mode"] = "review"
+    state_path.write_text(json.dumps(raw, default=str), encoding="utf-8")
+
+    resp = client.post(
+        "/api/debug/seed-stage", json={"target_stage": "skeleton", "source_dir": str(src)}
+    )
+    assert resp.status_code == 200, resp.text
+
+    from mtgai.pipeline import engine
+
+    state = engine.load_state()
+    assert state is not None
+    lands = next(s for s in state.stages if s.stage_id == "lands")
+    assert lands.review_eligible is False  # guards the premise
+    assert lands.review_mode == StageReviewMode.AUTO
 
 
 def test_seed_stage_rejects_bad_stage(client, _sandbox):

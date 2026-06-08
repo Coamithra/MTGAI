@@ -393,15 +393,23 @@ class PipelineEngine:
                 i += 1  # walk into the freshly-inserted regen span
                 continue
 
-            # Check if human review is needed. Re-resolve from the project's
+            # Check if human review is needed.
+            #
+            # A review-INELIGIBLE stage (e.g. ``lands``, ``art_prompts``) must
+            # NEVER pause for review — that's its documented contract. Force its
+            # review_mode to AUTO so a stale/erroneous persisted REVIEW (e.g. a
+            # debug-seeded clone that carried a "review" mode from its golden
+            # source) can never sneak it past the pause check below.
+            #
+            # A review-ELIGIBLE backbone instance re-resolves from the project's
             # LIVE break points (not the build-time-frozen review_mode) so a
             # "Stop after this step" toggled *while this stage was running*
-            # takes effect on the stage that just finished. Scoped to backbone,
-            # review-eligible instances: inserted regen-loop copies stay pinned
-            # to their build-time AUTO (matching _build_rerun_span) so an active
-            # loop still flows, and a review-ineligible stage keeps whatever it
-            # was built with (the live re-read never makes one pausable).
-            if stage.instance_id == stage.stage_id and stage.review_eligible:
+            # takes effect on the stage that just finished. Inserted regen-loop
+            # copies stay pinned to their build-time AUTO (matching
+            # _build_rerun_span) so an active loop still flows.
+            if not stage.review_eligible:
+                stage.review_mode = StageReviewMode.AUTO
+            elif stage.instance_id == stage.stage_id:
                 stage.review_mode = (
                     StageReviewMode.REVIEW
                     if _live_break_point(stage.stage_id)
