@@ -175,7 +175,7 @@
         const banner = document.createElement('div');
         banner.className = 'wiz-edit-banner';
         banner.textContent =
-          'Editing — Accept will save your changes and discard everything from Skeleton onward.';
+          'Editing — Accept will save your changes and discard all generated content downstream.';
         content.prepend(banner);
       }
     } else if (existing) {
@@ -188,7 +188,7 @@
       from_stage: 'theme',
       title: 'Edit Theme',
       body:
-        'Editing the Theme tab will discard all generated content from Skeleton onward. '
+        'Editing the Theme tab will discard all generated content downstream. '
         + 'Your theme.json edits commit on Accept.',
     });
     if (!ok) return;
