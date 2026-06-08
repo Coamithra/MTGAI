@@ -41,7 +41,7 @@ def _resolve_asset(explicit: str | None) -> Path:
         return Path(explicit)
     # Fall back to the active project's asset folder via the package API.
     sys.path.insert(0, str(REPO_ROOT / "backend"))
-    from mtgai.runtime import active_project  # noqa: PLC0415
+    from mtgai.runtime import active_project
 
     proj = active_project.read_active_project()
     if proj is None:
@@ -116,8 +116,10 @@ def main() -> int:
             gp["filled_slots"] = kept_slots
             gp_path.write_text(json.dumps(gp, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    print(f"Trimmed {asset.name}: kept {len(keep_paths)} cards "
-          f"({len(keep_cardgen)} card-gen + {len(keep_lands)} lands), removed {removed}.")
+    print(
+        f"Trimmed {asset.name}: kept {len(keep_paths)} cards "
+        f"({len(keep_cardgen)} card-gen + {len(keep_lands)} lands), removed {removed}."
+    )
     print("Kept:", ", ".join(sorted(keep_cns)))
     return 0
 
