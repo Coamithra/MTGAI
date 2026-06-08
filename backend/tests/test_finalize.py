@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+import pytest
+
 from mtgai.models.card import Card
 from mtgai.models.enums import Color, Rarity
-from mtgai.review.finalize import finalize_card
+from mtgai.review.finalize import finalize_card, finalize_set
 
 MECHANICS = [
     {
@@ -112,3 +117,81 @@ class TestFinalizeCard:
         assert "enters the battlefield" not in finalized.oracle_text
         # Reminder text injected
         assert "(Look at the top three cards" in finalized.oracle_text
+
+
+@pytest.fixture
+def active_asset(tmp_path: Path):
+    """An active project rooted at a tmp asset dir with cards/ + mechanics/."""
+    from mtgai.runtime import active_project
+    from mtgai.settings.model_settings import ModelSettings
+
+    asset_dir = tmp_path / "asset"
+    (asset_dir / "cards").mkdir(parents=True)
+    (asset_dir / "mechanics").mkdir(parents=True)
+    (asset_dir / "mechanics" / "approved.json").write_text("[]", encoding="utf-8")
+    active_project.write_active_project(
+        active_project.ProjectState(
+            set_code="TST", settings=ModelSettings(asset_folder=str(asset_dir))
+        )
+    )
+    yield asset_dir
+    active_project.clear_active_project()
+
+
+class TestFinalizeSetResilience:
+    """One malformed card must not abort the whole finalize stage."""
+
+    def test_unloadable_card_is_skipped_and_recorded(self, active_asset: Path) -> None:
+        cards_dir = active_asset / "cards"
+        # The broken card sorts FIRST (card_paths is sorted), so it guards the
+        # original bug: a malformed card aborting every card after it. It's valid
+        # JSON but fails the strict Card load (unanticipated invalid rarity enum).
+        (cards_dir / "001_broken.json").write_text(
+            json.dumps(
+                {
+                    "name": "Broken",
+                    "collector_number": "001",
+                    "set_code": "TST",
+                    "type_line": "Creature — Beast",
+                    "rarity": "ultramega",
+                }
+            ),
+            encoding="utf-8",
+        )
+        # ...and the two healthy cards after it still finalize normally.
+        (cards_dir / "002_alpha.json").write_text(
+            _make_card(name="Alpha", collector_number="002").model_dump_json(),
+            encoding="utf-8",
+        )
+        (cards_dir / "003_beta.json").write_text(
+            _make_card(name="Beta", collector_number="003").model_dump_json(),
+            encoding="utf-8",
+        )
+
+        # dry_run skips the LLM sanity pass + disk writes; the per-card load is
+        # still exercised, which is what we're testing.
+        summary = finalize_set(dry_run=True)
+
+        # The healthy pair finalized; the broken card did not abort the run.
+        assert summary["total_cards"] == 2
+        assert {c["name"] for c in summary["cards"]} == {"Alpha", "Beta"}
+
+        failures = summary["load_failures"]
+        assert len(failures) == 1
+        failure = failures[0]
+        assert failure["collector_number"] == "001"
+        assert failure["name"] == "Broken"
+        assert failure["file"] == "001_broken.json"
+        assert failure["error"]
+
+    def test_no_failures_when_pool_is_clean(self, active_asset: Path) -> None:
+        cards_dir = active_asset / "cards"
+        (cards_dir / "001_alpha.json").write_text(
+            _make_card(name="Alpha", collector_number="001").model_dump_json(),
+            encoding="utf-8",
+        )
+
+        summary = finalize_set(dry_run=True)
+
+        assert summary["total_cards"] == 1
+        assert summary["load_failures"] == []
