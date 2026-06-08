@@ -49,6 +49,55 @@ POLL_INTERVAL = 3  # seconds between completion checks
 GENERATION_TIMEOUT = 600  # 10 minutes max per image (cold start model loading can take 3-5 min)
 
 
+def art_image_url(filename: str) -> str:
+    """URL the Art Generation tab's ``<img>`` points at for a generated PNG.
+
+    Mirrors the ``/api/wizard/art_gen/image/<filename>`` route; centralized here
+    so the bootstrap state and the live ``art_gen_card`` stream build it the same
+    way.
+    """
+    return f"/api/wizard/art_gen/image/{filename}"
+
+
+def art_versions_for_card(asset_dir: Path, cn: str, name: str) -> list[dict[str, str]]:
+    """On-disk art version tiles (``{filename, url}``) for one card, ``v1``..``vN``.
+
+    The streaming counterpart to the Art Generation tab's bootstrap state: lets a
+    per-card ``art_gen_card`` SSE event carry the freshly written PNGs so the tab
+    renders them live instead of waiting for the stage to finish (or a manual F5).
+    """
+    art_dir = asset_dir / "art"
+    slug = card_slug(cn, name)
+    return [
+        {"filename": p.name, "url": art_image_url(p.name)}
+        for p in sorted(art_dir.glob(f"{slug}_v*.png"))
+    ]
+
+
+def card_names_by_collector_number(asset_dir: Path) -> dict[str, str]:
+    """Map each card's collector number -> name from ``<asset>/cards/*.json``.
+
+    Lets a per-``cn`` progress callback resolve the art slug
+    (``<cn>_<name_slug>``) — and thus the card's PNGs — without re-reading every
+    card JSON on each streamed event.
+    """
+    names: dict[str, str] = {}
+    cards_dir = asset_dir / "cards"
+    if not cards_dir.exists():
+        return names
+    for path in sorted(cards_dir.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        cn = str(data.get("collector_number") or "")
+        if cn:
+            names[cn] = data.get("name") or ""
+    return names
+
+
 # VRAM-aware Flux quant selection
 # ---------------------------------------------------------------------------
 # The current ComfyUI build loads flux1-dev-Q8_0 at a ~12.2GB VRAM footprint

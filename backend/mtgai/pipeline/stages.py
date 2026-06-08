@@ -1738,17 +1738,46 @@ def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
     ``art_gen_reset`` fires at the start.
     """
     from mtgai.art.art_selector import select_art_for_set
-    from mtgai.art.image_generator import generate_art_for_set
+    from mtgai.art.image_generator import (
+        art_versions_for_card,
+        card_names_by_collector_number,
+        generate_art_for_set,
+    )
     from mtgai.runtime import ai_lock
 
     emitter.event("art_gen_reset")
 
+    # Resolve the asset dir + cn->name map up front so each per-card emit can
+    # attach its art versions cheaply. Best-effort: a missing project (only the
+    # case in unit tests that mock the gen funcs) degrades to no-versions tiles
+    # rather than failing the stage.
+    from mtgai.io.asset_paths import NoAssetFolderError
+
+    try:
+        asset_dir: Path | None = _set_dir()
+        name_by_cn = card_names_by_collector_number(asset_dir)
+    except NoAssetFolderError:
+        asset_dir = None
+        name_by_cn = {}
+
     def gen_progress(cn, completed, total, message, cost):
         # Mirror the upstream progress to the stage strip AND stream a per-card
-        # tile to the merged Art Generation tab so art shows up live, labeled.
+        # tile (with its freshly written art versions) to the merged Art
+        # Generation tab so art shows up live, labeled — not only on F5/finish.
         if progress_cb is not None:
             progress_cb(cn, completed, total, message, cost)
-        emitter.event("art_gen_card", collector_number=cn, phase="generated", detail=message)
+        versions = (
+            art_versions_for_card(asset_dir, cn, name_by_cn.get(cn, ""))
+            if asset_dir is not None
+            else []
+        )
+        emitter.event(
+            "art_gen_card",
+            collector_number=cn,
+            phase="generated",
+            detail=message,
+            versions=versions,
+        )
 
     def judge_progress(cn, completed, total, message, cost):
         if progress_cb is not None:
