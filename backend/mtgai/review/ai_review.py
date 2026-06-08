@@ -532,6 +532,11 @@ Focus on:
 - Design quality (focused purpose, no kitchen sink, real variability)
 - Keyword interactions and nonbos
 - Color pie adherence
+- A Vehicle (any card whose type line includes "Vehicle") MUST have printed \
+power/toughness -- it is a non-creature that fights when crewed, and a Vehicle with \
+no P/T is non-functional. This is a HARD REVISE, never something to rationalize or \
+pass: if a Vehicle is missing P/T, set REVISE and give it stats. Do NOT treat a \
+"non-creatures have no P/T" rule of thumb as a reason to accept a P/T-less Vehicle.
 Do NOT flag:
 - JSON metadata issues (e.g., keywords field) -- that's a data format concern
 - Missing reminder text -- it is added programmatically after review

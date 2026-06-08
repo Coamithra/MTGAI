@@ -66,8 +66,8 @@ Return valid JSON matching this schema:
   "type_line": "string — e.g., 'Creature — Human Wizard' or 'Legendary Enchantment'",
   "oracle_text": "string — rules text using ~ for self-reference. Separate abilities with a real newline",
   "flavor_text": "string or null — evocative in-world flavor",
-  "power": "string or null — required for creatures, e.g., '3' or '*'",
-  "toughness": "string or null — required for creatures",
+  "power": "string or null — required for creatures AND Vehicles, e.g., '3' or '*'; null on other non-creatures",
+  "toughness": "string or null — required for creatures AND Vehicles; null on other non-creatures",
   "loyalty": "string or null — required for planeswalkers",
   "rarity": "common | uncommon | rare | mythic",
   "design_notes": "string — explain your design intent, color pie reasoning, and power level choices"
@@ -75,6 +75,7 @@ Return valid JSON matching this schema:
 
 ### Field Rules
 - power and toughness are strings (to support */*, X/X, etc.).
+- Non-creatures normally omit power/toughness — EXCEPT Vehicles. A Vehicle (e.g. 'Artifact — Vehicle') is a non-creature that MUST still have printed power and toughness so it can fight once crewed. Always give a Vehicle real P/T even though it isn't a creature.
 - Include flavor_text for most cards. Omit it only if rules text is very long.
 - type_line order: supertypes, then ALL card types, then ' — ', then subtypes. Artifact/Creature/Enchantment/Land are card types and go BEFORE the dash — write 'Artifact Creature — Peacekeeper', never 'Creature — Artifact Peacekeeper'. Only subtypes (Peacekeeper, Human, Equipment, …) go after the dash.
 
