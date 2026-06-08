@@ -484,6 +484,13 @@
       '#wiz-card-requests-list .wiz-btn-remove',
     ].join(',');
     root.querySelectorAll(sel).forEach(el => { el.disabled = !!locked; });
+    // The full Refresh-AI button stays disabled when there's no source to
+    // re-extract from, even on unlock — the bulk re-enable above would
+    // otherwise clear the no-source guard.
+    if (!locked && refreshState.noSource) {
+      const themeBtn = document.getElementById('wiz-refresh-theme');
+      if (themeBtn) themeBtn.disabled = true;
+    }
     // Footer button lives outside .wiz-theme-actions / lists, so query
     // it separately. data-role lookup keeps the selector stable across
     // any future renames.
@@ -613,7 +620,22 @@
     fullActive: false,
     overwriteConstraints: false,
     overwriteCards: false,
+    // Latched at bind time: when the project has no re-extractable source
+    // upload the full "Refresh AI…" button stays disabled even after a
+    // form unlock (setFormLocked re-asserts it). See hasReExtractableSource.
+    noSource: false,
   };
+
+  // The full theme re-extraction reads from the uploaded source file, so
+  // it only makes sense when a re-extractable upload exists. A "none"
+  // (debug seed-stage clone) or "existing" project has no upload to
+  // re-extract from — the kickoff endpoint would 400. The per-section
+  // constraints/card-request refreshes are NOT gated: they extract from
+  // the current setting prose, not the upload.
+  function hasReExtractableSource(state) {
+    const ti = state && state.themeInput;
+    return !!(ti && (ti.kind === 'pdf' || ti.kind === 'text') && ti.upload_id);
+  }
 
   function bindRefreshHandlers(state) {
     const constraintsBtn = document.getElementById('wiz-refresh-constraints');
@@ -627,6 +649,11 @@
     const themeBtn = document.getElementById('wiz-refresh-theme');
     if (themeBtn) {
       themeBtn.addEventListener('click', () => openRefreshThemeDialog());
+      refreshState.noSource = !hasReExtractableSource(state);
+      if (refreshState.noSource) {
+        themeBtn.disabled = true;
+        themeBtn.title = 'No source upload to re-extract from. Add a source on Project Settings to enable a full theme refresh.';
+      }
     }
     const dialog = document.getElementById('wiz-refresh-theme-dialog');
     if (dialog) {
@@ -773,8 +800,13 @@
     // Clear the setting textarea + preview so the user can watch the
     // new prose stream in. Also clear AI items in the subsections that
     // were marked for overwrite (their LLM payloads will repopulate).
+    // Snapshot the prior prose first so any failure (a no-source 400, a
+    // 409 busy, a network/server error, or a stream that produces
+    // nothing) can restore it in place — the optimistic clear must never
+    // leave the user staring at a blank Setting box.
     const ta = document.getElementById('wiz-setting');
     const preview = document.getElementById('wiz-setting-preview');
+    const priorSetting = ta ? ta.value : '';
     if (ta) ta.value = '';
     if (preview) preview.innerHTML = '';
     if (overwriteConstraints) {
@@ -799,6 +831,7 @@
         } else {
           W.toast(data.error || `Refresh failed (${resp.status})`, 'error');
         }
+        restoreSetting(priorSetting);
         refreshState.fullActive = false;
         setFormLocked(false);
         return;
@@ -809,9 +842,20 @@
       // tick fired from wizard.js's stage_update path.
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
+      restoreSetting(priorSetting);
       refreshState.fullActive = false;
       setFormLocked(false);
     }
+  }
+
+  // Put the snapshotted setting prose back after a failed full refresh
+  // (the optimistic clear emptied the textarea + preview before the
+  // fetch). Re-renders the preview from the restored value so the user
+  // sees their world again, not a blank box.
+  function restoreSetting(prior) {
+    const ta = document.getElementById('wiz-setting');
+    if (ta) ta.value = prior || '';
+    renderSettingPreview();
   }
 
   function handleSectionResult(name, data) {

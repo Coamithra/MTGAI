@@ -77,6 +77,11 @@ class WizardState:
     # short-circuits because it was originally written for the manual
     # Refresh-AI button only.
     extraction_active: bool = False
+    # The project's theme-input bookmark (kind + upload_id), surfaced so
+    # the Theme tab can tell whether a re-extractable source upload exists
+    # before enabling its full "Refresh AI…" button. ``None`` when no
+    # project is open; a ``{"kind": ...}`` dict otherwise.
+    theme_input: dict[str, Any] | None = None
 
 
 def _load_active_theme() -> dict[str, Any] | None:
@@ -239,6 +244,7 @@ def build_wizard_state(requested_tab: str | None) -> WizardState:
         theme=theme,
         break_points=break_point_states(project.settings.break_points),
         extraction_active=extraction_active,
+        theme_input=project.settings.theme_input.model_dump(mode="json"),
     )
 
 
@@ -267,4 +273,5 @@ def serialize(ws: WizardState) -> dict[str, Any]:
         "theme": ws.theme,
         "break_points": dict(ws.break_points),
         "extraction_active": ws.extraction_active,
+        "theme_input": ws.theme_input,
     }
