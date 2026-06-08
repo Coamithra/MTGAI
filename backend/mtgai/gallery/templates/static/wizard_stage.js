@@ -85,12 +85,18 @@
       const fingerprint = JSON.stringify({
         bp: !!state.breakPoints[stage.stage_id],
         editVisible: shouldShowEditButton(stage),
+        failed: stage.status === 'failed',
       });
       if (headerActions.dataset.actionsFp !== fingerprint) {
+        // Retry sits in the shared header chrome (not the per-tab footer) so it
+        // appears on EVERY failed stage tab — including the custom-rendered ones
+        // (finalize, art_gen, rendering) that have no AI "Refresh" button.
         headerActions.innerHTML = breakPointToggleHtml(stage, state)
+          + W.retryButtonHtml(stage)
           + editButtonHtml(stage);
         headerActions.dataset.actionsFp = fingerprint;
         bindBreakPointToggle(headerActions, stage, state);
+        W.bindRetryButton(headerActions, stage);
         bindEditButton(headerActions, tab, state);
       }
     }

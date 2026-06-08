@@ -409,6 +409,60 @@
     if (data.navigate_to) window.location.assign(data.navigate_to);
   };
 
+  // ---- Retry a FAILED stage (in place) ---------------------------------------
+  // A "Retry this step" affordance for any FAILED stage tab. Unlike Re-run, it is
+  // non-destructive: it resets the failed stage PENDING->RUNNING and re-runs it,
+  // relying on each stage's resume-skip so finished work is kept (no entry-pool
+  // restore, no downstream truncation, no confirm). It is the UI for
+  // ``engine.retry_current()`` — replaces the old manual pipeline-state.json edit.
+
+  W.retryButtonHtml = function (stage) {
+    if (!stage || stage.status !== 'failed') return '';
+    return '<button type="button" class="wiz-btn-secondary" data-role="retry-step" title="'
+      + 'Re-run this failed step (resumable steps keep work already finished), then '
+      + 'continue the pipeline from here.">↻ Retry this step</button>';
+  };
+
+  W.bindRetryButton = function (container, stage) {
+    if (!container || !stage) return;
+    const btn = container.querySelector('[data-role="retry-step"]');
+    if (!btn) return;
+    btn.onclick = function () {
+      btn.disabled = true;
+      W.retryStep({
+        instanceId: stage.instance_id,
+        stageName: stage.display_name || stage.instance_id,
+      }).then(function (ok) { if (!ok) btn.disabled = false; });
+    };
+  };
+
+  // Returns true on a successful kick (engine now re-running), false otherwise.
+  // No navigation: the failed stage transitions in place; the SSE
+  // ``pipeline_status: running`` event repaints the strip + active body and
+  // dismisses any failure modal, so a hard reload would only be churn.
+  W.retryStep = async function (opts) {
+    opts = opts || {};
+    const instanceId = opts.instanceId || null;
+    if (W.editFlow && W.editFlow.isPipelineRunning && W.editFlow.isPipelineRunning()) {
+      W.toast('A stage is already running — cancel it first, then retry.', 'warn');
+      return false;
+    }
+    let data = {};
+    try {
+      const resp = await W.postJSON(
+        '/api/wizard/instance/retry',
+        instanceId ? { instance_id: instanceId } : {}
+      );
+      data = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) { W.reportError(resp, data, 'Retry failed'); return false; }
+    } catch (err) {
+      W.toast('Network error: ' + err.message, 'error');
+      return false;
+    }
+    if (data.warning) W.toast(data.warning, 'warn');
+    return true;
+  };
+
   // The empty / loading placeholder a stage tab paints when it has no content:
   // the generating message while an AI run fills it, the idle message otherwise.
   // ``className`` defaults to the shared ``wiz-stage-empty``; tabs with their own

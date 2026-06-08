@@ -1098,16 +1098,16 @@
     const sig = stage.instance_id +'\u0000' + err;
     if (sig === _failureShownSig) return;
     _failureShownSig = sig;
-    showStageFailureModal(stage.display_name || stage.stage_id, err);
+    showStageFailureModal(stage.display_name || stage.stage_id, err, stage.instance_id);
   }
 
   /**
-   * Informational modal shown when a pipeline stage fails (the engine halts
-   * the run). Dismiss-only: it names the stage + the error and points the user
-   * back to the stage's own tab to retry or edit by hand. No recovery buttons
-   * here on purpose — those affordances already live on the stage tab.
+   * Modal shown when a pipeline stage fails (the engine halts the run). Names
+   * the stage + the error and offers a one-click Retry (reset the failed stage
+   * to pending and re-run it in place — resumable stages keep finished work),
+   * or the user can dismiss and edit the result by hand on the stage tab.
    */
-  function showStageFailureModal(stageName, errorMessage) {
+  function showStageFailureModal(stageName, errorMessage, instanceId) {
     // Never stack: drop any prior failure overlay first.
     document.querySelectorAll('.wiz-modal-overlay[data-modal="stage-failure"]')
       .forEach(el => el.remove());
@@ -1119,9 +1119,10 @@
         <h2 id="wiz-fail-title">${escHtml(stageName)} failed</h2>
         <p>The pipeline stopped on this stage — nothing after it has run.</p>
         <pre class="wiz-modal-error-detail">${escHtml(errorMessage)}</pre>
-        <p class="wiz-modal-foot">Open the ${escHtml(stageName)} tab to retry it (its Refresh button) or edit the result by hand, then continue.</p>
+        <p class="wiz-modal-foot">Retry re-runs this step (resumable steps keep work already finished) and continues the pipeline from here. Or dismiss and edit the result by hand on the ${escHtml(stageName)} tab, then continue.</p>
         <div class="wiz-modal-actions">
-          <button type="button" class="wiz-btn-primary" data-modal-action="close">Got it</button>
+          <button type="button" class="wiz-btn-secondary" data-modal-action="close">Got it</button>
+          <button type="button" class="wiz-btn-primary" data-modal-action="retry">↻ Retry this step</button>
         </div>
       </div>
     `;
@@ -1137,8 +1138,17 @@
     overlay.addEventListener('keydown', onKey, true);
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
     overlay.querySelector('[data-modal-action="close"]').addEventListener('click', close);
-    const btn = overlay.querySelector('[data-modal-action="close"]');
-    if (btn) btn.focus();
+    const retryBtn = overlay.querySelector('[data-modal-action="retry"]');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', async () => {
+        retryBtn.disabled = true;
+        // Close optimistically: a successful kick emits `pipeline_status: running`
+        // which also dismisses this modal; on failure W.retryStep toasts the error.
+        const ok = await W.retryStep({ instanceId, stageName });
+        if (ok) close(); else retryBtn.disabled = false;
+      });
+      retryBtn.focus();
+    }
   }
 
   // ------------------------------------------------------------------

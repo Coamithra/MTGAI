@@ -3165,6 +3165,95 @@ async def wizard_instance_rerun(request: Request) -> JSONResponse:
     return JSONResponse(resp)
 
 
+@router.post("/api/wizard/instance/retry")
+async def wizard_instance_retry(request: Request) -> JSONResponse:
+    """Retry a FAILED stage in place — reset it to PENDING and re-run the engine.
+
+    Body: optional ``{"instance_id": "<failed instance>"}``; omitted falls back to
+    the current failed stage (the engine halts on the failing stage, so that's
+    normally the only FAILED one — also covers an orphaned RUNNING stage demoted to
+    FAILED by ``cleanup_orphan_running_stages`` on reopen).
+
+    Unlike ``/instance/rerun`` this is NOT destructive: it neither restores an entry
+    snapshot nor truncates downstream. It relies on each stage's resume-skip
+    behaviour (card_gen skips filled slots, art_gen skips generated cards, finalize
+    re-processes) so no finished work is lost — hence no cascade confirm. This is the
+    UI for ``engine.retry_current()``, removing the old manual pipeline-state.json
+    surgery. 409 if the engine or a theme extraction is running (cancel first); 400
+    if there is no failed stage to retry.
+    """
+    global _engine, _engine_task
+
+    project = _require_active_project()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    instance_id = body.get("instance_id")
+    if instance_id is not None and (not isinstance(instance_id, str) or not instance_id):
+        return JSONResponse({"error": "instance_id must be a non-empty string"}, status_code=400)
+
+    if _engine is not None and _engine.is_running:
+        return JSONResponse(
+            {
+                "error": (
+                    "A pipeline stage is currently running. Cancel it from the "
+                    "global progress strip, then retry."
+                )
+            },
+            status_code=409,
+        )
+    er = extraction_run.current()
+    if er is not None and er.status == "running":
+        return JSONResponse(
+            {
+                "error": (
+                    "Theme extraction is currently running. Cancel it from the "
+                    "global progress strip, then retry."
+                )
+            },
+            status_code=409,
+        )
+
+    state = load_state()
+    if state is None:
+        return JSONResponse({"error": "No pipeline state to retry"}, status_code=400)
+
+    if instance_id is not None:
+        target = next((s for s in state.stages if s.instance_id == instance_id), None)
+        if target is None:
+            return JSONResponse({"error": f"Unknown instance {instance_id!r}"}, status_code=400)
+        if target.status != StageStatus.FAILED:
+            return JSONResponse(
+                {"error": f"Instance {instance_id!r} is {target.status.value}, not failed"},
+                status_code=400,
+            )
+    else:
+        target = state.current_stage()
+        if target is None or target.status != StageStatus.FAILED:
+            target = next((s for s in state.stages if s.status == StageStatus.FAILED), None)
+        if target is None:
+            return JSONResponse({"error": "No failed stage to retry"}, status_code=400)
+
+    # Point the engine at the failed stage so ``retry_current`` (which keys off
+    # ``current_stage()``) resets exactly this instance. Normally already true,
+    # but an orphan-reset leaves ``current_instance_id`` untouched, so re-anchor.
+    state.current_instance_id = target.instance_id
+    save_state(state)
+    # Spun up inline rather than via ``_kickoff_pipeline_engine`` (the rerun path's
+    # helper): that helper refuses a FAILED/RUNNING state and only calls ``run``,
+    # whereas retry must accept FAILED and dispatch ``retry_current`` (FAILED ->
+    # PENDING reset before the forward walk). The guards above cover what it would.
+    event_bus.reset_buffer()
+    _engine = PipelineEngine(state, event_bus)
+    threading.Thread(
+        target=_engine.retry_current,
+        name=f"pipeline-retry-{project.set_code}",
+        daemon=True,
+    ).start()
+    _engine_task = None
+    return JSONResponse({"success": True, "engine_started": True})
+
+
 # ---------------------------------------------------------------------------
 # Wizard Mechanics tab — bespoke candidates strip (TC-2)
 # ---------------------------------------------------------------------------
