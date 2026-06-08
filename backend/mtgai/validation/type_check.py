@@ -173,11 +173,15 @@ def _manual(
     )
 
 
+# A single legal power/toughness value. ``*`` is the variable-stat marker
+# (Tarmogoyf etc.); ``1+*``/``2+*``/``*+1`` cover the rare expression forms; ``X``
+# shows up on a handful of mythic creatures. Shared by every P/T regex below so
+# the "what is a legal stat" vocabulary can't drift between them.
+_PT_VALUE = r"-?\d+|\*|[12]\+\*|\*\+1|X"
+
 # Power / toughness / loyalty values the validators accept as legal. Anything
-# else trips ``type_check.pt_nonstandard`` (a regen trigger). ``*`` is the
-# variable-stat marker (Tarmogoyf etc.); ``1+*``/``2+*``/``*+1`` cover the
-# rare expression forms; ``X`` shows up on a handful of mythic creatures.
-_VALID_PT_VALUES_RE = re.compile(r"^(?:-?\d+|\*|[12]\+\*|\*\+1|X)$")
+# else trips ``type_check.pt_nonstandard`` (a regen trigger).
+_VALID_PT_VALUES_RE = re.compile(rf"^(?:{_PT_VALUE})$")
 
 # Sentinel strings the LLM occasionally drops into power/toughness/loyalty when
 # it means "no value here". We have to catch them explicitly because the schema
@@ -187,11 +191,14 @@ _PT_SENTINELS = frozenset({"null", "none", "n/a", "na", "-", "—", ""})
 # A standalone "N/N" line — the local card-gen model's habit of writing a
 # creature's stats as a bare line in oracle_text instead of populating the
 # structured power/toughness fields (e.g. ``"Energize 1\n\n2/2."``). Matches a
-# line that is *entirely* a P/T pair (each side an integer, ``*``, or ``X``,
-# optionally period-terminated) so it never catches an inline ``+1/+1`` counter
-# clause. Shared with ``rules_text`` so the line-period fixer doesn't cement a
-# period onto the leaked stats. ``rules_text`` imports this; keep it public.
-BARE_PT_LINE_RE = re.compile(r"^(?P<power>-?\d+|\*|X)\s*/\s*(?P<toughness>-?\d+|\*|X)\.?$")
+# line that is *entirely* a P/T pair (each side a legal ``_PT_VALUE`` — integer,
+# ``*``, ``X``, or a ``*``-expression like ``1+*``), optionally period-terminated,
+# so it never catches an inline ``+1/+1`` counter clause. Built from the same
+# ``_PT_VALUE`` vocabulary as ``_VALID_PT_VALUES_RE`` so a leaked variable-stat
+# body is recovered (not stranded) and never gets a period cemented onto it.
+# Shared with ``rules_text`` so the line-period fixer skips it. ``rules_text``
+# imports this; keep it public.
+BARE_PT_LINE_RE = re.compile(rf"^(?P<power>{_PT_VALUE})\s*/\s*(?P<toughness>{_PT_VALUE})\.?$")
 
 
 def find_bare_pt_line(oracle_text: str | None) -> tuple[str, str] | None:
