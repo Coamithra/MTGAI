@@ -692,6 +692,10 @@
           <label><span>Mechanic count${requiredMark()}</span>
             <input type="number" id="wiz-pp-mech" value="${sp.mechanic_count}" min="0" max="6">
           </label>
+          <label>Art versions per card
+            <input type="number" id="wiz-pp-artver" value="${sp.art_versions_per_card}" min="1" max="6"
+              title="Candidate art images generated per card (best-of-N). Lower to cut cost/time on an expensive cloud image generator; the biggest lever on art-stage runtime.">
+          </label>
         </div>
       </section>
     `;
@@ -716,6 +720,7 @@
     const name = document.getElementById('wiz-pp-name');
     const size = document.getElementById('wiz-pp-size');
     const mech = document.getElementById('wiz-pp-mech');
+    const artver = document.getElementById('wiz-pp-artver');
     if (code && !code.disabled) {
       code.addEventListener('input', () => {
         // Uppercase + strip non-alphanumeric in place so the value the
@@ -741,6 +746,9 @@
       size.addEventListener('change', () => saveParams(state, { set_size: parseInt(size.value, 10) || 0 }));
     }
     mech.addEventListener('change', () => saveParams(state, { mechanic_count: parseInt(mech.value, 10) || 0 }));
+    // art_versions_per_card is not a cascade-clear field (it only governs the
+    // next art run), so it always live-applies — like mechanic_count.
+    artver.addEventListener('change', () => saveParams(state, { art_versions_per_card: parseInt(artver.value, 10) || 1 }));
   }
 
   async function saveParams(state, patch) {
@@ -768,9 +776,11 @@
     const name = document.getElementById('wiz-pp-name');
     const size = document.getElementById('wiz-pp-size');
     const mech = document.getElementById('wiz-pp-mech');
+    const artver = document.getElementById('wiz-pp-artver');
     if (name && sp.set_name != null) name.value = sp.set_name;
     if (size && sp.set_size != null) size.value = sp.set_size;
     if (mech && sp.mechanic_count != null) mech.value = sp.mechanic_count;
+    if (artver && sp.art_versions_per_card != null) artver.value = sp.art_versions_per_card;
   }
 
   // ------------------------------------------------------------------
