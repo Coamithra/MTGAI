@@ -162,6 +162,7 @@ _REGEN_TRIGGER_CODES: tuple[str, ...] = (
     "text_overflow.oracle",  # rules text too long for the frame
     "text_overflow.flavor",  # flavor text too long
     "text_overflow.combined",  # oracle + flavor together too long
+    "type_check.creature_missing_pt",  # creature with no P/T (unrecoverable) — invalid MTG
     "type_check.pt_slash",  # ``power="1/1"`` etc. (both stats in one field)
     "type_check.pt_literal_null",  # ``"null"`` / ``"None"`` / ``"-"`` sentinels in stats
     "type_check.pt_nonstandard",  # non-numeric, non-``*``/``X`` garbage in stats
@@ -219,7 +220,11 @@ def _register_auto_fixers() -> None:
         fix_tap_colon,
     )
     from mtgai.validation.text_overflow import fix_type_line_overflow
-    from mtgai.validation.type_check import fix_enchantment_artifact, fix_type_line_order
+    from mtgai.validation.type_check import (
+        fix_enchantment_artifact,
+        fix_pt_in_oracle,
+        fix_type_line_order,
+    )
     from mtgai.validation.uniqueness import fix_collector_number
 
     _AUTO_FIX_REGISTRY.update(
@@ -245,6 +250,7 @@ def _register_auto_fixers() -> None:
             "keyword_ordering.misplaced": fix_keyword_ordering,
             "uniqueness.collector_number_collision": fix_collector_number,
             "type_check.enchantment_artifact": fix_enchantment_artifact,
+            "type_check.pt_in_oracle": fix_pt_in_oracle,
             "type_check.type_line_order": fix_type_line_order,
             "text_overflow.type_line": fix_type_line_overflow,
         }
