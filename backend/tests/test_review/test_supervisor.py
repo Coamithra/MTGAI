@@ -99,6 +99,83 @@ def test_crash_then_clean_exit_restarts_once(monkeypatch, tmp_path):
     assert len(spawned) == 2  # crash → restart → clean stop
 
 
+class _CtrlCProc:
+    """Child whose blocking wait() raises KeyboardInterrupt (Ctrl+C), then
+    reports stopped once terminated."""
+
+    def __init__(self):
+        self.terminated = False
+
+    def wait(self, timeout=None):
+        if not self.terminated:
+            raise KeyboardInterrupt
+        return 0
+
+    def poll(self):
+        return 0 if self.terminated else None
+
+    def terminate(self):
+        self.terminated = True
+
+    def kill(self):
+        self.terminated = True
+
+
+def test_keyboard_interrupt_stops_cleanly(monkeypatch):
+    """Ctrl+C during the child's wait() is a clean stop (rc 0), and the child
+    is terminated rather than left orphaned."""
+    monkeypatch.setattr(supervisor.time, "sleep", lambda _s: None)
+    proc = _CtrlCProc()
+    monkeypatch.setattr(supervisor.subprocess, "Popen", lambda cmd, env=None: proc)
+
+    rc = supervisor.run_supervised(port=8080)
+
+    assert rc == 0
+    assert proc.terminated is True
+
+
+def test_terminate_escalates_to_kill_on_timeout():
+    """A child that ignores terminate() and never exits is hard-killed."""
+
+    class _HangProc:
+        def __init__(self):
+            self.killed = False
+
+        def poll(self):
+            return None  # still running
+
+        def terminate(self):
+            pass  # ignores the graceful stop
+
+        def wait(self, timeout=None):
+            raise supervisor.subprocess.TimeoutExpired(cmd="x", timeout=timeout)
+
+        def kill(self):
+            self.killed = True
+
+    proc = _HangProc()
+    supervisor._terminate(proc)
+    assert proc.killed is True
+
+
+def test_terminate_noop_when_already_exited():
+    """_terminate returns immediately (no kill) for an already-dead child."""
+
+    class _DeadProc:
+        def __init__(self):
+            self.killed = False
+
+        def poll(self):
+            return 0  # already exited
+
+        def kill(self):
+            self.killed = True
+
+    proc = _DeadProc()
+    supervisor._terminate(proc)
+    assert proc.killed is False
+
+
 def test_fast_failure_loop_gives_up(monkeypatch, tmp_path):
     # Every child dies instantly (uptime 0 < _FAST_FAILURE_S) → boot-loop guard.
     monkeypatch.setattr(supervisor, "datetime", _FrozenClock(iter(_zero_uptime_clock())))

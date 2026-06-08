@@ -87,7 +87,9 @@ def _open_browser_later(port: int) -> None:
     import threading
     import webbrowser
 
-    threading.Timer(2.0, lambda: webbrowser.open(f"http://localhost:{port}")).start()
+    timer = threading.Timer(2.0, lambda: webbrowser.open(f"http://localhost:{port}"))
+    timer.daemon = True  # never delay a fast supervisor exit (e.g. the give-up path)
+    timer.start()
 
 
 def run_supervised(port: int = 8080, open_browser: bool = False, debug: bool = False) -> int:
@@ -122,6 +124,14 @@ def run_supervised(port: int = 8080, open_browser: bool = False, debug: bool = F
             return 0
 
         uptime_s = (datetime.now(UTC) - started_at).total_seconds()
+        # Only a *fast* death (within _FAST_FAILURE_S of spawn) counts toward the
+        # give-up guard — that pattern is a boot failure a restart can't fix. A
+        # crash after the server has been up a while resets the counter and is
+        # restarted *without bound*: that's the whole point — the motivating
+        # art_gen kill lands minutes into a long run (server up well past the
+        # window), and we want the supervisor to keep nursing it back through a
+        # 180-image run, not cap out. The guard exists only to stop a tight
+        # boot-crash loop, not to limit healthy-then-crashed restarts.
         is_fast = uptime_s < _FAST_FAILURE_S
         fast_failures = fast_failures + 1 if is_fast else 0
         give_up = fast_failures >= _MAX_FAST_FAILURES
@@ -157,4 +167,8 @@ def _terminate(proc: subprocess.Popen) -> None:
     try:
         proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
+        proc.kill()
+    except KeyboardInterrupt:
+        # A second Ctrl+C while we're waiting on the graceful stop — don't let
+        # it escape and leave the child orphaned; hard-kill and move on.
         proc.kill()

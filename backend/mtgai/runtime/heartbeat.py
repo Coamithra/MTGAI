@@ -26,6 +26,7 @@ import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
+from mtgai.io.atomic import atomic_write_text
 from mtgai.io.paths import output_root
 
 logger = logging.getLogger(__name__)
@@ -160,11 +161,16 @@ def sample() -> dict:
 
 
 def write_heartbeat_now() -> None:
-    """Write a single heartbeat sample immediately (best-effort)."""
+    """Write a single heartbeat sample immediately (best-effort).
+
+    Uses an atomic write so the supervisor reading from another process never
+    catches a torn JSON mid-write — that would drop the very last-alive
+    breadcrumb the crash record exists to capture.
+    """
     try:
         path = heartbeat_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(sample(), indent=2), encoding="utf-8")
+        atomic_write_text(path, json.dumps(sample(), indent=2))
     except Exception:
         logger.debug("heartbeat write failed", exc_info=True)
 
@@ -205,5 +211,17 @@ def start_heartbeat(interval_s: int = DEFAULT_INTERVAL_S) -> bool:
 
 
 def stop_heartbeat() -> None:
-    """Signal the heartbeat thread to stop (best-effort; mainly for tests)."""
+    """Stop the heartbeat thread and clear the handle so a later start works.
+
+    Sets the stop event (wakes the thread out of its ``_stop.wait``), joins it
+    briefly, and drops the handle under ``_lock`` so a subsequent
+    :func:`start_heartbeat` isn't blocked by the idempotency guard seeing a
+    still-alive (but stopping) thread. Best-effort; mainly exercised by tests.
+    """
+    global _thread
     _stop.set()
+    with _lock:
+        thread = _thread
+        _thread = None
+    if thread is not None:
+        thread.join(timeout=2)

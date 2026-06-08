@@ -1161,11 +1161,14 @@ def generate_art_for_set(
                 progress["failed"][cn] = version_errors
                 _save_progress(progress, progress_path)
 
-            # Bound VRAM accumulation: every COMFYUI_RECYCLE_EVERY images, restart
-            # ComfyUI so the OS reclaims all GPU memory (the per-image flush can't).
-            # Recycle at the card boundary (never mid-card) so a card's versions
-            # stay on one session. Every Flux attempt that ran — saved or failed —
-            # counts, since each one loaded the GPU.
+            # Bound VRAM accumulation: every COMFYUI_RECYCLE_EVERY GPU generations,
+            # restart ComfyUI so the OS reclaims all GPU memory (the per-image flush
+            # can't). Recycle at the card boundary (never mid-card) so a card's
+            # versions stay on one session. We count every Flux *attempt* that ran —
+            # saved or failed — because each one loaded the GPU and contributes to
+            # the accumulation; for the common no-retry case that's exactly the
+            # image count, and a retry-heavy run just recycles a little sooner
+            # (harmless — the threshold is a safety floor, not a precise budget).
             images_since_recycle += len(saved_versions) + len(version_errors)
             is_last_card = card_idx == len(card_files) - 1
             if (
