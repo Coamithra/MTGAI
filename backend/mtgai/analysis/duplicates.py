@@ -171,3 +171,71 @@ def find_duplicates(cards: list[Card]) -> tuple[list[DuplicateFinding], str]:
 
     logger.info("Duplicate check: %d card(s) flagged across %d group(s)", len(findings), dup_groups)
     return findings, analysis
+
+
+def find_duplicate_names(cards: list[Card]) -> tuple[list[DuplicateFinding], str]:
+    """Scan the pool for cards that share a name (case-insensitive).
+
+    MTG forbids two *distinct* cards from carrying the same name, but the
+    functional-duplicate scan above can't catch a name collision between two
+    cards that do different things (its signature is type/P/T/oracle, not name).
+    This is the complementary check: group the gate-eligible cards by their
+    normalized name and, for each group of two or more, keep the lowest collector
+    number and flag the rest for regeneration with a rename instruction.
+
+    Skips basic lands + reprints (shared ``filter_gate_cards``): basic lands
+    legitimately repeat a name ("Forest"), and reprints carry real printed names
+    and aren't regenerated. Purely algorithmic — no LLM call. Returns
+    ``(findings, analysis_text)``.
+    """
+    gate_cards = filter_gate_cards(cards)
+    if not gate_cards:
+        return [], ""
+
+    groups: dict[str, list[Card]] = {}
+    for card in gate_cards:
+        key = (card.name or "").strip().lower()
+        if not key:
+            continue
+        groups.setdefault(key, []).append(card)
+
+    findings: list[DuplicateFinding] = []
+    dup_groups = 0
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        dup_groups += 1
+        members.sort(key=_collector_key)
+        keep, *rest = members
+        keep_label = keep.name or keep.slot_id or keep.collector_number or "another card"
+        for card in rest:
+            slot_id = _flag_key(card)
+            if not slot_id:
+                logger.warning(
+                    "Duplicate-named card %r has no slot_id/collector_number; skipping", card.name
+                )
+                continue
+            findings.append(
+                DuplicateFinding(
+                    slot_id=slot_id,
+                    card_name=card.name,
+                    duplicate_of=keep_label,
+                    reason=(
+                        f'Duplicate card name "{card.name}" — already used by '
+                        f"{keep_label} (#{keep.collector_number}). MTG forbids two distinct "
+                        "cards sharing a name; give this card a different, fitting name."
+                    ),
+                )
+            )
+
+    if findings:
+        analysis = (
+            f"{len(findings)} card(s) in {dup_groups} group(s) share a name with another card."
+        )
+    else:
+        analysis = "No duplicate card names found."
+
+    logger.info(
+        "Duplicate-name check: %d card(s) flagged across %d group(s)", len(findings), dup_groups
+    )
+    return findings, analysis
