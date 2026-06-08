@@ -6206,6 +6206,9 @@ async def wizard_finalize_state() -> JSONResponse:
             "sanity_flagged_count": report.get("sanity_flagged_count", 0),
             "sanity_checked_count": report.get("sanity_checked_count", 0),
             "sanity_warning": report.get("sanity_warning"),
+            # Cards finalize couldn't load (skipped, not aborted on) so the tab can
+            # flag them for a manual fix.
+            "load_failures": report.get("load_failures") or [],
         }
 
     return JSONResponse(
