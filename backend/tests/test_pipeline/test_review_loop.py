@@ -489,6 +489,33 @@ def test_midrun_break_toggle_ignored_for_review_ineligible_stage(project, monkey
     assert state.overall_status == PipelineStatus.COMPLETED
 
 
+def test_review_ineligible_stage_with_stale_review_mode_does_not_pause(project, monkeypatch):
+    """A review-ineligible stage (lands) that somehow carries a persisted
+    review_mode=REVIEW (e.g. a debug-seeded clone that inherited "review" from
+    its golden source) must STILL auto-advance — the engine forces an ineligible
+    stage to AUTO so a stale/erroneous persisted mode can never pause it. This is
+    the documented "review_eligible: False — never pauses for review" contract."""
+    assert _DEFN["lands"]["review_eligible"] is False  # guards the premise
+
+    state = _state(["lands", "card_gen"])
+    lands = next(s for s in state.stages if s.stage_id == "lands")
+    lands.review_mode = StageReviewMode.REVIEW  # stale persisted mode
+    monkeypatch.setitem(engine_mod.STAGE_RUNNERS, "lands", _clean)
+    _patch_clean(monkeypatch, "card_gen")
+
+    PipelineEngine(state, EventBus()).run()
+
+    lands = next(s for s in state.stages if s.stage_id == "lands")
+    assert lands.status == StageStatus.COMPLETED, lands.status
+    # The pause check normalized the stale mode back to AUTO.
+    assert lands.review_mode == StageReviewMode.AUTO
+    # The successor actually ran — the pipeline didn't stall at lands.
+    assert next(s for s in state.stages if s.stage_id == "card_gen").status == (
+        StageStatus.COMPLETED
+    )
+    assert state.overall_status == PipelineStatus.COMPLETED
+
+
 def test_live_break_point_falls_back_to_defaults_without_active_project():
     """_live_break_point degrades to the stage defaults when no project is open
     (the bare-harness path), so a non-wizard caller still gets sane pauses."""
