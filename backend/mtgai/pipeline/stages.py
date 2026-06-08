@@ -1903,10 +1903,12 @@ STAGE_RUNNERS = {
 # - Clearers read the active project's artifact dir and run synchronously.
 # - File-not-found is fine (clear is idempotent); permission / I/O
 #   errors propagate so the caller can surface them.
-# - Stages that mutate cards in place or only flag them (``conformance``,
-#   ``ai_review``, ``finalize``, ``art_prompts``)
-#   intentionally no-op — their effects are erased by re-running ``card_gen``'s
-#   clearer further upstream in the cascade.
+# - Stages that only flag cards or mutate them in place (``conformance``,
+#   ``ai_review``, ``art_prompts``) intentionally no-op — their effects are erased
+#   by re-running ``card_gen``'s clearer further upstream in the cascade.
+#   ``finalize`` is the exception: it owns durable reports + reversible per-card
+#   sanity markers (which the renderer's hard print gate honours), so it gets a
+#   real clearer (:func:`clear_finalize`) instead.
 
 StageClearer = Callable[[], None]
 
@@ -2066,6 +2068,51 @@ def clear_lands() -> None:
     _remove_path(set_dir / "lands")
 
 
+def clear_finalize() -> None:
+    """Reset the finalize stage's durable artifacts and per-card markers.
+
+    The finalize stage produces two kinds of durable output a stage-clear must
+    erase, or a now-PENDING finalize keeps serving stale data:
+
+    - **Reports** (``reports/finalize-report.{json,md}`` + ``reports/finalize-user-edits.json``):
+      ``/api/wizard/finalize/state`` reads the JSON sidecar back, so a leftover report
+      paints the full *completed* summary (cap-breach banner, auto-edited badges) over a
+      reset stage.
+    - **Per-card sanity markers** (``sanity_excluded`` + ``sanity_exclusion_reason``,
+      stamped by the finalize sanity gate — ``review/sanity_check.py``): these live on
+      ``cards/*.json``, and the renderer + ``/api/wizard/rendering/state`` *hide*
+      ``sanity_excluded`` cards (the hard print gate). A stale exclusion from a prior
+      finalize run would keep a card hidden across an upstream unlock/regen with no
+      current verdict backing it.
+
+    Field-scoped like :func:`clear_card_gen_cards`: card files are NOT deleted (cards are
+    card_gen-owned, not finalize-owned); only the two finalize-owned fields are reset in
+    place (to ``False`` / ``None``), every other field left untouched. Best-effort +
+    idempotent — clearing an already-clean project is a no-op, and malformed/unreadable
+    card JSON is skipped.
+    """
+    set_dir = _set_dir()
+    reports_dir = set_dir / "reports"
+    _remove_path(reports_dir / "finalize-report.json")
+    _remove_path(reports_dir / "finalize-report.md")
+    _remove_path(reports_dir / "finalize-user-edits.json")
+
+    cards_dir = set_dir / "cards"
+    if cards_dir.exists():
+        for path in cards_dir.glob("*.json"):
+            try:
+                card = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if not isinstance(card, dict):
+                continue
+            if not card.get("sanity_excluded") and card.get("sanity_exclusion_reason") is None:
+                continue
+            card["sanity_excluded"] = False
+            card["sanity_exclusion_reason"] = None
+            atomic_write_text(path, json.dumps(card, indent=2, ensure_ascii=False))
+
+
 def clear_char_portraits() -> None:
     """Delete the character reference portraits.
 
@@ -2109,7 +2156,7 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
     "card_gen": clear_card_gen,
     "conformance": _no_artifacts,
     "ai_review": _no_artifacts,
-    "finalize": _no_artifacts,
+    "finalize": clear_finalize,
     "visual_refs": clear_visual_refs,
     "art_prompts": _no_artifacts,
     "char_portraits": clear_char_portraits,
