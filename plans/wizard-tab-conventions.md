@@ -608,12 +608,18 @@ tab doesn't wire its own failure popup:
   `error_message` in the stage body (`.wiz-stage-error`) for the user
   who's already on that tab; per-tab footers may add a short note.
 
-Dedup: the engine's `pipeline_status: failed` event is replayed to
-every new SSE subscriber (fresh page load, EventSource reconnect), so
-the modal latches on a `stage_id + error` signature (`_failureShownSig`)
-and only re-shows after the next `running`. A new tab adding AI gen gets
-this for free — fail the stage (return `StageResult(success=False, …)`
-or raise) and the shell handles the modal; don't roll your own.
+Dedup + dismiss: the engine's `pipeline_status: failed` event is replayed to
+every new SSE subscriber (fresh page load, EventSource reconnect), so the modal
+latches on a `stage_id + error` signature (`_failureShownSig`). On **any**
+non-`failed` `pipeline_status` (a fresh `running`, a recovery's `paused`, a
+`completed`) the shell drops the latch *and* dismisses any open failure overlay
+(`dismissFailureModal()`), because a refresh-recovery emits `paused` (never a
+second `failed`) — without this the stale modal would linger. The server half
+matches: `_heal_failed_stage` resets the SSE replay buffer when it recovers a
+stage, so the dead run's terminal `failed` event can't be replayed to a
+reconnecting tab and re-pop the modal. A new tab adding AI gen gets all of this
+for free — fail the stage (return `StageResult(success=False, …)` or raise) and
+the shell handles the modal; don't roll your own.
 
 ## 15. Failed-stage recovery: heal on every successful manual write
 
@@ -637,10 +643,26 @@ _heal_failed_stage("<stage_id>")
 
 `_heal_failed_stage` (in `pipeline/server.py`) demotes the stage's status
 FAILED → PAUSED_FOR_REVIEW, flips `overall_status` FAILED → PAUSED, clears
-`progress.error_message`, persists `pipeline-state.json`, and publishes the
-matching `stage_update` + `pipeline_status` SSE events so open tabs update
-without a reload. It's **idempotent and a no-op when the stage isn't failed**
-— safe to call from any successful path without gating.
+`progress.error_message`, **resets the SSE replay buffer** (so the dead run's
+stale `failed` event can't re-pop the failure modal — see §14), persists
+`pipeline-state.json`, and publishes the matching `stage_update` +
+`pipeline_status` SSE events so open tabs update without a reload. It's
+**idempotent and a no-op when the stage isn't failed** — safe to call from any
+successful path without gating.
+
+**Auto-resume after recovery (AUTO stages).** The heal restores Save & Continue,
+but a stage whose *effective* review mode is AUTO (no live break-point) would
+never have paused in a normal run — it auto-advances on completion. So a refresh
+endpoint that leaves a **complete, valid** selection on disk (the mechanics
+`refresh-all` + `pick`) calls `_auto_resume_after_recovery("<stage_id>")` *after*
+its `guarded_ai` block (the AI lock must be released first — the resumed engine
+re-acquires it), gated on the pre-refresh `overall_status` having been FAILED
+(`_overall_status_is_failed()` captured before the block). `_should_auto_resume_recovered`
+only fires for a backbone, review-eligible stage sitting PAUSED_FOR_REVIEW whose
+`engine._live_break_point` is off; a REVIEW break-point keeps it paused for the
+user. The shared `_resume_paused_engine()` (also used by `/api/wizard/advance`)
+spawns the resume. Don't add this to partial-refresh endpoints (e.g.
+`refresh-card`) — a single regenerated row isn't a complete recovery.
 
 When to call it:
 
