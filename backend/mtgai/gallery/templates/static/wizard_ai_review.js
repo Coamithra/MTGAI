@@ -72,8 +72,8 @@
         display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
         gap: 0.7rem;
       }
-      /* Full-width separator between the to-review group and the carried-over
-         already-reviewed group (regen instances). */
+      /* Full-width separator between the needs-attention cards and the
+         carried-over approved pile (regen instances). */
       .wiz-ar-divider {
         grid-column: 1 / -1; display: flex; align-items: center; gap: 0.6rem;
         font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
@@ -449,19 +449,22 @@
       return;
     }
     // Surface the actionable cards first: reviewing → to-review → rejected →
-    // approved, then collector_number asc. Array.sort is stable, and local.cards
-    // arrives in collector-number order, so equal-priority tiles keep that order.
-    // Most valuable on regen instances (ai_review.2) where only the flagged
-    // subset is re-reviewed and the to-review cards would otherwise be scattered
-    // among the carried-over approvals.
-    visible.sort((a, b) => sortPriority(a, local) - sortPriority(b, local));
-    slot.innerHTML = `<div class="wiz-ar-grid">${gridInnerHtml(visible, local)}</div>`;
+    // approved, then collector_number asc. Most valuable on regen instances
+    // (ai_review.2) where only the flagged subset is re-reviewed and the
+    // to-review cards would otherwise be scattered among carried-over approvals.
+    // Compute each tile's priority once (live SSE repaints are frequent) and use
+    // an explicit collector-number tiebreaker — local.cards isn't guaranteed to
+    // stay collector-sorted (streamUpsert appends live tiles).
+    const ranked = visible
+      .map((t) => ({ tile: t, prio: sortPriority(t, local) }))
+      .sort((a, b) => a.prio - b.prio || cnCompare(a.tile, b.tile));
+    slot.innerHTML = `<div class="wiz-ar-grid">${gridInnerHtml(ranked, local)}</div>`;
     setLocked(root, local, local.locked);
   }
 
-  // 0 reviewing (live) · 1 to-review · 2 rejected · 3 approved. The first two
-  // are "needs attention"; the last two are already-reviewed (carried over in a
-  // regen instance).
+  // 0 reviewing (live) · 1 to-review · 2 rejected · 3 approved. 0–2 all need the
+  // user's attention (a rejected card is flagged for regen); only 3 (approved)
+  // is the passive carry-over.
   function sortPriority(tile, local) {
     const cn = tile.collector_number || '';
     if (local.reviewing.has(cn)) return 0;
@@ -471,24 +474,24 @@
     return 3;
   }
 
-  // Render the sorted tiles, dropping one full-width divider between the
-  // needs-attention group (priority < 2) and the already-reviewed group
-  // (priority ≥ 2) — only in the unfiltered view and only when both groups are
-  // present, so the user can see where the carried-over cards begin.
-  function gridInnerHtml(visible, local) {
+  function cnCompare(a, b) {
+    return String(a.collector_number || '').localeCompare(
+      String(b.collector_number || ''), undefined, { numeric: true });
+  }
+
+  // Render the ranked tiles, dropping one full-width divider just before the
+  // first approved card — only in the unfiltered view and only when at least one
+  // needs-attention tile precedes it, so the user sees where the done pile
+  // begins.
+  function gridInnerHtml(ranked, local) {
     const parts = [];
     let dividerDropped = false;
-    visible.forEach((t) => {
-      if (
-        local.filter === 'all' &&
-        !dividerDropped &&
-        sortPriority(t, local) >= 2 &&
-        parts.length > 0
-      ) {
-        parts.push('<div class="wiz-ar-divider">Already reviewed</div>');
+    ranked.forEach(({ tile, prio }) => {
+      if (local.filter === 'all' && !dividerDropped && prio >= 3 && parts.length > 0) {
+        parts.push('<div class="wiz-ar-divider">Approved</div>');
         dividerDropped = true;
       }
-      parts.push(tileHtml(t, local));
+      parts.push(tileHtml(tile, local));
     });
     return parts.join('');
   }
