@@ -624,6 +624,12 @@
     // upload the full "Refresh AI…" button stays disabled even after a
     // form unlock (setFormLocked re-asserts it). See hasReExtractableSource.
     noSource: false,
+    // The setting prose snapshotted right before the optimistic clear, so
+    // a failure can restore it. Survives onRefreshTheme's return because
+    // the kickoff fetch can succeed (200) and the extraction then fail via
+    // a streamed theme_error / theme_cancelled / no-output — handled in
+    // handleThemeStream, by which point onRefreshTheme's local is gone.
+    priorSetting: '',
   };
 
   // The full theme re-extraction reads from the uploaded source file, so
@@ -729,12 +735,19 @@
     if (name === 'theme_error' || name === 'theme_cancelled') {
       refreshState.fullActive = false;
       setFormLocked(false);
+      // The optimistic clear emptied the box before streaming. If nothing
+      // streamed in before the failure, restore the snapshot so the user
+      // keeps their prior prose instead of a blank box; if chunks did
+      // arrive, keep what streamed (don't clobber a partial draft).
+      const ta = document.getElementById('wiz-setting');
+      if (ta && !ta.value.trim() && refreshState.priorSetting.trim()) {
+        restoreSetting(refreshState.priorSetting);
+      }
       // Best-effort: revert the pill to paused_for_review if the
       // textarea has any prose left (the prior theme.json carried
       // through, or chunks streamed before failure). Otherwise leave
       // it on 'running' until next reload — the toast tells the user
       // what happened.
-      const ta = document.getElementById('wiz-setting');
       if (ta && ta.value.trim()) setThemePillStatus('paused_for_review');
       W.toast(`Refresh ${name === 'theme_error' ? 'failed' : 'cancelled'}: ${(data && data.message) || ''}`, 'error');
     }
@@ -807,6 +820,7 @@
     const ta = document.getElementById('wiz-setting');
     const preview = document.getElementById('wiz-setting-preview');
     const priorSetting = ta ? ta.value : '';
+    refreshState.priorSetting = priorSetting;
     if (ta) ta.value = '';
     if (preview) preview.innerHTML = '';
     if (overwriteConstraints) {
