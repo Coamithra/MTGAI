@@ -14,6 +14,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from mtgai.generation import mechanic_generator as mg
+from mtgai.pipeline import server as pipeline_server
+from mtgai.pipeline.engine import save_state
+from mtgai.pipeline.models import (
+    PipelineConfig,
+    PipelineStatus,
+    StageStatus,
+    create_pipeline_state,
+)
 from mtgai.review.server import app
 from mtgai.runtime import active_project, ai_lock, extraction_run
 from mtgai.settings import model_settings as ms
@@ -23,9 +31,13 @@ from mtgai.settings import model_settings as ms
 def _reset(isolated_output):
     ai_lock.reset_for_tests()
     extraction_run.reset()
+    pipeline_server._engine = None
+    pipeline_server._engine_task = None
     yield
     ai_lock.reset_for_tests()
     extraction_run.reset()
+    pipeline_server._engine = None
+    pipeline_server._engine_task = None
 
 
 @pytest.fixture
@@ -481,3 +493,155 @@ def test_state_surfaces_pick_rationale(client, isolated_output):
     data = client.get("/api/wizard/mechanics/state").json()
     assert data["pick_rationale"]["source"] == "ai"
     assert data["pick_rationale"]["overall_rationale"] == "balanced"
+
+
+# ---------------------------------------------------------------------------
+# Refresh-recovery auto-resume (BUG A)
+#
+# When the initial engine run fails the mechanics floor check (overall FAILED),
+# a full refresh / re-pick writes a valid selection + the guarded_ai heal demotes
+# FAILED→PAUSED. The endpoint then auto-resumes the pipeline IFF mechanics is
+# effective-AUTO (no live break-point) — matching how a normal run auto-advances
+# an auto stage. A REVIEW break-point leaves it paused for Save & Continue.
+# ``_resume_paused_engine`` is stubbed so the real engine never spawns; we only
+# assert the endpoint's resume *decision*.
+# ---------------------------------------------------------------------------
+
+
+def _full_gen_stub(monkeypatch) -> None:
+    """Tool-aware stub: generation → 6 mechanics; council reviewers OK; picker
+    selects candidates 1/3/5 (0-based 0/2/4). The ``select_best_mechanics`` arm is
+    needed because ``refresh-all`` re-runs the AI picker internally after it
+    regenerates candidates."""
+
+    def stub(*args, **kwargs):
+        schema = kwargs.get("tool_schema") or (args[2] if len(args) >= 3 else {})
+        name = (schema or {}).get("name", "")
+        if name == "submit_mechanic_review":
+            return {
+                "result": {"verdict": "OK", "issues": []},
+                "input_tokens": 0,
+                "output_tokens": 0,
+            }
+        if name == "select_best_mechanics":
+            return {
+                "result": {
+                    "selections": [
+                        {"candidate_number": 1, "reason": "a"},
+                        {"candidate_number": 3, "reason": "b"},
+                        {"candidate_number": 5, "reason": "c"},
+                    ],
+                    "overall_rationale": "balanced",
+                },
+                "input_tokens": 1,
+                "output_tokens": 1,
+            }
+        return {
+            "result": {"mechanics": [_make_candidate(f"M{i}") for i in range(6)]},
+            "input_tokens": 1,
+            "output_tokens": 2,
+        }
+
+    monkeypatch.setattr(mg, "generate_with_tool", stub)
+
+
+def _seed_failed_mechanics(*, break_points: dict[str, str]) -> None:
+    """Seed a FAILED pipeline (mechanics FAILED) + re-pin the project's break_points."""
+    proj = active_project.read_active_project()
+    assert proj is not None
+    new = proj.settings.model_copy(update={"break_points": break_points})
+    active_project.write_active_project(active_project.ProjectState(set_code="TST", settings=new))
+    state = create_pipeline_state(PipelineConfig(set_code="TST", set_name="Brass Sky", set_size=60))
+    state.overall_status = PipelineStatus.FAILED
+    mech = next(s for s in state.stages if s.stage_id == "mechanics")
+    mech.status = StageStatus.FAILED
+    mech.progress.error_message = "produced only 1 valid candidate(s); need at least 3"
+    state.current_instance_id = mech.instance_id
+    save_state(state)
+
+
+def _capture_resume(monkeypatch) -> list[int]:
+    calls: list[int] = []
+
+    def _fake_resume() -> None:
+        calls.append(1)
+        return None
+
+    monkeypatch.setattr(pipeline_server, "_resume_paused_engine", _fake_resume)
+    return calls
+
+
+def test_refresh_all_auto_resumes_recovered_auto_mechanics(client, isolated_output, monkeypatch):
+    """Initial-generate that recovers a FAILED, break-point-off mechanics stage
+    auto-resumes the pipeline."""
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset, mechanic_count=3)
+    _seed_failed_mechanics(break_points={"mechanics": "auto"})
+    _full_gen_stub(monkeypatch)
+    resumes = _capture_resume(monkeypatch)
+
+    resp = client.post("/api/wizard/mechanics/refresh-all", json={"indices": [], "candidates": []})
+    assert resp.status_code == 200
+    # Heal recovered the stage and the endpoint kicked off the resume.
+    assert len(resumes) == 1
+    reloaded = pipeline_server.load_state()
+    assert reloaded is not None
+    assert reloaded.overall_status == PipelineStatus.PAUSED
+
+
+def test_refresh_all_keeps_paused_when_review_break_point(client, isolated_output, monkeypatch):
+    """A live "Stop after this step" on mechanics keeps the recovered stage paused
+    for Save & Continue — no surprise auto-resume."""
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset, mechanic_count=3)
+    _seed_failed_mechanics(break_points={"mechanics": "review"})
+    _full_gen_stub(monkeypatch)
+    resumes = _capture_resume(monkeypatch)
+
+    resp = client.post("/api/wizard/mechanics/refresh-all", json={"indices": [], "candidates": []})
+    assert resp.status_code == 200
+    assert resumes == []  # paused for review, not auto-resumed
+    reloaded = pipeline_server.load_state()
+    assert reloaded is not None
+    assert reloaded.overall_status == PipelineStatus.PAUSED  # healed, just not resumed
+
+
+def test_pick_auto_resumes_recovered_auto_mechanics(client, isolated_output, monkeypatch):
+    """The AI re-pick endpoint shares the recovery contract."""
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset, mechanic_count=3)
+    _seed_failed_mechanics(break_points={"mechanics": "auto"})
+    _stub_pick(monkeypatch, [1, 2, 3])
+    resumes = _capture_resume(monkeypatch)
+
+    candidates = [_make_candidate(f"M{i}") for i in range(6)]
+    resp = client.post("/api/wizard/mechanics/pick", json={"candidates": candidates})
+    assert resp.status_code == 200
+    assert len(resumes) == 1
+    reloaded = pipeline_server.load_state()
+    assert reloaded is not None
+    assert reloaded.overall_status == PipelineStatus.PAUSED  # heal ran before resume
+
+
+def test_refresh_all_no_resume_when_not_previously_failed(client, isolated_output, monkeypatch):
+    """No prior FAILED state → never auto-resume, even for an auto mechanics stage
+    (a normal generate from a paused/new tab must not stampede the pipeline)."""
+    asset = isolated_output / "sets" / "TST"
+    _seed_project(asset, mechanic_count=3)
+    # PAUSED (not FAILED) pipeline with mechanics paused for review.
+    proj = active_project.read_active_project()
+    assert proj is not None
+    new = proj.settings.model_copy(update={"break_points": {"mechanics": "auto"}})
+    active_project.write_active_project(active_project.ProjectState(set_code="TST", settings=new))
+    state = create_pipeline_state(PipelineConfig(set_code="TST", set_name="Brass Sky", set_size=60))
+    state.overall_status = PipelineStatus.PAUSED
+    mech = next(s for s in state.stages if s.stage_id == "mechanics")
+    mech.status = StageStatus.PAUSED_FOR_REVIEW
+    state.current_instance_id = mech.instance_id
+    save_state(state)
+    _full_gen_stub(monkeypatch)
+    resumes = _capture_resume(monkeypatch)
+
+    resp = client.post("/api/wizard/mechanics/refresh-all", json={"indices": [], "candidates": []})
+    assert resp.status_code == 200
+    assert resumes == []

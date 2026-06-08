@@ -483,9 +483,18 @@
       ) {
         hideProgressStrip();
       }
-      // A fresh run clears the dedup latch so a later (re-)failure re-surfaces.
-      if (data.overall_status === 'running') _failureShownSig = null;
-      if (data.overall_status === 'failed') maybeShowFailureModal(data.current_stage);
+      if (data.overall_status === 'failed') {
+        maybeShowFailureModal(data.current_stage);
+      } else {
+        // Any non-failed status means the stage is no longer failed — a fresh
+        // run, a resume, or a refresh-recovery that healed FAILED→PAUSED. Drop
+        // the dedup latch so a genuinely new failure can re-surface, and dismiss
+        // any failure modal still on screen (a recovery emits `paused`, never a
+        // second `failed`, so without this the stale modal would linger and a
+        // buffered `failed` could re-pop it on reconnect).
+        _failureShownSig = null;
+        dismissFailureModal();
+      }
       rerenderActiveStageBody();
     });
 
@@ -1067,6 +1076,13 @@
   // buffer on every switch, so no terminal event from the old run is
   // replayed; this is the matching client-side belt-and-suspenders.
   window.MTGAIWizard.resetFailureLatch = () => { _failureShownSig = null; };
+
+  /** Remove any open stage-failure overlay (e.g. after a recovery healed the
+   * stage). Safe to call when none is showing. */
+  function dismissFailureModal() {
+    document.querySelectorAll('.wiz-modal-overlay[data-modal="stage-failure"]')
+      .forEach(el => el.remove());
+  }
 
   function maybeShowFailureModal(instanceId) {
     if (!state.pipeline || !state.pipeline.stages) return;
