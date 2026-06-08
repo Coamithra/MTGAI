@@ -129,11 +129,63 @@
       if (!cn) return;
       local.streaming[cn] = data.phase || 'generated';
       const root = bodyRoot();
-      // A judged card's pick may have changed on disk — re-bootstrap lazily once
-      // the stage finishes; mid-stream we just mark the tile as active.
-      if (root) markStreaming(root, cn);
+      if (!root) return;
+      // A 'generated' event now carries the freshly written version tiles
+      // ({filename, url}) — patch them onto the card so art shows live, not only
+      // on stage-finish / F5. A 'judged' event's pick lands from disk on the
+      // final re-bootstrap; mid-stream we just mark the tile active.
+      const versions = Array.isArray(data.versions) ? data.versions : null;
+      if (versions && versions.length) {
+        applyStreamedVersions(root, cn, versions);
+      }
+      markStreaming(root, cn);
     }
   };
+
+  // Patch a card's generated versions onto its tile live (or flip the whole grid
+  // out of the "Generating…" placeholder on the first card to land).
+  function applyStreamedVersions(root, cn, versions) {
+    let card = local.byCn[cn];
+    if (!card) {
+      // The tab opened before bootstrap captured this card; show a minimal tile
+      // (the cn doubles as the name until the next bootstrap fills metadata).
+      card = { collector_number: cn, name: cn, versions: [] };
+      local.byCn[cn] = card;
+      local.cards.push(card);
+    }
+    card.versions = versions;
+    const wasEmpty = !local.hasContent;
+    local.hasContent = true;
+    paintSummary(root);
+    if (wasEmpty) {
+      // First art to arrive — replace the placeholder with the real grid, then
+      // re-apply the run lock + any active streaming highlights it wiped.
+      paintGrid(root);
+      setLocked(root, local.locked);
+      Object.keys(local.streaming).forEach((c) => markStreaming(root, c));
+      return;
+    }
+    patchCardVersions(root, cn, card);
+  }
+
+  function patchCardVersions(root, cn, card) {
+    const sel = W.cssEsc ? W.cssEsc(cn) : cn;
+    const cardEl = root.querySelector(`.wiz-ag-card[data-cn="${sel}"]`);
+    const versionsEl = cardEl && cardEl.querySelector('.wiz-ag-versions');
+    if (!versionsEl) {
+      // Card not in the DOM yet (e.g. appended mid-stream) — full repaint.
+      paintGrid(root);
+      setLocked(root, local.locked);
+      return;
+    }
+    const versions = Array.isArray(card.versions) ? card.versions : [];
+    versionsEl.innerHTML = versions.length
+      ? versions.map((v, i) => versionHtml(card, v, i + 1)).join('')
+      : '<div class="wiz-ag-empty-thumb">(no art)</div>';
+    versionsEl.querySelectorAll('.wiz-ag-version').forEach((vEl) => {
+      vEl.onclick = () => onRepick(cn, vEl.getAttribute('data-pick'));
+    });
+  }
 
   // ── Top-level render ────────────────────────────────────────────────────────
 

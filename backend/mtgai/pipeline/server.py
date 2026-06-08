@@ -7122,23 +7122,6 @@ async def wizard_skeleton_save(request: Request) -> JSONResponse:
 # ---------------------------------------------------------------------------
 
 
-def _art_versions_for_card(art_dir: Path, slug: str) -> list[dict]:
-    """All on-disk art versions for a card slug, as tab tiles.
-
-    Each entry carries the version filename + the image-serving URL the tab's
-    ``<img>`` points at. Sorted v1..vN by the filename suffix.
-    """
-    versions: list[dict] = []
-    for path in sorted(art_dir.glob(f"{slug}_v*.png")):
-        versions.append(
-            {
-                "filename": path.name,
-                "url": f"/api/wizard/art_gen/image/{path.name}",
-            }
-        )
-    return versions
-
-
 def _art_gen_cards() -> list[dict]:
     """Per-card art tiles for the Art Generation tab.
 
@@ -7147,11 +7130,10 @@ def _art_gen_cards() -> list[dict]:
     grid, highlight the chosen one, and show the judge's reasoning.
     """
     from mtgai.art.art_selector import load_art_decisions
-    from mtgai.io.paths import card_slug
+    from mtgai.art.image_generator import art_versions_for_card
 
     asset = set_artifact_dir()
     cards_dir = asset / "cards"
-    art_dir = asset / "art"
     decisions = load_art_decisions(asset)
 
     cards: list[dict] = []
@@ -7163,8 +7145,7 @@ def _art_gen_cards() -> list[dict]:
             continue
         cn = str(card.get("collector_number") or "")
         name = card.get("name") or ""
-        slug = card_slug(cn, name)
-        versions = _art_versions_for_card(art_dir, slug)
+        versions = art_versions_for_card(asset, cn, name)
         decision = decisions.get(cn) or {}
         cards.append(
             {
@@ -7251,10 +7232,16 @@ async def wizard_art_gen_refresh(request: Request) -> JSONResponse:
     non-reentrant). The engine path uses ``run_art_gen``; this is its manual twin.
     """
     from mtgai.art.art_selector import select_art_for_set
-    from mtgai.art.image_generator import generate_art_for_set
+    from mtgai.art.image_generator import (
+        art_versions_for_card,
+        card_names_by_collector_number,
+        generate_art_for_set,
+    )
 
     _require_active_project()
     emitter = _refresh_emitter("art_gen")
+    asset_dir = set_artifact_dir()
+    name_by_cn = card_names_by_collector_number(asset_dir)
     with guarded_ai("Art generation", stage_id="art_gen") as guard:
         if guard.busy:
             return guard.busy_response
@@ -7265,10 +7252,18 @@ async def wizard_art_gen_refresh(request: Request) -> JSONResponse:
             # Keep the global progress strip + its Cancel button alive through the
             # ComfyUI/Flux image phase (which runs first, with no tok/s poller —
             # see below): an indeterminate "running" tick re-shows the strip, and
-            # a per-card tile streams to the tab (matching the engine path's
-            # ``art_gen_card``). Card 6a256732.
+            # a per-card tile (with its freshly written art versions) streams to
+            # the tab so art shows live, matching the engine path's
+            # ``art_gen_card``. Card 6a256732.
             emitter.phase("running", "Generating art…")
-            emitter.event("art_gen_card", collector_number=cn, phase="generated", detail=message)
+            versions = art_versions_for_card(asset_dir, cn, name_by_cn.get(cn, ""))
+            emitter.event(
+                "art_gen_card",
+                collector_number=cn,
+                phase="generated",
+                detail=message,
+                versions=versions,
+            )
 
         def _run():
             # No tok/s poller around generate_art_for_set: it's a pure

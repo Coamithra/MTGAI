@@ -481,3 +481,59 @@ def test_start_comfyui_passes_listen_and_port(monkeypatch, tmp_path):
     args = _start_comfyui_capturing_popen(monkeypatch, tmp_path)
     assert "--listen" in args
     assert "8188" in args
+
+
+# ---------------------------------------------------------------------------
+# Live-stream tile helpers (art_gen_card streaming)
+# ---------------------------------------------------------------------------
+
+
+def test_art_image_url_matches_serving_route():
+    assert ig.art_image_url("1_bolt_v1.png") == "/api/wizard/art_gen/image/1_bolt_v1.png"
+
+
+def test_card_names_by_collector_number_reads_cards(tmp_path):
+    cards = tmp_path / "cards"
+    cards.mkdir()
+    (cards / "001_bolt.json").write_text(
+        json.dumps({"collector_number": "1", "name": "Lightning Bolt"})
+    )
+    (cards / "010_giant.json").write_text(
+        json.dumps({"collector_number": "10", "name": "Hill Giant"})
+    )
+    (cards / "broken.json").write_text("{ not json")  # skipped, not fatal
+    names = ig.card_names_by_collector_number(tmp_path)
+    assert names == {"1": "Lightning Bolt", "10": "Hill Giant"}
+
+
+def test_card_names_by_collector_number_missing_dir(tmp_path):
+    assert ig.card_names_by_collector_number(tmp_path) == {}
+
+
+def test_art_versions_for_card_lists_tiles(tmp_path):
+    art = tmp_path / "art"
+    art.mkdir()
+    slug = ig.card_slug("1", "Lightning Bolt")
+    (art / f"{slug}_v1.png").write_bytes(b"a")
+    (art / f"{slug}_v2.png").write_bytes(b"b")
+    tiles = ig.art_versions_for_card(tmp_path, "1", "Lightning Bolt")
+    assert [t["filename"] for t in tiles] == [f"{slug}_v1.png", f"{slug}_v2.png"]
+    assert tiles[0]["url"] == f"/api/wizard/art_gen/image/{slug}_v1.png"
+
+
+def test_art_versions_for_card_disambiguates_collector_numbers(tmp_path):
+    """Resolving via name (not a bare ``<cn>_*`` glob) keeps cn ``1`` from
+    swallowing cn ``10``'s art files."""
+    art = tmp_path / "art"
+    art.mkdir()
+    one = ig.card_slug("1", "Lightning Bolt")
+    ten = ig.card_slug("10", "Hill Giant")
+    (art / f"{one}_v1.png").write_bytes(b"a")
+    (art / f"{ten}_v1.png").write_bytes(b"b")
+    tiles = ig.art_versions_for_card(tmp_path, "1", "Lightning Bolt")
+    assert [t["filename"] for t in tiles] == [f"{one}_v1.png"]
+
+
+def test_art_versions_for_card_none_when_absent(tmp_path):
+    (tmp_path / "art").mkdir()
+    assert ig.art_versions_for_card(tmp_path, "1", "Lightning Bolt") == []

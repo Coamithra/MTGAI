@@ -613,3 +613,32 @@ def test_art_gen_no_poller_around_image_gen_but_judge_polled(monkeypatch) -> Non
     # But the judge phase IS polled — telemetry preserved.
     assert "art_select" in pollers and pollers["art_select"].entered
     assert state.get("judge_poller_active") is True
+
+
+def test_art_gen_card_event_carries_versions(monkeypatch) -> None:
+    """Each ``art_gen_card`` 'generated' event must carry a ``versions`` payload
+    so the tab can render art live (not only on stage-finish / F5). With no open
+    project the list degrades to empty, but the key is always present + wired."""
+
+    def fake_gen(*, progress_callback=None, **_k):
+        if progress_callback is not None:
+            progress_callback("1", 1, 2, "Generated 3 version(s) for X", 0.0)
+        return {"generated": 1, "skipped": 0, "failed": 0}
+
+    def fake_select(**_k):
+        return {"reviewed": 1, "estimated_cost_usd": 0.0, "cancelled": False}
+
+    monkeypatch.setattr("mtgai.art.image_generator.generate_art_for_set", fake_gen)
+    monkeypatch.setattr("mtgai.art.art_selector.select_art_for_set", fake_select)
+
+    spy = _SpyEmitter()
+    stages.run_art_gen(progress_cb=None, emitter=spy)
+
+    generated = [
+        data
+        for name, data in spy.events
+        if name == "art_gen_card" and data.get("phase") == "generated"
+    ]
+    assert generated, "a per-card 'generated' art_gen_card event must be emitted"
+    assert "versions" in generated[0], "the event must carry a versions payload for live render"
+    assert isinstance(generated[0]["versions"], list)
