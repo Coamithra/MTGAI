@@ -1061,3 +1061,101 @@ def test_find_duplicates_skips_basics_and_reprints():
 
     findings, _ = find_duplicates([forest_a, forest_b, reprint_a, reprint_b])
     assert findings == []
+
+
+def _named_card(slot_id: str, name: str, *, oracle: str = "Flying"):
+    from mtgai.models.card import Card
+
+    return Card(
+        name=name,
+        slot_id=slot_id,
+        collector_number=slot_id,
+        type_line="Creature — Test",
+        mana_cost="{1}{G}",
+        oracle_text=oracle,
+    )
+
+
+def test_find_duplicate_names_flags_all_but_lowest_collector():
+    from mtgai.analysis.duplicates import find_duplicate_names
+
+    # Two distinct cards (different function) sharing a name — the functional
+    # scan misses this, but the name scan flags the higher collector number.
+    cards = [
+        _named_card("044", "Skyguard Ace", oracle="Flying"),
+        _named_card("058", "Skyguard Ace", oracle="Vigilance, haste"),
+    ]
+    findings, analysis = find_duplicate_names(cards)
+
+    assert [f.slot_id for f in findings] == ["058"]
+    assert findings[0].duplicate_of == "Skyguard Ace"
+    assert "Duplicate card name" in findings[0].reason
+    assert "044" in findings[0].reason
+    assert "share a name" in analysis
+
+
+def test_find_duplicate_names_biases_flag_to_regenerated_card():
+    from mtgai.analysis.duplicates import find_duplicate_names
+
+    # The regenerated card (#044) took the LOWER collector number and collided
+    # with a carried-over twin (#058). Default keep-lowest would keep #044 and
+    # flag #058 — but #058 is not in the regen recheck set, so its flag would be
+    # dropped downstream and the collision would ship. The regen bias keeps the
+    # carried-over #058 and flags the regenerated #044 (which survives scoping).
+    cards = [
+        _named_card("044", "Skyguard Ace", oracle="Flying"),
+        _named_card("058", "Skyguard Ace", oracle="Vigilance"),
+    ]
+    findings, _ = find_duplicate_names(cards, regenerating={"044"})
+    assert [f.slot_id for f in findings] == ["044"]
+    assert findings[0].duplicate_of == "Skyguard Ace"
+
+    # Without the bias the lowest collector number is kept (default behaviour).
+    findings_default, _ = find_duplicate_names(cards)
+    assert [f.slot_id for f in findings_default] == ["058"]
+
+
+def test_find_duplicate_names_is_case_insensitive():
+    from mtgai.analysis.duplicates import find_duplicate_names
+
+    cards = [
+        _named_card("01", "Storm Crow"),
+        _named_card("02", "STORM CROW"),
+    ]
+    findings, _ = find_duplicate_names(cards)
+    assert [f.slot_id for f in findings] == ["02"]
+
+
+def test_find_duplicate_names_distinct_names_are_clean():
+    from mtgai.analysis.duplicates import find_duplicate_names
+
+    cards = [
+        _named_card("01", "Storm Crow"),
+        _named_card("02", "Thunder Hawk"),
+    ]
+    findings, analysis = find_duplicate_names(cards)
+    assert findings == []
+    assert "No duplicate card names" in analysis
+
+
+def test_find_duplicate_names_skips_basics_and_reprints():
+    from mtgai.analysis.duplicates import find_duplicate_names
+    from mtgai.models.card import Card
+
+    # Two basic lands legitimately share the name "Forest" — never flagged.
+    forest_a = Card(
+        name="Forest",
+        slot_id="L-01",
+        collector_number="L-01",
+        type_line="Basic Land — Forest",
+        supertypes=["Basic"],
+        card_types=["Land"],
+        subtypes=["Forest"],
+        oracle_text="",
+    )
+    forest_b = forest_a.model_copy(update={"slot_id": "L-02", "collector_number": "L-02"})
+    reprint_a = _named_card("R1", "Lightning Bolt").model_copy(update={"is_reprint": True})
+    reprint_b = _named_card("R2", "Lightning Bolt").model_copy(update={"is_reprint": True})
+
+    findings, _ = find_duplicate_names([forest_a, forest_b, reprint_a, reprint_b])
+    assert findings == []

@@ -60,6 +60,54 @@ class TestMalformedShapesDoNotCrash:
         assert ai_review._format_card_for_review("not a card") == ""  # type: ignore[arg-type]
 
 
+class TestDuplicateNamePriorReachesReviewer:
+    """The set pool threads in so a duplicate-name / mechanical-similarity prior
+    rides in the reviewer's prompt (validate_mechanical_similarity's documented
+    intent). Before the fix the heuristic was always called with
+    existing_cards=None, so a duplicate name never reached the council and a
+    set could ship two cards sharing a name.
+    """
+
+    def _pool_pair(self):
+        a = Card(
+            collector_number="044",
+            name="Skyguard Ace",
+            mana_cost="{U}",
+            type_line="Artifact — Vehicle",
+            oracle_text="Flying. Crew 1.",
+            rarity="common",
+        )
+        b = Card(
+            collector_number="058",
+            name="Skyguard Ace",
+            mana_cost="{2}{U}",
+            type_line="Artifact — Vehicle",
+            oracle_text="Flying. Crew 2.",
+            rarity="common",
+        )
+        return a, b
+
+    def test_duplicate_name_surfaces_in_prompt(self):
+        a, b = self._pool_pair()
+        block = ai_review._format_card_for_review(b.model_dump(mode="json"), existing_cards=[a, b])
+        assert "already exists" in block
+        # Names the sibling that owns the name (#044).
+        assert "044" in block
+
+    def test_card_does_not_match_itself(self):
+        """The card under review is excluded from the pool by collector number,
+        so a single non-colliding card is never flagged against itself."""
+        a, _ = self._pool_pair()
+        block = ai_review._format_card_for_review(a.model_dump(mode="json"), existing_cards=[a])
+        assert "already exists" not in block
+
+    def test_no_pool_skips_the_prior(self):
+        """Default (no pool) preserves the prior behaviour — no similarity prior."""
+        _, b = self._pool_pair()
+        block = ai_review._format_card_for_review(b.model_dump(mode="json"))
+        assert "already exists" not in block
+
+
 _CARD_WITH_NOTES = {
     "name": "Quintesson Logic Engine",
     "rarity": "rare",

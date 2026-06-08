@@ -564,7 +564,12 @@ enters, energize. (To energize, ...)"). Do not flag a card for missing reminder 
 and do not add reminder text to fix it."""
 
 
-def _format_card_for_review(card: dict, *, include_design_notes: bool = False) -> str:
+def _format_card_for_review(
+    card: dict,
+    *,
+    include_design_notes: bool = False,
+    existing_cards: list[Card] | None = None,
+) -> str:
     """Format a card dict into a readable text block.
 
     Heuristic design-judgment warnings (power level, color pie) are computed
@@ -572,9 +577,10 @@ def _format_card_for_review(card: dict, *, include_design_notes: bool = False) -
     :func:`mtgai.analysis.heuristic_checks.check_card_heuristics` rather than
     read from ``generation_attempts[].validation_errors`` — so a revision
     produced mid-review sees warnings about its own current state, not the
-    original gen-time draft. Mechanical similarity (cross-set) is intentionally
-    skipped here; it's a set-level concern (the old render_qa stage that
-    surfaced it was dropped in the art/render topology reorg).
+    original gen-time draft. When ``existing_cards`` (the rest of the set pool)
+    is supplied, the duplicate-name / mechanical-similarity detector also rides in
+    as a prior so the reviewer sees a name collision with a sibling card — the
+    documented intent of ``validate_mechanical_similarity``.
 
     ``design_notes`` are **excluded by default** (``include_design_notes=False``).
     They are card_gen's generation rationale describing the ORIGINAL slot intent
@@ -618,19 +624,24 @@ def _format_card_for_review(card: dict, *, include_design_notes: bool = False) -
     # Fresh heuristic checks — power level, color pie. Wrapped so a card dict
     # that can't be parsed (e.g. a malformed mid-review revision) doesn't
     # crash the prompt builder; the warnings are advisory.
-    heuristic_block = _heuristic_warnings_for_card_dict(card)
+    heuristic_block = _heuristic_warnings_for_card_dict(card, existing_cards)
     if heuristic_block:
         lines.append(heuristic_block)
     return "\n".join(lines)
 
 
-def _heuristic_warnings_for_card_dict(card: dict) -> str:
+def _heuristic_warnings_for_card_dict(card: dict, existing_cards: list[Card] | None = None) -> str:
     """Run check_card_heuristics against ``card`` and format findings for the prompt.
+
+    ``existing_cards`` (the rest of the set pool) lets the mechanical-similarity /
+    duplicate-name detector ride in the reviewer's prompt as a prior — the
+    documented intent of ``validate_mechanical_similarity``. The card under review
+    is excluded by collector number so it never matches itself. When ``None`` (the
+    default, used by the markdown-transcript call sites) those priors are skipped.
 
     Returns an empty string if the card can't be parsed or has no findings.
     """
     from mtgai.analysis.heuristic_checks import check_card_heuristics, format_findings_for_prompt
-    from mtgai.models.card import Card
     from mtgai.validation.mana import derive_mana_fields
 
     try:
@@ -641,7 +652,11 @@ def _heuristic_warnings_for_card_dict(card: dict) -> str:
         parsed = Card.model_validate(enriched)
     except Exception:
         return ""
-    findings = check_card_heuristics(parsed, existing_cards=None)
+    pool = None
+    if existing_cards:
+        own_cn = parsed.collector_number
+        pool = [c for c in existing_cards if c.collector_number != own_cn]
+    findings = check_card_heuristics(parsed, existing_cards=pool)
     return format_findings_for_prompt(findings)
 
 
@@ -649,9 +664,14 @@ def _build_review_prompt(
     card: dict,
     mechanics: list[dict],
     pointed_questions: list[dict],
+    existing_cards: list[Card] | None = None,
 ) -> str:
-    """Build the user prompt for a single-reviewer review."""
-    card_text = _format_card_for_review(card)
+    """Build the user prompt for a single-reviewer review.
+
+    ``existing_cards`` (the set pool) threads through to the heuristic block so a
+    duplicate-name / mechanical-similarity prior reaches the reviewer.
+    """
+    card_text = _format_card_for_review(card, existing_cards=existing_cards)
 
     # Only include mechanics relevant to this card's colors
     card_colors = set(card.get("colors", []))
@@ -831,6 +851,7 @@ def _review_single(
     max_iterations: int = MAX_ITERATIONS,
     on_council: Callable[[dict], None] | None = None,
     review_thinking: str | None = None,
+    existing_cards: list[Card] | None = None,
 ) -> CardReviewResult:
     """Judge → revise → re-judge loop for C/U cards (judge split from revise).
 
@@ -893,7 +914,9 @@ def _review_single(
         logger.info("    Round %d/%d: judge...", round_no, max_iterations)
         _safe_council(on_council, {"kind": "round", "round": round_no, "verdicts": []})
 
-        judge_prompt = _build_review_prompt(current_card, mechanics, pointed_questions)
+        judge_prompt = _build_review_prompt(
+            current_card, mechanics, pointed_questions, existing_cards
+        )
         t0 = time.time()
         result = _review_call(
             user_prompt=judge_prompt,
@@ -1124,6 +1147,7 @@ def _run_council_panel(
     on_council: Callable[[dict], None] | None,
     should_cancel: Callable[[], bool] | None,
     review_thinking: str | None = None,
+    existing_cards: list[Card] | None = None,
 ) -> tuple[list[CouncilMemberReview], _CostAcc, list[str]]:
     """Run one fresh independent panel on ``card`` and stream it as council ``round``.
 
@@ -1136,7 +1160,7 @@ def _run_council_panel(
     acc = _CostAcc()
     reviews: list[CouncilMemberReview] = []
     panel_verdicts: list[str] = []
-    user_prompt = _build_review_prompt(card, mechanics, pointed_questions)
+    user_prompt = _build_review_prompt(card, mechanics, pointed_questions, existing_cards)
     _safe_council(on_council, {"kind": "round", "round": round_no, "verdicts": []})
     for member_id in range(1, num_reviewers + 1):
         if should_cancel is not None and should_cancel():
@@ -1287,6 +1311,7 @@ def _review_council(
     max_rounds: int = MAX_COUNCIL_ROUNDS,
     on_council: Callable[[dict], None] | None = None,
     review_thinking: str | None = None,
+    existing_cards: list[Card] | None = None,
 ) -> CardReviewResult:
     """Fresh-council-per-revision loop for R/M + planeswalker/saga cards.
 
@@ -1361,6 +1386,7 @@ def _review_council(
             on_council,
             ai_lock.is_cancelled,
             review_thinking=review_thinking,
+            existing_cards=existing_cards,
         )
         _fold(acc)
         council_reviews.extend(reviews)
@@ -2402,6 +2428,19 @@ def review_set(
 
     logger.info("Cards to review: %d (filtered from %d files)", len(cards), len(card_paths))
 
+    # Build the full on-disk pool once so each reviewer sees a duplicate-name /
+    # mechanical-similarity prior against the whole set (the documented intent of
+    # validate_mechanical_similarity). Parsed defensively — a malformed card file
+    # is skipped rather than aborting review. Includes lands/reprints so a
+    # generated card colliding with one of those names still surfaces as a prior;
+    # the per-card heuristic excludes the card under review by collector number.
+    card_pool: list[Card] = []
+    for p in card_paths:
+        try:
+            card_pool.append(load_card(p))
+        except Exception:
+            logger.warning("Skipping unparseable card file for review pool: %s", p.name)
+
     # Review only cards this stage hasn't already seen *at their current content*.
     # The reviewed-signatures sidecar persists across review instances and the
     # card_gen/conformance regen passes between them, so a card regenerated after
@@ -2496,6 +2535,7 @@ def review_set(
                 review_effort,
                 on_council=card_council,
                 review_thinking=review_thinking,
+                existing_cards=card_pool,
             )
         else:
             result = _review_single(
@@ -2506,6 +2546,7 @@ def review_set(
                 review_effort,
                 on_council=card_council,
                 review_thinking=review_thinking,
+                existing_cards=card_pool,
             )
 
         reviews.append(result)

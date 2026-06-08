@@ -1263,7 +1263,7 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
     bounces the pipeline to ``card_gen``; a clean pass advances to ai_review.
     """
     from mtgai.analysis.conformance import check_conformance
-    from mtgai.analysis.duplicates import find_duplicates
+    from mtgai.analysis.duplicates import find_duplicate_names, find_duplicates
     from mtgai.analysis.interactions import analyze_interactions
     from mtgai.runtime import ai_lock
 
@@ -1323,12 +1323,25 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
         emitter.event("conformance_reset")
 
         # Duplicate Check runs first and is purely algorithmic (no LLM call):
-        # flag cards functionally identical modulo mana cost, keeping the lowest
-        # collector number per group. Its findings are folded into the per-card
-        # conformance checklist below (each duplicate starts as an X), rather
-        # than shown as a separate section.
+        # flag cards functionally identical modulo mana cost, plus cards that
+        # share a name with another card (illegal in MTG — the dup-name scan is
+        # the only stage that enforces name uniqueness, catching collisions a
+        # regen pass can introduce). Both keep the lowest collector number per
+        # group. Findings are folded into the per-card conformance checklist
+        # below (each starts as an X), rather than shown as a separate section.
         dup_findings, _dup_analysis = find_duplicates(cards)
-        dup_by_slot = {f.slot_id: f.reason for f in dup_findings}
+        # Bias the name scan to flag the regenerated card (not its carried-over
+        # twin) so the flag survives the recheck scoping below — otherwise a
+        # regen that took the lower collector number would keep the regen card
+        # and flag-then-drop the carried-over twin, shipping the collision.
+        name_findings, _name_analysis = find_duplicate_names(cards, regenerating=recheck)
+        dup_by_slot: dict[str, str] = {}
+        for f in [*dup_findings, *name_findings]:
+            # A card hit by both scans (a same-name functional clone) keeps both
+            # reasons so the regen prompt knows to redesign *and* rename.
+            dup_by_slot[f.slot_id] = (
+                f"{dup_by_slot[f.slot_id]} | {f.reason}" if f.slot_id in dup_by_slot else f.reason
+            )
         if recheck is not None:
             # Scope the duplicate hits to the regenerated cards too — an
             # already-vetted carried-over card must not be re-flagged here.
