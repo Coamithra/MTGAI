@@ -350,6 +350,12 @@
     const isPaused = local.stageStatus === 'paused_for_review';
     const next = W.nextStageEntryAfter(STAGE_ID);
     const nextName = next ? next.name : 'the next stage';
+    // The saved/reopened dead-end: lands completed but the pipeline persisted
+    // PAUSED with a later stage pending and no PAUSED_FOR_REVIEW pause. Like
+    // isPaused, the Next button must RESUME the engine (a plain navigation
+    // would strand it on the completed tip), so fold it into resumeEngine.
+    const canAdvanceTip = W.completedTipCanAdvance(state, STAGE_ID);
+    const resumeEngine = isPaused || canAdvanceTip;
 
     // The "Next" button moves to the following tab. When paused it first resumes the
     // engine; otherwise it's a plain navigation (the engine already advanced on its
@@ -365,7 +371,7 @@
       // it reads as a stale control); the user follows the engine via the tab
       // strip. Matches the Reprints / Card Gen past-tab footer.
       html = `<span class="wiz-footer-note">Past tab — use Edit above to revise land cards.</span>`;
-    } else if (isPaused) {
+    } else if (resumeEngine) {
       html = `${nextBtn}<span class="wiz-footer-note">Paused after lands — continue when ready.</span>`;
     } else if (isCompleted) {
       html = `${nextBtn}<span class="wiz-footer-complete">✓ Lands generated — engine will continue to ${escHtml(nextName)}.</span>`;
@@ -375,7 +381,7 @@
       html = `<span class="wiz-footer-note">Runs automatically; no review step.</span>`;
     }
 
-    W.paintFooter(footer, html, { role: 'lands-next', onClick: () => onGoNext(next, isPaused) });
+    W.paintFooter(footer, html, { role: 'lands-next', onClick: () => onGoNext(next, resumeEngine) });
   }
 
   function onGoNext(next, resumeEngine) {

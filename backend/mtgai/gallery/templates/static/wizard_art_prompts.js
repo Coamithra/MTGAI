@@ -493,6 +493,11 @@
     const isCompleted = local.stageStatus === 'completed';
     const next = W.nextStageEntryAfter(STAGE_ID);
     const nextName = next ? next.name : 'the next stage';
+    // The saved/reopened dead-end: art prompts completed but the pipeline
+    // persisted PAUSED with a later stage pending and no PAUSED_FOR_REVIEW
+    // pause. Like isPaused, Next must RESUME the engine (a plain navigation
+    // would strand it on the completed tip), so fold it into resumeEngine.
+    const resumeEngine = isPaused || W.completedTipCanAdvance(state, STAGE_ID);
     const nextBtn = next
       ? `<button type="button" class="wiz-btn-primary" data-role="ap-next">Next: ${escHtml(next.name)} →</button>`
       : '';
@@ -500,7 +505,7 @@
     let html;
     if (!isLatest) {
       html = `<span class="wiz-footer-note">Past tab — use Edit above to revise art prompts.</span>`;
-    } else if (isPaused) {
+    } else if (resumeEngine) {
       html = `${nextBtn}<span class="wiz-footer-note">Paused after art prompts — continue when ready.</span>`;
     } else if (isCompleted) {
       html = `${nextBtn}<span class="wiz-footer-complete">✓ Art prompts authored — engine will continue to ${escHtml(nextName)}.</span>`;
@@ -509,7 +514,7 @@
     } else {
       html = `<span class="wiz-footer-note">Runs automatically; no review step.</span>`;
     }
-    W.paintFooter(footer, html, { role: 'ap-next', onClick: () => onGoNext(next, isPaused) });
+    W.paintFooter(footer, html, { role: 'ap-next', onClick: () => onGoNext(next, resumeEngine) });
   }
 
   function onGoNext(next, resumeEngine) {

@@ -361,15 +361,16 @@
     const nextName = next ? next.name : 'the next stage';
     const filled = local.archetypes.filter(a => (a.name || '').trim() && (a.description || '').trim()).length;
 
+    const canAdvanceTip = W.completedTipCanAdvance(state, STAGE_ID);
     let html;
     if (!isLatest) {
       html = `<span class="wiz-footer-note">Editing past archetypes is destructive — use the Edit button above.</span>`;
-    } else if (isCompleted) {
-      html = `<span class="wiz-footer-note">Archetypes saved. Engine is on ${escHtml(nextName)} — switch tabs to follow.</span>`;
-    } else if (!isPaused) {
-      // AUTO stage: it only pauses if "Stop after this step" is ticked.
-      html = `<span class="wiz-footer-note">This stage runs automatically. Tick "Stop after this step" above to review here before continuing.</span>`;
-    } else {
+    } else if (isPaused || canAdvanceTip) {
+      // isPaused is the normal "Stop after this step" pause. canAdvanceTip is
+      // the saved/reopened dead-end: completed but the pipeline persisted
+      // PAUSED with a later stage pending and no PAUSED_FOR_REVIEW pause — show
+      // Save & Continue so the user can resume instead of being stranded by the
+      // "Engine is on X" note (the engine is not on X here).
       const ok = filled === 10;
       html = `
         <button type="button" class="wiz-btn-primary" data-role="arch-save-advance" ${ok && !local.locked ? '' : 'disabled'}>
@@ -377,6 +378,11 @@
         </button>
         <span class="wiz-footer-note">${filled}/10 archetypes filled.</span>
       `;
+    } else if (isCompleted) {
+      html = `<span class="wiz-footer-note">Archetypes saved. Engine is on ${escHtml(nextName)} — switch tabs to follow.</span>`;
+    } else {
+      // AUTO stage: it only pauses if "Stop after this step" is ticked.
+      html = `<span class="wiz-footer-note">This stage runs automatically. Tick "Stop after this step" above to review here before continuing.</span>`;
     }
     W.paintFooter(footer, html, { role: 'arch-save-advance', onClick: onSaveAndAdvance });
   }

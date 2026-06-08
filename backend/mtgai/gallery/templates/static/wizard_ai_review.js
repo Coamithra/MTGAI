@@ -722,7 +722,12 @@
     let html;
     if (!isLatest) {
       html = `<span class="wiz-footer-note">Review completed — results are read-only on a past tab.</span>`;
-    } else if (status === 'paused_for_review') {
+    } else if (status === 'paused_for_review' || W.completedTipCanAdvance(state, instanceId)) {
+      // 'completed' + can-advance is the saved/reopened dead-end: review
+      // finished but the pipeline persisted PAUSED with a later stage (e.g.
+      // Finalization) still pending and no PAUSED_FOR_REVIEW pause. Surface the
+      // same Next-step button so the user can resume instead of being stranded
+      // by the "continue appears once ready" hint below.
       html = `<button type="button" class="wiz-btn-primary" data-role="ar-advance">Next step: ${escHtml(nextName)}</button>`;
     } else if (status === 'running') {
       html = `<span class="wiz-footer-note">AI review is in progress…</span>`;

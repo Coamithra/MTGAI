@@ -346,7 +346,11 @@
     let html;
     if (!isLatest) {
       html = `<span class="wiz-footer-note">Editing past character references is destructive — use the Edit button above.</span>`;
-    } else if (isPaused) {
+    } else if (isPaused || W.completedTipCanAdvance(wstate, STAGE_ID)) {
+      // 'completed' + can-advance is the saved/reopened dead-end: the stage
+      // finished but the pipeline persisted PAUSED with a later stage pending
+      // and no PAUSED_FOR_REVIEW pause. Surface the Next-step button so the
+      // user can resume instead of being stranded by the "Continuing…" note.
       html = `<button type="button" class="wiz-btn-primary" data-role="cr-advance">Next step: ${escHtml(nextName)}</button>`;
     } else if (local.stageStatus === 'running') {
       html = `<span class="wiz-footer-note">Generating references… the Next Step button will appear when the stage pauses.</span>`;

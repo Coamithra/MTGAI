@@ -407,14 +407,20 @@
     const next = W.nextStageEntryAfter(STAGE_ID);
     const nextName = next ? next.name : 'the next stage';
 
+    // 'completed' + can-advance is the saved/reopened dead-end: art finished but
+    // the pipeline persisted PAUSED with rendering still pending and no
+    // PAUSED_FOR_REVIEW pause. The server-fed local.canAdvance survives an
+    // SSE repaint that passes state=null (the client helper needs live state);
+    // gate it on the live status==='completed' so a stale-true flag can't show
+    // the button mid-run. The client helper is the state-fresh second path.
+    const canAdvanceTip =
+      (status === 'completed' && local.canAdvance) || W.completedTipCanAdvance(state, STAGE_ID);
     let html;
     if (!isLatest) {
       html = `<span class="wiz-footer-note">Art review completed — read-only on a past tab.</span>`;
-    } else if (status === 'paused_for_review' || (status === 'completed' && local.canAdvance)) {
-      // 'completed' + canAdvance is the saved/reopened dead-end: art finished but
-      // the pipeline persisted PAUSED with rendering still pending and no
-      // PAUSED_FOR_REVIEW pause. Surface the same Next-step button so the user
-      // isn't stuck — advance() resumes the engine into the pending stage.
+    } else if (status === 'paused_for_review' || canAdvanceTip) {
+      // Surface the same Next-step button so the user isn't stuck — advance()
+      // resumes the engine into the pending stage.
       html = `<button type="button" class="wiz-btn-primary" data-role="ag-advance">Next step: ${escHtml(nextName)}</button>`;
     } else if (status === 'running') {
       html = `<span class="wiz-footer-note">Art generation is in progress…</span>`;

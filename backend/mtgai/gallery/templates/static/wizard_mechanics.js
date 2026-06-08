@@ -862,16 +862,18 @@
     const next = W.nextStageEntryAfter(STAGE_ID);
     const nextName = next ? next.name : 'the next stage';
 
+    const canAdvanceTip = W.completedTipCanAdvance(state, STAGE_ID);
     let html;
-    if (isCompleted && isLatest) {
-      html = `<span class="wiz-footer-note">Mechanics saved. Engine is on ${nextName} — switch tabs to follow.</span>`;
-    } else if (!isLatest) {
+    if (!isLatest) {
       // Past tab — edit cascade is the only way through. wizard_stage.js
       // owns the Edit button + cascade flow.
       html = `<span class="wiz-footer-note">Editing past mechanics is destructive — use the Edit button above.</span>`;
-    } else if (!local.candidates.length || !isPaused) {
-      html = `<span class="wiz-footer-note">Save & Continue appears once candidates are ready for review.</span>`;
-    } else {
+    } else if ((isPaused && local.candidates.length) || canAdvanceTip) {
+      // isPaused + candidates is the normal review pause. canAdvanceTip is the
+      // saved/reopened dead-end: completed but the pipeline persisted PAUSED
+      // with a later stage pending and no PAUSED_FOR_REVIEW pause — show Save &
+      // Continue so the user can resume instead of being stranded by the
+      // "Engine is on X" note (the engine is not on X here).
       const ok = have === want;
       html = `
         <button type="button" class="wiz-btn-primary" data-role="mech-save-advance" ${ok && !local.locked ? '' : 'disabled'}>
@@ -879,6 +881,10 @@
         </button>
         <span class="wiz-footer-note">${have}/${want} picks selected.</span>
       `;
+    } else if (isCompleted) {
+      html = `<span class="wiz-footer-note">Mechanics saved. Engine is on ${nextName} — switch tabs to follow.</span>`;
+    } else {
+      html = `<span class="wiz-footer-note">Save & Continue appears once candidates are ready for review.</span>`;
     }
     W.paintFooter(footer, html, { role: 'mech-save-advance', onClick: onSaveAndAdvance });
   }

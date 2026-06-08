@@ -317,7 +317,11 @@
     let html;
     if (!isLatest) {
       html = '<span class="wiz-footer-note">Past stage — use Edit above to re-run from here.</span>';
-    } else if (status === 'paused_for_review') {
+    } else if (status === 'paused_for_review' || W.completedTipCanAdvance(state, instanceId)) {
+      // 'completed' + can-advance is the saved/reopened dead-end: the gate
+      // finished but the pipeline persisted PAUSED with a later stage pending
+      // and no PAUSED_FOR_REVIEW pause. Surface the same Next-step button so
+      // the user can resume the engine instead of being stranded.
       const next = W.nextStageEntryAfter(instanceId);
       html = '<button type="button" class="wiz-btn-primary" data-role="next-step">'
         + escHtml(next ? 'Next step: ' + next.name : 'Next step') + '</button>';

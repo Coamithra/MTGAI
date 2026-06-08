@@ -733,17 +733,23 @@
     let html;
     if (!isLatest) {
       html = `<span class="wiz-footer-note">Finalization is in the past — pipeline has moved on.</span>`;
-    } else if (status === 'completed') {
-      html = `<span class="wiz-footer-note">Finalization complete. Engine is on ${escHtml(nextName)}.</span>`;
     } else if (status === 'running') {
       html = `<span class="wiz-footer-note">Finalization is running automatically…</span>`;
-    } else if (status === 'paused_for_review') {
+    } else if (status === 'paused_for_review' || W.completedTipCanAdvance(state, STAGE_ID)) {
+      // 'completed' + can-advance is the saved/reopened dead-end: finalize
+      // finished but the pipeline persisted PAUSED with a later stage still
+      // pending and no PAUSED_FOR_REVIEW pause. Surface the Save & Continue
+      // button (rather than the "Engine is on X" note, which is false here —
+      // the engine is stranded) so the user can persist any hand-edits and
+      // resume.
       html = `
         <button type="button" class="wiz-btn-primary" data-role="fin-advance" ${local.locked ? 'disabled' : ''}>
           Save &amp; Continue: ${escHtml(nextName)}
         </button>
         <span class="wiz-footer-note">Edit any card above (auto-saves on blur), then continue.</span>
       `;
+    } else if (status === 'completed') {
+      html = `<span class="wiz-footer-note">Finalization complete. Engine is on ${escHtml(nextName)}.</span>`;
     } else if (status === 'failed') {
       html = `<span class="wiz-footer-note">Stage failed — check the progress strip for details.</span>`;
     } else {
