@@ -153,6 +153,30 @@ def test_color_name_or_letter_normalized(raw_color, expected):
     assert card.colors == [expected]
 
 
+@pytest.mark.parametrize("token", ["C", "c", "Colorless", "colorless"])
+def test_colorless_token_coerced_to_empty(token):
+    """Colorless tokens ('C'/'Colorless') denote absence of color → empty list,
+    not a validation error (local models sometimes emit ['C'] for a colorless card)."""
+    card = Card(name="x", type_line="Artifact", colors=[token], color_identity=[token])
+    assert card.colors == []
+    assert card.color_identity == []
+
+
+def test_loose_stat_and_flavor_types_coerced():
+    """power/toughness as ints and flavor_text as a list are coerced to str so a
+    strict load (e.g. finalize) can't be crashed by loosely-typed generator output."""
+    card = Card(
+        name="x",
+        type_line="Creature — Robot",
+        power=2,  # type: ignore[arg-type]  # intentionally loose: BeforeValidator coerces
+        toughness=3,  # type: ignore[arg-type]
+        flavor_text=["line one", "line two"],  # type: ignore[arg-type]
+    )
+    assert card.power == "2"
+    assert card.toughness == "3"
+    assert card.flavor_text == "line one\nline two"
+
+
 @pytest.mark.parametrize("bad_status", ["pending", "deleted", "DRAFT", "1", ""])
 def test_invalid_status_rejected(bad_status):
     """Pydantic rejects invalid status values."""

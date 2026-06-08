@@ -25,11 +25,42 @@ def _normalize_colors(value: object) -> object:
     """
     if not isinstance(value, (list, tuple)):
         return value
-    return [Color.coerce(item) for item in value]
+    out: list = []
+    for item in value:
+        # Colorless tokens ('C', 'Colorless') denote the ABSENCE of color; the
+        # canonical form is an empty list, so drop them rather than raising —
+        # local models sometimes emit ['C']/['Colorless'] for a colorless card.
+        if isinstance(item, str) and item.strip().lower() in ("c", "colorless"):
+            continue
+        out.append(Color.coerce(item))
+    return out
 
 
 # ``list[Color]`` that also accepts full color names, normalizing to WUBRG letters.
 ColorList = Annotated[list[Color], BeforeValidator(_normalize_colors)]
+
+
+def _coerce_optional_str(value: object) -> object:
+    """Coerce loosely-typed values to ``str`` for optional text / stat fields.
+
+    Local models occasionally emit ``power``/``toughness`` as ints or
+    ``flavor_text`` as a list of lines; normalize so the strict schema accepts
+    them instead of crashing a downstream strict load (e.g. finalize). ``None``
+    and ``str`` pass through unchanged.
+    """
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, bool):  # avoid bool->"True"/"False" surprises
+        return value
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, (list, tuple)):
+        return "\n".join(str(v) for v in value)
+    return value
+
+
+# ``str | None`` that also accepts ints (stats) and lists-of-lines (flavor text).
+OptionalStr = Annotated[str | None, BeforeValidator(_coerce_optional_str)]
 
 
 class ManaCost(BaseModel):
@@ -75,10 +106,10 @@ class CardFace(BaseModel):
     mana_cost: str | None = None
     type_line: str
     oracle_text: str = ""
-    flavor_text: str | None = None
-    power: str | None = None
-    toughness: str | None = None
-    loyalty: str | None = None
+    flavor_text: OptionalStr = None
+    power: OptionalStr = None
+    toughness: OptionalStr = None
+    loyalty: OptionalStr = None
     colors: ColorList = Field(default_factory=list)
     art_path: str | None = None
     art_prompt: str | None = None
@@ -126,13 +157,13 @@ class Card(BaseModel):
 
     # === Rules & Flavor ===
     oracle_text: str = ""
-    flavor_text: str | None = None
+    flavor_text: OptionalStr = None
     reminder_text: str | None = None
 
     # === Stats ===
-    power: str | None = None
-    toughness: str | None = None
-    loyalty: str | None = None
+    power: OptionalStr = None
+    toughness: OptionalStr = None
+    loyalty: OptionalStr = None
 
     # === Set & Collector Info ===
     collector_number: str = ""
