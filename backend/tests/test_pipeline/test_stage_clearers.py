@@ -239,12 +239,99 @@ def test_in_place_mutator_clearers_are_no_ops(fake_output_root: Path) -> None:
     for stage_id in (
         "conformance",
         "ai_review",
-        "finalize",
         "art_prompts",
     ):
         stages_mod.clear_stage_artifacts(stage_id)
 
     assert sentinel.exists(), "in-place mutator clearers must not touch cards/"
+
+
+def test_clear_finalize_removes_reports_and_resets_sanity_markers(
+    fake_output_root: Path,
+) -> None:
+    """The finalize clearer drops its reports + resets the per-card sanity markers.
+
+    Finalize owns durable reports (``reports/finalize-report.{json,md}`` +
+    ``reports/finalize-user-edits.json``) AND the reversible ``sanity_excluded`` /
+    ``sanity_exclusion_reason`` markers it stamps onto ``cards/*.json``. A no-op clearer
+    left all of these stale across an upstream unlock, so a now-PENDING finalize kept
+    serving the old completed summary and excluded cards stayed hidden from the print
+    set with no current verdict. The clearer must scrub the two finalize-owned fields
+    *in place* without touching any other card field, and without deleting card files.
+    """
+    import json
+
+    set_dir = fake_output_root / "sets" / "TST"
+    reports_dir = set_dir / "reports"
+    reports_dir.mkdir(parents=True)
+    (reports_dir / "finalize-report.json").write_text('{"total_cards": 3}', encoding="utf-8")
+    (reports_dir / "finalize-report.md").write_text("# report", encoding="utf-8")
+    (reports_dir / "finalize-user-edits.json").write_text('{"001": true}', encoding="utf-8")
+
+    logs_dir = set_dir / "finalize" / "logs"
+    logs_dir.mkdir(parents=True)
+    (logs_dir / "sanity.html").write_text("<html></html>", encoding="utf-8")
+
+    cards_dir = set_dir / "cards"
+    cards_dir.mkdir(parents=True)
+    excluded = cards_dir / "001_foo.json"
+    excluded.write_text(
+        json.dumps(
+            {
+                "collector_number": "001",
+                "name": "Foo",
+                "oracle_text": "Flying",
+                "sanity_excluded": True,
+                "sanity_exclusion_reason": "missing power/toughness",
+            }
+        ),
+        encoding="utf-8",
+    )
+    clean = cards_dir / "002_bar.json"
+    clean.write_text(
+        json.dumps({"collector_number": "002", "name": "Bar", "sanity_excluded": False}),
+        encoding="utf-8",
+    )
+    _open_test_project("TST", set_dir)
+
+    stages_mod.clear_stage_artifacts("finalize")
+
+    # Reports + sanity-gate transcripts gone.
+    assert not (reports_dir / "finalize-report.json").exists()
+    assert not (reports_dir / "finalize-report.md").exists()
+    assert not (reports_dir / "finalize-user-edits.json").exists()
+    assert not (set_dir / "finalize").exists(), "sanity-gate finalize/logs should be cleared"
+
+    # Card files survive; only the two finalize-owned fields were reset, other fields intact.
+    assert excluded.exists(), "card files are card_gen-owned and must not be deleted"
+    after = json.loads(excluded.read_text(encoding="utf-8"))
+    assert after["sanity_excluded"] is False
+    assert after["sanity_exclusion_reason"] is None
+    assert after["name"] == "Foo", "non-finalize fields must be untouched"
+    assert after["oracle_text"] == "Flying"
+    # An already-clean card is left exactly as it was.
+    assert clean.exists()
+    assert json.loads(clean.read_text(encoding="utf-8")) == {
+        "collector_number": "002",
+        "name": "Bar",
+        "sanity_excluded": False,
+    }
+
+
+def test_clear_finalize_is_idempotent_on_clean_project(fake_output_root: Path) -> None:
+    """Clearing finalize on a project with no reports and clean cards must not raise."""
+    import json
+
+    set_dir = fake_output_root / "sets" / "TST"
+    cards_dir = set_dir / "cards"
+    cards_dir.mkdir(parents=True)
+    (cards_dir / "001_foo.json").write_text(
+        json.dumps({"collector_number": "001", "name": "Foo"}), encoding="utf-8"
+    )
+    _open_test_project("TST", set_dir)
+
+    stages_mod.clear_stage_artifacts("finalize")  # no reports dir, no markers — a no-op
+    stages_mod.clear_stage_artifacts("finalize")  # second pass still clean
 
 
 def test_unknown_stage_raises_keyerror() -> None:
