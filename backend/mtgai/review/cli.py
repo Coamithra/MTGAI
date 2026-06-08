@@ -423,6 +423,16 @@ def serve(
             "Off by default; sets MTGAI_DEBUG=1 for the QA Bot harness.",
         ),
     ] = False,
+    supervised: Annotated[
+        bool,
+        typer.Option(
+            "--supervised",
+            help="Run the server under a supervisor that records silent crashes "
+            "(exit code + last-alive heartbeat + VRAM/RAM) to output/supervisor/ and "
+            "auto-restarts on an abnormal exit. For long art runs that get OS-killed "
+            "mid-Flux. Off by default.",
+        ),
+    ] = False,
 ) -> None:
     """Start the local review server (FastAPI + uvicorn).
 
@@ -434,6 +444,24 @@ def serve(
     import webbrowser
 
     import uvicorn
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    # Supervised mode: this process becomes the outer supervisor and spawns the
+    # *real* server (plain `serve`) as a child, restarting it on a silent crash.
+    if supervised:
+        from mtgai.review.supervisor import run_supervised
+
+        console.print(f"[bold]Starting MTGAI server (supervised) on port {port}...[/bold]")
+        console.print(f"  Wizard:   http://localhost:{port}/pipeline")
+        console.print(
+            "[dim]Supervisor logs crashes + restarts on abnormal exit. Ctrl+C to stop.[/dim]"
+        )
+        raise typer.Exit(run_supervised(port=port, open_browser=open_browser, debug=debug))
 
     # Set BEFORE importing/creating the FastAPI app so debug_routes.is_debug_enabled()
     # sees it at mount time. uvicorn.run imports the app module fresh in-process here,
@@ -449,12 +477,6 @@ def serve(
     console.print(f"  Wizard:   http://localhost:{port}/pipeline")
     console.print(f"  Settings: http://localhost:{port}/settings")
     console.print("[dim]Press Ctrl+C to stop.[/dim]")
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(name)s %(levelname)s %(message)s",
-        datefmt="%H:%M:%S",
-    )
 
     uvicorn.run("mtgai.review.server:app", host="127.0.0.1", port=port, log_level="warning")
 

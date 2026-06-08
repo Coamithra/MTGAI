@@ -48,6 +48,15 @@ DEFAULT_HEIGHT = 768
 POLL_INTERVAL = 3  # seconds between completion checks
 GENERATION_TIMEOUT = 600  # 10 minutes max per image (cold start model loading can take 3-5 min)
 
+# Periodic ComfyUI recycle to bound VRAM/native-CUDA accumulation across a long
+# art run. The per-image ``flush_comfyui()`` only calls torch.cuda.empty_cache()
+# (models stay resident), which doesn't recover the fragmentation / native CUDA
+# context growth that silently kills the process after ~18-20 images. Tearing
+# ComfyUI down and back up every N *images* hands the GPU back to the OS, which
+# reclaims everything, so a 60-card / 180-image run survives one server lifetime.
+# Default 16 sits below the observed ~18-20 death threshold; 0 disables.
+COMFYUI_RECYCLE_EVERY = int(os.environ.get("MTGAI_COMFYUI_RECYCLE_EVERY", "16"))
+
 
 def art_image_url(filename: str) -> str:
     """URL the Art Generation tab's ``<img>`` points at for a generated PNG.
@@ -475,6 +484,29 @@ def kill_comfyui(proc: subprocess.Popen | None = None) -> None:
             )
     except Exception as e:
         logger.warning("Failed to find/kill ComfyUI process: %s", e)
+
+
+def recycle_comfyui(
+    proc: subprocess.Popen | None, log_dir: Path | None = None
+) -> subprocess.Popen | None:
+    """Tear ComfyUI down and bring it back up to fully reclaim GPU memory.
+
+    The per-image ``flush_comfyui()`` keeps models resident, so VRAM
+    fragmentation and native CUDA-context growth still accumulate across a long
+    run until the process is silently OS-killed (~18-20 images). A full restart
+    is the only thing that hands *all* of that back to the OS. Called every
+    ``COMFYUI_RECYCLE_EVERY`` images by ``generate_art_for_set``.
+
+    Returns the new process handle (or ``None`` if a start was skipped, e.g.
+    ComfyUI was externally managed and is already back up).
+    """
+    logger.info("Recycling ComfyUI to reclaim VRAM (per %d images)...", COMFYUI_RECYCLE_EVERY)
+    kill_comfyui(proc)
+    # Give the OS a beat to reap the process + release the GPU before the
+    # restart's pre-flight VRAM check, which would otherwise see the dying
+    # process's memory and mis-pick the Flux quant.
+    time.sleep(3)
+    return ensure_comfyui(log_dir=log_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -997,9 +1029,13 @@ def generate_art_for_set(
     failed = 0
     cancelled = False
     errors = []
+    # Images generated since the last ComfyUI restart — drives the periodic
+    # recycle that bounds VRAM accumulation (see COMFYUI_RECYCLE_EVERY).
+    images_since_recycle = 0
+    recycle_enabled = not dry_run and provider == "comfyui" and COMFYUI_RECYCLE_EVERY > 0
 
     try:
-        for card_file in card_files:
+        for card_idx, card_file in enumerate(card_files):
             if should_cancel is not None and should_cancel():
                 logger.info("Art generation cancelled by user after %d card(s)", generated)
                 cancelled = True
@@ -1124,6 +1160,24 @@ def generate_art_for_set(
                 errors.append({"card": cn, "attempts": version_errors})
                 progress["failed"][cn] = version_errors
                 _save_progress(progress, progress_path)
+
+            # Bound VRAM accumulation: every COMFYUI_RECYCLE_EVERY GPU generations,
+            # restart ComfyUI so the OS reclaims all GPU memory (the per-image flush
+            # can't). Recycle at the card boundary (never mid-card) so a card's
+            # versions stay on one session. We count every Flux *attempt* that ran —
+            # saved or failed — because each one loaded the GPU and contributes to
+            # the accumulation; for the common no-retry case that's exactly the
+            # image count, and a retry-heavy run just recycles a little sooner
+            # (harmless — the threshold is a safety floor, not a precise budget).
+            images_since_recycle += len(saved_versions) + len(version_errors)
+            is_last_card = card_idx == len(card_files) - 1
+            if (
+                recycle_enabled
+                and not is_last_card
+                and images_since_recycle >= COMFYUI_RECYCLE_EVERY
+            ):
+                comfyui_proc = recycle_comfyui(comfyui_proc, log_dir=log_dir)
+                images_since_recycle = 0
 
     finally:
         # Always kill ComfyUI on exit to free VRAM (no-op if we did not start it).
