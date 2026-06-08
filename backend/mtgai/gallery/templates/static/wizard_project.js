@@ -666,7 +666,7 @@
     // behind the §9 modal.
     const cascadeLocked = data.pipeline_started && !local.editingProject;
     const sizeAttrs = cascadeLocked
-      ? 'disabled title="Click Edit to change. Will discard everything from Skeleton onward."'
+      ? 'disabled title="Click Edit to change. Will discard all generated content downstream."'
       : '';
     // Set code is purely the printed label on the card frame — always
     // editable, no coupling to anything on disk.
@@ -678,7 +678,7 @@
           <h3>Set parameters</h3>
           ${editBtn}
         </div>
-        ${local.editingProject ? '<div class="wiz-edit-banner">Editing — Accept will save and discard everything from Skeleton onward.</div>' : ''}
+        ${local.editingProject ? '<div class="wiz-edit-banner">Editing — Accept will save and discard all generated content downstream.</div>' : ''}
         <div class="wiz-proj-grid">
           <label>Set code
             <input type="text" id="wiz-pp-code" value="${escAttr(data.set_code)}" ${codeAttrs}>
