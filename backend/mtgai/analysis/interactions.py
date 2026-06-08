@@ -146,9 +146,11 @@ AVOID: <a brief structural constraint the regenerated enabler must satisfy, e.g.
 "no free untap of a creature" — not a restatement of the problem>
 
 Use the id shown at the start of the enabler's line (the value before the first \
-``|``). If a new card creates no degenerate interaction, output nothing for it. \
-If the whole batch is clean, output nothing at all. Write no preamble, summary, \
-or commentary — emit only ``--CARD`` blocks."""
+``|``). If a new card creates no degenerate interaction, output nothing for it — \
+do NOT emit a ``--CARD`` block to say a card is clean or has no interaction; a \
+block means a real degenerate interaction was found. If the whole batch is clean, \
+output nothing at all. Write no preamble, summary, or commentary — emit only \
+``--CARD`` blocks."""
 
 
 def _build_batch_prompt(existing: list[Card], new: list[Card], mechanics: list[dict]) -> str:
@@ -177,6 +179,40 @@ def _build_batch_prompt(existing: list[Card], new: list[Card], mechanics: list[d
         "than three-card combos at rare. Weight severity accordingly."
     )
     return "\n\n---\n\n".join(sections)
+
+
+# A drifting local model sometimes ignores the flag-only contract and emits a
+# ``--CARD`` block for a card with NO degenerate interaction (body "No combo
+# found." / "None."). Firing it as a flag needlessly regenerates a fine card.
+# ``_is_interaction_flag`` is the durable backstop, mirroring conformance's: a
+# real flag carries an ``AVOID:`` line (the required replacement constraint) or
+# cites a concrete combo; a block is dropped only on a clear affirmative
+# no-problem verdict with no AVOID line. Anything ambiguous is kept.
+_NO_INTERACTION_RE = re.compile(
+    r"\bno\b[\s\w]{0,24}?\b(?:degenerate|interaction|combo|loop|synerg\w*|issue|problem|concern)"
+    r"|\b(?:none|n/?a|clean|nothing problematic|no issues?|conforms?|is fine|looks fine)\b",
+    re.IGNORECASE,
+)
+
+
+def _has_avoid_line(block: str) -> bool:
+    return any(_AVOID_RE.match(line.strip()) for line in block.splitlines())
+
+
+def _is_interaction_flag(block: str) -> bool:
+    """True when a ``--CARD`` block is a genuine degenerate-interaction flag.
+
+    Returns False (drop) only when the block carries no ``AVOID:`` constraint and
+    its body affirmatively says there is no problematic interaction. A block with
+    an ``AVOID:`` line, or one citing a combo with no explicit "all clear", is
+    kept — so a real flag is never newly dropped.
+    """
+    body = block.strip()
+    if not body:
+        return True  # bare flag — honour it (parse defaults the reason)
+    if _has_avoid_line(body):
+        return True  # carries the required replacement constraint -> real flag
+    return not _NO_INTERACTION_RE.search(body)
 
 
 def _parse_interaction_block(block: str) -> tuple[str, str]:
@@ -328,6 +364,7 @@ def analyze_interactions(
             name="report_interactions",
             valid_ids=valid_ids,  # an enabler may be an existing card
             on_block=_on_block,
+            is_flag_block=_is_interaction_flag,
             thinking=thinking,
         )
         total_cost += cost

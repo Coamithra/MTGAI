@@ -251,6 +251,57 @@ def test_check_conformance_batches_and_streams(project, monkeypatch):
     assert "2/3" in analysis
 
 
+def test_check_conformance_drops_conforms_block(project, monkeypatch):
+    """A --CARD block whose body says the card CONFORMS is dropped, not flagged.
+
+    The local model sometimes ignores the flag-only contract and emits a block
+    for a conforming card too ("... Conforms."). The parser guard must treat that
+    as a non-flag so the good card is not needlessly regenerated."""
+    from mtgai.analysis import conformance as conf_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02")]
+    slots = {
+        c.slot_id: {"slot_id": c.slot_id, "tweaked_text": "White common creature"} for c in cards
+    }
+
+    # The model emits a block for W-C-01 affirming it conforms (a false flag).
+    fake = _fake_stream(
+        {"W-C-01": "Spec calls for white common creature; card matches. Conforms."}
+    )
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    streamed: list[dict] = []
+    findings, analysis, _cost = conf_mod.check_conformance(
+        cards, slots, on_card=lambda rec: streamed.append(rec)
+    )
+
+    # The "Conforms" block was dropped: nothing flagged, both cards conform.
+    assert findings == []
+    assert "2/2" in analysis
+    assert {(r["slot_id"], r["conforms"]) for r in streamed} == {
+        ("W-C-01", True),
+        ("W-C-02", True),
+    }
+
+
+def test_check_conformance_keeps_real_flag_mentioning_conform(project, monkeypatch):
+    """A genuine non-conformance that NEGATES conform ("does not conform") is kept."""
+    from mtgai.analysis import conformance as conf_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02")]
+    slots = {
+        c.slot_id: {"slot_id": c.slot_id, "tweaked_text": "White common creature"} for c in cards
+    }
+
+    fake = _fake_stream({"W-C-02": "Does not conform: card is blue, spec wants white."})
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    findings, _analysis, _cost = conf_mod.check_conformance(cards, slots)
+    assert [f.slot_id for f in findings] == ["W-C-02"]
+
+
 def test_check_conformance_truncation_marks_unknown(project, monkeypatch):
     """A batch that keeps truncating leaves its unreached cards unknown, not flagged."""
     from mtgai.analysis import conformance as conf_mod
@@ -598,6 +649,46 @@ def test_analyze_interactions_truncation_marks_unknown(project, monkeypatch):
     assert fake.calls == gate_common.MAX_BATCH_ATTEMPTS
     assert all(r["interacts"] is None for r in streamed)
     assert flags == []
+
+
+def test_analyze_interactions_drops_no_interaction_block(project, monkeypatch):
+    """A --CARD block with no AVOID line saying "no interaction" is dropped.
+
+    Mirrors the conformance false-flag guard for the interactions step: a drifting
+    model emitting a block for a clean card must not flag its enabler for regen."""
+    from mtgai.analysis import interactions as inter_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02")]
+
+    def fake(**kwargs):
+        fake.calls += 1
+        # The model emits a (false) block for W-C-01 with no AVOID + a clean verdict.
+        text = "--CARD W-C-01--\nNo degenerate interaction found.\n"
+        yield {"type": "text_delta", "text": text}
+        yield {
+            "type": "complete",
+            "text": text,
+            "stop_reason": "stop",
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "model": "m",
+        }
+
+    fake.calls = 0
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    streamed: list[dict] = []
+    flags, _analysis, _cost = inter_mod.analyze_interactions(
+        cards, [], on_card=lambda rec: streamed.append(rec)
+    )
+
+    # The clean block was dropped: no enabler flagged, both cards checked clean.
+    assert flags == []
+    assert {(r["slot_id"], r["interacts"]) for r in streamed} == {
+        ("W-C-01", True),
+        ("W-C-02", True),
+    }
 
 
 # ----------------------------------------------------------------------
