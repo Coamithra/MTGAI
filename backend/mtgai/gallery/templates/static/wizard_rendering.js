@@ -169,6 +169,8 @@
         background: #06080f; border-radius: 6px; overflow: hidden;
         display: flex; align-items: center; justify-content: center;
       }
+      /* zoom-in cursor lives on the <img> (present only when rendered) so an
+         unrendered cell shows no affordance, matching the click handler's guard */
       .wiz-rendering-thumb { width: 100%; height: 100%; object-fit: contain; display: block; cursor: zoom-in; }
       .wiz-rendering-thumb-missing { color: #555; font-size: 0.8rem; font-style: italic; }
 

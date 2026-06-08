@@ -133,15 +133,31 @@
 
     const closeBtn = overlay.querySelector('.mtgai-lightbox-close');
 
+    // Tab cycles only the overlay's own controls (focus trap) — today that's
+    // just the close button, but cycle the list (like wizard_dialog.js) so the
+    // trap stays correct if the frame ever gains controls.
+    function focusables() {
+      return Array.from(overlay.querySelectorAll('button, a[href], input')).filter(
+        el => !el.disabled,
+      );
+    }
     function onKey(e) {
       if (e.key === 'Escape') {
         e.stopPropagation();
         e.preventDefault();
         close();
       } else if (e.key === 'Tab') {
-        // Only the close button is focusable — trap focus on it.
-        e.preventDefault();
-        closeBtn.focus();
+        const items = focusables();
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     }
 
