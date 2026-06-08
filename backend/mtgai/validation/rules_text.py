@@ -13,6 +13,7 @@ from collections.abc import Iterable
 
 from mtgai.models.card import Card
 from mtgai.validation import ValidationError, ValidationSeverity
+from mtgai.validation.type_check import BARE_PT_LINE_RE
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -483,6 +484,11 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
             continue
         if _is_keyword_only_line(stripped):
             continue
+        if BARE_PT_LINE_RE.match(stripped):
+            # A bare "N/N" P/T line leaked into oracle by the local model.
+            # type_check recovers it (moves to the stat fields); never cement a
+            # period onto it, which would legitimize the leak in the rules box.
+            continue
         if re.match(r"^[A-Z]\w+(\s\w+)?\s*[—\-]", stripped):
             continue
         if not stripped.endswith((".", '"', ")")):
@@ -664,6 +670,11 @@ def fix_line_periods(card: Card, error: ValidationError) -> Card:
             new_lines.append(line)
             continue
         if _is_keyword_only_line(stripped):
+            new_lines.append(line)
+            continue
+        if BARE_PT_LINE_RE.match(stripped):
+            # Leaked "N/N" P/T line — leave it untouched (type_check strips it);
+            # appending a period would cement the leak into the rules box.
             new_lines.append(line)
             continue
         if re.match(r"^[A-Z]\w+(\s\w+)?\s*[—\-]", stripped):
