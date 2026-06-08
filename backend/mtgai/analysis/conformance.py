@@ -145,9 +145,49 @@ emit a block — and ONLY for cards that do not conform:
 <one line: what the slot wants vs. what the card is>
 
 Use the slot id shown in the listing (the value after ``--SLOT``). Output NOTHING \
-for a card that conforms — skip it silently and move on. If every card in the \
-batch conforms, output nothing at all. Do not write any preamble, summary, or \
-commentary; emit only ``--CARD`` blocks for the cards you are flagging."""
+for a card that conforms — skip it silently and move on. Do NOT emit a ``--CARD`` \
+block to say a card conforms or to note it is fine; a block means "this card does \
+NOT conform". If every card in the batch conforms, output nothing at all. Do not \
+write any preamble, summary, or commentary; emit only ``--CARD`` blocks for the \
+cards you are flagging."""
+
+
+# A drifting local model sometimes ignores the flag-only contract and emits a
+# ``--CARD`` block for a CONFORMING card too, with a body that restates the spec
+# match and ends "Conforms." (observed on gemma4). Firing it as a flag needlessly
+# (and expensively) regenerates a good card — and the regen may be worse than the
+# original. ``_is_nonconformance_flag`` is the durable backstop: it drops a block
+# whose body affirmatively says the card conforms with no problem cited. The
+# prompt tightening below is the soft hint; this parser guard is the hard one
+# (local models drift).
+_CONFORMS_RE = re.compile(r"\bconform(?:s|ing|ed)?\b", re.IGNORECASE)
+# Words that signal a real deviation; their presence means a "conform" mention is
+# negated ("does not conform", "fails to conform"), qualified ("barely conforms",
+# "otherwise conforms"), or the block cites a concrete problem (the prompt's own
+# non-conformance vocabulary — notably "ignores a theme constraint"), so the block
+# IS a genuine flag and must be kept.
+_PROBLEM_RE = re.compile(
+    r"\b(?:not|n't|never|fail(?:s|ed|ing)?|miss(?:es|ing)?|lacks?|lacking"
+    r"|wrong|incorrect|mismatch(?:ed|es)?|instead|should|isn't|aren't|doesn'?t"
+    r"|does not|off by|ignore(?:s|d)?|barely|partial(?:ly)?|otherwise)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_nonconformance_flag(block: str) -> bool:
+    """True when a ``--CARD`` block is a genuine non-conformance flag.
+
+    Returns False (drop the block) only on a clear affirmative-conformance
+    verdict — the body says the card conforms ("Conforms.") and cites no problem.
+    Anything ambiguous is kept as a flag, so a real non-conformance is never
+    newly dropped; the worst case is the pre-fix behaviour on an oddly worded
+    block, not a missed flag.
+    """
+    body = block.strip()
+    if not body:
+        return True  # a bare flag (id only) — honour it, like the default reason
+    # Drop only on an affirmative "conforms" verdict with no problem cited.
+    return not (_CONFORMS_RE.search(body) and not _PROBLEM_RE.search(body))
 
 
 def _build_batch_prompt(batch: list[tuple[str, Card, str]]) -> str:
@@ -242,6 +282,7 @@ def _check_batch(
         name="check_conformance",
         valid_ids=valid_ids,
         on_block=_on_block,
+        is_flag_block=_is_nonconformance_flag,
         thinking=thinking,
     )
 
