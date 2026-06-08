@@ -748,7 +748,7 @@
     mech.addEventListener('change', () => saveParams(state, { mechanic_count: parseInt(mech.value, 10) || 0 }));
     // art_versions_per_card is not a cascade-clear field (it only governs the
     // next art run), so it always live-applies — like mechanic_count.
-    artver.addEventListener('change', () => saveParams(state, { art_versions_per_card: parseInt(artver.value, 10) || 0 }));
+    artver.addEventListener('change', () => saveParams(state, { art_versions_per_card: parseInt(artver.value, 10) || 1 }));
   }
 
   async function saveParams(state, patch) {
