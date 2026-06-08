@@ -1489,6 +1489,51 @@ def _reserve_cycles(
     return members_by_rarity, kept, warnings
 
 
+def _top_up_creature_density(slots: list[SkeletonSlot]) -> int:
+    """Flip ordinary colored non-creature slots to creatures until overall
+    creature density clears the set-wide 50% floor. Returns the count retyped.
+
+    A cross-rarity safety net for tiny sets. The per-rarity pooled allocator
+    (:func:`_assign_card_types_pooled`) targets the 50% floor *within* each
+    rarity, but it can only place creatures in colored slots; when a rarity block
+    is too small to spread mono colors evenly (e.g. a 4-slot common collapses
+    entirely to colorless artifacts in :func:`_build_color_slots`), that rarity
+    contributes zero creatures and no other rarity compensates, so the set-wide
+    floor fails (~45% on a 20-card set). This tops it up by retyping ordinary
+    (non-special) colored non-creature slots — touching only ``card_type``, so
+    color balance, colorless counts, and the per-color common density invariant
+    all still hold. Lowest-rarity slots are flipped first (creatures are densest
+    at common in a real set). Best-effort: if the colored non-creature pool is too
+    small to reach the floor it flips what it can. A no-op for any set that already
+    meets the floor (every realistic size >= ~25), so balanced sets are untouched.
+    """
+    non_land = [s for s in slots if s.card_type != SlotCardType.LAND]
+    if not non_land:
+        return 0
+    creatures = sum(1 for s in non_land if s.card_type == SlotCardType.CREATURE)
+    deficit = math.ceil(len(non_land) * _MIN_CREATURE_DENSITY) - creatures
+    if deficit <= 0:
+        return 0
+
+    candidates = [
+        s
+        for s in slots
+        if s.color != "colorless"
+        and s.card_type not in (SlotCardType.CREATURE, SlotCardType.LAND, SlotCardType.PLANESWALKER)
+        and not s.cycle_id
+        and not s.is_reprint_slot
+        and not s.reserved_card
+        and not s.signpost_for
+    ]
+    candidates.sort(key=lambda s: (_RARITY_RANK.get(s.rarity, 0), s.slot_id))
+
+    flipped = 0
+    for slot in candidates[:deficit]:
+        slot.card_type = SlotCardType.CREATURE
+        flipped += 1
+    return flipped
+
+
 def _place_planeswalkers(slots: list[SkeletonSlot], count: int) -> int:
     """Retype up to *count* mythic slots to planeswalker, returning how many.
 
@@ -1776,6 +1821,15 @@ def generate_skeleton(
 
     n_signposts = _mark_signpost_slots(all_slots, knobs.signposts_per_pair)
     logger.info("Skeleton: flagged %d signpost uncommon slot(s)", n_signposts)
+
+    # Cross-rarity creature top-up: rescue the set-wide 50% density floor when a
+    # tiny rarity block collapsed to all-colorless (so it contributed no creatures
+    # and the per-rarity allocator couldn't compensate). Runs after special slots
+    # are flagged (so it skips them) and before subtype labelling (so the overlay
+    # reads the final types). A no-op for any set already above the floor.
+    n_topped = _top_up_creature_density(all_slots)
+    if n_topped:
+        logger.info("Skeleton: retyped %d slot(s) to creature to meet density floor", n_topped)
 
     # Label fine-grained subtypes last (after special slots are flagged so it skips
     # them); a pure overlay that leaves card_type/color/rarity/counts untouched.
