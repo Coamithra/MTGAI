@@ -504,20 +504,26 @@
     const next = W.nextStageEntryAfter(STAGE_ID);
     const nextName = next ? next.name : 'the next stage';
 
+    const canAdvanceTip = W.completedTipCanAdvance(state, STAGE_ID);
     let html;
     if (!isLatest) {
       html = `<span class="wiz-footer-note">Editing past visual references is destructive — use the Edit button above.</span>`;
-    } else if (isCompleted) {
-      html = `<span class="wiz-footer-note">Visual references saved. Engine is on ${escHtml(nextName)} — switch tabs to follow.</span>`;
-    } else if (!isPaused) {
-      html = `<span class="wiz-footer-note">This stage runs automatically. Tick "Stop after this step" above to review here before continuing.</span>`;
-    } else {
+    } else if (isPaused || canAdvanceTip) {
+      // isPaused is the normal "Stop after this step" pause. canAdvanceTip is
+      // the saved/reopened dead-end: completed but the pipeline persisted
+      // PAUSED with a later stage pending and no PAUSED_FOR_REVIEW pause — show
+      // the Save & Continue button so the user can resume instead of being
+      // stranded by the "Engine is on X" note (the engine is not on X here).
       html = `
         <button type="button" class="wiz-btn-primary" data-role="vr-save-advance" ${local.locked ? 'disabled' : ''}>
           Save &amp; Continue: ${escHtml(nextName)}
         </button>
         <span class="wiz-footer-note">Review the art direction above, then continue.</span>
       `;
+    } else if (isCompleted) {
+      html = `<span class="wiz-footer-note">Visual references saved. Engine is on ${escHtml(nextName)} — switch tabs to follow.</span>`;
+    } else {
+      html = `<span class="wiz-footer-note">This stage runs automatically. Tick "Stop after this step" above to review here before continuing.</span>`;
     }
     W.paintFooter(footer, html, { role: 'vr-save-advance', onClick: onSaveAndAdvance });
   }

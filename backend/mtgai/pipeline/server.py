@@ -3190,6 +3190,12 @@ def _stage_state_base(stage_id: str, settings: Any) -> dict:
         # twin get_llm_model_id resolves to at runtime.
         "model_id": settings.get_assigned_model_id(stage_id),
         "stage_status": _stage_status_in_state(stage_id),
+        # Lets a review-eligible tab's footer surface a Next-step button on a
+        # COMPLETED tip that is paused with a pending successor (the
+        # saved/reopened dead-end), not just on PAUSED_FOR_REVIEW. The client
+        # also computes this off live pipeline state; this keeps the server
+        # contract uniform across the stage tabs that share this base.
+        "can_advance": _stage_is_advanceable_tip(stage_id),
     }
 
 

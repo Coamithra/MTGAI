@@ -109,6 +109,27 @@
     return stages.length ? stages[0] : null;
   };
 
+  // Whether ``instanceId`` is a COMPLETED tip the pipeline can advance past —
+  // the saved/reopened dead-end. True when this instance has COMPLETED, the
+  // pipeline overall is PAUSED, and a later stage is still pending. In that
+  // state the engine *can* resume into the next stage (engine.resume re-points
+  // a completed tip at its pending successor), but no PAUSED_FOR_REVIEW pause
+  // exists to key a footer's Next-step button off — so a review-eligible tab
+  // would otherwise show a misleading "continue appears once ready" hint and
+  // strand the user. This mirrors the server's ``_stage_is_advanceable_tip``
+  // so client-state tabs (the generic stage footer, conformance) and
+  // server-fed tabs agree. ``next_pending_stage`` server-side counts PENDING
+  // and FAILED, but a FAILED downstream flips overall to FAILED (not PAUSED),
+  // so guarding on PAUSED + a pending stage matches it for this case.
+  window.MTGAIWizard.completedTipCanAdvance = (state, instanceId) => {
+    const pipeline = state && state.pipeline;
+    if (!pipeline || pipeline.overall_status !== 'paused') return false;
+    const stages = pipeline.stages || [];
+    const stage = stages.find(s => s.instance_id === instanceId);
+    if (!stage || stage.status !== 'completed') return false;
+    return stages.some(s => s.status === 'pending' || s.status === 'failed');
+  };
+
   // Set a tab's lifecycle status from a tab module. The engine drives stage
   // tabs via `stage_update` SSE (-> updateStageStatus), but pre-pipeline tabs
   // like Theme report completion through their own theme_* events; without a

@@ -422,3 +422,113 @@ def test_first_pending_returns_none_when_all_done():
     for stage in state.stages:
         stage.status = StageStatus.COMPLETED
     assert pipeline_server._first_pending_stage_id(state) is None
+
+
+# ---------------------------------------------------------------------------
+# _stage_is_advanceable_tip + can_advance on the stage /state payload
+#
+# The saved/reopened dead-end (overall=PAUSED, a review-eligible stage's tip
+# COMPLETED, its successor PENDING) has no PAUSED_FOR_REVIEW to key a footer's
+# Next-step button off, so the stage /state payload exposes ``can_advance`` and
+# the client also derives the same condition off live pipeline state. These lock
+# the server half so the footer surfaces the button instead of stranding the
+# user (the bug PR#40 fixed for art_gen, generalized here to ai_review et al.).
+# ---------------------------------------------------------------------------
+
+
+def _seed_completed_tip_deadend(code: str, tip_stage_id: str) -> PipelineState:
+    """Seed the dead-end: every stage up to+including ``tip_stage_id`` COMPLETED,
+    the rest PENDING, overall PAUSED, ``current`` pointing at the completed tip."""
+    state = _seed_state(code, overall_status=PipelineStatus.PAUSED)
+    seen_tip = False
+    for stage in state.stages:
+        if not seen_tip:
+            stage.status = StageStatus.COMPLETED
+        else:
+            stage.status = StageStatus.PENDING
+        if stage.stage_id == tip_stage_id:
+            seen_tip = True
+            state.current_instance_id = stage.instance_id
+    save_state(state)
+    return state
+
+
+def test_stage_is_advanceable_tip_true_on_completed_tip_deadend():
+    _make_set("TST")
+    _seed_completed_tip_deadend("TST", "ai_review")
+    assert pipeline_server._stage_is_advanceable_tip("ai_review") is True
+
+
+def test_stage_is_advanceable_tip_false_when_paused_for_review():
+    """A real PAUSED_FOR_REVIEW pause is NOT the dead-end — the normal Next-step
+    path already keys off the status, so can_advance stays False there."""
+    _make_set("TST")
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
+    for stage in state.stages:
+        stage.status = StageStatus.PENDING
+    ai_review = next(s for s in state.stages if s.stage_id == "ai_review")
+    for stage in state.stages:
+        if stage.stage_id == "ai_review":
+            break
+        stage.status = StageStatus.COMPLETED
+    ai_review.status = StageStatus.PAUSED_FOR_REVIEW
+    state.current_instance_id = ai_review.instance_id
+    save_state(state)
+    assert pipeline_server._stage_is_advanceable_tip("ai_review") is False
+
+
+def test_stage_is_advanceable_tip_false_when_no_pending_successor():
+    """Tip completed but nothing left to run (final stage / all done) — not the
+    dead-end; there is genuinely nowhere to advance."""
+    _make_set("TST")
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
+    for stage in state.stages:
+        stage.status = StageStatus.COMPLETED
+    state.current_instance_id = state.stages[-1].instance_id
+    save_state(state)
+    assert pipeline_server._stage_is_advanceable_tip(state.stages[-1].stage_id) is False
+
+
+def test_stage_is_advanceable_tip_false_when_running():
+    """overall RUNNING (engine live) is never the dead-end."""
+    _make_set("TST")
+    state = _seed_state("TST", overall_status=PipelineStatus.RUNNING)
+    ai_review = next(s for s in state.stages if s.stage_id == "ai_review")
+    ai_review.status = StageStatus.COMPLETED
+    save_state(state)
+    assert pipeline_server._stage_is_advanceable_tip("ai_review") is False
+
+
+def test_ai_review_state_exposes_can_advance_on_completed_tip_deadend(client):
+    """The AI Design Review /state payload surfaces ``can_advance=True`` in the
+    completed-tip dead-end so the footer renders the Next-step button (mirrors
+    the art_gen fix from PR#40)."""
+    _make_set("TST")
+    _seed_completed_tip_deadend("TST", "ai_review")
+    resp = client.get("/api/wizard/ai_review/state")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["stage_status"] == "completed"
+    assert body["can_advance"] is True
+
+
+def test_finalize_state_exposes_can_advance_on_completed_tip_deadend(client):
+    """Finalization shares the same dead-end + the same _stage_state_base, so it
+    too exposes can_advance — fixing its misleading "Engine is on X" footer."""
+    _make_set("TST")
+    _seed_completed_tip_deadend("TST", "finalize")
+    resp = client.get("/api/wizard/finalize/state")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["stage_status"] == "completed"
+    assert body["can_advance"] is True
+
+
+def test_ai_review_state_can_advance_false_when_not_a_completed_tip(client):
+    """No false positive: an ai_review stage still PENDING (engine hasn't reached
+    it) reports can_advance=False."""
+    _make_set("TST")
+    _seed_state("TST", overall_status=PipelineStatus.PAUSED)
+    resp = client.get("/api/wizard/ai_review/state")
+    assert resp.status_code == 200
+    assert resp.json()["can_advance"] is False

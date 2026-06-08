@@ -826,9 +826,22 @@
     const next = W.nextStageEntryAfter(instanceId);
     const nextName = next ? next.name : 'the next stage';
 
+    const canAdvanceTip = W.completedTipCanAdvance(state, instanceId);
     let html;
     if (!isLatest) {
       html = `<span class="wiz-footer-note">Editing past card generation is destructive — use the Edit button above.</span>`;
+    } else if (status === 'paused_for_review' || canAdvanceTip) {
+      // paused_for_review is the normal review pause. canAdvanceTip is the
+      // saved/reopened dead-end: completed but the pipeline persisted PAUSED
+      // with a later stage pending and no PAUSED_FOR_REVIEW pause — show the
+      // Next-step button so the user can resume instead of being stranded by
+      // the "Engine is on X" note (the engine is not on X here).
+      html = `
+        <button type="button" class="wiz-btn-primary" data-role="cg-advance"
+                ${local.locked ? 'disabled' : ''}>
+          Next step: ${escHtml(nextName)}
+        </button>
+      `;
     } else if (status === 'completed') {
       const isFinal = !next;
       if (isFinal) {
@@ -838,13 +851,6 @@
       }
     } else if (status === 'failed') {
       html = `<span class="wiz-footer-note">Stage failed — use Refresh AI above to retry failed slots.</span>`;
-    } else if (status === 'paused_for_review') {
-      html = `
-        <button type="button" class="wiz-btn-primary" data-role="cg-advance"
-                ${local.locked ? 'disabled' : ''}>
-          Next step: ${escHtml(nextName)}
-        </button>
-      `;
     } else {
       // pending or running
       html = `<span class="wiz-footer-note">Continue button appears once card generation is ready for review.</span>`;

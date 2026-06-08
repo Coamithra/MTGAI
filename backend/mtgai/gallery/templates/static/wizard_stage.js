@@ -271,12 +271,17 @@
       return `<span class="wiz-footer-complete" role="status">✓ Set complete</span>`;
     }
 
-    // Latest tab + paused_for_review = manual Next-step gesture. The
-    // engine has yielded the AI mutex and is waiting for the user.
-    // Auto-advance handles the COMPLETED-on-non-final case server-side
-    // (the engine just walks to the next stage), so we only render
-    // Next-step on PAUSED_FOR_REVIEW.
-    if (isLatest && stage.status === 'paused_for_review') {
+    // Latest tab + paused_for_review = manual Next-step gesture. The engine
+    // has yielded the AI mutex and is waiting for the user. Also surface
+    // Next-step on a COMPLETED tip the pipeline can advance past (overall
+    // PAUSED, a later stage still pending) — the saved/reopened dead-end where
+    // the engine *can* resume but no PAUSED_FOR_REVIEW pause exists to key the
+    // button off. Otherwise this case falls through to the empty footer note
+    // and strands the user (see W.completedTipCanAdvance).
+    const canAdvance =
+      stage.status === 'paused_for_review'
+      || window.MTGAIWizard.completedTipCanAdvance(state, stage.instance_id);
+    if (isLatest && canAdvance) {
       const next = window.MTGAIWizard.nextStageEntryAfter(stage.instance_id);
       const label = next ? `Next step: ${next.name}` : 'Next step';
       return `<button type="button" class="wiz-btn-primary" data-role="next-step">${escHtml(label)}</button>`;
