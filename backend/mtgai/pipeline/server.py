@@ -2360,6 +2360,101 @@ def _kickoff_pipeline_engine(set_code: str) -> tuple[PipelineState | None, str |
     return state, None
 
 
+def _resume_paused_engine() -> str | None:
+    """Resume the engine from a PAUSED pipeline state.
+
+    Shared by the wizard's Next-step button (``/api/wizard/advance``) and the
+    auto-resume-after-recovery path. Mirrors ``engine.resume()``'s contract: the
+    tip is either PAUSED_FOR_REVIEW (the normal break-point path) or already
+    COMPLETED with a pending successor waiting (the saved/reopened dead-end).
+    Returns an error string when it can't resume — the caller decides whether
+    that's a 409 or a silent skip — else ``None`` after spawning the resume task.
+
+    The caller must NOT hold the AI lock: the resumed engine acquires it per
+    stage, and ``try_acquire`` is non-reentrant.
+    """
+    global _engine, _engine_task
+
+    existing = load_state()
+    if existing is None or existing.overall_status != PipelineStatus.PAUSED:
+        return "Pipeline is not paused"
+
+    # Same guard the kickoff helper + every other engine-touching endpoint use:
+    # refuse to clobber a live engine reference. Without this a double-click or a
+    # concurrent request would overwrite ``_engine`` mid-run, orphaning the prior
+    # daemon thread.
+    if _engine is not None and _engine.is_running:
+        return "A pipeline is already running"
+
+    # Don't claim success when resume() can't actually do anything. resume()
+    # handles two cases: the current stage is PAUSED_FOR_REVIEW (the normal
+    # break-point path), or the tip already completed but a pending successor is
+    # waiting. If neither holds, resume would silently no-op.
+    current = existing.current_stage()
+    tip_paused = current is not None and current.status == StageStatus.PAUSED_FOR_REVIEW
+    has_pending = existing.next_pending_stage() is not None
+    if not tip_paused and not has_pending:
+        return "Pipeline is paused but has no stage to advance to"
+
+    _engine = PipelineEngine(existing, event_bus)
+    _engine_task = asyncio.create_task(asyncio.to_thread(_engine.resume))
+    return None
+
+
+def _overall_status_is_failed() -> bool:
+    """Whether the active project's pipeline is currently in the FAILED state."""
+    state = _get_current_state()
+    return state is not None and state.overall_status == PipelineStatus.FAILED
+
+
+def _should_auto_resume_recovered(stage_id: str) -> bool:
+    """Whether a refresh that just healed a FAILED ``stage_id`` should auto-resume.
+
+    ``_heal_failed_stage`` demotes a recovered stage FAILED -> PAUSED_FOR_REVIEW
+    (overall FAILED -> PAUSED), which restores the Save & Continue path. But for a
+    stage whose *effective* review mode is AUTO (no live break-point) a normal run
+    would never have paused there — it auto-advances on completion. So after a
+    refresh-recovery of such a stage the pipeline should resume on its own instead
+    of stranding the user at a paused-despite-auto tab they must discover.
+
+    True only for a backbone (``instance_id == stage_id``), review-eligible stage
+    sitting PAUSED_FOR_REVIEW under overall PAUSED whose live break-point is OFF.
+    A REVIEW break-point (live "Stop after this step") stays paused for the user.
+    Inserted regen-loop copies and review-ineligible stages never qualify.
+    """
+    from mtgai.pipeline.engine import _live_break_point
+
+    state = load_state()
+    if state is None or state.overall_status != PipelineStatus.PAUSED:
+        return False
+    stage = _resolve_stage_instance(state, stage_id)
+    if stage is None or stage.status != StageStatus.PAUSED_FOR_REVIEW:
+        return False
+    if not stage.review_eligible or stage.instance_id != stage.stage_id:
+        return False
+    return not _live_break_point(stage_id)
+
+
+def _auto_resume_after_recovery(stage_id: str) -> None:
+    """Resume the engine if a refresh just recovered an AUTO ``stage_id`` from FAILED.
+
+    Best-effort: logs and no-ops if the resume can't fire (e.g. an engine raced
+    into running). Must be called AFTER the ``guarded_ai`` block so the AI lock is
+    released before the resumed engine tries to acquire it. Runs *after* the
+    refresh already succeeded, so it must never raise — a failure here would turn
+    a successful refresh into a 500. See :func:`_should_auto_resume_recovered` for
+    the gating contract.
+    """
+    try:
+        if not _should_auto_resume_recovered(stage_id):
+            return
+        err = _resume_paused_engine()
+        if err is not None:
+            logger.info("Auto-resume after %s recovery skipped: %s", stage_id, err)
+    except Exception:
+        logger.exception("Auto-resume after %s recovery failed", stage_id)
+
+
 @router.post("/api/wizard/advance")
 async def wizard_advance() -> JSONResponse:
     """Single Next-step entry point used by the wizard footer button.
@@ -2400,34 +2495,13 @@ async def wizard_advance() -> JSONResponse:
         )
 
     if existing.overall_status == PipelineStatus.PAUSED:
-        global _engine, _engine_task
-
-        # Same guard the kickoff helper uses + every other engine-touching
-        # endpoint (start/resume/retry/skip): refuse to clobber a live
-        # engine reference. Without this a double-click or a concurrent
-        # request would overwrite ``_engine`` mid-run, leaving the prior
-        # daemon thread orphaned and untraceable.
-        if _engine is not None and _engine.is_running:
-            return JSONResponse({"error": "A pipeline is already running"}, status_code=409)
-
-        # Don't claim success when resume() can't actually do anything. resume()
-        # handles two cases: the current stage is PAUSED_FOR_REVIEW (the normal
-        # break-point path), or the tip already completed but a pending successor
-        # is waiting (the saved/reopened dead-end this guards against). If neither
-        # holds — a paused state with a non-paused tip and nothing left to run —
-        # resume would silently no-op, so surface a real error instead of a false
-        # ``{success: true}``.
-        current = existing.current_stage()
-        tip_paused = current is not None and current.status == StageStatus.PAUSED_FOR_REVIEW
-        has_pending = existing.next_pending_stage() is not None
-        if not tip_paused and not has_pending:
-            return JSONResponse(
-                {"error": "Pipeline is paused but has no stage to advance to"},
-                status_code=409,
-            )
-
-        _engine = PipelineEngine(existing, event_bus)
-        _engine_task = asyncio.create_task(asyncio.to_thread(_engine.resume))
+        # Spawn the resume task (shared with the auto-resume-after-recovery
+        # path). The helper owns the live-engine guard + the can't-actually-
+        # advance check, returning a reason string the wizard hides the button
+        # for — so reaching either here is a client/server state drift → 409.
+        err = _resume_paused_engine()
+        if err is not None:
+            return JSONResponse({"error": err}, status_code=409)
         # Don't return navigate_to on resume: the user clicked Next-step
         # from the paused tab, so we want them to stay there (SSE will
         # spawn the next tab in the strip without stealing focus).
@@ -3501,6 +3575,12 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
         fire_reset=initial_generate,
     )
 
+    # Capture the pre-refresh failure state: if the initial engine run failed
+    # (the floor check below 3 valid candidates is the classic trigger), the
+    # guarded_ai heal recovers the stage FAILED -> PAUSED, and we then auto-resume
+    # the pipeline when mechanics' live break-point is off (see _auto_resume_after_recovery).
+    pre_failed = _overall_status_is_failed()
+
     with guarded_ai("Mechanic candidate refresh", stage_id="mechanics") as guard:
         if guard.busy:
             return guard.busy_response
@@ -3544,6 +3624,13 @@ async def wizard_mechanics_refresh_all(request: Request) -> JSONResponse:
         )
         # The guard heals a stuck FAILED stage (e.g. an initial generation that
         # ran below the floor) on a clean exit, so Save & Continue reappears.
+
+    # A full refresh leaves a complete, valid selection on disk, so a recovered
+    # AUTO mechanics stage can auto-resume the pipeline instead of stranding the
+    # user at a paused-despite-auto tab. No-op unless the stage was FAILED + is
+    # effective-AUTO; a live break-point keeps it paused for Save & Continue.
+    if pre_failed:
+        _auto_resume_after_recovery("mechanics")
 
     collisions = detect_keyword_collisions(merged)
     return JSONResponse(
@@ -3681,6 +3768,10 @@ async def wizard_mechanics_pick(request: Request) -> JSONResponse:
         return JSONResponse({"error": "No candidates to pick from"}, status_code=400)
     mech_dir = _mechanics_dir()
 
+    # See refresh-all: a re-pick that recovers a FAILED stage auto-resumes the
+    # pipeline when mechanics is effective-AUTO.
+    pre_failed = _overall_status_is_failed()
+
     with guarded_ai("Mechanic AI pick", stage_id="mechanics") as guard:
         if guard.busy:
             return guard.busy_response
@@ -3697,6 +3788,9 @@ async def wizard_mechanics_pick(request: Request) -> JSONResponse:
         )
         # The guard heals a FAILED stage on a clean exit — a successful pick
         # means the stage is healthy and Save & Continue should reappear.
+
+    if pre_failed:
+        _auto_resume_after_recovery("mechanics")
 
     return JSONResponse(
         {
@@ -5025,6 +5119,16 @@ def _heal_failed_stage(stage_id: str) -> None:
     if not changed:
         return
     save_state(state)
+    # Drop the dead run's replay buffer before re-emitting status. The halted run
+    # left a terminal ``pipeline_status: failed`` (plus the failure modal text) in
+    # the buffer; without this, that stale ``failed`` is replayed to every new /
+    # reconnecting SSE subscriber and re-pops the "stage failed" modal long after
+    # the refresh recovered the stage. ``_kickoff_pipeline_engine`` resets the
+    # buffer at run start for the same reason — recovery is the matching reset.
+    # Safe here: a heal only fires from a FAILED state, where no engine is running,
+    # so nothing live is in flight to lose. The fresh ``paused`` status we publish
+    # next becomes the buffer's new tail.
+    event_bus.reset_buffer()
     if stage is not None:
         event_bus.stage_update(
             stage_id,

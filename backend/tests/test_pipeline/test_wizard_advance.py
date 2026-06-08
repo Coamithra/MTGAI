@@ -532,3 +532,137 @@ def test_ai_review_state_can_advance_false_when_not_a_completed_tip(client):
     resp = client.get("/api/wizard/ai_review/state")
     assert resp.status_code == 200
     assert resp.json()["can_advance"] is False
+
+
+# ---------------------------------------------------------------------------
+# Refresh-recovery: _heal_failed_stage buffer reset + auto-resume gating
+#
+# When a stage fails and the user recovers it from the tab (e.g. Mechanics
+# "Refresh AI" after the floor check failed the initial run), the guarded_ai
+# heal demotes FAILED→PAUSED_FOR_REVIEW. Two follow-on contracts:
+#   * BUG B — the heal drops the dead run's SSE replay buffer so the stale
+#     ``pipeline_status: failed`` can't re-pop the failure modal on reconnect.
+#   * BUG A — when the recovered stage is effective-AUTO (no live break-point),
+#     the pipeline auto-resumes (matching a normal run); a REVIEW break-point
+#     leaves it paused for Save & Continue.
+# ---------------------------------------------------------------------------
+
+
+def _set_break_points(code: str, break_points: dict[str, str]) -> None:
+    """Re-pin the active project with explicit ``break_points`` (live break-point
+    source for ``engine._live_break_point``)."""
+    from mtgai.runtime import active_project
+
+    proj = active_project.read_active_project()
+    assert proj is not None
+    new = proj.settings.model_copy(update={"break_points": break_points})
+    active_project.write_active_project(active_project.ProjectState(set_code=code, settings=new))
+
+
+def _seed_recovered_mechanics(code: str) -> PipelineState:
+    """Seed the post-heal shape: overall PAUSED, mechanics PAUSED_FOR_REVIEW,
+    ``current`` pointing at it."""
+    state = _seed_state(code, overall_status=PipelineStatus.PAUSED)
+    mech = next(s for s in state.stages if s.stage_id == "mechanics")
+    for stage in state.stages:
+        if stage.stage_id == "mechanics":
+            break
+        stage.status = StageStatus.COMPLETED
+    mech.status = StageStatus.PAUSED_FOR_REVIEW
+    state.current_instance_id = mech.instance_id
+    save_state(state)
+    return state
+
+
+def test_should_auto_resume_recovered_true_when_break_point_off():
+    _make_set("TST")
+    _set_break_points("TST", {"mechanics": "auto"})
+    _seed_recovered_mechanics("TST")
+    assert pipeline_server._should_auto_resume_recovered("mechanics") is True
+
+
+def test_should_auto_resume_recovered_false_when_break_point_on():
+    """A live "Stop after this step" on mechanics keeps it paused for the user's
+    Save & Continue — no surprise auto-resume."""
+    _make_set("TST")
+    _set_break_points("TST", {"mechanics": "review"})
+    _seed_recovered_mechanics("TST")
+    assert pipeline_server._should_auto_resume_recovered("mechanics") is False
+
+
+def test_should_auto_resume_recovered_false_when_not_paused():
+    """A still-RUNNING (or non-paused) pipeline never auto-resumes from here."""
+    _make_set("TST")
+    _set_break_points("TST", {"mechanics": "auto"})
+    state = _seed_state("TST", overall_status=PipelineStatus.RUNNING)
+    mech = next(s for s in state.stages if s.stage_id == "mechanics")
+    mech.status = StageStatus.PAUSED_FOR_REVIEW
+    save_state(state)
+    assert pipeline_server._should_auto_resume_recovered("mechanics") is False
+
+
+def test_should_auto_resume_recovered_false_when_stage_not_paused_for_review():
+    """The stage must actually be sitting PAUSED_FOR_REVIEW (the heal target)."""
+    _make_set("TST")
+    _set_break_points("TST", {"mechanics": "auto"})
+    state = _seed_state("TST", overall_status=PipelineStatus.PAUSED)
+    mech = next(s for s in state.stages if s.stage_id == "mechanics")
+    mech.status = StageStatus.COMPLETED
+    save_state(state)
+    assert pipeline_server._should_auto_resume_recovered("mechanics") is False
+
+
+def test_heal_then_auto_resume_recovered_end_to_end():
+    """A FAILED mechanics stage, healed, becomes auto-resume-eligible when its
+    break-point is off."""
+    _make_set("TST")
+    _set_break_points("TST", {"mechanics": "auto"})
+    state = _seed_state("TST", overall_status=PipelineStatus.FAILED)
+    mech = next(s for s in state.stages if s.stage_id == "mechanics")
+    mech.status = StageStatus.FAILED
+    mech.progress.error_message = "produced only 1 valid candidate(s); need at least 3"
+    state.current_instance_id = mech.instance_id
+    save_state(state)
+
+    pipeline_server._heal_failed_stage("mechanics")
+
+    reloaded = pipeline_server.load_state()
+    assert reloaded is not None
+    assert reloaded.overall_status == PipelineStatus.PAUSED
+    healed = next(s for s in reloaded.stages if s.stage_id == "mechanics")
+    assert healed.status == StageStatus.PAUSED_FOR_REVIEW
+    assert healed.progress.error_message is None
+    assert pipeline_server._should_auto_resume_recovered("mechanics") is True
+
+
+def test_heal_failed_stage_resets_replay_buffer():
+    """The dead run's terminal ``pipeline_status: failed`` must not survive the
+    heal — otherwise it replays to every new SSE subscriber and re-pops the
+    failure modal long after recovery (BUG B)."""
+    _make_set("TST")
+    state = _seed_state("TST", overall_status=PipelineStatus.FAILED)
+    mech = next(s for s in state.stages if s.stage_id == "mechanics")
+    mech.status = StageStatus.FAILED
+    state.current_instance_id = mech.instance_id
+    save_state(state)
+
+    bus = pipeline_server.event_bus
+    bus.reset_buffer()
+    # Simulate the dead run's buffered terminal failure event.
+    bus.pipeline_status("failed", mech.instance_id)
+    assert any(
+        e["type"] == "pipeline_status" and e["data"]["overall_status"] == "failed"
+        for e in bus._buffer
+    )
+
+    pipeline_server._heal_failed_stage("mechanics")
+
+    # No stale ``failed`` lingers; the fresh ``paused`` is the buffer's tail.
+    assert not any(
+        e["type"] == "pipeline_status" and e["data"]["overall_status"] == "failed"
+        for e in bus._buffer
+    )
+    assert any(
+        e["type"] == "pipeline_status" and e["data"]["overall_status"] == "paused"
+        for e in bus._buffer
+    )
