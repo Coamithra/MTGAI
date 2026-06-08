@@ -130,6 +130,13 @@
     } else if (name === 'interaction_card') {
       const row = ensureRow(local, data.slot_id, data.card_name);
       row.inter = { state: verdictState(data.interacts), reason: data.reason || '' };
+      // A flagged enabler can be an EARLIER card never seeded by the conformance
+      // pass (a scoped re-run checks only regenerated cards but may pin the root
+      // cause on an existing one). Show its Conformance column as muted · — it was
+      // not conformance-checked here — matching the authoritative reload path.
+      if (!row.conf && !local.confSeeded.has(data.slot_id)) {
+        row.conf = { state: 'na', reason: '' };
+      }
     }
     repaint(instanceId, local);
   };

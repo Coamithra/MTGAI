@@ -802,6 +802,124 @@ def test_analyze_interactions_new_only_uses_rest_as_context(project, monkeypatch
     assert [r["slot_id"] for r in streamed] == ["W-C-02"]
 
 
+def test_analyze_interactions_flags_earlier_card_from_later_batch(project, monkeypatch):
+    """Attribution fix (card 6a26ecc6): a LATER batch can name an EARLIER card as
+    the enabler. A new payoff that merely uses an existing enabler must flag the
+    enabler, not itself — so the flag lands on the earlier card, not the new one."""
+    from mtgai.analysis import interactions as inter_mod
+
+    cards = [_make_card(f"W-C-0{i}") for i in range(1, 5)]  # 4 cards
+    monkeypatch.setattr(inter_mod, "BATCH_SIZE", 2)
+
+    def fake(**kwargs):
+        fake.calls += 1
+        new_section = kwargs.get("user_prompt", "").split("## New cards to check")[-1]
+        # Only when the batch-2 payoff W-C-03 appears do we blame the batch-1
+        # enabler W-C-01 (an existing-context card by then).
+        text = ""
+        if "W-C-03 |" in new_section:
+            text = (
+                "--CARD W-C-01--\n"
+                "W-C-03 abuses W-C-01's free untap for an infinite loop.\n"
+                "AVOID: no free untap\n"
+            )
+        if text:
+            yield {"type": "text_delta", "text": text}
+        yield {
+            "type": "complete",
+            "text": text,
+            "stop_reason": "stop",
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "model": "m",
+        }
+
+    fake.calls = 0
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    streamed: list[dict] = []
+    flags, _analysis, _cost = inter_mod.analyze_interactions(
+        cards, [], on_card=lambda rec: streamed.append(rec)
+    )
+
+    assert fake.calls == 2  # 4 cards / 2 per batch
+    # The flag lands on the EARLIER enabler W-C-01, not the new payoff W-C-03.
+    assert [f.enabler_slot_id for f in flags] == ["W-C-01"]
+    assert flags[0].replacement_constraint == "no free untap"
+    # W-C-01 ends up flagged (✗) even though it was checked clean in batch 1;
+    # the new payoff W-C-03 is itself checked clean (✓).
+    by_slot = {r["slot_id"]: r["interacts"] for r in streamed}
+    assert by_slot["W-C-01"] is False
+    assert by_slot["W-C-03"] is True
+
+
+def test_analyze_interactions_scoped_flags_existing_context_enabler(project, monkeypatch):
+    """Attribution fix on a SCOPED re-run: a regenerated card can flag an EXISTING
+    context card (not itself in scope) as the enabler — the root cause is an old
+    card the regen exposed. The flag still lands on the existing enabler."""
+    from mtgai.analysis import interactions as inter_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02"), _make_card("W-C-03")]
+
+    def fake(**kwargs):
+        fake.calls += 1
+        text = (
+            "--CARD W-C-01--\n"
+            "W-C-03 + W-C-01 form a degenerate recursion loop.\n"
+            "AVOID: no free recursion\n"
+        )
+        yield {"type": "text_delta", "text": text}
+        yield {
+            "type": "complete",
+            "text": text,
+            "stop_reason": "stop",
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "model": "m",
+        }
+
+    fake.calls = 0
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    started: list[list[dict]] = []
+    streamed: list[dict] = []
+    flags, _analysis, _cost = inter_mod.analyze_interactions(
+        cards,
+        [],
+        new_only={"W-C-03"},
+        on_start=lambda lst: started.append(lst),
+        on_card=lambda rec: streamed.append(rec),
+    )
+
+    # Only the regenerated W-C-03 is seeded/in-scope, but the flag lands on the
+    # existing context card W-C-01 — the validated enabler space is the whole pool.
+    assert [c["slot_id"] for c in started[0]] == ["W-C-03"]
+    assert [f.enabler_slot_id for f in flags] == ["W-C-01"]
+    by_slot = {r["slot_id"]: r["interacts"] for r in streamed}
+    assert by_slot["W-C-01"] is False  # existing enabler surfaced as flagged
+    assert by_slot["W-C-03"] is True
+
+
+def test_interaction_prompt_encodes_precision_and_attribution_guidance():
+    """The interactions prompt must retain the rate-limiter / rarity / root-cause
+    enabler guidance — the durable contract behind the two precision+attribution
+    bugs (6a26ec63 false-positives, 6a26ecc6 attribution bias)."""
+    from mtgai.analysis import interactions as inter_mod
+
+    p = inter_mod.INTERACTION_SYSTEM_PROMPT.lower()
+    # 6a26ec63: respect explicit rate limiters before claiming a loop.
+    assert "once each turn" in p
+    assert "limiter" in p
+    # 6a26ec63: rarity-aware power tolerance (strong at rare/mythic is fine).
+    assert "rarity" in p and "mythic" in p
+    # 6a26ecc6: attribute to the root-cause enabler, which may be an existing card.
+    assert "enabler" in p
+    assert "root cause" in p
+    assert "existing" in p
+
+
 def test_analyze_interactions_new_only_empty_is_clean_noop(project, monkeypatch):
     """An empty new_only (nothing regenerated) makes no LLM call and passes."""
     from mtgai.analysis import interactions as inter_mod

@@ -112,28 +112,72 @@ card interactions that each NEW card creates — with the existing cards or with
 the other new cards — that would be problematic in a limited (draft/sealed) format.
 
 You are looking for:
-1. **Infinite combos** — two or three cards that create an unbounded loop \
-(infinite damage, infinite tokens, infinite life, infinite mana, etc.)
-2. **Degenerate synergies** — two cards that together produce an effect far \
-beyond what either card's rarity and mana cost should allow.
-3. **Unintended loops** — cards that trigger each other repeatedly without \
-a natural stopping point.
+1. **Infinite combos** — two or three cards that create a genuinely UNBOUNDED loop \
+(infinite damage, infinite tokens, infinite life, infinite mana, etc.) with no \
+natural stopping point.
+2. **Degenerate synergies** — two cards that together produce an effect so far \
+beyond their rarity and mana cost that they warp a limited game (a turn-two kill, \
+a soft-lock, near-unbeatable repeatable value at common/uncommon).
+3. **Unintended loops** — cards that trigger each other repeatedly without a \
+natural stopping point.
 
 You are NOT looking for:
+- **Strong-but-bounded cards.** A card that is individually powerful — or a tutor, \
+search, or value engine that fires AT MOST ONCE PER TURN — is NOT a degenerate \
+interaction; it is just a strong card. Power level is a SEPARATE concern from combo \
+health: do not flag a card here merely for being strong.
 - Strong synergies that are intentional design (a payoff card rewarding the \
 mechanic, card type, or archetype it is built around is the set working as \
 intended, not a degenerate interaction).
-- Cards that are individually strong but don't create problematic interactions.
 - Three-card combos that require very specific board states (too unlikely in limited).
 - Color-pair synergies that only work if you draft both colors (that's normal).
 
-For each problematic interaction, identify the **enabler** — the single card \
-whose design is the root cause and should be regenerated. It is typically the \
-card that provides an undercosted or unrestricted effect (free untap, cost \
-reduction, repeated recursion); the other card(s) are usually fine on their own. \
-The enabler may be a NEW card or an EXISTING one.
+## Respect rate limiters before claiming a loop
 
-Do NOT fabricate problems — false positives waste design time.
+An ability can ONLY anchor an infinite or repeatable loop if it can actually be \
+activated repeatedly within a single turn at no net cost. BEFORE flagging any loop \
+or "repeatable" interaction, read the enabling ability's own text and check for a \
+limiter that breaks it:
+- "Activate only once each turn" / "once each turn" / "once per turn" — caps the \
+ability at one use; it CANNOT loop, no matter how many counters/resources exist.
+- Sorcery-speed / "only as a sorcery" / "only during your turn" — no instant-speed loop.
+- A tap ({T}) cost with no built-in untap — the permanent stays tapped, so the \
+ability fires once per turn unless ANOTHER card untaps it; if so, that free \
+repeatable untapper is the real enabler, not this card.
+- A one-shot or counting cost (sacrifice, exile, "remove a counter") the combo \
+cannot replenish fast enough to sustain a loop.
+
+To flag a loop you MUST be able to name the exact repeatable cycle (A enables B \
+enables A …) and confirm that NO clause on any card in it breaks the repetition. A \
+"counter generator + counter consumer" pair is a loop ONLY if the consumer can fire \
+repeatedly each turn — if it reads "once each turn", it cannot. If a limiter caps \
+the interaction, it is not a loop: do not flag it.
+
+## Weigh rarity
+
+Each card's rarity is shown. Higher rarities are ALLOWED to be more powerful: a \
+strong tutor, engine, or payoff at **rare or mythic** is acceptable design, not a \
+problem to flag. Reserve flags for interactions degenerate even after accounting \
+for the enabler's rarity. Be most suspicious of two-card combos at \
+**common/uncommon**, which most drafters will actually assemble.
+
+## Identify the true enabler — it is often an EARLIER card
+
+For each problematic interaction, name the **enabler**: the single card whose \
+design is the ROOT CAUSE and must change to break the interaction. The enabler is \
+typically the card providing the undercosted or unrestricted effect (free untap, \
+cost reduction, repeated recursion, a free repeatable trigger); the other card(s) \
+are usually individually fine.
+
+Do NOT default to blaming the NEW card under review. The new card is frequently an \
+innocent payoff that merely USES an enabler already present in the set — in that \
+case flag the EXISTING enabler, NOT the new payoff. The enabler may be a NEW card \
+or an EXISTING (already-reviewed) one; pick whichever is genuinely the root cause, \
+even if it appears earlier in the listing. Ask: "which card, if redesigned, makes \
+this interaction fair?" — that card is the enabler.
+
+Do NOT fabricate problems — false positives waste design time and wrongly nerf \
+good cards. When in doubt, do not flag.
 
 ## Output format
 
@@ -141,16 +185,17 @@ For each degenerate interaction you find, emit a block — and ONLY for real pro
 
 --CARD <enabler_slot_id>--
 <one line: which cards combo and step-by-step how the degenerate interaction \
-works; name the other card(s) involved>
+works; name the other card(s) involved and the exact repeatable cycle>
 AVOID: <a brief structural constraint the regenerated enabler must satisfy, e.g. \
 "no free untap of a creature" — not a restatement of the problem>
 
 Use the id shown at the start of the enabler's line (the value before the first \
-``|``). If a new card creates no degenerate interaction, output nothing for it — \
-do NOT emit a ``--CARD`` block to say a card is clean or has no interaction; a \
-block means a real degenerate interaction was found. If the whole batch is clean, \
-output nothing at all. Write no preamble, summary, or commentary — emit only \
-``--CARD`` blocks."""
+``|``) — and make sure it is the ENABLER's id, which may be an EXISTING card from \
+an earlier batch, not necessarily the new card. If a new card creates no \
+degenerate interaction, output nothing for it — do NOT emit a ``--CARD`` block to \
+say a card is clean or has no interaction; a block means a real degenerate \
+interaction was found. If the whole batch is clean, output nothing at all. Write \
+no preamble, summary, or commentary — emit only ``--CARD`` blocks."""
 
 
 def _build_batch_prompt(existing: list[Card], new: list[Card], mechanics: list[dict]) -> str:
@@ -173,10 +218,14 @@ def _build_batch_prompt(existing: list[Card], new: list[Card], mechanics: list[d
         "## Task\n\n"
         "Check EACH new card for degenerate interactions with the existing cards "
         "and with the other new cards. Emit a `--CARD <enabler_slot_id>--` block "
-        "(naming the enabler) for each problem; emit nothing for clean cards.\n\n"
+        "for each REAL problem, naming the root-cause **enabler** — which may be an "
+        "existing card above, not necessarily the new card. Emit nothing for clean "
+        "cards, for merely-strong cards, and for any interaction a rate limiter "
+        "(once each turn / sorcery-speed / tap-with-no-untap) already caps.\n\n"
         "Remember: this is a limited format (draft/sealed). Players open ~45 cards "
         "and build 40-card decks. Two-card combos at common are much more likely "
-        "than three-card combos at rare. Weight severity accordingly."
+        "than three-card combos at rare; a strong card at rare/mythic is fine. "
+        "Weight severity accordingly."
     )
     return "\n\n---\n\n".join(sections)
 
