@@ -1330,7 +1330,11 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
         # group. Findings are folded into the per-card conformance checklist
         # below (each starts as an X), rather than shown as a separate section.
         dup_findings, _dup_analysis = find_duplicates(cards)
-        name_findings, _name_analysis = find_duplicate_names(cards)
+        # Bias the name scan to flag the regenerated card (not its carried-over
+        # twin) so the flag survives the recheck scoping below — otherwise a
+        # regen that took the lower collector number would keep the regen card
+        # and flag-then-drop the carried-over twin, shipping the collision.
+        name_findings, _name_analysis = find_duplicate_names(cards, regenerating=recheck)
         dup_by_slot: dict[str, str] = {}
         for f in [*dup_findings, *name_findings]:
             # A card hit by both scans (a same-name functional clone) keeps both

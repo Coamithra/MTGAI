@@ -1094,6 +1094,27 @@ def test_find_duplicate_names_flags_all_but_lowest_collector():
     assert "share a name" in analysis
 
 
+def test_find_duplicate_names_biases_flag_to_regenerated_card():
+    from mtgai.analysis.duplicates import find_duplicate_names
+
+    # The regenerated card (#044) took the LOWER collector number and collided
+    # with a carried-over twin (#058). Default keep-lowest would keep #044 and
+    # flag #058 — but #058 is not in the regen recheck set, so its flag would be
+    # dropped downstream and the collision would ship. The regen bias keeps the
+    # carried-over #058 and flags the regenerated #044 (which survives scoping).
+    cards = [
+        _named_card("044", "Skyguard Ace", oracle="Flying"),
+        _named_card("058", "Skyguard Ace", oracle="Vigilance"),
+    ]
+    findings, _ = find_duplicate_names(cards, regenerating={"044"})
+    assert [f.slot_id for f in findings] == ["044"]
+    assert findings[0].duplicate_of == "Skyguard Ace"
+
+    # Without the bias the lowest collector number is kept (default behaviour).
+    findings_default, _ = find_duplicate_names(cards)
+    assert [f.slot_id for f in findings_default] == ["058"]
+
+
 def test_find_duplicate_names_is_case_insensitive():
     from mtgai.analysis.duplicates import find_duplicate_names
 

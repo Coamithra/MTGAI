@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 
 from mtgai.analysis.gate_common import filter_gate_cards
 from mtgai.analysis.models import DuplicateFinding
@@ -112,7 +113,64 @@ def _flag_key(card: Card) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Main entry point
+# Shared grouping → keep → flag scaffolding
+# ---------------------------------------------------------------------------
+
+
+def _flag_groups(
+    groups: dict[object, list[Card]],
+    reason_for: Callable[[Card, Card, str], str],
+    *,
+    regenerating: set[str] | None = None,
+) -> tuple[list[DuplicateFinding], int]:
+    """For each group of two or more cards, keep one and flag the rest.
+
+    The keep is the lowest collector number, except when ``regenerating`` (the
+    slot ids being regenerated this round) is given: then the keep is biased to
+    the lowest-collector member *not* in that set, so the cards left flagged are
+    the regen targets. A later gate instance re-checks only the regenerated cards
+    (``restrict_to``) and drops every other flag, so without this bias a
+    regenerated card that took the lower collector number would be kept and its
+    carried-over name twin flagged-then-dropped — letting the collision ship.
+
+    ``reason_for(flagged_card, keep_card, keep_label)`` builds the per-card
+    regen reason. Returns ``(findings, group_count)``.
+    """
+    findings: list[DuplicateFinding] = []
+    dup_groups = 0
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        dup_groups += 1
+        members.sort(key=_collector_key)
+        keep = members[0]
+        if regenerating:
+            stable = next((m for m in members if _flag_key(m) not in regenerating), None)
+            if stable is not None:
+                keep = stable
+        keep_label = keep.name or keep.slot_id or keep.collector_number or "another card"
+        for card in members:
+            if card is keep:
+                continue
+            slot_id = _flag_key(card)
+            if not slot_id:
+                logger.warning(
+                    "Duplicate card %r has no slot_id/collector_number; skipping", card.name
+                )
+                continue
+            findings.append(
+                DuplicateFinding(
+                    slot_id=slot_id,
+                    card_name=card.name,
+                    duplicate_of=keep_label,
+                    reason=reason_for(card, keep, keep_label),
+                )
+            )
+    return findings, dup_groups
+
+
+# ---------------------------------------------------------------------------
+# Main entry points
 # ---------------------------------------------------------------------------
 
 
@@ -129,37 +187,17 @@ def find_duplicates(cards: list[Card]) -> tuple[list[DuplicateFinding], str]:
     if not gate_cards:
         return [], ""
 
-    groups: dict[tuple, list[Card]] = {}
+    groups: dict[object, list[Card]] = {}
     for card in gate_cards:
         groups.setdefault(_signature(card), []).append(card)
 
-    findings: list[DuplicateFinding] = []
-    dup_groups = 0
-    for members in groups.values():
-        if len(members) < 2:
-            continue
-        dup_groups += 1
-        members.sort(key=_collector_key)
-        keep, *rest = members
-        keep_label = keep.name or keep.slot_id or keep.collector_number or "another card"
-        for card in rest:
-            slot_id = _flag_key(card)
-            if not slot_id:
-                logger.warning(
-                    "Duplicate card %r has no slot_id/collector_number; skipping", card.name
-                )
-                continue
-            findings.append(
-                DuplicateFinding(
-                    slot_id=slot_id,
-                    card_name=card.name,
-                    duplicate_of=keep_label,
-                    reason=(
-                        f"Functionally identical to {keep_label} (ignoring mana cost). "
-                        "Redesign this card so it does something meaningfully different."
-                    ),
-                )
-            )
+    findings, dup_groups = _flag_groups(
+        groups,
+        lambda _card, _keep, keep_label: (
+            f"Functionally identical to {keep_label} (ignoring mana cost). "
+            "Redesign this card so it does something meaningfully different."
+        ),
+    )
 
     if findings:
         analysis = (
@@ -173,15 +211,22 @@ def find_duplicates(cards: list[Card]) -> tuple[list[DuplicateFinding], str]:
     return findings, analysis
 
 
-def find_duplicate_names(cards: list[Card]) -> tuple[list[DuplicateFinding], str]:
+def find_duplicate_names(
+    cards: list[Card], *, regenerating: set[str] | None = None
+) -> tuple[list[DuplicateFinding], str]:
     """Scan the pool for cards that share a name (case-insensitive).
 
     MTG forbids two *distinct* cards from carrying the same name, but the
     functional-duplicate scan above can't catch a name collision between two
     cards that do different things (its signature is type/P/T/oracle, not name).
     This is the complementary check: group the gate-eligible cards by their
-    normalized name and, for each group of two or more, keep the lowest collector
-    number and flag the rest for regeneration with a rename instruction.
+    normalized name and, for each group of two or more, keep one and flag the
+    rest for regeneration with a rename instruction.
+
+    ``regenerating`` (the slot ids regenerated this round, when the gate is
+    re-checking a regen pass) biases the keep toward a card *not* being
+    regenerated, so a regenerated card that collided with a carried-over twin is
+    the one flagged — see :func:`_flag_groups`.
 
     Skips basic lands + reprints (shared ``filter_gate_cards``): basic lands
     legitimately repeat a name ("Forest"), and reprints carry real printed names
@@ -192,41 +237,22 @@ def find_duplicate_names(cards: list[Card]) -> tuple[list[DuplicateFinding], str
     if not gate_cards:
         return [], ""
 
-    groups: dict[str, list[Card]] = {}
+    groups: dict[object, list[Card]] = {}
     for card in gate_cards:
         key = (card.name or "").strip().lower()
         if not key:
             continue
         groups.setdefault(key, []).append(card)
 
-    findings: list[DuplicateFinding] = []
-    dup_groups = 0
-    for members in groups.values():
-        if len(members) < 2:
-            continue
-        dup_groups += 1
-        members.sort(key=_collector_key)
-        keep, *rest = members
-        keep_label = keep.name or keep.slot_id or keep.collector_number or "another card"
-        for card in rest:
-            slot_id = _flag_key(card)
-            if not slot_id:
-                logger.warning(
-                    "Duplicate-named card %r has no slot_id/collector_number; skipping", card.name
-                )
-                continue
-            findings.append(
-                DuplicateFinding(
-                    slot_id=slot_id,
-                    card_name=card.name,
-                    duplicate_of=keep_label,
-                    reason=(
-                        f'Duplicate card name "{card.name}" — already used by '
-                        f"{keep_label} (#{keep.collector_number}). MTG forbids two distinct "
-                        "cards sharing a name; give this card a different, fitting name."
-                    ),
-                )
-            )
+    def _reason(card: Card, keep: Card, keep_label: str) -> str:
+        at = f" (#{keep.collector_number})" if keep.collector_number else ""
+        return (
+            f'Duplicate card name "{card.name}" — already used by {keep_label}{at}. '
+            "MTG forbids two distinct cards sharing a name; give this card a "
+            "different, fitting name."
+        )
+
+    findings, dup_groups = _flag_groups(groups, _reason, regenerating=regenerating)
 
     if findings:
         analysis = (
