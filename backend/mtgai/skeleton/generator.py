@@ -542,6 +542,11 @@ def _distribute_colors(
 # Card type assignment
 # ---------------------------------------------------------------------------
 
+# Hard floor on creature density (see `_check_creature_density`): a low creature
+# knob can never push the set below this — the pooled allocator reconciles up to
+# it, so the knob bends to the invariant instead of producing an illegal skeleton.
+_MIN_CREATURE_DENSITY = 0.50
+
 
 def _assign_card_types(
     color: str,
@@ -592,6 +597,93 @@ def _assign_card_types(
     types += [SlotCardType.ENCHANTMENT] * counts["enchantment"]
     types += [SlotCardType.ARTIFACT] * counts["artifact"]
     return types[:block_size]
+
+
+def _assign_card_types_pooled(
+    blocks: dict[str, list[dict]],
+    rarity: str,
+    knobs: SkeletonKnobs | None = None,
+) -> dict[str, list[str]]:
+    """Assign card types across all of a rarity's color blocks, pooling the
+    creature / non-creature split at the **rarity** level instead of rounding it
+    independently per (color) block.
+
+    Per-block rounding collapses on small sets: a 1-3 slot colored block forces
+    ``>=1`` creature (the ``max(1, …)`` floor, inflating creature density well
+    above the knob target) and its lone non-creature remainder always rounds to
+    the single highest-weight type, so instants / sorceries / enchantments never
+    win a slot and the realized type mix diverges sharply from the knobs (a
+    60-card artifact-matters set produced ZERO spells). Pooling the colored slots
+    — mirroring how :func:`_assign_mechanic_tags` pools vanilla / french counts
+    across the rarity — lets small remainders honour the weight mix and keeps
+    creature density on target. On large sets the per-block and pooled results
+    converge (big blocks round cleanly).
+
+    Colorless blocks stay forced-artifact (structural) and are excluded from the
+    pool. Returns ``{block_key: [type, ...]}`` index-aligned to each block's items.
+    """
+    knobs = knobs or default_knobs()
+
+    colored = {
+        bk: items for bk, items in blocks.items() if items and items[0]["color"] != "colorless"
+    }
+    result: dict[str, list[str]] = {
+        bk: [SlotCardType.ARTIFACT] * len(items)
+        for bk, items in blocks.items()
+        if bk not in colored
+    }
+
+    total = sum(len(items) for items in colored.values())
+    if total == 0:
+        return result
+
+    creature_frac = {
+        "common": knobs.creature_common,
+        "uncommon": knobs.creature_uncommon,
+        "rare": knobs.creature_rare,
+        "mythic": knobs.creature_mythic,
+    }.get(rarity, 0.53)
+    # The knob bends to the hard density invariant rather than breaking it.
+    creature_frac = max(creature_frac, _MIN_CREATURE_DENSITY)
+    # creature_frac is the share of the rarity's NON-LAND cards that are creatures,
+    # but creatures only ever land in colored slots (colorless slots are forced
+    # artifacts). So size the creature count against the full non-land pool
+    # (colored + colorless) and place them all in the colored slots — otherwise the
+    # all-artifact colorless slots silently drag overall creature density below the
+    # 50% hard floor (the old per-block max(1) creature floor masked this by
+    # over-stuffing creatures into small blocks).
+    nonland_total = total + sum(len(items) for bk, items in blocks.items() if bk not in colored)
+    n_creatures = min(total, max(1, round(nonland_total * creature_frac)))
+    remaining = total - n_creatures
+
+    weights = knobs.noncreature_weights()
+    # Largest-remainder rounding so the four type counts always sum to `remaining`.
+    raw = {t: remaining * w for t, w in weights.items()}
+    counts = {t: int(v) for t, v in raw.items()}
+    leftover = remaining - sum(counts.values())
+    for t in sorted(raw, key=lambda k: raw[k] - counts[k], reverse=True)[: max(0, leftover)]:
+        counts[t] += 1
+
+    pooled: list[str] = [SlotCardType.CREATURE] * n_creatures
+    pooled += [SlotCardType.INSTANT] * counts["instant"]
+    pooled += [SlotCardType.SORCERY] * counts["sorcery"]
+    pooled += [SlotCardType.ENCHANTMENT] * counts["enchantment"]
+    pooled += [SlotCardType.ARTIFACT] * counts["artifact"]
+
+    # Deal the pooled multiset across colored blocks position-major (round-robin
+    # by slot index across blocks) so creatures and each spell type spread evenly
+    # across colors instead of clumping in one block — same interleave order
+    # _assign_mechanic_tags uses for its pooled tags.
+    max_len = max(len(items) for items in colored.values())
+    coords = [
+        (bk, pos) for pos in range(max_len) for bk, items in colored.items() if pos < len(items)
+    ]
+    assigned: dict[tuple[str, int], str] = {}
+    for coord, card_type in zip(coords, pooled, strict=False):
+        assigned[coord] = card_type
+    for bk, items in colored.items():
+        result[bk] = [assigned[(bk, i)] for i in range(len(items))]
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -789,14 +881,15 @@ def _check_creature_density(slots: list[SkeletonSlot]) -> list[ConstraintResult]
     results: list[ConstraintResult] = []
     non_land = [s for s in slots if s.card_type != SlotCardType.LAND]
 
+    min_pct = _MIN_CREATURE_DENSITY * 100
     if non_land:
         creature_count = sum(1 for s in non_land if s.card_type == SlotCardType.CREATURE)
         pct = creature_count / len(non_land) * 100
         results.append(
             ConstraintResult(
                 name="overall_creature_density",
-                passed=pct >= 50.0,
-                message=f"Overall creature density: {pct:.1f}% (min 50%)",
+                passed=pct >= min_pct,
+                message=f"Overall creature density: {pct:.1f}% (min {min_pct:.0f}%)",
                 is_hard=True,
             )
         )
@@ -1568,10 +1661,9 @@ def generate_skeleton(
 
         # Card types drive the mechanic tier (vanilla/french are creature-only), so
         # resolve every block's types first, then assign tiers pooled across the rarity.
-        block_types = {
-            block_key: _assign_card_types(block_items[0]["color"], rarity, len(block_items), knobs)
-            for block_key, block_items in blocks.items()
-        }
+        # Pool the creature / non-creature split across the rarity (not per block) so
+        # small-set blocks can't collapse the spell mix or inflate creature density.
+        block_types = _assign_card_types_pooled(blocks, rarity, knobs)
         block_mech = _assign_mechanic_tags(block_types, rarity)
 
         block_queues: dict[str, list[dict]] = {}

@@ -141,6 +141,55 @@ class TestScalarKnobs:
 
 
 # ---------------------------------------------------------------------------
+# Small-set card-type pooling (card 6a26d7a1)
+# ---------------------------------------------------------------------------
+
+
+class TestSmallSetTypeMix:
+    """Per-block type rounding used to collapse spells + inflate creatures on
+    small sets; pooling the split across the rarity fixes both.
+    """
+
+    def _spell_counts(self, slots) -> dict[str, int]:
+        out = {"instant": 0, "sorcery": 0, "enchantment": 0}
+        for s in slots:
+            if s.card_type in out and s.color != "colorless":
+                out[s.card_type] += 1
+        return out
+
+    def test_small_set_keeps_spells_under_artifact_skew(self):
+        # The exact regression: a 60-card artifact-matters set whose AI-tuned
+        # knobs put the highest weight on artifact still must yield real
+        # instants/sorceries/enchantments — not an all-permanent, spell-less set.
+        k = SkeletonKnobs(
+            noncreature_instant=0.35,
+            noncreature_sorcery=0.30,
+            noncreature_enchantment=0.35,
+            noncreature_artifact=0.50,
+        )
+        r = generate_skeleton(_cfg(60), knobs=k)
+        spells = self._spell_counts(r.slots)
+        assert sum(spells.values()) > 0, spells
+        # No single non-creature type should be zeroed out by rounding.
+        assert all(v > 0 for v in spells.values()), spells
+
+    def test_small_set_creature_density_near_knob(self):
+        # The max(1)-per-block floor inflated creature density (~72% vs a 53%
+        # knob). Pooling keeps the realized density close to the target.
+        r = generate_skeleton(_cfg(60), knobs=SkeletonKnobs())
+        non_land = [s for s in r.slots if s.card_type != SlotCardType.LAND]
+        creatures = sum(1 for s in non_land if s.card_type == SlotCardType.CREATURE)
+        pct = creatures / len(non_land)
+        assert pct <= 0.62, pct  # was ~0.72 with per-block rounding
+
+    @pytest.mark.parametrize("size", [40, 60, 100])
+    def test_pooled_split_passes_hard_constraints(self, size: int):
+        k = SkeletonKnobs(noncreature_artifact=0.50)
+        r = generate_skeleton(_cfg(size), knobs=k)
+        assert r.balance_report.all_hard_passed is True
+
+
+# ---------------------------------------------------------------------------
 # Cycles
 # ---------------------------------------------------------------------------
 
