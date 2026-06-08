@@ -162,12 +162,14 @@ cards you are flagging."""
 # (local models drift).
 _CONFORMS_RE = re.compile(r"\bconform(?:s|ing|ed)?\b", re.IGNORECASE)
 # Words that signal a real deviation; their presence means a "conform" mention is
-# negated ("does not conform", "fails to conform") or the block cites a concrete
-# problem, so the block IS a genuine flag and must be kept.
+# negated ("does not conform", "fails to conform"), qualified ("barely conforms",
+# "otherwise conforms"), or the block cites a concrete problem (the prompt's own
+# non-conformance vocabulary — notably "ignores a theme constraint"), so the block
+# IS a genuine flag and must be kept.
 _PROBLEM_RE = re.compile(
     r"\b(?:not|n't|never|fail(?:s|ed|ing)?|miss(?:es|ing)?|lacks?|lacking"
     r"|wrong|incorrect|mismatch(?:ed|es)?|instead|should|isn't|aren't|doesn'?t"
-    r"|does not|off by)\b",
+    r"|does not|off by|ignore(?:s|d)?|barely|partial(?:ly)?|otherwise)\b",
     re.IGNORECASE,
 )
 

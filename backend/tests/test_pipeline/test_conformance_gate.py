@@ -265,9 +265,7 @@ def test_check_conformance_drops_conforms_block(project, monkeypatch):
     }
 
     # The model emits a block for W-C-01 affirming it conforms (a false flag).
-    fake = _fake_stream(
-        {"W-C-01": "Spec calls for white common creature; card matches. Conforms."}
-    )
+    fake = _fake_stream({"W-C-01": "Spec calls for white common creature; card matches. Conforms."})
     monkeypatch.setattr(gate_common, "stream_text", fake)
     monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
 
@@ -295,6 +293,27 @@ def test_check_conformance_keeps_real_flag_mentioning_conform(project, monkeypat
     }
 
     fake = _fake_stream({"W-C-02": "Does not conform: card is blue, spec wants white."})
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    findings, _analysis, _cost = conf_mod.check_conformance(cards, slots)
+    assert [f.slot_id for f in findings] == ["W-C-02"]
+
+
+def test_check_conformance_keeps_partial_conformance_flag(project, monkeypatch):
+    """A real flag that says the card 'conforms' only partially must NOT be dropped.
+
+    The prompt's own non-conformance vocabulary ("Ignores a theme constraint") and
+    qualifiers like "only"/"otherwise" appear alongside "conforms" in genuine
+    flags; the guard keeps them (the dangerous false-negative direction)."""
+    from mtgai.analysis import conformance as conf_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02")]
+    slots = {
+        c.slot_id: {"slot_id": c.slot_id, "tweaked_text": "White common creature"} for c in cards
+    }
+
+    fake = _fake_stream({"W-C-02": "Conforms in color only; ignores the assigned mechanic."})
     monkeypatch.setattr(gate_common, "stream_text", fake)
     monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
 
@@ -689,6 +708,39 @@ def test_analyze_interactions_drops_no_interaction_block(project, monkeypatch):
         ("W-C-01", True),
         ("W-C-02", True),
     }
+
+
+def test_analyze_interactions_keeps_combo_opening_clean(project, monkeypatch):
+    """A real combo flag that OPENS with clean-sounding words (and has no AVOID
+    line) must NOT be dropped — the prompt invites "fine on its own but combos…"
+    phrasing, the dangerous false-negative direction."""
+    from mtgai.analysis import interactions as inter_mod
+
+    cards = [_make_card("W-C-01"), _make_card("W-C-02")]
+
+    def fake(**kwargs):
+        fake.calls += 1
+        # Opens "Fine alone" but describes a real loop, with no AVOID line.
+        text = "--CARD W-C-01--\nFine alone, but loops with W-C-02 for infinite mana.\n"
+        yield {"type": "text_delta", "text": text}
+        yield {
+            "type": "complete",
+            "text": text,
+            "stop_reason": "stop",
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "model": "m",
+        }
+
+    fake.calls = 0
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    flags, _analysis, _cost = inter_mod.analyze_interactions(cards, [])
+
+    # The combo flag was kept: W-C-01 is flagged as the enabler.
+    assert [f.enabler_slot_id for f in flags] == ["W-C-01"]
+    assert "loops" in flags[0].reason
 
 
 # ----------------------------------------------------------------------

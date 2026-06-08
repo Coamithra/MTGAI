@@ -184,13 +184,29 @@ def _build_batch_prompt(existing: list[Card], new: list[Card], mechanics: list[d
 # A drifting local model sometimes ignores the flag-only contract and emits a
 # ``--CARD`` block for a card with NO degenerate interaction (body "No combo
 # found." / "None."). Firing it as a flag needlessly regenerates a fine card.
-# ``_is_interaction_flag`` is the durable backstop, mirroring conformance's: a
-# real flag carries an ``AVOID:`` line (the required replacement constraint) or
-# cites a concrete combo; a block is dropped only on a clear affirmative
-# no-problem verdict with no AVOID line. Anything ambiguous is kept.
-_NO_INTERACTION_RE = re.compile(
-    r"\bno\b[\s\w]{0,24}?\b(?:degenerate|interaction|combo|loop|synerg\w*|issue|problem|concern)"
-    r"|\b(?:none|n/?a|clean|nothing problematic|no issues?|conforms?|is fine|looks fine)\b",
+# ``_is_interaction_flag`` is the durable backstop, mirroring conformance's.
+#
+# The guard is deliberately conservative — it must NEVER drop a real combo flag.
+# A genuine flag often *opens* with clean-sounding words because the prompt notes
+# the other card "is usually fine on its own" ("Fine alone but combos with Y for
+# infinite mana"). So a block is dropped only when ALL of:
+#   * it carries no ``AVOID:`` line (a real flag's required replacement constraint),
+#   * its body *starts* with an all-clear opener (``_CLEAN_OPENER_RE``), and
+#   * it contains no positive combo cue or contrastive conjunction
+#     (``_POSITIVE_COMBO_RE``) that betrays a real interaction being described.
+# "No combo." is dropped; "No issues alone BUT combos with Y" is kept.
+_CLEAN_OPENER_RE = re.compile(
+    r"^(?:none|n/?a|clean|nothing(?:\s+problematic)?|all\s+clear"
+    r"|no\s+(?:degenerate\s+)?(?:interactions?|combos?|loops?|synerg\w*"
+    r"|issues?|problems?|concerns?))\b",
+    re.IGNORECASE,
+)
+# A combo word stated positively (NOT negated by a preceding "no"/"not") or a
+# contrastive conjunction means the body is describing a real interaction even
+# though it opened with clean-sounding words — keep the block.
+_POSITIVE_COMBO_RE = re.compile(
+    r"\b(?:but|however|yet|though|although|except)\b"
+    r"|(?<!no )(?<!not )\b(?:combos?|loops?|infinite|untaps?|recursion|together|chains?)\b",
     re.IGNORECASE,
 )
 
@@ -202,17 +218,19 @@ def _has_avoid_line(block: str) -> bool:
 def _is_interaction_flag(block: str) -> bool:
     """True when a ``--CARD`` block is a genuine degenerate-interaction flag.
 
-    Returns False (drop) only when the block carries no ``AVOID:`` constraint and
-    its body affirmatively says there is no problematic interaction. A block with
-    an ``AVOID:`` line, or one citing a combo with no explicit "all clear", is
-    kept — so a real flag is never newly dropped.
+    Returns False (drop) only for a clear all-clear note with no ``AVOID:`` line:
+    the body opens with an all-clear verdict and carries no positive combo cue or
+    contrastive conjunction. A block with an ``AVOID:`` line, one that does not
+    open clean, or one whose body betrays a real interaction is kept — so a real
+    flag is never newly dropped (the worst case is the pre-fix behaviour).
     """
-    body = block.strip()
+    if _has_avoid_line(block):
+        return True  # carries the required replacement constraint -> real flag
+    body = " ".join(block.split())  # collapse whitespace/newlines to one line
     if not body:
         return True  # bare flag — honour it (parse defaults the reason)
-    if _has_avoid_line(body):
-        return True  # carries the required replacement constraint -> real flag
-    return not _NO_INTERACTION_RE.search(body)
+    # Drop only a clean-opening note with no positive combo cue / contrast.
+    return not (_CLEAN_OPENER_RE.match(body) and not _POSITIVE_COMBO_RE.search(body))
 
 
 def _parse_interaction_block(block: str) -> tuple[str, str]:
