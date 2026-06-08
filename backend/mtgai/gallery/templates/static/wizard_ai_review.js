@@ -72,6 +72,16 @@
         display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
         gap: 0.7rem;
       }
+      /* Full-width separator between the needs-attention cards and the
+         carried-over approved pile (regen instances). */
+      .wiz-ar-divider {
+        grid-column: 1 / -1; display: flex; align-items: center; gap: 0.6rem;
+        font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+        color: #6e7681; margin: 0.35rem 0 0.1rem;
+      }
+      .wiz-ar-divider::after {
+        content: ''; flex: 1 1 auto; height: 1px; background: #1f2540;
+      }
       .wiz-ar-card {
         position: relative; background: #0f1729; border: 1px solid #1f2540;
         border-radius: 6px; padding: 0.65rem 0.7rem 0.55rem; font-size: 0.78rem;
@@ -438,8 +448,52 @@
       slot.innerHTML = `<div class="wiz-ar-empty">No cards match this filter.</div>`;
       return;
     }
-    slot.innerHTML = `<div class="wiz-ar-grid">${visible.map((t) => tileHtml(t, local)).join('')}</div>`;
+    // Surface the actionable cards first: reviewing → to-review → rejected →
+    // approved, then collector_number asc. Most valuable on regen instances
+    // (ai_review.2) where only the flagged subset is re-reviewed and the
+    // to-review cards would otherwise be scattered among carried-over approvals.
+    // Compute each tile's priority once (live SSE repaints are frequent) and use
+    // an explicit collector-number tiebreaker — local.cards isn't guaranteed to
+    // stay collector-sorted (streamUpsert appends live tiles).
+    const ranked = visible
+      .map((t) => ({ tile: t, prio: sortPriority(t, local) }))
+      .sort((a, b) => a.prio - b.prio || cnCompare(a.tile, b.tile));
+    slot.innerHTML = `<div class="wiz-ar-grid">${gridInnerHtml(ranked, local)}</div>`;
     setLocked(root, local, local.locked);
+  }
+
+  // 0 reviewing (live) · 1 to-review · 2 rejected · 3 approved. 0–2 all need the
+  // user's attention (a rejected card is flagged for regen); only 3 (approved)
+  // is the passive carry-over.
+  function sortPriority(tile, local) {
+    const cn = tile.collector_number || '';
+    if (local.reviewing.has(cn)) return 0;
+    const v = effective(tile).verdict;
+    if (v === 'pending') return 1;
+    if (v === 'rejected') return 2;
+    return 3;
+  }
+
+  function cnCompare(a, b) {
+    return String(a.collector_number || '').localeCompare(
+      String(b.collector_number || ''), undefined, { numeric: true });
+  }
+
+  // Render the ranked tiles, dropping one full-width divider just before the
+  // first approved card — only in the unfiltered view and only when at least one
+  // needs-attention tile precedes it, so the user sees where the done pile
+  // begins.
+  function gridInnerHtml(ranked, local) {
+    const parts = [];
+    let dividerDropped = false;
+    ranked.forEach(({ tile, prio }) => {
+      if (local.filter === 'all' && !dividerDropped && prio >= 3 && parts.length > 0) {
+        parts.push('<div class="wiz-ar-divider">Approved</div>');
+        dividerDropped = true;
+      }
+      parts.push(tileHtml(tile, local));
+    });
+    return parts.join('');
   }
 
   // The effective decision drives the stamp. The server-built tile (/state)

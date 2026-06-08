@@ -37,6 +37,7 @@ from mtgai.skeleton.generator import (
     _mark_signpost_slots,
     _scale_rarity,
     _split_request,
+    _top_up_creature_density,
     build_reserved_slots,
 )
 
@@ -660,6 +661,116 @@ class TestSkeletonGeneration:
         result = _generate(100)
         for pair in COLOR_PAIRS:
             assert pair in result.archetype_slots
+
+
+class TestTinySetCreatureDensity:
+    """Tiny sets must still clear the set-wide 50% creature-density floor.
+
+    On a very small set a rarity block can be too small to spread mono colors
+    (a 4-slot common collapses to all-colorless artifacts → 0 creatures), and the
+    per-rarity pooled allocator can't compensate cross-rarity. The post-build
+    cross-rarity top-up (:func:`_top_up_creature_density`) rescues the floor.
+    """
+
+    @pytest.mark.parametrize("size", [15, 18, 20])
+    def test_tiny_set_meets_density_floor(self, size: int):
+        result = _generate(size)
+        overall = next(
+            c for c in result.balance_report.constraints if c.name == "overall_creature_density"
+        )
+        assert overall.passed is True, f"size={size}: {overall.message}"
+
+    def test_top_up_only_changes_card_type(self):
+        # The top-up touches only card_type — every other field (color, rarity)
+        # and the colorless count are unchanged.
+        result = _generate(20)
+        before = {s.slot_id: (s.color, s.rarity) for s in result.slots}
+        before_colorless = sum(1 for s in result.slots if s.color == "colorless")
+        _top_up_creature_density(result.slots)  # idempotent — already topped up at gen
+        assert {s.slot_id: (s.color, s.rarity) for s in result.slots} == before
+        assert sum(1 for s in result.slots if s.color == "colorless") == before_colorless
+        assert not [c for c in _check_color_balance(result.slots) if not c.passed]
+
+    def test_top_up_is_noop_above_floor(self):
+        # A balanced set already above the floor is left untouched.
+        result = _generate(60)
+        before = sum(1 for s in result.slots if s.card_type == SlotCardType.CREATURE)
+        flipped = _top_up_creature_density(result.slots)
+        after = sum(1 for s in result.slots if s.card_type == SlotCardType.CREATURE)
+        assert flipped == 0
+        assert after == before
+
+    def test_top_up_skips_colorless_and_special_slots(self):
+        # Below-floor pool of colorless artifacts + colored spells: the top-up
+        # flips colored spells to creatures but never the colorless slots or a
+        # signpost/cycle slot. With 6 non-land slots and 0 creatures the deficit is
+        # ceil(6 * 0.5) = 3, but only 2 eligible (non-special) colored spells exist,
+        # so it flips exactly 2 (the deficit-exceeds-pool best-effort branch).
+        slots = [
+            SkeletonSlot(
+                slot_id=f"CL-{i:02d}",
+                color="colorless",
+                rarity="common",
+                card_type="artifact",
+                cmc_target=2,
+            )
+            for i in range(3)
+        ] + [
+            SkeletonSlot(
+                slot_id="WU-U",
+                color="multicolor",
+                rarity="uncommon",
+                card_type="instant",
+                cmc_target=3,
+                color_pair="WU",
+                signpost_for="WU",
+            ),
+            SkeletonSlot(
+                slot_id="WG-C",
+                color="multicolor",
+                rarity="common",
+                card_type="enchantment",
+                cmc_target=2,
+                color_pair="WG",
+                cycle_id="cyc1",
+            ),
+            SkeletonSlot(
+                slot_id="W-C-1", color="W", rarity="common", card_type="instant", cmc_target=2
+            ),
+            SkeletonSlot(
+                slot_id="U-C-1", color="U", rarity="common", card_type="sorcery", cmc_target=2
+            ),
+        ]
+        flipped = _top_up_creature_density(slots)
+        assert flipped == 2  # deficit 3, but only 2 eligible candidates
+        by_id = {s.slot_id: s for s in slots}
+        assert all(by_id[f"CL-{i:02d}"].card_type == "artifact" for i in range(3))
+        assert by_id["WU-U"].card_type == "instant"  # signpost untouched
+        assert by_id["WG-C"].card_type == "enchantment"  # cycle member untouched
+        assert by_id["W-C-1"].card_type == "creature"  # ordinary spells flipped
+        assert by_id["U-C-1"].card_type == "creature"
+
+    def test_top_up_flips_lowest_rarity_first(self):
+        # The deficit-sized flip prefers lower rarities (creatures are densest at
+        # common in a real set). One creature short with both a common and a rare
+        # spell eligible → the common flips, the rare is left.
+        slots = [
+            SkeletonSlot(
+                slot_id="W-C", color="W", rarity="common", card_type="creature", cmc_target=2
+            ),
+            SkeletonSlot(
+                slot_id="U-C", color="U", rarity="common", card_type="instant", cmc_target=2
+            ),
+            SkeletonSlot(
+                slot_id="B-R", color="B", rarity="rare", card_type="sorcery", cmc_target=3
+            ),
+        ]
+        # 3 non-land, 1 creature → deficit = ceil(3 * 0.5) - 1 = 1.
+        flipped = _top_up_creature_density(slots)
+        assert flipped == 1
+        by_id = {s.slot_id: s for s in slots}
+        assert by_id["U-C"].card_type == "creature"  # common spell flipped
+        assert by_id["B-R"].card_type == "sorcery"  # rare spell left
 
 
 # ---------------------------------------------------------------------------
