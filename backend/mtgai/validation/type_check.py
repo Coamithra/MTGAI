@@ -262,8 +262,10 @@ def validate_type_consistency(card: Card) -> list[ValidationError]:
     is_planeswalker = "Planeswalker" in card.card_types
     # A Vehicle is a non-creature permanent that MUST carry printed power/toughness
     # so it can fight once crewed — the one non-creature type that has stats. It
-    # therefore inverts the "non-creatures omit P/T" rules below.
-    is_vehicle = "Vehicle" in card.subtypes
+    # therefore inverts the "non-creatures omit P/T" rules below. Match
+    # case-insensitively: the schema parser stores subtypes verbatim, so an LLM
+    # type line of "Artifact — vehicle" yields subtypes=["vehicle"].
+    is_vehicle = any(s.strip().casefold() == "vehicle" for s in card.subtypes)
     has_power = card.power is not None
     has_toughness = card.toughness is not None
     has_loyalty = card.loyalty is not None
@@ -283,7 +285,8 @@ def validate_type_consistency(card: Card) -> list[ValidationError]:
     # 1b. Vehicles must have power and toughness too — even when they aren't
     #     creatures. A crewed Vehicle with no printed P/T can't fight; the model
     #     tends to omit them because it's been told "non-creatures have no P/T".
-    if is_vehicle and (not has_power or not has_toughness):
+    #     Skip DFCs (P/T lives on the faces), mirroring rule 2.
+    if is_vehicle and (not has_power or not has_toughness) and not has_faces:
         errors.append(
             _manual(
                 "power/toughness",
