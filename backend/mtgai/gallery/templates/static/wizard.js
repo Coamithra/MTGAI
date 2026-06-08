@@ -1119,7 +1119,7 @@
         <h2 id="wiz-fail-title">${escHtml(stageName)} failed</h2>
         <p>The pipeline stopped on this stage — nothing after it has run.</p>
         <pre class="wiz-modal-error-detail">${escHtml(errorMessage)}</pre>
-        <p class="wiz-modal-foot">Retry runs this step again in place — resumable steps keep work already finished. Or dismiss and edit the result by hand on the ${escHtml(stageName)} tab, then continue.</p>
+        <p class="wiz-modal-foot">Retry re-runs this step (resumable steps keep work already finished) and continues the pipeline from here. Or dismiss and edit the result by hand on the ${escHtml(stageName)} tab, then continue.</p>
         <div class="wiz-modal-actions">
           <button type="button" class="wiz-btn-secondary" data-modal-action="close">Got it</button>
           <button type="button" class="wiz-btn-primary" data-modal-action="retry">↻ Retry this step</button>

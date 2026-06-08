@@ -3239,6 +3239,10 @@ async def wizard_instance_retry(request: Request) -> JSONResponse:
     # but an orphan-reset leaves ``current_instance_id`` untouched, so re-anchor.
     state.current_instance_id = target.instance_id
     save_state(state)
+    # Spun up inline rather than via ``_kickoff_pipeline_engine`` (the rerun path's
+    # helper): that helper refuses a FAILED/RUNNING state and only calls ``run``,
+    # whereas retry must accept FAILED and dispatch ``retry_current`` (FAILED ->
+    # PENDING reset before the forward walk). The guards above cover what it would.
     event_bus.reset_buffer()
     _engine = PipelineEngine(state, event_bus)
     threading.Thread(
@@ -3247,13 +3251,7 @@ async def wizard_instance_retry(request: Request) -> JSONResponse:
         daemon=True,
     ).start()
     _engine_task = None
-    return JSONResponse(
-        {
-            "success": True,
-            "engine_started": True,
-            "navigate_to": f"/pipeline/{target.instance_id}",
-        }
-    )
+    return JSONResponse({"success": True, "engine_started": True})
 
 
 # ---------------------------------------------------------------------------

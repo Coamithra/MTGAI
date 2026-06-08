@@ -160,7 +160,6 @@ def test_retry_success_kicks_engine(client, no_thread_start):
     data = resp.json()
     assert data["success"] is True
     assert data["engine_started"] is True
-    assert data["navigate_to"] == "/pipeline/finalize"
     assert len(no_thread_start) == 1
     # The thread runs the engine's retry_current (not the plain run loop).
     assert no_thread_start[0]._kwargs["target"] == pipeline_server._engine.retry_current
@@ -174,7 +173,9 @@ def test_retry_defaults_to_current_failed_stage(client, no_thread_start):
     _seed_failed_state("card_gen")
     resp = client.post("/api/wizard/instance/retry", json={})
     assert resp.status_code == 200
-    assert resp.json()["navigate_to"] == "/pipeline/card_gen"
+    assert resp.json()["success"] is True
+    # No explicit instance_id: the endpoint anchors on the sole failed stage.
+    assert pipeline_server._engine.state.current_instance_id == "card_gen"
 
 
 # ---------------------------------------------------------------------------

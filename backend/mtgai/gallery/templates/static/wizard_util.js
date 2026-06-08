@@ -419,8 +419,8 @@
   W.retryButtonHtml = function (stage) {
     if (!stage || stage.status !== 'failed') return '';
     return '<button type="button" class="wiz-btn-secondary" data-role="retry-step" title="'
-      + 'Reset this failed step to pending and run it again in place. Resumable steps '
-      + 'skip work already done, so nothing finished is lost.">↻ Retry this step</button>';
+      + 'Re-run this failed step (resumable steps keep work already finished), then '
+      + 'continue the pipeline from here.">↻ Retry this step</button>';
   };
 
   W.bindRetryButton = function (container, stage) {
