@@ -185,19 +185,26 @@ class WrappedElement:
         kind: Segment type.
         content: Text string or symbol code.
         width: Measured pixel width of this element.
+        breakable_before: Whether a line break may occur immediately
+            before this element. False means the element is glued to its
+            predecessor (no intervening whitespace) — e.g. a symbol or
+            trailing punctuation — so the two must wrap together.
     """
 
-    __slots__ = ("content", "kind", "width")
+    __slots__ = ("breakable_before", "content", "kind", "width")
 
     def __init__(
         self,
         kind: SegmentType,
         content: str,
         width: float,
+        *,
+        breakable_before: bool = True,
     ) -> None:
         self.kind = kind
         self.content = content
         self.width = width
+        self.breakable_before = breakable_before
 
 
 class WrappedLine:
@@ -501,37 +508,47 @@ class TextEngine:
         if not word_elements:
             return []
 
-        # Greedy line-filling algorithm
+        # Group elements into unbreakable runs. A new group starts at the
+        # first element and at every element flagged ``breakable_before``;
+        # the glued tail (symbols, trailing punctuation — no leading space)
+        # rides with its head. Wrapping then only ever happens at group
+        # boundaries, so a lone "." after a symbol can never be orphaned.
+        groups: list[list[WrappedElement]] = []
+        for elem in word_elements:
+            if not groups or elem.breakable_before:
+                groups.append([elem])
+            else:
+                groups[-1].append(elem)
+
+        # Greedy line-filling over groups
         lines: list[WrappedLine] = []
         current_elems: list[WrappedElement] = []
         current_width = 0.0
 
-        for elem in word_elements:
-            elem_width = elem.width
-            needed = elem_width
-            if current_elems and elem.kind != SegmentType.SYMBOL:
-                # Add space before non-symbol text if not at line start
-                # But only if the previous element was also non-symbol
-                # or this is a new word
-                pass  # space is already included in content
+        for group in groups:
+            group_width = sum(e.width for e in group)
 
-            # Check if element fits on current line
-            if current_elems and current_width + needed > max_width:
-                # Emit current line and start new one
+            # Break before this group if it overflows the current line
+            if current_elems and current_width + group_width > max_width:
                 lines.append(WrappedLine(current_elems, line_h))
                 current_elems = []
                 current_width = 0.0
 
-                # Strip leading space from text elements at line start
-                if elem.kind != SegmentType.SYMBOL and elem.content.startswith(" "):
-                    content = elem.content.lstrip(" ")
-                    font = self._font_for_element(elem, font_size)
+            # At line start, strip the leading space from the group's head
+            if not current_elems:
+                head = group[0]
+                if head.kind != SegmentType.SYMBOL and head.content.startswith(" "):
+                    content = head.content.lstrip(" ")
+                    font = self._font_for_element(head, font_size)
                     w = font.getlength(content) if content else 0.0
-                    elem = WrappedElement(elem.kind, content, w)
-                    needed = w
+                    group = [
+                        WrappedElement(head.kind, content, w, breakable_before=True),
+                        *group[1:],
+                    ]
+                    group_width = sum(e.width for e in group)
 
-            current_elems.append(elem)
-            current_width += needed
+            current_elems.extend(group)
+            current_width += group_width
 
         if current_elems:
             lines.append(WrappedLine(current_elems, line_h))
@@ -555,7 +572,12 @@ class TextEngine:
         for seg in paragraph.segments:
             if seg.kind == SegmentType.SYMBOL:
                 w = float(sym_size + SYMBOL_GAP)
-                elements.append(WrappedElement(SegmentType.SYMBOL, seg.content, w))
+                # A symbol has no leading space, so it glues to whatever
+                # precedes it; a break can only land on the space element
+                # that sits before the symbol run.
+                elements.append(
+                    WrappedElement(SegmentType.SYMBOL, seg.content, w, breakable_before=False)
+                )
                 continue
 
             font = self._font_for_segment(seg, font_size)
@@ -591,7 +613,13 @@ class TextEngine:
                     content = " " + word
 
                 w = font.getlength(content)
-                elements.append(WrappedElement(seg.kind, content, w))
+                # A break may land before a word only if it carries a
+                # leading space; the segment's first word (no leading
+                # space) is glued to the preceding element (e.g. a symbol),
+                # so punctuation like a trailing "." rides with it.
+                elements.append(
+                    WrappedElement(seg.kind, content, w, breakable_before=content.startswith(" "))
+                )
 
             # Preserve trailing space (e.g., "Add " before a symbol)
             if text.endswith(" "):
