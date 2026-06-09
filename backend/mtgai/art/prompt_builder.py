@@ -42,8 +42,8 @@ from mtgai.art.visual_reference import (
     get_artists,
     get_cameo_entities,
     get_flux_replacements,
-    get_refs,
     get_set_art_direction,
+    get_visual_motifs,
     get_visual_references,
 )
 from mtgai.generation import temperatures as temps
@@ -106,14 +106,12 @@ def _motifs_suffix() -> str:
     """Return a ", motif, motif, motif" suffix from the active project's
     ``visual_motifs``, or "" if none are available. Capped at 3 motifs."""
     try:
-        refs = get_refs()
+        motifs = get_visual_motifs()
     except Exception:
         return ""
-    motifs = refs.get("visual_motifs") or []
-    motifs = [str(m).strip() for m in motifs if str(m).strip()]
     if not motifs:
         return ""
-    return ", " + ", ".join(motifs[:3])
+    return ", " + ", ".join(motifs)
 
 
 def get_style_line(card: Card) -> str:
@@ -256,13 +254,15 @@ def build_art_prompt_user_message(
     setting_prose: str,
     visual_refs: str,
     cameo: dict[str, str] | None,
+    visual_motifs: list[str] | None = None,
 ) -> str:
     """Assemble the user message for the art-prompt LLM call.
 
     All of ``artist_style`` / ``set_art_direction`` / ``setting_prose`` /
-    ``visual_refs`` may be empty (degraded inputs); the corresponding section is
-    simply omitted. ``cameo`` (when present) names a specific style-guide entity
-    to feature.
+    ``visual_refs`` / ``visual_motifs`` may be empty (degraded inputs); the
+    corresponding section is simply omitted. ``cameo`` (when present) names a
+    specific style-guide entity to feature. ``visual_motifs`` is the set's
+    recurring colors / materials / lighting, woven in as a secondary style cue.
     """
     card_type_cat = get_card_type_category(card)
     hint = _COMPOSITION_HINTS.get(card_type_cat, "")
@@ -273,6 +273,12 @@ def build_art_prompt_user_message(
     if set_art_direction:
         sections.append(
             f"SET ART DIRECTION (reference — use only what fits this card):\n{set_art_direction}"
+        )
+    if visual_motifs:
+        motif_lines = "\n".join(f"- {m}" for m in visual_motifs)
+        sections.append(
+            "RECURRING VISUAL MOTIFS (weave in any that genuinely fit this card's "
+            "subject — never force all):\n" + motif_lines
         )
     if setting_prose:
         sections.append("SETTING (reference — use only what fits this card):\n" + setting_prose)
@@ -354,6 +360,7 @@ def generate_art_prompt(
     set_art_direction: str,
     setting_prose: str,
     cameo: dict[str, str] | None,
+    visual_motifs: list[str] | None = None,
     log_dir: Path | None = None,
 ) -> tuple[str, int, int]:
     """Call the LLM to author the full art prompt for a card.
@@ -380,6 +387,7 @@ def generate_art_prompt(
         setting_prose=setting_prose,
         visual_refs=visual_refs,
         cameo=cameo,
+        visual_motifs=visual_motifs,
     )
 
     from mtgai.runtime.active_project import require_active_project
@@ -577,6 +585,7 @@ def generate_prompts_for_set(
     # Stage inputs (all degrade gracefully to empty).
     artists = get_artists()
     set_art_direction = get_set_art_direction()
+    visual_motifs = get_visual_motifs()
     theme = _load_theme(set_dir)
     from mtgai.generation.prompts import format_setting_prose
 
@@ -660,6 +669,7 @@ def generate_prompts_for_set(
                 set_art_direction=set_art_direction,
                 setting_prose=setting_prose,
                 cameo=cameo,
+                visual_motifs=visual_motifs,
                 log_dir=log_dir,
             )
             full_prompt = _sanitize_for_flux(full_prompt_raw)

@@ -58,6 +58,7 @@ def _patch_stage_inputs(monkeypatch, set_dir, *, artists=None, cameo_entities=No
     )
     monkeypatch.setattr(pb, "get_artists", lambda: artists or [])
     monkeypatch.setattr(pb, "get_set_art_direction", lambda: "")
+    monkeypatch.setattr(pb, "get_visual_motifs", lambda *a, **k: [])
     monkeypatch.setattr(pb, "get_cameo_entities", lambda: cameo_entities or [])
     monkeypatch.setattr(pb, "get_visual_references", lambda *a, **k: "")
     monkeypatch.setattr(pb, "_sanitize_for_flux", lambda t: t)
@@ -304,7 +305,36 @@ def test_user_message_omits_empty_sections():
     assert "SET ART DIRECTION" not in msg
     assert "SETTING" not in msg
     assert "CAMEO REQUEST" not in msg
+    assert "RECURRING VISUAL MOTIFS" not in msg
     assert "CARD:" in msg  # the card block is always present
+
+
+def test_user_message_includes_visual_motifs():
+    msg = pb.build_art_prompt_user_message(
+        _make_card(),
+        artist_style="",
+        set_art_direction="",
+        setting_prose="",
+        visual_refs="",
+        cameo=None,
+        visual_motifs=["glossy vs matte metal", "low sodium-lamp lighting"],
+    )
+    assert "RECURRING VISUAL MOTIFS" in msg
+    assert "- glossy vs matte metal" in msg
+    assert "- low sodium-lamp lighting" in msg
+
+
+def test_user_message_omits_empty_motifs():
+    msg = pb.build_art_prompt_user_message(
+        _make_card(),
+        artist_style="",
+        set_art_direction="",
+        setting_prose="",
+        visual_refs="",
+        cameo=None,
+        visual_motifs=[],
+    )
+    assert "RECURRING VISUAL MOTIFS" not in msg
 
 
 # ---------------------------------------------------------------------------
