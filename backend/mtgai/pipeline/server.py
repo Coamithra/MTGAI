@@ -1370,6 +1370,9 @@ def _project_payload(project: active_project.ProjectState) -> dict[str, Any]:
         "image_models": image_models,
         "llm_stages": llm_stages,
         "image_stages": image_stages,
+        # Whether the conformance stage's assigned model can hold the interaction
+        # scan's largest batch for this set_size — drives the picker's amber notice.
+        "conformance_context": settings.conformance_context_status(),
         "builtin_presets": sorted(PRESETS),
         "saved_profiles": list_profiles(),
         "pipeline_started": pipeline_started,
@@ -1512,7 +1515,15 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
         }
     )
     apply_settings(new)
-    return JSONResponse({"success": True, "set_params": new.set_params.model_dump()})
+    # The conformance context warning depends on set_size + mechanic_count, so
+    # return the recomputed status to live-update the picker notice.
+    return JSONResponse(
+        {
+            "success": True,
+            "set_params": new.set_params.model_dump(),
+            "conformance_context": new.conformance_context_status(),
+        }
+    )
 
 
 @router.post("/api/wizard/project/theme-input")
@@ -1798,7 +1809,11 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
         new = settings.model_copy(update={"effort_overrides": new_map})
 
     apply_settings(new)
-    return JSONResponse({"success": True})
+    # Return the recomputed conformance context status so a conformance-model
+    # change live-updates the picker's "model too small for the set size" notice.
+    return JSONResponse(
+        {"success": True, "conformance_context": new.conformance_context_status()}
+    )
 
 
 @router.post("/api/wizard/project/preset/apply")
@@ -2082,7 +2097,14 @@ async def project_new(request: Request) -> JSONResponse:
             "success": True,
             "draft": {
                 "set_code": "",
-                "set_params": {"set_name": "", "set_size": 277, "mechanic_count": 3},
+                # Sizes come from the seeded SetParams defaults so the form and
+                # the conformance_context note (computed from the same seeded
+                # settings) can't drift; set_name starts blank (per-project).
+                "set_params": {
+                    "set_name": "",
+                    "set_size": seeded.set_params.set_size,
+                    "mechanic_count": seeded.set_params.mechanic_count,
+                },
                 "theme_input": {"kind": "none"},
                 "asset_folder": "",
                 "break_points": break_points,
@@ -2092,6 +2114,7 @@ async def project_new(request: Request) -> JSONResponse:
                 "image_models": image_models,
                 "llm_stages": llm_stages,
                 "image_stages": image_stages,
+                "conformance_context": seeded.conformance_context_status(),
                 "builtin_presets": sorted(PRESETS),
                 "saved_profiles": list_profiles(),
                 "pipeline_started": False,

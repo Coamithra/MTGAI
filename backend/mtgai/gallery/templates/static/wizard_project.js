@@ -765,6 +765,12 @@
       }
       const data = await resp.json();
       local.data.set_params = data.set_params;
+      // set_size / mechanic_count feed the conformance context projection — update
+      // the warning and re-render the models section so the notice stays live.
+      if (data.conformance_context) {
+        local.data.conformance_context = data.conformance_context;
+        rerenderModelAssignments(state);
+      }
       markDirty();
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
@@ -1240,6 +1246,22 @@
   // Model assignments
   // ------------------------------------------------------------------
 
+  // Amber notice for the conformance row when the assigned model's context
+  // window can't hold the interaction scan's largest batch for this set_size.
+  // The backend computes the fit (conformance_context blob) authoritatively —
+  // including the context-tier twin + the >=400-set_size full-window exception —
+  // and recomputes it whenever the conformance model or set_size changes.
+  function conformanceContextNote(data) {
+    const cc = data.conformance_context;
+    if (!cc || cc.fits !== false) return '';
+    const fmt = n => (typeof n === 'number' ? n.toLocaleString() : n);
+    return `<div class="wiz-vision-warn">⚠ ${escHtml(cc.model_name)}'s context window `
+      + `(~${fmt(cc.context_window)} tokens) is too small for a ${fmt(cc.set_size)}-card set: `
+      + `the interaction scan's largest batch needs ~${fmt(cc.projected_tokens)} tokens. `
+      + `It will run on a reduced most-recent window — far-apart card pairs may go unchecked. `
+      + `Assign a larger-context model to Conformance & Interactions for full coverage.</div>`;
+  }
+
   function renderModelAssignmentsSection(data) {
     const llmRows = (data.llm_stages || []).map(stage => {
       const assigned = data.llm_assignments[stage.id] || '';
@@ -1292,10 +1314,15 @@
         : (visionOnly
           ? '<div class="wiz-vision-hint">Judges generated art — vision models only.</div>'
           : '');
+      // Conformance stage: warn when the assigned model's context window is too
+      // small to hold the interaction scan's largest cumulative batch for this
+      // set_size. The scan then drops existing-context (reduced cross-batch
+      // coverage) and only logs a WARN the user never sees — surface it here.
+      const ctxNote = (stage.id === 'conformance') ? conformanceContextNote(data) : '';
       return `
         <tr>
           <td>${escHtml(stage.label)}</td>
-          <td><select data-llm-stage="${escAttr(stage.id)}">${opts}</select>${visionNote}</td>
+          <td><select data-llm-stage="${escAttr(stage.id)}">${opts}</select>${visionNote}${ctxNote}</td>
           <td>${effortCell}</td>
           <td>${thinkingCell}</td>
         </tr>
@@ -1423,6 +1450,12 @@
         const data = await resp.json().catch(() => ({}));
         W.toast(data.error || 'Save failed', 'error');
         return;
+      }
+      // Only an LLM assignment change can move the conformance context warning;
+      // refresh it from the recomputed blob so onLlmModelChange's re-render shows it.
+      if (kind === 'llm') {
+        const body = await resp.json().catch(() => ({}));
+        if (body && body.conformance_context) local.data.conformance_context = body.conformance_context;
       }
       applyLocal();
       markDirty();

@@ -47,7 +47,7 @@ from mtgai.generation.token_utils import (
     count_messages_tokens,
     get_context_window,
 )
-from mtgai.models.card import Card
+from mtgai.models.card import Card, Rarity
 
 logger = logging.getLogger(__name__)
 
@@ -367,6 +367,74 @@ def _parse_interaction_block(block: str) -> tuple[str, str]:
         reason_lines.append(s)
     reason = " ".join(reason_lines).strip() or "Degenerate interaction."
     return reason, constraint
+
+
+# ---------------------------------------------------------------------------
+# Context-fit projection (Project Settings warning)
+# ---------------------------------------------------------------------------
+
+
+def _representative_gate_card() -> Card:
+    """A synthetic, average-length gate card for token projection.
+
+    A real :class:`Card` so it serializes through ``_serialize_card_full``
+    exactly like a generated one. The oracle text is a deliberately meaty 3-line
+    ability so the per-card estimate doesn't under-count a real set.
+    """
+    return Card(
+        slot_id="C-WU-07",
+        collector_number="123",
+        name="Representative Card",
+        mana_cost="{2}{W}{U}",
+        type_line="Creature — Human Soldier",
+        rarity=Rarity.UNCOMMON,
+        power="3",
+        toughness="3",
+        oracle_text=(
+            "Flying, vigilance\n"
+            "When Representative Card enters, draw a card, then discard a card.\n"
+            "Whenever you cast your second spell each turn, create a 1/1 white "
+            "Soldier creature token."
+        ),
+    )
+
+
+def project_largest_batch_tokens(set_size: int, mechanic_count: int = 0) -> int:
+    """Estimate the interaction step's LARGEST cumulative-context batch prompt
+    size (tiktoken tokens) for a set of ~``set_size`` cards, with no real cards yet.
+
+    Used by the Project Settings warning to decide — before any card exists —
+    whether the conformance stage's assigned model can hold the interaction scan.
+    The last batch is the largest: it carries ~all gate cards as existing context
+    plus a final ``BATCH_SIZE`` of new cards. The prompt is assembled from
+    synthetic representative cards via the SAME ``_build_batch_prompt`` and measured
+    with the SAME ``count_messages_tokens`` the runtime fit-check uses
+    (:func:`_bound_existing_context`), so the projection tracks the real bound.
+
+    ``set_size`` is used directly as the gate-card count: the real gate excludes
+    basic lands + reprints (a small fraction of the set), so this slightly
+    over-estimates the context — the safe direction for a "too small" warning.
+    """
+    if not set_size or set_size <= 0:
+        return 0
+    rep = _representative_gate_card()
+    gate_count = max(int(set_size), 0)
+    new_n = min(gate_count, BATCH_SIZE)
+    existing_n = max(gate_count - new_n, 0)
+    existing = [rep] * existing_n
+    new = [rep] * new_n
+    mechanics = [
+        {
+            "name": f"Mechanic {i + 1}",
+            "reminder_text": "A representative reminder text clause for token budgeting.",
+        }
+        for i in range(max(int(mechanic_count or 0), 0))
+    ]
+    messages = [
+        {"role": "system", "content": INTERACTION_SYSTEM_PROMPT},
+        {"role": "user", "content": _build_batch_prompt(existing, new, mechanics)},
+    ]
+    return count_messages_tokens(messages)
 
 
 # ---------------------------------------------------------------------------
