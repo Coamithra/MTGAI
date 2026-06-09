@@ -7709,16 +7709,24 @@ async def get_stage_logs(stage_id: str):
 
     set_dir = set_artifact_dir()
 
-    # Map stage_id to likely log locations
+    # Map stage_id to its real on-disk log location(s). Each path here is the
+    # directory the stage's runner actually writes its transcripts to — keep it
+    # in sync when a stage's log dir moves.
     log_paths: dict[str, list[Path]] = {
         "mechanics": [set_dir / "mechanics" / "logs"],
         "card_gen": [set_dir / "card_gen" / "logs"],
-        "ai_review": [set_dir / "reviews"],
+        "ai_review": [set_dir / "ai_review" / "logs"],
         "conformance": [set_dir / "conformance" / "logs"],
-        "art_prompts": [set_dir / "art-direction" / "prompt-logs"],
-        # art_select folded into the merged art_gen stage; its best-of-N
-        # selection transcripts surface under art_gen now.
-        "art_gen": [set_dir / "art-direction" / "selections"],
+        "art_prompts": [
+            set_dir / "art_prompts" / "logs",
+            set_dir / "art_prompts" / "prompt-logs",
+        ],
+        # art_select folded into the merged art_gen stage; the art-generation
+        # and best-of-N selection transcripts both surface under art_gen now.
+        "art_gen": [
+            set_dir / "art-generation-logs",
+            set_dir / "art-selection-logs",
+        ],
         "finalize": [set_dir / "reports"],
     }
 
