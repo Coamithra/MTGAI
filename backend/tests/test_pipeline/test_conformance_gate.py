@@ -920,6 +920,107 @@ def test_interaction_prompt_encodes_precision_and_attribution_guidance():
     assert "existing" in p
 
 
+# ----------------------------------------------------------------------
+# Low-context bounding — the cumulative existing-context is trimmed to the
+# assigned model's actual context window (card 5rK8AkcW).
+# ----------------------------------------------------------------------
+
+
+def test_bound_existing_context_large_window_keeps_all(monkeypatch):
+    """A roomy window drops nothing — full cross-batch coverage preserved."""
+    from mtgai.analysis import interactions as inter_mod
+
+    monkeypatch.setattr(inter_mod, "get_context_window", lambda m: 200_000)
+    existing = [_make_card(f"C-{i}") for i in range(5)]
+    tok_by_id = {c.slot_id: 1000 for c in existing}
+
+    kept, dropped = inter_mod._bound_existing_context(
+        existing,
+        model="m",
+        new_tokens=0,
+        mechanics_tokens=0,
+        system_tokens=0,
+        tok_by_id=tok_by_id,
+    )
+    assert dropped == 0
+    assert [c.slot_id for c in kept] == [c.slot_id for c in existing]
+
+
+def test_bound_existing_context_small_window_keeps_recent_tail(monkeypatch):
+    """A tight window keeps only the most-recent cards (the tail), dropping the
+    rest — the sliding-window behaviour the low-context fix relies on."""
+    from mtgai.analysis import interactions as inter_mod
+
+    # int(20405 * 0.95) = 19384; safe_budget = 19384 - 16384 = 3000;
+    # existing_budget = 3000 - 600 (scaffold) = 2400 -> two 1000-token cards fit.
+    monkeypatch.setattr(inter_mod, "get_context_window", lambda m: 20_405)
+    monkeypatch.setattr(inter_mod, "MAX_TOKENS", 16_384)
+    monkeypatch.setattr(inter_mod, "_PROMPT_SCAFFOLD_TOKENS", 600)
+    existing = [_make_card(f"C-{i}") for i in range(5)]
+    tok_by_id = {c.slot_id: 1000 for c in existing}
+
+    kept, dropped = inter_mod._bound_existing_context(
+        existing,
+        model="m",
+        new_tokens=0,
+        mechanics_tokens=0,
+        system_tokens=0,
+        tok_by_id=tok_by_id,
+    )
+    # The two most-recent cards (tail) are kept; the three oldest are dropped.
+    assert [c.slot_id for c in kept] == ["C-3", "C-4"]
+    assert dropped == 3
+
+
+def test_bound_existing_context_tiny_window_drops_all(monkeypatch):
+    """When even the new batch barely fits, no existing context is sent."""
+    from mtgai.analysis import interactions as inter_mod
+
+    # ctx 16384 -> int(15564.8)=15564; safe_budget = 15564 - 16384 < 0.
+    monkeypatch.setattr(inter_mod, "get_context_window", lambda m: 16_384)
+    monkeypatch.setattr(inter_mod, "MAX_TOKENS", 16_384)
+    existing = [_make_card(f"C-{i}") for i in range(3)]
+    tok_by_id = {c.slot_id: 10 for c in existing}
+
+    kept, dropped = inter_mod._bound_existing_context(
+        existing,
+        model="m",
+        new_tokens=0,
+        mechanics_tokens=0,
+        system_tokens=0,
+        tok_by_id=tok_by_id,
+    )
+    assert kept == []
+    assert dropped == 3
+
+
+def test_analyze_interactions_low_context_trims_existing(project, monkeypatch):
+    """On a low-context model the cumulative scan slides its window instead of
+    overflowing: the largest batch's existing-context is trimmed below the full
+    pool, and the run still completes (no card left interacts=None)."""
+    from mtgai.analysis import interactions as inter_mod
+
+    cards = [_make_card(f"W-C-0{i}") for i in range(1, 6)]  # 5 cards
+    monkeypatch.setattr(inter_mod, "BATCH_SIZE", 2)
+    # A window too small to hold the whole pool forces the sliding window on.
+    monkeypatch.setattr(inter_mod, "get_context_window", lambda m: 18_000)
+    fake = _fake_inter_stream({})
+    monkeypatch.setattr(gate_common, "stream_text", fake)
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+
+    streamed: list[dict] = []
+    flags, _analysis, _cost = inter_mod.analyze_interactions(
+        cards, [], on_card=lambda rec: streamed.append(rec)
+    )
+
+    assert fake.calls == 3  # 5 cards / 2 per batch
+    # The last batch would carry 4 existing cards untrimmed; the bound dropped some.
+    assert "Existing cards (4)" not in fake.prompts[2]
+    # The scan still finished cleanly — every card got a real verdict, none unknown.
+    assert flags == []
+    assert all(r["interacts"] is True for r in streamed)
+
+
 def test_analyze_interactions_new_only_empty_is_clean_noop(project, monkeypatch):
     """An empty new_only (nothing regenerated) makes no LLM call and passes."""
     from mtgai.analysis import interactions as inter_mod
