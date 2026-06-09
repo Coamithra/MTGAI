@@ -1080,3 +1080,87 @@ def test_art_loop_force_preserves_higher_user_version(monkeypatch, tmp_path):
     assert (art_dir / f"{slug}_v1.png").read_bytes() == b"img"  # regenerated
     assert (art_dir / f"{slug}_v2.png").read_bytes() == b"img"
     assert (art_dir / f"{slug}_v3.png").read_bytes() == b"user-upload"  # preserved
+
+
+# ---------------------------------------------------------------------------
+# Skip the ComfyUI boot when no card needs art (card 6a285af6)
+# ---------------------------------------------------------------------------
+
+
+def _mark_all_completed(set_dir, n_cards: int) -> None:
+    """Pre-seed progress.json so every card is already ``completed`` — the
+    fully-resumed state where no card needs regenerating."""
+    log_dir = set_dir / "art-generation-logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    completed = {f"{i:03d}": {"versions": [], "version_count": 1} for i in range(1, n_cards + 1)}
+    (log_dir / "progress.json").write_text(
+        json.dumps({"completed": completed, "failed": {}, "skipped": []}), encoding="utf-8"
+    )
+
+
+def test_art_loop_skips_comfyui_boot_when_all_completed(monkeypatch, tmp_path):
+    """A fully-resumed run (every card already completed, force=False) must NOT
+    boot ComfyUI — booting just to iterate-and-skip is pure waste and the VRAM
+    pre-check inside ensure_comfyui can spuriously FAIL the stage. Regression for
+    card 6a285af6. Fails without the needs-work gate (ensure_comfyui would run)."""
+    set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=3)
+    _mark_all_completed(set_dir, n_cards=3)
+
+    def _boom(log_dir=None):
+        raise AssertionError("ensure_comfyui must NOT be called when no card needs art")
+
+    monkeypatch.setattr(ig, "ensure_comfyui", _boom)
+    killed = []
+    monkeypatch.setattr(ig, "kill_comfyui", lambda proc=None: killed.append(proc))
+
+    summary = ig.generate_art_for_set()
+
+    assert summary["skipped"] == 3
+    assert summary["generated"] == 0
+    # We never booted, so we must never kill (kill_comfyui(None) would otherwise
+    # tear down an externally-running ComfyUI by command-line signature).
+    assert killed == []
+
+
+def test_art_loop_boots_comfyui_when_one_card_missing(monkeypatch, tmp_path):
+    """The mirror case: when even one card still needs art, ComfyUI IS booted."""
+    set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=3)
+    # Cards 1 & 2 completed; card 3 still needs work.
+    log_dir = set_dir / "art-generation-logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    (log_dir / "progress.json").write_text(
+        json.dumps(
+            {
+                "completed": {f"{i:03d}": {"versions": [], "version_count": 1} for i in (1, 2)},
+                "failed": {},
+                "skipped": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    booted = []
+    monkeypatch.setattr(ig, "ensure_comfyui", lambda log_dir=None: booted.append(1) or "proc0")
+    monkeypatch.setattr(ig, "kill_comfyui", lambda proc=None: None)
+
+    summary = ig.generate_art_for_set()
+
+    assert booted == [1]
+    assert summary["generated"] == 1
+    assert summary["skipped"] == 2
+
+
+def test_art_loop_boots_comfyui_when_forced_all_present(monkeypatch, tmp_path):
+    """force=True always regenerates, so ComfyUI boots even when every card is
+    already completed (the needs-work gate returns True under force)."""
+    set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=2)
+    _mark_all_completed(set_dir, n_cards=2)
+
+    booted = []
+    monkeypatch.setattr(ig, "ensure_comfyui", lambda log_dir=None: booted.append(1) or "proc0")
+    monkeypatch.setattr(ig, "kill_comfyui", lambda proc=None: None)
+
+    summary = ig.generate_art_for_set(force=True)
+
+    assert booted == [1]
+    assert summary["generated"] == 2

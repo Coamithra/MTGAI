@@ -135,3 +135,80 @@ def test_set_symbol_img_url_carries_mtime_cache_buster(tmp_path):
     os.utime(f, ns=(f.stat().st_atime_ns, f.stat().st_mtime_ns + 1_000_000))
     url2 = _set_symbol_img_url(f)
     assert url2 != url1
+
+
+# ---------------------------------------------------------------------------
+# Skip the ComfyUI boot when all glyph masks already exist (card 6a285af6)
+# ---------------------------------------------------------------------------
+
+
+def _wire_symbol(monkeypatch, tmp_path):
+    """Seed a tmp project + mock every external seam of generate_set_symbol so the
+    version loop runs without a real ComfyUI / LLM. Returns the symbol_dir."""
+    asset_dir = tmp_path / "set"
+    symbol_dir = asset_dir / "art-direction" / "set-symbol"
+    symbol_dir.mkdir(parents=True)
+
+    class _Settings:
+        def get_llm_model_id(self, _stage):
+            return "stub-model"
+
+        def get_thinking(self, _stage):
+            return None
+
+    class _Proj:
+        set_code = "TST"
+        settings = _Settings()
+
+    monkeypatch.setattr("mtgai.runtime.active_project.require_active_project", lambda: _Proj())
+    monkeypatch.setattr("mtgai.io.asset_paths.set_artifact_dir", lambda: asset_dir)
+    monkeypatch.setattr(ss, "_load_theme", lambda _d: {})
+    monkeypatch.setattr(ss, "_load_visual_refs", lambda _d: {})
+    monkeypatch.setattr(
+        ss,
+        "propose_symbol_concept",
+        lambda **k: ({"concept": "an emblem", "image_prompt": "a glyph"}, 0.0),
+    )
+    monkeypatch.setattr(ss, "generate_image_comfyui", lambda *a, **k: (b"raw", {}))
+    monkeypatch.setattr(ss, "build_silhouette", lambda _b: b"mask")
+    monkeypatch.setattr(ss, "_write_preview", lambda *a, **k: None)
+    return symbol_dir
+
+
+def test_symbol_skips_comfyui_boot_when_all_masks_present(monkeypatch, tmp_path):
+    """A resume where all glyph masks already exist (force=False) must NOT boot
+    ComfyUI — booting just to iterate-and-skip is pure waste and the VRAM pre-check
+    inside ensure_comfyui can spuriously FAIL the stage. Regression for card
+    6a285af6. Fails without the needs-work gate (ensure_comfyui ran
+    unconditionally)."""
+    symbol_dir = _wire_symbol(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        ss, "ensure_comfyui", lambda log_dir=None: pytest.fail("must not boot ComfyUI")
+    )
+    killed = []
+    monkeypatch.setattr(ss, "kill_comfyui", lambda proc=None: killed.append(proc))
+    for v in range(1, ss.VERSIONS + 1):
+        (symbol_dir / f"mask_v{v}.png").write_bytes(b"old")
+
+    summary = ss.generate_set_symbol()
+
+    assert summary["generated"] == 0
+    assert summary["versions"] == list(range(1, ss.VERSIONS + 1))
+    # Never booted → never kill (kill_comfyui(None) would tear down an external one).
+    assert killed == []
+
+
+def test_symbol_boots_comfyui_when_a_mask_missing(monkeypatch, tmp_path):
+    """The mirror case: when even one mask is missing, ComfyUI IS booted."""
+    symbol_dir = _wire_symbol(monkeypatch, tmp_path)
+    booted = []
+    monkeypatch.setattr(ss, "ensure_comfyui", lambda log_dir=None: booted.append(1) or "proc0")
+    monkeypatch.setattr(ss, "kill_comfyui", lambda proc=None: None)
+    # All but the last mask present.
+    for v in range(1, ss.VERSIONS):
+        (symbol_dir / f"mask_v{v}.png").write_bytes(b"old")
+
+    summary = ss.generate_set_symbol()
+
+    assert booted == [1]
+    assert summary["generated"] == 1  # only the one missing version

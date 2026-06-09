@@ -1210,6 +1210,42 @@ def _resolve_provider() -> str:
     return model.provider if model is not None else "comfyui"
 
 
+def _card_needs_art_generation(card, progress: dict, force: bool) -> bool:
+    """True iff this card would actually generate art — the exact negation of the
+    per-card skip conditions in ``generate_art_for_set``'s loop (sanity-excluded,
+    no ``art_prompt``, or already ``completed`` and not forced). A not-yet-
+    completed card with crash-orphan PNGs on disk still returns True (the loop
+    sweeps the orphans then regenerates), because such a card is by definition not
+    in ``progress["completed"]``. Kept in lockstep with the loop's skips so the
+    needs-work pre-check and the loop can't disagree."""
+    if card.sanity_excluded:
+        return False
+    if not card.art_prompt:
+        return False
+    already_done = card.collector_number in progress["completed"] and not force
+    return not already_done
+
+
+def _any_card_needs_art_generation(card_files: list, progress: dict, force: bool) -> bool:
+    """True iff at least one card in ``card_files`` needs art generated. When
+    False, booting ComfyUI (which unloads the local LLM, runs a RAISING VRAM
+    pre-check, and costs ~120s) just to iterate-and-skip is pure waste — and a
+    resume of a fully-completed run could spuriously FAIL on the VRAM check."""
+    if force:
+        return bool(card_files)
+    for card_file in card_files:
+        try:
+            card = load_card(card_file)
+        except Exception:
+            # An unloadable card makes the real loop raise when it reaches it,
+            # whether or not ComfyUI booted — so booting first wouldn't help.
+            # Treat it as "no work here" and let the loop surface the error.
+            continue
+        if _card_needs_art_generation(card, progress, force):
+            return True
+    return False
+
+
 def generate_art_for_set(
     card_filter: str | None = None,
     dry_run: bool = False,
@@ -1275,10 +1311,20 @@ def generate_art_for_set(
         raise ValueError(f"No cards found matching filter: {card_filter}")
 
     # Ensure ComfyUI is running (local Flux only; hosted providers need no
-    # subprocess). Skip on dry-run.
-    comfyui_proc = None
-    if not dry_run and provider == "comfyui":
-        comfyui_proc = ensure_comfyui(log_dir=log_dir)
+    # subprocess). Skip on dry-run, AND skip when no card actually needs art
+    # generated — e.g. a resume where every card is already completed. Booting
+    # just to iterate-and-skip is pure waste, and the VRAM pre-check inside
+    # ensure_comfyui RAISES, so a fully-completed resume could spuriously FAIL
+    # only because another app holds VRAM. The needs-work pre-check mirrors the
+    # loop's per-card skips exactly (a card with crash-orphans still counts as
+    # work, since it's never recorded completed). The loop below still runs so
+    # the skip accounting + summary are unchanged.
+    booted_comfyui = (
+        not dry_run
+        and provider == "comfyui"
+        and _any_card_needs_art_generation(card_files, progress, force)
+    )
+    comfyui_proc = ensure_comfyui(log_dir=log_dir) if booted_comfyui else None
 
     generated = 0
     skipped = 0
@@ -1288,7 +1334,7 @@ def generate_art_for_set(
     # Images generated since the last ComfyUI restart — drives the periodic
     # recycle that bounds VRAM accumulation (see COMFYUI_RECYCLE_EVERY).
     images_since_recycle = 0
-    recycle_enabled = not dry_run and provider == "comfyui" and COMFYUI_RECYCLE_EVERY > 0
+    recycle_enabled = booted_comfyui and COMFYUI_RECYCLE_EVERY > 0
 
     try:
         for card_idx, card_file in enumerate(card_files):
@@ -1484,8 +1530,11 @@ def generate_art_for_set(
                 images_since_recycle = 0
 
     finally:
-        # Always kill ComfyUI on exit to free VRAM (no-op if we did not start it).
-        if provider == "comfyui":
+        # Kill ComfyUI on exit to free VRAM, but ONLY if this run booted it. When
+        # we skipped the boot (no card needed work), kill_comfyui(None) would fall
+        # back to killing ANY running ComfyUI by command-line signature — never do
+        # that to a process this run didn't start.
+        if booted_comfyui:
             kill_comfyui(comfyui_proc)
 
     summary = {
