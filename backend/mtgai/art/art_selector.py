@@ -166,6 +166,23 @@ def _build_message_content(
     return content
 
 
+def _judge_is_vision_capable(model_id: str) -> bool:
+    """Whether the resolved ``art_select`` model can perform the vision judge.
+
+    Reads ``supports_vision`` off the model's registry entry (a context-tier twin
+    inherits its base's flag). An unknown id is treated as NOT vision-capable so an
+    unrecognized assignment skips the judge loudly rather than wasting one image
+    request per card on a model that can't see them.
+    """
+    try:
+        from mtgai.settings.model_registry import get_registry
+
+        info = get_registry().get_llm_by_model_id(model_id)
+        return bool(info and info.supports_vision)
+    except Exception:
+        return False
+
+
 def select_best_version(
     card_name: str,
     collector_number: str,
@@ -186,22 +203,29 @@ def select_best_version(
     judge transcript (named ``art_selection-*`` via :func:`_convo_name`, like the
     ``generate_with_tool`` callers) sits beside the custom per-card JSON log.
     """
-    from mtgai.generation.llm_client import _convo_name, _get_provider, _make_tool
+    from mtgai.generation.llm_client import (
+        _convo_name,
+        _get_provider,
+        _make_tool,
+        _resolve_provider,
+    )
     from mtgai.runtime.active_project import require_active_project
 
     if model is None:
         model = require_active_project().settings.get_llm_model_id("art_select")
 
     tool_schema = _build_tool_schema(len(image_paths))
-    # The best-of-N judge is a VISION call, which currently only the Anthropic
-    # provider supports here — so the provider is pinned to "anthropic" rather
-    # than resolved from the art_select model's registry provider. A local /
-    # keyless / out-of-credits env therefore cannot judge and this call raises;
-    # ``select_art_for_set`` catches that and falls back to auto-picking v1
-    # (source "auto_fallback"), so every card still ends with stamped art. If a
-    # local vision judge is added later, swap this to honour the model's real
-    # provider (see ``llm_client._resolve_provider``).
-    provider = _get_provider("anthropic")
+    # The best-of-N judge is a VISION call. The provider is resolved from the
+    # model's registry entry (``_resolve_provider``) rather than hard-pinned, so
+    # a vision-capable model on any provider routes correctly. Today every
+    # vision-capable LLM entry is Anthropic, so this resolves to "anthropic" for
+    # the working case — but it's correct-by-construction the day a non-Anthropic
+    # (or local) vision judge lands. ``select_art_for_set`` pre-flights the
+    # model's ``supports_vision`` flag and skips this call entirely for a
+    # text-only model, so by the time we get here the model can judge images (or
+    # the call raises in a keyless / out-of-credits env, caught + fallen back to
+    # v1 there).
+    provider = _get_provider(_resolve_provider(model))
     facade_model = provider.new_model(model)
     convo = facade_model.new_conversation(
         name=_convo_name(tool_schema),
@@ -270,10 +294,16 @@ def select_art_for_set(
     """Judge the best-of-N art versions per card and stamp the pick.
 
     For each card with >= 2 versions, the LLM judge (the ``art_select`` model
-    assignment, a vision-capable Anthropic model) picks the best version; with
-    exactly one version it is auto-picked (no LLM call). The pick is written to
+    assignment, which must be vision-capable) picks the best version; with exactly
+    one version it is auto-picked (no LLM call). The pick is written to
     ``art_path`` and recorded in ``art_gen/decisions.json`` so the merged Art
     Generation tab can show + override it.
+
+    The judge model is pre-flighted: if it is NOT vision-capable (e.g. the
+    local-by-default text-only Gemma) the best-of-N judge is skipped for the whole
+    run — every multi-version card auto-picks v1 with an ``auto_fallback`` decision
+    and a ``judge_skipped`` summary signal — rather than wasting one (failing) image
+    request per card. Assign a vision-capable model to enable best-of-N.
 
     ``should_cancel`` is an optional predicate polled at each card boundary; when
     it returns True the loop stops early (decisions written so far are kept, so a
@@ -286,12 +316,30 @@ def select_art_for_set(
     from mtgai.io.paths import card_slug
     from mtgai.runtime.active_project import require_active_project
 
-    set_code = require_active_project().set_code
+    project = require_active_project()
+    set_code = project.set_code
     set_dir = set_artifact_dir()
     cards_dir = set_dir / "cards"
     art_dir = set_dir / "art"
     log_dir = set_dir / "art-selection-logs"
     log_dir.mkdir(parents=True, exist_ok=True)
+
+    # Pre-flight: the best-of-N judge is a VISION call, but the default-by-policy
+    # ``art_select`` assignment is a text-only local model. Resolve the judge model
+    # ONCE and, if it can't do vision, skip the judge for the whole run — auto-pick
+    # v1 per card with a clear ``auto_fallback`` reason instead of attempting (and
+    # silently failing) one image request per card. Surfaced loudly via the summary
+    # + a single WARN rather than per-card error spam.
+    judge_model = project.settings.get_llm_model_id("art_select")
+    judge_capable = _judge_is_vision_capable(judge_model)
+    judge_skipped_reason: str | None = None
+    if not judge_capable:
+        judge_skipped_reason = (
+            f"art_select model {judge_model!r} is not vision-capable; best-of-N "
+            "judge skipped (auto-picked v1). Assign a vision-capable model to "
+            "art_select (e.g. apply the 'recommended' preset) to enable best-of-N."
+        )
+        logger.warning("Best-of-N art judge disabled: %s", judge_skipped_reason)
 
     decisions = load_art_decisions(set_dir)
 
@@ -304,6 +352,7 @@ def select_art_for_set(
     results = []
     skipped = 0
     judge_failed = 0
+    judge_skipped = 0
 
     cancelled = False
     for card_file in card_files:
@@ -355,11 +404,40 @@ def select_art_for_set(
             atomic_write_text(log_dir / f"{cn}.json", json.dumps(result, indent=2))
             continue
 
-        logger.info("REVIEW %s: %s (%d versions)", cn, card.name, len(versions))
-
         if dry_run:
             results.append({"card": cn, "name": card.name, "versions": len(versions)})
             continue
+
+        # Judge model can't do vision: skip the LLM call, auto-pick v1. Same
+        # ``auto_fallback`` decision shape as the exception path so the tab treats
+        # it identically; ``judge_skipped`` (vs ``judge_failed``) distinguishes
+        # "never attempted because text-only" from "attempted and the call raised".
+        if not judge_capable:
+            judge_skipped += 1
+            _stamp_art_path(card, set_dir, version_files[0])
+            decisions[cn] = {
+                "pick": "v1",
+                "source": "auto_fallback",
+                "reasoning": judge_skipped_reason,
+                "version_files": version_files,
+            }
+            save_art_decisions(set_dir, decisions)
+            result = {
+                "collector_number": cn,
+                "name": card.name,
+                "versions_reviewed": len(versions),
+                "pick": "v1",
+                "confidence": "low",
+                "reasoning": judge_skipped_reason,
+                "artifacts_found": [],
+                "version_files": version_files,
+                "judge_skipped": True,
+            }
+            results.append(result)
+            atomic_write_text(log_dir / f"{cn}.json", json.dumps(result, indent=2))
+            continue
+
+        logger.info("REVIEW %s: %s (%d versions)", cn, card.name, len(versions))
 
         try:
             selection = select_best_version(
@@ -368,6 +446,7 @@ def select_art_for_set(
                 colors=card.colors or [],
                 prompt=card.art_prompt,
                 image_paths=versions,
+                model=judge_model,
                 log_dir=log_dir,
             )
 
@@ -472,6 +551,9 @@ def select_art_for_set(
         # is a successful selection, not an error — surfaced via ``judge_failed``.
         "errors": len([r for r in results if "pick" not in r and "error" in r]),
         "judge_failed": judge_failed,
+        "judge_skipped": judge_skipped,
+        "judge_skipped_reason": judge_skipped_reason,
+        "art_select_model": judge_model,
         "results": results,
         "total_input_tokens": total_input_tokens,
         "total_output_tokens": total_output_tokens,
