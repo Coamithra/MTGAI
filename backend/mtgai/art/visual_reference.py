@@ -61,6 +61,32 @@ def detect_named_characters(
     return [key for key in characters if key in search_text]
 
 
+def is_character_entity(entity_key: str) -> bool:
+    """True when ``entity_key`` is a humanoid named character.
+
+    PuLID-Flux locks a single *face*, so the local-Flux ref path conditions on
+    ``legendary_characters`` entries only (the named, humanoid characters) — not
+    creature types / factions / landmarks, which have no single identity. Used by
+    the art-generation stage to decide whether a card's attached reference can
+    drive face-lock conditioning.
+    """
+    return entity_key in get_refs().get("legendary_characters", {})
+
+
+def get_character_appearance(entity_key: str) -> str | None:
+    """The appearance prose for a ``legendary_characters`` entity, or ``None``.
+
+    Feeds the late name->appearance substitution on the Flux path: the entity's
+    name in an art prompt is swapped for this description (PuLID supplies the
+    actual face), so the T5/CLIP text encoder — which can't resolve a name — still
+    paints the right body/clothing/palette.
+    """
+    desc = get_refs().get("legendary_characters", {}).get(entity_key)
+    # The JSON is LLM/user-authored; guard against a non-string value reaching the
+    # prompt substitution (which expects str).
+    return desc if isinstance(desc, str) and desc else None
+
+
 def get_visual_references(
     card_name: str,
     type_line: str,
