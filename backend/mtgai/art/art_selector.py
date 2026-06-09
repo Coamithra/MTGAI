@@ -418,6 +418,18 @@ def select_art_for_set(
 
         version_files = [v.name for v in versions]
 
+        # Dry run is observational ONLY: count + report, never mutate. This MUST
+        # precede every write branch below (single-version auto-pick, the
+        # text-only judge-skip, the real judge); each of those stamps art_path,
+        # writes decisions.json, and drops a per-card selection log, which the CLI
+        # dry-run contract forbids (the per-cn log is also the file the renderer
+        # trusts at resolve time). After the judge-disabled single-version collapse
+        # in generate_art_for_set every card is single-version, so without this a
+        # dry run would mutate the whole set.
+        if dry_run:
+            results.append({"card": cn, "name": card.name, "versions": len(versions)})
+            continue
+
         # Single version: auto-pick v1, no LLM judge call needed.
         if len(versions) == 1:
             pick = "v1"
@@ -443,10 +455,6 @@ def select_art_for_set(
             }
             results.append(result)
             atomic_write_text(log_dir / f"{cn}.json", json.dumps(result, indent=2))
-            continue
-
-        if dry_run:
-            results.append({"card": cn, "name": card.name, "versions": len(versions)})
             continue
 
         # Judge model can't do vision: skip the LLM call, auto-pick v1. Same

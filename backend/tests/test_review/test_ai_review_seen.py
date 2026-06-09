@@ -221,6 +221,28 @@ def test_card_filter_bypasses_the_skip(project: Path):
     assert [r.collector_number for r in reviews] == ["W-C-01"]
 
 
+def test_corrupt_card_file_is_skipped_not_fatal(project: Path, caplog):
+    """A single unparseable card JSON file must not abort the whole stage: it's
+    skipped + WARN-logged, and the valid cards still get reviewed (card 6a285a75).
+    Mirrors finalize_set's per-card load resilience."""
+    import logging
+
+    from mtgai.io.card_io import save_card
+
+    for cn in ("W-C-01", "W-C-02"):
+        save_card(_make_card(cn), set_dir=project)
+    # A hand-edited / torn file with invalid JSON.
+    (project / "cards" / "W-C-99_broken.json").write_text("{not valid json", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING):
+        reviews = ai_review.review_set()
+
+    # The valid cards are reviewed; the corrupt file is dropped, not fatal.
+    assert {r.collector_number for r in reviews} == {"W-C-01", "W-C-02"}
+    # The skip is recorded (not silent) — the bad filename appears in a WARN.
+    assert any("W-C-99_broken.json" in rec.getMessage() for rec in caplog.records)
+
+
 # ----------------------------------------------------------------------
 # Resume recovery of persisted-REVISE cards (card 6a285a62)
 # ----------------------------------------------------------------------

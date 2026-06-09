@@ -2466,8 +2466,17 @@ def review_set(
 
     card_paths = sorted(cards_dir.glob("*.json"))
     cards: list[dict] = []
+    load_failures: list[str] = []
     for p in card_paths:
-        raw = json.loads(p.read_text(encoding="utf-8"))
+        # Parse defensively: a single corrupt/unparseable card file is skipped +
+        # recorded rather than aborting the whole stage (mirrors finalize_set's
+        # per-card load resilience + the card_pool builder a few lines below).
+        try:
+            raw = json.loads(p.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.warning("Skipping unparseable card file for review: %s (%s)", p.name, exc)
+            load_failures.append(p.name)
+            continue
         # Filter
         if card_filter and raw.get("collector_number") != card_filter:
             continue
@@ -2478,6 +2487,12 @@ def review_set(
         cards.append(raw)
 
     logger.info("Cards to review: %d (filtered from %d files)", len(cards), len(card_paths))
+    if load_failures:
+        logger.warning(
+            "Skipped %d unparseable card file(s): %s",
+            len(load_failures),
+            ", ".join(load_failures),
+        )
 
     # Build the full on-disk pool once so each reviewer sees a duplicate-name /
     # mechanical-similarity prior against the whole set (the documented intent of
