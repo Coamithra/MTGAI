@@ -74,7 +74,17 @@ def test_get_named_entities_dedupes_and_keeps_priority_order(monkeypatch):
 
 
 def test_get_named_entities_empty_when_no_match(monkeypatch):
-    monkeypatch.setattr(
-        vr, "get_refs", lambda: {"legendary_characters": {"storm_knight": "x"}}
-    )
+    monkeypatch.setattr(vr, "get_refs", lambda: {"legendary_characters": {"storm_knight": "x"}})
     assert vr.get_named_entities("Goblin Raider", "Creature", "", None) == []
+
+
+def test_get_named_entities_word_boundary_avoids_substring_overmatch(monkeypatch):
+    # "the order" must not fire on "the ordeal"; "vorrik" must not fire on "vorrikson".
+    monkeypatch.setattr(
+        vr,
+        "get_refs",
+        lambda: {"factions": {"the_order": "x"}, "legendary_characters": {"vorrik": "y"}},
+    )
+    assert vr.get_named_entities("Trial by Ordeal", "Sorcery", "Vorrikson flees.", None) == []
+    found = vr.get_named_entities("The Order Marches", "Sorcery", "Vorrik leads.", None)
+    assert {e["key"] for e in found} == {"the_order", "vorrik"}

@@ -301,8 +301,9 @@ def build_art_prompt_user_message(
     if "Legendary" in (card.type_line or ""):
         sections.append("This is a unique, named character — distinctive features, imposing.")
 
-    if named_entities:
-        roster = ", ".join(e["name"] for e in named_entities)
+    names = [e.get("name", "").strip() for e in (named_entities or [])]
+    roster = ", ".join(n for n in names if n)
+    if roster:
         sections.append(
             "NAMED ENTITIES (recurring set characters/locations this card features — "
             "refer to each by its EXACT name below so the renderer binds a reference "

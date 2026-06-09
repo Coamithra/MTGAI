@@ -12,6 +12,7 @@ during set design (Phase 1A) or art direction (Phase 2A). The code is set-agnost
 
 import json
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +65,15 @@ def detect_named_characters(
 def entity_display_name(entity_key: str) -> str:
     """Canonical display name for an entity slug, e.g. ``storm_knight`` -> ``Storm Knight``.
 
-    The SINGLE source of the name token shared by two stages that never see each
+    The shared source of the name token used by two stages that never see each
     other's output: ``art_prompts`` (which names entities in the prompt) runs
     *before* ``char_portraits`` (which produces the ``art_character_refs`` whose
     labels feed the hosted interleaving). The only stable shared anchor is the
-    ``entity_key`` slug, so both stages derive the name from it the same way —
-    guaranteeing the prompt's name token and the reference label are the same
-    string (which is what lets the model bind name->face).
+    ``entity_key`` slug, so both stages derive the name from it the same way. The
+    agreement is **best-effort**: it holds whenever the char_portraits detector
+    reuses the art-direction dict slug (its instruction), and degrades gracefully
+    when it doesn't (a detector-invented entity is simply never named in the
+    prompt, so its labeled image just doesn't bind — no harm).
     """
     return entity_key.replace("_", " ").strip().title()
 
@@ -85,10 +88,14 @@ def get_named_entities(
 
     Each item is ``{"key", "name", "kind"}`` — ``name`` is :func:`entity_display_name`
     of the slug (the token the art prompt should use and the hosted renderer binds
-    a reference image to). Matches the entity slug against the card text by both its
-    raw form AND its spaced display form, so a multi-word ``storm_knight`` matches
-    "Storm Knight" in the card text (the bare ``key in search_text`` used by
-    :func:`get_visual_references` misses those). Deduped by key, priority order.
+    a reference image to). Matches the entity's **spaced** display form against the
+    card text on **word boundaries**, so a multi-word ``storm_knight`` matches
+    "Storm Knight" in the card text but ``the_order`` does NOT fire on "the ordeal"
+    (the bare ``key in search_text`` substring match used by
+    :func:`get_visual_references` misses the former and over-matches the latter).
+    The two helpers are independent — this may name a different entity set than
+    :func:`get_visual_references` (still used for the cameo/appearance path).
+    Deduped by key, priority order.
     """
     refs = get_refs()
     search_text = " ".join(
@@ -111,8 +118,8 @@ def get_named_entities(
             key = str(key)
             if key in seen:
                 continue
-            spaced = key.replace("_", " ").lower()
-            if key.lower() in search_text or spaced in search_text:
+            spaced = key.replace("_", " ").strip().lower()
+            if spaced and re.search(rf"\b{re.escape(spaced)}\b", search_text):
                 seen.add(key)
                 results.append({"key": key, "name": entity_display_name(key), "kind": kind})
     return results

@@ -188,28 +188,6 @@ def test_apply_character_refs_present_returns_false_until_wired(tmp_path):
     assert ig._apply_character_refs({}, [str(ref)]) is False
 
 
-def test_resolve_ref_paths_joins_relative(tmp_path):
-    ref = ArtCharacterRef(entity_key="hero", ref_image_path="art-direction/x.png")
-    card = Card(name="Hero", type_line="Legendary Creature", art_character_refs=[ref])
-    resolved = ig._resolve_ref_paths(card, tmp_path)
-    assert resolved == [str(tmp_path / "art-direction" / "x.png")]
-
-
-def test_resolve_ref_paths_keeps_absolute(tmp_path):
-    abs_path = str(tmp_path / "abs.png")
-    card = Card(
-        name="Hero",
-        type_line="Creature",
-        art_character_refs=[ArtCharacterRef(entity_key="hero", ref_image_path=abs_path)],
-    )
-    assert ig._resolve_ref_paths(card, tmp_path / "other") == [abs_path]
-
-
-def test_resolve_ref_paths_empty_for_no_refs(tmp_path):
-    card = Card(name="Plain", type_line="Creature")
-    assert ig._resolve_ref_paths(card, tmp_path) == []
-
-
 # ---------------------------------------------------------------------------
 # Labeled reference resolution + hosted interleaving (entity->face binding)
 # ---------------------------------------------------------------------------
@@ -232,6 +210,18 @@ def test_resolve_labeled_refs_derives_name_from_key(tmp_path):
     # Labels are entity_display_name(key) — the SAME derivation art_prompts uses,
     # so the prompt's name token and the ref label match.
     assert labels == ["Storm Knight", "The Spire"]
+
+
+def test_resolve_labeled_refs_keeps_absolute_path(tmp_path):
+    abs_path = str(tmp_path / "abs.png")
+    card = Card(
+        name="Hero",
+        type_line="Creature",
+        art_character_refs=[ArtCharacterRef(entity_key="hero", ref_image_path=abs_path)],
+    )
+    paths, labels = ig._resolve_labeled_refs(card, tmp_path / "other")
+    assert paths == [abs_path]
+    assert labels == ["Hero"]
 
 
 def test_resolve_labeled_refs_empty_for_no_refs(tmp_path):
@@ -280,8 +270,9 @@ def _wire_hosted(monkeypatch, tmp_path):
 def test_generate_image_hosted_unlabeled_keeps_flat_list(monkeypatch, tmp_path):
     """No labels -> a plain ImageBlock list (back-compat wire shape)."""
     captured, p1, p2 = _wire_hosted(monkeypatch, tmp_path)
-    ig.generate_image_hosted("draw a scene", "gemini", ref_paths=[p1, p2])
+    _, meta = ig.generate_image_hosted("draw a scene", "gemini", ref_paths=[p1, p2])
     assert captured["reference_images"] == [f"IMG:{p1}", f"IMG:{p2}"]
+    assert meta["character_refs_applied"] is True
 
 
 def test_generate_image_hosted_builds_labeled_images(monkeypatch, tmp_path):
@@ -324,6 +315,38 @@ def test_generate_image_hosted_missing_ref_dropped(monkeypatch, tmp_path):
     assert len(refs) == 1
     assert isinstance(refs[0], LabeledImage)
     assert refs[0].label == "Storm Knight"
+
+
+def test_generate_image_hosted_mixed_labeled_and_unlabeled(monkeypatch, tmp_path):
+    """A batch where one ref has a label and another doesn't -> the labeled ref is
+    a LabeledImage, the unlabeled (empty-string label) ref a bare ImageBlock."""
+    llmfacade = pytest.importorskip("llmfacade")
+    if not hasattr(llmfacade, "LabeledImage"):
+        pytest.skip("LLMFacade labeled-reference-images dependency not landed yet")
+    from llmfacade import LabeledImage
+
+    captured, p1, p2 = _wire_hosted(monkeypatch, tmp_path)
+    ig.generate_image_hosted("scene", "gemini", ref_paths=[p1, p2], ref_labels=["Storm Knight", ""])
+    refs = captured["reference_images"]
+    assert isinstance(refs[0], LabeledImage)
+    assert refs[0].label == "Storm Knight"
+    assert refs[1] == f"IMG:{p2}"  # empty label -> bare ImageBlock
+
+
+def test_generate_image_hosted_labels_shorter_than_paths(monkeypatch, tmp_path):
+    """A ref_labels list shorter than ref_paths must not IndexError — the
+    unmatched tail refs degrade to bare ImageBlocks (the i < len guard)."""
+    llmfacade = pytest.importorskip("llmfacade")
+    if not hasattr(llmfacade, "LabeledImage"):
+        pytest.skip("LLMFacade labeled-reference-images dependency not landed yet")
+    from llmfacade import LabeledImage
+
+    captured, p1, p2 = _wire_hosted(monkeypatch, tmp_path)
+    ig.generate_image_hosted("scene", "gemini", ref_paths=[p1, p2], ref_labels=["Storm Knight"])
+    refs = captured["reference_images"]
+    assert isinstance(refs[0], LabeledImage)
+    assert refs[0].label == "Storm Knight"
+    assert refs[1] == f"IMG:{p2}"  # no label at this index -> bare ImageBlock
 
 
 # ---------------------------------------------------------------------------

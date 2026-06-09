@@ -823,6 +823,11 @@ def generate_image_hosted(
         ]
         if existing:
             if any(label for _, label in existing):
+                # Imported here (not at module top) so an unlabeled call never
+                # needs the symbol — the back-compat flat-list path runs on any
+                # llmfacade. When labels ARE present, a missing LabeledImage is a
+                # hard error by design: labeled binding is the whole point of the
+                # hosted path, so failing loudly beats silently dropping labels.
                 from llmfacade import LabeledImage
 
                 reference_images = [
@@ -911,33 +916,16 @@ def generate_image(
     raise ValueError(f"Unknown image provider: {provider!r}")
 
 
-def _resolve_ref_paths(card, set_dir: Path) -> list[str]:
-    """Resolve a card's ``art_character_refs`` to absolute, on-disk paths.
+def _resolve_labeled_refs(card, set_dir: Path) -> tuple[list[str], list[str]]:
+    """Resolve a card's ``art_character_refs`` to parallel ``(paths, labels)`` lists.
 
     ``ref_image_path`` is repo-relative under the asset folder; we join it to
     ``set_dir`` (absolute paths are kept as-is). Built to the field contract —
     works whether or not ``char_portraits`` has actually produced the images.
-    """
-    resolved: list[str] = []
-    for ref in getattr(card, "art_character_refs", None) or []:
-        raw = getattr(ref, "ref_image_path", None)
-        if not raw:
-            continue
-        p = Path(raw)
-        if not p.is_absolute():
-            p = set_dir / raw
-        resolved.append(str(p))
-    return resolved
-
-
-def _resolve_labeled_refs(card, set_dir: Path) -> tuple[list[str], list[str]]:
-    """Resolve a card's ``art_character_refs`` to parallel ``(paths, labels)`` lists.
-
     ``labels[i]`` is the entity's display name (``entity_display_name`` of the
     ``entity_key``) — the SAME derivation ``art_prompts`` uses to name the entity
     in the prompt, so the prompt's name token and the reference label match (the
-    requirement for the hosted provider to bind name->face). Paths are made
-    absolute the same way as :func:`_resolve_ref_paths`.
+    requirement for the hosted provider to bind name->face).
     """
     from mtgai.art.visual_reference import entity_display_name
 
@@ -1175,6 +1163,9 @@ def generate_art_for_set(
                             "prompt": card.art_prompt,
                             "output_path": str(dest),
                             "file_size_bytes": len(image_data),
+                            # The *requested* refs/labels (the hosted path filters
+                            # to files on disk); metadata["character_refs_applied"]
+                            # is the accurate "were any actually sent" signal.
                             "character_refs": ref_paths,
                             "character_ref_labels": ref_labels,
                             **metadata,
