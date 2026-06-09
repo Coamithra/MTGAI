@@ -472,6 +472,46 @@ def build_char_refs_hooks(emitter: StageEmitter) -> CharRefsStreamHooks:
 
 
 # ---------------------------------------------------------------------------
+# Set Symbol stream hooks
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SetSymbolStreamHooks:
+    """The ``generate_set_symbol`` streaming callbacks.
+
+    The Set Symbol stage proposes one glyph concept, then renders a few candidate
+    silhouettes. A reset clears the strip before a from-scratch run; the concept
+    lands (``set_symbol_concept`` — the named emblem + Flux prompt) before any
+    image; each saved candidate's mask pops in (``set_symbol_version`` — version
+    number + the repo-relative mask path)."""
+
+    on_reset: Callable[[], None]
+    on_concept: Callable[[str, str], None]
+    on_version: Callable[[int, str], None]
+
+
+def build_set_symbol_hooks(emitter: StageEmitter) -> SetSymbolStreamHooks:
+    """Build the Set Symbol streaming hooks shared by the engine
+    (``run_set_symbol``) and the refresh endpoint."""
+
+    def on_reset() -> None:
+        emitter.event("set_symbol_reset")
+
+    def on_concept(concept: str, image_prompt: str) -> None:
+        emitter.event("set_symbol_concept", concept=concept, image_prompt=image_prompt)
+        # Keep the progress strip + Cancel alive through the ComfyUI/Flux phase
+        # (the concept poller's terminal "done" otherwise tears it down before the
+        # images render — same contract as char_portraits / card 6a256732).
+        emitter.phase("running", "Rendering set-symbol candidates…")
+
+    def on_version(version: int, mask_path: str) -> None:
+        emitter.event("set_symbol_version", version=version, mask_path=mask_path)
+
+    return SetSymbolStreamHooks(on_reset, on_concept, on_version)
+
+
+# ---------------------------------------------------------------------------
 # Art-prompt tile shape + stream hooks (art_prompts)
 # ---------------------------------------------------------------------------
 

@@ -1658,6 +1658,75 @@ def run_art_prompts(progress_cb: ProgressCallback | None, emitter: StageEmitter)
     )
 
 
+def run_set_symbol(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
+    """Generate the set's identifying glyph (the type-line symbol).
+
+    Set-identity art direction (sits right after ``visual_refs``): one LLM call
+    proposes an iconic emblem from the theme, ComfyUI/Flux renders a few square
+    candidates, and each is reduced to a clean 2-tone alpha mask the renderer
+    recolors per rarity (replacing the hardcoded placeholder triangle). Holds the
+    AI lock for the concept call + Flux loop; the concept tok/s poller is scoped
+    to the LLM step only (never the image phase — see card 6a25497b). Candidates
+    stream live to the Set Symbol tab.
+    """
+    from mtgai.art.set_symbol import generate_set_symbol
+    from mtgai.pipeline.stage_hooks import build_set_symbol_hooks
+    from mtgai.runtime import ai_lock
+
+    emitter.phase("running", "Proposing set-symbol concept")
+    hooks = build_set_symbol_hooks(emitter)
+    with ai_lock.hold("Set symbol generation") as acquired:
+        if not acquired:
+            return StageResult(
+                success=False,
+                error_message="Another AI action holds the lock; try again later.",
+            )
+        result = generate_set_symbol(
+            should_cancel=ai_lock.is_cancelled,
+            on_reset=hooks.on_reset,
+            on_concept=hooks.on_concept,
+            on_version=hooks.on_version,
+            concept_poller=make_poller(
+                "set_symbol", emitter.phase, activity_prefix="Proposing concept"
+            ),
+        )
+
+    generated = result.get("generated", 0)
+    if result.get("cancelled"):
+        emitter.phase("done", "Set symbol cancelled")
+        return StageResult(
+            success=False,
+            total_items=generated,
+            completed_items=generated,
+            cost_usd=result.get("cost_usd", 0.0),
+            error_message="Set symbol generation cancelled by user.",
+        )
+
+    # No active glyph at all (every Flux render failed and there's no prior/
+    # uploaded symbol): fail loudly rather than completing green while the
+    # renderer silently falls back to the placeholder triangle.
+    if not result.get("selected_version"):
+        emitter.phase("done", "Set symbol generation produced no usable glyph")
+        return StageResult(
+            success=False,
+            total_items=0,
+            completed_items=0,
+            failed_items=result.get("failed", 0),
+            cost_usd=result.get("cost_usd", 0.0),
+            error_message="Set symbol generation failed: no candidate glyph was produced.",
+        )
+
+    concept = result.get("concept", "set symbol")
+    emitter.phase("done", f"Generated {generated} set-symbol candidate(s): {concept}")
+    return StageResult(
+        total_items=generated,
+        completed_items=generated,
+        failed_items=result.get("failed", 0),
+        cost_usd=result.get("cost_usd", 0.0),
+        detail=f"Generated {generated} candidate(s) for '{concept}'",
+    )
+
+
 def run_char_portraits(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
     """Detect recurring entities, generate neutral reference images, attach refs.
 
@@ -1925,6 +1994,7 @@ STAGE_RUNNERS = {
     "ai_review": run_ai_review,
     "finalize": run_finalize,
     "visual_refs": run_visual_refs,
+    "set_symbol": run_set_symbol,
     "art_prompts": run_art_prompts,
     "char_portraits": run_char_portraits,
     "art_gen": run_art_gen,
@@ -2006,6 +2076,19 @@ def clear_visual_refs() -> None:
     """
     _remove_path(_set_dir() / "art-direction" / "visual-references.json")
     _remove_path(_set_dir() / "art-direction" / "logs")
+
+
+def clear_set_symbol() -> None:
+    """Wipe the active project's per-set glyph artifacts.
+
+    Owns ``art-direction/set-symbol/`` (the concept, candidate rasters/masks/
+    previews, the selected ``symbol.png``, and the stage logs). Removing it drops
+    the project glyph so the renderer falls back to the placeholder triangle until
+    the stage re-runs. Cascading from an upstream art-direction / theme edit drops
+    it so the next run regenerates from the new identity."""
+    from mtgai.art.set_symbol import clear_set_symbol as _clear
+
+    _clear()
 
 
 def clear_skeleton() -> None:
@@ -2238,6 +2321,7 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
     "ai_review": _no_artifacts,
     "finalize": clear_finalize,
     "visual_refs": clear_visual_refs,
+    "set_symbol": clear_set_symbol,
     "art_prompts": clear_art_prompts,
     "char_portraits": clear_char_portraits,
     "art_gen": clear_art_gen,

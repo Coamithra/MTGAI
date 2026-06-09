@@ -185,8 +185,9 @@ def test_load_state_reorders_legacy_stage_order(project_with_state):
     reloaded = engine_mod.load_state()
     assert reloaded is not None
     ids = [s.stage_id for s in reloaded.stages]
-    # visual_refs reconciled to just before art_prompts...
-    assert ids[ids.index("visual_refs") + 1] == "art_prompts"
+    # visual_refs reconciled to its canonical slot (before set_symbol/art_prompts)...
+    assert ids[ids.index("visual_refs") + 1] == "set_symbol"
+    assert ids[ids.index("set_symbol") + 1] == "art_prompts"
     # ...and archetypes now leads straight into skeleton.
     assert ids[ids.index("archetypes") + 1] == "skeleton"
     # The existing StageState's COMPLETED status survives the reorder.

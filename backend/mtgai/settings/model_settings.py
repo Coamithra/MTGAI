@@ -64,6 +64,10 @@ LLM_STAGE_NAMES: dict[str, str] = {
     # finished pool, so it resolves an LLM model like the gates do.
     "finalize": "Finalization",
     "visual_refs": "Visual References & Artists",
+    # set_symbol needs BOTH an LLM (the glyph concept) and an image model (the
+    # candidate silhouettes) — it appears in IMAGE_STAGE_NAMES too. The LLM key
+    # drives the concept call's model resolution (get_llm_model_id) + picker.
+    "set_symbol": "Set Symbol (concept)",
     "art_prompts": "Art Prompt Generation",
     # char_portraits ("Character References") needs BOTH an LLM (recurring-entity
     # detection) and an image model (the neutral reference gen) — it appears in
@@ -79,6 +83,7 @@ LLM_STAGE_NAMES: dict[str, str] = {
 }
 
 IMAGE_STAGE_NAMES: dict[str, str] = {
+    "set_symbol": "Set Symbol",
     "char_portraits": "Character References",
     "art_gen": "Art Generation & Review",
 }
@@ -138,6 +143,8 @@ DEFAULT_LLM_ASSIGNMENTS: dict[str, str] = {
     "archetypes": _LOCAL_DEFAULT,
     "skeleton": _LOCAL_DEFAULT,
     "visual_refs": _LOCAL_DEFAULT,
+    # set_symbol's LLM key drives its glyph-concept call (get_llm_model_id).
+    "set_symbol": _LOCAL_DEFAULT,
     "reprints": _LOCAL_DEFAULT,
     "lands": _LOCAL_DEFAULT,
     "card_gen": _LOCAL_DEFAULT,
@@ -153,6 +160,7 @@ DEFAULT_LLM_ASSIGNMENTS: dict[str, str] = {
 }
 
 DEFAULT_IMAGE_ASSIGNMENTS: dict[str, str] = {
+    "set_symbol": "flux-local",
     "char_portraits": "flux-local",
     "art_gen": "flux-local",
 }
@@ -203,6 +211,7 @@ PRESETS: dict[str, dict] = {
             "archetypes": "sonnet",
             "skeleton": "sonnet",
             "visual_refs": "sonnet",
+            "set_symbol": "haiku",
             "reprints": "haiku",
             "lands": "haiku",
             "card_gen": "opus",
@@ -214,6 +223,7 @@ PRESETS: dict[str, dict] = {
             "art_select": "haiku",
         },
         "image": {
+            "set_symbol": "flux-local",
             "char_portraits": "flux-local",
             "art_gen": "flux-local",
         },
