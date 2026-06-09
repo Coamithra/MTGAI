@@ -224,14 +224,22 @@ def test_judge_routes_transcript_to_given_log_dir(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _active_project(tmp_path):
+def _active_project(tmp_path, art_select: str | None = None):
+    """Open a throwaway active project. ``art_select`` overrides the judge model
+    assignment (default leaves the local-by-default text-only Gemma, so the
+    best-of-N judge pre-flight skips); pass a vision key (e.g. ``"haiku"``) to
+    exercise the judge path."""
     from mtgai.runtime import active_project
-    from mtgai.settings.model_settings import ModelSettings
+    from mtgai.settings.model_settings import DEFAULT_LLM_ASSIGNMENTS, ModelSettings
 
-    active_project.write_active_project(
-        active_project.ProjectState(
-            set_code="TST", settings=ModelSettings(asset_folder=str(tmp_path))
+    settings = ModelSettings(asset_folder=str(tmp_path))
+    if art_select is not None:
+        settings = ModelSettings(
+            asset_folder=str(tmp_path),
+            llm_assignments={**DEFAULT_LLM_ASSIGNMENTS, "art_select": art_select},
         )
+    active_project.write_active_project(
+        active_project.ProjectState(set_code="TST", settings=settings)
     )
 
 
@@ -266,7 +274,7 @@ def test_judge_failure_falls_back_to_v1(tmp_path, monkeypatch):
     from mtgai.io.card_io import load_card
     from mtgai.runtime import active_project
 
-    _active_project(tmp_path)
+    _active_project(tmp_path, art_select="haiku")
     try:
         v_files = _write_card(tmp_path, "W-C-01", "Test Card")
 
@@ -307,7 +315,7 @@ def test_judge_success_path_unchanged(tmp_path, monkeypatch):
     from mtgai.art import art_selector
     from mtgai.runtime import active_project
 
-    _active_project(tmp_path)
+    _active_project(tmp_path, art_select="haiku")
     try:
         _write_card(tmp_path, "W-C-01", "Test Card")
 
@@ -330,7 +338,70 @@ def test_judge_success_path_unchanged(tmp_path, monkeypatch):
         assert decisions["W-C-01"]["source"] == "auto"
         assert decisions["W-C-01"]["pick"] == "v2"
         assert summary["judge_failed"] == 0
+        assert summary["judge_skipped"] == 0
         assert summary["reviewed"] == 1
         assert summary["errors"] == 0
     finally:
         active_project.clear_active_project()
+
+
+# ---------------------------------------------------------------------------
+# Text-only judge pre-flight (the default-config bug: judge dead, v2..vN wasted)
+# ---------------------------------------------------------------------------
+
+
+def test_text_only_judge_skips_best_of_n(tmp_path, monkeypatch):
+    """When the assigned ``art_select`` model is text-only (the local-by-default
+    case), the best-of-N judge must be skipped WITHOUT calling select_best_version
+    once per card — auto-picking v1 with an explicit ``judge_skipped`` signal so the
+    dead-feature state is visible, not a silent per-card fallback.
+    """
+    from mtgai.art import art_selector
+    from mtgai.io.card_io import load_card
+    from mtgai.runtime import active_project
+
+    # Default art_select assignment = local text-only Gemma (no override).
+    _active_project(tmp_path)
+    try:
+        v_files = _write_card(tmp_path, "W-C-01", "Test Card")
+
+        def _must_not_run(**kwargs):
+            raise AssertionError("select_best_version must not be called for a text-only judge")
+
+        monkeypatch.setattr(art_selector, "select_best_version", _must_not_run)
+
+        summary = art_selector.select_art_for_set()
+
+        # v1 is stamped, recorded as an auto_fallback (judge skipped).
+        card = load_card(tmp_path / "cards" / "W-C-01_test_card.json")
+        assert card.art_path == f"art/{v_files[0]}"
+        decisions = art_selector.load_art_decisions(tmp_path)
+        assert decisions["W-C-01"]["pick"] == "v1"
+        assert decisions["W-C-01"]["source"] == "auto_fallback"
+        assert "vision-capable" in decisions["W-C-01"]["reasoning"]
+
+        # The summary surfaces the skip distinctly from a judge *failure*.
+        assert summary["judge_skipped"] == 1
+        assert summary["judge_failed"] == 0
+        assert summary["judge_skipped_reason"]
+        assert summary["art_select_model"]
+        result = next(r for r in summary["results"] if r.get("collector_number") == "W-C-01")
+        assert result["judge_skipped"] is True
+    finally:
+        active_project.clear_active_project()
+
+
+def test_judge_is_vision_capable():
+    """The vision pre-flight reads supports_vision off the registry: True for a
+    vision model_id, False for a text-only one + an unknown id."""
+    from mtgai.art.art_selector import _judge_is_vision_capable
+    from mtgai.settings.model_registry import get_registry
+    from mtgai.settings.model_settings import _LOCAL_DEFAULT
+
+    registry = get_registry()
+    haiku = registry.get_llm("haiku")
+    gemma = registry.get_llm(_LOCAL_DEFAULT)
+
+    assert _judge_is_vision_capable(haiku.model_id) is True
+    assert _judge_is_vision_capable(gemma.model_id) is False
+    assert _judge_is_vision_capable("no-such-model-xyz") is False

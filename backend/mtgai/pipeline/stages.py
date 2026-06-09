@@ -1903,7 +1903,15 @@ def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
         )
 
     judge_failed = sel_result.get("judge_failed", 0)
+    judge_skipped = sel_result.get("judge_skipped", 0)
     detail = f"Generated art for {generated} cards, judged {reviewed}"
+    if judge_skipped:
+        # The art_select model is text-only, so best-of-N was skipped entirely
+        # (v1 auto-picked). Surface it so the run doesn't look like a clean
+        # best-of-N pass — the user must assign a vision-capable judge to enable it.
+        detail += (
+            f" (best-of-N skipped — art_select model is text-only; {judge_skipped} auto-picked v1)"
+        )
     if judge_failed:
         # The vision judge was unavailable (no credits / keyless / local model);
         # those cards fell back to v1 so rendering still has art. Surface it so
