@@ -178,10 +178,15 @@ def find_cycle_families(
     """Ask the LLM to identify cycles in the relabeled slot listing.
 
     Args:
-        slots: the unfilled slots being card-gen'd this run (card-gen has
-            already filtered out lands + reprint slots). All slots are shown
-            to the model — non-cycle slots included — so the model judges
+        slots: the FULL eligible slot listing — filled and unfilled (card-gen
+            has already filtered out lands + reprint slots). Showing the model
+            every slot, not just the ones being generated this run, keeps a
+            partially-filled family confirmable: on a review->regen bounce
+            where only one member of a cycle was flagged, an unfilled-only
+            listing has <2 members of that family and the cycle would be
+            dropped. Non-cycle slots are included too, so the model judges
             membership purely from text rather than relying on a seed tag.
+            The caller reconciles/batches only its unfilled subset.
         model: the active project's card_gen model id.
         log_dir: directory for llmfacade's per-conversation transcript.
 
