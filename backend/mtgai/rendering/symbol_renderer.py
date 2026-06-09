@@ -143,10 +143,15 @@ def svg_backend() -> str:
 
 
 def _parse_svg_color(color_str: str | None) -> tuple[float, float, float] | None:
-    """Parse an SVG fill color like ``'#F8F6D8'`` to ``(r, g, b)`` floats 0-1."""
+    """Parse an SVG fill color (``'#F8F6D8'`` or shorthand ``'#000'``) to ``(r, g, b)`` 0-1."""
     if not color_str or color_str == "none":
         return None
     s = color_str.strip()
+    if s.startswith("#") and len(s) == 4:
+        # 3-digit shorthand (#RGB) doubles each nibble: '#000' -> '#000000', '#fff' -> '#ffffff'.
+        # Scryfall's C/E/S symbol SVGs use this form for their black/white glyph paths; without
+        # the expansion the glyph fill parses as None and the path is silently dropped.
+        s = "#" + "".join(c * 2 for c in s[1:])
     if s.startswith("#") and len(s) == 7:
         return (int(s[1:3], 16) / 255, int(s[3:5], 16) / 255, int(s[5:7], 16) / 255)
     return None

@@ -111,3 +111,37 @@ def test_arc_following_other_segment_still_moves_to_its_start(fake_svg_path):
     assert ctx.ops[0] == ("move_to", 0.0, 0.0)  # the Move
     assert ctx.ops[1] == ("move_to", 10.0, 10.0)  # the Arc re-anchors
     assert ctx.ops[2][0] == "line_to"
+
+
+# ---------------------------------------------------------------------------
+# _parse_svg_color — 3-digit hex shorthand
+# ---------------------------------------------------------------------------
+
+
+def test_parse_svg_color_full_hex():
+    assert symbol_renderer._parse_svg_color("#CAC5C0") == pytest.approx(
+        (0xCA / 255, 0xC5 / 255, 0xC0 / 255)
+    )
+
+
+@pytest.mark.parametrize(
+    ("shorthand", "expected"),
+    [
+        ("#000", (0.0, 0.0, 0.0)),
+        ("#fff", (1.0, 1.0, 1.0)),
+        ("#f00", (1.0, 0.0, 0.0)),
+        ("#abc", (0xAA / 255, 0xBB / 255, 0xCC / 255)),
+    ],
+)
+def test_parse_svg_color_shorthand_expands(shorthand, expected):
+    """3-digit ``#RGB`` shorthand must expand (#000 -> #000000), not return None.
+
+    Regression: the {C} colorless symbol's diamond path is ``fill='#000'``; an
+    un-expanded shorthand parsed as None, so the diamond was dropped and {C}
+    rendered as a featureless grey circle (Trello card 239 / Fnz4C8UH)."""
+    assert symbol_renderer._parse_svg_color(shorthand) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("bad", [None, "", "none", "rgb(0,0,0)", "#12", "#12345"])
+def test_parse_svg_color_rejects_unparseable(bad):
+    assert symbol_renderer._parse_svg_color(bad) is None
