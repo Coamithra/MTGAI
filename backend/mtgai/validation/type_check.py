@@ -69,6 +69,38 @@ def canonical_type_line(card: Card) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Lossless guard
+# ---------------------------------------------------------------------------
+
+
+# Lenient dash split matching schema._parse_type_line (spaces optional), so the
+# main-side carve here agrees with how the parser actually splits the line.
+_LENIENT_TYPE_SEP_RE = re.compile(r"\s*(?:\u2014|\u2013|--)\s*")
+
+
+def _main_side_words(type_line: str) -> list[str]:
+    """Return the lowercased words on the main (pre-dash) side of a type line."""
+    main = _LENIENT_TYPE_SEP_RE.split(type_line, maxsplit=1)[0]
+    return [w.lower() for w in main.split()]
+
+
+def canonical_rebuild_is_lossless(card: Card, parsed: Card) -> bool:
+    """Whether rebuilding *parsed* into canonical order drops no main-side word.
+
+    The schema parser keeps only words it recognizes as supertypes / card types,
+    so a main-side word it doesn't know (e.g. a legacy type the registry lacks)
+    is silently absent from the rebuilt line. Rewriting to that line would
+    delete the word from what renders. This compares the raw line's main-side
+    words against the canonical rebuild's and reports True only when every raw
+    word survives — so the AUTO reorder is suppressed for an unparseable line
+    rather than mangling it.
+    """
+    raw_words = set(_main_side_words(card.type_line))
+    rebuilt_words = set(_main_side_words(canonical_type_line(parsed)))
+    return raw_words <= rebuilt_words
+
+
+# ---------------------------------------------------------------------------
 # Auto-fixers
 # ---------------------------------------------------------------------------
 
@@ -79,10 +111,17 @@ def fix_type_line_order(card: Card, _error: ValidationError) -> Card:
     Re-derives ``supertypes`` / ``card_types`` / ``subtypes`` from the current
     line (so a card type stranded after the dash is reclassified) and rebuilds
     the string in printed MTG order, keeping every type the card already had.
+
+    If the rebuild would drop a main-side word the parser doesn't recognize, the
+    fix is a no-op (the line is left verbatim) so the reorder can never silently
+    delete a type. Check 8b suppresses the finding in that case, so this guard is
+    belt-and-suspenders for any other caller.
     """
     from mtgai.validation.schema import _parse_type_line
 
     parsed = _parse_type_line(card)
+    if not canonical_rebuild_is_lossless(card, parsed):
+        return card
     return parsed.model_copy(update={"type_line": canonical_type_line(parsed)})
 
 
@@ -493,7 +532,11 @@ def validate_type_consistency(card: Card) -> list[ValidationError]:
             from mtgai.validation.schema import _parse_type_line
 
             parsed = _parse_type_line(card)
-        if parsed.card_types and card.type_line != canonical_type_line(parsed):
+        if (
+            parsed.card_types
+            and card.type_line != canonical_type_line(parsed)
+            and canonical_rebuild_is_lossless(card, parsed)
+        ):
             errors.append(
                 ValidationError(
                     validator="type_check",
