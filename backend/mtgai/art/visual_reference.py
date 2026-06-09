@@ -123,6 +123,24 @@ def get_set_art_direction() -> str:
     return str(motifs or "").strip()
 
 
+def get_visual_motifs(limit: int = 3) -> list[str]:
+    """Return the set's recurring visual motifs, cleaned and capped at ``limit``.
+
+    The ``visual_motifs`` list in visual-references.json (e.g. "High-contrast
+    metallic surfaces (glossy vs matte)") names recurring colors / materials /
+    lighting the set's art should lean on. Unlike :func:`get_set_art_direction`
+    (a paragraph of prose), these are short repeatable hints woven into every
+    card's art prompt as a secondary style cue. Returns ``[]`` when none are
+    present (or the value is malformed). ``limit=0`` returns the full list.
+    """
+    refs = get_refs()
+    motifs = refs.get("visual_motifs")
+    if not isinstance(motifs, list):
+        return []
+    cleaned = [str(m).strip() for m in motifs if str(m).strip()]
+    return cleaned[:limit] if limit else cleaned
+
+
 def get_cameo_entities() -> list[dict[str, str]]:
     """Return the style-guide entities eligible for an art cameo.
 
