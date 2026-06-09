@@ -185,9 +185,7 @@ def test_revision_lands_on_right_card_when_cn_is_prefix_of_another(project: Path
 
     ai_review.review_set()
 
-    parsed = [
-        json.loads(p.read_text(encoding="utf-8")) for p in (project / "cards").glob("*.json")
-    ]
+    parsed = [json.loads(p.read_text(encoding="utf-8")) for p in (project / "cards").glob("*.json")]
     on_disk = {c["collector_number"]: c["oracle_text"] for c in parsed}
     # The revision landed on W-C-01's own file; W-C-011 is untouched.
     assert on_disk["W-C-01"] == "Revised by AI."

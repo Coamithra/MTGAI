@@ -24,10 +24,14 @@ Design choices:
   if I/O hurts.
 * **``cards/_regen_archive/`` is excluded** from snapshots: it's a transient bag
   card_gen writes during regen, and history supersedes it.
-* These run either at the engine ``save_state`` seam (mid-run, no other AI work
-  can interleave) or from an endpoint that first refuses while the engine /
-  extraction is running — so there is never a concurrent writer to the live
-  folder. They do not themselves hold ``ai_lock``.
+* These run either at the engine ``save_state`` seam or from an endpoint that
+  first refuses while the engine / extraction is running — so there is never a
+  concurrent writer to the live folder. The engine-seam call sits in the
+  inter-stage window where the just-finished runner has *released* its AI-lock
+  hold, so ``_run_loop`` re-acquires ``ai_lock`` around the snapshot + the
+  rerun-span insertion (skipping the snapshot if an endpoint won the race for
+  the lock) to keep that guarantee honest. The functions here do not take the
+  lock themselves — the caller owns the locking.
 """
 
 from __future__ import annotations
