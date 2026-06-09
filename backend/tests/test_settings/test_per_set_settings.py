@@ -222,6 +222,7 @@ def test_to_ui_dict_includes_new_blocks():
         "set_size": 50,
         "mechanic_count": 3,
         "art_versions_per_card": 3,
+        "two_color_frame": "split",
     }
     assert ui["break_points"] == {"card_gen": "review"}
     assert ui["theme_input"]["kind"] == "none"
