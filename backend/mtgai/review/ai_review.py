@@ -2640,7 +2640,11 @@ def review_set(
                 # Find the original card file
                 original_path = None
                 for p in card_paths:
-                    if p.stem.startswith(cn):
+                    # Match the exact stem or the ``<cn>_<slug>`` prefix — never a
+                    # bare prefix, which mis-matches e.g. ``W-C-01`` against a
+                    # ``W-C-011_...`` file (sorted before it), corrupting the wrong
+                    # card. Same idiom as server.py:_ai_review_card_path.
+                    if p.stem == cn or p.stem.startswith(cn + "_"):
                         original_path = p
                         break
                 if original_path:
