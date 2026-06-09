@@ -103,6 +103,20 @@ def test_state_lists_cards_and_badges_auto_edits(client, project: Path) -> None:
     assert by_cn["002"]["original_oracle_text"].startswith("When ~ enters the battlefield")
 
 
+def test_state_editor_field_strips_injected_reminder(client, project: Path) -> None:
+    # The editable textarea binds to `oracle_text_editor` (canonical, reminder-free);
+    # the preview + before/after diff keep the injected `oracle_text`.
+    oracle = (
+        "Energize 1 (Whenever this creature attacks, put one Energon counter on it.)\n"
+        "Remove an Energon counter: Draw a card."
+    )
+    _write_card(project, "001_alpha.json", _card_body("001", "Alpha", oracle_text=oracle))
+    data = client.get("/api/wizard/finalize/state").json()
+    card = next(c for c in data["cards"] if c["collector_number"] == "001")
+    assert card["oracle_text"] == oracle
+    assert card["oracle_text_editor"] == "Energize 1\nRemove an Energon counter: Draw a card."
+
+
 def test_save_card_persists_edit_and_marks_user_edited(client, project: Path) -> None:
     _write_card(project, "001_alpha.json", _card_body("001", "Alpha"))
     _seed_mechanics(project)

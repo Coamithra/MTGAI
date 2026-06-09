@@ -126,6 +126,23 @@ def test_state_reports_has_render(client, project: Path) -> None:
     assert card["has_render"] is True
 
 
+def test_state_editor_field_strips_injected_reminder(client, project: Path) -> None:
+    # The editor textarea binds to `oracle_text_editor` (canonical, reminder-free)
+    # while the preview/render keep the injected `oracle_text` — reminder text is
+    # auto-injected and never hand-authored, so editing it is discarded on save.
+    oracle = (
+        "Energize 1 (Whenever this creature attacks, put one Energon counter on it.)\n"
+        "Remove an Energon counter: Draw a card."
+    )
+    _write_card(project, "B-C-01_alpha.json", _card_body("B-C-01", "Alpha", oracle_text=oracle))
+    data = client.get("/api/wizard/rendering/state").json()
+    card = next(c for c in data["cards"] if c["collector_number"] == "B-C-01")
+    assert card["oracle_text"] == oracle  # preview/render keep the injected form
+    assert card["oracle_text_editor"] == (
+        "Energize 1\nRemove an Energon counter: Draw a card."
+    )  # editor gets canonical rules text only
+
+
 # ---------------------------------------------------------------------------
 # image
 # ---------------------------------------------------------------------------
