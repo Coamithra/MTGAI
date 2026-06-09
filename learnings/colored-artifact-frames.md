@@ -93,3 +93,33 @@ All in `assets/frames/m15/`:
   - M15 frame registration: `data/scripts/versions/m15/version.js`
 - wingedsheep: `github.com/wingedsheep/mtg-card-generator`
 - Proxyshop: `github.com/Investigamer/Proxyshop` (Photoshop automation, has colored artifact templates in PSD format)
+
+## Update (2026-06-09): two-color (multicolor) split frames — DONE via Option D
+Two-color cards now render with a left-colourA / right-colourB split frame (was flat gold `M`).
+Tracked: [Trello — Multicolor (two-color) card frames](https://trello.com/c/38VmZUZM).
+
+**Option D (empirical median/percentile stacking) was used**, with two findings from the
+fit check the user asked for:
+- **Source = M15 *hybrid* cards, not gold `c:wu` cards.** Real `frame:2015 c:wu` cards are flat
+  *gold* (e.g. Efreet Weaponmaster) — that IS our existing `m15FrameM`. The left/right split is the
+  **hybrid** frame (e.g. Azorius Guildmage `{W/U}{W/U}`). So the median source is
+  `frame:2015 is:hybrid id<=<pair> id>=<pair> -t:legendary -t:land …` (~25–35 unique-art cards/pair).
+- **Scryfall format fits ours.** Scryfall PNGs are 745×1040; scaling to our 2010×2814 introduces only
+  ~0.3% vertical squash, and M15 zone layout lines up with `layout.py` (verified by overlaying our
+  zone boxes on real cards), so the stacked frame registers with our masks/text zones.
+- **Percentile, not median.** Card text/watermarks are dark on a bright frame, so a per-pixel **p80**
+  (toward the brighter value) rejects ghost text far better than the 50th-percentile median without
+  washing the colour out. Even so, shared text ("Creature —", names) survives any percentile in the
+  flat bar zones, so the title/type bars + bottom strip are rebuilt from a **left/right gradient blend
+  of the two clean mono frames**, and the rules box from clean mono parchment; the stack keeps the
+  body/border/pinline/colour + the split P/T box. Best of D (authentic split body) + A (clean bars).
+
+**Implementation:** `backend/scripts/generate_two_color_frames.py` (offline, committed PNGs:
+`m15Frame<PAIR>.png` + `m15PT<PAIR>.png`, 10 pairs, WUBRG order); `colors.frame_key_for_identity` /
+`two_color_key`; `layout.frame_path` / `pt_box_path`; `card_renderer.determine_frame_key` /
+`_load_frame` / `_load_pt_box` / `_load_legendary_crown` (the pre-existing `CROWN_PAIR_MAP` is now
+wired to the committed `crowns/<PAIR>.png`). **Colored artifacts are handled by the sibling card**
+(Option A blends, shipped — see top of this doc); `determine_frame_key` routes non-land artifacts
+through `artifact_frame_key` and everything else through `frame_key_for_identity`, so the two
+features compose. The two-colour generation script's percentile-stack + mono-blend + zone-clip
+helpers are the upgrade path if the artifact frames later move from Option A to Option D.

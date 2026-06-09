@@ -202,27 +202,24 @@ def frame_path(color_key: str) -> Path:
 
     Args:
         color_key: One of W, U, B, R, G, M (multicolor), A (artifact),
-                   L (land), V (vehicle/colorless), a colored-artifact
-                   variant (AW, AU, AB, AR, AG, AM), or a land variant
-                   (lw, lu, lb, lr, lg, lm).
+                   L (land), V (vehicle/colorless), a two-color split key
+                   (WU, WB, …), a colored-artifact variant (AW, AU, AB, AR,
+                   AG, AM), or a land variant (lw, lu, lb, lr, lg, lm).
     """
-    # Map short keys to filenames
-    key_upper = color_key.upper()
-    if len(key_upper) == 1:
-        return FRAMES_DIR / f"m15Frame{key_upper}.png"
-    # Colored artifact frames: AW, AU, AB, AR, AG, AM -> m15FrameAW.png
-    if len(key_upper) == 2 and key_upper[0] == "A":
-        return FRAMES_DIR / f"m15Frame{key_upper}.png"
     # Land frames use lowercase: lw, lu, lb, lr, lg, lm
-    return FRAMES_DIR / f"{color_key.lower()}.png"
+    if color_key.startswith("l") and len(color_key) == 2:
+        return FRAMES_DIR / f"{color_key.lower()}.png"
+    # Single color, gold/artifact, two-color split (WU, …), or colored
+    # artifact (AW, …) — all map to m15Frame{KEY}.png.
+    return FRAMES_DIR / f"m15Frame{color_key.upper()}.png"
 
 
 def pt_box_path(color_key: str) -> Path:
-    """Return the path to the M15 P/T box overlay for the given color key."""
-    key_upper = color_key.upper()
-    if len(key_upper) == 1:
-        return FRAMES_DIR / f"m15PT{key_upper}.png"
-    # Colored artifact P/T boxes: AW, AU, ... -> m15PTAW.png
-    if len(key_upper) == 2 and key_upper[0] == "A":
-        return FRAMES_DIR / f"m15PT{key_upper}.png"
-    return FRAMES_DIR / f"m15PT{color_key[0].upper()}.png"
+    """Return the path to the M15 P/T box overlay for the given color key.
+
+    Accepts single keys (W, M, A), two-color split keys (WU, WB, …),
+    colored-artifact variants (AW, …), and land variants (lw → first color's box).
+    """
+    if color_key.startswith("l") and len(color_key) == 2:
+        return FRAMES_DIR / f"m15PT{color_key[1].upper()}.png"
+    return FRAMES_DIR / f"m15PT{color_key.upper()}.png"
