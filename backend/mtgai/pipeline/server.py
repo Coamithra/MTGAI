@@ -287,6 +287,30 @@ _engine: PipelineEngine | None = None
 _engine_task: asyncio.Task | None = None
 
 
+def _reset_engine() -> None:
+    """Drop the in-memory engine reference so it can't outlive its project.
+
+    ``_get_current_state()`` returns ``_engine.state`` whenever an engine
+    exists — even an idle one whose run finished. If that reference survives a
+    project switch, the server serves (and, via ``_heal_failed_stage`` →
+    ``save_state``, *persists* into the newly-active project's
+    ``pipeline-state.json``) the *previous* project's state. Every project
+    switch (open / new / materialize) must clear it so state resolution falls
+    back to the active project's on-disk ``pipeline-state.json``.
+
+    Safe to call after :func:`_project_switch_guard` has drained the AI lock:
+    any live engine run has been cancelled + the lock released, so the daemon
+    thread / task is winding down and nothing live is lost. A pending
+    ``_engine_task`` (a never-awaited fire-and-forget handle) is cancelled
+    best-effort before the reference is dropped.
+    """
+    global _engine, _engine_task
+    if _engine_task is not None and not _engine_task.done():
+        _engine_task.cancel()
+    _engine = None
+    _engine_task = None
+
+
 def _persist_supervised_project(mtg_toml: str) -> None:
     """Record the just-opened project's ``.mtg`` so a supervised restart can resume it.
 
@@ -2086,6 +2110,7 @@ async def project_new(request: Request) -> JSONResponse:
     # browser-side draft would be lost the moment the user opens any
     # other page (Model Registry, etc.). set_code starts empty (purely
     # cosmetic), set_params + theme_input + asset_folder are blank.
+    _reset_engine()
     active_project.write_active_project(active_project.ProjectState(set_code="", settings=seeded))
     _forget_supervised_project()
 
@@ -2157,6 +2182,7 @@ async def project_open(request: Request) -> JSONResponse:
     except ValueError as e:
         return JSONResponse({"error": f"Invalid .mtg file: {e}"}, status_code=400)
 
+    _reset_engine()
     active_project.write_active_project(
         active_project.ProjectState(set_code=set_code, settings=settings)
     )
@@ -2216,6 +2242,7 @@ async def project_materialize(request: Request) -> JSONResponse:
     except Exception as e:  # pydantic validation, etc.
         return JSONResponse({"error": f"Invalid project body: {e}"}, status_code=400)
 
+    _reset_engine()
     active_project.write_active_project(
         active_project.ProjectState(set_code=set_code, settings=settings)
     )
@@ -2819,18 +2846,26 @@ def _apply_downstream_clear(state: PipelineState, idx: int) -> None:
     from mtgai.pipeline.stages import clear_stage_artifacts
 
     try:
-        # The edited stage's own stage_id must never be passed to a clearer:
-        # loop stages (card_gen / conformance / ai_review) share one live
-        # working set keyed by stage_id, so clearing a downstream regen
-        # duplicate (e.g. ``card_gen.2``) would wipe the backbone's kept output
-        # — the exact thing the unlock path promises to preserve. We still drop
-        # the duplicate's history snapshot + truncate it from the stage list
-        # below; only its artifact-clear is skipped.
-        edited_stage_id = state.stages[idx].stage_id
+        # A downstream loop-stage's artifact-clear must never run: the loop
+        # stages (lands / card_gen / conformance / ai_review = SNAPSHOT_STAGES)
+        # all read/write ONE live working set — the single ``cards/`` dir keyed
+        # by stage_id, not per-instance. The unlock keeps the edited stage's
+        # output *and* every kept upstream stage's output (the backbone
+        # card_gen lives on at COMPLETED), all of which live in that shared
+        # pool. So clearing a downstream regen duplicate such as ``card_gen.2``
+        # (``clear_card_gen`` → wipes every non-``L-*`` ``cards/*.json``) would
+        # destroy the kept pool the unlock promises to preserve — even though
+        # its stage_id (``card_gen``) differs from the EDITED stage_id (e.g.
+        # ``conformance``), which the old same-stage_id-only guard missed.
+        # conformance/ai_review clearers are already no-ops on the pool, so
+        # skipping the whole loop-stage set is exact: pool-touching clears are
+        # suppressed, no-op clears lose nothing. The duplicate's history
+        # snapshot is still dropped + it's truncated from the stage list below;
+        # only its artifact-clear is skipped.
         downstream = list(state.stages[idx + 1 :])
         for stage in downstream:
             history.delete_snapshot(stage.instance_id)
-            if stage.stage_id != edited_stage_id:
+            if stage.stage_id not in history.SNAPSHOT_STAGES:
                 try:
                     clear_stage_artifacts(stage.stage_id)
                 except (OSError, KeyError) as e:

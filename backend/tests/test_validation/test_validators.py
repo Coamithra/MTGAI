@@ -1107,6 +1107,82 @@ class TestRulesText:
             "Salvage (When ~ enters the battlefield, return it.)\nWhen ~ enters, scry 1."
         )
 
+    # ---- keyword_commas: only true keyword-runs are flagged/rewritten ----
+    # Check 9 + fix_keyword_commas used to flag ANY comma-free line containing
+    # >=2 keyword words anywhere and rebuild it as a bare ", ".join of the
+    # matched keywords — destroying the rest of the line (the whole ability,
+    # keyword parameters, etc.). It must only touch genuine keyword-only runs.
+
+    def _kw_comma_errors(self, card):
+        return [e for e in validate_card(card) if e.error_code == "rules_text.keyword_commas"]
+
+    def test_keyword_run_flagged(self):
+        """A genuine comma-free keyword run is flagged."""
+        card = _make_card(oracle_text="Flying trample")
+        assert self._kw_comma_errors(card)
+
+    def test_keyword_run_fixed_with_commas(self):
+        """The fixer inserts commas between keywords (no rebuild)."""
+        card = _make_card(oracle_text="Flying trample")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "Flying, trample"
+
+    def test_ability_sentence_with_keywords_not_flagged(self):
+        """A sentence naming keywords is NOT a keyword list — never flagged."""
+        card = _make_card(
+            oracle_text="Target creature gains flying and lifelink until end of turn.",
+        )
+        assert not self._kw_comma_errors(card)
+
+    def test_ability_sentence_with_keywords_not_modified(self):
+        """...and the fixer leaves that sentence byte-for-byte intact."""
+        original = "Target creature gains flying and lifelink until end of turn."
+        card = _make_card(oracle_text=original)
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == original
+
+    def test_keyword_run_with_param_keeps_cost(self):
+        """A keyword parameter ("ward {2}") survives the comma insertion."""
+        card = _make_card(oracle_text="Flying ward {2}")
+        # Flagged, since it's a >=2-keyword run.
+        assert self._kw_comma_errors(card)
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "Flying, ward {2}"
+
+    def test_keyword_run_with_protection_from_kept_whole(self):
+        """ "protection from red" stays whole when commas are inserted."""
+        card = _make_card(oracle_text="Flying protection from red")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "Flying, protection from red"
+
+    def test_keyword_line_with_reminder_not_flagged(self):
+        """A keyword line carrying reminder text is left untouched (paren span)."""
+        card = _make_card(
+            oracle_text=(
+                "Flying (This creature can't be blocked except by creatures with flying or reach.)"
+            ),
+        )
+        assert not self._kw_comma_errors(card)
+
+    def test_keyword_line_with_reminder_not_modified(self):
+        original = (
+            "Flying (This creature can't be blocked except by creatures with flying or reach.)"
+        )
+        card = _make_card(oracle_text=original)
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == original
+
+    def test_single_keyword_not_flagged(self):
+        """A lone keyword needs no commas."""
+        card = _make_card(oracle_text="Flying")
+        assert not self._kw_comma_errors(card)
+
+    def test_multiword_keyword_run_segmented(self):
+        """Multi-word keywords (double strike, first strike) bind correctly."""
+        card = _make_card(oracle_text="Double strike trample")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "Double strike, trample"
+
 
 # ===========================================================================
 # Keyword ordering

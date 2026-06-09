@@ -298,6 +298,94 @@ def _is_keyword_only_line(line: str) -> bool:
     return True
 
 
+# A keyword's optional parameter suffix: a mana/number cost ("{2}", "3").
+# "protection from <quality>" is handled separately. We consume at most one
+# such suffix so "ward {2}" / "salvage 3" stay whole when splitting a
+# comma-free keyword run.
+_PARAM_TOKEN_RE = re.compile(r"\{[^}]+\}|\d+")
+
+
+def _consume_keyword_param(text: str, start: int, keyword: str) -> int:
+    """Return the index just past ``keyword``'s optional parameter at ``start``.
+
+    Handles "protection from <word>", and a "{cost}" / bare-number suffix
+    (ward, equip, salvage, and other parameterized keywords). Leaves the index
+    unchanged when no parameter follows the keyword. "from <word>" is consumed
+    only for ``protection`` (the one keyword that takes it) so an unrelated
+    word is never swallowed.
+    """
+    n = len(text)
+    j = start
+    while j < n and text[j].isspace():
+        j += 1
+    if j >= n:
+        return start
+
+    rest_lower = text[j:].lower()
+    # "protection from red", "protection from artifacts" — consume "from <word>".
+    if keyword == "protection" and rest_lower.startswith("from "):
+        k = j + len("from ")
+        while k < n and not text[k].isspace():
+            k += 1
+        return k
+
+    # A mana cost ("{2}") or bare number ("3") parameter.
+    m = _PARAM_TOKEN_RE.match(text, j)
+    if m:
+        return m.end()
+
+    return start
+
+
+def _split_keyword_run(line: str) -> list[str] | None:
+    """Segment a comma-free keyword-only line into its individual keywords.
+
+    Greedily consumes recognized keywords (longest match first, so multi-word
+    keywords like "double strike" and "first strike" bind before "strike")
+    plus each keyword's parameter suffix ("ward {2}", "protection from red",
+    "salvage 3"). Returns the list of segments preserving original casing and
+    parameters, or ``None`` when the line is not a clean run of two or more
+    keywords — so a sentence merely *containing* keyword words ("gains flying
+    and lifelink until end of turn") is never matched, and a single keyword
+    needs no commas.
+
+    The line must already be free of reminder text and structural punctuation;
+    callers gate on that before calling.
+    """
+    stripped = line.strip()
+    if not stripped or "," in stripped:
+        return None
+
+    # Longest-first so "double strike" wins over a substring keyword.
+    kws = sorted(all_keywords(), key=len, reverse=True)
+
+    segments: list[str] = []
+    pos = 0
+    n = len(stripped)
+    while pos < n:
+        while pos < n and stripped[pos].isspace():
+            pos += 1
+        if pos >= n:
+            break
+
+        rest_lower = stripped[pos:].lower()
+        matched_kw: str | None = None
+        for kw in kws:
+            if rest_lower == kw or rest_lower.startswith(kw + " "):
+                matched_kw = kw
+                break
+        if matched_kw is None:
+            return None  # a non-keyword token — not a pure keyword run
+
+        seg_end = _consume_keyword_param(stripped, pos + len(matched_kw), matched_kw)
+        segments.append(stripped[pos:seg_end].strip())
+        pos = seg_end
+
+    if len(segments) < 2:
+        return None
+    return segments
+
+
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -456,16 +544,18 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
     # ------------------------------------------------------------------
     for i, line in enumerate(lines, start=1):
         stripped = line.strip()
-        if not stripped:
+        if not stripped or "," in stripped:
+            continue  # Empty or already comma-separated — skip.
+        # Reminder text is injected programmatically; a parenthesized span may
+        # legitimately name two keywords without being a keyword list. Skip any
+        # line carrying reminder text (CLAUDE.md: validators skip parens).
+        if "(" in stripped:
             continue
-        if "," in stripped:
-            continue  # Already has commas, skip
-        words_lower = stripped.lower()
-        found_keywords: list[str] = []
-        for kw in all_keywords():
-            if re.search(rf"\b{re.escape(kw)}\b", words_lower):
-                found_keywords.append(kw)
-        if len(found_keywords) >= 2:
+        # Only flag a line that is genuinely a run of >=2 keywords (and nothing
+        # else). A sentence merely containing keyword words — "gains flying and
+        # lifelink until end of turn" — is NOT a keyword list and must be left
+        # untouched.
+        if _split_keyword_run(stripped) is not None:
             errors.append(
                 _auto(
                     "oracle_text",
@@ -625,31 +715,27 @@ def fix_tap_colon(card: Card, error: ValidationError) -> Card:
 
 
 def fix_keyword_commas(card: Card, error: ValidationError) -> Card:
-    """Insert commas between keywords on keyword-only lines."""
+    """Insert commas between keywords on keyword-only lines.
+
+    Only rewrites a line that is genuinely a comma-free run of two or more
+    keywords (``_split_keyword_run``). Each keyword's full text — including its
+    parameter ("ward {2}", "protection from red") — is kept whole; commas are
+    inserted *between* keywords, never reconstructing the line from bare keyword
+    words. Any other line (a sentence, a single keyword, a line with reminder
+    text) is passed through untouched, so non-keyword text is never discarded.
+    """
     if not card.oracle_text:
         return card
 
     new_lines = []
     for line in card.oracle_text.split("\n"):
         stripped = line.strip()
-        if not stripped or "," in stripped:
+        if not stripped or "," in stripped or "(" in stripped:
             new_lines.append(line)
             continue
 
-        # Find all keyword matches in this line
-        words_lower = stripped.lower()
-        found_keywords: list[tuple[int, int, str]] = []
-        for kw in all_keywords():
-            for m in re.finditer(rf"\b{re.escape(kw)}\b", words_lower):
-                found_keywords.append((m.start(), m.end(), kw))
-
-        if len(found_keywords) >= 2:
-            # Sort by position and rebuild with commas
-            found_keywords.sort(key=lambda x: x[0])
-            # Extract the actual text segments (preserving original case)
-            segments = []
-            for start, end, _ in found_keywords:
-                segments.append(stripped[start:end])
+        segments = _split_keyword_run(stripped)
+        if segments is not None:
             new_lines.append(", ".join(segments))
         else:
             new_lines.append(line)
