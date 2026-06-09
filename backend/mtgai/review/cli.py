@@ -433,6 +433,16 @@ def serve(
             "mid-Flux. Off by default.",
         ),
     ] = False,
+    auto_resume: Annotated[
+        bool,
+        typer.Option(
+            "--auto-resume",
+            help="With --supervised, re-open the last project + retry its failed stage "
+            "unattended after an auto-restart, so a long art run finishes overnight with "
+            "no human re-opening + clicking Retry. A progress-aware per-stage ceiling "
+            "stops a crash-resume loop. Off by default; requires --supervised.",
+        ),
+    ] = False,
 ) -> None:
     """Start the local review server (FastAPI + uvicorn).
 
@@ -458,10 +468,25 @@ def serve(
 
         console.print(f"[bold]Starting MTGAI server (supervised) on port {port}...[/bold]")
         console.print(f"  Wizard:   http://localhost:{port}/pipeline")
+        if auto_resume:
+            console.print(
+                "[green]Auto-resume ON — a restart re-opens + retries unattended.[/green]"
+            )
         console.print(
             "[dim]Supervisor logs crashes + restarts on abnormal exit. Ctrl+C to stop.[/dim]"
         )
-        raise typer.Exit(run_supervised(port=port, open_browser=open_browser, debug=debug))
+        raise typer.Exit(
+            run_supervised(
+                port=port,
+                open_browser=open_browser,
+                debug=debug,
+                auto_resume_enabled=auto_resume,
+            )
+        )
+    if auto_resume:
+        console.print(
+            "[yellow]--auto-resume has no effect without --supervised; ignoring.[/yellow]"
+        )
 
     # Set BEFORE importing/creating the FastAPI app so debug_routes.is_debug_enabled()
     # sees it at mount time. uvicorn.run imports the app module fresh in-process here,
