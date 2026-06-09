@@ -104,7 +104,8 @@ COLOR_COMPOSITION: dict[str, str] = {
 
 def _motifs_suffix() -> str:
     """Return a ", motif, motif, motif" suffix from the active project's
-    ``visual_motifs``, or "" if none are available. Capped at 3 motifs."""
+    ``visual_motifs``, or "" if none are available. Capped at 3 via
+    ``get_visual_motifs``'s default limit."""
     try:
         motifs = get_visual_motifs()
     except Exception:
