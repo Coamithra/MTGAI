@@ -557,12 +557,21 @@ def test_char_portraits_poller_excludes_image_gen(monkeypatch, tmp_path) -> None
     cp = "mtgai.art.character_portraits"
     poller_state: dict[str, bool] = {}
 
-    def fake_detect(*_a, **_k):
-        # The poller wraps this call — it must be active here.
+    def fake_ensure(*_a, **_k):
+        # The poller wraps the unified entity-tag resolution — active here.
         poller_state["active_during_detect"] = pollers[0].active
+        return {"cards": {}, "entities_meta": {}}, 0.0
+
+    def fake_recurring(_data, **_k):
         return [
-            {"entity_key": "hero", "name": "Hero", "kind": "character", "cards": ["1", "2"]}
-        ], 0.0
+            {
+                "entity_key": "hero",
+                "name": "Hero",
+                "kind": "character",
+                "cards": ["1", "2"],
+                "note": "",
+            }
+        ]
 
     def fake_ensure_comfyui(**_k):
         return None
@@ -572,7 +581,9 @@ def test_char_portraits_poller_excludes_image_gen(monkeypatch, tmp_path) -> None
         poller_state["active_during_image"] = pollers[0].active
         return (b"png-bytes", {})
 
-    monkeypatch.setattr(f"{cp}.detect_recurring_entities", fake_detect)
+    # Detection is now the shared entity_tags pass (imported inside the stage).
+    monkeypatch.setattr("mtgai.art.entity_tags.ensure_entity_tags", fake_ensure)
+    monkeypatch.setattr("mtgai.art.entity_tags.recurring_from_tags", fake_recurring)
     monkeypatch.setattr(f"{cp}.ensure_comfyui", fake_ensure_comfyui)
     monkeypatch.setattr(f"{cp}.is_comfyui_running", lambda: True)
     monkeypatch.setattr(f"{cp}.kill_comfyui", lambda *_a, **_k: None)

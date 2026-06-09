@@ -37,14 +37,20 @@ from collections.abc import Callable
 from pathlib import Path
 
 from mtgai.art.artist_assignment import assign_artists, load_art_prompt_knobs
+from mtgai.art.entity_tags import effective_card_tags, ensure_entity_tags
 from mtgai.art.visual_reference import (
     detect_named_characters,
+    entity_display_name,
     get_artists,
     get_cameo_entities,
+    get_entity_catalog,
     get_flux_replacements,
     get_named_entities,
+    get_refs,
     get_set_art_direction,
     get_visual_motifs,
+    get_visual_references,
+    get_visual_references_for_keys,
 )
 from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import generate_with_tool
@@ -261,19 +267,23 @@ def build_art_prompt_user_message(
     setting_prose: str,
     named_entities: list[dict[str, str]] | None,
     cameo: dict[str, str] | None,
+    visual_refs: str | None = None,
     visual_motifs: list[str] | None = None,
 ) -> str:
     """Assemble the user message for the art-prompt LLM call.
 
     All of ``artist_style`` / ``set_art_direction`` / ``setting_prose`` /
-    ``named_entities`` / ``visual_motifs`` may be empty (degraded inputs); the
-    corresponding section is simply omitted. ``named_entities`` (``{key, name,
-    kind}`` records from :func:`visual_reference.get_named_entities`) are the
-    set's recurring characters/locations the card features — listed by NAME so
-    the model anchors them by name (the renderer then binds a reference image to
-    that name). ``cameo`` (when present) names a specific style-guide entity to
-    feature. ``visual_motifs`` is the set's recurring colors / materials /
-    lighting, woven in as a secondary style cue.
+    ``named_entities`` / ``visual_refs`` / ``visual_motifs`` may be empty (degraded
+    inputs); the corresponding section is simply omitted. ``named_entities``
+    (``{key, name, kind}`` records) are the set's RECURRING characters/locations the
+    card features — listed by NAME so the model anchors them by name (the renderer
+    then binds a reference image to that name). ``visual_refs`` is appearance prose
+    for the card's NON-recurring tagged entities — they get no reference image, so
+    the model is told to render their appearance (never the name). The two cover
+    disjoint entity sets, so naming and appearance never collide on one entity.
+    ``cameo`` (when present) names a specific style-guide entity to feature.
+    ``visual_motifs`` is the set's recurring colors / materials / lighting, woven
+    in as a secondary style cue.
     """
     card_type_cat = get_card_type_category(card)
     hint = _COMPOSITION_HINTS.get(card_type_cat, "")
@@ -309,6 +319,13 @@ def build_art_prompt_user_message(
             "refer to each by its EXACT name below so the renderer binds a reference "
             "image to it; do not invent their appearance):\n"
             f"{roster}"
+        )
+
+    if visual_refs:
+        sections.append(
+            "VISUAL APPEARANCE REFERENCES (one-off entities with NO reference image — "
+            "render these appearances, never the names):\n"
+            f"{visual_refs}"
         )
 
     if cameo:
@@ -375,6 +392,8 @@ def generate_art_prompt(
     set_art_direction: str,
     setting_prose: str,
     cameo: dict[str, str] | None,
+    named_entities: list[dict[str, str]] | None = None,
+    visual_refs: str | None = None,
     visual_motifs: list[str] | None = None,
     log_dir: Path | None = None,
 ) -> tuple[str, int, int]:
@@ -383,17 +402,34 @@ def generate_art_prompt(
     Returns ``(art_prompt, input_tokens, output_tokens)``. The returned prompt is
     NOT yet Flux-sanitized — the caller applies :func:`_sanitize_for_flux`.
 
+    ``named_entities`` (recurring entities the card features, named so the renderer
+    binds a reference image to each) and ``visual_refs`` (appearance prose for the
+    card's non-recurring tagged entities, which get NO reference image) are both
+    computed by the caller (:func:`generate_prompts_for_set`) from the one unified
+    per-card entity-tag source — so the prompt and the attached images describe the
+    SAME entities (card 6a27581d). When either is ``None`` it falls back to the
+    legacy per-card-field helper (``get_named_entities`` / ``get_visual_references``)
+    so the old call shape / tests still work.
+
     The prompt is extracted defensively (:func:`_extract_art_prompt`) so a local
     model's malformed tool-call key (good value, corrupted key) doesn't drop the
     card. A genuinely unusable payload is retried at a bumped temperature (escaping
     a local repetition loop) up to :data:`_MAX_PROMPT_ATTEMPTS` times before raising.
     """
-    named_entities = get_named_entities(
-        card.name,
-        card.type_line,
-        card.oracle_text,
-        card.flavor_text,
-    )
+    if named_entities is None:
+        named_entities = get_named_entities(
+            card.name,
+            card.type_line,
+            card.oracle_text,
+            card.flavor_text,
+        )
+    if visual_refs is None:
+        visual_refs = get_visual_references(
+            card.name,
+            card.type_line,
+            card.oracle_text,
+            card.flavor_text,
+        )
 
     user_message = build_art_prompt_user_message(
         card,
@@ -401,6 +437,7 @@ def generate_art_prompt(
         set_art_direction=set_art_direction,
         setting_prose=setting_prose,
         named_entities=named_entities,
+        visual_refs=visual_refs,
         cameo=cameo,
         visual_motifs=visual_motifs,
     )
@@ -640,6 +677,34 @@ def generate_prompts_for_set(
     prompt_log_dir = set_dir / "art_prompts" / "prompt-logs"
     prompt_log_dir.mkdir(parents=True, exist_ok=True)
 
+    # Unified entity tagging: one LLM pass (or the cached sidecar) decides which
+    # style-guide entities each card features. Both the appearance-TEXT injection
+    # here and the reference-IMAGE attachment in char_portraits consume it, so the
+    # two no longer disagree (card 6a27581d). ``force`` (the tab's Refresh) re-runs
+    # detection while preserving manual per-card tag overrides.
+    from mtgai.runtime.active_project import require_active_project as _rap
+
+    _tag_settings = _rap().settings
+    tags_data, tags_cost = ensure_entity_tags(
+        set_dir,
+        [c.model_dump(mode="json") for c in all_cards],
+        get_refs(),
+        model_id=_tag_settings.get_llm_model_id("art_prompts"),
+        log_dir=log_dir,
+        thinking=_tag_settings.get_thinking("art_prompts"),
+        force=force,
+    )
+    # A card's tagged entities split into two prompt channels (no per-entity
+    # collision): RECURRING (2+ card) entities get a reference image downstream, so
+    # name them (the renderer binds the image by name); SINGLE-card entities get no
+    # ref image, so inject their appearance prose instead. Both come from the one
+    # tag source, so the prompt names/depicts exactly the entities char_portraits
+    # also references.
+    from mtgai.art.entity_tags import recurring_from_tags
+
+    _recurring_keys = {e["entity_key"] for e in recurring_from_tags(tags_data)}
+    _entity_kind_by_key = {e["entity_key"]: e["kind"] for e in get_entity_catalog()}
+
     logger.info(
         "Generating art prompts for %d cards in %s (%d artists, cameo p=%.2f)",
         len(card_files),
@@ -680,12 +745,29 @@ def generate_prompts_for_set(
             if cameo:
                 cameos += 1
 
+            card_tags = effective_card_tags(tags_data, card.collector_number)
+            named_entities = [
+                {
+                    "key": t["entity_key"],
+                    "name": entity_display_name(t["entity_key"]),
+                    "kind": _entity_kind_by_key.get(t["entity_key"], t["kind"]),
+                }
+                for t in card_tags
+                if t["entity_key"] in _recurring_keys
+            ]
+            appearance_keys = [
+                t["entity_key"] for t in card_tags if t["entity_key"] not in _recurring_keys
+            ]
+            visual_refs_text = get_visual_references_for_keys(appearance_keys)
+
             full_prompt_raw, in_tok, out_tok = generate_art_prompt(
                 card,
                 artist_style=artist_style,
                 set_art_direction=set_art_direction,
                 setting_prose=setting_prose,
                 cameo=cameo,
+                named_entities=named_entities,
+                visual_refs=visual_refs_text,
                 visual_motifs=visual_motifs,
                 log_dir=log_dir,
             )
@@ -747,7 +829,11 @@ def generate_prompts_for_set(
             logger.error("ERROR on %s: %s", card.collector_number, e)
             errors.append({"card": card.collector_number, "error": str(e)})
 
-    est_cost = (total_input_tokens * 0.80 / 1_000_000) + (total_output_tokens * 4.0 / 1_000_000)
+    est_cost = (
+        (total_input_tokens * 0.80 / 1_000_000)
+        + (total_output_tokens * 4.0 / 1_000_000)
+        + tags_cost  # the unified entity-detection LLM pass (0.0 when the sidecar was reused)
+    )
 
     summary = {
         "set_code": set_code,
