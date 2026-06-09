@@ -15,10 +15,10 @@ import pytest
 # Both modules hard-import Pillow at load; skip the whole module without it.
 pytest.importorskip("PIL")
 
-from PIL import Image, ImageDraw  # noqa: E402
+from PIL import Image, ImageDraw
 
-from mtgai.art import set_symbol as ss  # noqa: E402
-from mtgai.rendering import symbol_renderer as sr  # noqa: E402
+from mtgai.art import set_symbol as ss
+from mtgai.rendering import symbol_renderer as sr
 
 
 def _circle_png(bg: tuple[int, int, int], fg: tuple[int, int, int]) -> bytes:
@@ -56,6 +56,24 @@ def test_build_silhouette_autocrops_to_square():
     assert mask.width == mask.height
     # Far smaller than the 200px source (cropped to the ~80px circle + margin).
     assert mask.width < 200
+
+
+def test_build_silhouette_blank_image_has_no_shape():
+    """A uniform (blank) image silhouettes to a fully-transparent mask — the
+    signal set_user_symbol uses to reject an invisible upload."""
+    buf = BytesIO()
+    Image.new("RGB", (120, 120), (255, 255, 255)).save(buf, format="PNG")
+    mask = Image.open(BytesIO(ss.build_silhouette(buf.getvalue()))).convert("RGBA")
+    assert mask.getchannel("A").getbbox() is None
+
+
+def test_mask_path_for_rejects_traversal(tmp_path):
+    """Only 'upload' or an all-digit tag resolves to a mask path; anything that
+    could escape the dir (path separators, '..', floats) is rejected."""
+    assert ss._mask_path_for(tmp_path, "3") == tmp_path / "mask_v3.png"
+    assert ss._mask_path_for(tmp_path, "upload") == tmp_path / "mask_upload.png"
+    for bad in ("../../etc/passwd", "..", "3.5", "v3", "", "a"):
+        assert ss._mask_path_for(tmp_path, bad) is None
 
 
 def test_tint_mask_recolors_shape_keeps_alpha():

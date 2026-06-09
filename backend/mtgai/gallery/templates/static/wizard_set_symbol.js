@@ -24,7 +24,7 @@
     style.textContent = `
       .wiz-setsym-blurb { color:#888; font-size:0.82rem; margin:0.25rem 0 0.75rem 0; }
       .wiz-setsym-concept { color:#cdd; font-size:0.85rem; margin:0.2rem 0 0.6rem 0; }
-      .wiz-setsym-concept .tag { color:#8a94b8; }
+      .wiz-setsym-concept .tag, .wiz-setsym-prompt .tag { color:#8a94b8; }
       .wiz-setsym-prompt { color:#667; font-size:0.72rem; font-style:italic; margin:0 0 0.6rem 0; }
       .wiz-setsym-grid {
         display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));
@@ -65,6 +65,7 @@
     initialized: false,
     concept: '',
     imagePrompt: '',
+    rationale: '',
     versions: [], // [{tag, is_upload, preview_url, raw_url, is_selected}]
     selected: '',
     hasContent: false,
@@ -162,6 +163,7 @@
     if (!data) return;
     local.concept = data.concept || '';
     local.imagePrompt = data.image_prompt || '';
+    local.rationale = data.rationale || '';
     local.versions = Array.isArray(data.versions) ? data.versions : [];
     local.selected = data.selected_version || '';
     local.hasContent = !!data.has_content;
@@ -194,6 +196,7 @@
       </p>
       ${local.concept ? `<div class="wiz-setsym-concept"><span class="tag">Concept:</span> ${escHtml(local.concept)}</div>` : ''}
       ${local.imagePrompt ? `<div class="wiz-setsym-prompt">${escHtml(local.imagePrompt)}</div>` : ''}
+      ${local.rationale ? `<div class="wiz-setsym-prompt"><span class="tag">Why:</span> ${escHtml(local.rationale)}</div>` : ''}
     `;
     const btn = slot.querySelector('[data-role="ss-refresh"]');
     if (btn) btn.onclick = onRefresh;

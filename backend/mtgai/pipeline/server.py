@@ -5204,6 +5204,7 @@ def _set_symbol_state_payload(asset: Path) -> dict:
     return {
         "concept": str(concept.get("concept") or ""),
         "image_prompt": str(concept.get("image_prompt") or ""),
+        "rationale": str(concept.get("rationale") or ""),
         "source": str(concept.get("source") or ""),
         "versions": versions,
         "selected_version": selected,
@@ -5292,7 +5293,10 @@ async def wizard_set_symbol_upload(request: Request) -> JSONResponse:
     from mtgai.art.set_symbol import set_user_symbol
 
     data = await file.read()
-    await asyncio.to_thread(set_user_symbol, data)
+    try:
+        await asyncio.to_thread(set_user_symbol, data)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
     _heal_failed_stage("set_symbol")
     return await wizard_set_symbol_state()
 

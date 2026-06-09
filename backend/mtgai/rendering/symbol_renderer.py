@@ -684,6 +684,8 @@ def _make_project_set_symbol(rarity: str, size: int) -> Image.Image | None:
 
     colors = _SET_SYMBOL_COLORS.get(rarity.upper(), _SET_SYMBOL_COLORS["C"])
     fill = colors["fill"]
+    # Same recolor as mtgai.art.set_symbol.tint_mask (kept inline so the renderer
+    # doesn't import the art module at render time; keep the two in step).
     tinted = Image.new("RGBA", (size, size), (int(fill[0]), int(fill[1]), int(fill[2]), 255))
     tinted.putalpha(mask.getchannel("A"))
     _project_symbol_cache[cache_key] = tinted

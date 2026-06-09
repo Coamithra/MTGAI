@@ -267,16 +267,27 @@ def _read_concept(symbol_dir: Path) -> dict:
     return {}
 
 
+def _mask_path_for(symbol_dir: Path, version_tag: str) -> Path | None:
+    """Resolve the mask file for a version tag, or None for an invalid tag.
+
+    ``version_tag`` must be ``"upload"`` or all-digits — anything else (path
+    separators, ``..``) is rejected so a user-supplied tag can't escape the
+    set-symbol dir."""
+    if version_tag == "upload":
+        return symbol_dir / "mask_upload.png"
+    if version_tag.isdigit():
+        return symbol_dir / f"mask_v{version_tag}.png"
+    return None
+
+
 def _select_version(symbol_dir: Path, version_tag: str) -> bool:
     """Copy ``mask_<tag>.png`` -> ``symbol.png`` and record the selection.
 
     ``version_tag`` is a version number (``"1"``) or ``"upload"``. Returns False
-    if the source mask doesn't exist.
+    for an invalid tag or a missing source mask.
     """
-    src = symbol_dir / f"mask_v{version_tag}.png"
-    if version_tag == "upload":
-        src = symbol_dir / "mask_upload.png"
-    if not src.is_file():
+    src = _mask_path_for(symbol_dir, version_tag)
+    if src is None or not src.is_file():
         return False
     shutil.copyfile(src, symbol_dir / "symbol.png")
     concept = _read_concept(symbol_dir)
@@ -402,20 +413,32 @@ def generate_set_symbol(
     finally:
         kill_comfyui(comfyui_proc)
 
-    # Select the first available version as the active symbol (unless one is
-    # already selected and we didn't regenerate).
+    # Pick the active symbol. A forced re-roll switches to the first fresh AI
+    # candidate (the user asked for a new glyph). Otherwise a still-valid prior
+    # selection wins — including a user upload, which stays pinned across resumes
+    # — falling back to the first available candidate.
     concept_payload["versions"] = saved_versions
     concept_payload["source"] = "flux"
-    prior = _read_concept(symbol_dir)
-    selected = prior.get("selected_version")
-    if selected not in [str(v) for v in saved_versions] and selected != "upload":
-        selected = str(saved_versions[0]) if saved_versions else None
+    saved_tags = [str(v) for v in saved_versions]
+    prior_selected = str(_read_concept(symbol_dir).get("selected_version") or "")
+    if force and saved_tags:
+        selected = saved_tags[0]
+    elif prior_selected in saved_tags or prior_selected == "upload":
+        selected = prior_selected
+    else:
+        selected = saved_tags[0] if saved_tags else None
     concept_payload["selected_version"] = selected
+
+    # Copy the chosen mask into symbol.png, then write concept.json ONCE (the
+    # selection is already stamped on concept_payload, so no _select_version
+    # re-read/re-write here).
+    if selected is not None:
+        chosen_mask = _mask_path_for(symbol_dir, selected)
+        if chosen_mask is not None and chosen_mask.is_file():
+            shutil.copyfile(chosen_mask, symbol_dir / "symbol.png")
     atomic_write_text(
         symbol_dir / "concept.json", json.dumps(concept_payload, indent=2, ensure_ascii=False)
     )
-    if selected and selected != "upload":
-        _select_version(symbol_dir, selected)
 
     return {
         **base_summary,
@@ -434,15 +457,23 @@ def set_user_symbol(image_bytes: bytes) -> str:
     Builds the silhouette mask from the upload, stores ``raw_upload``/
     ``mask_upload``/``preview_upload`` + selects it as ``symbol.png``. Returns the
     repo-relative path of the active ``symbol.png``.
+
+    Raises ``ValueError`` if the upload has no detectable shape (a blank/near-
+    blank image would silhouette to a fully-transparent mask → an invisible
+    symbol). Validation happens BEFORE any file write, so a bad upload never
+    clobbers a good ``symbol.png``.
     """
     from mtgai.io.asset_paths import set_artifact_dir
 
     asset_dir = set_artifact_dir()
     symbol_dir = asset_dir / "art-direction" / "set-symbol"
-    symbol_dir.mkdir(parents=True, exist_ok=True)
 
-    (symbol_dir / "raw_upload.png").write_bytes(image_bytes)
     mask_bytes = build_silhouette(image_bytes)
+    if Image.open(BytesIO(mask_bytes)).convert("RGBA").getchannel("A").getbbox() is None:
+        raise ValueError("Uploaded image has no detectable shape (it appears blank).")
+
+    symbol_dir.mkdir(parents=True, exist_ok=True)
+    (symbol_dir / "raw_upload.png").write_bytes(image_bytes)
     (symbol_dir / "mask_upload.png").write_bytes(mask_bytes)
     _write_preview(mask_bytes, symbol_dir / "preview_upload.png")
     _select_version(symbol_dir, "upload")

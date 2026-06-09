@@ -1702,6 +1702,20 @@ def run_set_symbol(progress_cb: ProgressCallback | None, emitter: StageEmitter) 
             error_message="Set symbol generation cancelled by user.",
         )
 
+    # No active glyph at all (every Flux render failed and there's no prior/
+    # uploaded symbol): fail loudly rather than completing green while the
+    # renderer silently falls back to the placeholder triangle.
+    if not result.get("selected_version"):
+        emitter.phase("done", "Set symbol generation produced no usable glyph")
+        return StageResult(
+            success=False,
+            total_items=0,
+            completed_items=0,
+            failed_items=result.get("failed", 0),
+            cost_usd=result.get("cost_usd", 0.0),
+            error_message="Set symbol generation failed: no candidate glyph was produced.",
+        )
+
     concept = result.get("concept", "set symbol")
     emitter.phase("done", f"Generated {generated} set-symbol candidate(s): {concept}")
     return StageResult(
