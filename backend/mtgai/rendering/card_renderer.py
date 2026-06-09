@@ -381,7 +381,7 @@ class CardRenderer:
         title_inv = ImageChops.invert(title_alpha)
 
         bbox = title_alpha.getbbox()
-        underlay_bottom = bbox[3] if bbox else NATIVE_ART_WINDOW.top
+        underlay_bottom = min(bbox[3], NATIVE_ART_WINDOW.top) if bbox else NATIVE_ART_WINDOW.top
 
         # Mask: opaque in rows 0 to the title bar bottom, transparent elsewhere
         zone_mask = Image.new("L", (FRAME_W, FRAME_H), 0)
@@ -404,10 +404,12 @@ class CardRenderer:
         """Load the legendary crown overlay with title bar punched out.
 
         Uses m15MaskTitle to create a transparent cutout in the crown
-        where the frame's name bar should show through. The crown's
-        decorative filigree renders on top of a black background
-        (provided by _make_crown_underlay), while the title bar
-        area is left transparent so the frame's own name bar is visible.
+        where the frame's name bar should show through. Above the title
+        bar's bottom edge the crown's decorative filigree renders on top
+        of a black background (provided by _make_crown_underlay); below
+        it the crown composites directly over the frame, and the title
+        bar area is left transparent so the frame's own name bar is
+        visible.
 
         Returns a full-canvas-size RGBA image, or None if no crown file found.
         """
