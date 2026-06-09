@@ -1131,6 +1131,61 @@ def test_run_conformance_later_instance_scopes_both_steps(project, monkeypatch):
     ai_lock.reset_for_tests()
 
 
+def test_run_conformance_recheck_flags_regenerated_functional_duplicate(project, monkeypatch):
+    """A recheck round where the regenerated card is a functional duplicate of a
+    carried-over vetted twin AND holds the lower collector number: the regen card
+    must be the one flagged, and that flag must survive the recheck scoping.
+
+    Without the regen keep-bias the functional scan keeps the lower-numbered
+    (regenerated) card and flags the carried-over twin — whose flag is then
+    dropped because it isn't in the recheck set, shipping the duplicate.
+    """
+    from mtgai.io.card_io import load_card, save_card
+    from mtgai.pipeline import engine as engine_mod
+    from mtgai.pipeline import history
+    from mtgai.runtime import ai_lock
+
+    ai_lock.reset_for_tests()
+
+    # Backbone ran with both cards distinct -> snapshot. W-C-02 is the vetted,
+    # carried-over card (higher collector number).
+    save_card(_dup_card("W-C-01", oracle="Unique original one."), set_dir=project)
+    save_card(_dup_card("W-C-02", oracle="Flying"), set_dir=project)
+    assert history.snapshot_instance("conformance") is True
+    # card_gen.2 regenerates W-C-01 into a functional duplicate of W-C-02; the
+    # regenerated card keeps the LOWER collector number (W-C-01 < W-C-02).
+    save_card(_dup_card("W-C-01", oracle="Flying", mana="{3}{W}"), set_dir=project)
+
+    monkeypatch.setattr(
+        engine_mod,
+        "load_state",
+        lambda: _state("card_gen", "conformance", "card_gen.2", "conformance.2"),
+    )
+
+    # The LLM steps see nothing (the regen card is pre-flagged by the dup scan;
+    # the carried-over card is out of the recheck scope).
+    monkeypatch.setattr(gate_common, "stream_text", _fake_stream({}))
+    monkeypatch.setattr(gate_common, "cost_from_result", lambda r: 0.0)
+    monkeypatch.setattr(
+        "mtgai.analysis.interactions.analyze_interactions",
+        lambda cards, mechanics, **kw: ([], "pool clean", 0.0),
+    )
+    monkeypatch.setattr(stages_mod, "make_poller", lambda *a, **k: contextlib.nullcontext())
+
+    result = stages_mod.run_conformance(None, _Emitter(instance_id="conformance.2"))
+
+    # The REGENERATED card (W-C-01) is flagged, not the carried-over twin.
+    flagged_slots = {f["slot_id"] for f in result.artifacts["flagged"]}
+    assert flagged_slots == {"W-C-01"}
+    assert result.rerun_from == "card_gen"
+    cards_by_slot = {load_card(p).slot_id: load_card(p) for p in (project / "cards").glob("*.json")}
+    assert "Functionally identical" in (cards_by_slot["W-C-01"].regen_reason or "")
+    # The carried-over W-C-02 is untouched (no stale flag).
+    assert cards_by_slot["W-C-02"].regen_reason in (None, "")
+
+    ai_lock.reset_for_tests()
+
+
 # ----------------------------------------------------------------------
 # Duplicate Check — algorithmic functional-duplicate scan
 # ----------------------------------------------------------------------
@@ -1271,6 +1326,28 @@ def test_find_duplicates_skips_basics_and_reprints():
 
     findings, _ = find_duplicates([forest_a, forest_b, reprint_a, reprint_b])
     assert findings == []
+
+
+def test_find_duplicates_biases_flag_to_regenerated_card():
+    from mtgai.analysis.duplicates import find_duplicates
+
+    # The regenerated card (#01) took the LOWER collector number and is
+    # functionally identical (modulo mana cost) to a carried-over vetted twin
+    # (#02). Default keep-lowest would keep #01 and flag #02 — but #02 is not in
+    # the regen recheck set, so its flag would be dropped downstream and the
+    # duplicate would ship. The regen bias keeps the carried-over #02 and flags
+    # the regenerated #01 (whose flag survives the recheck scoping).
+    cards = [
+        _dup_card("01", oracle="Flying", mana="{1}{G}"),
+        _dup_card("02", oracle="Flying", mana="{3}{G}"),
+    ]
+    findings, _ = find_duplicates(cards, regenerating={"01"})
+    assert [f.slot_id for f in findings] == ["01"]
+    assert findings[0].duplicate_of == "Card 02"
+
+    # Without the bias the lowest collector number is kept (default behaviour).
+    findings_default, _ = find_duplicates(cards)
+    assert [f.slot_id for f in findings_default] == ["02"]
 
 
 def _named_card(slot_id: str, name: str, *, oracle: str = "Flying"):

@@ -174,7 +174,9 @@ def _flag_groups(
 # ---------------------------------------------------------------------------
 
 
-def find_duplicates(cards: list[Card]) -> tuple[list[DuplicateFinding], str]:
+def find_duplicates(
+    cards: list[Card], *, regenerating: set[str] | None = None
+) -> tuple[list[DuplicateFinding], str]:
     """Scan the pool for functional duplicates (modulo mana cost).
 
     Skips basic lands + reprints (shared ``filter_gate_cards``). Groups the
@@ -182,6 +184,14 @@ def find_duplicates(cards: list[Card]) -> tuple[list[DuplicateFinding], str]:
     group of two or more, keeps the lowest collector number and returns a
     :class:`DuplicateFinding` for every other member. Purely algorithmic — no
     LLM call, so it returns no cost. Returns ``(findings, analysis_text)``.
+
+    ``regenerating`` (the slot ids regenerated this round, when the gate is
+    re-checking a regen pass) biases the keep toward a card *not* being
+    regenerated, so a regenerated card that is functionally identical to a
+    carried-over twin is the one flagged — see :func:`_flag_groups`. Without
+    this bias a regen that took the lower collector number would be kept and its
+    carried-over twin flagged-then-dropped by the recheck scoping, letting the
+    duplicate ship.
     """
     gate_cards = filter_gate_cards(cards)
     if not gate_cards:
@@ -197,6 +207,7 @@ def find_duplicates(cards: list[Card]) -> tuple[list[DuplicateFinding], str]:
             f"Functionally identical to {keep_label} (ignoring mana cost). "
             "Redesign this card so it does something meaningfully different."
         ),
+        regenerating=regenerating,
     )
 
     if findings:
