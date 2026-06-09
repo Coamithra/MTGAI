@@ -101,3 +101,76 @@ def test_resolve_art_path_falls_back_to_selection_log_without_art_path(tmp_path)
         assert resolved == tmp_path / "art" / f"{slug}_v2.png"
     finally:
         active_project.clear_active_project()
+
+
+def test_resolve_art_path_log_pick_is_positional_with_version_gap(tmp_path):
+    """Regression (card 6a285ae8): v1's art failed, leaving only ``_v2.png`` and
+    ``_v3.png`` on disk. The judge saw them labeled v1/v2 and picked v2 — the
+    SECOND shown image, ``_v3.png``. The per-card log records that resolved
+    ``picked_file``. The renderer (no ``art_path`` stamp) must return ``_v3.png``,
+    NOT ``_v2.png`` (the file the judge ranked first and REJECTED).
+    """
+    from mtgai.io.paths import card_slug
+    from mtgai.rendering.card_renderer import CardRenderer
+    from mtgai.runtime import active_project
+
+    _open_project(tmp_path)
+    try:
+        cn = "003"
+        name = "Gapped Seer"
+        slug = card_slug(cn, name)
+        # Version gap: v1 exhausted its retries, so only v2 + v3 exist on disk.
+        version_files = _make_art(tmp_path, slug, (2, 3))
+
+        log_dir = tmp_path / "art-selection-logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        # Judge picked "v2" (the 2nd shown image == _v3.png); we persist the
+        # resolved filename so the renderer doesn't re-derive it literally.
+        (log_dir / f"{cn}.json").write_text(
+            json.dumps(
+                {
+                    "pick": "v2",
+                    "picked_file": f"{slug}_v3.png",
+                    "version_files": version_files,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        card = _make_card(cn, name)  # no art_path stamped → log fallback path
+
+        resolved = CardRenderer().resolve_art_path(card)
+        assert resolved == tmp_path / "art" / f"{slug}_v3.png"
+    finally:
+        active_project.clear_active_project()
+
+
+def test_resolve_art_path_legacy_log_without_picked_file_resolves_positionally(tmp_path):
+    """A pre-fix log (no ``picked_file``) still resolves the positional pick
+    correctly through ``log_picked_filename``'s fallback: gapped v2/v3, pick "v2"
+    → the 2nd shown image, ``_v3.png``.
+    """
+    from mtgai.io.paths import card_slug
+    from mtgai.rendering.card_renderer import CardRenderer
+    from mtgai.runtime import active_project
+
+    _open_project(tmp_path)
+    try:
+        cn = "004"
+        name = "Legacy Oracle"
+        slug = card_slug(cn, name)
+        version_files = _make_art(tmp_path, slug, (2, 3))
+
+        log_dir = tmp_path / "art-selection-logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        (log_dir / f"{cn}.json").write_text(
+            json.dumps({"pick": "v2", "version_files": version_files}),
+            encoding="utf-8",
+        )
+
+        card = _make_card(cn, name)
+
+        resolved = CardRenderer().resolve_art_path(card)
+        assert resolved == tmp_path / "art" / f"{slug}_v3.png"
+    finally:
+        active_project.clear_active_project()
