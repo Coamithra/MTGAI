@@ -98,28 +98,61 @@ All in `assets/frames/m15/`:
 Two-color cards now render with a left-colourA / right-colourB split frame (was flat gold `M`).
 Tracked: [Trello — Multicolor (two-color) card frames](https://trello.com/c/38VmZUZM).
 
-**Option D (empirical median/percentile stacking) was used**, with two findings from the
-fit check the user asked for:
-- **Source = M15 *hybrid* cards, not gold `c:wu` cards.** Real `frame:2015 c:wu` cards are flat
-  *gold* (e.g. Efreet Weaponmaster) — that IS our existing `m15FrameM`. The left/right split is the
-  **hybrid** frame (e.g. Azorius Guildmage `{W/U}{W/U}`). So the median source is
-  `frame:2015 is:hybrid id<=<pair> id>=<pair> -t:legendary -t:land …` (~25–35 unique-art cards/pair).
-- **Scryfall format fits ours.** Scryfall PNGs are 745×1040; scaling to our 2010×2814 introduces only
-  ~0.3% vertical squash, and M15 zone layout lines up with `layout.py` (verified by overlaying our
-  zone boxes on real cards), so the stacked frame registers with our masks/text zones.
-- **Percentile, not median.** Card text/watermarks are dark on a bright frame, so a per-pixel **p80**
-  (toward the brighter value) rejects ghost text far better than the 50th-percentile median without
-  washing the colour out. Even so, shared text ("Creature —", names) survives any percentile in the
-  flat bar zones, so the title/type bars + bottom strip are rebuilt from a **left/right gradient blend
-  of the two clean mono frames**, and the rules box from clean mono parchment; the stack keeps the
-  body/border/pinline/colour + the split P/T box. Best of D (authentic split body) + A (clean bars).
+**Approach — Option D (empirical frame extraction by per-pixel stacking).** Rather than compositing
+frames from masks (Option B) or alpha-blending mono frames (Option A), *derive the real frame from
+real cards*. The insight: a frame's pixels are identical across every card of a given variant, while
+art and text are not — so if you align N Scryfall cards of one frame and take a per-pixel statistic,
+the varying text/art is out-voted and the static frame survives (any given text pixel is a minority,
+since most of a text box is empty on most cards). This is the only approach that cleanly yields the
+gold-pinline + L/R-colour split (pre-baking from mono frames only approximates it) and it produces
+static PNGs with zero render-time cost — best of A's simplicity + B's accuracy.
+
+Two corrections came out of the fit check the user asked for; both revise the first-draft recipe and
+are worth recording because the naive version is the obvious-but-wrong one:
+
+- **Source = M15 *hybrid* cards, not gold `c:wu` cards.** The first-draft recipe queried `c:wu` —
+  wrong: real `frame:2015 c:wu` cards are flat *gold* (e.g. Efreet Weaponmaster), which IS our
+  existing `m15FrameM`. The left/right split is the **hybrid** frame (e.g. Azorius Guildmage
+  `{W/U}{W/U}`). So the source query is `frame:2015 is:hybrid id<=<pair> id>=<pair> -t:legendary
+  -t:land …` (~25–35 unique-art cards/pair), nonfoil.
+- **Percentile (p80), not median.** The first draft said per-pixel median; in practice card
+  text/watermarks are dark on a bright frame, so a per-pixel **p80** (biased toward the brighter
+  value) rejects ghost text far better than the 50th-percentile median without washing the colour
+  out. Even so, shared text ("Creature —", names) survives *any* percentile in the flat bar zones,
+  so the title/type bars + bottom strip are rebuilt from a **left/right gradient blend of the two
+  clean mono frames**, and the rules box from clean mono parchment; the stack keeps the
+  body/border/pinline/colour + the split P/T box. Net: best of D (authentic split body) + A (clean bars).
+
+**Why it registers with our renderer.** Scryfall PNGs are 745×1040; scaling to our 2010×2814
+introduces only ~0.3% vertical squash, and the M15 zone layout lines up with `layout.py` (verified
+by overlaying our zone boxes on real cards), so the stacked frame sits correctly under our
+masks/text zones.
+
+**General recipe (reusable for any empirical frame):**
+1. Pull ~30–50 nonfoil Scryfall `png` images of one variant (uniform 745×1040 → near-free
+   alignment); filter to a single consistent frame (`-is:promo -is:funny -border:borderless
+   -is:showcase`, plus the per-variant selector above).
+2. Per-pixel stack (p80 for the split, median for flat zones), then **cut the art window to
+   transparent** (it stacks to averaged-art mush, and the renderer composites art separately
+   anyway); same for the set-symbol + collector/artist regions (they stack toward background and we
+   draw our own).
+3. Zone-clip with the masks we already ship (`m15MaskFrame/Pinline/...`) for crisp edges, rebuild the
+   flat text bars from the mono-blend, and save as real PNGs.
+
+**Caveats (from the design notes):** imperfect alignment can blur sharp pinlines (fix:
+phase-correlation auto-align); a >50%-shared-glyph pixel can smudge (fix: more cards, or use the
+mode); there's no "empty art box" ground truth, but we don't need one since the art window is cut.
 
 **Implementation:** `backend/scripts/generate_two_color_frames.py` (offline, committed PNGs:
 `m15Frame<PAIR>.png` + `m15PT<PAIR>.png`, 10 pairs, WUBRG order); `colors.frame_key_for_identity` /
 `two_color_key`; `layout.frame_path` / `pt_box_path`; `card_renderer.determine_frame_key` /
 `_load_frame` / `_load_pt_box` / `_load_legendary_crown` (the pre-existing `CROWN_PAIR_MAP` is now
-wired to the committed `crowns/<PAIR>.png`). **Colored artifacts are handled by the sibling card**
-(Option A blends, shipped — see top of this doc); `determine_frame_key` routes non-land artifacts
-through `artifact_frame_key` and everything else through `frame_key_for_identity`, so the two
-features compose. The two-colour generation script's percentile-stack + mono-blend + zone-clip
-helpers are the upgrade path if the artifact frames later move from Option A to Option D.
+wired to the committed `crowns/<PAIR>.png`).
+
+**One pipeline, three payoffs.** The same empirical-stack + mono-blend + zone-clip machinery covers
+**two-color splits**, **hybrid pinlines**, and **colored artifacts** — build it once and all three
+fall out. Colored artifacts currently ship via the cheaper **Option A** blends (sibling card, see top
+of this doc); `determine_frame_key` routes non-land artifacts through `artifact_frame_key` and
+everything else through `frame_key_for_identity`, so the two features compose today, and this script's
+percentile-stack + mono-blend + zone-clip helpers are the upgrade path if the artifact frames later
+move from Option A to Option D.
