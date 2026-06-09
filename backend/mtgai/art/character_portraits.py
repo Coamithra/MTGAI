@@ -41,10 +41,12 @@ from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 
 from mtgai.art.image_generator import (
+    COMFYUI_RECYCLE_EVERY,
     ensure_comfyui,
     generate_image_comfyui,
     is_comfyui_running,
     kill_comfyui,
+    recycle_comfyui,
 )
 from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import cost_from_result, generate_with_tool
@@ -541,10 +543,17 @@ def generate_character_refs(
     cancelled = False
     # entity_key -> chosen reference image (the first available, repo-relative).
     ref_paths: dict[str, str] = {}
+    # Flux images generated since the last ComfyUI restart — drives the periodic
+    # recycle that bounds native-CUDA/VRAM accumulation (the per-image
+    # flush_comfyui in generate_image_comfyui keeps models resident and can't
+    # recover it). Same mitigation as generate_art_for_set. See
+    # COMFYUI_RECYCLE_EVERY.
+    images_since_recycle = 0
+    recycle_enabled = COMFYUI_RECYCLE_EVERY > 0
 
     comfyui_proc = ensure_comfyui(log_dir=log_dir)
     try:
-        for entity in entities:
+        for entity_idx, entity in enumerate(entities):
             if should_cancel is not None and should_cancel():
                 cancelled = True
                 break
@@ -574,6 +583,9 @@ def generate_character_refs(
                     comfyui_proc = ensure_comfyui(log_dir=log_dir)
 
                 logger.info("GENERATE %s v%d...", entity["name"], version)
+                # Count every Flux attempt that ran (saved or failed) — each one
+                # loaded the GPU and contributes to the accumulation.
+                images_since_recycle += 1
                 try:
                     image_data, metadata = generate_image_comfyui(
                         prompt=prompt, width=REF_WIDTH, height=REF_HEIGHT
@@ -600,6 +612,20 @@ def generate_character_refs(
                     errors.append({"entity": key, "version": version, "error": str(e)})
             if cancelled:
                 break
+
+            # Bound VRAM accumulation: every COMFYUI_RECYCLE_EVERY GPU generations,
+            # restart ComfyUI so the OS reclaims all GPU memory. Recycle at the
+            # entity boundary (never mid-entity) so an entity's versions stay on one
+            # session, and skip it on the last entity (a restart right before the
+            # finally-kill is pointless).
+            is_last_entity = entity_idx == len(entities) - 1
+            if (
+                recycle_enabled
+                and not is_last_entity
+                and images_since_recycle >= COMFYUI_RECYCLE_EVERY
+            ):
+                comfyui_proc = recycle_comfyui(comfyui_proc, log_dir=log_dir)
+                images_since_recycle = 0
     finally:
         kill_comfyui(comfyui_proc)
 
