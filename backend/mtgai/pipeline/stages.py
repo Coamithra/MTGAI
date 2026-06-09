@@ -2041,12 +2041,15 @@ STAGE_RUNNERS = {
 # - Clearers read the active project's artifact dir and run synchronously.
 # - File-not-found is fine (clear is idempotent); permission / I/O
 #   errors propagate so the caller can surface them.
-# - Stages that only flag cards or mutate them in place (``conformance``,
-#   ``ai_review``, ``art_prompts``) intentionally no-op — their effects are erased
-#   by re-running ``card_gen``'s clearer further upstream in the cascade.
-#   ``finalize`` is the exception: it owns durable reports + reversible per-card
-#   sanity markers (which the renderer's hard print gate honours), so it gets a
-#   real clearer (:func:`clear_finalize`) instead.
+# - ``conformance`` only flags cards in place (its on-card regen flag is
+#   card_gen-owned and erased upstream; its only own output is throwaway
+#   ``conformance/logs`` transcripts), so it intentionally no-ops.
+# - ``ai_review`` and ``finalize`` look like in-place mutators but own *durable,
+#   collector-number-keyed* sidecars that a no-op would leak onto a regenerated
+#   pool, so each gets a real clearer: :func:`clear_ai_review` drops the per-card
+#   verdicts + ``decisions.json`` + ``reviewed.json`` under ``reviews/`` (plus the
+#   ``ai_review/`` transcripts); :func:`clear_finalize` drops its reports + resets
+#   the reversible per-card sanity markers the renderer's hard print gate honours.
 
 StageClearer = Callable[[], None]
 
@@ -2219,6 +2222,37 @@ def clear_lands() -> None:
     _remove_path(set_dir / "lands")
 
 
+def clear_ai_review() -> None:
+    """Wipe the ai_review stage's durable, collector-number-keyed sidecars.
+
+    The ai_review stage writes durable artifacts under two project subdirs:
+
+    - ``reviews/`` — the per-card verdict logs (``<cn>.json`` + ``<cn>.md``), the
+      user-decisions sidecar (``decisions.json``), and the reviewed-signatures
+      tracker (``reviewed.json``). These are keyed by collector number, so after a
+      cascade/unlock regenerates the pool ``/api/wizard/ai_review/state`` would
+      merge the OLD verdicts and OLD user decisions onto brand-new cards reusing the
+      same numbers (a never-reviewed card painting ``reviewed`` with the prior card's
+      verdict; a stale approve/reject decision winning via ``_effective_decision``).
+      PR #118's content-signature check limits this to *display* — a content mismatch
+      forces a real re-review — but a signature-less legacy decision keeps absolute
+      precedence, so a stale stamp still applies to a card that never existed when it
+      was made. Dropping the directory in the clearer is the durable fix.
+    - ``ai_review/`` — the reviewer/synth llmfacade transcripts (``ai_review/logs``).
+
+    Whenever this clearer runs the upstream pool has changed (the edit-cascade /
+    unlock / rerun-instance truncation all clear ai_review only because cards were
+    regenerated or the stage was unlocked for a fresh run), so a full wipe is always
+    correct: every old review/decision is meaningless against the new pool. Unlike
+    ``finalize`` there is no per-card state to reset in place — ai_review's only
+    on-card effect (the regen flag) is card_gen-owned and erased upstream — so the
+    clearer just removes both owned directories. Best-effort + idempotent.
+    """
+    set_dir = _set_dir()
+    _remove_path(set_dir / "reviews")
+    _remove_path(set_dir / "ai_review")
+
+
 def clear_finalize() -> None:
     """Reset the finalize stage's durable artifacts and per-card markers.
 
@@ -2342,7 +2376,7 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
     "lands": clear_lands,
     "card_gen": clear_card_gen,
     "conformance": _no_artifacts,
-    "ai_review": _no_artifacts,
+    "ai_review": clear_ai_review,
     "finalize": clear_finalize,
     "visual_refs": clear_visual_refs,
     "set_symbol": clear_set_symbol,
