@@ -6775,6 +6775,7 @@ async def wizard_finalize_save_card(request: Request) -> JSONResponse:
     except Exception as exc:  # Pydantic ValidationError, etc.
         return JSONResponse({"error": f"Invalid card edit: {exc}"}, status_code=400)
 
+    from mtgai.generation.reminder_injector import strip_reminder_text
     from mtgai.models.card import Card
     from mtgai.review.finalize import _load_mechanics
     from mtgai.review.render_review import finalize_one_card
@@ -6791,12 +6792,21 @@ async def wizard_finalize_save_card(request: Request) -> JSONResponse:
     )
     _heal_failed_stage("finalize")
 
+    # Return the server-recomputed oracle text so the tab can apply it back onto its
+    # local card. finalize_one_card re-injects reminder text + auto-fixes, so the
+    # persisted ``oracle_text`` diverges from what the user typed; without this the
+    # textarea's render source (``oracle_text_editor``) goes stale and a repaint
+    # reverts the edit. ``oracle_text`` feeds the preview/diff; ``oracle_text_editor``
+    # (reminder-free) feeds the editable textarea — same split as the state view.
+    final_oracle = final_json.get("oracle_text") or ""
     return JSONResponse(
         {
             "success": True,
             "collector_number": new_cn,
             "fixes_applied": fixes,
             "manual_errors": manual_payload,
+            "oracle_text": final_oracle,
+            "oracle_text_editor": strip_reminder_text(final_oracle),
         }
     )
 
@@ -7208,7 +7218,7 @@ async def wizard_rendering_save_card(request: Request) -> JSONResponse:
         if guard.busy:
             return guard.busy_response
 
-        def _work() -> tuple[str, list[str]]:
+        def _work() -> tuple[str, list[str], str]:
             from mtgai.models.card import Card
             from mtgai.review.finalize import _load_mechanics
             from mtgai.review.render_review import finalize_one_card
@@ -7219,11 +7229,25 @@ async def wizard_rendering_save_card(request: Request) -> JSONResponse:
             _persist_finalize_edit(asset, final_json, paths[cn])
             total_cards = len(_all_card_paths_by_cn(cards_dir))
             _render_one_card(final_json, total_cards)
-            return final_json["collector_number"], fixes
+            return final_json["collector_number"], fixes, (final_json.get("oracle_text") or "")
 
-        new_cn, fixes = await asyncio.to_thread(_work)
+        new_cn, fixes, final_oracle = await asyncio.to_thread(_work)
 
-    return JSONResponse({"success": True, "collector_number": new_cn, "fixes_applied": fixes})
+    # Return the server-recomputed oracle text so the tab can apply it back onto its
+    # local card (see the finalize save-card endpoint for the rationale): finalize
+    # re-injects reminder text + auto-fixes, so the textarea's render source
+    # (``oracle_text_editor``) would otherwise go stale and a repaint reverts the edit.
+    from mtgai.generation.reminder_injector import strip_reminder_text
+
+    return JSONResponse(
+        {
+            "success": True,
+            "collector_number": new_cn,
+            "fixes_applied": fixes,
+            "oracle_text": final_oracle,
+            "oracle_text_editor": strip_reminder_text(final_oracle),
+        }
+    )
 
 
 @router.post("/api/wizard/rendering/remove-card")
