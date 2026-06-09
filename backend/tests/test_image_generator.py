@@ -1021,7 +1021,8 @@ def test_art_loop_resume_deletes_crash_orphans(monkeypatch, tmp_path):
     set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=1)
     monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 3)
     # Best-of-N enabled (vision judge) so the multi-version loop under test runs;
-    # otherwise the gen-count collapses to 1 (the wired stub project is text-only).
+    # otherwise the gen-count collapses to 1 (the wired stub project can't resolve
+    # a judge model, so judge_can_run is False).
     monkeypatch.setattr("mtgai.art.art_selector.judge_can_run", lambda: True)
 
     art_dir = set_dir / "art"
@@ -1063,7 +1064,8 @@ def test_art_loop_force_preserves_higher_user_version(monkeypatch, tmp_path):
     set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=1)
     monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 2)
     # Best-of-N enabled (vision judge) so the multi-version loop under test runs;
-    # otherwise the gen-count collapses to 1 (the wired stub project is text-only).
+    # otherwise the gen-count collapses to 1 (the wired stub project can't resolve
+    # a judge model, so judge_can_run is False).
     monkeypatch.setattr("mtgai.art.art_selector.judge_can_run", lambda: True)
 
     art_dir = set_dir / "art"
