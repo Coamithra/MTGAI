@@ -5484,12 +5484,30 @@ async def wizard_card_gen_refresh() -> JSONResponse:
 # ---------------------------------------------------------------------------
 
 
+def _art_prompt_cameo(asset: Path, collector_number: str) -> dict | None:
+    """Read a card's rolled cameo from its art-prompt prompt-log sidecar.
+
+    The cameo decision (``{key, kind, description}`` or ``null``) is persisted by
+    ``generate_prompts_for_set`` to ``<asset>/art_prompts/prompt-logs/<cn>.json``;
+    it isn't stored on the Card, so ``/state`` + ``save-card`` read it from there
+    to surface the per-card cameo badge. Returns ``None`` when absent/malformed.
+    """
+    if not collector_number:
+        return None
+    sidecar = _read_json(asset / "art_prompts" / "prompt-logs" / f"{collector_number}.json", None)
+    if not isinstance(sidecar, dict):
+        return None
+    cameo = sidecar.get("cameo")
+    return cameo if isinstance(cameo, dict) else None
+
+
 def _art_prompt_tiles(asset: Path) -> list[dict]:
     """Read every card in ``<asset>/cards/`` into the Art Prompts tile shape.
 
     Uses the shared :func:`art_prompt_tile_dict` so this endpoint and the per-card
     SSE stream emit byte-identical tiles. Sorted by collector number for a stable
-    grid order.
+    grid order. The per-card cameo badge is read from the prompt-log sidecar (the
+    cameo isn't on the Card) and threaded into the tile.
     """
     cards_dir = asset / "cards"
     if not cards_dir.is_dir():
@@ -5498,7 +5516,8 @@ def _art_prompt_tiles(asset: Path) -> list[dict]:
     for path in sorted(cards_dir.glob("*.json")):
         card = _read_json(path, None)
         if isinstance(card, dict):
-            tiles.append(art_prompt_tile_dict(card))
+            cameo = _art_prompt_cameo(asset, str(card.get("collector_number") or ""))
+            tiles.append(art_prompt_tile_dict(card, cameo=cameo))
     return tiles
 
 
@@ -5671,7 +5690,10 @@ async def wizard_art_prompts_save_card(request: Request) -> JSONResponse:
     card = load_card(path)
     save_card(card.model_copy(update=update), set_dir=asset)
     _heal_failed_stage("art_prompts")
-    return JSONResponse({"tile": art_prompt_tile_dict(load_card(path).model_dump(mode="json"))})
+    cameo = _art_prompt_cameo(asset, cn)
+    return JSONResponse(
+        {"tile": art_prompt_tile_dict(load_card(path).model_dump(mode="json"), cameo=cameo)}
+    )
 
 
 # ---------------------------------------------------------------------------
