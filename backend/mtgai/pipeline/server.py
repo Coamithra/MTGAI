@@ -1219,17 +1219,28 @@ def _break_points_payload(settings_obj) -> list[dict[str, Any]]:
     return rows
 
 
-def _model_stage_lists() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """The ordered (id, label) rows the Project Settings model table renders.
+def _model_stage_lists() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The ordered model-table rows the Project Settings picker renders.
 
+    LLM rows are ``{id, label, requires_vision}``; image rows are ``{id, label}``.
     Derived from ``LLM_STAGE_NAMES`` / ``IMAGE_STAGE_NAMES`` so the wizard's
     per-stage model picker can never drift out of sync with the backend stage
     registry (the bug that left ``visual_refs`` / ``char_portraits`` out of the
     picker when they were added). Served verbatim in both project payloads.
     """
-    from mtgai.settings.model_settings import IMAGE_STAGE_NAMES, LLM_STAGE_NAMES
+    from mtgai.settings.model_settings import (
+        IMAGE_STAGE_NAMES,
+        LLM_STAGE_NAMES,
+        VISION_REQUIRED_STAGES,
+    )
 
-    llm = [{"id": sid, "label": name} for sid, name in LLM_STAGE_NAMES.items()]
+    # ``requires_vision`` tells the picker to filter this stage's model dropdown
+    # to vision-capable models only (art_select judges images — a text-only
+    # model silently no-ops best-of-N and wastes the Flux compute).
+    llm = [
+        {"id": sid, "label": name, "requires_vision": sid in VISION_REQUIRED_STAGES}
+        for sid, name in LLM_STAGE_NAMES.items()
+    ]
     image = [{"id": sid, "label": name} for sid, name in IMAGE_STAGE_NAMES.items()]
     return llm, image
 
@@ -1260,6 +1271,11 @@ def _registry_model_lists() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]
             # toggle is offered only for these. Anthropic models / non-reasoning
             # locals have thinking unset and get no toggle.
             "supports_thinking": m.thinking in ("adaptive", "adaptive_summarized"),
+            # Whether the model can judge images. The picker filters the
+            # vision-required stages' (VISION_REQUIRED_STAGES, e.g. art_select)
+            # dropdown to vision-capable models so best-of-N always gets a real
+            # judge. Only the Anthropic models are vision-capable today.
+            "supports_vision": m.supports_vision,
         }
         for m in registry.list_llm()
     ]
@@ -1656,6 +1672,7 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
     from mtgai.settings.model_settings import (
         IMAGE_STAGE_NAMES,
         LLM_STAGE_NAMES,
+        VISION_REQUIRED_STAGES,
     )
 
     # effort/thinking are per-LLM-stage overrides, so they share the LLM stage
@@ -1682,6 +1699,27 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
             valid_ids = ", ".join(sorted(m.key for m in options))
             return JSONResponse(
                 {"error": (f"Unknown {kind} model id {value!r}. Valid ids: {valid_ids}")},
+                status_code=400,
+            )
+
+        # A vision-required stage (art_select judges images) can't use a
+        # text-only model — the per-card judge call throws and best-of-N
+        # silently falls back to v1, wasting all the Flux v2..vN compute. The
+        # picker already filters these out, but guard the API too so a direct
+        # call / hand-edited .mtg can't persist a no-op judge.
+        if (
+            kind == "llm"
+            and stage_id in VISION_REQUIRED_STAGES
+            and not getattr(known, "supports_vision", False)
+        ):
+            return JSONResponse(
+                {
+                    "error": (
+                        f"The {stage_id} stage judges generated art, so it needs a "
+                        f"vision-capable model. {value!r} is text-only — pick a "
+                        "vision model (e.g. haiku, sonnet, opus)."
+                    )
+                },
                 status_code=400,
             )
 
