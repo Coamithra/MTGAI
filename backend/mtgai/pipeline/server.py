@@ -8095,6 +8095,7 @@ async def wizard_art_gen_upload(request: Request) -> JSONResponse:
         load_art_decisions,
         save_art_decisions,
     )
+    from mtgai.art.image_generator import next_art_version
     from mtgai.io.card_io import load_card
     from mtgai.io.paths import card_slug
 
@@ -8119,15 +8120,28 @@ async def wizard_art_gen_upload(request: Request) -> JSONResponse:
         return JSONResponse({"error": f"No card {cn}"}, status_code=404)
 
     slug = card_slug(cn, card.name)
-    next_v = len(list(art_dir.glob(f"{slug}_v*.png"))) + 1
+    # max(existing versions)+1, NOT count+1: with a gap (e.g. only _v2/_v3 on
+    # disk) count+1 would land on _v3 and silently overwrite a real generated
+    # version. Belt-and-suspenders: never write over an existing file even if the
+    # max scan and the glob ever disagree.
+    next_v = next_art_version(art_dir, slug)
     dest = art_dir / f"{slug}_v{next_v}.png"
+    while dest.exists():
+        next_v += 1
+        dest = art_dir / f"{slug}_v{next_v}.png"
     dest.write_bytes(await file.read())
 
     _stamp_art_path(card, asset, dest.name)
     decisions = load_art_decisions(asset)
     version_files = [p.name for p in sorted(art_dir.glob(f"{slug}_v*.png"))]
+    # ``pick`` is positional into the sorted glob, but with a version gap a
+    # literal ``v{next_v}`` would not match this file's position — so resolve the
+    # pick from the file's index, and persist the already-resolved ``picked_file``
+    # (PR #117) as the authoritative anchor readers prefer over the positional pick.
+    pick = f"v{version_files.index(dest.name) + 1}" if dest.name in version_files else f"v{next_v}"
     decisions[cn] = {
-        "pick": f"v{next_v}",
+        "pick": pick,
+        "picked_file": dest.name,
         "source": "user",
         "reasoning": "User-uploaded image.",
         "version_files": version_files,
