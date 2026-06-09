@@ -20,7 +20,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, get_args
 
 from pydantic import BaseModel, Field
 
@@ -316,7 +316,7 @@ MAX_SET_SIZE = 500
 # hybrid-derived left/right split frame (house style); "gold" uses the flat
 # gold M frame — the real-Magic convention for non-hybrid two-colour costs.
 TwoColorFrameMode = Literal["split", "gold"]
-TWO_COLOR_FRAME_MODES: tuple[str, ...] = ("split", "gold")
+TWO_COLOR_FRAME_MODES: tuple[str, ...] = get_args(TwoColorFrameMode)
 
 
 class SetParams(BaseModel):
@@ -339,7 +339,8 @@ class SetParams(BaseModel):
     art_versions_per_card: int = 3
     # Two-colour frame treatment (see TwoColorFrameMode). "split" is the house
     # style; "gold" is strict canon fidelity. Read by the renderer at frame-key
-    # time, so it only governs the next render run — no cascade-clear.
+    # time, so it governs cards as they are (re-)rendered — no cascade-clear;
+    # already-rendered cards keep their frame until re-rendered.
     two_color_frame: TwoColorFrameMode = "split"
 
 

@@ -705,7 +705,7 @@
           </label>
           <label>Two-color frame
             <select id="wiz-pp-twocolor"
-              title="How two-color cards are framed. Split: hybrid-derived left/right split frame (house style). Gold: flat gold frame — real-Magic convention for non-hybrid two-color costs. Applies to the next render run.">
+              title="How two-color cards are framed. Split: hybrid-derived left/right split frame (house style). Gold: flat gold frame — real-Magic convention for non-hybrid two-color costs. Applies when cards are (re-)rendered; already-rendered cards keep their frame until re-rendered.">
               <option value="split" ${sp.two_color_frame !== 'gold' ? 'selected' : ''}>Split (house style)</option>
               <option value="gold" ${sp.two_color_frame === 'gold' ? 'selected' : ''}>Gold (canon)</option>
             </select>

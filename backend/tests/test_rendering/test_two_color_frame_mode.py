@@ -56,6 +56,9 @@ def _card(type_line: str, identity: list[str]) -> Card:
 
 def test_two_color_split_is_the_default_without_a_project():
     # No active project (standalone tools, tests) -> house-style split key.
+    # Clear explicitly: the pointer is a module global that outlives tests in
+    # other modules, so don't rely on their teardown.
+    active_project.clear_active_project()
     r = CardRenderer()
     assert r.determine_frame_key(_card("Creature — Wizard", ["U", "W"])) == "WU"
 
@@ -140,18 +143,38 @@ def test_blend_pair_crown_missing_mono_returns_none(tmp_path):
     assert r._blend_pair_crown("WU", tmp_path) is None
 
 
-def test_split_crown_is_synthesized_not_the_committed_png():
-    # The loaded WU crown overlay must come from the gradient blend, not the
-    # hard-split committed pair PNG: compare the overlay's crown zone against
-    # one built from the committed file.
+def test_split_crown_is_synthesized_not_the_committed_png(monkeypatch):
+    # The loaded WU crown overlay must route through the gradient blend, not
+    # the hard-split committed pair PNG: spy on _blend_pair_crown and assert
+    # its result is what the overlay is built from.
     r = CardRenderer()
+    calls: list[str] = []
+    real_blend = CardRenderer._blend_pair_crown
+
+    def spy(self, pair, crown_dir):
+        calls.append(pair)
+        return real_blend(self, pair, crown_dir)
+
+    monkeypatch.setattr(CardRenderer, "_blend_pair_crown", spy)
     overlay = r._load_legendary_crown(_card("Legendary Creature — Wizard", ["W", "U"]))
     assert overlay is not None
+    assert calls == ["WU"]
 
+    # Sanity: the synthesized crown is not byte-identical to the committed one
+    # (the committed PNG hard-splits at center; the blend has a gradient seam).
     crown_dir = r.assets_root / "frames" / "m15" / "crowns"
     committed = Image.open(crown_dir / "WU.png").convert("RGBA")
     blended = r._blend_pair_crown("WU", crown_dir)
     assert blended is not None
-    # Sanity: the synthesized crown is not byte-identical to the committed one
-    # (the committed PNG hard-splits at center; the blend has a gradient seam).
     assert blended.tobytes() != committed.tobytes()
+
+
+def test_split_crown_falls_back_to_committed_png_when_blend_unavailable(monkeypatch):
+    # When a mono source is missing (_blend_pair_crown -> None) the loader
+    # falls back to the committed crowns/WU.png and still produces a crown.
+    r = CardRenderer()
+    monkeypatch.setattr(CardRenderer, "_blend_pair_crown", lambda self, pair, crown_dir: None)
+    overlay = r._load_legendary_crown(_card("Legendary Creature — Wizard", ["W", "U"]))
+    assert overlay is not None
+    gold = r._load_legendary_crown(_card("Legendary Creature — Dragon", ["U", "B", "R"]))
+    assert overlay is not gold
