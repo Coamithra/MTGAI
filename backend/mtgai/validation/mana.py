@@ -13,7 +13,21 @@ from mtgai.models.card import Card, ManaCost
 from mtgai.models.enums import Color
 from mtgai.validation import ValidationError, ValidationSeverity
 
-MANA_SYMBOL_PATTERN = re.compile(r"\{(\d+|[WUBRGCX](?:/[WUBRGP])?)\}")
+# Recognized single mana symbols (inner text, sans braces):
+#   {2}        generic
+#   {W}/{C}/{X} colored / colorless / variable
+#   {W/U}      hybrid (two colors)
+#   {W/P}      phyrexian
+#   {2/W}      monocolor (twobrid) hybrid — pay 2 generic OR one W
+# A leading digit run is either pure generic OR the generic half of a twobrid.
+#
+# This is deliberately NARROWER than ``rules_text.MANA_SYM_VALID`` (which also
+# accepts {S}/{T}/{Q}): {T}/{Q} are ability-activation symbols that appear in
+# *oracle text*, never in a castable ``mana_cost``; {S} (snow) is a legal cost
+# symbol but unsupported by this toolchain. Rather than silently rewrite an
+# unsupported/unknown cost symbol, ``validate_mana_consistency`` flags it MANUAL
+# (``mana.unrecognized_symbol``) — see _invalid_format_is_auto_fixable.
+MANA_SYMBOL_PATTERN = re.compile(r"\{(\d+(?:/[WUBRGP])?|[WUBRGCX](?:/[WUBRGP])?)\}")
 MANA_SYMBOL_ANY = re.compile(r"\{[^}]+\}")
 WUBRG_ORDER = {"W": 0, "U": 1, "B": 2, "R": 3, "G": 4}
 COLOR_SYMBOLS = {"W", "U", "B", "R", "G"}
@@ -67,8 +81,13 @@ def _parse_mana_cost(mana_cost: str) -> tuple[float, set[str], int, list[str]]:
         elif sym == "C":
             cmc += 1
         elif "/" in sym:
-            cmc += 1
             parts = sym.split("/")
+            # Twobrid ({2/W}): CMC is the generic half (the higher cost). A
+            # color/phyrexian hybrid ({W/U}, {W/P}) is worth 1.
+            if parts[0].isdigit():
+                cmc += int(parts[0])
+            else:
+                cmc += 1
             for part in parts:
                 if part in COLOR_SYMBOLS:
                     colors.add(part)
@@ -98,8 +117,11 @@ def _canonical_symbol_order(symbols: list[str]) -> list[str]:
             return (1, 0)
         if sym == "C":
             return (2, 0)
-        first = sym.split("/")[0]
-        return (3, WUBRG_ORDER.get(first, 99))
+        # Hybrid is ranked by its colored half ({2/W}, {W/U}, {W/P} all sort as
+        # white); a plain colored symbol by itself.
+        parts = sym.split("/")
+        colored_half = next((p for p in parts if p in WUBRG_ORDER), parts[0])
+        return (3, WUBRG_ORDER.get(colored_half, 99))
 
     return sorted(symbols, key=_key)
 
@@ -147,18 +169,33 @@ def validate_mana_consistency(card: Card) -> list[ValidationError]:
         return errors
 
     # ------------------------------------------------------------------
-    # 1. Mana cost format validation — AUTO (fixable by splitting symbols)
+    # 1. Mana cost format validation
+    #    AUTO when every malformed brace is a clean concatenation the fixer can
+    #    split losslessly ({2W} -> {2}{W}); MANUAL when any brace is an
+    #    unrecognized symbol ({S} snow) the fixer would otherwise silently
+    #    delete or mangle — escalate to an LLM retry instead of a lossy rewrite.
     # ------------------------------------------------------------------
     stripped = MANA_SYMBOL_PATTERN.sub("", card.mana_cost)
     if stripped:
-        errors.append(
-            _auto(
-                "mana_cost",
-                f"Invalid mana_cost format: '{card.mana_cost}'",
-                "Split combined symbols, e.g. {2W} -> {2}{W}.",
-                error_code="mana.invalid_format",
+        if _invalid_format_is_auto_fixable(card.mana_cost):
+            errors.append(
+                _auto(
+                    "mana_cost",
+                    f"Invalid mana_cost format: '{card.mana_cost}'",
+                    "Split combined symbols, e.g. {2W} -> {2}{W}.",
+                    error_code="mana.invalid_format",
+                )
             )
-        )
+        else:
+            errors.append(
+                _manual(
+                    "mana_cost",
+                    f"Unrecognized mana symbol(s) in mana_cost: '{card.mana_cost}'",
+                    "Use only valid mana symbols (generic, WUBRG, C, X, hybrid, "
+                    "phyrexian, twobrid); fix the cost by hand or regenerate.",
+                    error_code="mana.unrecognized_symbol",
+                )
+            )
         # Don't return early — the fixer will normalize before next validation
 
     # ------------------------------------------------------------------
@@ -330,34 +367,94 @@ def _format_color_set(colors: set[str]) -> str:
 # ---------------------------------------------------------------------------
 
 
+# Standalone single-symbol tokens a combined brace can be split into. A digit
+# run is generic; a single colored/colorless/variable letter stands alone.
+# `P` and `/` are deliberately absent: they only appear *inside* a hybrid
+# ({W/P}, {2/W}), which is already a valid whole symbol kept verbatim — there
+# is no legal standalone {/} or {P}.
+_SPLITTABLE_TOKEN_RE = re.compile(r"\d+|[WUBRGCX]")
+_STANDALONE_SYMBOLS = COLOR_SYMBOLS | {"C", "X"}
+
+
+def _split_combined_symbol(inner: str) -> list[str] | None:
+    """Split a combined brace's inner text into standalone symbols, losslessly.
+
+    ``{2W}`` -> ``["{2}", "{W}"]``, ``{2WU}`` -> ``["{2}", "{W}", "{U}"]``. Returns
+    ``None`` when the inner text can't be fully consumed into *recognized*
+    standalone symbols — e.g. ``{S}`` (snow), ``{2/W}`` (a hybrid, not a
+    concatenation), or anything with a stray character. The caller then leaves
+    the symbol verbatim rather than emitting garbage (``{/}``) or silently
+    dropping the unknown letter, so an AUTO fix never lossy-rewrites a cost it
+    doesn't fully understand.
+    """
+    parts: list[str] = []
+    pos = 0
+    for m in _SPLITTABLE_TOKEN_RE.finditer(inner):
+        if m.start() != pos:  # an unrecognized char was skipped — bail
+            return None
+        token = m.group(0)
+        if not (token.isdigit() or token in _STANDALONE_SYMBOLS):
+            return None
+        parts.append(f"{{{token}}}")
+        pos = m.end()
+    if pos != len(inner) or not parts:
+        return None
+    return parts
+
+
+def _invalid_format_is_auto_fixable(mana_cost: str) -> bool:
+    """True if every malformed brace in ``mana_cost`` is a clean concatenation.
+
+    A cost is AUTO-fixable only when each brace that isn't already a valid symbol
+    splits losslessly into recognized standalone symbols (so ``fix_invalid_format``
+    can normalize it). A single unrecognized symbol ({S}, a stray ``{/}``) makes
+    the whole finding MANUAL so the cost is never silently mutated.
+    """
+    found_fixable = False
+    for match in MANA_SYMBOL_ANY.finditer(mana_cost):
+        whole = match.group(0)
+        if MANA_SYMBOL_PATTERN.fullmatch(whole):
+            continue
+        if _split_combined_symbol(whole[1:-1]) is None:
+            return False
+        found_fixable = True
+    return found_fixable
+
+
 def fix_invalid_format(card: Card, error: ValidationError) -> Card:
-    """Normalize malformed mana_cost by splitting combined symbols.
+    """Normalize a malformed mana_cost by splitting *concatenated* symbols.
 
     Handles patterns like {2W} -> {2}{W}, {WW} -> {W}{W}, {2WU} -> {2}{W}{U}.
-    Each digit sequence becomes a generic mana symbol, each color letter becomes
-    its own symbol.
+    Each digit run becomes a generic symbol and each colored letter its own.
+
+    Non-lossy: a brace whose inner text isn't a clean concatenation of known
+    standalone symbols (e.g. {S} snow, or a {2/W} hybrid) is kept **verbatim**.
+    If any such unrecognized symbol survives, the cost is still invalid, so the
+    mana.invalid_format finding is left for the LLM-retry (MANUAL) path rather
+    than presenting a silently-mutated cost as fixed.
     """
     if not card.mana_cost:
         return card
 
-    normalized_parts: list[str] = []
-    for match in MANA_SYMBOL_ANY.finditer(card.mana_cost):
-        inner = match.group(0)[1:-1]  # strip { }
-        # Already a valid symbol — keep as-is
-        if MANA_SYMBOL_PATTERN.fullmatch(match.group(0)):
-            normalized_parts.append(match.group(0))
-            continue
-        # Split inner into digit runs and individual color/special letters
-        for token in re.findall(r"\d+|[WUBRGCXP/]", inner):
-            if token.isdigit() or token == "/" or token in COLOR_SYMBOLS or token in ("C", "X"):
-                normalized_parts.append(f"{{{token}}}")
-
-    if normalized_parts:
-        new_cost = "".join(normalized_parts)
-    else:
-        # Fallback: couldn't parse at all, leave unchanged
+    # All-or-nothing: only rewrite when every malformed brace splits cleanly into
+    # recognized symbols. If any brace is an unrecognized symbol ({S}) we leave
+    # the WHOLE cost untouched (the validator already flagged it MANUAL) rather
+    # than partially rewriting — a partial mutation of a MANUAL cost is exactly
+    # the silent-mutation footgun this fixer is being hardened against.
+    if not _invalid_format_is_auto_fixable(card.mana_cost):
         return card
 
+    normalized_parts: list[str] = []
+    for match in MANA_SYMBOL_ANY.finditer(card.mana_cost):
+        whole = match.group(0)
+        if MANA_SYMBOL_PATTERN.fullmatch(whole):
+            normalized_parts.append(whole)
+            continue
+        split = _split_combined_symbol(whole[1:-1])
+        # _invalid_format_is_auto_fixable guarantees split is not None here.
+        normalized_parts.extend(split)
+
+    new_cost = "".join(normalized_parts)
     update: dict = {"mana_cost": new_cost}
     if card.mana_cost_parsed is not None:
         new_parsed = card.mana_cost_parsed.model_copy(update={"raw": new_cost})
@@ -438,17 +535,21 @@ def fix_mana_cost_parsed(card: Card, error: ValidationError) -> Card:
         elif sym == "C":
             c_count += 1
         elif "/" in sym:
-            # Hybrid — count for first color
-            first = sym.split("/")[0]
-            if first == "W":
+            # Hybrid — count for the colored half. {2/W} (twobrid) adds its
+            # generic half to the generic total and its color to that color.
+            parts = sym.split("/")
+            if parts[0].isdigit():
+                generic += int(parts[0])
+            colored_half = next((p for p in parts if p in COLOR_SYMBOLS), None)
+            if colored_half == "W":
                 w += 1
-            elif first == "U":
+            elif colored_half == "U":
                 u += 1
-            elif first == "B":
+            elif colored_half == "B":
                 b += 1
-            elif first == "R":
+            elif colored_half == "R":
                 r += 1
-            elif first == "G":
+            elif colored_half == "G":
                 g += 1
         elif sym == "W":
             w += 1

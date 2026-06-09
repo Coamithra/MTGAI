@@ -1989,19 +1989,119 @@ class TestAutoFix:
         result = auto_fix_card(card, errors)
         assert result.card.mana_cost == "{X}{1}{C}{W}"
 
-    def test_auto_fix_leaves_unparseable_twobrid_untouched(self):
-        """A {2/W} twobrid the symbol pattern can't match must not be dropped by
-        the ordering fixer (it rebuilds from findall) — leave it for invalid_format."""
+    def test_auto_fix_reorders_twobrid_without_dropping(self):
+        """A {2/W} twobrid is a recognized symbol: the ordering fixer reorders the
+        cost into canonical order ({1}{2/W}{R}) without dropping the hybrid."""
         card = _make_card(
             mana_cost="{R}{2/W}{1}",
-            cmc=3.0,
+            cmc=4.0,  # 1 + (2/W twobrid = 2) + R = 4
             colors=[Color.RED, Color.WHITE],
             color_identity=[Color.RED, Color.WHITE],
         )
         from mtgai.validation.mana import fix_wubrg_order
 
         fixed = fix_wubrg_order(card, _DUMMY_ERR)
-        assert fixed.mana_cost == "{R}{2/W}{1}"  # unchanged — no symbol dropped
+        # Generic first, then colored in WUBRG order (twobrid ranks as white).
+        assert fixed.mana_cost == "{1}{2/W}{R}"  # reordered, hybrid intact
+
+    def test_twobrid_is_valid_no_format_flag(self):
+        """A {2/W} twobrid is a legal symbol — it must NOT trip invalid_format,
+        and its CMC parses to the generic half (2/W -> 2)."""
+        from mtgai.validation.mana import _parse_mana_cost
+
+        card = _make_card(
+            mana_cost="{2/W}{W}",
+            cmc=3.0,  # twobrid 2 + W = 3
+            colors=[Color.WHITE],
+            color_identity=[Color.WHITE],
+        )
+        errors = _errors_by_validator(validate_card(card), "mana")
+        assert not any(e.error_code == "mana.invalid_format" for e in errors)
+        assert not any(e.error_code == "mana.unrecognized_symbol" for e in errors)
+        cmc, colors, _x, _seq = _parse_mana_cost("{2/W}{W}")
+        assert cmc == 3.0
+        assert colors == {"W"}
+
+    def test_twobrid_not_mangled_into_slash_symbol(self):
+        """Regression: {2/W}{W} must NOT become {2}{/}{W}{W}. The twobrid is a
+        recognized symbol, so the format fixer leaves it whole (no garbage {/})."""
+        from mtgai.validation.mana import fix_invalid_format
+
+        card = _make_card(
+            mana_cost="{2/W}{W}",
+            cmc=3.0,
+            colors=[Color.WHITE],
+            color_identity=[Color.WHITE],
+        )
+        fixed = fix_invalid_format(card, _DUMMY_ERR)
+        assert "{/}" not in fixed.mana_cost
+        assert fixed.mana_cost == "{2/W}{W}"  # unchanged — already valid
+
+    def test_unknown_symbol_not_silently_deleted(self):
+        """Regression: {S}{G} (snow is legal MTG but unknown to the mana pattern)
+        must NOT silently become {G}. The finding escalates to MANUAL instead of a
+        lossy AUTO rewrite, and the fixer leaves the cost untouched."""
+        from mtgai.validation.mana import fix_invalid_format
+
+        card = _make_card(
+            mana_cost="{S}{G}",
+            cmc=2.0,
+            colors=[Color.GREEN],
+            color_identity=[Color.GREEN],
+        )
+        errors = _errors_by_validator(validate_card(card), "mana")
+        # No AUTO invalid_format flag; a MANUAL unrecognized-symbol flag instead.
+        assert not any(e.error_code == "mana.invalid_format" for e in errors)
+        manual = [e for e in errors if e.error_code == "mana.unrecognized_symbol"]
+        assert manual and manual[0].severity == ValidationSeverity.MANUAL
+
+        # And the fixer never drops the {S}.
+        fixed = fix_invalid_format(card, _DUMMY_ERR)
+        assert fixed.mana_cost == "{S}{G}"  # untouched — no silent deletion
+
+    def test_unknown_symbol_survives_auto_fix_card(self):
+        """End-to-end: a cost with an unknown symbol comes out of auto_fix_card
+        unchanged with the unrecognized-symbol finding remaining (MANUAL)."""
+        card = _make_card(
+            mana_cost="{S}{G}",
+            cmc=2.0,
+            colors=[Color.GREEN],
+            color_identity=[Color.GREEN],
+        )
+        errors = validate_card(card)
+        result = auto_fix_card(card, errors)
+        assert result.card.mana_cost == "{S}{G}"
+        assert any(e.error_code == "mana.unrecognized_symbol" for e in result.remaining_errors)
+
+    def test_combined_with_unknown_stays_manual(self):
+        """A mix of fixable ({2W}) and unknown ({S}) is NOT partially mutated —
+        the whole finding is MANUAL so the cost is never half-rewritten."""
+        from mtgai.validation.mana import fix_invalid_format
+
+        card = _make_card(
+            mana_cost="{2W}{S}",
+            cmc=3.0,
+            colors=[Color.WHITE],
+            color_identity=[Color.WHITE],
+        )
+        errors = _errors_by_validator(validate_card(card), "mana")
+        assert any(e.error_code == "mana.unrecognized_symbol" for e in errors)
+        assert not any(e.error_code == "mana.invalid_format" for e in errors)
+        fixed = fix_invalid_format(card, _DUMMY_ERR)
+        assert fixed.mana_cost == "{2W}{S}"  # untouched — no partial split
+
+    def test_auto_fix_invalid_format_still_works(self):
+        """The legitimate concatenation fix is unaffected: {2WU} -> {2}{W}{U}."""
+        card = _make_card(
+            mana_cost="{2WU}",
+            cmc=4.0,
+            colors=[Color.WHITE, Color.BLUE],
+            color_identity=[Color.WHITE, Color.BLUE],
+        )
+        errors = validate_card(card)
+        result = auto_fix_card(card, errors)
+        assert result.card.mana_cost == "{2}{W}{U}"
+        assert any("invalid_format" in f for f in result.applied_fixes)
 
     def test_auto_fix_etb(self):
         """'enters the battlefield' gets replaced with 'enters'."""
