@@ -30,6 +30,7 @@ from mtgai.pipeline.models import (
     make_instance_id,
 )
 from mtgai.pipeline.stages import STAGE_RUNNERS, StageResult
+from mtgai.runtime import ai_lock
 
 logger = logging.getLogger(__name__)
 
@@ -387,19 +388,52 @@ class PipelineEngine:
                 )
                 return
 
-            # Per-instance card-pool snapshot: capture this instance's output
-            # (live cards/ + progress) into history/<instance_id>/ so it can be
-            # re-run from its entry later and its tab can show its own pool. This
-            # single seam covers every downstream branch (rerun-insert, review
-            # pause, normal complete) since the live folder already holds the
-            # instance's output at this point.
-            self._snapshot_instance_output(stage)
+            # Inter-stage bookkeeping runs under the AI lock. The runner just
+            # released its own hold, so without a re-acquire this window is
+            # lock-free and a guarded_ai endpoint (e.g. card_gen/refresh ->
+            # clear_card_gen_cards) could grab the lock and mutate the live
+            # cards/ folder mid-snapshot-copy or wipe the regen flags the span
+            # below is inserted to consume. The hold is released before the
+            # loop walks into the next stage — the next runner takes its OWN
+            # hold, and the lock is strictly non-reentrant, so holding through
+            # the runner call would busy-back the runner and silently skip it.
+            #
+            # If an endpoint won the sub-millisecond release->reacquire race
+            # (interstage is None), the live pool may be mutating under us:
+            # skip the snapshot rather than copy a pool in flux — the instance
+            # degrades to a from-live re-run, the same best-effort contract as
+            # a snapshot failure. _handle_rerun still runs either way: it
+            # mutates only engine-owned in-memory state + pipeline-state.json
+            # (guarded by the engine-running checks, not the AI lock), and
+            # skipping it would orphan the gate's stamped flags entirely.
+            with ai_lock.hold(f"Finishing {stage.display_name}") as interstage:
+                if interstage is None:
+                    from mtgai.pipeline import history
 
-            # A review runner that flagged cards bounces the pipeline: insert
-            # fresh instances of the upstream span and walk forward into them.
-            # Capped at MAX_REGEN_ROUNDS rounds (see _handle_rerun): past the cap
-            # the gate completes and the still-flagged cards are accepted as-is.
-            rerun = self._handle_rerun(result, i)
+                    # Only a snapshot-eligible stage actually loses anything
+                    # here — don't log a misleading "skipping snapshot" for a
+                    # stage that never snapshots.
+                    if stage.stage_id in history.SNAPSHOT_STAGES:
+                        logger.warning(
+                            "Skipping card-pool snapshot for instance %s — AI lock "
+                            "held by another action (re-run degrades to from-live)",
+                            stage.instance_id,
+                        )
+                else:
+                    # Per-instance card-pool snapshot: capture this instance's
+                    # output (live cards/ + progress) into history/<instance_id>/
+                    # so it can be re-run from its entry later and its tab can
+                    # show its own pool. This single seam covers every downstream
+                    # branch (rerun-insert, review pause, normal complete) since
+                    # the live folder already holds the instance's output here.
+                    self._snapshot_instance_output(stage)
+
+                # A review runner that flagged cards bounces the pipeline: insert
+                # fresh instances of the upstream span and walk forward into them.
+                # Capped at MAX_REGEN_ROUNDS rounds (see _handle_rerun): past the
+                # cap the gate completes and still-flagged cards are accepted
+                # as-is.
+                rerun = self._handle_rerun(result, i)
             if rerun == "inserted":
                 i += 1  # walk into the freshly-inserted regen span
                 continue
@@ -660,9 +694,7 @@ class PipelineEngine:
         current.status = StageStatus.SKIPPED
         current.progress.finished_at = datetime.now(UTC)
         save_state(self.state)
-        self.bus.stage_update(
-            current.stage_id, current.status, instance_id=current.instance_id
-        )
+        self.bus.stage_update(current.stage_id, current.status, instance_id=current.instance_id)
         logger.info("Skipped stage: %s", current.display_name)
 
         self.run()
@@ -722,6 +754,11 @@ class PipelineEngine:
         A snapshot failure must never crash the run — the only consequence is that
         this instance can't be re-run from history (it degrades to a from-live
         re-run), so we log and continue.
+
+        The caller (``_run_loop``'s inter-stage block) holds ``ai_lock`` while
+        calling this, so no guarded_ai endpoint can mutate the live ``cards/``
+        folder mid-copy — the "no concurrent writer" invariant ``history.py``
+        documents. This method does not take the lock itself.
         """
         from mtgai.pipeline import history
 
