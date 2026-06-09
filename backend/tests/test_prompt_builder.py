@@ -4,7 +4,7 @@ Covers:
 * Card immutability — ``generate_prompts_for_set`` persists a *copy* with
   ``art_prompt`` (and the credited artist) set, never mutating the loaded Card.
 * Dry-run never saves.
-* Artist-assignment distribution (grouped, contiguous, near-equal).
+* Artist-assignment distribution (round-robin over a stable sort, near-equal).
 * Cameo-probability gating (0 → never, 1 → always, deterministic per card).
 * User-message assembly (reference-caveat material + cameo instruction).
 """
@@ -199,14 +199,25 @@ def test_assign_artists_round_robin_in_sorted_order():
 
 def test_assign_artists_spreads_rarity_tier_across_painters():
     # The card's whole point: a tier of showcase cards must NOT all land on one
-    # painter. Four mythics sorted first, dealt round-robin across four artists →
-    # each mythic gets a distinct painter (no single artist owns the tier).
+    # painter. The mythics carry HIGH collector numbers and are interleaved among
+    # the commons in input order, so only a correct rarity-first sort pulls them
+    # to indices 0-3 and deals each a distinct painter — a no-sort impl fails.
     mythics = [
-        {"collector_number": f"00{i}", "rarity": "mythic", "colors": ["W"]} for i in range(1, 5)
+        {"collector_number": f"2{i:02d}", "rarity": "mythic", "colors": ["W"]} for i in range(1, 5)
     ]
-    commons = _pool(8)  # commons sort after the mythics
+    commons = _pool(8)  # low collector numbers, but commons sort AFTER mythics
+    interleaved = [
+        commons[0],
+        mythics[0],
+        commons[1],
+        mythics[1],
+        commons[2],
+        mythics[2],
+        *commons[3:],
+        mythics[3],
+    ]
     artists = [{"name": "A"}, {"name": "B"}, {"name": "C"}, {"name": "D"}]
-    out = assign_artists(mythics + commons, artists)
+    out = assign_artists(interleaved, artists)
     mythic_painters = {out[m["collector_number"]] for m in mythics}
     assert mythic_painters == {"A", "B", "C", "D"}
 

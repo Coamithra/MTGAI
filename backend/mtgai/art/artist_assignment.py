@@ -128,12 +128,12 @@ def assign_artists(cards: list[dict], artists: list[dict]) -> dict[str, str]:
     if not artists or not cards:
         return {}
 
-    ordered = sorted(cards, key=_sort_key)
+    # Drop cards with no collector number before dealing so a skipped card can't
+    # consume an artist's turn and skew the near-equal split.
+    ordered = sorted((c for c in cards if str(c.get("collector_number") or "")), key=_sort_key)
     a = len(artists)
 
     assignment: dict[str, str] = {}
     for i, card in enumerate(ordered):
-        cn = str(card.get("collector_number") or "")
-        if cn:
-            assignment[cn] = artists[i % a]["name"]
+        assignment[str(card["collector_number"])] = artists[i % a]["name"]
     return assignment
