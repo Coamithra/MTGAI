@@ -223,6 +223,13 @@ def test_save_card_reinjects_stripped_editor_oracle(client, project: Path) -> No
     assert resp.status_code == 200
     saved = json.loads((project / "cards" / "B-C-01_alpha.json").read_text(encoding="utf-8"))
     assert saved["oracle_text"] == injected
+    # The response carries the server-recomputed oracle pair so the tab can apply it
+    # back onto its local card and keep the textarea's render source
+    # (oracle_text_editor) fresh — otherwise a repaint reverts the edit. The
+    # reminder-free editor value round-trips back to exactly what the user saved.
+    payload = resp.json()
+    assert payload["oracle_text"] == injected
+    assert payload["oracle_text_editor"] == stripped
 
 
 def test_save_card_rename_on_name_change(client, project: Path) -> None:

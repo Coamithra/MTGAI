@@ -136,6 +136,35 @@ def test_save_card_persists_edit_and_marks_user_edited(client, project: Path) ->
     assert card["user_edited"] is True
 
 
+def test_save_card_response_carries_recomputed_oracle(client, project: Path) -> None:
+    # The save-card response returns the server-recomputed oracle pair so the tab can
+    # apply it back onto its local card and keep the textarea's render source
+    # (oracle_text_editor) fresh — otherwise a repaint reverts the edit. finalize
+    # re-injects reminder text, so the saved oracle_text differs from the edit; the
+    # reminder-free editor value round-trips back to exactly what the user saved.
+    mech = {
+        "name": "Energize",
+        "keyword_type": "keyword_ability",
+        "reminder_text": "(Whenever this creature attacks, put N Energon counters on it.)",
+    }
+    (project / "mechanics").mkdir(parents=True, exist_ok=True)
+    (project / "mechanics" / "approved.json").write_text(json.dumps([mech]), encoding="utf-8")
+    stripped = "Energize 1\nRemove an Energon counter: Draw a card."
+    _write_card(project, "001_alpha.json", _card_body("001", "Alpha"))
+
+    resp = client.post(
+        "/api/wizard/finalize/save-card",
+        json={"collector_number": "001", "fields": {"oracle_text": stripped}},
+    )
+    assert resp.status_code == 200
+    payload = resp.json()
+    saved = json.loads((project / "cards" / "001_alpha.json").read_text(encoding="utf-8"))
+    # The response oracle_text matches what was persisted (reminder re-injected)...
+    assert payload["oracle_text"] == saved["oracle_text"]
+    # ...and the reminder-free editor value round-trips back to the saved input.
+    assert payload["oracle_text_editor"] == stripped
+
+
 def test_save_card_rename_on_name_change_no_duplicate(client, project: Path) -> None:
     """Editing the name must not fork a second file (the slug is name-derived)."""
     _write_card(project, "001_alpha.json", _card_body("001", "Alpha"))
