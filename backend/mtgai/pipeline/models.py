@@ -231,6 +231,12 @@ STAGE_DEFINITIONS: list[dict] = [
         "display_name": "Visual References & Artists",
         "review_eligible": True,
     },
+    # The per-set glyph (the type-line symbol). Set-identity art direction, so it
+    # sits with visual_refs — an LLM proposes an emblem, Flux renders candidate
+    # silhouettes, and the renderer recolors the chosen mask per rarity (replacing
+    # the hardcoded placeholder triangle). Its own wizard tab (re-roll / upload /
+    # pick-version), review-eligible but auto-runs by default.
+    {"stage_id": "set_symbol", "display_name": "Set Symbol", "review_eligible": True},
     {"stage_id": "art_prompts", "display_name": "Art Prompt Generation", "review_eligible": False},
     # char_portraits KEEPS its stage_id (not renamed to char_refs) to avoid
     # churning model/image assignments, break_points keys, /pipeline URLs, and

@@ -487,6 +487,10 @@ def get_mana_symbol(symbol: str, size: int) -> Image.Image:
 # ---------------------------------------------------------------------------
 _set_symbol_cache: dict[tuple[str, int], Image.Image] = {}
 
+# Per-project symbol cache, keyed by (path, mtime, rarity, size) so a re-roll
+# (which rewrites ``symbol.png``, bumping mtime) invalidates automatically.
+_project_symbol_cache: dict[tuple[str, int, str, int], Image.Image] = {}
+
 # Rarity color schemes for the set symbol (triangle + spiral)
 _SET_SYMBOL_COLORS: dict[str, dict[str, tuple[int, int, int] | tuple[float, ...]]] = {
     "C": {
@@ -638,12 +642,70 @@ def _make_fallback_set_symbol(rarity: str, size: int) -> Image.Image:
     return img
 
 
+def _project_symbol_path() -> Path | None:
+    """Repo path to the active project's generated ``symbol.png`` (or None).
+
+    Best-effort: returns None when no project is open / no asset folder is
+    configured / the file doesn't exist, so the renderer falls back to the
+    placeholder. Produced by the ``set_symbol`` stage
+    (``mtgai.art.set_symbol``)."""
+    try:
+        from mtgai.io.asset_paths import set_artifact_dir
+
+        path = set_artifact_dir() / "art-direction" / "set-symbol" / "symbol.png"
+    except Exception:
+        return None
+    return path if path.is_file() else None
+
+
+def _make_project_set_symbol(rarity: str, size: int) -> Image.Image | None:
+    """Recolor the active project's per-set glyph mask for ``rarity`` at ``size``.
+
+    The ``set_symbol`` stage writes ``symbol.png`` as an RGBA alpha mask (one
+    opaque shape on transparent ground). This fills that shape with the rarity's
+    tint (the existing ``_SET_SYMBOL_COLORS`` scheme) and keeps the mask's alpha
+    so the same shape serves all four rarities — the per-set replacement for the
+    placeholder triangle. Returns None when there's no project glyph."""
+    path = _project_symbol_path()
+    if path is None:
+        return None
+    try:
+        mtime = path.stat().st_mtime_ns
+    except OSError:
+        return None
+    cache_key = (str(path), mtime, rarity.upper(), size)
+    if cache_key in _project_symbol_cache:
+        return _project_symbol_cache[cache_key]
+    try:
+        mask = Image.open(path).convert("RGBA").resize((size, size), Image.LANCZOS)
+    except Exception:
+        logger.warning("Could not load project set symbol %s; using placeholder", path)
+        return None
+
+    colors = _SET_SYMBOL_COLORS.get(rarity.upper(), _SET_SYMBOL_COLORS["C"])
+    fill = colors["fill"]
+    tinted = Image.new("RGBA", (size, size), (int(fill[0]), int(fill[1]), int(fill[2]), 255))
+    tinted.putalpha(mask.getchannel("A"))
+    _project_symbol_cache[cache_key] = tinted
+    return tinted
+
+
 def get_set_symbol(rarity: str, size: int) -> Image.Image:
     """Get a rendered set symbol for the given rarity at the given size.
 
-    Tries pycairo (the drawn placeholder vortex symbol), then SVG
-    rasterization, then Pillow fallback hexagon.
+    Prefers the active project's generated per-set glyph (``symbol.png`` from the
+    ``set_symbol`` stage, recolored per rarity); otherwise tries pycairo (the
+    drawn placeholder vortex symbol), then SVG rasterization, then a Pillow
+    fallback hexagon.
     """
+    # 0. Prefer the per-set generated glyph when this project has one. Not cached
+    #    in _set_symbol_cache (which is keyed only by rarity+size and would go
+    #    stale across projects / re-rolls); _make_project_set_symbol has its own
+    #    mtime-keyed cache.
+    project_sym = _make_project_set_symbol(rarity, size)
+    if project_sym is not None:
+        return project_sym
+
     cache_key = (rarity.upper(), size)
     if cache_key in _set_symbol_cache:
         return _set_symbol_cache[cache_key]
@@ -673,3 +735,4 @@ def clear_caches() -> None:
     """Drop all cached symbol images."""
     _mana_cache.clear()
     _set_symbol_cache.clear()
+    _project_symbol_cache.clear()

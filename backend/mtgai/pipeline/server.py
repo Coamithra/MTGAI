@@ -5155,6 +5155,172 @@ async def wizard_char_refs_save(request: Request) -> JSONResponse:
     return await wizard_char_refs_state()
 
 
+# ---------------------------------------------------------------------------
+# Set Symbol tab (stage_id ``set_symbol``)
+# ---------------------------------------------------------------------------
+
+
+_SET_SYMBOL_SUBDIR = ("art-direction", "set-symbol")
+
+
+def _set_symbol_dir(asset: Path) -> Path:
+    return asset.joinpath(*_SET_SYMBOL_SUBDIR)
+
+
+def _set_symbol_state_payload(asset: Path) -> dict:
+    """Build the Set Symbol tab state from ``concept.json`` + the previews on disk.
+
+    Each candidate is a ``preview_v<N>.png`` (AI) or ``preview_upload.png`` (user
+    upload); the selected one matches ``concept.json``'s ``selected_version``."""
+    sym_dir = _set_symbol_dir(asset)
+    concept = _read_json(sym_dir / "concept.json", {})
+    if not isinstance(concept, dict):
+        concept = {}
+    selected = str(concept.get("selected_version") or "")
+
+    versions: list[dict] = []
+    if sym_dir.exists():
+        for f in sorted(sym_dir.glob("preview_*.png")):
+            tag = f.stem[len("preview_") :]  # "v1" / "upload"
+            is_upload = tag == "upload"
+            version_tag = "upload" if is_upload else tag.lstrip("v")
+            raw_name = f"raw_{tag}.png"
+            versions.append(
+                {
+                    "tag": version_tag,
+                    "is_upload": is_upload,
+                    "preview_url": f"/api/wizard/set_symbol/image?file={quote(f.name)}",
+                    "raw_url": (
+                        f"/api/wizard/set_symbol/image?file={quote(raw_name)}"
+                        if (sym_dir / raw_name).is_file()
+                        else ""
+                    ),
+                    "is_selected": version_tag == selected,
+                }
+            )
+        # Stable order: numeric versions first, the upload last.
+        versions.sort(key=lambda v: (v["is_upload"], _safe_int(v["tag"])))
+
+    return {
+        "concept": str(concept.get("concept") or ""),
+        "image_prompt": str(concept.get("image_prompt") or ""),
+        "source": str(concept.get("source") or ""),
+        "versions": versions,
+        "selected_version": selected,
+        "has_active_symbol": (sym_dir / "symbol.png").is_file(),
+        "has_content": bool(versions),
+        "stage_status": _stage_status_in_state("set_symbol"),
+    }
+
+
+def _safe_int(s: str) -> int:
+    try:
+        return int(s)
+    except (TypeError, ValueError):
+        return 1 << 30
+
+
+@router.get("/api/wizard/set_symbol/state")
+async def wizard_set_symbol_state() -> JSONResponse:
+    """First-paint state for the Set Symbol tab."""
+    _require_active_project()
+    return JSONResponse(_set_symbol_state_payload(set_artifact_dir()))
+
+
+@router.get("/api/wizard/set_symbol/image", response_model=None)
+async def wizard_set_symbol_image(file: str) -> FileResponse | JSONResponse:
+    """Serve one image from ``<asset>/art-direction/set-symbol/`` (no traversal)."""
+    _require_active_project()
+    sym_dir = _set_symbol_dir(set_artifact_dir())
+    name = Path(file).name
+    if name != file or not name:
+        return JSONResponse({"error": "Invalid filename"}, status_code=400)
+    target = (sym_dir / name).resolve()
+    if not str(target).startswith(str(sym_dir.resolve())) or not target.is_file():
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    return FileResponse(str(target))
+
+
+@router.post("/api/wizard/set_symbol/refresh")
+async def wizard_set_symbol_refresh() -> JSONResponse:
+    """Manual re-run of the Set Symbol stage under the AI lock (``force=True``)."""
+    _require_active_project()
+    set_artifact_dir()  # 409s if no asset folder
+
+    from mtgai.art.set_symbol import generate_set_symbol
+    from mtgai.pipeline.stage_hooks import build_set_symbol_hooks
+
+    emitter = _refresh_emitter("set_symbol")
+    hooks = build_set_symbol_hooks(emitter)
+
+    with guarded_ai("Set symbol", stage_id="set_symbol") as guard:
+        if guard.busy:
+            return guard.busy_response
+        # The tok/s poller wraps ONLY the concept call inside the worker thread,
+        # NOT the ComfyUI image phase (polling llama-swap during image gen reloads
+        # the unloaded LLM and starves Flux — cards 6a25497b / 6a256732).
+        result = await asyncio.to_thread(
+            generate_set_symbol,
+            force=True,
+            should_cancel=ai_lock.is_cancelled,
+            on_reset=hooks.on_reset,
+            on_concept=hooks.on_concept,
+            on_version=hooks.on_version,
+            concept_poller=_bus_poller(
+                "set_symbol", activity_prefix="Proposing concept", emit_done=False
+            ),
+        )
+        if isinstance(result, dict) and result.get("cancelled"):
+            guard.skip_heal = True
+
+    return await wizard_set_symbol_state()
+
+
+@router.post("/api/wizard/set_symbol/upload")
+async def wizard_set_symbol_upload(request: Request) -> JSONResponse:
+    """Upload the user's own image as the set symbol (silhouetted + selected)."""
+    from starlette.datastructures import UploadFile
+
+    _require_active_project()
+    set_artifact_dir()
+
+    form = await request.form()
+    file = form.get("file")
+    if not isinstance(file, UploadFile):
+        return JSONResponse({"error": "No file uploaded"}, status_code=400)
+
+    from mtgai.art.set_symbol import set_user_symbol
+
+    data = await file.read()
+    await asyncio.to_thread(set_user_symbol, data)
+    _heal_failed_stage("set_symbol")
+    return await wizard_set_symbol_state()
+
+
+@router.post("/api/wizard/set_symbol/save")
+async def wizard_set_symbol_save(request: Request) -> JSONResponse:
+    """Pick which generated candidate is the active set symbol.
+
+    Body: ``{version}`` — a version number (``"1"``) or ``"upload"``."""
+    _require_active_project()
+    set_artifact_dir()
+
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+    version = str(body.get("version") or "").strip()
+    if not version:
+        return JSONResponse({"error": "version is required"}, status_code=400)
+
+    from mtgai.art.set_symbol import select_symbol_version
+
+    ok = await asyncio.to_thread(select_symbol_version, version)
+    if not ok:
+        return JSONResponse({"error": f"No such symbol version: {version}"}, status_code=400)
+    _heal_failed_stage("set_symbol")
+    return await wizard_set_symbol_state()
+
+
 def _is_land_stage_card(card: dict) -> bool:
     """True for a lands-stage basic/dual (collector number ``L-*``).
 

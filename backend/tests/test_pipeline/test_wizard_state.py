@@ -224,8 +224,9 @@ def test_serialize_round_trips_visible_tabs(sets_root):
     stage_ids = [s["id"] for s in blob["stage_definitions"]]
     assert stage_ids[:4] == ["mechanics", "archetypes", "skeleton", "reprints"]
     assert blob["stage_definitions"][0]["name"] == "Mechanic Generation"
-    # visual_refs now sits immediately before art_prompts.
-    assert stage_ids[stage_ids.index("visual_refs") + 1] == "art_prompts"
+    # visual_refs is followed by set_symbol, then art_prompts.
+    assert stage_ids[stage_ids.index("visual_refs") + 1] == "set_symbol"
+    assert stage_ids[stage_ids.index("set_symbol") + 1] == "art_prompts"
     # break_points is keyed by stage_id; merged art/render stages default to
     # checked so the per-tab checkbox can render them on without a second fetch.
     assert isinstance(blob["break_points"], dict)

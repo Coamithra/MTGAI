@@ -647,6 +647,17 @@
       });
     });
 
+    // Set Symbol streaming: a set_symbol_reset clears the strip before a
+    // from-scratch run, set_symbol_concept lands the proposed emblem + Flux
+    // prompt, then each rendered candidate's silhouette pops in via
+    // set_symbol_version. The Set Symbol tab listens via W.onSetSymbolStream.
+    ['set_symbol_reset', 'set_symbol_concept', 'set_symbol_version'].forEach(name => {
+      state.eventSource.addEventListener(name, (e) => {
+        const handler = (window.MTGAIWizard || {}).onSetSymbolStream;
+        if (handler) handler(name, JSON.parse(e.data));
+      });
+    });
+
     // Mechanics generation streaming: each accepted draft pops onto the
     // Mechanics tab (mechanic_candidate_drafted, pre-review); the council loop
     // then reports live (mechanic_council_update — reviewer thumbs + synth
