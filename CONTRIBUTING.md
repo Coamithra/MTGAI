@@ -29,9 +29,9 @@ git checkout master && git pull origin master   # fast-forward local master to t
 # Tracker: fix/some-bug
 
 ## Phase 1: Pick Up the Card
+- [ ] Claim the top card — two-phase handshake FIRST (move to Doing → claim comment → wait 10s → earliest comment wins), before anything else
 - [ ] Pull latest master
 - [ ] Read the card (description, comments, linked plan)
-- [ ] Move card to Doing
 - [ ] Create worktree and branch
 
 ## Phase 2: Research
@@ -64,9 +64,19 @@ All work happens in an isolated **git worktree** under `.trees/` (gitignored). T
 
 ## Phase 1: Pick Up the Card
 
-1. **Pull latest master** — `git pull origin master` so you start from the newest code
-2. **Read the card** — Read the card description and any linked spec under `plans/<file>.md`. The plan is the long-form source of truth; the card is a pointer
-3. **Move card to Doing** — `trello --board 69f86a83 card move <card_id> Doing`
+> **Claim the card FIRST — and confirm the claim before you trust it.** When several agents are launched in tandem and each is told to "pick up the top card of To Do", they all read the board, go off and do some work, and only *then* move the card — so they all grab the *same* card. Moving a card to Doing is a fast claim, but "read the board" and "move the card" can't be truly atomic, so two agents can *both* land on the same card within the same second. The fix is a two-phase claim: move it to Doing immediately (the fast grab), then post a claim comment and wait — the **earliest claim comment wins**, deterministically, because comments carry server timestamps. Do the move *before* reading the card, pulling master, or any other step; keep the read→move gap to those two back-to-back commands with **nothing in between**. If the board shows the top card is already in Doing (another agent beat you to it), claim the next To Do card down instead.
+
+1. **Claim the top card with the two-phase handshake (do this first, nothing before it)** — Run these in order, with nothing else interleaved:
+    1. **Mint a claim ID** once for this session — a short unique token (e.g. `python -c "import secrets; print(secrets.token_hex(4))"`). Reuse the same ID for every claim attempt this session.
+    2. **Grab it** — View the To Do list, then *immediately* `trello --board 69f86a83 card move <card_id> Doing` for the top card. (If the top card is already in Doing, target the next one down instead.)
+    3. **Post the claim comment** — `trello --board 69f86a83 comment add <card_id> "I am doing this now — claim <claim_id>"`. This exact phrase is the lock marker other agents scan for.
+    4. **Wait 10s**, then **re-read the card's comments with their timestamps** — `trello --board 69f86a83 --json comment ls <card_id>`. Use `--json`: the formatted `comment ls` prints only the day, but the JSON `date` field is a millisecond-precision ISO timestamp, which is what a 10s tie-break needs.
+    5. **Resolve ties — earliest claim comment wins.** Look at every comment containing "I am doing this now". If any such comment from a *different* agent (different claim ID) has a `date` **earlier than yours**, you lost the race: that agent owns the card. Back off — `trello --board 69f86a83 comment delete <card_id> <your_comment_id>` to remove your own claim comment (note it takes **both** the card id and the comment id, the `id` field from the JSON above), and **leave the card in Doing** (don't yank it from the winner). Then:
+        - If you were told to work a **specific** card, stop here — end the session; the card is taken.
+        - If the request was **generic** ("top card of To Do"), go back to (ii) and claim the **next** To Do card down, repeating the whole handshake.
+    6. **You hold the lock** when your claim comment is the earliest (or the only) "I am doing this now". Only now read the card and proceed.
+2. **Pull latest master** — `git pull origin master` so you start from the newest code
+3. **Read the card** — Now that it's claimed, read the card description and any linked spec under `plans/<file>.md`. The plan is the long-form source of truth; the card is a pointer
 4. **Create worktree and branch** — Branch off `master` with a descriptive prefix:
     - Bugs: `fix/<short-name>` (e.g. `fix/theme-extractor-loop`)
     - Features: `feat/<short-name>` (e.g. `feat/archetype-stage`)
