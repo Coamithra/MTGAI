@@ -264,12 +264,60 @@ def test_in_place_mutator_clearers_are_no_ops(fake_output_root: Path) -> None:
 
     for stage_id in (
         "conformance",
-        "ai_review",
         "art_prompts",
     ):
         stages_mod.clear_stage_artifacts(stage_id)
 
     assert sentinel.exists(), "in-place mutator clearers must not touch cards/"
+
+
+def test_clear_ai_review_removes_reviews_sidecars_and_logs(fake_output_root: Path) -> None:
+    """The ai_review clearer wipes its durable, collector-number-keyed sidecars.
+
+    ai_review owns ``reviews/`` (per-card ``<cn>.json``/``.md`` verdicts, the
+    ``decisions.json`` user-decision sidecar, the ``reviewed.json`` signature
+    tracker) and ``ai_review/`` (LLM transcripts). A no-op clearer left all of
+    these stale across an edit-cascade/unlock that regenerated the pool, so
+    ``/api/wizard/ai_review/state`` merged the OLD verdict + user decision onto a
+    brand-new card reusing the same collector number (a never-reviewed card painting
+    ``reviewed`` with the prior verdict; a stale approve/reject decision winning via
+    ``_effective_decision``). The clearer must drop both owned dirs while leaving the
+    card files (card_gen-owned) untouched.
+    """
+    from mtgai.review.ai_review import DECISIONS_FILENAME, REVIEWED_FILENAME
+
+    set_dir = fake_output_root / "sets" / "TST"
+    reviews_dir = set_dir / "reviews"
+    reviews_dir.mkdir(parents=True)
+    (reviews_dir / "001.json").write_text('{"verdict": "REVISE"}', encoding="utf-8")
+    (reviews_dir / "001.md").write_text("# review", encoding="utf-8")
+    (reviews_dir / DECISIONS_FILENAME).write_text(
+        '{"001": {"decision": "approved"}}', encoding="utf-8"
+    )
+    (reviews_dir / REVIEWED_FILENAME).write_text('{"001": "sig"}', encoding="utf-8")
+
+    logs_dir = set_dir / "ai_review" / "logs"
+    logs_dir.mkdir(parents=True)
+    (logs_dir / "review-abcd1234.html").write_text("<html></html>", encoding="utf-8")
+
+    cards_dir = set_dir / "cards"
+    cards_dir.mkdir(parents=True)
+    sentinel = cards_dir / "001_foo.json"
+    sentinel.write_text('{"collector_number": "001", "name": "Foo"}', encoding="utf-8")
+    _open_test_project("TST", set_dir)
+
+    stages_mod.clear_stage_artifacts("ai_review")
+
+    assert not reviews_dir.exists(), "reviews/ (verdicts + decisions + reviewed) must be cleared"
+    assert not (set_dir / "ai_review").exists(), "ai_review/ transcripts must be cleared"
+    assert sentinel.exists(), "card files are card_gen-owned and must not be deleted"
+
+
+def test_clear_ai_review_is_idempotent_on_clean_project(fake_output_root: Path) -> None:
+    """Clearing ai_review on a project with no reviews/ or ai_review/ dirs must not raise."""
+    _open_test_project("NEVER", fake_output_root / "sets" / "NEVER")
+    stages_mod.clear_stage_artifacts("ai_review")
+    stages_mod.clear_stage_artifacts("ai_review")
 
 
 def test_clear_finalize_removes_reports_and_resets_sanity_markers(
