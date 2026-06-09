@@ -6,6 +6,11 @@ reads the active project's cached refs via ``get_refs``; the tests monkeypatch
 that seam so no project / file is required.
 """
 
+import json
+import os
+
+import pytest
+
 import mtgai.art.visual_reference as vr
 
 
@@ -146,3 +151,111 @@ def test_get_named_entities_word_boundary_avoids_substring_overmatch(monkeypatch
     assert vr.get_named_entities("Trial by Ordeal", "Sorcery", "Vorrikson flees.", None) == []
     found = vr.get_named_entities("The Order Marches", "Sorcery", "Vorrik leads.", None)
     assert {e["key"] for e in found} == {"the_order", "vorrik"}
+
+
+# ---------------------------------------------------------------------------
+# Cache invalidation (card 6a285ae4): the module-level caches must be mtime-
+# keyed so an edit / re-run / cascade-clear in the same long-lived server
+# process is picked up — the old set_code-only cache never invalidated.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _seeded_project(monkeypatch, tmp_path):
+    """Point the visual_reference module at a tmp asset folder + reset its caches.
+
+    Returns the ``art-direction`` dir so a test can write/rewrite/delete the two
+    JSON files and observe the getters reload. Uses the real ``get_refs`` /
+    ``get_artists`` (NOT the monkeypatched seam the other tests use).
+    """
+    art_dir = tmp_path / "art-direction"
+    art_dir.mkdir(parents=True)
+    monkeypatch.setattr("mtgai.io.asset_paths.set_artifact_dir", lambda: tmp_path)
+    monkeypatch.setattr(vr, "_cache", None, raising=False)
+    monkeypatch.setattr(vr, "_artist_cache", None, raising=False)
+    return art_dir
+
+
+def test_get_refs_picks_up_rewritten_file(_seeded_project):
+    """A Save / Refresh that rewrites visual-references.json is seen on the next read."""
+    refs_path = _seeded_project / "visual-references.json"
+    refs_path.write_text(json.dumps({"legendary_characters": {"hero": "first"}}), encoding="utf-8")
+    assert vr.get_refs()["legendary_characters"]["hero"] == "first"
+
+    # Rewrite with new content. Force a distinct mtime so the stat-based cache key
+    # changes even on a coarse-clock filesystem (size also differs here, but be safe).
+    new = json.dumps({"legendary_characters": {"hero": "second edit"}})
+    refs_path.write_text(new, encoding="utf-8")
+    st = refs_path.stat()
+    os.utime(refs_path, ns=(st.st_atime_ns, st.st_mtime_ns + int(1e9)))
+
+    assert vr.get_refs()["legendary_characters"]["hero"] == "second edit"
+
+
+def test_get_refs_absent_then_written(_seeded_project):
+    """An empty {} for a not-yet-written file is NOT cached forever (debug-seed case)."""
+    # File absent: getter returns {} but must not cache it.
+    assert vr.get_refs() == {}
+    assert vr._cache is None  # the absent default was not cached
+
+    refs_path = _seeded_project / "visual-references.json"
+    refs_path.write_text(json.dumps({"visual_motifs": ["rust"]}), encoding="utf-8")
+
+    # The stage just wrote the file — the getter must now see it, not the cached {}.
+    assert vr.get_refs() == {"visual_motifs": ["rust"]}
+
+
+def test_get_refs_deleted_file_drops_stale_cache(_seeded_project):
+    """A cascade-clear that deletes the file stops serving the old cached contents."""
+    refs_path = _seeded_project / "visual-references.json"
+    refs_path.write_text(json.dumps({"visual_motifs": ["rust"]}), encoding="utf-8")
+    assert vr.get_refs() == {"visual_motifs": ["rust"]}
+
+    refs_path.unlink()
+    assert vr.get_refs() == {}
+
+
+def test_derived_index_refreshes_with_refs(_seeded_project):
+    """PR #102's _legendary_characters_index reads get_refs() inline, so it reloads too."""
+    refs_path = _seeded_project / "visual-references.json"
+    refs_path.write_text(
+        json.dumps({"legendary_characters": {"storm knight": "first"}}), encoding="utf-8"
+    )
+    assert vr.get_character_appearance("storm_knight") == "first"
+
+    refs_path.write_text(
+        json.dumps({"legendary_characters": {"storm knight": "second"}}), encoding="utf-8"
+    )
+    st = refs_path.stat()
+    os.utime(refs_path, ns=(st.st_atime_ns, st.st_mtime_ns + int(1e9)))
+
+    assert vr.get_character_appearance("storm_knight") == "second"
+
+
+def test_get_artists_picks_up_rewritten_file(_seeded_project):
+    """A re-roll-all that rewrites artists.json is seen on the next read."""
+    artists_path = _seeded_project / "artists.json"
+    artists_path.write_text(
+        json.dumps({"artists": [{"name": "Aria", "style_prompt": "first"}]}), encoding="utf-8"
+    )
+    assert vr.get_artists() == [{"name": "Aria", "style_prompt": "first"}]
+
+    artists_path.write_text(
+        json.dumps({"artists": [{"name": "Bryn", "style_prompt": "second"}]}), encoding="utf-8"
+    )
+    st = artists_path.stat()
+    os.utime(artists_path, ns=(st.st_atime_ns, st.st_mtime_ns + int(1e9)))
+
+    assert vr.get_artists() == [{"name": "Bryn", "style_prompt": "second"}]
+
+
+def test_get_artists_absent_then_written(_seeded_project):
+    """An empty [] for a not-yet-written artists.json is NOT cached forever."""
+    assert vr.get_artists() == []
+    assert vr._artist_cache is None
+
+    artists_path = _seeded_project / "artists.json"
+    artists_path.write_text(
+        json.dumps({"artists": [{"name": "Aria", "style_prompt": "x"}]}), encoding="utf-8"
+    )
+    assert vr.get_artists() == [{"name": "Aria", "style_prompt": "x"}]
