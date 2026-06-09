@@ -259,8 +259,12 @@ class CardRenderer:
     def resolve_art_path(self, card: Card) -> Path | None:
         """Find the selected art image for a card in the active project.
 
-        Checks ``art-selection-logs/<CN>.json`` for the ``pick`` field
-        (e.g. "v2"), then finds the matching file in ``art/``.
+        Prefers ``card.art_path`` — the authoritative stamp written by BOTH the
+        best-of-N auto-pick AND the user's manual re-pick / upload override
+        (``_stamp_art_path``). Only when no usable ``art_path`` is stamped does it
+        fall back to the ``art-selection-logs/<CN>.json`` ``pick`` field. (The
+        override endpoints don't rewrite that per-card log, so trusting the log
+        first silently rendered the judge's old pick over the user's override.)
 
         Returns ``None`` if no art is found.
         """
@@ -269,7 +273,17 @@ class CardRenderer:
         set_dir = set_artifact_dir()
         cn = card.collector_number
 
-        # 1. Check art selection log
+        # 1. Prefer the card's stamped art_path (the authoritative pick — written
+        #    by the auto-pick AND the user override; the selection log is not).
+        if card.art_path:
+            p = Path(card.art_path)
+            if p.is_absolute() and p.is_file():
+                return p
+            rel = set_dir / card.art_path
+            if rel.is_file():
+                return rel
+
+        # 2. Fallback: the art selection log (for cards with no stamped art_path).
         log_path = set_dir / "art-selection-logs" / f"{cn}.json"
         if log_path.is_file():
             try:
@@ -292,15 +306,6 @@ class CardRenderer:
 
             except (json.JSONDecodeError, KeyError) as exc:
                 logger.warning("Bad art selection log for %s: %s", cn, exc)
-
-        # 2. Fallback: check card's art_path field
-        if card.art_path:
-            p = Path(card.art_path)
-            if p.is_absolute() and p.is_file():
-                return p
-            rel = set_dir / card.art_path
-            if rel.is_file():
-                return rel
 
         # 3. Fallback: find any v1 art file
         slug = card_slug(cn, card.name)
