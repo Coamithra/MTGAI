@@ -483,7 +483,9 @@ def _normalize_cameo(cameo: object) -> dict | None:
     it to the prompt-log sidecar as ``{key, kind, description}`` or ``null``. Both
     the live SSE path (fresh roll) and the ``/state`` path (sidecar read) feed it
     here so the tile carries a consistent, defensively-normalized record. Returns
-    ``None`` for a missing / malformed / empty cameo.
+    ``None`` for a missing / malformed / empty cameo. A well-formed roll always
+    carries both ``key`` and ``description`` (see ``get_cameo_entities``); the
+    looser guards just keep a hand-edited / partial sidecar from crashing.
     """
     if not isinstance(cameo, dict):
         return None
