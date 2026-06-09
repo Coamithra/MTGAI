@@ -176,8 +176,8 @@ def test_assign_artists_every_card_assigned():
     assert all(cn in out for cn in (c["collector_number"] for c in cards))
 
 
-def test_assign_artists_slices_near_equal_and_contiguous():
-    # 25 cards / 2 artists → sizes 13 + 12, contiguous in sorted order.
+def test_assign_artists_counts_near_equal():
+    # 25 cards / 2 artists → round-robin gives 13 + 12 (differ by ≤1).
     cards = _pool(25)
     artists = [{"name": "A"}, {"name": "B"}]
     out = assign_artists(cards, artists)
@@ -185,24 +185,30 @@ def test_assign_artists_slices_near_equal_and_contiguous():
     for name in out.values():
         counts[name] += 1
     assert sorted(counts.values()) == [12, 13]
-    # Contiguity: with a uniform pool the sort is by collector number, so the
-    # first 13 go to A, the rest to B.
+
+
+def test_assign_artists_round_robin_in_sorted_order():
+    # Round-robin deals card i → artists[i % N] over the sorted pool, so with a
+    # uniform pool sorted by collector number the painters alternate A, B, A, B…
+    cards = _pool(6)
+    artists = [{"name": "A"}, {"name": "B"}]
+    out = assign_artists(cards, artists)
     ordered_cns = [c["collector_number"] for c in cards]
-    a_cns = [cn for cn in ordered_cns if out[cn] == "A"]
-    assert a_cns == ordered_cns[:13]
+    assert [out[cn] for cn in ordered_cns] == ["A", "B", "A", "B", "A", "B"]
 
 
-def test_assign_artists_groups_by_rarity_then_color():
-    # A mythic and a common; with 2 artists each rarity band lands on its own
-    # painter (the grouped policy's whole point).
-    cards = [
-        {"collector_number": "010", "rarity": "common", "colors": ["G"]},
-        {"collector_number": "001", "rarity": "mythic", "colors": ["R"]},
+def test_assign_artists_spreads_rarity_tier_across_painters():
+    # The card's whole point: a tier of showcase cards must NOT all land on one
+    # painter. Four mythics sorted first, dealt round-robin across four artists →
+    # each mythic gets a distinct painter (no single artist owns the tier).
+    mythics = [
+        {"collector_number": f"00{i}", "rarity": "mythic", "colors": ["W"]} for i in range(1, 5)
     ]
-    out = assign_artists(cards, [{"name": "A"}, {"name": "B"}])
-    # mythic sorts first → artist A; common → artist B.
-    assert out["001"] == "A"
-    assert out["010"] == "B"
+    commons = _pool(8)  # commons sort after the mythics
+    artists = [{"name": "A"}, {"name": "B"}, {"name": "C"}, {"name": "D"}]
+    out = assign_artists(mythics + commons, artists)
+    mythic_painters = {out[m["collector_number"]] for m in mythics}
+    assert mythic_painters == {"A", "B", "C", "D"}
 
 
 def test_assign_artists_deterministic():
