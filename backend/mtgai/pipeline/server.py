@@ -6573,8 +6573,9 @@ def _rendering_card_view(card: dict, asset: Path, slots_by_id: dict[str, dict]) 
         "oracle_text": oracle_text,
         # The editable textarea shows canonical, reminder-free rules text: reminder
         # text is auto-injected by finalize and never hand-authored, so editing it is
-        # silently discarded on save (finalize re-strips + re-injects). The preview +
-        # render keep showing the injected `oracle_text`.
+        # silently discarded on save (finalize re-strips + re-injects). The at-rest
+        # preview + the render read the injected `oracle_text` (the preview then tracks
+        # the textarea once the user edits).
         "oracle_text_editor": strip_reminder_text(oracle_text),
         "flavor_text": card.get("flavor_text") or "",
         "power": card.get("power"),

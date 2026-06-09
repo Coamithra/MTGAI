@@ -191,6 +191,40 @@ def test_save_card_finalizes_and_rerenders(client, project: Path) -> None:
     assert ("B-C-01", 1) in project._rendered  # type: ignore[attr-defined]
 
 
+def test_save_card_reinjects_stripped_editor_oracle(client, project: Path) -> None:
+    # The safety property behind showing stripped text in the editor: saving the
+    # canonical (reminder-free) editor value re-injects the reminder, landing on the
+    # exact same injected form — so editing reminder text is a harmless no-op, not data
+    # loss. Lock in the strip(view) -> save -> reinject round-trip.
+    mech = {
+        "name": "Energize",
+        "keyword_type": "keyword_ability",
+        "reminder_text": "(Whenever this creature attacks, put N Energon counters on it.)",
+    }
+    (project / "mechanics").mkdir(parents=True, exist_ok=True)
+    (project / "mechanics" / "approved.json").write_text(json.dumps([mech]), encoding="utf-8")
+    injected = (
+        "Energize 1 (Whenever this creature attacks, put one Energon counter on it.)\n"
+        "Remove an Energon counter: Draw a card."
+    )
+    stripped = "Energize 1\nRemove an Energon counter: Draw a card."
+    _write_card(project, "B-C-01_alpha.json", _card_body("B-C-01", "Alpha", oracle_text=injected))
+
+    # The editor surfaces the stripped form...
+    state = client.get("/api/wizard/rendering/state").json()
+    card = next(c for c in state["cards"] if c["collector_number"] == "B-C-01")
+    assert card["oracle_text_editor"] == stripped
+
+    # ...and saving it back re-injects to the original injected form (idempotent).
+    resp = client.post(
+        "/api/wizard/rendering/save-card",
+        json={"collector_number": "B-C-01", "fields": {"oracle_text": stripped}},
+    )
+    assert resp.status_code == 200
+    saved = json.loads((project / "cards" / "B-C-01_alpha.json").read_text(encoding="utf-8"))
+    assert saved["oracle_text"] == injected
+
+
 def test_save_card_rename_on_name_change(client, project: Path) -> None:
     _seed_mechanics(project)
     _write_card(project, "B-C-01_alpha.json", _card_body("B-C-01", "Alpha"))
