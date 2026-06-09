@@ -94,8 +94,40 @@ def register_cancel_hook(hook: Callable[[], object]) -> None:
             _cancel_hooks.append(hook)
 
 
-def _fire_cancel_hooks() -> None:
-    """Invoke every registered cancel hook, best-effort."""
+def _fire_cancel_hooks_for_run(matched_run_id: int) -> None:
+    """Fire every registered cancel hook for ``matched_run_id``, best-effort.
+
+    Re-validates under ``_state_lock`` immediately before firing that the run
+    the cancel matched is *still* the one holding the lock and still flagged
+    cancelled (``_current_run_id == matched_run_id and _cancel_event.is_set()``).
+    Skips firing otherwise. This closes the window between
+    :func:`request_cancel` releasing ``_state_lock`` after its run_id check and
+    reaching the hooks: in that gap the targeted run can finish and release, a
+    fresh run can acquire (which clears ``_cancel_event``), and the hooks —
+    which include ``llm_client``'s hard-kill of the in-flight local
+    llama-server — would otherwise execute against the *new* run the cancel was
+    never aimed at, killing its server mid-call.
+
+    The hooks themselves run OUTSIDE ``_state_lock`` (a hook may hard-kill a
+    subprocess or otherwise be slow, and must not stall the mutex every
+    status/acquire read contends on). A residual TOCTOU remains: the matched
+    run could still release between this re-check and a hook body. The window
+    is now tiny — only the hook-list snapshot happens in it, no LLM/release
+    work — versus the original unbounded gap. Closing it fully would require
+    holding ``_state_lock`` across the hook calls, which the
+    fire-outside-the-lock invariant forbids; a registered hook that wants to be
+    fully race-free can re-check :func:`current_run_id` itself.
+    """
+    with _state_lock:
+        if _current_run_id != matched_run_id or not _cancel_event.is_set():
+            logger.info(
+                "Cancel hooks skipped: matched run_id=%s no longer the cancelled "
+                "holder (active run_id=%s, cancelled=%s)",
+                matched_run_id,
+                _current_run_id,
+                _cancel_event.is_set(),
+            )
+            return
     with _cancel_hooks_lock:
         hooks = list(_cancel_hooks)
     for hook in hooks:
@@ -164,12 +196,19 @@ def request_cancel(run_id: int | None = None) -> bool:
             )
             return False
         action_name = _current.name
+        # Bind the cancel to the run we matched *under the lock*, even for the
+        # no-arg "cancel whatever's running now" path — so the hook-fire re-check
+        # below can tell whether this same run still holds the lock.
+        matched_run_id = _current_run_id
         _cancel_event.set()
     logger.info("Cancel requested for active AI action: %s", action_name)
     # Fire hooks outside _state_lock: a hook may hard-kill a subprocess (the
     # local-inference interrupt), which we must not do while holding the mutex
-    # that every status/acquire read contends on.
-    _fire_cancel_hooks()
+    # that every status/acquire read contends on. The re-check inside
+    # _fire_cancel_hooks_for_run guards the window where the matched run could
+    # release and a new run acquire before we get here (clearing the cancel
+    # flag), so a hook can't hard-kill a run the cancel was never aimed at.
+    _fire_cancel_hooks_for_run(matched_run_id)
     return True
 
 

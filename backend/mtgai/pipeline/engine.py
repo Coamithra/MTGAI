@@ -352,8 +352,18 @@ class PipelineEngine:
                 # what it found even after a later card_gen clears card flags.
                 stage.result = result.artifacts or {}
 
-                # Accumulate cost
-                self.state.total_cost_usd += result.cost_usd
+                # Reconcile (don't accumulate) the run total. ``result.cost_usd``
+                # is the stage's authoritative final cost — set verbatim into
+                # ``stage.progress.cost_usd`` just above — and for several stages
+                # (card_gen, ai_review, art_prompts, art_gen) it is the SAME total
+                # that already flowed through ``_make_progress_callback`` per item
+                # during the run. Adding it here would double-count those stages
+                # (and on a resumed card_gen, re-add the prior run's persisted
+                # cost the callbacks never re-emitted). Recomputing the total as
+                # the sum of every stage's authoritative ``progress.cost_usd`` is
+                # idempotent and immune to both: each stage is counted exactly once
+                # at its final value. (See ``_recompute_total_cost``.)
+                self._recompute_total_cost()
                 self.bus.cost_update(result.cost_usd, self.state.total_cost_usd)
 
             except Exception as exc:
@@ -610,6 +620,7 @@ class PipelineEngine:
             current.stage_id,
             current.status,
             current.progress.model_dump(mode="json"),
+            instance_id=current.instance_id,
         )
         logger.info("Resumed pipeline after review of %s", current.display_name)
 
@@ -649,10 +660,26 @@ class PipelineEngine:
         current.status = StageStatus.SKIPPED
         current.progress.finished_at = datetime.now(UTC)
         save_state(self.state)
-        self.bus.stage_update(current.stage_id, current.status)
+        self.bus.stage_update(
+            current.stage_id, current.status, instance_id=current.instance_id
+        )
         logger.info("Skipped stage: %s", current.display_name)
 
         self.run()
+
+    def _recompute_total_cost(self) -> None:
+        """Set ``state.total_cost_usd`` to the sum of every stage's cost.
+
+        The single accounting point for the run total: each stage's
+        ``progress.cost_usd`` is its authoritative cost (live-accumulated by
+        the progress callback, then overwritten to ``result.cost_usd`` at
+        completion), so summing them counts every stage exactly once. This is
+        idempotent — unlike ``+= cost`` per item *and* ``+= result.cost_usd``
+        at completion, which double-counted any stage that reports per-item
+        cost through the callback (card_gen, ai_review, art_prompts, art_gen)
+        and re-added a resumed card_gen's persisted prior-run cost.
+        """
+        self.state.total_cost_usd = sum(s.progress.cost_usd for s in self.state.stages)
 
     def _make_progress_callback(self, stage) -> ProgressCallback:
         """Create a progress callback bound to the given stage."""
@@ -670,7 +697,12 @@ class PipelineEngine:
             stage.progress.detail = detail
             stage.progress.cost_usd += cost
 
-            self.state.total_cost_usd += cost
+            # Keep the run total in lockstep with the per-stage costs it sums.
+            # The live in-flight stage's ``progress.cost_usd`` was just bumped
+            # above, so recomputing the sum (rather than mirroring the same
+            # ``+= cost`` and then re-adding ``result.cost_usd`` at completion)
+            # is what makes the total single-counted — see the completion path.
+            self._recompute_total_cost()
 
             # Persist periodically (every item)
             save_state(self.state)

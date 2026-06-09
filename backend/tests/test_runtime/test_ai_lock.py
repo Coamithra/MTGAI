@@ -392,6 +392,59 @@ def test_cancel_hook_not_fired_on_stale_run_id():
         ai_lock.release()
 
 
+def test_fire_hooks_skipped_when_a_new_run_holds_the_lock():
+    """The race the re-check closes, at its true seam (`_fire_cancel_hooks_for_run`).
+
+    `request_cancel` sets the cancel flag under the lock for run A, releases the
+    lock, then fires hooks. In the gap, A can finish and a fresh run B acquire
+    (B's acquire clears `_cancel_event`). The hooks — which hard-kill the
+    in-flight local llama-server — must NOT run against B. We drive that exact
+    interleaving deterministically: bind the cancel to A's id, then flip the
+    lock to B (release A → acquire B) *before* invoking the fire path, and
+    assert the guard skips. Without the re-check the hook fires (killing B).
+    """
+    fired: list[int] = []
+    ai_lock.register_cancel_hook(lambda: fired.append(1))
+
+    run_a = ai_lock.try_acquire("run A")
+    assert run_a is not None
+    # Cancel is signalled on A under the lock (mirrors request_cancel's body).
+    ai_lock.request_cancel(run_id=run_a)
+    assert ai_lock.is_cancelled() is True
+    # ...then the targeted run releases and a new run acquires (clearing the
+    # cancel flag) — exactly the window between the run_id check and hook-fire.
+    fired.clear()
+    ai_lock.release()
+    run_b = ai_lock.try_acquire("run B")
+    assert run_b is not None and run_b != run_a
+    try:
+        # Firing the cancel matched to A now is a no-op: B holds the lock and is
+        # not cancelled.
+        ai_lock._fire_cancel_hooks_for_run(run_a)
+        assert fired == []
+    finally:
+        ai_lock.release()
+
+
+def test_fire_hooks_runs_for_the_still_held_cancelled_run():
+    """Happy path: when the matched run still holds the lock and is still
+    flagged cancelled, `_fire_cancel_hooks_for_run` fires the hooks once."""
+    fired: list[int] = []
+    ai_lock.register_cancel_hook(lambda: fired.append(1))
+
+    run_id = ai_lock.try_acquire("active")
+    assert run_id is not None
+    try:
+        ai_lock.request_cancel(run_id=run_id)
+        # request_cancel already fired once for the live run.
+        assert fired == [1]
+        # Firing again for the same still-held, still-cancelled run fires again.
+        ai_lock._fire_cancel_hooks_for_run(run_id)
+        assert fired == [1, 1]
+    finally:
+        ai_lock.release()
+
+
 def test_register_cancel_hook_is_idempotent():
     """Registering the same callable twice fires it only once per cancel."""
     calls: list[int] = []
