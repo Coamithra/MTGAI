@@ -22,6 +22,7 @@ from mtgai.generation.card_generator import (
     reconcile_cycle_membership,
 )
 from mtgai.generation.prompts import _cycle_note, build_user_prompt, format_cycle_siblings
+from mtgai.models.card import Card, Rarity
 from mtgai.validation import (
     ValidationError,
     ValidationSeverity,
@@ -244,12 +245,14 @@ def _thread_siblings_through_batches(
 ) -> list[list[str] | None]:
     """Replay generate_set's per-cycle sibling lookup+append over batches.
 
-    Mirrors card_generator.generate_set lines ~1453 / ~1502-1507 / ~1668-1673:
-    ``cycle_siblings_by_id`` is initialised from ``confirmed_cycles``; each batch
-    threads the prior members of its shared ``cycle_id`` and then appends its own
-    saved cards under that same id. Returns, per batch, the list of sibling
-    *slot_ids* that were threaded in (or ``None`` when no siblings applied) — the
-    observable the real loop hands to ``build_user_prompt(cycle_siblings=...)``.
+    Mirrors the real loop's state machine: ``cycle_siblings_by_id`` is keyed by
+    ``confirmed_cycles`` (the real loop initialises it via
+    ``seed_cycle_siblings`` — empty per family on a first run, which is the
+    case this helper replays); each batch threads the prior members of its
+    shared ``cycle_id`` and then appends its own saved cards under that same
+    id. Returns, per batch, the list of sibling *slot_ids* that were threaded
+    in (or ``None`` when no siblings applied) — the observable the real loop
+    hands to ``build_user_prompt(cycle_siblings=...)``.
 
     Each slot stands in for the card it generates, identified by its slot_id, so
     the test can assert which family's members reached which batch.
@@ -339,6 +342,140 @@ def test_two_groups_sharing_one_seed_do_not_cross_thread() -> None:
     # Family broad: 001 sees nothing, 002 sees 001.
     # Family broad_0: 003 sees nothing (NOT 001/002), 004 sees only 003.
     assert threaded == [None, ["001"], None, ["003"]]
+
+
+# ---------------------------------------------------------------------------
+# seed_cycle_siblings + the partial-cycle regen path (card 6a286120)
+#
+# On a review->regen bounce only a subset of a cycle's members re-enters the
+# batch loop. generate_set now audits the FULL slot listing (filled +
+# unfilled) so the family stays confirmable, and pre-seeds the per-cycle
+# sibling lists with the filled members' on-disk cards — so the lone
+# regenerated member keeps its cycle_id/template AND designs against its real
+# siblings.
+# ---------------------------------------------------------------------------
+
+
+def _filled_card(sid: str, name: str, **overrides) -> Card:
+    base = dict(
+        name=name,
+        mana_cost="",
+        cmc=0.0,
+        type_line="Land — Gate",
+        oracle_text=f"~ enters tapped.\n{{T}}: Add one mana ({name}).",
+        rarity=Rarity.COMMON,
+        colors=[],
+        color_identity=[],
+        collector_number=sid,
+        slot_id=sid,
+        set_code="TST",
+        card_types=["Land"],
+        subtypes=["Gate"],
+    )
+    base.update(overrides)
+    return Card(**base)
+
+
+def test_seed_cycle_siblings_preseeds_filled_members_in_member_order() -> None:
+    """Filled members' cards seed the family's sibling list in confirmed-member
+    order; the unfilled (regen) member itself is excluded."""
+    filled_a = _filled_card("001", "Azorius Gate")
+    filled_c = _filled_card("003", "Dimir Gate")
+    confirmed = {"gates": ["001", "002", "003"]}
+
+    seeded = cg.seed_cycle_siblings(confirmed, {"002"}, [filled_c, filled_a])
+
+    assert list(seeded) == ["gates"]
+    assert [c["name"] for c in seeded["gates"]] == ["Azorius Gate", "Dimir Gate"]
+    # The seeded dicts are full card dumps — the prompt renders oracle_text.
+    assert "enters tapped" in seeded["gates"][0]["oracle_text"]
+
+
+def test_seed_cycle_siblings_first_run_seeds_empty_lists() -> None:
+    """On a first run every member is unfilled, so every family seeds empty —
+    byte-identical to the previous ``{cid: []}`` initialisation."""
+    confirmed = {"gates": ["001", "002"], "cycle_0": ["005", "006"]}
+    seeded = cg.seed_cycle_siblings(confirmed, {"001", "002", "005", "006"}, [])
+    assert seeded == {"gates": [], "cycle_0": []}
+
+
+def test_seed_cycle_siblings_skips_members_without_card_on_disk() -> None:
+    """A filled-by-the-ledger member whose card isn't loadable (e.g. a failed
+    slot) is skipped rather than crashing or seeding a hole."""
+    filled = _filled_card("001", "Azorius Gate")
+    confirmed = {"gates": ["001", "002", "003"]}
+    # 003 is neither unfilled nor on disk.
+    seeded = cg.seed_cycle_siblings(confirmed, {"002"}, [filled])
+    assert [c["name"] for c in seeded["gates"]] == ["Azorius Gate"]
+
+
+def test_seed_cycle_siblings_matches_by_collector_number_when_slot_id_missing() -> None:
+    """An older card without ``slot_id`` still matches via collector_number."""
+    legacy = _filled_card("001", "Azorius Gate", slot_id=None)
+    seeded = cg.seed_cycle_siblings({"gates": ["001", "002"]}, {"002"}, [legacy])
+    assert [c["name"] for c in seeded["gates"]] == ["Azorius Gate"]
+
+
+def test_partial_cycle_regen_lone_member_keeps_cycle_and_threads_filled_siblings() -> None:
+    """End-to-end mirror of the regen-bounce flow: a 3-member family with one
+    flagged member. The full-listing audit confirms the whole family, so the
+    lone unfilled member keeps its cycle_id + template (CYCLE MEMBER fires),
+    batches under the family key, and its prompt threads the two filled
+    siblings' actual cards. Fails before the fix: the unfilled-only audit saw
+    one member, couldn't confirm the family, and reconcile cleared the slot's
+    cycle_id — ordinary generation, no template, no siblings."""
+    flagged = _slot("002", cycle_id="gates", regen_reason="too strong")
+    unfilled = [flagged]
+    # The audit read the FULL listing (001-003), so the family confirmed whole.
+    confirmed = {"gates": ["001", "002", "003"]}
+
+    reconcile_cycle_membership(unfilled, confirmed)
+    _stamp_cycle_templates(unfilled, {"gates": "A guild gate."})
+    assert flagged["cycle_id"] == "gates"
+    assert flagged["cycle_template"] == "A guild gate."
+    assert "CYCLE MEMBER" in _cycle_note(flagged)
+
+    # Batching: filled member ids absent from the unfilled list are skipped;
+    # the lone member still batches under its family.
+    batches = group_slots_into_batches(unfilled, confirmed_cycles=confirmed, batch_size=1)
+    assert [[s["slot_id"] for s in b] for b in batches] == [["002"]]
+
+    # Sibling pre-seed + the loop's lookup (same condition as generate_set).
+    seeded = cg.seed_cycle_siblings(
+        confirmed,
+        {s["slot_id"] for s in unfilled},
+        [_filled_card("001", "Azorius Gate"), _filled_card("003", "Dimir Gate")],
+    )
+    batch_cycle_ids = {s.get("cycle_id") for s in batches[0]}
+    assert batch_cycle_ids == {"gates"}
+    siblings_for_batch = list(seeded["gates"])
+    assert [c["name"] for c in siblings_for_batch] == ["Azorius Gate", "Dimir Gate"]
+
+    # And the prompt actually renders them as the mirroring block.
+    block = format_cycle_siblings(siblings_for_batch)
+    assert "SIBLING CYCLE MEMBERS" in block
+    assert "Azorius Gate" in block and "Dimir Gate" in block
+
+
+def test_dropped_slot_guarantee_holds_with_full_listing_audit() -> None:
+    """The 6a285a7e guarantee survives the full-listing audit: a flagged slot
+    the audit dropped from every family (its filled siblings confirmed without
+    it) is generated as ordinary — cycle_id cleared, no template, no note."""
+    flagged = _slot("002", cycle_id="gates", cycle_template="A guild gate.")
+    unfilled = [flagged]
+    # Audit saw 001-003 but confirmed the family WITHOUT the flagged member.
+    confirmed = {"gates": ["001", "003"]}
+
+    reconcile_cycle_membership(unfilled, confirmed)
+    _stamp_cycle_templates(unfilled, {"gates": "A guild gate."})
+
+    assert flagged["cycle_id"] is None
+    assert "cycle_template" not in flagged
+    assert _cycle_note(flagged) == ""
+    # It batches as ordinary, and the family's sibling list never receives it.
+    batches = group_slots_into_batches(unfilled, confirmed_cycles=confirmed, batch_size=1)
+    assert [[s["slot_id"] for s in b] for b in batches] == [["002"]]
+    assert {s.get("cycle_id") for s in batches[0]} == {None}
 
 
 # ---------------------------------------------------------------------------

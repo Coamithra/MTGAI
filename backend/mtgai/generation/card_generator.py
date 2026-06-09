@@ -264,6 +264,11 @@ def reconcile_cycle_membership(
       — so it is generated as an ordinary card with no cycle prompt and is never
       threaded into a real family's sibling context.
 
+    ``confirmed_cycles`` may reference slot_ids outside ``slots`` (the audit
+    reads the full skeleton listing, so a partially-regenerated family's filled
+    members appear in its membership); only the slots in ``slots`` are
+    re-stamped.
+
     Reconciles only ``cycle_id`` (membership). The caller re-stamps
     ``cycle_template`` off the reconciled ``cycle_id`` immediately after, so a
     dropped slot's stale template and an emergent family's mismatched seed
@@ -283,6 +288,39 @@ def reconcile_cycle_membership(
             slot["cycle_id"] = None
 
 
+def seed_cycle_siblings(
+    confirmed_cycles: dict[str, list[str]],
+    unfilled_ids: set[str],
+    existing_cards: list,
+) -> dict[str, list[dict]]:
+    """Build the initial per-cycle sibling lists, pre-seeded with filled members.
+
+    On a review→regen bounce (or a resumed run) a confirmed family can have
+    members that are already generated and on disk — only the flagged/unfilled
+    ones re-enter the batch loop. Those filled members' actual cards are the
+    family the regenerated member must mirror, so seed them into the cycle's
+    sibling list (in confirmed-member order) — the regen prompt then carries
+    the explicit "SIBLING CYCLE MEMBERS" block instead of relying on the
+    generic existing-cards context.
+
+    On a first run every member is unfilled, so every list seeds empty —
+    identical to the previous ``{cid: []}`` initialisation.
+    """
+    card_by_slot: dict[str, dict] = {}
+    for card in existing_cards:
+        key = getattr(card, "slot_id", None) or getattr(card, "collector_number", None)
+        if key and key not in card_by_slot:
+            card_by_slot[key] = card.model_dump()
+    return {
+        cid: [
+            card_by_slot[sid]
+            for sid in member_ids
+            if sid not in unfilled_ids and sid in card_by_slot
+        ]
+        for cid, member_ids in confirmed_cycles.items()
+    }
+
+
 def group_slots_into_batches(
     slots: list[dict],
     confirmed_cycles: dict[str, list[str]] | None = None,
@@ -299,10 +337,12 @@ def group_slots_into_batches(
     families the cycle-sort pass confirmed by reading each member's
     ``tweaked_text``. Each confirmed family becomes its own batch (split into
     ordered sub-batches when oversized, so the card-gen loop can thread already-
-    generated members into later sub-batches as siblings). Slots not in any
-    confirmed family — including those whose seed ``cycle_id`` lost membership
-    in the audit — are batched in deterministic ``slot_id`` order, chunked at
-    ``batch_size``. No colour batching: the relabel can swing colour, so the
+    generated members into later sub-batches as siblings). Member slot_ids not
+    present in ``slots`` (a partially-regenerated family's already-filled
+    members — the audit reads the full skeleton listing) are skipped. Slots not
+    in any confirmed family — including those whose seed ``cycle_id`` lost
+    membership in the audit — are batched in deterministic ``slot_id`` order,
+    chunked at ``batch_size``. No colour batching: the relabel can swing colour, so the
     seed colour groups by the *seed*, not the card's actual colour.
 
     ``confirmed_cycles=None`` means "skip cycle batching" — used by dry runs
@@ -1434,9 +1474,22 @@ def generate_set(
     else:
         from mtgai.generation.slot_grouper import find_cycle_families
 
-        logger.info("Running cycle-sort on %d unfilled slots...", len(unfilled))
+        # The audit reads the FULL eligible listing (filled + unfilled), not just
+        # the slots being generated this run: on a review->regen bounce only a
+        # subset of a cycle's members may be flagged, and an unfilled-only
+        # listing would show the audit <2 members of that family — making it
+        # unconfirmable, so the lone regen member would lose its cycle_id (and
+        # with it the template, CYCLE MEMBER note, and sibling context). With
+        # the full listing the family confirms and the reconciliation below
+        # keeps the flagged member in it. On a first run unfilled == all_slots,
+        # so this is identical to auditing the unfilled list.
+        logger.info(
+            "Running cycle-sort on %d slots (%d unfilled)...",
+            len(all_slots),
+            len(unfilled),
+        )
         confirmed_cycles = find_cycle_families(
-            slots=unfilled,
+            slots=all_slots,
             model=active_model,
             log_dir=log_dir,
         )
@@ -1504,12 +1557,18 @@ def generate_set(
     cancelled = False
     start_time = time.time()
 
-    # Per-cycle siblings collected during THIS run. When an oversized cycle is
-    # split into ordered sub-batches, each later sub-batch's prompt gets the
-    # prior members so the family is designed with parallel structure — stronger
-    # than the generic existing-cards "don't duplicate" framing. Keyed by the
-    # confirmed cycle's id; only confirmed cycles populate it.
-    cycle_siblings_by_id: dict[str, list[dict]] = {cid: [] for cid in confirmed_cycles}
+    # Per-cycle siblings. When an oversized cycle is split into ordered
+    # sub-batches, each later sub-batch's prompt gets the prior members so the
+    # family is designed with parallel structure — stronger than the generic
+    # existing-cards "don't duplicate" framing. Keyed by the confirmed cycle's
+    # id; only confirmed cycles populate it. Pre-seeded with each family's
+    # already-filled members (regen bounce / resume) so a lone regenerated
+    # member designs against its real, on-disk siblings.
+    cycle_siblings_by_id = seed_cycle_siblings(
+        confirmed_cycles,
+        {s["slot_id"] for s in unfilled},
+        existing_cards,
+    )
 
     for batch_idx, batch in enumerate(batches, 1):
         # Honor a Cancel from the progress strip (→ ai_lock.request_cancel()).
