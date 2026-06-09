@@ -9,25 +9,26 @@ Card 6a2881cd — Frame polish, step 1: Crown all legendary permanents, not just
 - [x] Create worktree and branch
 
 ## Phase 2: Research
-- [ ] Read card_renderer.py crown gate + _load_legendary_crown
-- [ ] Confirm crown assets cover artifact/land/gold/pairs
-- [ ] Check existing crown tests
+- [x] Read card_renderer.py crown gate + _load_legendary_crown
+- [x] Confirm crown assets cover artifact/land/gold/pairs
+- [x] Check existing crown tests
 
 ## Phase 3: Design
-- [ ] Trivial — drop the `and creature` clause; no plan doc needed (card IS the plan)
+- [x] Trivial — drop the `and creature` clause; no plan doc needed (card IS the plan)
 
 ## Phase 4: Implement
-- [ ] Drop the creature gate in render_card
-- [ ] Tests: legendary artifact + legendary enchantment get crown; non-legendary unaffected
+- [x] Drop the creature gate in render_card (planeswalkers stay crownless per real frames)
+- [x] Tests: legendary artifact/enchantment/land/sorcery get crown; creature keeps it;
+      planeswalker excluded; non-legendary stable
 
 ## Phase 5: Verify
-- [ ] ruff check + format
-- [ ] pytest
-- [ ] Eyeball one rendered legendary non-creature PNG
+- [x] ruff check + format
+- [x] pytest (full suite green; red-test check confirmed old gate fails new cases)
+- [x] Eyeball rendered legendary artifact + enchantment PNGs
 
 ## Phase 6: Review & Ship
-- [ ] Commit + push
-- [ ] /review, fix findings
+- [x] Commit + push
+- [x] /review, fix findings (planeswalker exclusion + boundary tests; tracker ticked)
 - [ ] Pull master, re-test
 - [ ] PR + self-merge
 - [ ] Clean up worktree/branch, delete tracker

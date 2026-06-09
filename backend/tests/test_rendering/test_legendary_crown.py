@@ -2,9 +2,10 @@
 
 ``render_card`` used to gate the crown on ``"legendary" in type AND "creature" in type``,
 so a legendary artifact/enchantment/land rendered crownless. Real M15+ frames crown every
-legendary permanent. These tests render each card type with and without the Legendary
-supertype and assert the crown zone (above the art window) differs — the crown underlay +
-overlay are the only compositing difference there for an otherwise-identical card.
+legendary card except planeswalkers (whose frame has no crown). These tests render each
+card type with and without the Legendary supertype and assert the crown zone (above the
+art window) differs — the crown underlay + overlay are the only compositing difference
+there for an otherwise-identical card.
 """
 
 from __future__ import annotations
@@ -46,6 +47,7 @@ def _crown_band(renderer: CardRenderer, type_line: str, identity: list[str]):
         ("Enchantment", ["W"]),
         ("Land", []),
         ("Creature — Elf", ["G"]),  # the previously-crowned case must keep its crown
+        ("Sorcery", ["W"]),  # Dominaria legendary sorceries carry the crown
     ],
 )
 def test_legendary_permanent_renders_with_crown(open_project, type_line, identity):
@@ -54,6 +56,15 @@ def test_legendary_permanent_renders_with_crown(open_project, type_line, identit
     legendary = _crown_band(r, f"Legendary {type_line}", identity)
     diff = ImageChops.difference(plain, legendary)
     assert diff.getbbox() is not None, f"no crown rendered for 'Legendary {type_line}'"
+
+
+def test_legendary_planeswalker_renders_without_crown(open_project):
+    # Real planeswalker frames have no crown; until the dedicated planeswalker
+    # frame template exists they render on the generic frame, still crownless.
+    r = CardRenderer()
+    plain = _crown_band(r, "Planeswalker — Test", ["U"])
+    legendary = _crown_band(r, "Legendary Planeswalker — Test", ["U"])
+    assert ImageChops.difference(plain, legendary).getbbox() is None
 
 
 def test_non_legendary_renders_are_stable(open_project):
