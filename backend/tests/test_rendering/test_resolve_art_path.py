@@ -20,7 +20,7 @@ def _open_project(tmp_path):
     )
 
 
-def _write_card(tmp_path, cn: str, name: str, art_path: str | None = None):
+def _make_card(cn: str, name: str, art_path: str | None = None):
     from mtgai.models.card import Card
 
     card = Card(name=name, type_line="Creature", art_prompt="a knight")
@@ -66,7 +66,7 @@ def test_resolve_art_path_prefers_card_art_path_over_selection_log(tmp_path):
         )
 
         # User overrode to v2 — stamped onto art_path, but the log was NOT rewritten.
-        card = _write_card(tmp_path, cn, name, art_path=f"art/{slug}_v2.png")
+        card = _make_card(cn, name, art_path=f"art/{slug}_v2.png")
 
         resolved = CardRenderer().resolve_art_path(card)
         assert resolved is not None
@@ -95,7 +95,7 @@ def test_resolve_art_path_falls_back_to_selection_log_without_art_path(tmp_path)
             encoding="utf-8",
         )
 
-        card = _write_card(tmp_path, cn, name)  # no art_path stamped
+        card = _make_card(cn, name)  # no art_path stamped
 
         resolved = CardRenderer().resolve_art_path(card)
         assert resolved == tmp_path / "art" / f"{slug}_v2.png"
