@@ -2667,6 +2667,72 @@ def review_set(
     return reviews
 
 
+def _unfixable_reason(issues: list[ReviewIssue]) -> str:
+    """The regen reason for a card left REVISE after the iteration budget.
+
+    Shared by the in-run path and the resume-recovery path below so a flagged
+    card carries the same reason whether its REVISE verdict was produced this run
+    or read back from a persisted ``reviews/<cn>.json``.
+    """
+    problems = "; ".join(i.description for i in issues if i.description)
+    return "Design review could not fix this card after revising: " + (
+        problems or "still rated REVISE after the iteration budget."
+    )
+
+
+def _persisted_revise_unfixable(set_dir: Path, reviewed_this_run: set[str]) -> list[dict]:
+    """Recover persisted-REVISE cards the resume filter skipped this run.
+
+    ``review_set`` records every reviewed card's content signature regardless of
+    verdict, and a resume skips any card still present at that signature — so a
+    card the *earlier* (cancelled/crashed) partial run rated final REVISE never
+    re-enters the current run's ``reviews`` and would otherwise never be flagged
+    for regen, silently shipping as if approved. This reads back each such card's
+    persisted verdict and re-surfaces it as unfixable.
+
+    A persisted REVISE is only re-surfaced when (a) the current run did NOT review
+    that card, and (b) the card is still present on disk *at the signature it was
+    reviewed under* — the same gate that caused the resume to skip it. That gate
+    guarantees the persisted verdict is not stale: if the card had been
+    regenerated since, its signature would differ and the current run would have
+    re-reviewed it (overwriting the persisted json).
+    """
+    reviews_dir = set_dir / "reviews"
+    if not reviews_dir.exists():
+        return []
+    reviewed_sigs = load_reviewed(set_dir)
+    cards_dir = set_dir / "cards"
+    recovered: list[dict] = []
+    for rp in sorted(reviews_dir.glob("*.json")):
+        cn = rp.stem
+        if cn in reviewed_this_run:
+            continue
+        try:
+            result = CardReviewResult.model_validate_json(rp.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if result.final_verdict != "REVISE":
+            continue
+        # Confirm the card is still on disk at the signature it was reviewed under
+        # (the resume-skip gate), so we never flag a stale persisted verdict for a
+        # card that was edited/regenerated but not yet re-reviewed.
+        recorded_sig = reviewed_sigs.get(cn)
+        if not recorded_sig:
+            continue
+        live_sig = None
+        if cards_dir.exists():
+            for cp in sorted(cards_dir.glob(f"{cn}_*.json")):
+                try:
+                    live_sig = card_signature(json.loads(cp.read_text(encoding="utf-8")))
+                except (OSError, json.JSONDecodeError):
+                    live_sig = None
+                break
+        if live_sig != recorded_sig:
+            continue
+        recovered.append({"slot_id": cn, "reason": _unfixable_reason(result.final_issues)})
+    return recovered
+
+
 def review_all_cards(
     *,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
@@ -2706,11 +2772,32 @@ def review_all_cards(
     for r in reviews:
         if r.final_verdict != "REVISE":
             continue
-        problems = "; ".join(i.description for i in r.final_issues if i.description)
-        reason = "Design review could not fix this card after revising: " + (
-            problems or "still rated REVISE after the iteration budget."
+        unfixable.append(
+            {"slot_id": r.collector_number, "reason": _unfixable_reason(r.final_issues)}
         )
-        unfixable.append({"slot_id": r.collector_number, "reason": reason})
+
+    # Recover persisted-REVISE cards a resume skipped: an earlier cancelled/crashed
+    # partial run can have rated a card final REVISE and recorded its signature, so
+    # the resume filter skips it and it never re-enters ``reviews`` above — without
+    # this it would never be flagged for regen and would ship as if approved.
+    # Skipped on a cancelled run: the unfixable list is treated as partial by the
+    # runner and not flagged from at all (see run_ai_review).
+    if not cancelled:
+        reviewed_cns = {r.collector_number for r in reviews}
+        try:
+            from mtgai.io.asset_paths import set_artifact_dir
+
+            recovered = _persisted_revise_unfixable(set_artifact_dir(), reviewed_cns)
+        except Exception:
+            logger.exception("Failed to recover persisted-REVISE cards for flagging")
+            recovered = []
+        if recovered:
+            logger.info(
+                "Recovered %d resume-skipped REVISE card(s) for regen flagging: %s",
+                len(recovered),
+                ", ".join(u["slot_id"] for u in recovered),
+            )
+            unfixable.extend(recovered)
 
     summary = (
         f"AI review complete: {reviewed} cards reviewed, {revised} revised, "

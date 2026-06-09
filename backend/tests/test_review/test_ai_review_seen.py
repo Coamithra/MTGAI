@@ -172,3 +172,96 @@ def test_card_filter_bypasses_the_skip(project: Path):
     # An explicit single-card review runs even though the card is unchanged.
     reviews = ai_review.review_set(card_filter="W-C-01")
     assert [r.collector_number for r in reviews] == ["W-C-01"]
+
+
+# ----------------------------------------------------------------------
+# Resume recovery of persisted-REVISE cards (card 6a285a62)
+# ----------------------------------------------------------------------
+
+
+def _seed_partial_revise_run(set_dir: Path, cn: str) -> None:
+    """Simulate a cancelled/crashed partial run that rated ``cn`` final REVISE.
+
+    The earlier run reviewed the card (persisting ``reviews/<cn>.json`` with a
+    REVISE verdict) and recorded its content signature — so a resume's skip filter
+    will pass over it. The card sits on disk at that exact signature.
+    """
+    import json
+
+    from mtgai.io.card_io import save_card
+
+    card = _make_card(cn)
+    save_card(card, set_dir=set_dir)
+    # Sign the on-disk content (what the resume filter + recovery both read) so
+    # the recorded signature matches byte-for-byte regardless of save-time
+    # normalization.
+    on_disk = next((set_dir / "cards").glob(f"{cn}_*.json"))
+    sig = ai_review.card_signature(json.loads(on_disk.read_text(encoding="utf-8")))
+
+    result = ai_review.CardReviewResult(
+        collector_number=cn,
+        card_name=card.name,
+        rarity=card.rarity,
+        review_tier="single",
+        original_card=card.model_dump(mode="json"),
+        final_verdict="REVISE",
+        final_issues=[
+            ai_review.ReviewIssue(
+                category="playability", severity="major", description="unfixable nonsense"
+            )
+        ],
+    )
+    reviews_dir = set_dir / "reviews"
+    reviews_dir.mkdir(parents=True, exist_ok=True)
+    (reviews_dir / f"{cn}.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
+    ai_review.record_reviewed(set_dir, cn, sig)
+
+
+def test_resume_flags_persisted_revise_card_skipped_by_filter(project: Path):
+    """A card the earlier partial run rated final REVISE — skipped by the resume
+    filter, so never re-entering this run's ``reviews`` — must still surface in the
+    runner's ``unfixable`` list so it gets flagged for regen instead of shipping as
+    if approved. Without the recovery this list is empty (the bug)."""
+    # Earlier run: W-C-01 rated REVISE (recorded + persisted). Fresh cards added.
+    _seed_partial_revise_run(project, "W-C-01")
+    from mtgai.io.card_io import save_card
+
+    save_card(_make_card("W-C-02"), set_dir=project)
+
+    result = ai_review.review_all_cards()
+
+    # The resume reviews only the not-yet-seen card; W-C-01 is skipped.
+    assert result["reviewed"] == 1
+    # ...but its persisted REVISE is recovered into unfixable for flagging.
+    assert {u["slot_id"] for u in result["unfixable"]} == {"W-C-01"}
+    assert "unfixable nonsense" in result["unfixable"][0]["reason"]
+
+
+def test_resume_does_not_flag_persisted_revise_for_changed_card(project: Path):
+    """A persisted REVISE is recovered only when the card is still on disk at the
+    signature it was reviewed under. If the card was regenerated since (new
+    signature), the resume re-reviews it (here -> OK) and the stale persisted
+    verdict must NOT be flagged."""
+    _seed_partial_revise_run(project, "W-C-01")
+    from mtgai.io.card_io import save_card
+
+    # card_gen regenerated W-C-01 since the partial run -> new content/signature.
+    save_card(_make_card("W-C-01", oracle="Draw a card."), set_dir=project)
+
+    result = ai_review.review_all_cards()
+
+    # The regenerated card is re-reviewed this run (stub -> OK), not flagged from
+    # the stale persisted REVISE.
+    assert result["reviewed"] == 1
+    assert result["unfixable"] == []
+
+
+def test_resume_does_not_flag_persisted_revise_on_cancel(project: Path):
+    """On a cancelled run the unfixable list is partial and the runner ignores it,
+    so the recovery is suppressed too (no flagging from a half-finished resume)."""
+    _seed_partial_revise_run(project, "W-C-01")
+
+    result = ai_review.review_all_cards(should_cancel=lambda: True)
+
+    assert result["cancelled"] is True
+    assert result["unfixable"] == []
