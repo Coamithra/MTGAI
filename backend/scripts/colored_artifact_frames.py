@@ -5,18 +5,26 @@ Two methods (full writeup in ``learnings/colored-artifact-frames.md``):
 * ``blend``  (Option A) — alpha-blend the gray ``m15FrameA`` with each mono
   color frame at a fixed opacity. Stays 100% in our native 2010x2814 Card
   Conjurer geometry, so nothing can misalign. Ships fast, not pixel-real.
-* ``median`` (Option D) — per-pixel MEDIAN stack of real Scryfall artifact
-  cards per color: the static frame survives while varying art/text is
-  out-voted. Resized onto our canvas and the art window punched with
-  ``m15FrameA``'s alpha. Pixel-real frame, BUT Scryfall geometry
-  (745x1040, aspect 0.7163) differs from ours (2010x2814, aspect 0.7143),
-  so interior elements (pinlines) can sit a few px off our masks.
+* ``median`` (Option D) — the **mature empirical-stack** pipeline ported from
+  ``generate_two_color_frames.py`` (which shipped the two-color split frames):
+  per-pixel **p80 percentile** stack of real Scryfall artifact cards per color
+  (the static frame survives while varying art/text is out-voted; a high
+  percentile biases toward the bright frame so dark ghost text is rejected
+  better than a 50th-percentile median). The contested zones are then cleaned:
+  the title/type/rules/bottom **text bars are rebuilt from the Option-A blend**
+  (text-free, artifact-tinted, in our exact geometry), the baked-in P/T box is
+  erased, and the silhouette + transparent art window are borrowed from
+  ``m15FrameA``. The P/T overlay is cropped from the stack (authentic tint),
+  masked to ``m15PTA``. Net: authentic stacked body/pinline/colour + clean bars.
+
+  Caveat the comparison exists to judge: Scryfall PNGs are 745x1040 (aspect
+  0.7163) vs our 2010x2814 (0.7143) — a ~0.3% squash — and the stacked body's
+  pinlines rely on that resize lining up with our masks (no phase-correlation
+  registration). If the body misregisters, ``compare`` will show it.
 
 Both methods write ``m15Frame{AW,AU,AB,AR,AG,AM}.png`` plus matching
-``m15PT*`` boxes (the P/T box is always the geometry-safe blend — its tint
-is uniform and it is not the contested element). Mono colors use the
-method; ``AM`` (multicolor artifact) is always a blend (too varied to median
-cleanly).
+``m15PT*`` boxes. Mono colors + ``AM`` (multicolor artifact, ``c=m``) use the
+method; a color with too few real cards to stack falls back to the blend.
 
 Subcommands::
 
@@ -46,7 +54,7 @@ from PIL import Image
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FRAMES_DIR = PROJECT_ROOT / "assets" / "frames" / "m15"
 OUTPUT_ROOT = PROJECT_ROOT / "output"
-CACHE_DIR = OUTPUT_ROOT / "scryfall-frame-cache"
+CACHE_DIR = OUTPUT_ROOT / ".cache" / "colored-artifact-frames"
 
 MONO_COLORS = ["W", "U", "B", "R", "G"]
 ARTIFACT_KEYS = {"W": "AW", "U": "AU", "B": "AB", "R": "AR", "G": "AG"}
@@ -54,8 +62,21 @@ MULTICOLOR_KEY = "AM"
 
 # Mono color frame the blend tints toward; AM tints toward gold (M).
 DEFAULT_BLEND_ALPHA = 0.45
+
+# Native frame geometry (kept in sync with rendering/layout.py).
+FRAME_W, FRAME_H = 2010, 2814
+TARGET_GEOM = (FRAME_W, FRAME_H)
 SCRYFALL_GEOM = (745, 1040)
-TARGET_GEOM = (2010, 2814)
+PT_BOX = (1522, 2490, 1900, 2696)  # NATIVE_PT_BOX (left, top, right, bottom)
+PT_OVERLAY_SIZE = (377, 206)  # m15PT*.png dimensions
+BOTTOM_STRIP_TOP = 2596  # just below NATIVE_TEXT_BOX.bottom (2595) — collector strip
+
+# Per-pixel percentile (not the 50th-percentile median): card text/watermarks are
+# *dark* on a *bright* frame, so biasing toward the brighter value rejects ghost
+# text far better than the median while keeping the frame colour. 80 matches the
+# shipped two-color frames (see generate_two_color_frames.py / learnings doc).
+STACK_PERCENTILE = 80.0
+MIN_STACK = 8  # too few real cards to out-vote text → fall back to the blend
 
 _UA = {"User-Agent": "MTGAI-frame-research/1.0 (local research tool)", "Accept": "application/json"}
 
@@ -65,6 +86,10 @@ _UA = {"User-Agent": "MTGAI-frame-research/1.0 (local research tool)", "Accept":
 # ---------------------------------------------------------------------------
 def _load(name: str) -> Image.Image:
     return Image.open(FRAMES_DIR / f"{name}.png").convert("RGBA")
+
+
+def _mask_alpha(name: str) -> Image.Image:
+    return Image.open(FRAMES_DIR / f"{name}.png").convert("RGBA").split()[3]
 
 
 def build_blend_frame(color: str, alpha: float = DEFAULT_BLEND_ALPHA) -> Image.Image:
@@ -87,12 +112,12 @@ def build_blend_pt(color: str, alpha: float = DEFAULT_BLEND_ALPHA) -> Image.Imag
 
 
 # ---------------------------------------------------------------------------
-# Option D — Scryfall median stack
+# Option D — mature empirical percentile-stack (ported from two-color frames)
 # ---------------------------------------------------------------------------
-def _scryfall_search(query: str) -> list[dict]:
+def _scryfall_search(query: str, unique: str = "art") -> list[dict]:
     """Run a Scryfall search, paginating through all result pages."""
     url = "https://api.scryfall.com/cards/search?" + urllib.parse.urlencode(
-        {"q": query, "unique": "prints"}
+        {"q": query, "unique": unique, "order": "released", "dir": "asc"}
     )
     out: list[dict] = []
     while url:
@@ -105,28 +130,32 @@ def _scryfall_search(query: str) -> list[dict]:
     return out
 
 
-def fetch_artifact_pngs(color: str, n: int, cache_dir: Path) -> list[Path]:
-    """Download up to ``n`` real mono-color artifact card PNGs for a color.
+def fetch_artifact_pngs(scry_color: str, n: int, refresh: bool = False) -> list[Path]:
+    """Download up to ``n`` real M15 artifact card PNGs for a Scryfall color token.
 
-    Cached by Scryfall id under ``cache_dir`` so re-runs don't re-fetch.
+    ``scry_color`` is ``w``/``u``/``b``/``r``/``g`` (exact mono) or ``m``
+    (multicolor). Vehicles are excluded — they carry a visibly different darker
+    frame that would muddy the stack. ``unique:art`` keeps one printing per art
+    so a heavily-reprinted card's art can't dominate (worse ghosting). Cached by
+    Scryfall id under ``CACHE_DIR/<scry_color>``.
     """
     query = (
-        f"frame:2015 t:artifact c={color.lower()} -t:land "
+        f"frame:2015 t:artifact c={scry_color} -t:land -t:vehicle "
         "-is:promo -is:funny -border:borderless -is:showcase -is:extended "
-        "-is:textless game:paper"
+        "-is:textless -is:digital game:paper"
     )
-    cards = _scryfall_search(query)
+    cards = _scryfall_search(query, unique="art")
+    cache_dir = CACHE_DIR / scry_color
     cache_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
     for card in cards:
         if len(paths) >= n:
             break
-        img_uris = card.get("image_uris") or {}
-        png_url = img_uris.get("png")
+        png_url = (card.get("image_uris") or {}).get("png")
         if not png_url:  # double-faced / missing — skip
             continue
         dest = cache_dir / f"{card['id']}.png"
-        if not dest.is_file():
+        if refresh or not dest.is_file():
             req = urllib.request.Request(png_url, headers={"User-Agent": _UA["User-Agent"]})
             try:
                 with urllib.request.urlopen(req, timeout=30) as r:
@@ -140,55 +169,121 @@ def fetch_artifact_pngs(color: str, n: int, cache_dir: Path) -> list[Path]:
     return paths
 
 
-def median_stack(pngs: list[Path]) -> Image.Image:
-    """Per-pixel median of real card PNGs -> the static frame (RGB)."""
-    stack = np.empty((len(pngs), SCRYFALL_GEOM[1], SCRYFALL_GEOM[0], 3), dtype=np.uint8)
-    for i, p in enumerate(pngs):
+def _stack_percentile(paths: list[Path]) -> Image.Image:
+    """Per-pixel p80 of all card PNGs, scaled to our native frame size (RGB)."""
+    stack = np.empty((len(paths), SCRYFALL_GEOM[1], SCRYFALL_GEOM[0], 3), dtype=np.uint8)
+    for i, p in enumerate(paths):
         img = Image.open(p).convert("RGB")
         if img.size != SCRYFALL_GEOM:
             img = img.resize(SCRYFALL_GEOM, Image.LANCZOS)
         stack[i] = np.asarray(img)
-    median = np.median(stack, axis=0).astype(np.uint8)
-    return Image.fromarray(median, "RGB")
+    blended = np.percentile(stack, STACK_PERCENTILE, axis=0).astype(np.uint8)
+    return Image.fromarray(blended, "RGB").resize(TARGET_GEOM, Image.LANCZOS)
 
 
-def build_median_frame(color: str, n: int, cache_dir: Path) -> tuple[Image.Image, int]:
-    """Median-stack real Scryfall artifacts, fit to our canvas, punch art hole.
+def _erase_pt_box(frame_rgb: Image.Image) -> Image.Image:
+    """Paint over the baked-in P/T box with the clean text-box strip to its left.
 
-    The median frame is resized (non-proportional) to 2010x2814 so its outer
-    bounds match ours, then given ``m15FrameA``'s alpha channel — reusing our
-    exact card silhouette + art-window hole so art still composites correctly.
-    Any interior misalignment shows as a thin ring at the art window (honest).
+    The text box + bottom frame border are horizontally translation-invariant, so
+    copying an equal-width strip from immediately left of the P/T box extends the
+    clean background over it — giving non-creature artifacts a clean text box
+    (creatures get the separate P/T overlay on top).
     """
-    pngs = fetch_artifact_pngs(color, n, cache_dir)
-    if not pngs:
-        raise RuntimeError(f"No Scryfall artifacts found for color {color}")
-    frame = median_stack(pngs).resize(TARGET_GEOM, Image.LANCZOS).convert("RGBA")
-    frame.putalpha(_load("m15FrameA").split()[3])
-    return frame, len(pngs)
+    left, top, right, bottom = PT_BOX
+    width = right - left
+    src_left = left - width
+    if src_left < 0:
+        return frame_rgb
+    out = frame_rgb.copy()
+    strip = out.crop((src_left, top, left, bottom))
+    out.paste(strip, (left, top))
+    return out
+
+
+def _blend_bars(frame_rgb: Image.Image, tint: str) -> Image.Image:
+    """Replace title/type/rules/bottom text zones with the clean Option-A blend.
+
+    The real-card stack leaves shared ghost text in the flat text bars (card
+    names, "Artifact Creature —", collector line) that even a high percentile
+    can't out-vote, and averaged rules-text in the box. The Option-A blend is
+    text-free, artifact-tinted, and already in our exact 2010x2814 geometry, so
+    compositing it into those mask zones erases the ghosts while keeping the
+    stacked body/pinline/border/colour. ``tint`` is the mono letter (W/U/B/R/G)
+    or ``M`` for the gold multicolor blend.
+    """
+    blend = build_blend_frame(tint).convert("RGB")
+    out = frame_rgb.copy()
+    for mask_name in ("m15MaskTitle", "m15MaskType", "m15MaskRules"):
+        out.paste(blend, (0, 0), _mask_alpha(mask_name))
+    bottom = blend.crop((0, BOTTOM_STRIP_TOP, FRAME_W, FRAME_H))
+    out.paste(bottom, (0, BOTTOM_STRIP_TOP))
+    return out
+
+
+def _apply_silhouette(frame_rgb: Image.Image) -> Image.Image:
+    """Clip to m15FrameA's alpha (exact card outline + transparent art window)."""
+    out = frame_rgb.convert("RGBA")
+    out.putalpha(_load("m15FrameA").split()[3])
+    return out
+
+
+def _build_pt_box(frame_rgb: Image.Image) -> Image.Image:
+    """Crop the P/T box from the stacked frame, masked to m15PTA's shape.
+
+    The averaged P/T digits vary across cards so they wash toward the box
+    background, leaving the authentic tinted artifact P/T box.
+    """
+    crop = frame_rgb.crop(PT_BOX).resize(PT_OVERLAY_SIZE, Image.LANCZOS).convert("RGBA")
+    pt_template = _load("m15PTA")
+    if pt_template.size != PT_OVERLAY_SIZE:
+        pt_template = pt_template.resize(PT_OVERLAY_SIZE, Image.LANCZOS)
+    crop.putalpha(pt_template.split()[3])
+    return crop
+
+
+def build_stack_frame(
+    tint: str, scry_color: str, n: int, refresh: bool
+) -> tuple[Image.Image, Image.Image, int] | None:
+    """Stack real artifacts for one color → (frame RGBA, P/T RGBA, n_used).
+
+    Returns ``None`` when too few real cards exist to out-vote text (caller
+    falls back to the blend for that key).
+    """
+    paths = fetch_artifact_pngs(scry_color, n, refresh)
+    if len(paths) < MIN_STACK:
+        return None
+    stacked = _stack_percentile(paths)
+    pt_box = _build_pt_box(stacked)
+    body = _blend_bars(_erase_pt_box(stacked), tint)
+    frame = _apply_silhouette(body)
+    return frame, pt_box, len(paths)
 
 
 # ---------------------------------------------------------------------------
 # Writers
 # ---------------------------------------------------------------------------
-def write_variants(out_dir: Path, method: str, *, n: int, alpha: float) -> None:
+def write_variants(out_dir: Path, method: str, *, n: int, alpha: float, refresh: bool) -> None:
     """Build all colored-artifact frame + P/T assets into ``out_dir``."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    for color in MONO_COLORS:
-        key = ARTIFACT_KEYS[color]
+    # tint letter -> Scryfall color token; AM is multicolor (c=m).
+    targets = [(ARTIFACT_KEYS[c], c, c.lower()) for c in MONO_COLORS]
+    targets.append((MULTICOLOR_KEY, "M", "m"))
+    for key, tint, scry in targets:
         if method == "blend":
-            frame = build_blend_frame(color, alpha)
-            note = f"blend a={alpha}"
-        else:
-            frame, used = build_median_frame(color, n, CACHE_DIR)
-            note = f"median n={used}"
+            build_blend_frame(tint, alpha).save(out_dir / f"m15Frame{key}.png")
+            build_blend_pt(tint, alpha).save(out_dir / f"m15PT{key}.png")
+            print(f"  {key}: m15Frame{key}.png (blend a={alpha}) + m15PT{key}.png")
+            continue
+        result = build_stack_frame(tint, scry, n, refresh)
+        if result is None:
+            build_blend_frame(tint, alpha).save(out_dir / f"m15Frame{key}.png")
+            build_blend_pt(tint, alpha).save(out_dir / f"m15PT{key}.png")
+            print(f"  {key}: m15Frame{key}.png (blend fallback — too few cards) + m15PT{key}.png")
+            continue
+        frame, pt_box, used = result
         frame.save(out_dir / f"m15Frame{key}.png")
-        build_blend_pt(color, alpha).save(out_dir / f"m15PT{key}.png")
-        print(f"  {key}: m15Frame{key}.png ({note}) + m15PT{key}.png")
-    # AM (multicolor artifact) is always a gold blend.
-    build_blend_frame("M", alpha).save(out_dir / f"m15Frame{MULTICOLOR_KEY}.png")
-    build_blend_pt("M", alpha).save(out_dir / f"m15PT{MULTICOLOR_KEY}.png")
-    print(f"  {MULTICOLOR_KEY}: m15Frame{MULTICOLOR_KEY}.png (blend gold) + m15PT box")
+        pt_box.save(out_dir / f"m15PT{key}.png")
+        print(f"  {key}: m15Frame{key}.png (stack p{STACK_PERCENTILE:g} n={used}) + m15PT{key}.png")
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +328,7 @@ def _example_cards():
     return cards
 
 
-def compare(n: int, alpha: float) -> None:
+def compare(n: int, alpha: float, refresh: bool) -> None:
     import tempfile
 
     import mtgai.rendering.layout as layout_mod
@@ -259,7 +354,7 @@ def compare(n: int, alpha: float) -> None:
             staging = Path(tempfile.mkdtemp(prefix=f"frames-{method}-"))
             try:
                 shutil.copytree(FRAMES_DIR, staging, dirs_exist_ok=True)
-                write_variants(staging, method, n=n, alpha=alpha)
+                write_variants(staging, method, n=n, alpha=alpha, refresh=refresh)
 
                 layout_mod.FRAMES_DIR = staging
                 method_out = out_root / method
@@ -280,7 +375,7 @@ def compare(n: int, alpha: float) -> None:
 
     print(f"\nComparison renders in: {out_root}")
     print("  blend/   — Option A (geometry-safe alpha blend)")
-    print("  median/  — Option D (Scryfall median stack)")
+    print("  median/  — Option D (mature percentile stack)")
 
 
 # ---------------------------------------------------------------------------
@@ -293,19 +388,23 @@ def main() -> None:
     b = sub.add_parser("build", help="Build colored-artifact frames into an assets dir")
     b.add_argument("--method", choices=["blend", "median"], required=True)
     b.add_argument("--out", default=str(FRAMES_DIR), help="Output frames dir (default: assets)")
-    b.add_argument("--n", type=int, default=35, help="Cards per color to median-stack")
+    b.add_argument("--n", type=int, default=40, help="Cards per color to stack")
     b.add_argument("--alpha", type=float, default=DEFAULT_BLEND_ALPHA)
+    b.add_argument("--refresh", action="store_true", help="Re-download, ignore cache")
 
     c = sub.add_parser("compare", help="Render example cards with both methods")
-    c.add_argument("--n", type=int, default=35)
+    c.add_argument("--n", type=int, default=40)
     c.add_argument("--alpha", type=float, default=DEFAULT_BLEND_ALPHA)
+    c.add_argument("--refresh", action="store_true", help="Re-download, ignore cache")
 
     args = parser.parse_args()
     if args.cmd == "build":
         print(f"Building {args.method} frames -> {args.out}")
-        write_variants(Path(args.out), args.method, n=args.n, alpha=args.alpha)
+        write_variants(
+            Path(args.out), args.method, n=args.n, alpha=args.alpha, refresh=args.refresh
+        )
     elif args.cmd == "compare":
-        compare(args.n, args.alpha)
+        compare(args.n, args.alpha, args.refresh)
 
 
 if __name__ == "__main__":
