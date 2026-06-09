@@ -2097,7 +2097,14 @@ async def project_new(request: Request) -> JSONResponse:
             "success": True,
             "draft": {
                 "set_code": "",
-                "set_params": {"set_name": "", "set_size": 277, "mechanic_count": 3},
+                # Sizes come from the seeded SetParams defaults so the form and
+                # the conformance_context note (computed from the same seeded
+                # settings) can't drift; set_name starts blank (per-project).
+                "set_params": {
+                    "set_name": "",
+                    "set_size": seeded.set_params.set_size,
+                    "mechanic_count": seeded.set_params.mechanic_count,
+                },
                 "theme_input": {"kind": "none"},
                 "asset_folder": "",
                 "break_points": break_points,

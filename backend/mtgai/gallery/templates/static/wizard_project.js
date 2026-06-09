@@ -1451,10 +1451,12 @@
         W.toast(data.error || 'Save failed', 'error');
         return;
       }
-      // Refresh the conformance context warning (recomputed server-side from the
-      // new assignment); onLlmModelChange re-renders the models section after.
-      const body = await resp.json().catch(() => ({}));
-      if (body && body.conformance_context) local.data.conformance_context = body.conformance_context;
+      // Only an LLM assignment change can move the conformance context warning;
+      // refresh it from the recomputed blob so onLlmModelChange's re-render shows it.
+      if (kind === 'llm') {
+        const body = await resp.json().catch(() => ({}));
+        if (body && body.conformance_context) local.data.conformance_context = body.conformance_context;
+      }
       applyLocal();
       markDirty();
     } catch (err) {

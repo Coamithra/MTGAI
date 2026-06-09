@@ -61,8 +61,10 @@ def test_empty_set_fits():
 
 
 def test_small_window_does_not_fit(monkeypatch):
-    # Simulate a genuinely low-context base: a tiny window can't hold even a
-    # modest set's interaction batch, so the warning fires.
+    # No registry base today has a small enough window to trip the warning, so
+    # stub the window lookup to assert the budget arithmetic itself flips fits to
+    # False (projected > budget) — not the registry resolution, which the two
+    # tests above cover.
     monkeypatch.setattr(token_utils, "get_context_window", lambda _model: 8000)
     status = _settings(277).conformance_context_status()
     assert status["context_window"] == 8000
