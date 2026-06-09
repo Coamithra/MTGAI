@@ -105,11 +105,20 @@ async def _lifespan(application: FastAPI) -> AsyncGenerator[None]:
     ``MTGAI_SUPERVISED_CHILD=1``) a liveness heartbeat thread is started so
     a silent OS/native kill leaves a last-alive + VRAM breadcrumb on disk.
     No-op in a normal run.
+
+    On a supervised *restart* with ``--auto-resume`` (the supervisor sets
+    ``MTGAI_AUTO_RESUME=1`` on the restarted child), the unattended auto-resume
+    re-opens the last project and re-fires its FAILED stage so a long art run
+    finishes without a human re-opening + clicking Retry.
     """
     from mtgai.runtime import heartbeat
 
     if heartbeat.is_supervised_child():
         heartbeat.start_heartbeat()
+        from mtgai.review import auto_resume
+
+        if auto_resume.is_auto_resume_boot():
+            auto_resume.start_auto_resume()
     yield
 
 

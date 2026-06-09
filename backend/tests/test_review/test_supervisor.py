@@ -86,6 +86,47 @@ def test_child_marks_supervised_env(monkeypatch, tmp_path):
     assert env[supervisor.heartbeat.ENV_SUPERVISED_CHILD] == "1"
 
 
+def test_auto_resume_off_by_default(monkeypatch, tmp_path):
+    """Without --auto-resume no child is ever flagged for resume."""
+    spawned = _patch_common(monkeypatch, tmp_path, [0])
+    supervisor.run_supervised(port=8080)
+    _cmd, env = spawned[0]
+    assert supervisor.auto_resume.ENV_AUTO_RESUME not in env
+
+
+def test_auto_resume_flags_restart_not_first_spawn(monkeypatch, tmp_path):
+    """With auto-resume on, the first spawn is NOT flagged but a restart IS."""
+    times = iter(_slow_uptime_clock())
+    monkeypatch.setattr(supervisor, "datetime", _FrozenClock(times))
+    # Don't touch the real output dir when the supervisor clears session state.
+    monkeypatch.setattr(supervisor.auto_resume, "clear_last_project", lambda: None)
+    monkeypatch.setattr(supervisor.auto_resume, "clear_state", lambda: None)
+    spawned = _patch_common(monkeypatch, tmp_path, [-9, 0])
+
+    rc = supervisor.run_supervised(port=8080, auto_resume_enabled=True)
+
+    assert rc == 0
+    assert len(spawned) == 2
+    _, first_env = spawned[0]
+    _, restart_env = spawned[1]
+    assert supervisor.auto_resume.ENV_AUTO_RESUME not in first_env  # fresh launch
+    assert restart_env[supervisor.auto_resume.ENV_AUTO_RESUME] == "1"  # restart resumes
+
+
+def test_auto_resume_clears_session_state_on_start(monkeypatch, tmp_path):
+    """A fresh supervised session forgets a prior session's persisted project."""
+    cleared = []
+    monkeypatch.setattr(
+        supervisor.auto_resume, "clear_last_project", lambda: cleared.append("project")
+    )
+    monkeypatch.setattr(supervisor.auto_resume, "clear_state", lambda: cleared.append("state"))
+    _patch_common(monkeypatch, tmp_path, [0])
+
+    supervisor.run_supervised(port=8080, auto_resume_enabled=True)
+
+    assert set(cleared) == {"project", "state"}
+
+
 def test_crash_then_clean_exit_restarts_once(monkeypatch, tmp_path):
     # First child crashes (non-zero), gets restarted, second exits clean.
     # Both children "die slow" (uptime > _FAST_FAILURE_S) so it's not a boot loop.

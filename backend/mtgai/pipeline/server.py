@@ -287,6 +287,40 @@ _engine: PipelineEngine | None = None
 _engine_task: asyncio.Task | None = None
 
 
+def _persist_supervised_project(mtg_toml: str) -> None:
+    """Record the just-opened project's ``.mtg`` so a supervised restart can resume it.
+
+    No-op unless the server runs under the supervisor (``serve --supervised``): the
+    in-memory active-project pointer is lost on restart, so the unattended
+    auto-resume (``review.auto_resume``) recovers *which* project was open from this
+    persisted ``.mtg`` body. We persist the TOML content (not a path) because the
+    browser ships only the file body via the File System Access API. Best-effort.
+    """
+    from mtgai.runtime import heartbeat
+
+    if not heartbeat.is_supervised_child():
+        return
+    from mtgai.review import auto_resume
+
+    auto_resume.write_last_project(mtg_toml)
+
+
+def _forget_supervised_project() -> None:
+    """Drop the persisted ``.mtg`` so a closed/abandoned project isn't auto-resumed.
+
+    No-op unless running under the supervisor. Called from ``/api/project/new``: the
+    user chose to start over, so a later supervised restart must not resume the
+    project they walked away from. Best-effort.
+    """
+    from mtgai.runtime import heartbeat
+
+    if not heartbeat.is_supervised_child():
+        return
+    from mtgai.review import auto_resume
+
+    auto_resume.clear_last_project()
+
+
 def _refresh_emitter(stage_id: str) -> StageEmitter:
     """A :class:`StageEmitter` for the manual-refresh path so it shares the
     engine's stream-hook builders (``stage_hooks``) and emits byte-identical
@@ -2038,6 +2072,7 @@ async def project_new(request: Request) -> JSONResponse:
     # other page (Model Registry, etc.). set_code starts empty (purely
     # cosmetic), set_params + theme_input + asset_folder are blank.
     active_project.write_active_project(active_project.ProjectState(set_code="", settings=seeded))
+    _forget_supervised_project()
 
     break_points = _break_points_payload(seeded)
     llm_models, image_models = _registry_model_lists()
@@ -2103,6 +2138,7 @@ async def project_open(request: Request) -> JSONResponse:
         active_project.ProjectState(set_code=set_code, settings=settings)
     )
     cleanup_orphan_running_stages()
+    _persist_supervised_project(text)
     return JSONResponse({"success": True, "set_code": set_code})
 
 
@@ -2162,11 +2198,13 @@ async def project_materialize(request: Request) -> JSONResponse:
     )
     cleanup_orphan_running_stages()
 
+    mtg_toml = dump_project_toml(set_code, settings)
+    _persist_supervised_project(mtg_toml)
     return JSONResponse(
         {
             "success": True,
             "set_code": set_code,
-            "mtg_toml": dump_project_toml(set_code, settings),
+            "mtg_toml": mtg_toml,
         }
     )
 
@@ -3277,19 +3315,32 @@ async def wizard_instance_retry(request: Request) -> JSONResponse:
     # but an orphan-reset leaves ``current_instance_id`` untouched, so re-anchor.
     state.current_instance_id = target.instance_id
     save_state(state)
-    # Spun up inline rather than via ``_kickoff_pipeline_engine`` (the rerun path's
-    # helper): that helper refuses a FAILED/RUNNING state and only calls ``run``,
-    # whereas retry must accept FAILED and dispatch ``retry_current`` (FAILED ->
-    # PENDING reset before the forward walk). The guards above cover what it would.
+    _spawn_retry_engine(state, project.set_code)
+    return JSONResponse({"success": True, "engine_started": True})
+
+
+def _spawn_retry_engine(state: PipelineState, set_code: str) -> None:
+    """Build a fresh engine for ``state`` and run ``retry_current`` in a daemon thread.
+
+    The caller has already anchored ``state.current_instance_id`` on the FAILED stage
+    to retry and persisted it. Shared by the manual ``/instance/retry`` endpoint and
+    the supervisor's unattended auto-resume (``review.auto_resume``) so both spawn the
+    engine identically — same module globals, same event-bus reset.
+
+    Spun up inline rather than via ``_kickoff_pipeline_engine`` (the rerun path's
+    helper): that helper refuses a FAILED/RUNNING state and only calls ``run``,
+    whereas retry must accept FAILED and dispatch ``retry_current`` (FAILED ->
+    PENDING reset before the forward walk).
+    """
+    global _engine, _engine_task
     event_bus.reset_buffer()
     _engine = PipelineEngine(state, event_bus)
     threading.Thread(
         target=_engine.retry_current,
-        name=f"pipeline-retry-{project.set_code}",
+        name=f"pipeline-retry-{set_code}",
         daemon=True,
     ).start()
     _engine_task = None
-    return JSONResponse({"success": True, "engine_started": True})
 
 
 # ---------------------------------------------------------------------------

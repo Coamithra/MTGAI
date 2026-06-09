@@ -13,11 +13,14 @@ running and the VRAM trend at death) to ``output/supervisor/crash.log``, then �
 on an abnormal exit — restarts the child so a long art run survives the silent
 kills. A clean exit (code 0, e.g. Ctrl+C) stops the supervisor.
 
-Resume after a restart is *not* automatic here: the user re-opens the project in
-the wizard, where :func:`cleanup_orphan_running_stages` demotes the orphaned
-RUNNING stage to FAILED and the existing "Retry this step" button resumes it
-(resume-skip ⇒ no lost work). Full unattended server-side reopen+retry is a
-tracked follow-up.
+Resume after a restart is manual by default (the user re-opens the project in the
+wizard, where :func:`cleanup_orphan_running_stages` demotes the orphaned RUNNING
+stage to FAILED and the existing "Retry this step" button resumes it — resume-skip
+⇒ no lost work). With the opt-in ``serve --supervised --auto-resume`` flag the
+supervisor flags each *restart* child with ``MTGAI_AUTO_RESUME=1`` so the child
+re-opens the last project + re-fires its FAILED stage unattended (see
+:mod:`mtgai.review.auto_resume`); the first spawn is never flagged so a fresh
+launch doesn't resume a stale project.
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ import sys
 import time
 from datetime import UTC, datetime
 
+from mtgai.review import auto_resume
 from mtgai.runtime import heartbeat
 
 logger = logging.getLogger(__name__)
@@ -92,23 +96,51 @@ def _open_browser_later(port: int) -> None:
     timer.start()
 
 
-def run_supervised(port: int = 8080, open_browser: bool = False, debug: bool = False) -> int:
+def run_supervised(
+    port: int = 8080,
+    open_browser: bool = False,
+    debug: bool = False,
+    auto_resume_enabled: bool = False,
+) -> int:
     """Run the server under supervision; restart it on abnormal exit.
 
     Blocks until a clean exit (code 0 — e.g. the user presses Ctrl+C) or the
     crash-loop guard trips. Returns a process exit code (0 = clean stop, 1 =
     gave up after repeated fast failures).
+
+    ``auto_resume_enabled`` opts into the unattended reopen+retry: each *restart*
+    child is flagged ``MTGAI_AUTO_RESUME=1`` so it re-opens the last project and
+    re-fires its FAILED stage. The first spawn is never flagged (a fresh launch
+    must not resume a stale project), and the persisted project/state from any
+    prior supervisor session are cleared at startup so only a project opened
+    *this* session can be resumed.
     """
     cmd = _child_command(port, debug)
-    env = {**os.environ, heartbeat.ENV_SUPERVISED_CHILD: "1"}
+    base_env = {**os.environ, heartbeat.ENV_SUPERVISED_CHILD: "1"}
+    # We set the auto-resume flag per-spawn (restart-only) below; never inherit a
+    # stale one from our own parent environment.
+    base_env.pop(auto_resume.ENV_AUTO_RESUME, None)
+
+    if auto_resume_enabled:
+        # Fresh session: forget any project/counter persisted by a prior
+        # supervisor so a restart only resumes a project opened during THIS run.
+        auto_resume.clear_last_project()
+        auto_resume.clear_state()
 
     logger.info("Supervisor starting child: %s", " ".join(cmd))
     print(f"[supervisor] watching server on port {port}; crash log → {heartbeat.crash_log_path()}")
+    if auto_resume_enabled:
+        print("[supervisor] auto-resume ON — a restart re-opens + retries the failed stage.")
     if open_browser:
         _open_browser_later(port)
 
     fast_failures = 0
+    spawn_count = 0
     while True:
+        env = dict(base_env)
+        if auto_resume_enabled and spawn_count > 0:
+            env[auto_resume.ENV_AUTO_RESUME] = "1"
+        spawn_count += 1
         started_at = datetime.now(UTC)
         proc = subprocess.Popen(cmd, env=env)
         try:
@@ -151,10 +183,14 @@ def run_supervised(port: int = 8080, open_browser: bool = False, debug: bool = F
             )
             return 1
 
+        resume_hint = (
+            "Auto-resume will re-open + retry the failed stage."
+            if auto_resume_enabled
+            else "Re-open your project + 'Retry this step' to resume."
+        )
         print(
             f"[supervisor] server died (code {exit_code} after {uptime_s:.0f}s); "
-            f"restarting in {_RESTART_BACKOFF_S}s. Re-open your project + "
-            "'Retry this step' to resume."
+            f"restarting in {_RESTART_BACKOFF_S}s. {resume_hint}"
         )
         time.sleep(_RESTART_BACKOFF_S)
 
