@@ -544,10 +544,10 @@ def generate_character_refs(
     # entity_key -> chosen reference image (the first available, repo-relative).
     ref_paths: dict[str, str] = {}
     # Flux images generated since the last ComfyUI restart — drives the periodic
-    # recycle that bounds native-CUDA/VRAM accumulation (per-image flush_comfyui
-    # keeps models resident and can't recover it). Same mitigation as
-    # generate_art_for_set; this loop is fewer images so it crashes less often,
-    # but it's the same leak. See COMFYUI_RECYCLE_EVERY.
+    # recycle that bounds native-CUDA/VRAM accumulation (the per-image
+    # flush_comfyui in generate_image_comfyui keeps models resident and can't
+    # recover it). Same mitigation as generate_art_for_set. See
+    # COMFYUI_RECYCLE_EVERY.
     images_since_recycle = 0
     recycle_enabled = COMFYUI_RECYCLE_EVERY > 0
 

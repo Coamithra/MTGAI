@@ -353,3 +353,50 @@ def test_char_loop_recycles_only_at_entity_boundary(monkeypatch, tmp_path: Path)
     # Entity 0 (3 imgs) → recycle; entity 1 (3 imgs) → recycle; entity 2 is last
     # → suppressed. Two recycles, both at entity boundaries.
     assert len(recycles) == 2
+
+
+def test_char_loop_no_recycle_when_all_images_skipped(monkeypatch, tmp_path: Path) -> None:
+    """Pre-existing images (force=False) skip the GPU entirely, so they don't
+    count toward the recycle threshold — no recycle fires even past it."""
+    _wire_char_loop(monkeypatch, tmp_path, n_entities=8, versions=1)
+    recycles: list = []
+    monkeypatch.setattr(
+        cp, "recycle_comfyui", lambda proc, log_dir=None: recycles.append(proc) or "procN"
+    )
+    monkeypatch.setattr(cp, "COMFYUI_RECYCLE_EVERY", 2)
+    # generate_image_comfyui must never be reached when every image is skipped.
+    monkeypatch.setattr(
+        cp,
+        "generate_image_comfyui",
+        lambda *a, **k: pytest.fail("should not generate a skipped image"),
+    )
+    # Pre-create every entity's v1 reference so dest.exists() short-circuits.
+    out_dir = tmp_path / "set" / "art-direction" / "character-refs"
+    out_dir.mkdir(parents=True)
+    for i in range(8):
+        (out_dir / f"{cp._slugify(f'Entity {i}')}_v1.png").write_bytes(b"old")
+
+    summary = cp.generate_character_refs()
+
+    assert summary["generated"] == 0
+    assert summary["skipped"] == 8
+    assert recycles == []
+
+
+def test_char_loop_no_recycle_when_no_entities(monkeypatch, tmp_path: Path) -> None:
+    """An empty recurring-entity set returns before the image loop — no recycle,
+    no ComfyUI start."""
+    _wire_char_loop(monkeypatch, tmp_path, n_entities=0)
+    recycles: list = []
+    monkeypatch.setattr(
+        cp, "recycle_comfyui", lambda proc, log_dir=None: recycles.append(proc) or "procN"
+    )
+    monkeypatch.setattr(cp, "COMFYUI_RECYCLE_EVERY", 2)
+    monkeypatch.setattr(
+        cp, "ensure_comfyui", lambda log_dir=None: pytest.fail("should not start ComfyUI")
+    )
+
+    summary = cp.generate_character_refs()
+
+    assert summary["entities"] == 0
+    assert recycles == []
