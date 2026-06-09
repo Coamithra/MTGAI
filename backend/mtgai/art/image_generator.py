@@ -1135,6 +1135,33 @@ def _resolve_versions_per_card() -> int:
     return max(MIN_ART_VERSIONS, min(MAX_ART_VERSIONS, int(n)))
 
 
+def _resolve_run_versions(versions_per_card: int | None) -> tuple[int, int | None]:
+    """The candidate-version count to generate this run + the original count if it
+    was collapsed because the best-of-N judge can't run.
+
+    Best-of-N is a no-op when the ``art_select`` judge is text-only: the select
+    stage auto-picks v1, so generating v2..vN is pure wasted Flux compute. We
+    pre-flight the SAME ``art_selector.judge_can_run`` check the select stage uses
+    (the single source of truth, so gen-count and judge pre-flight can't disagree)
+    and collapse the project default to 1 version.
+
+    An explicit ``versions_per_card`` override is respected verbatim — a caller
+    that deliberately asks for N versions gets them (CLI/tests); only the
+    project-resolved default is collapsed. Returns ``(n_versions, collapsed_from)``
+    where ``collapsed_from`` is the pre-collapse count (for the WARN/summary) or
+    ``None`` when no collapse happened.
+    """
+    if versions_per_card is not None:
+        return versions_per_card, None
+    n = _resolve_versions_per_card()
+    if n > 1:
+        from mtgai.art.art_selector import judge_can_run
+
+        if not judge_can_run():
+            return 1, n
+    return n, None
+
+
 def _resolve_image_model():
     """The ``ImageModel`` assigned to ``art_gen``, or ``None``.
 
@@ -1201,9 +1228,14 @@ def generate_art_for_set(
     art_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    n_versions = (
-        versions_per_card if versions_per_card is not None else _resolve_versions_per_card()
-    )
+    n_versions, collapsed_from = _resolve_run_versions(versions_per_card)
+    if collapsed_from is not None:
+        logger.warning(
+            "Best-of-N art judge disabled (art_select model is not vision-capable); "
+            "generating 1 version per card instead of %d to avoid wasted Flux compute. "
+            "Assign a vision-capable art_select model to enable best-of-N.",
+            collapsed_from,
+        )
     image_model = _resolve_image_model()
     provider = image_model.provider if image_model is not None else "comfyui"
     model_id = image_model.model_id if image_model is not None else None
@@ -1442,6 +1474,7 @@ def generate_art_for_set(
         "errors": errors,
         "provider": provider,
         "versions_per_card": n_versions,
+        "judge_disabled_single_version": collapsed_from is not None,
         "dry_run": dry_run,
         "cancelled": cancelled,
     }

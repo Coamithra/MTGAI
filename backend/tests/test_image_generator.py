@@ -44,6 +44,55 @@ def test_resolve_versions_clamps_to_range(monkeypatch):
     assert ig._resolve_versions_per_card() == 4
 
 
+def test_resolve_run_versions_collapses_when_judge_cannot_run(monkeypatch):
+    """The project default collapses to 1 version when the best-of-N judge can't
+    run (text-only art_select), since the select stage auto-picks v1 and v2..vN
+    would be wasted Flux compute. ``collapsed_from`` reports the pre-collapse count."""
+    monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 3)
+    monkeypatch.setattr("mtgai.art.art_selector.judge_can_run", lambda: False)
+
+    n, collapsed_from = ig._resolve_run_versions(None)
+    assert n == 1
+    assert collapsed_from == 3
+
+
+def test_resolve_run_versions_keeps_default_when_judge_can_run(monkeypatch):
+    """A vision-capable judge keeps the full project default (no collapse)."""
+    monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 3)
+    monkeypatch.setattr("mtgai.art.art_selector.judge_can_run", lambda: True)
+
+    n, collapsed_from = ig._resolve_run_versions(None)
+    assert n == 3
+    assert collapsed_from is None
+
+
+def test_resolve_run_versions_respects_explicit_override(monkeypatch):
+    """An explicit ``versions_per_card`` is returned verbatim — the judge check
+    only governs the project default, never an intentional caller override (so the
+    judge_can_run pre-flight is not even consulted)."""
+
+    def _boom():
+        raise AssertionError("judge_can_run must not be consulted for an explicit override")
+
+    monkeypatch.setattr("mtgai.art.art_selector.judge_can_run", _boom)
+
+    assert ig._resolve_run_versions(3) == (3, None)
+    assert ig._resolve_run_versions(1) == (1, None)
+
+
+def test_resolve_run_versions_single_default_no_collapse(monkeypatch):
+    """A project default of 1 is already a no-op for best-of-N; the judge check is
+    skipped (nothing to collapse) and no spurious ``collapsed_from`` is reported."""
+
+    def _boom():
+        raise AssertionError("judge_can_run must not be consulted when default is already 1")
+
+    monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 1)
+    monkeypatch.setattr("mtgai.art.art_selector.judge_can_run", _boom)
+
+    assert ig._resolve_run_versions(None) == (1, None)
+
+
 # ---------------------------------------------------------------------------
 # Provider dispatch + hosted stub
 # ---------------------------------------------------------------------------
@@ -971,6 +1020,10 @@ def test_art_loop_resume_deletes_crash_orphans(monkeypatch, tmp_path):
     v1..vN versions — not appended after the K orphans (the K+N bug)."""
     set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=1)
     monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 3)
+    # Best-of-N enabled (vision judge) so the multi-version loop under test runs;
+    # otherwise the gen-count collapses to 1 (the wired stub project can't resolve
+    # a judge model, so judge_can_run is False).
+    monkeypatch.setattr("mtgai.art.art_selector.judge_can_run", lambda: True)
 
     art_dir = set_dir / "art"
     log_dir = set_dir / "art-generation-logs"
@@ -1010,6 +1063,10 @@ def test_art_loop_force_preserves_higher_user_version(monkeypatch, tmp_path):
     never reaches, so force leaving it intact keeps the saved pick valid."""
     set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=1)
     monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 2)
+    # Best-of-N enabled (vision judge) so the multi-version loop under test runs;
+    # otherwise the gen-count collapses to 1 (the wired stub project can't resolve
+    # a judge model, so judge_can_run is False).
+    monkeypatch.setattr("mtgai.art.art_selector.judge_can_run", lambda: True)
 
     art_dir = set_dir / "art"
     art_dir.mkdir(parents=True, exist_ok=True)

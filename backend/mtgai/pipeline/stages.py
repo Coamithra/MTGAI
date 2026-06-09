@@ -1909,10 +1909,21 @@ def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
     # cards as "judged" so the headline doesn't contradict the skip/fail clauses.
     truly_judged = max(reviewed - judge_skipped - judge_failed, 0)
     detail = f"Generated art for {generated} cards, judged {truly_judged}"
-    if judge_skipped:
+    if gen_result.get("judge_disabled_single_version"):
+        # The art_select model is text-only, so best-of-N can't run: the gen step
+        # generated 1 version per card (instead of v1..vN) to avoid wasted Flux
+        # compute, and the select step auto-picks that single version. Surface it
+        # so the run doesn't look like a clean best-of-N pass — the user must
+        # assign a vision-capable judge to enable best-of-N. (When the gen step
+        # collapses to 1 version the select step counts those as ``auto_single``,
+        # not ``judge_skipped``, so this gen-side flag is the signal source.)
+        detail += " (best-of-N disabled — art_select model is text-only; 1 version per card)"
+    elif judge_skipped:
         # The art_select model is text-only, so best-of-N was skipped entirely
         # (v1 auto-picked). Surface it so the run doesn't look like a clean
         # best-of-N pass — the user must assign a vision-capable judge to enable it.
+        # (Reached when multi-version art already existed from a prior vision-judge
+        # run, e.g. the judge model was changed to text-only on a resume.)
         detail += (
             f" (best-of-N skipped — art_select model is text-only; {judge_skipped} auto-picked v1)"
         )

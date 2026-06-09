@@ -7783,7 +7783,10 @@ async def wizard_art_gen_reroll(request: Request) -> JSONResponse:
     """Regenerate art for a single card (force new versions) and re-judge it.
 
     Body: ``{collector_number}``. Runs under the AI lock; the new versions
-    overwrite the card's prior ones and the judge re-picks.
+    overwrite the card's prior ones and the judge re-picks. When the ``art_select``
+    judge is text-only (best-of-N can't run) only one version is regenerated — the
+    same gen-side collapse ``generate_art_for_set`` applies on a full run — and the
+    select step auto-picks it.
     """
     from mtgai.art.image_generator import generate_art_for_set
 
