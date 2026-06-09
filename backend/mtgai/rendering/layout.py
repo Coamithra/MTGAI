@@ -202,20 +202,22 @@ def frame_path(color_key: str) -> Path:
 
     Args:
         color_key: One of W, U, B, R, G, M (multicolor), A (artifact),
-                   L (land), V (vehicle/colorless), or a land variant
-                   (lw, lu, lb, lr, lg, lm).
+                   L (land), V (vehicle/colorless), a two-color split key
+                   (WU, WB, …), or a land variant (lw, lu, lb, lr, lg, lm).
     """
-    # Map short keys to filenames
-    key_upper = color_key.upper()
-    if len(key_upper) == 1:
-        return FRAMES_DIR / f"m15Frame{key_upper}.png"
     # Land frames use lowercase: lw, lu, lb, lr, lg, lm
-    return FRAMES_DIR / f"{color_key.lower()}.png"
+    if color_key.startswith("l") and len(color_key) == 2:
+        return FRAMES_DIR / f"{color_key.lower()}.png"
+    # Single color, gold/artifact/etc., or two-color split (WU, WB, …)
+    return FRAMES_DIR / f"m15Frame{color_key.upper()}.png"
 
 
 def pt_box_path(color_key: str) -> Path:
-    """Return the path to the M15 P/T box overlay for the given color key."""
-    key_upper = color_key.upper()
-    if len(key_upper) == 1:
-        return FRAMES_DIR / f"m15PT{key_upper}.png"
-    return FRAMES_DIR / f"m15PT{color_key[0].upper()}.png"
+    """Return the path to the M15 P/T box overlay for the given color key.
+
+    Accepts single keys (W, M, A), two-color split keys (WU, WB, …), and land
+    variants (lw → first color's box).
+    """
+    if color_key.startswith("l") and len(color_key) == 2:
+        return FRAMES_DIR / f"m15PT{color_key[1].upper()}.png"
+    return FRAMES_DIR / f"m15PT{color_key.upper()}.png"

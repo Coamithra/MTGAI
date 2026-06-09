@@ -93,6 +93,19 @@ COLOR_TO_FRAME_KEY: dict[str, str] = {
 # Eldrazi / devoid frame
 ELDRAZI_FRAME = "eldrazi"
 
+# Canonical WUBRG ordering for two-color frame keys. Matches the on-disk asset names
+# (``m15FrameWU``, ``m15PTWU``, ``crowns/WU.png`` …), so a two-color key reads the same
+# everywhere — frame, P/T box, and legendary crown.
+COLOR_ORDER = "WUBRG"
+
+
+def two_color_key(colors: list[str]) -> str:
+    """Return the WUBRG-ordered two-letter frame key for a color pair, e.g. ``"WU"``.
+
+    Input order is irrelevant: ``["U", "W"]`` and ``["W", "U"]`` both give ``"WU"``.
+    """
+    return "".join(sorted(colors, key=COLOR_ORDER.index))
+
 
 def frame_key_for_identity(color_identity: list[str], is_land: bool = False) -> str:
     """Determine the frame key for a card based on its color identity.
@@ -103,7 +116,7 @@ def frame_key_for_identity(color_identity: list[str], is_land: bool = False) -> 
 
     Returns:
         Frame key string for use with ``layout.frame_path()``.
-        Examples: "W", "M", "A", "L", "lw"
+        Examples: "W", "WU" (two-color split), "M", "A", "L", "lw"
     """
     colors = sorted(set(color_identity))
 
@@ -118,7 +131,9 @@ def frame_key_for_identity(color_identity: list[str], is_land: bool = False) -> 
         return "A"  # artifact / colorless
     if len(colors) == 1:
         return COLOR_TO_FRAME_KEY.get(colors[0], "A")
-    return "M"  # multicolor (gold)
+    if len(colors) == 2:
+        return two_color_key(colors)  # two-color split frame (m15FrameWU, …)
+    return "M"  # three+ colors (gold)
 
 
 # ---------------------------------------------------------------------------

@@ -152,8 +152,8 @@ class CardRenderer:
     def determine_frame_key(self, card: Card) -> str:
         """Map card to frame key based on colors and type_line.
 
-        Returns one of: W, U, B, R, G, M, A, L, or land variants
-        (lw, lu, lb, lr, lg, lm).
+        Returns one of: W, U, B, R, G, a two-color split key (WU, WB, …),
+        M (3+ colors / gold), A, L, or land variants (lw, lu, lb, lr, lg, lm).
         """
         type_lower = card.type_line.lower()
         is_land = "land" in type_lower
@@ -328,9 +328,11 @@ class CardRenderer:
             crown_name = "Artifact"
         elif len(identity) == 1:
             crown_name = self.CROWN_KEY_MAP.get(identity[0], "Gold")
+        elif len(identity) == 2:
+            # Two-color: matching split crown (WU.png …); 3+ falls through to Gold.
+            crown_name = self.CROWN_PAIR_MAP.get(tuple(identity), "Gold")
         else:
-            # Multicolor: always use Gold crown (we use gold frames, not 2-color)
-            crown_name = "Gold"
+            crown_name = "Gold"  # three+ colors
 
         if crown_name in self._crown_cache:
             return self._crown_cache[crown_name]
@@ -370,35 +372,43 @@ class CardRenderer:
 
         fp = frame_path(frame_key)
         if not fp.is_file():
+            # A two-color split frame degrades to gold (M); anything else to artifact (A).
+            fallback = "M" if len(frame_key) == 2 and not frame_key.startswith("l") else "A"
             logger.warning(
-                "Frame file not found: %s — falling back to A",
+                "Frame file not found: %s — falling back to %s",
                 fp,
+                fallback,
             )
-            fp = frame_path("A")
+            fp = frame_path(fallback)
 
         img = Image.open(fp).convert("RGBA")
         self._frame_cache[frame_key] = img
         return img.copy()
 
     def _load_pt_box(self, frame_key: str) -> Image.Image:
-        """Load the P/T box overlay for the given frame key."""
-        # For multicolor or land frames, map to a single-letter key
-        if len(frame_key) > 1:
-            # Land variants (lw, lu, etc.) -> use first color letter
-            pt_key = frame_key[1].upper() if frame_key.startswith("l") else "M"
+        """Load the P/T box overlay for the given frame key.
+
+        Two-color split frames (WU, WB, …) use their matching split P/T box;
+        land variants map to the first colour's box; 3+ colours use gold (M).
+        """
+        if frame_key.startswith("l") and len(frame_key) == 2:
+            pt_key = frame_key[1].upper()  # land variant -> first color letter
         else:
-            pt_key = frame_key
+            pt_key = frame_key  # single color, two-color split, or M/A
 
         if pt_key in self._pt_cache:
             return self._pt_cache[pt_key].copy()
 
         pp = pt_box_path(pt_key)
         if not pp.is_file():
+            # A two-color split P/T box degrades to gold (M); anything else to artifact (A).
+            fallback = "M" if len(pt_key) == 2 and not pt_key.startswith("l") else "A"
             logger.warning(
-                "PT box file not found: %s — falling back to A",
+                "PT box file not found: %s — falling back to %s",
                 pp,
+                fallback,
             )
-            pp = pt_box_path("A")
+            pp = pt_box_path(fallback)
 
         img = Image.open(pp).convert("RGBA")
         self._pt_cache[pt_key] = img
