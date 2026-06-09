@@ -128,9 +128,10 @@ def test_set_symbol_img_url_carries_mtime_cache_buster(tmp_path):
     f.write_bytes(b"old")
     url1 = _set_symbol_img_url(f)
     assert url1.startswith("/api/wizard/set_symbol/image?file=preview_v1.png&t=")
-    assert url1.rsplit("&t=", 1)[1] == str(int(f.stat().st_mtime))
+    assert url1.rsplit("&t=", 1)[1] == str(f.stat().st_mtime_ns)
 
     # Overwriting (a Re-roll) bumps the mtime → a different cache-buster token.
-    os.utime(f, (f.stat().st_atime, f.stat().st_mtime + 5))
+    # Nanosecond resolution catches even a sub-second re-roll.
+    os.utime(f, ns=(f.stat().st_atime_ns, f.stat().st_mtime_ns + 1_000_000))
     url2 = _set_symbol_img_url(f)
     assert url2 != url1

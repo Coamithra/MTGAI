@@ -5264,9 +5264,10 @@ def _set_symbol_img_url(path: Path) -> str:
     cached OLD glyph and the user sees no change. The file's mtime changes
     exactly when the pixels do, so it busts the cache on a re-roll while still
     caching normally across plain reloads (unlike a wall-clock ``Date.now()``).
+    Nanosecond resolution so even two re-rolls within the same second differ.
     """
     try:
-        bust = int(path.stat().st_mtime)
+        bust = path.stat().st_mtime_ns
     except OSError:
         bust = 0
     return f"/api/wizard/set_symbol/image?file={quote(path.name)}&t={bust}"
