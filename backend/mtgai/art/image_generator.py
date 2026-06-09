@@ -1064,11 +1064,12 @@ def _substitute_entity_name(prompt: str, entity_key: str) -> str:
     so a name-based art prompt is replaced — at send time, on the Flux path only —
     with the entity's appearance description from the visual-reference dict:
     "Optimus Prime raising a fist" -> "a towering blue-and-red robot ... raising a
-    fist", while PuLID supplies the actual face. A no-op when the name isn't in the
-    prompt (today's prompts are already appearance-based) or the entity has no
-    description — so it's harmless ahead of the name-based-prompt sibling work and
-    activates automatically once prompts go name-based. Only the *face-locked*
-    entity is substituted; other named entities are the appearance-text path's job.
+    fist", while PuLID supplies the actual face. Matches the entity by the SAME
+    name token the art prompt uses — ``entity_display_name(entity_key)`` (e.g.
+    "Storm Knight"), the token ``get_named_entities`` puts in the prompt — and also
+    its raw slug, so it fires whichever form appears. A no-op when neither form is
+    in the prompt or the entity has no description. Only the *face-locked* entity is
+    substituted; other named entities are left as names (text-only).
     """
     from mtgai.art import visual_reference
 
@@ -1078,7 +1079,20 @@ def _substitute_entity_name(prompt: str, entity_key: str) -> str:
         appearance = None
     if not appearance:
         return prompt
-    pattern = re.compile(re.escape(entity_key), re.IGNORECASE)
+    # Match the display name the prompt actually carries ("Storm Knight") and the
+    # raw slug, longest-first so the alternation prefers the full name.
+    forms = sorted(
+        {
+            visual_reference.entity_display_name(entity_key),
+            entity_key.replace("_", " "),
+            entity_key,
+        },
+        key=len,
+        reverse=True,
+    )
+    pattern = re.compile(
+        r"\b(?:" + "|".join(re.escape(f) for f in forms if f) + r")\b", re.IGNORECASE
+    )
     if not pattern.search(prompt):
         return prompt
     # Function replacement so backslashes/group-refs in the LLM-authored appearance

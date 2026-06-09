@@ -457,8 +457,21 @@ def test_substitute_entity_name_swaps_name_for_appearance(monkeypatch):
     assert out == "a towering blue-and-red robot raising a fist"
 
 
+def test_substitute_entity_name_matches_display_name_of_slug(monkeypatch):
+    """The integration case: the prompt carries the DISPLAY name ("Storm Knight")
+    that get_named_entities emits, while the ref's entity_key is the slug
+    ("storm_knight"). The substitution must match the display form (a raw-slug-only
+    match would miss it and leave the unrenderable name in the Flux prompt)."""
+    monkeypatch.setattr(
+        "mtgai.art.visual_reference.get_character_appearance",
+        lambda k: "a knight wreathed in blue lightning",
+    )
+    out = ig._substitute_entity_name("Storm Knight raises her blade", "storm_knight")
+    assert out == "a knight wreathed in blue lightning raises her blade"
+
+
 def test_substitute_entity_name_noop_when_name_absent(monkeypatch):
-    """Today's prompts are already appearance-based (no name present) -> unchanged."""
+    """No form of this entity's name is in the prompt -> unchanged."""
     monkeypatch.setattr(
         "mtgai.art.visual_reference.get_character_appearance", lambda k: "a tall man"
     )
