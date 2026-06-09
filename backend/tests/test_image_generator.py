@@ -349,6 +349,12 @@ def test_upload_image_to_comfyui_posts_multipart(tmp_path, monkeypatch):
         def read(self):
             return json.dumps({"name": "hero.png", "subfolder": "", "type": "input"}).encode()
 
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
     def _fake_urlopen(req, timeout=0):
         captured["url"] = req.full_url
         captured["ctype"] = req.headers.get("Content-type")
@@ -363,6 +369,13 @@ def test_upload_image_to_comfyui_posts_multipart(tmp_path, monkeypatch):
     assert captured["ctype"].startswith("multipart/form-data; boundary=")
     assert b"PNGDATA" in captured["body"]
     assert b'name="overwrite"' in captured["body"]
+    # The body must be well-formed multipart: the header boundary delimits the
+    # parts and the body is closed with the terminating --boundary-- marker.
+    boundary = captured["ctype"].split("boundary=", 1)[1]
+    body = captured["body"]
+    assert body.startswith(f"--{boundary}\r\n".encode())
+    assert body.rstrip().endswith(f"--{boundary}--".encode())
+    assert body.count(f"--{boundary}".encode()) == 3  # image part, overwrite part, closer
 
 
 def test_upload_image_to_comfyui_joins_subfolder(tmp_path, monkeypatch):
@@ -372,6 +385,12 @@ def test_upload_image_to_comfyui_joins_subfolder(tmp_path, monkeypatch):
     class _Resp:
         def read(self):
             return json.dumps({"name": "hero.png", "subfolder": "refs"}).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
 
     monkeypatch.setattr(ig.urllib.request, "urlopen", lambda req, timeout=0: _Resp())
     assert ig._upload_image_to_comfyui(str(ref)) == "refs/hero.png"

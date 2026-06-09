@@ -680,8 +680,8 @@ def _upload_image_to_comfyui(path: str) -> str:
         data=body,
         headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
     )
-    resp = urllib.request.urlopen(req, timeout=30)
-    result = json.loads(resp.read())
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read())
     name = result["name"]
     subfolder = result.get("subfolder", "")
     return f"{subfolder}/{name}" if subfolder else name
@@ -1036,7 +1036,9 @@ def _substitute_entity_name(prompt: str, entity_key: str) -> str:
     pattern = re.compile(re.escape(entity_key), re.IGNORECASE)
     if not pattern.search(prompt):
         return prompt
-    return pattern.sub(appearance, prompt)
+    # Function replacement so backslashes/group-refs in the LLM-authored appearance
+    # prose are taken verbatim (a plain string replacement would interpret \1, \g).
+    return pattern.sub(lambda _m: appearance, prompt)
 
 
 # ---------------------------------------------------------------------------

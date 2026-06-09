@@ -82,7 +82,9 @@ def get_character_appearance(entity_key: str) -> str | None:
     paints the right body/clothing/palette.
     """
     desc = get_refs().get("legendary_characters", {}).get(entity_key)
-    return desc or None
+    # The JSON is LLM/user-authored; guard against a non-string value reaching the
+    # prompt substitution (which expects str).
+    return desc if isinstance(desc, str) and desc else None
 
 
 def get_visual_references(
