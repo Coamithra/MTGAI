@@ -61,6 +61,63 @@ def detect_named_characters(
     return [key for key in characters if key in search_text]
 
 
+def entity_display_name(entity_key: str) -> str:
+    """Canonical display name for an entity slug, e.g. ``storm_knight`` -> ``Storm Knight``.
+
+    The SINGLE source of the name token shared by two stages that never see each
+    other's output: ``art_prompts`` (which names entities in the prompt) runs
+    *before* ``char_portraits`` (which produces the ``art_character_refs`` whose
+    labels feed the hosted interleaving). The only stable shared anchor is the
+    ``entity_key`` slug, so both stages derive the name from it the same way —
+    guaranteeing the prompt's name token and the reference label are the same
+    string (which is what lets the model bind name->face).
+    """
+    return entity_key.replace("_", " ").strip().title()
+
+
+def get_named_entities(
+    card_name: str,
+    type_line: str,
+    oracle_text: str,
+    flavor_text: str | None,
+) -> list[dict[str, str]]:
+    """Return the named style-guide entities that appear on this card.
+
+    Each item is ``{"key", "name", "kind"}`` — ``name`` is :func:`entity_display_name`
+    of the slug (the token the art prompt should use and the hosted renderer binds
+    a reference image to). Matches the entity slug against the card text by both its
+    raw form AND its spaced display form, so a multi-word ``storm_knight`` matches
+    "Storm Knight" in the card text (the bare ``key in search_text`` used by
+    :func:`get_visual_references` misses those). Deduped by key, priority order.
+    """
+    refs = get_refs()
+    search_text = " ".join(
+        filter(None, [card_name, type_line, oracle_text, flavor_text or ""])
+    ).lower()
+
+    categories = [
+        ("legendary_characters", "character"),
+        ("creature_types", "creature type"),
+        ("factions", "faction"),
+        ("landmarks", "location"),
+    ]
+    results: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for category_key, kind in categories:
+        category = refs.get(category_key, {})
+        if not isinstance(category, dict):
+            continue
+        for key in category:
+            key = str(key)
+            if key in seen:
+                continue
+            spaced = key.replace("_", " ").lower()
+            if key.lower() in search_text or spaced in search_text:
+                seen.add(key)
+                results.append({"key": key, "name": entity_display_name(key), "kind": kind})
+    return results
+
+
 def get_visual_references(
     card_name: str,
     type_line: str,
