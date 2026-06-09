@@ -202,7 +202,8 @@ def frame_path(color_key: str) -> Path:
 
     Args:
         color_key: One of W, U, B, R, G, M (multicolor), A (artifact),
-                   L (land), V (vehicle/colorless), or a land variant
+                   L (land), V (vehicle/colorless), a colored-artifact
+                   variant (AW, AU, AB, AR, AG, AM), or a land variant
                    (lw, lu, lb, lr, lg, lm).
     """
     # Map short keys to filenames

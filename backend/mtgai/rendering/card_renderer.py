@@ -390,9 +390,9 @@ class CardRenderer:
             if frame_key.startswith("l"):
                 # Land variants (lw, lu, etc.) -> use first color letter
                 pt_key = frame_key[1].upper()
-            elif frame_key[0] == "A":
+            elif len(frame_key) == 2 and frame_key[0] == "A":
                 # Colored artifact (AW, AU, ...) -> matching tinted P/T box
-                pt_key = frame_key.upper()
+                pt_key = frame_key
             else:
                 pt_key = "M"
         else:

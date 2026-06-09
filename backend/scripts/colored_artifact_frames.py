@@ -35,6 +35,7 @@ import argparse
 import json
 import shutil
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -127,8 +128,13 @@ def fetch_artifact_pngs(color: str, n: int, cache_dir: Path) -> list[Path]:
         dest = cache_dir / f"{card['id']}.png"
         if not dest.is_file():
             req = urllib.request.Request(png_url, headers={"User-Agent": _UA["User-Agent"]})
-            with urllib.request.urlopen(req, timeout=30) as r:
-                dest.write_bytes(r.read())
+            try:
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    dest.write_bytes(r.read())
+            except (urllib.error.URLError, OSError) as exc:
+                print(f"  skip {card.get('name', card['id'])}: download failed ({exc})")
+                dest.unlink(missing_ok=True)
+                continue
             time.sleep(0.1)
         paths.append(dest)
     return paths
@@ -247,25 +253,31 @@ def compare(n: int, alpha: float) -> None:
     cards = _example_cards()
     orig_frames_dir = layout_mod.FRAMES_DIR
 
-    for method in ("blend", "median"):
-        print(f"\n=== {method} ===")
-        staging = Path(tempfile.mkdtemp(prefix=f"frames-{method}-"))
-        shutil.copytree(FRAMES_DIR, staging, dirs_exist_ok=True)
-        write_variants(staging, method, n=n, alpha=alpha)
+    try:
+        for method in ("blend", "median"):
+            print(f"\n=== {method} ===")
+            staging = Path(tempfile.mkdtemp(prefix=f"frames-{method}-"))
+            try:
+                shutil.copytree(FRAMES_DIR, staging, dirs_exist_ok=True)
+                write_variants(staging, method, n=n, alpha=alpha)
 
-        layout_mod.FRAMES_DIR = staging
-        method_out = out_root / method
-        method_out.mkdir(parents=True, exist_ok=True)
-        renderer = CardRenderer(assets_root=PROJECT_ROOT / "assets", output_root=OUTPUT_ROOT)
-        for card in cards:
-            img = renderer.render_card(card, total_cards=len(cards))
-            label = "".join(card.color_identity) or "A"
-            img.save(method_out / f"{label}_{card.name.replace(' ', '_')}.png")
-            print(f"  rendered {label}: {card.name}")
-        shutil.rmtree(staging, ignore_errors=True)
+                layout_mod.FRAMES_DIR = staging
+                method_out = out_root / method
+                method_out.mkdir(parents=True, exist_ok=True)
+                renderer = CardRenderer(
+                    assets_root=PROJECT_ROOT / "assets", output_root=OUTPUT_ROOT
+                )
+                for card in cards:
+                    img = renderer.render_card(card, total_cards=len(cards))
+                    label = "".join(card.color_identity) or "A"
+                    img.save(method_out / f"{label}_{card.name.replace(' ', '_')}.png")
+                    print(f"  rendered {label}: {card.name}")
+            finally:
+                layout_mod.FRAMES_DIR = orig_frames_dir
+                shutil.rmtree(staging, ignore_errors=True)
+    finally:
+        shutil.rmtree(tmp_asset, ignore_errors=True)
 
-    layout_mod.FRAMES_DIR = orig_frames_dir
-    shutil.rmtree(tmp_asset, ignore_errors=True)
     print(f"\nComparison renders in: {out_root}")
     print("  blend/   — Option A (geometry-safe alpha blend)")
     print("  median/  — Option D (Scryfall median stack)")
