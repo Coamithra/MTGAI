@@ -217,9 +217,13 @@ def validate_mana_consistency(card: Card) -> list[ValidationError]:
     #    The old check only ordered the colored symbols among themselves, so a
     #    misplaced generic like {B}{G}{1} (canonical {1}{B}{G}) slipped through.
     # ------------------------------------------------------------------
+    # `stripped` non-empty means the cost has unparseable symbols (e.g. a
+    # {2/W} twobrid the pattern can't match). Those are owned by the
+    # invalid_format check above; skip the order check so we never emit a flag
+    # whose fixer would have to rebuild from a lossy `findall`.
     cost_symbols = MANA_SYMBOL_PATTERN.findall(card.mana_cost)
     canonical_symbols = _canonical_symbol_order(cost_symbols)
-    if cost_symbols != canonical_symbols:
+    if not stripped and cost_symbols != canonical_symbols:
         got = "".join(f"{{{s}}}" for s in cost_symbols)
         want = "".join(f"{{{s}}}" for s in canonical_symbols)
         errors.append(
@@ -394,6 +398,11 @@ def fix_color_identity_from_cost(card: Card, error: ValidationError) -> Card:
 def fix_wubrg_order(card: Card, error: ValidationError) -> Card:
     """Reorder mana_cost symbols into canonical order (generic/X first, colored WUBRG)."""
     if not card.mana_cost:
+        return card
+
+    # A malformed remainder (e.g. an unmatched {2/W} twobrid) would be dropped
+    # by rebuilding from `findall` — bail and let invalid_format handle it.
+    if MANA_SYMBOL_PATTERN.sub("", card.mana_cost):
         return card
 
     symbols = MANA_SYMBOL_PATTERN.findall(card.mana_cost)
