@@ -285,6 +285,13 @@ PT_MECHANICS = [
         "keyword_type": "keyword_ability",
         "reminder_text": "(That creature gets +N/+N until end of turn.)",
     },
+    {
+        # A placeholder adjacent to a NON-P/T slash ("N/turn") must NOT be
+        # mistaken for a power/toughness modifier.
+        "name": "Tempo",
+        "keyword_type": "keyword_ability",
+        "reminder_text": "(You may play N/turn extra lands this turn.)",
+    },
 ]
 
 
@@ -315,6 +322,13 @@ class TestPTModifierContext:
         result = inject_reminder_text(card, PT_MECHANICS)
         assert "+2/+2" in result.oracle_text
         assert "+two" not in result.oracle_text
+
+    def test_non_pt_slash_not_treated_as_modifier(self):
+        """'N/turn' is not a P/T modifier — the count spells out, slash survives."""
+        card = _make_card(oracle_text="Tempo 2")
+        result = inject_reminder_text(card, PT_MECHANICS)
+        assert "two/turn" in result.oracle_text
+        assert "2/turn" not in result.oracle_text
 
 
 # ===========================================================================

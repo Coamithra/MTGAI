@@ -41,6 +41,11 @@ _NUM_WORDS = {
 # Regex to strip existing parenthesized reminder text (20+ chars = likely reminder).
 REMINDER_STRIP_RE = re.compile(r"\s*\([^)]{20,}\)\.?")
 
+# Matches a power/toughness expression like "+N/+0", "N/N", "+0/+N", "-1/-1" —
+# BOTH halves must be a signed placeholder or number, so a stray slash in prose
+# ("play N/turn extra lands") is never mistaken for a P/T modifier.
+_PT_UNIT_RE = re.compile(r"(?<!\w)([+-]?)([NX]|\d+)/([+-]?)([NX]|\d+)(?!\w)")
+
 # Patterns preceding a keyword that indicate a trigger/conditional context
 # (i.e., the card REFERENCES the keyword rather than USING it).
 _TRIGGER_PREFIXES = re.compile(
@@ -68,11 +73,15 @@ def _build_reminder(template: str, param: int | None) -> str:
     result = template
 
     # P/T-modifier positions take a NUMERAL, not a spelled-out word — MTG writes
-    # "It gets +1/+0", never "+one/+0". A placeholder is in a power/toughness slot
-    # when it sits directly before a "/" (the power half: "+N/+0", "N/N") or
-    # directly after a "/" with an optional sign (the toughness half: "+0/+N").
-    result = re.sub(r"(?<!\w)[NX](?=/)", numeral, result)
-    result = re.sub(r"(?<=/)([+-]?)[NX](?!\w)", rf"\g<1>{numeral}", result)
+    # "It gets +1/+0", never "+one/+0". Replace placeholders inside a P/T unit
+    # (both halves signed-number-or-placeholder) before the general spell-out.
+    def _pt_repl(match: re.Match) -> str:
+        sign_a, val_a, sign_b, val_b = match.groups()
+        a = numeral if val_a in ("N", "X") else val_a
+        b = numeral if val_b in ("N", "X") else val_b
+        return f"{sign_a}{a}/{sign_b}{b}"
+
+    result = _PT_UNIT_RE.sub(_pt_repl, result)
 
     # Replace any remaining X or N placeholder (object counts) with the word
     result = re.sub(r"\bX\b", word, result)
