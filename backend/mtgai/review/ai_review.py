@@ -133,6 +133,7 @@ def _review_call(
     review_thinking: str | None,
     label: str,
     should_cancel: Callable[[], bool] | None = None,
+    log_dir: Path | None = None,
 ) -> dict | None:
     """One review/synth ``generate_with_tool`` call with transient-failure retries.
 
@@ -160,6 +161,7 @@ def _review_call(
                 max_tokens=HEAVY,
                 effort=review_effort,
                 thinking=review_thinking,
+                log_dir=log_dir,
             )
         except Exception:
             logger.exception(
@@ -852,6 +854,7 @@ def _review_single(
     on_council: Callable[[dict], None] | None = None,
     review_thinking: str | None = None,
     existing_cards: list[Card] | None = None,
+    log_dir: Path | None = None,
 ) -> CardReviewResult:
     """Judge → revise → re-judge loop for C/U cards (judge split from revise).
 
@@ -926,6 +929,7 @@ def _review_single(
             review_thinking=review_thinking,
             label=f"Judge {round_no}",
             should_cancel=ai_lock.is_cancelled,
+            log_dir=log_dir,
         )
         if result is None:
             logger.error("    Judge call failed on round %d (retries exhausted)", round_no)
@@ -993,6 +997,7 @@ def _review_single(
             review_thinking=review_thinking,
             label=f"Revise {round_no}",
             should_cancel=ai_lock.is_cancelled,
+            log_dir=log_dir,
         )
         _safe_council(
             on_council,
@@ -1148,6 +1153,7 @@ def _run_council_panel(
     should_cancel: Callable[[], bool] | None,
     review_thinking: str | None = None,
     existing_cards: list[Card] | None = None,
+    log_dir: Path | None = None,
 ) -> tuple[list[CouncilMemberReview], _CostAcc, list[str]]:
     """Run one fresh independent panel on ``card`` and stream it as council ``round``.
 
@@ -1175,6 +1181,7 @@ def _run_council_panel(
             review_thinking=review_thinking,
             label=f"Round {round_no} reviewer {member_id}",
             should_cancel=should_cancel,
+            log_dir=log_dir,
         )
         if result is None:
             logger.error(
@@ -1232,6 +1239,7 @@ def _run_synth(
     on_council: Callable[[dict], None] | None,
     panel_verdicts: list[str],
     review_thinking: str | None = None,
+    log_dir: Path | None = None,
 ) -> tuple[ReviewIteration | None, _CostAcc, dict | None]:
     """One synthesizer revise-in-place call against ``reviews`` of ``card``.
 
@@ -1264,6 +1272,7 @@ def _run_synth(
         review_effort=review_effort,
         review_thinking=review_thinking,
         label=f"Round {round_no} synthesis (revise)",
+        log_dir=log_dir,
     )
     if result is None:
         logger.error("    Round %d synthesis (revise) call failed (retries exhausted)", round_no)
@@ -1312,6 +1321,7 @@ def _review_council(
     on_council: Callable[[dict], None] | None = None,
     review_thinking: str | None = None,
     existing_cards: list[Card] | None = None,
+    log_dir: Path | None = None,
 ) -> CardReviewResult:
     """Fresh-council-per-revision loop for R/M + planeswalker/saga cards.
 
@@ -1387,6 +1397,7 @@ def _review_council(
             ai_lock.is_cancelled,
             review_thinking=review_thinking,
             existing_cards=existing_cards,
+            log_dir=log_dir,
         )
         _fold(acc)
         council_reviews.extend(reviews)
@@ -1466,6 +1477,7 @@ def _review_council(
             on_council,
             panel_verdicts,
             review_thinking=review_thinking,
+            log_dir=log_dir,
         )
         _fold(sacc)
         if iteration is None:
@@ -2376,6 +2388,12 @@ def review_set(
     pointed_q_path = set_dir / "mechanics" / "pointed-questions.json"
     reviews_dir = set_dir / "reviews"
     reports_dir = set_dir / "reports"
+    # Route every reviewer/synth llmfacade transcript to the set folder, the
+    # documented "<asset>/<stage>/logs" convention (mechanics -> mechanics/logs,
+    # card_gen -> card_gen/logs, ...). Without this the heavy ai_review stage
+    # leaves no transcript in the project — they land in llmfacade's default
+    # session dirs under backend/logs/ instead.
+    log_dir = set_dir / "ai_review" / "logs"
 
     # Resolve once for the whole stage so a mid-run settings change can't
     # swap the model between cards. Matches the "no mid-stage swap"
@@ -2536,6 +2554,7 @@ def review_set(
                 on_council=card_council,
                 review_thinking=review_thinking,
                 existing_cards=card_pool,
+                log_dir=log_dir,
             )
         else:
             result = _review_single(
@@ -2547,6 +2566,7 @@ def review_set(
                 on_council=card_council,
                 review_thinking=review_thinking,
                 existing_cards=card_pool,
+                log_dir=log_dir,
             )
 
         reviews.append(result)
