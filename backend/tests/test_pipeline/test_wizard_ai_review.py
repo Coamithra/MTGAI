@@ -287,6 +287,35 @@ def test_stale_approve_does_not_override_fresh_regen_flag(client, isolated_outpu
     assert "too strong" in tile["effective"]["reason"]
 
 
+def test_reflag_overrides_approval_even_when_body_unchanged(client, isolated_output, tmp_path):
+    """A gate re-flagging an approved card (body unchanged) overrides the approval.
+
+    The flag fields (regen_reason/flagged_by) are excluded from the signature, so a
+    re-flag WITHOUT a body change isn't caught by the signature check. The approve
+    endpoint clears the flag, so a flag co-existing with an approval is always a
+    LATER gate re-flag — the gate's regen decision wins, not the stale green stamp.
+    """
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(asset, collector_number="W-C-02", name="Bear", oracle_text="Draw a card.")
+
+    assert (
+        client.post(
+            "/api/wizard/ai_review/approve", json={"collector_number": "W-C-02"}
+        ).status_code
+        == 200
+    )
+    # Same body, but a later gate re-flags it for regen (no oracle change).
+    _rewrite_card_body(asset, "W-C-02", regen_reason="combo enabler", flagged_by="conformance")
+
+    tile = {
+        t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
+    }["W-C-02"]
+    assert tile["effective"]["verdict"] == "rejected"
+    assert tile["effective"]["source"] == "ai"
+    assert "combo enabler" in tile["effective"]["reason"]
+
+
 def test_stale_reject_does_not_override_fresh_clean_card(client, isolated_output, tmp_path):
     """A user-rejected card that's regenerated into a fresh OK card stops painting rejected."""
     asset = tmp_path / "asset"

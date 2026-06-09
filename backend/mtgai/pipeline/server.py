@@ -6174,14 +6174,22 @@ def _effective_decision(
     ``regen_reason`` (the actual "why" the review/gate recorded), falling back to a
     generic blurb only when no reason was stamped.
 
-    A decision is **stale** when its recorded ``card_signature`` no longer matches
-    ``card`` (a regen/edit rewrote the body under the same collector number): a
-    stale decision is ignored so the fresh flagged/AI verdict surfaces instead of
-    the old user call painting forever (see :func:`ai_review.decision_is_stale`).
+    A decision is **stale** two ways, both ignored so the fresh flagged/AI verdict
+    surfaces instead of the old user call painting forever:
+    (1) its recorded ``card_signature`` no longer matches ``card`` — a regen/edit
+        rewrote the body under the same collector number
+        (see :func:`ai_review.decision_is_stale`);
+    (2) the card is currently ``flagged`` for regen yet the decision is *approved* —
+        the approve/revise endpoints clear the flag, so a flag co-existing with an
+        approval means a *later* gate re-flagged the card after the user approved
+        it; the gate's regen decision is authoritative, so the prior approval must
+        not keep painting green over a card the engine will rebuild.
     """
     from mtgai.review.ai_review import decision_is_stale
 
     if decision_is_stale(decision, card):
+        decision = None
+    if flagged and isinstance(decision, dict) and decision.get("verdict") == "approved":
         decision = None
     if isinstance(decision, dict) and decision.get("verdict") in ("approved", "rejected"):
         return {
