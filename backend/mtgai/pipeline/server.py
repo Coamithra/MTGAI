@@ -287,6 +287,30 @@ _engine: PipelineEngine | None = None
 _engine_task: asyncio.Task | None = None
 
 
+def _reset_engine() -> None:
+    """Drop the in-memory engine reference so it can't outlive its project.
+
+    ``_get_current_state()`` returns ``_engine.state`` whenever an engine
+    exists — even an idle one whose run finished. If that reference survives a
+    project switch, the server serves (and, via ``_heal_failed_stage`` →
+    ``save_state``, *persists* into the newly-active project's
+    ``pipeline-state.json``) the *previous* project's state. Every project
+    switch (open / new / materialize) must clear it so state resolution falls
+    back to the active project's on-disk ``pipeline-state.json``.
+
+    Safe to call after :func:`_project_switch_guard` has drained the AI lock:
+    any live engine run has been cancelled + the lock released, so the daemon
+    thread / task is winding down and nothing live is lost. A pending
+    ``_engine_task`` (a never-awaited fire-and-forget handle) is cancelled
+    best-effort before the reference is dropped.
+    """
+    global _engine, _engine_task
+    if _engine_task is not None and not _engine_task.done():
+        _engine_task.cancel()
+    _engine = None
+    _engine_task = None
+
+
 def _persist_supervised_project(mtg_toml: str) -> None:
     """Record the just-opened project's ``.mtg`` so a supervised restart can resume it.
 
@@ -2086,6 +2110,7 @@ async def project_new(request: Request) -> JSONResponse:
     # browser-side draft would be lost the moment the user opens any
     # other page (Model Registry, etc.). set_code starts empty (purely
     # cosmetic), set_params + theme_input + asset_folder are blank.
+    _reset_engine()
     active_project.write_active_project(active_project.ProjectState(set_code="", settings=seeded))
     _forget_supervised_project()
 
@@ -2157,6 +2182,7 @@ async def project_open(request: Request) -> JSONResponse:
     except ValueError as e:
         return JSONResponse({"error": f"Invalid .mtg file: {e}"}, status_code=400)
 
+    _reset_engine()
     active_project.write_active_project(
         active_project.ProjectState(set_code=set_code, settings=settings)
     )
@@ -2216,6 +2242,7 @@ async def project_materialize(request: Request) -> JSONResponse:
     except Exception as e:  # pydantic validation, etc.
         return JSONResponse({"error": f"Invalid project body: {e}"}, status_code=400)
 
+    _reset_engine()
     active_project.write_active_project(
         active_project.ProjectState(set_code=set_code, settings=settings)
     )
