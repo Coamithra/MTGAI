@@ -8027,14 +8027,29 @@ async def start_pipeline(request: Request):
         return err
     config = PipelineConfig(**body)
 
-    # Check for existing state — allow resume from previous run
+    # Mirror ``_kickoff_pipeline_engine``'s guard contract (this is the legacy
+    # twin of that helper). ``engine.run`` only skips COMPLETED/SKIPPED stages,
+    # so re-entering it on a PAUSED state would re-run the paused stage's runner
+    # and discard the human review — refuse and tell the caller to use /resume.
+    # A persisted RUNNING with no live engine is an orphan; refuse rather than
+    # spawn a second engine over it. And never overwrite a salvageable existing
+    # state (COMPLETED / CANCELLED / NOT_STARTED) with a fresh create — that
+    # would reset every stage's progress.
     existing = load_state()
-    if existing and existing.overall_status in (
-        PipelineStatus.PAUSED,
-        PipelineStatus.FAILED,
-    ):
+    if existing is not None:
+        if existing.overall_status == PipelineStatus.PAUSED:
+            return JSONResponse(
+                {"error": "Pipeline is paused, use /api/pipeline/resume instead"},
+                status_code=409,
+            )
+        if existing.overall_status == PipelineStatus.RUNNING:
+            return JSONResponse(
+                {"error": "Pipeline state is RUNNING but no engine is attached"},
+                status_code=409,
+            )
+        # FAILED (resume from failure) and any other reusable state are reused,
+        # not clobbered. Refresh the config + review modes off the new request.
         state = existing
-        # Update review modes from new config
         for stage in state.stages:
             if stage.stage_id in config.stage_review_modes:
                 stage.review_mode = config.stage_review_modes[stage.stage_id]
