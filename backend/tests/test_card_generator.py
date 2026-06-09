@@ -504,7 +504,7 @@ def test_retry_card_returns_best_effort_when_never_conforms(tmp_path, monkeypatc
     progress = GenerationProgress(path=tmp_path / "progress.json")
     slot = {"slot_id": "009", "color": "B", "rarity": "mythic", "card_type": "creature"}
 
-    clean, best = _retry_card(
+    clean, best, attempts = _retry_card(
         slot,
         "overflow",
         mechanics=[],
@@ -520,6 +520,9 @@ def test_retry_card_returns_best_effort_when_never_conforms(tmp_path, monkeypatc
     assert best.name.startswith("Megatron")
     # It exhausted the retry budget (attempts 2..MAX_RETRIES).
     assert calls["n"] == cg.MAX_RETRIES - 1
+    # One provenance entry per retry attempt, none marked success.
+    assert [a.attempt_number for a in attempts] == list(range(2, cg.MAX_RETRIES + 1))
+    assert all(not a.success for a in attempts)
 
 
 def test_retry_card_returns_none_best_effort_when_unparsable(tmp_path, monkeypatch) -> None:
@@ -534,7 +537,7 @@ def test_retry_card_returns_none_best_effort_when_unparsable(tmp_path, monkeypat
     progress = GenerationProgress(path=tmp_path / "progress.json")
     slot = {"slot_id": "009", "color": "B", "rarity": "mythic", "card_type": "creature"}
 
-    clean, best = _retry_card(
+    clean, best, attempts = _retry_card(
         slot,
         "parse fail",
         mechanics=[],
@@ -546,6 +549,9 @@ def test_retry_card_returns_none_best_effort_when_unparsable(tmp_path, monkeypat
     )
     assert clean is None
     assert best is None
+    # Unparsable retries still record provenance (success=False, no errors stamped
+    # from a card that never parsed).
+    assert all(not a.success for a in attempts)
 
 
 def test_retry_card_returns_clean_card_on_success(tmp_path, monkeypatch) -> None:
@@ -569,7 +575,7 @@ def test_retry_card_returns_clean_card_on_success(tmp_path, monkeypatch) -> None
     progress = GenerationProgress(path=tmp_path / "progress.json")
     slot = {"slot_id": "010", "color": "W", "rarity": "rare", "card_type": "creature"}
 
-    clean, best = _retry_card(
+    clean, best, attempts = _retry_card(
         slot,
         "feedback",
         mechanics=[],
@@ -582,6 +588,10 @@ def test_retry_card_returns_clean_card_on_success(tmp_path, monkeypatch) -> None
     assert clean is not None
     assert clean is best
     assert clean.name == "Optimus Prime"
+    # The winning attempt is recorded as attempt 2, success.
+    assert len(attempts) == 1
+    assert attempts[0].attempt_number == 2
+    assert attempts[0].success is True
 
 
 def test_regen_feedback_includes_all_regen_triggers_not_just_overflow() -> None:
@@ -610,3 +620,74 @@ def test_regen_feedback_includes_all_regen_triggers_not_just_overflow() -> None:
         e for e in errors if e.error_code and e.error_code.startswith("text_overflow.")
     ]
     assert overflow_only == []
+
+
+# ---------------------------------------------------------------------------
+# Provenance: a retried card records the true attempt history, not the first
+# attempt's errors stamped attempt_number=1 (card 6a285a95)
+# ---------------------------------------------------------------------------
+
+
+def test_retried_card_records_winning_attempt_provenance(tmp_path, monkeypatch) -> None:
+    """A card that trips a regen trigger on attempt 1 and succeeds on retry must
+    persist generation_attempts reflecting the TRUE history: attempt 1 (failed,
+    its own validation errors) followed by the winning retry (attempt 2, success,
+    no errors). Before the fix the saved card carried a single
+    attempt_number=1 entry built from the first attempt's stale errors even
+    though the retry's clean card is what shipped."""
+    clean_card = {
+        "name": "Optimus Prime",
+        "mana_cost": "{2}{W}",
+        "type_line": "Creature — Robot",
+        "oracle_text": "Vigilance",
+        "power": "4",
+        "toughness": "5",
+        "rarity": "rare",
+    }
+
+    def fake_retry_single(slot, error_msg, *a, **k):
+        return _fake_result(clean_card)
+
+    monkeypatch.setattr(cg, "_retry_single_card", fake_retry_single)
+    monkeypatch.setattr(cg, "_save_generation_log", lambda *a, **k: None)
+
+    progress = GenerationProgress(path=tmp_path / "progress.json")
+    slot = {"slot_id": "009", "color": "G", "rarity": "common", "card_type": "creature"}
+
+    # Attempt 1's raw card overflows the rules box (>300 chars) — a genuine,
+    # unfixable regen trigger that drives the regen path into _retry_card.
+    saved = cg._process_batch_result(
+        raw_cards=[_overflowing_creature("Megatron")],
+        slots=[slot],
+        existing_cards=[],
+        mechanics=[],
+        theme=None,
+        model="claude-test",
+        input_tokens=100,
+        output_tokens=200,
+        progress=progress,
+        set_code="TST",
+        set_dir=tmp_path,
+    )
+
+    assert len(saved) == 1
+    card = saved[0]
+    assert card.name == "Optimus Prime"  # the winning retry's card shipped
+
+    attempts = card.generation_attempts
+    # Full history: the first (failed) attempt + the winning retry.
+    assert [a.attempt_number for a in attempts] == [1, 2]
+
+    first, winner = attempts
+    # Attempt 1 failed validation and carries ITS OWN errors.
+    assert first.attempt_number == 1
+    assert first.success is False
+    assert first.validation_errors  # the overflow finding(s)
+
+    # The winning attempt is recorded correctly — NOT attempt_number=1, and it
+    # does not inherit the first attempt's error list.
+    assert winner.attempt_number == 2
+    assert winner.success is True
+    assert winner.validation_errors == []
+    assert winner.input_tokens == 10  # the retry call's own tokens, not the batch's
+    assert winner.output_tokens == 20
