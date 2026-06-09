@@ -42,6 +42,11 @@ from mtgai.analysis.gate_common import filter_gate_cards
 from mtgai.analysis.models import InteractionFlag
 from mtgai.generation import temperatures as temps
 from mtgai.generation.token_budgets import HEAVY
+from mtgai.generation.token_utils import (
+    SAFETY_MARGIN,
+    count_messages_tokens,
+    get_context_window,
+)
 from mtgai.models.card import Card
 
 logger = logging.getLogger(__name__)
@@ -98,6 +103,67 @@ def _serialize_card_full(card: Card) -> str:
 
 def _serialize_cards(cards: list[Card]) -> str:
     return "\n".join(_serialize_card_full(c) for c in cards)
+
+
+def _bound_existing_context(
+    existing: list[Card],
+    new_batch: list[Card],
+    mechanics: list[dict],
+    *,
+    model: str,
+    output_reserve: int,
+) -> tuple[list[Card], int]:
+    """Trim the cumulative existing-context to the most-recent cards whose
+    assembled batch prompt fits the assigned model's ACTUAL context window.
+
+    The interaction step's existing-context grows with set size; on a model whose
+    ``context_window`` is smaller than the full pool, the untrimmed prompt trips
+    ``check_pre_call``'s ``ContextOverflowError``, which ``stream_flag_batch``
+    treats as a failed attempt — retried at the same size, then the batch's cards
+    are left ``interacts=None`` (silently unchecked). Bounding the context to a
+    sliding window of the most-recent cards keeps each batch's prompt under the
+    window: full cross-batch coverage when the model is large enough (nothing
+    dropped), a bounded most-recent window when it is not, and — on a very small
+    window — possibly no existing context at all (the new cards still check against
+    each other).
+
+    The fit test measures the **actually-assembled prompt** with the SAME
+    ``count_messages_tokens`` + ``int(ctx * (1 - SAFETY_MARGIN)) - output_reserve``
+    budget that ``check_pre_call`` uses, so there is no token-accounting drift —
+    a fit here is exactly a fit there (pass ``output_reserve == MAX_TOKENS``, the
+    value ``analyze_interactions`` sends as ``max_tokens``). The most-recent cards
+    are kept (the tail of ``existing``) because a later batch's new cards are most
+    likely to interact with their nearest neighbours; far-apart-pair coverage is
+    the accepted trade-off (the cumulative scan's whole-pool guarantee can't hold
+    under a window too small to hold the whole pool).
+
+    Returns ``(kept_existing, dropped_count)``.
+    """
+    ctx = get_context_window(model)
+    safe_budget = int(ctx * (1 - SAFETY_MARGIN)) - output_reserve
+
+    def _fits(keep: int) -> bool:
+        ctx_cards = existing[len(existing) - keep :] if keep else []
+        messages = [
+            {"role": "system", "content": INTERACTION_SYSTEM_PROMPT},
+            {"role": "user", "content": _build_batch_prompt(ctx_cards, new_batch, mechanics)},
+        ]
+        return count_messages_tokens(messages) <= safe_budget
+
+    if _fits(len(existing)):
+        return existing, 0  # roomy window — full coverage, no search needed
+    # Largest most-recent tail that fits. Monotonic (fewer cards never costs more),
+    # so binary-search the keep count.
+    lo, hi, best = 0, len(existing), 0
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if _fits(mid):
+            best = mid
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    kept = existing[len(existing) - best :] if best else []
+    return kept, len(existing) - best
 
 
 # ---------------------------------------------------------------------------
@@ -392,6 +458,7 @@ def analyze_interactions(
 
     flags: dict[str, tuple[str, str]] = {}  # enabler slot_id -> (reason, constraint)
     total_cost = 0.0
+    max_context_dropped = 0  # most cards a single batch had to drop to fit the window
 
     def _fire_inter(slot_id: str, interacts: bool | None, reason: str) -> None:
         if on_card is None:
@@ -421,6 +488,13 @@ def analyze_interactions(
         # Existing context = the always-present fixed context (unchanged cards on
         # a scoped run; empty on the backbone) + the new cards already processed.
         existing = context + to_check[: (bi - 1) * BATCH_SIZE]
+        # Bound it to the assigned model's actual context window so a low-context
+        # local model never overflows check_pre_call (which silently skips the
+        # batch). A large window drops nothing — full coverage preserved.
+        existing, dropped = _bound_existing_context(
+            existing, new_batch, mechanics, model=model, output_reserve=MAX_TOKENS
+        )
+        max_context_dropped = max(max_context_dropped, dropped)
         completed, cost = gate_common.stream_flag_batch(
             system_prompt=INTERACTION_SYSTEM_PROMPT,
             user_prompt=_build_batch_prompt(existing, new_batch, mechanics),
@@ -453,6 +527,25 @@ def analyze_interactions(
             f.enabler_slot_id,
             f.reason[:120],
             f.replacement_constraint[:80],
+        )
+
+    if max_context_dropped:
+        # Degrade LOUDLY: the assigned model's window can't hold the whole pool, so
+        # the cumulative scan ran on a bounded most-recent window. On a very small
+        # window the existing-context may have been dropped entirely (the batch's
+        # new cards then only checked against each other), so cross-batch coverage
+        # can be reduced all the way to none. Better than the old silent skip, but
+        # a clear sign the conformance stage wants a larger-context model here.
+        logger.warning(
+            "Interaction scan: model %s (context_window=%d) too small to hold the "
+            "%d-card pool; the largest batch dropped up to %d existing-context "
+            "card(s) to fit (possibly all of them). Cross-batch coverage is reduced "
+            "— assign a larger-context model to the conformance stage for full "
+            "coverage.",
+            model,
+            get_context_window(model),
+            len(gate_cards),
+            max_context_dropped,
         )
 
     analysis = (
