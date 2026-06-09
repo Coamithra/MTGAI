@@ -256,7 +256,7 @@
       zoom.onclick = (e) => {
         e.stopPropagation();
         const img = tile.querySelector('img');
-        if (img && W.MTGAILightbox) W.MTGAILightbox.open({ src: img.src, alt: 'set symbol ' + v.tag });
+        if (img && window.MTGAILightbox) window.MTGAILightbox.open({ src: img.src, alt: 'set symbol ' + v.tag });
       };
     }
   }
