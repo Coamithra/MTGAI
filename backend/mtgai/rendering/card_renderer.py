@@ -478,9 +478,10 @@ class CardRenderer:
     def _load_pt_box(self, frame_key: str) -> Image.Image:
         """Load the P/T box overlay for the given frame key.
 
-        Two-color split frames (WU, WB, …) use their matching split P/T box;
-        colored artifacts (AW, …) use their tinted box; land variants map to the
-        first colour's box; 3+ colours use gold (M).
+        Two-color split frames (WU, WB, …) use the gold (M) box via pt_box_path —
+        the real-card convention for hybrid/gold cards; colored artifacts (AW, …)
+        use their tinted box; land variants map to the first colour's box; 3+
+        colours use gold (M).
         """
         if frame_key.startswith("l") and len(frame_key) == 2:
             pt_key = frame_key[1].upper()  # land variant -> first color letter
@@ -492,8 +493,9 @@ class CardRenderer:
 
         pp = pt_box_path(pt_key)
         if not pp.is_file():
-            # A missing two-color split P/T box degrades to gold (M); a missing colored
-            # artifact (A?) or anything else to plain artifact (A).
+            # A missing colored-artifact (A?) box degrades to plain artifact (A).
+            # (Split keys already resolve to the gold m15PTM in pt_box_path, so they
+            # can only land here if that shared file itself is gone.)
             fallback = _frame_fallback(pt_key)
             logger.warning(
                 "PT box file not found: %s — falling back to %s",

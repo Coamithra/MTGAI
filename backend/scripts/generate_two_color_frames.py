@@ -10,12 +10,14 @@ Source = real MTG **hybrid** M15 cards (e.g. Azorius Guildmage ``{W/U}{W/U}``), 
 the left-colourA / right-colourB split + gold pinline the card asks for. (Plain ``c:wu``
 two-colour cards are flat *gold* — that is the existing ``m15FrameM`` look.)
 
-For each of the ten colour pairs this writes, into ``assets/frames/m15/``:
-  * ``m15Frame<PAIR>.png`` — the split frame, clipped to our exact card silhouette
-    (it borrows ``m15FrameW``'s alpha, so the art window is transparent and the outline
-    matches the mono frames pixel-for-pixel).
-  * ``m15PT<PAIR>.png`` — the matching split P/T box overlay (cropped from the same stack,
-    masked to ``m15PTM``'s shape).
+For each of the ten colour pairs this writes ``m15Frame<PAIR>.png`` into
+``assets/frames/m15/`` — the split frame, clipped to our exact card silhouette
+(it borrows ``m15FrameW``'s alpha, so the art window is transparent and the outline
+matches the mono frames pixel-for-pixel). The title/type bars + bottom strip come from
+the gold ``m15FrameM`` frame: real hybrid cards keep GOLD furniture over the split body
+(e.g. Senate Guildmage), and the stack can't provide it cleanly anyway (shared ghost
+text). No P/T overlay is written — two-colour creatures use the gold ``m15PTM.png``
+(``layout.pt_box_path`` maps split keys to it), the same real-card convention.
 
 Idempotent: downloaded card PNGs are cached under ``output/.cache/two-color-frames/`` (gitignored),
 so re-runs only re-stack. Pass ``--pairs WU,UB`` to limit, ``--limit N`` to cap cards per pair,
@@ -45,10 +47,8 @@ CACHE_DIR = REPO_ROOT / "output" / ".cache" / "two-color-frames"
 # Native frame size + the P/T box zone (kept in sync with rendering/layout.py).
 FRAME_W, FRAME_H = 2010, 2814
 PT_BOX = (1522, 2490, 1900, 2696)  # NATIVE_PT_BOX (left, top, right, bottom)
-PT_OVERLAY_SIZE = (377, 206)  # m15PT*.png dimensions
 
-# WUBRG-ordered colour pairs — matches the existing crown/PT filenames.
-COLOR_ORDER = "WUBRG"
+# WUBRG-ordered colour pairs — matches the frame/crown filenames.
 PAIRS = ["WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"]
 
 SCRYFALL_SEARCH = "https://api.scryfall.com/cards/search"
@@ -127,38 +127,24 @@ def _stack_frame(paths: list[Path]) -> Image.Image:
     return Image.fromarray(blended, "RGB").resize((FRAME_W, FRAME_H), Image.LANCZOS)
 
 
-def _mono_split_blend(pair: str) -> Image.Image:
-    """Left-colour-A / right-colour-B gradient blend of the two mono frames (RGBA).
-
-    The mono frames are text-free, so this is the clean source for the bar zones; a
-    soft horizontal seam (~18% of the width, centred) reproduces the split gradient.
-    """
-    left = Image.open(FRAMES_DIR / f"m15Frame{pair[0]}.png").convert("RGBA")
-    right = Image.open(FRAMES_DIR / f"m15Frame{pair[1]}.png").convert("RGBA")
-    w, h = left.size
-    xs = np.linspace(0.0, 1.0, w)
-    center, half = 0.5, 0.09
-    ramp = np.clip((xs - (center - half)) / (2 * half), 0.0, 1.0)
-    mask = Image.fromarray((ramp * 255).astype(np.uint8)[None, :].repeat(h, 0), "L")
-    return Image.composite(right, left, mask)
-
-
-def _clean_bars(frame: Image.Image, pair: str) -> Image.Image:
-    """Replace the title + type bar zones with the clean mono-frame split blend.
+def _clean_bars(frame: Image.Image) -> Image.Image:
+    """Replace the title + type bar zones with the gold ``m15FrameM`` bars.
 
     The bars are flat colour fields with no art, so the real-card stack leaves shared
     ghost text there ("Creature —", card names) that even a high percentile can't out-vote.
-    The mono frames carry the same bevel/shading and are text-free, so a left/right blend
-    gives a clean split bar; the stack keeps the body, border, pinline, rules box, and P/T.
+    Real hybrid cards keep GOLD title/type bars and a gold P/T box over the split body
+    (e.g. Senate Guildmage) — exactly the ``m15FrameM`` look — so the gold template is
+    both the clean source AND the canonical one; the stack keeps the body, border,
+    pinline, and rules box.
     """
-    blend = _mono_split_blend(pair)
+    gold = Image.open(FRAMES_DIR / "m15FrameM.png").convert("RGBA")
     out = frame.copy()
     for mask_name in ("m15MaskTitle", "m15MaskType"):
         zone = Image.open(FRAMES_DIR / f"{mask_name}.png").convert("RGBA").split()[3]
-        out.paste(blend, (0, 0), zone)
+        out.paste(gold, (0, 0), zone)
     # Bottom collector strip: flat dark border that ghosts shared copyright/collector
-    # text; the mono blend is clean there too. (Rules box ends at NATIVE_TEXT_BOX.bottom.)
-    bottom = blend.crop((0, 2596, FRAME_W, FRAME_H)).convert("RGB")
+    # text; the gold frame is clean there too. (Rules box ends at NATIVE_TEXT_BOX.bottom.)
+    bottom = gold.crop((0, 2596, FRAME_W, FRAME_H)).convert("RGB")
     out.paste(bottom, (0, 2596))
     return out
 
@@ -176,16 +162,6 @@ def _clean_rules_box(frame_rgb: Image.Image) -> Image.Image:
     out = frame_rgb.copy()
     out.paste(mono, (0, 0), rules_mask)
     return out
-
-
-def _build_pt_box(frame_rgb: Image.Image) -> Image.Image:
-    """Crop the split P/T box from the stacked frame, masked to m15PTM's shape."""
-    crop = frame_rgb.crop(PT_BOX).resize(PT_OVERLAY_SIZE, Image.LANCZOS).convert("RGBA")
-    pt_template = Image.open(FRAMES_DIR / "m15PTM.png").convert("RGBA")
-    if pt_template.size != PT_OVERLAY_SIZE:
-        pt_template = pt_template.resize(PT_OVERLAY_SIZE, Image.LANCZOS)
-    crop.putalpha(pt_template.split()[3])
-    return crop
 
 
 def _erase_pt_box(frame_rgb: Image.Image) -> Image.Image:
@@ -226,13 +202,10 @@ def generate_pair(pair: str, limit: int, refresh: bool) -> None:
     print(f"[{pair}] stacking {len(paths)} cards (p{STACK_PERCENTILE:g})…")
     stacked = _stack_frame(paths)
 
-    pt_box = _build_pt_box(stacked)
-    pt_box.save(FRAMES_DIR / f"m15PT{pair}.png")
-
-    body = _clean_bars(_clean_rules_box(_erase_pt_box(stacked)), pair)
+    body = _clean_bars(_clean_rules_box(_erase_pt_box(stacked)))
     frame = _apply_silhouette(body)
     frame.save(FRAMES_DIR / f"m15Frame{pair}.png")
-    print(f"[{pair}] wrote m15Frame{pair}.png + m15PT{pair}.png")
+    print(f"[{pair}] wrote m15Frame{pair}.png")
 
 
 def main() -> None:
