@@ -134,7 +134,12 @@ LAND_WATERMARK_OPACITY = 0.5
 
 
 def _basic_land_symbol(card: Card) -> str | None:
-    """Return the mana symbol code for a basic land, or None if not a basic land."""
+    """Return the mana symbol code for a basic land, or None if not a basic land.
+
+    Keyed on the canonical English basic-land names (Plains … Wastes). A reskinned
+    or renamed basic whose subtype/type-line matches none of them falls through to
+    no watermark (renders blank, as before).
+    """
     if "Basic" not in card.supertypes or "Land" not in card.card_types:
         return None
     for subtype in card.subtypes:
@@ -155,7 +160,7 @@ def _with_opacity(img: Image.Image, opacity: float) -> Image.Image:
     return out
 
 
-def _render_land_watermark_fn(canvas: Image.Image, card: Card) -> None:
+def _render_land_watermark(canvas: Image.Image, card: Card) -> None:
     """Composite a large produced-color mana symbol centered in the text box.
 
     Basic lands have empty oracle text, so without this their text box renders
@@ -662,14 +667,6 @@ class CardRenderer:
             fill=BLACK,
         )
 
-    def _render_land_watermark(
-        self,
-        canvas: Image.Image,
-        card: Card,
-    ) -> None:
-        """Composite the basic-land produced-color watermark into the text box."""
-        _render_land_watermark_fn(canvas, card)
-
     def _render_text_box(
         self,
         canvas: Image.Image,
@@ -851,7 +848,7 @@ class CardRenderer:
         self._render_type_bar(canvas, card)
 
         has_pt = card.power is not None and card.toughness is not None
-        self._render_land_watermark(canvas, card)
+        _render_land_watermark(canvas, card)
         self._render_text_box(canvas, card, has_pt)
 
         # 6. P/T box (creatures only)

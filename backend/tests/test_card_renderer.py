@@ -13,7 +13,7 @@ from PIL import Image
 
 from mtgai.models.card import Card
 from mtgai.rendering import card_renderer
-from mtgai.rendering.card_renderer import _basic_land_symbol, _render_land_watermark_fn
+from mtgai.rendering.card_renderer import _basic_land_symbol, _render_land_watermark
 from mtgai.rendering.layout import NATIVE_TEXT_BOX
 
 
@@ -75,7 +75,7 @@ def test_basic_land_symbol_none_for_nonbasic() -> None:
 def test_watermark_composited_for_basic_land() -> None:
     """The watermark draws non-transparent pixels into the text box."""
     canvas = Image.new("RGBA", (2010, 2814), (0, 0, 0, 0))
-    _render_land_watermark_fn(canvas, _basic_land("Forest", "G"))
+    _render_land_watermark(canvas, _basic_land("Forest", "G"))
 
     # Center of the text box should now carry opaque-ish watermark pixels.
     cx, cy = NATIVE_TEXT_BOX.center_x, NATIVE_TEXT_BOX.center_y
@@ -85,7 +85,7 @@ def test_watermark_composited_for_basic_land() -> None:
 def test_watermark_noop_for_nonland() -> None:
     canvas = Image.new("RGBA", (2010, 2814), (0, 0, 0, 0))
     creature = Card(name="Goblin", type_line="Creature — Goblin", card_types=["Creature"])
-    _render_land_watermark_fn(canvas, creature)
+    _render_land_watermark(canvas, creature)
 
     cx, cy = NATIVE_TEXT_BOX.center_x, NATIVE_TEXT_BOX.center_y
     assert canvas.getpixel((cx, cy))[3] == 0
@@ -95,7 +95,7 @@ def test_watermark_opacity_is_reduced() -> None:
     """Watermark alpha is scaled down so flavor text reads on top."""
     full = card_renderer.get_mana_symbol("U", 400)
     faint = card_renderer._with_opacity(full, 0.5)
-    # A fully-opaque source pixel becomes ~half opacity.
+    # A fully-opaque source pixel is halved (int truncation: 255 -> 127).
     full_max = max(full.split()[3].getdata())
     faint_max = max(faint.split()[3].getdata())
-    assert faint_max < full_max
+    assert faint_max == int(full_max * 0.5)
