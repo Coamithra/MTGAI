@@ -209,6 +209,8 @@
   //   council   — collector_number -> { size, maxRounds, steps:[...] } live panel
   //   reviewing — Set of collector_numbers currently under review
   //   reviseOpen — collector_number whose inline revise box is open (or null)
+  //   reviseDraft — collector_number -> the typed revise instructions, so the
+  //                 textarea survives a paintGrid rebuild (innerHTML wipes the DOM)
   // -------------------------------------------------------------------------
   const instances = new Map();
   function stateFor(instanceId) {
@@ -226,6 +228,7 @@
         bootstrapping: false,
         filter: 'all',
         reviseOpen: null,
+        reviseDraft: {},
         openMenu: null,
         locked: false,
       };
@@ -458,8 +461,35 @@
     const ranked = visible
       .map((t) => ({ tile: t, prio: sortPriority(t, local) }))
       .sort((a, b) => a.prio - b.prio || cnCompare(a.tile, b.tile));
+    // If the open revise textarea is focused, remember its caret so the
+    // innerHTML rebuild below doesn't drop the user out of the field mid-type.
+    const caret = captureReviseCaret(root, local);
     slot.innerHTML = `<div class="wiz-ar-grid">${gridInnerHtml(ranked, local)}</div>`;
+    if (caret) restoreReviseCaret(root, caret);
     setLocked(root, local, local.locked);
+  }
+
+  // Focus/caret preservation across the paintGrid innerHTML rebuild for the
+  // currently-open revise textarea (the draft value itself survives via
+  // local.reviseDraft; this just keeps typing uninterrupted).
+  function captureReviseCaret(root, local) {
+    const cn = local.reviseOpen;
+    if (!cn) return null;
+    const active = root.ownerDocument && root.ownerDocument.activeElement;
+    if (!active || !active.matches || !active.matches('[data-role="ar-revise-text"]')) return null;
+    const box = active.closest('[data-role="ar-revise"]');
+    if (!box || box.dataset.cn !== String(cn)) return null;
+    return { cn, start: active.selectionStart, end: active.selectionEnd };
+  }
+
+  function restoreReviseCaret(root, caret) {
+    const ta = root.querySelector(
+      `[data-role="ar-revise"][data-cn="${W.cssEsc ? W.cssEsc(caret.cn) : caret.cn}"] [data-role="ar-revise-text"]`);
+    if (!ta) return;
+    ta.focus();
+    if (caret.start != null) {
+      try { ta.setSelectionRange(caret.start, caret.end); } catch (e) { /* non-text input */ }
+    }
   }
 
   // 0 reviewing (live) · 1 to-review · 2 rejected · 3 approved. 0–2 all need the
@@ -544,7 +574,7 @@
 
     const tweakBlock = reviewing ? '' : tweakHtml(tile);
 
-    const reviseBox = (local.reviseOpen === cn) ? reviseBoxHtml(cn) : '';
+    const reviseBox = (local.reviseOpen === cn) ? reviseBoxHtml(cn, local) : '';
     const menu = reviewing ? '' : actionsHtml(cn, local);
 
     return `
@@ -611,10 +641,11 @@
     `;
   }
 
-  function reviseBoxHtml(cn) {
+  function reviseBoxHtml(cn, local) {
+    const draft = (local && local.reviseDraft && local.reviseDraft[cn]) || '';
     return `
       <div class="wiz-ar-revise-box" data-role="ar-revise" data-cn="${escAttr(cn)}">
-        <textarea data-role="ar-revise-text" placeholder="Describe what to change (e.g. 'reduce the power to 2/2 and remove trample')…"></textarea>
+        <textarea data-role="ar-revise-text" placeholder="Describe what to change (e.g. 'reduce the power to 2/2 and remove trample')…">${escHtml(draft)}</textarea>
         <div class="wiz-ar-revise-actions">
           <button type="button" class="wiz-ar-btn-sm" data-action="revise-cancel" data-cn="${escAttr(cn)}">Cancel</button>
           <button type="button" class="wiz-ar-btn-sm primary" data-action="revise-submit" data-cn="${escAttr(cn)}">Apply revision</button>
@@ -681,6 +712,18 @@
       // Click elsewhere closes any open menu.
       if (local.openMenu) { local.openMenu = null; paintGrid(root, local); }
     });
+    // Mirror the revise textarea's value into state so a paintGrid rebuild
+    // (toggling another card's menu, approving a card, changing a filter, …)
+    // doesn't wipe the user's typed instructions. reviseBoxHtml renders this
+    // back; the draft is cleared on submit / cancel.
+    root.addEventListener('input', function (e) {
+      const ta = e.target;
+      if (ta && ta.matches && ta.matches('[data-role="ar-revise-text"]')) {
+        const box = ta.closest('[data-role="ar-revise"]');
+        const cn = box && box.dataset.cn;
+        if (cn) local.reviseDraft[cn] = ta.value;
+      }
+    });
   }
 
   function toggleMenu(root, local, cn) {
@@ -692,7 +735,7 @@
     if (local.locked) return;
     if (action === 'approve') { local.openMenu = null; doApprove(root, local, cn); }
     else if (action === 'revise') { local.openMenu = null; local.reviseOpen = cn; paintGrid(root, local); focusRevise(root, cn); }
-    else if (action === 'revise-cancel') { local.reviseOpen = null; paintGrid(root, local); }
+    else if (action === 'revise-cancel') { local.reviseOpen = null; delete local.reviseDraft[cn]; paintGrid(root, local); }
     else if (action === 'revise-submit') { doRevise(root, local, cn); }
     else if (action === 'regenerate') { local.openMenu = null; doRegenerate(root, local, cn); }
   }
@@ -737,6 +780,7 @@
       onResult: (data) => {
         applyTile(local, data.tile);
         local.reviseOpen = null;  // revised → approved; user can re-open to revise again
+        delete local.reviseDraft[cn];
         refresh(root, local);
         W.toast('Card revised.', 'success');
       },
