@@ -476,7 +476,29 @@ def build_char_refs_hooks(emitter: StageEmitter) -> CharRefsStreamHooks:
 # ---------------------------------------------------------------------------
 
 
-def art_prompt_tile_dict(card: object) -> dict:
+def _normalize_cameo(cameo: object) -> dict | None:
+    """Coerce a cameo record into the ``{key, kind, description}`` tile shape.
+
+    The art-prompt builder rolls a per-card cameo (``_roll_cameo``) and persists
+    it to the prompt-log sidecar as ``{key, kind, description}`` or ``null``. Both
+    the live SSE path (fresh roll) and the ``/state`` path (sidecar read) feed it
+    here so the tile carries a consistent, defensively-normalized record. Returns
+    ``None`` for a missing / malformed / empty cameo.
+    """
+    if not isinstance(cameo, dict):
+        return None
+    key = str(cameo.get("key") or "").strip()
+    description = str(cameo.get("description") or "").strip()
+    if not key and not description:
+        return None
+    return {
+        "key": key,
+        "kind": str(cameo.get("kind") or "").strip(),
+        "description": description,
+    }
+
+
+def art_prompt_tile_dict(card: object, cameo: object = None) -> dict:
     """Render a Card (or its disk-JSON dict) into the Art Prompts tab tile shape.
 
     Single source of the tile shape so the engine's per-card SSE stream
@@ -485,7 +507,10 @@ def art_prompt_tile_dict(card: object) -> dict:
     eventually repaints from ``/state``, so any drift would surface as flicker.
 
     Accepts a ``Card`` model (``model_dump(mode="json")`` → enums become strings)
-    or a plain dict already loaded from disk.
+    or a plain dict already loaded from disk. ``cameo`` is the per-card cameo
+    record (``{key, kind, description}`` or ``None``) — the cameo decision lives
+    in the prompt-log sidecar, not on the Card, so callers thread it in
+    (fresh roll on the SSE path, sidecar read on the ``/state`` path).
     """
     if hasattr(card, "model_dump"):
         c: dict = card.model_dump(mode="json")  # type: ignore[attr-defined]
@@ -514,27 +539,34 @@ def art_prompt_tile_dict(card: object) -> dict:
         "artist": c.get("artist") or "AI Generated",
         "art_prompt": c.get("art_prompt") or "",
         "card_faces": face_prompts or None,
+        "cameo": _normalize_cameo(cameo),
     }
 
 
 @dataclass
 class ArtPromptStreamHooks:
-    """The ``generate_prompts_for_set`` per-card streaming callback."""
+    """The ``generate_prompts_for_set`` per-card streaming callback.
 
-    on_card_saved: Callable[[object], None]
+    ``on_card_saved(card, cameo=None)`` — the cameo arg is optional so a no-cameo
+    caller can pass the card alone; ``generate_prompts_for_set`` always passes
+    both.
+    """
+
+    on_card_saved: Callable[..., None]
 
 
 def build_art_prompt_hooks(emitter: StageEmitter) -> ArtPromptStreamHooks:
     """Build the art-prompt streaming hook shared by the engine (``run_art_prompts``)
     and the refresh endpoint.
 
-    ``on_card_saved(card)`` streams one freshly-prompted card as the canonical
-    ``art_prompt_card`` tile (via :func:`art_prompt_tile_dict`) so the grid fills
-    in live, mirroring card_gen's ``card_gen_card`` stream.
+    ``on_card_saved(card, cameo)`` streams one freshly-prompted card as the
+    canonical ``art_prompt_card`` tile (via :func:`art_prompt_tile_dict`) so the
+    grid fills in live, mirroring card_gen's ``card_gen_card`` stream. The cameo
+    is rolled at gen-time and isn't stored on the Card, so it's passed alongside.
     """
 
-    def on_card_saved(card: object) -> None:
-        emitter.event("art_prompt_card", card=art_prompt_tile_dict(card))
+    def on_card_saved(card: object, cameo: object = None) -> None:
+        emitter.event("art_prompt_card", card=art_prompt_tile_dict(card, cameo=cameo))
 
     return ArtPromptStreamHooks(on_card_saved)
 

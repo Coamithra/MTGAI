@@ -145,10 +145,16 @@ def test_card_saved_callback_streams_each_card(monkeypatch, tmp_path, loaded_car
     monkeypatch.setattr(pb, "generate_art_prompt", lambda _c, **k: ("P", 1, 1))
     _patch_stage_inputs(monkeypatch, set_dir)
 
-    streamed: list[Card] = []
-    pb.generate_prompts_for_set(card_saved_callback=streamed.append)
+    # The callback receives (card, cameo) — the rolled cameo is passed alongside
+    # the Card (it isn't stored on the model). No style-guide refs here, so cameo
+    # is None.
+    streamed: list[tuple[Card, dict | None]] = []
+    pb.generate_prompts_for_set(
+        card_saved_callback=lambda card, cameo: streamed.append((card, cameo))
+    )
     assert len(streamed) == 1
-    assert streamed[0].art_prompt == "P"
+    assert streamed[0][0].art_prompt == "P"
+    assert streamed[0][1] is None
 
 
 # ---------------------------------------------------------------------------
