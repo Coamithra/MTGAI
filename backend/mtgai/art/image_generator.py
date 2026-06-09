@@ -1241,16 +1241,25 @@ def generate_art_for_set(
                 generated += 1
                 continue
 
-            # Best-of-N: generate ``n_versions`` distinct candidates. ``force``
-            # restarts the version numbering at 1 (overwrite); otherwise append
-            # after any existing versions so a resume tops up the pool.
-            existing = list(art_dir.glob(f"{slug}_v*.png"))
-            base_version = 0 if force else len(existing)
+            # Best-of-N: generate ``n_versions`` distinct candidates, always
+            # numbered v1..vN. Any ``*_v*.png`` already on disk for this card are
+            # stale: either a forced overwrite, or crash-orphans from a run that
+            # was killed mid-card (the card was never recorded ``completed``, so
+            # it reached here instead of being skipped above). Delete them — plus
+            # their per-version log sidecars — before regenerating so the card
+            # ends with exactly N clean, contiguously-numbered versions. The old
+            # ``base_version = len(existing)`` *appended* N fresh after K orphans,
+            # leaving K+N PNGs that the disk-globbing art selector then judged as
+            # K+N candidates instead of N.
+            for stale_png in art_dir.glob(f"{slug}_v*.png"):
+                stale_png.unlink(missing_ok=True)
+            for stale_log in log_dir.glob(f"{cn}_v*.json"):
+                stale_log.unlink(missing_ok=True)
 
             saved_versions: list[dict] = []
             version_errors: list[dict] = []
             for i in range(1, n_versions + 1):
-                version = base_version + i
+                version = i
                 dest = art_dir / f"{slug}_v{version}.png"
                 for attempt in range(1, max_attempts_per_version + 1):
                     try:

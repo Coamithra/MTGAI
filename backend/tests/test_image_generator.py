@@ -806,3 +806,60 @@ def test_art_loop_recycle_disabled_when_zero(monkeypatch, tmp_path):
     ig.generate_art_for_set()
 
     assert recycles == []
+
+
+# ---------------------------------------------------------------------------
+# Resume cleans crash-orphans (no K+N versions)
+# ---------------------------------------------------------------------------
+
+
+def test_art_loop_resume_deletes_crash_orphans(monkeypatch, tmp_path):
+    """A card never recorded ``completed`` (mid-card crash) has its stale
+    ``*_v*.png`` + log sidecars deleted and regenerated as exactly N clean
+    v1..vN versions — not appended after the K orphans (the K+N bug)."""
+    set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=1)
+    monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 3)
+
+    art_dir = set_dir / "art"
+    log_dir = set_dir / "art-generation-logs"
+    art_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    slug = ig.card_slug("001", _StubCard("001").name)
+    # Two crash-orphans + their sidecars; NO progress.json entry for the card.
+    for v in (1, 2):
+        (art_dir / f"{slug}_v{v}.png").write_bytes(b"orphan")
+        (log_dir / f"001_v{v}.json").write_text("{}", encoding="utf-8")
+
+    fresh = []
+    monkeypatch.setattr(
+        ig,
+        "generate_image",
+        lambda *a, **k: (fresh.append(1) or b"fresh", {"elapsed_seconds": 1.0}),
+    )
+
+    summary = ig.generate_art_for_set()
+
+    pngs = sorted(p.name for p in art_dir.glob(f"{slug}_v*.png"))
+    assert pngs == [f"{slug}_v1.png", f"{slug}_v2.png", f"{slug}_v3.png"]  # exactly N, not K+N
+    assert all((art_dir / p).read_bytes() == b"fresh" for p in pngs)  # orphans gone
+    assert len(fresh) == 3  # only N images generated this run
+    assert summary["generated"] == 1
+
+
+def test_art_loop_force_clears_extra_versions(monkeypatch, tmp_path):
+    """``force`` with a smaller N deletes the higher-numbered leftovers, leaving
+    exactly the new v1..vN (no v(N+1).. orphans from a prior larger run)."""
+    set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=1)
+    monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 2)
+
+    art_dir = set_dir / "art"
+    art_dir.mkdir(parents=True, exist_ok=True)
+    slug = ig.card_slug("001", _StubCard("001").name)
+    for v in (1, 2, 3, 4):  # a prior run made 4 versions
+        (art_dir / f"{slug}_v{v}.png").write_bytes(b"old")
+
+    ig.generate_art_for_set(force=True)
+
+    pngs = sorted(p.name for p in art_dir.glob(f"{slug}_v*.png"))
+    assert pngs == [f"{slug}_v1.png", f"{slug}_v2.png"]
+    assert all((art_dir / p).read_bytes() == b"img" for p in pngs)
