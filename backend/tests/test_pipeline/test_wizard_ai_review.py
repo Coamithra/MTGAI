@@ -367,3 +367,109 @@ def test_decision_on_unchanged_card_still_applies(client, isolated_output, tmp_p
     # Body unchanged -> the user's approval still overrides the AI REVISE.
     assert tile["effective"]["verdict"] == "approved"
     assert tile["effective"]["source"] == "user"
+
+
+# ---------------------------------------------------------------------------
+# Concurrency guard (card 6a285a13): approve/regenerate/revise must refuse while
+# the AI lock is held (run_ai_review running) or an extraction is in flight, so
+# they can never mutate the live pool / overwrite the tip snapshot mid-run.
+# ---------------------------------------------------------------------------
+
+
+def _card_disk_state(asset: Path, cn: str) -> tuple[str, dict | None]:
+    """The card file's raw text + the user-decisions entry — to assert no mutation."""
+    from mtgai.review.ai_review import load_decisions
+
+    path = next((asset / "cards").glob(f"{cn}_*.json"))
+    return path.read_text(encoding="utf-8"), load_decisions(asset).get(cn)
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "action"),
+    [
+        ("/api/wizard/ai_review/approve", "approval"),
+        ("/api/wizard/ai_review/regenerate", "regeneration"),
+        ("/api/wizard/ai_review/revise", "revision"),
+    ],
+)
+def test_mutating_endpoint_409_while_ai_lock_held(
+    client, isolated_output, tmp_path, endpoint, action
+):
+    """With the AI lock held (run_ai_review running), the endpoint 409s and changes nothing."""
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(
+        asset,
+        collector_number="W-C-02",
+        name="Bear",
+        oracle_text="Draw a card.",
+        slot_id="W-C-02",
+    )
+    before = _card_disk_state(asset, "W-C-02")
+
+    run_id = ai_lock.try_acquire("AI design review")
+    assert run_id is not None  # the lock is now held, simulating a running review
+    try:
+        body = {"collector_number": "W-C-02"}
+        if "revise" in endpoint:
+            body["instructions"] = "Make it weaker."
+        resp = client.post(endpoint, json=body)
+    finally:
+        ai_lock.release()
+
+    assert resp.status_code == 409
+    # The live card file + the decisions sidecar are byte-for-byte untouched.
+    assert _card_disk_state(asset, "W-C-02") == before
+    assert not (asset / "history").exists()  # no tip snapshot was written
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "/api/wizard/ai_review/approve",
+        "/api/wizard/ai_review/regenerate",
+        "/api/wizard/ai_review/revise",
+    ],
+)
+def test_mutating_endpoint_409_while_extraction_running(
+    client, isolated_output, tmp_path, endpoint
+):
+    """A running theme extraction also blocks these endpoints (no concurrent writer)."""
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(asset, collector_number="W-C-02", name="Bear", oracle_text="Draw a card.")
+    before = _card_disk_state(asset, "W-C-02")
+
+    extraction_run.start_run("upload-xyz")
+    assert extraction_run.current().status == "running"
+
+    body = {"collector_number": "W-C-02"}
+    if "revise" in endpoint:
+        body["instructions"] = "Make it weaker."
+    resp = client.post(endpoint, json=body)
+
+    assert resp.status_code == 409
+    assert _card_disk_state(asset, "W-C-02") == before
+
+
+def test_approve_works_once_lock_released(client, isolated_output, tmp_path):
+    """Sanity: the guard only blocks while busy — an idle approve still succeeds."""
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(
+        asset,
+        collector_number="W-C-02",
+        name="Bear",
+        regen_reason="too strong",
+        flagged_by="ai_review",
+    )
+
+    run_id = ai_lock.try_acquire("AI design review")
+    assert run_id is not None
+    busy = client.post("/api/wizard/ai_review/approve", json={"collector_number": "W-C-02"})
+    assert busy.status_code == 409
+    ai_lock.release()
+
+    resp = client.post("/api/wizard/ai_review/approve", json={"collector_number": "W-C-02"})
+    assert resp.status_code == 200
+    assert resp.json()["tile"]["effective"]["verdict"] == "approved"
