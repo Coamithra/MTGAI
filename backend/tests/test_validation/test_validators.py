@@ -662,6 +662,21 @@ class TestTypeLineOrdering:
         result = auto_fix_card(card, validate_card(card))
         assert result.card.type_line == "Frobnicate Sorcery — Goblin"
 
+    def test_lossless_guard_handles_spaceless_dash(self):
+        """A no-space dash still canonicalizes — the guard isn't fooled by it.
+
+        The lossless check splits the main side with the parser's lenient dash
+        regex, so "Creature—Goblin" (no surrounding spaces) is correctly seen as
+        recognized + reorderable, not falsely flagged as dropping a word.
+        """
+        card = _make_card(
+            type_line="Creature—Goblin",
+            card_types=[],
+            subtypes=[],
+        )
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.type_line == "Creature — Goblin"
+
 
 # ===========================================================================
 # Structural shape checks — power / toughness / loyalty garbage, missing cost.

@@ -73,9 +73,14 @@ def canonical_type_line(card: Card) -> str:
 # ---------------------------------------------------------------------------
 
 
+# Lenient dash split matching schema._parse_type_line (spaces optional), so the
+# main-side carve here agrees with how the parser actually splits the line.
+_LENIENT_TYPE_SEP_RE = re.compile(r"\s*(?:\u2014|\u2013|--)\s*")
+
+
 def _main_side_words(type_line: str) -> list[str]:
     """Return the lowercased words on the main (pre-dash) side of a type line."""
-    main = _TYPE_SEP_RE.split(type_line, maxsplit=1)[0]
+    main = _LENIENT_TYPE_SEP_RE.split(type_line, maxsplit=1)[0]
     return [w.lower() for w in main.split()]
 
 
