@@ -153,7 +153,10 @@ def _parse_svg_color(color_str: str | None) -> tuple[float, float, float] | None
         # the expansion the glyph fill parses as None and the path is silently dropped.
         s = "#" + "".join(c * 2 for c in s[1:])
     if s.startswith("#") and len(s) == 7:
-        return (int(s[1:3], 16) / 255, int(s[3:5], 16) / 255, int(s[5:7], 16) / 255)
+        try:
+            return (int(s[1:3], 16) / 255, int(s[3:5], 16) / 255, int(s[5:7], 16) / 255)
+        except ValueError:
+            return None
     return None
 
 

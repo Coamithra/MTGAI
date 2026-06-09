@@ -142,6 +142,11 @@ def test_parse_svg_color_shorthand_expands(shorthand, expected):
     assert symbol_renderer._parse_svg_color(shorthand) == pytest.approx(expected)
 
 
-@pytest.mark.parametrize("bad", [None, "", "none", "rgb(0,0,0)", "#12", "#12345"])
+@pytest.mark.parametrize(
+    "bad",
+    [None, "", "none", "rgb(0,0,0)", "#12", "#12345", "#xyz", "#GGGGGG"],
+)
 def test_parse_svg_color_rejects_unparseable(bad):
+    """Unparseable input returns None — including correct-length strings whose
+    digits aren't valid hex (``#xyz`` / ``#GGGGGG``), which must not raise."""
     assert symbol_renderer._parse_svg_color(bad) is None
