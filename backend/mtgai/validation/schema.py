@@ -26,6 +26,11 @@ _CARD_TYPES = {
     "Land",
     "Battle",
     "Kindred",
+    # Legacy name for Kindred (WotC renamed it in 2022); LLMs trained on older
+    # cards still emit it. Recognized as a real card type so it isn't silently
+    # dropped from the parsed line — type_check._CARD_TYPE_ORDER and
+    # rules_text._TYPE_PREFIX_RE both already treat it as one.
+    "Tribal",
 }
 
 

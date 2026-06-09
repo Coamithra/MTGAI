@@ -598,6 +598,70 @@ class TestTypeLineOrdering:
         result = auto_fix_card(card, validate_card(card))
         assert result.card.type_line == "Legendary Creature — Spirit"
 
+    def test_tribal_legacy_type_survives_autofix(self):
+        """'Tribal' (legacy name for Kindred) must not be silently deleted.
+
+        It's recognized as a real card type, so the already-canonical
+        "Tribal Sorcery — Goblin" passes validation untouched — no AUTO reorder
+        finding, no dropped word.
+        """
+        raw = {
+            "name": "Goblin War Cry",
+            "type_line": "Tribal Sorcery — Goblin",
+            "mana_cost": "{1}{R}",
+            "cmc": 2.0,
+            "oracle_text": "Goblins you control get +1/+0 until end of turn.",
+            "rarity": "common",
+        }
+        card, errors, _fixes, regen = validate_card_from_raw(raw)
+        assert card.type_line == "Tribal Sorcery — Goblin"
+        assert "Tribal" in card.card_types
+        assert card.subtypes == ["Goblin"]
+        assert not any(e.error_code == "type_check.type_line_order" for e in errors)
+        assert regen is False
+
+    def test_misordered_tribal_reorders_losslessly(self):
+        """A genuinely misordered Tribal line still gets canonicalized."""
+        raw = {
+            "name": "Goblin Rite",
+            "type_line": "Sorcery Tribal — Goblin",
+            "mana_cost": "{1}{R}",
+            "cmc": 2.0,
+            "oracle_text": "Draw a card.",
+            "rarity": "common",
+        }
+        card, _errors, fixes, _regen = validate_card_from_raw(raw)
+        assert card.type_line == "Tribal Sorcery — Goblin"
+        assert any("type_line_order" in f for f in fixes)
+
+    def test_genuine_misorder_still_fixed(self):
+        """The em-dash misordered line from the card spec still reorders."""
+        card = _make_card(
+            type_line="Creature Legendary — Goblin",
+            card_types=["Creature"],
+            supertypes=["Legendary"],
+            subtypes=["Goblin"],
+        )
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.type_line == "Legendary Creature — Goblin"
+
+    def test_unrecognized_main_word_not_silently_dropped(self):
+        """An unknown pre-dash word the parser can't classify is never deleted.
+
+        The canonical rebuild would drop it, so check 8b suppresses the AUTO
+        reorder and the fixer is a no-op — the raw line is left verbatim rather
+        than mangled.
+        """
+        card = _make_card(
+            type_line="Frobnicate Sorcery — Goblin",
+            card_types=[],
+            subtypes=[],
+        )
+        errors = _errors_by_validator(validate_card(card), "type_check")
+        assert not any(e.error_code == "type_check.type_line_order" for e in errors)
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.type_line == "Frobnicate Sorcery — Goblin"
+
 
 # ===========================================================================
 # Structural shape checks — power / toughness / loyalty garbage, missing cost.
