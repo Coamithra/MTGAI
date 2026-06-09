@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -150,21 +151,46 @@ def test_clear_char_portraits_targets_real_output_dir(fake_output_root: Path) ->
     assert visual_refs.exists(), "upstream visual-references.json must be preserved"
 
 
-def test_clear_art_gen_removes_art_and_selections(fake_output_root: Path) -> None:
-    # The merged art_gen stage owns the generated art/ images AND the best-of-N
-    # selection transcripts folded in from the retired art_select stage.
+def test_clear_art_gen_removes_art_log_dirs_and_decisions(fake_output_root: Path) -> None:
+    # The merged art_gen stage owns the generated art/ images, both transcript
+    # dirs it writes (art-generation-logs from image_generator, art-selection-logs
+    # from art_selector), and the art_gen/ dir holding decisions.json (pick +
+    # manual-override record). It also scrubs the art_path it stamps onto cards.
+    # It must NOT touch art-direction/ — that's upstream visual_refs output.
     set_dir = fake_output_root / "sets" / "TST"
     art_dir = set_dir / "art"
     art_dir.mkdir(parents=True)
     (art_dir / "001_foo_v1.png").write_bytes(b"\x89PNG")
-    selections_dir = set_dir / "art-direction" / "selections"
-    selections_dir.mkdir(parents=True)
-    (selections_dir / "001_foo.json").write_text("{}", encoding="utf-8")
+    gen_logs = set_dir / "art-generation-logs"
+    gen_logs.mkdir(parents=True)
+    (gen_logs / "001_foo.json").write_text("{}", encoding="utf-8")
+    sel_logs = set_dir / "art-selection-logs"
+    sel_logs.mkdir(parents=True)
+    (sel_logs / "001_foo.json").write_text("{}", encoding="utf-8")
+    decisions = set_dir / "art_gen" / "decisions.json"
+    decisions.parent.mkdir(parents=True)
+    decisions.write_text("{}", encoding="utf-8")
+    # A card stamped with art_path by the selection sub-step.
+    cards_dir = set_dir / "cards"
+    cards_dir.mkdir(parents=True)
+    card_path = cards_dir / "001_foo.json"
+    card_path.write_text(
+        json.dumps({"name": "Foo", "art_path": "art/001_foo_v1.png"}), encoding="utf-8"
+    )
+    # Upstream visual_refs artifact — must survive an art_gen clear.
+    art_direction = set_dir / "art-direction"
+    art_direction.mkdir(parents=True)
+    visual_refs = art_direction / "visual-references.json"
+    visual_refs.write_text("{}", encoding="utf-8")
     _open_test_project("TST", set_dir)
 
     stages_mod.clear_stage_artifacts("art_gen")
     assert not art_dir.exists()
-    assert not selections_dir.exists()
+    assert not gen_logs.exists()
+    assert not sel_logs.exists()
+    assert not decisions.parent.exists(), "art_gen/decisions.json must be cleared"
+    assert json.loads(card_path.read_text(encoding="utf-8"))["art_path"] is None
+    assert visual_refs.exists(), "upstream art-direction/ output must be preserved"
 
 
 def test_clear_reprints_removes_selection_json(fake_output_root: Path) -> None:

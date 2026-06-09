@@ -81,10 +81,11 @@ def test_determine_frame_key_two_color_creature():
     assert CardRenderer().determine_frame_key(_card("Creature — Bird", ["U", "W"])) == "WU"
 
 
-def test_determine_frame_key_two_color_artifact_stays_artifact():
-    # Colored artifacts remain on the artifact frame (separate card).
+def test_determine_frame_key_two_color_artifact_is_not_split():
+    # Artifacts route through artifact_frame_key, not the two-color split: a
+    # multicolor artifact gets the gold-tinted "AM", never "WU".
     card = _card("Artifact — Equipment", ["U", "W"])
-    assert CardRenderer().determine_frame_key(card) == "A"
+    assert CardRenderer().determine_frame_key(card) == "AM"
 
 
 def test_determine_frame_key_mono_and_colorless_and_tricolor():

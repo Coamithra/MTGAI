@@ -1219,17 +1219,28 @@ def _break_points_payload(settings_obj) -> list[dict[str, Any]]:
     return rows
 
 
-def _model_stage_lists() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """The ordered (id, label) rows the Project Settings model table renders.
+def _model_stage_lists() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The ordered model-table rows the Project Settings picker renders.
 
+    LLM rows are ``{id, label, requires_vision}``; image rows are ``{id, label}``.
     Derived from ``LLM_STAGE_NAMES`` / ``IMAGE_STAGE_NAMES`` so the wizard's
     per-stage model picker can never drift out of sync with the backend stage
     registry (the bug that left ``visual_refs`` / ``char_portraits`` out of the
     picker when they were added). Served verbatim in both project payloads.
     """
-    from mtgai.settings.model_settings import IMAGE_STAGE_NAMES, LLM_STAGE_NAMES
+    from mtgai.settings.model_settings import (
+        IMAGE_STAGE_NAMES,
+        LLM_STAGE_NAMES,
+        VISION_REQUIRED_STAGES,
+    )
 
-    llm = [{"id": sid, "label": name} for sid, name in LLM_STAGE_NAMES.items()]
+    # ``requires_vision`` tells the picker to filter this stage's model dropdown
+    # to vision-capable models only (art_select judges images — a text-only
+    # model silently no-ops best-of-N and wastes the Flux compute).
+    llm = [
+        {"id": sid, "label": name, "requires_vision": sid in VISION_REQUIRED_STAGES}
+        for sid, name in LLM_STAGE_NAMES.items()
+    ]
     image = [{"id": sid, "label": name} for sid, name in IMAGE_STAGE_NAMES.items()]
     return llm, image
 
@@ -1260,6 +1271,11 @@ def _registry_model_lists() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]
             # toggle is offered only for these. Anthropic models / non-reasoning
             # locals have thinking unset and get no toggle.
             "supports_thinking": m.thinking in ("adaptive", "adaptive_summarized"),
+            # Whether the model can judge images. The picker filters the
+            # vision-required stages' (VISION_REQUIRED_STAGES, e.g. art_select)
+            # dropdown to vision-capable models so best-of-N always gets a real
+            # judge. Only the Anthropic models are vision-capable today.
+            "supports_vision": m.supports_vision,
         }
         for m in registry.list_llm()
     ]
@@ -1656,6 +1672,7 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
     from mtgai.settings.model_settings import (
         IMAGE_STAGE_NAMES,
         LLM_STAGE_NAMES,
+        VISION_REQUIRED_STAGES,
     )
 
     # effort/thinking are per-LLM-stage overrides, so they share the LLM stage
@@ -1682,6 +1699,27 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
             valid_ids = ", ".join(sorted(m.key for m in options))
             return JSONResponse(
                 {"error": (f"Unknown {kind} model id {value!r}. Valid ids: {valid_ids}")},
+                status_code=400,
+            )
+
+        # A vision-required stage (art_select judges images) can't use a
+        # text-only model — the per-card judge call throws and best-of-N
+        # silently falls back to v1, wasting all the Flux v2..vN compute. The
+        # picker already filters these out, but guard the API too so a direct
+        # call / hand-edited .mtg can't persist a no-op judge.
+        if (
+            kind == "llm"
+            and stage_id in VISION_REQUIRED_STAGES
+            and not getattr(known, "supports_vision", False)
+        ):
+            return JSONResponse(
+                {
+                    "error": (
+                        f"The {stage_id} stage judges generated art, so it needs a "
+                        f"vision-capable model. {value!r} is text-only — pick a "
+                        "vision model (e.g. haiku, sonnet, opus)."
+                    )
+                },
                 status_code=400,
             )
 
@@ -5484,12 +5522,30 @@ async def wizard_card_gen_refresh() -> JSONResponse:
 # ---------------------------------------------------------------------------
 
 
+def _art_prompt_cameo(asset: Path, collector_number: str) -> dict | None:
+    """Read a card's rolled cameo from its art-prompt prompt-log sidecar.
+
+    The cameo decision (``{key, kind, description}`` or ``null``) is persisted by
+    ``generate_prompts_for_set`` to ``<asset>/art_prompts/prompt-logs/<cn>.json``;
+    it isn't stored on the Card, so ``/state`` + ``save-card`` read it from there
+    to surface the per-card cameo badge. Returns ``None`` when absent/malformed.
+    """
+    if not collector_number:
+        return None
+    sidecar = _read_json(asset / "art_prompts" / "prompt-logs" / f"{collector_number}.json", None)
+    if not isinstance(sidecar, dict):
+        return None
+    cameo = sidecar.get("cameo")
+    return cameo if isinstance(cameo, dict) else None
+
+
 def _art_prompt_tiles(asset: Path) -> list[dict]:
     """Read every card in ``<asset>/cards/`` into the Art Prompts tile shape.
 
     Uses the shared :func:`art_prompt_tile_dict` so this endpoint and the per-card
     SSE stream emit byte-identical tiles. Sorted by collector number for a stable
-    grid order.
+    grid order. The per-card cameo badge is read from the prompt-log sidecar (the
+    cameo isn't on the Card) and threaded into the tile.
     """
     cards_dir = asset / "cards"
     if not cards_dir.is_dir():
@@ -5498,7 +5554,8 @@ def _art_prompt_tiles(asset: Path) -> list[dict]:
     for path in sorted(cards_dir.glob("*.json")):
         card = _read_json(path, None)
         if isinstance(card, dict):
-            tiles.append(art_prompt_tile_dict(card))
+            cameo = _art_prompt_cameo(asset, str(card.get("collector_number") or ""))
+            tiles.append(art_prompt_tile_dict(card, cameo=cameo))
     return tiles
 
 
@@ -5671,7 +5728,10 @@ async def wizard_art_prompts_save_card(request: Request) -> JSONResponse:
     card = load_card(path)
     save_card(card.model_copy(update=update), set_dir=asset)
     _heal_failed_stage("art_prompts")
-    return JSONResponse({"tile": art_prompt_tile_dict(load_card(path).model_dump(mode="json"))})
+    cameo = _art_prompt_cameo(asset, cn)
+    return JSONResponse(
+        {"tile": art_prompt_tile_dict(load_card(path).model_dump(mode="json"), cameo=cameo)}
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -6156,6 +6216,8 @@ def _finalize_card_view(
     ``user_edited`` from the persisted manual-edit marker. ``slot_text`` (the
     relabeled slot brief) is shown read-only for context, same as card_gen.
     """
+    from mtgai.generation.reminder_injector import strip_reminder_text
+
     cn = card.get("collector_number") or ""
     entry = report_by_cn.get(cn, {})
     slot = slots_by_id.get(cn) if slots_by_id else None
@@ -6164,12 +6226,16 @@ def _finalize_card_view(
         from mtgai.skeleton.generator import render_slot_string
 
         slot_text = (slot.get("tweaked_text") or "").strip() or render_slot_string(slot)
+    oracle_text = card.get("oracle_text") or ""
     return {
         "collector_number": cn,
         "name": card.get("name") or "",
         "mana_cost": card.get("mana_cost") or "",
         "type_line": card.get("type_line") or "",
-        "oracle_text": card.get("oracle_text") or "",
+        "oracle_text": oracle_text,
+        # Canonical (reminder-free) form for the editable textarea — see
+        # ``_rendering_card_view``. The preview + before/after diff keep ``oracle_text``.
+        "oracle_text_editor": strip_reminder_text(oracle_text),
         "flavor_text": card.get("flavor_text") or "",
         "power": card.get("power"),
         "toughness": card.get("toughness"),
@@ -6548,6 +6614,8 @@ def _rendering_card_view(card: dict, asset: Path, slots_by_id: dict[str, dict]) 
     renumber (which shifts collector numbers but leaves ``slot_id`` pinned to the
     originating skeleton slot).
     """
+    from mtgai.generation.reminder_injector import strip_reminder_text
+
     cn = card.get("collector_number") or ""
     slot_id = card.get("slot_id") or cn
     slot = slots_by_id.get(slot_id) if slots_by_id else None
@@ -6556,12 +6624,19 @@ def _rendering_card_view(card: dict, asset: Path, slots_by_id: dict[str, dict]) 
         from mtgai.skeleton.generator import render_slot_string
 
         slot_text = (slot.get("tweaked_text") or "").strip() or render_slot_string(slot)
+    oracle_text = card.get("oracle_text") or ""
     return {
         "collector_number": cn,
         "name": card.get("name") or "",
         "mana_cost": card.get("mana_cost") or "",
         "type_line": card.get("type_line") or "",
-        "oracle_text": card.get("oracle_text") or "",
+        "oracle_text": oracle_text,
+        # The editable textarea shows canonical, reminder-free rules text: reminder
+        # text is auto-injected by finalize and never hand-authored, so editing it is
+        # silently discarded on save (finalize re-strips + re-injects). The at-rest
+        # preview + the render read the injected `oracle_text` (the preview then tracks
+        # the textarea once the user edits).
+        "oracle_text_editor": strip_reminder_text(oracle_text),
         "flavor_text": card.get("flavor_text") or "",
         "power": card.get("power"),
         "toughness": card.get("toughness"),
@@ -7709,16 +7784,26 @@ async def get_stage_logs(stage_id: str):
 
     set_dir = set_artifact_dir()
 
-    # Map stage_id to likely log locations
+    # Map stage_id to its real on-disk log location(s). Each path here is a
+    # directory the stage's runner actually writes its transcripts/reports to
+    # — keep it in sync when a stage's log dir moves.
     log_paths: dict[str, list[Path]] = {
         "mechanics": [set_dir / "mechanics" / "logs"],
         "card_gen": [set_dir / "card_gen" / "logs"],
-        "ai_review": [set_dir / "reviews"],
+        # ai_review writes llmfacade transcripts to ai_review/logs and the
+        # per-card human-readable verdict reports to reviews/<cn>.{json,md}.
+        "ai_review": [set_dir / "ai_review" / "logs", set_dir / "reviews"],
         "conformance": [set_dir / "conformance" / "logs"],
-        "art_prompts": [set_dir / "art-direction" / "prompt-logs"],
-        # art_select folded into the merged art_gen stage; its best-of-N
-        # selection transcripts surface under art_gen now.
-        "art_gen": [set_dir / "art-direction" / "selections"],
+        "art_prompts": [
+            set_dir / "art_prompts" / "logs",
+            set_dir / "art_prompts" / "prompt-logs",
+        ],
+        # art_select folded into the merged art_gen stage; the art-generation
+        # and best-of-N selection transcripts both surface under art_gen now.
+        "art_gen": [
+            set_dir / "art-generation-logs",
+            set_dir / "art-selection-logs",
+        ],
         "finalize": [set_dir / "reports"],
     }
 

@@ -470,6 +470,78 @@ def test_save_model_image_valid_pairing_persists(client):
     assert settings.image_assignments["art_gen"] == "flux-local"
 
 
+def test_llm_models_carry_supports_vision(client):
+    """Each llm_models entry carries supports_vision so the picker can filter
+    vision-required stages. Anthropic models are vision-capable; locals aren't."""
+    _open_project("TST")
+    models = {m["key"]: m for m in client.get("/api/wizard/project").json()["llm_models"]}
+    assert all("supports_vision" in m for m in models.values())
+    assert models["haiku"]["supports_vision"] is True
+    assert models["gemma4-26b-vlad-updated"]["supports_vision"] is False
+
+
+def test_llm_stages_mark_vision_required(client):
+    """The art_select stage row is flagged requires_vision (it judges art); an
+    ordinary text stage is not — the picker filters only the flagged ones."""
+    _open_project("TST")
+    stages = {s["id"]: s for s in client.get("/api/wizard/project").json()["llm_stages"]}
+    assert stages["art_select"]["requires_vision"] is True
+    assert stages["card_gen"]["requires_vision"] is False
+
+
+def test_save_model_rejects_non_vision_for_art_select(client):
+    """art_select judges images, so a text-only model is a 400 (it would
+    silently no-op best-of-N and waste the Flux compute)."""
+    _open_project("TST")
+    resp = client.post(
+        "/api/wizard/project/models",
+        json={
+            "set_code": "TST",
+            "kind": "llm",
+            "stage_id": "art_select",
+            "value": "gemma4-26b-vlad-updated",
+        },
+    )
+    assert resp.status_code == 400
+    assert "vision" in resp.json()["error"].lower()
+    # The text-only value never reaches the assignments map.
+    settings = active_project.require_active_project().settings
+    assert settings.llm_assignments.get("art_select") != "gemma4-26b-vlad-updated"
+
+
+def test_save_model_accepts_vision_for_art_select(client):
+    """A vision-capable model for art_select round-trips with 200."""
+    _open_project("TST")
+    resp = client.post(
+        "/api/wizard/project/models",
+        json={"set_code": "TST", "kind": "llm", "stage_id": "art_select", "value": "sonnet"},
+    )
+    assert resp.status_code == 200
+    assert (
+        active_project.require_active_project().settings.llm_assignments["art_select"] == "sonnet"
+    )
+
+
+def test_save_model_allows_non_vision_for_ordinary_stage(client):
+    """The vision filter is scoped to VISION_REQUIRED_STAGES — a normal text
+    stage still accepts a local (non-vision) model."""
+    _open_project("TST")
+    resp = client.post(
+        "/api/wizard/project/models",
+        json={
+            "set_code": "TST",
+            "kind": "llm",
+            "stage_id": "card_gen",
+            "value": "gemma4-26b-vlad-updated",
+        },
+    )
+    assert resp.status_code == 200
+    assert (
+        active_project.require_active_project().settings.llm_assignments["card_gen"]
+        == "gemma4-26b-vlad-updated"
+    )
+
+
 def test_save_model_effort_clears_on_empty_value(client):
     _open_project("TST")
     # Default has card_gen effort = max

@@ -34,6 +34,7 @@ from mtgai.models.card import Card
 from mtgai.rendering.colors import (
     BLACK,
     WHITE,
+    artifact_frame_key,
     frame_key_for_identity,
 )
 from mtgai.rendering.fonts import (
@@ -112,6 +113,87 @@ def _draw_text_centered(
 
 
 # ---------------------------------------------------------------------------
+# Basic-land text-box watermark
+#
+# Real basic lands show a large mana symbol centered in the text box (and sit
+# behind the flavor text on flavor-bearing printings). The land's produced
+# color drives which symbol: Plains -> {W}, Island -> {U}, etc.
+# ---------------------------------------------------------------------------
+BASIC_LAND_SYMBOL: dict[str, str] = {
+    "Plains": "W",
+    "Island": "U",
+    "Swamp": "B",
+    "Mountain": "R",
+    "Forest": "G",
+    "Wastes": "C",
+}
+
+# Fraction of the text-box height the watermark symbol occupies.
+LAND_WATERMARK_SCALE = 0.55
+# Watermark opacity — visible but faint enough that flavor text reads on top.
+LAND_WATERMARK_OPACITY = 0.5
+
+
+def _basic_land_symbol(card: Card) -> str | None:
+    """Return the mana symbol code for a basic land, or None if not a basic land.
+
+    Keyed on the canonical English basic-land names (Plains … Wastes). A reskinned
+    or renamed basic whose subtype/type-line matches none of them falls through to
+    no watermark (renders blank, as before).
+    """
+    if "Basic" not in card.supertypes or "Land" not in card.card_types:
+        return None
+    for subtype in card.subtypes:
+        if subtype in BASIC_LAND_SYMBOL:
+            return BASIC_LAND_SYMBOL[subtype]
+    # Fall back to scanning the type line (e.g. "Basic Land — Island").
+    for name, symbol in BASIC_LAND_SYMBOL.items():
+        if name in card.type_line:
+            return symbol
+    return None
+
+
+def _with_opacity(img: Image.Image, opacity: float) -> Image.Image:
+    """Return a copy of an RGBA image with its alpha channel scaled by ``opacity``."""
+    out = img.copy()
+    alpha = out.split()[3].point(lambda a: int(a * opacity))
+    out.putalpha(alpha)
+    return out
+
+
+def _render_land_watermark(canvas: Image.Image, card: Card) -> None:
+    """Composite a large produced-color mana symbol centered in the text box.
+
+    Basic lands have empty oracle text, so without this their text box renders
+    blank. Real basic lands show the land's produced-color mana symbol large and
+    centered (behind any flavor text). Called before the text box so flavor text
+    draws on top. No-op for any card that is not a basic land.
+    """
+    symbol = _basic_land_symbol(card)
+    if symbol is None:
+        return
+
+    box = NATIVE_TEXT_BOX
+    size = int(box.height * LAND_WATERMARK_SCALE)
+    sym_img = _with_opacity(get_mana_symbol(symbol, size), LAND_WATERMARK_OPACITY)
+    canvas.alpha_composite(
+        sym_img,
+        (box.center_x - size // 2, box.center_y - size // 2),
+    )
+
+
+def _frame_fallback(key: str) -> str:
+    """Fallback frame/PT key when a variant PNG is missing.
+
+    A colored artifact (``A?``) degrades to plain artifact ``A``; a two-color split
+    (a WUBRG pair) degrades to gold ``M``; everything else to ``A``.
+    """
+    if len(key) == 2 and not key.startswith("l"):
+        return "A" if key[0] == "A" else "M"
+    return "A"
+
+
+# ---------------------------------------------------------------------------
 # CardRenderer
 # ---------------------------------------------------------------------------
 class CardRenderer:
@@ -153,7 +235,8 @@ class CardRenderer:
         """Map card to frame key based on colors and type_line.
 
         Returns one of: W, U, B, R, G, a two-color split key (WU, WB, …),
-        M (3+ colors / gold), A, L, or land variants (lw, lu, lb, lr, lg, lm).
+        M (3+ colors / gold), A, the colored-artifact variants (AW, AU, AB,
+        AR, AG, AM), L, or land variants (lw, lu, lb, lr, lg, lm).
         """
         type_lower = card.type_line.lower()
         is_land = "land" in type_lower
@@ -162,10 +245,11 @@ class CardRenderer:
         # Color identity as list of single-letter strings
         identity = [c.value if hasattr(c, "value") else str(c) for c in card.color_identity]
 
-        # Colored artifacts still get the artifact frame (until colored artifact
-        # frames are implemented — see learnings/colored-artifact-frames.md)
+        # Artifacts get a color-tinted artifact frame (AW..AG / AM) when they
+        # carry a color identity, else the plain gray A. Missing tinted PNGs
+        # fall back to A in _load_frame.
         if is_artifact and not is_land:
-            return "A"
+            return artifact_frame_key(identity)
 
         return frame_key_for_identity(identity, is_land=is_land)
 
@@ -374,8 +458,9 @@ class CardRenderer:
 
         fp = frame_path(frame_key)
         if not fp.is_file():
-            # A two-color split frame degrades to gold (M); anything else to artifact (A).
-            fallback = "M" if len(frame_key) == 2 and not frame_key.startswith("l") else "A"
+            # A missing two-color split frame degrades to gold (M); a missing colored
+            # artifact (A?) or anything else to plain artifact (A).
+            fallback = _frame_fallback(frame_key)
             logger.warning(
                 "Frame file not found: %s — falling back to %s",
                 fp,
@@ -391,20 +476,22 @@ class CardRenderer:
         """Load the P/T box overlay for the given frame key.
 
         Two-color split frames (WU, WB, …) use their matching split P/T box;
-        land variants map to the first colour's box; 3+ colours use gold (M).
+        colored artifacts (AW, …) use their tinted box; land variants map to the
+        first colour's box; 3+ colours use gold (M).
         """
         if frame_key.startswith("l") and len(frame_key) == 2:
             pt_key = frame_key[1].upper()  # land variant -> first color letter
         else:
-            pt_key = frame_key  # single color, two-color split, or M/A
+            pt_key = frame_key  # single color, two-color split, colored artifact, or M/A
 
         if pt_key in self._pt_cache:
             return self._pt_cache[pt_key].copy()
 
         pp = pt_box_path(pt_key)
         if not pp.is_file():
-            # A two-color split P/T box degrades to gold (M); anything else to artifact (A).
-            fallback = "M" if len(pt_key) == 2 and not pt_key.startswith("l") else "A"
+            # A missing two-color split P/T box degrades to gold (M); a missing colored
+            # artifact (A?) or anything else to plain artifact (A).
+            fallback = _frame_fallback(pt_key)
             logger.warning(
                 "PT box file not found: %s — falling back to %s",
                 pp,
@@ -790,6 +877,7 @@ class CardRenderer:
         self._render_type_bar(canvas, card)
 
         has_pt = card.power is not None and card.toughness is not None
+        _render_land_watermark(canvas, card)
         self._render_text_box(canvas, card, has_pt)
 
         # 6. P/T box (creatures only)

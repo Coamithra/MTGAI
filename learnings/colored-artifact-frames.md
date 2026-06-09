@@ -1,6 +1,15 @@
 # Colored Artifact Frames — Research & Future Plan
 > Tracked: [Trello — Colored artifact frames](https://trello.com/c/xiFbWsDH)
 
+## Implementation status (2026-06-09): Option A shipped
+Colored artifacts now render with a tinted frame instead of flat gray. **Shipped Option A** (alpha-blend `m15FrameA` with each mono color frame), chosen after rendering an A-vs-median comparison: A stays in our native 2010×2814 Card Conjurer geometry so nothing misaligns, while the Scryfall-median path (below) produced more authentic frame *colors* but ghosted the title/type/rules text (at n=35 those zones carry text on most cards, so the per-pixel median can't out-vote it) plus slight text-doubling from the Scryfall→our-geometry mismatch. Pieces:
+- `colors.artifact_frame_key(color_identity)` → `A` (colorless) / `AW`..`AG` (mono) / `AM` (multicolor gold). `card_renderer.determine_frame_key` calls it for non-land artifacts (artifact *lands* stay land frames).
+- `layout.frame_path`/`pt_box_path` resolve 2-letter `A?` keys → `m15Frame{AW..AG,AM}.png` / `m15PT*`; `_load_frame`/`_load_pt_box` fall back to `A` if a variant is missing.
+- Variant PNGs built offline by `backend/scripts/colored_artifact_frames.py build --method blend` (blend α=0.45). The same script's `--method median` (Scryfall stack) + `compare` render the A-vs-D comparison.
+- Tests: `backend/tests/test_rendering/test_colored_artifact_frames.py`.
+
+**Follow-up (tracked):** the pixel-accurate median path needs (1) Scryfall→our-geometry registration and (2) zone-blanking the title/type/rules text regions to kill ghosting — and is the same compositing machinery the two-color-frames card needs, so the two should land together.
+
 ## Background
 Modern MTG (Kaladesh onwards) uses a distinct frame for colored artifacts — a blend of the artifact gray texture with the card's color identity. Examples: Esper Sentinel (white artifact), The Blackstaff of Waterdeep (blue artifact). Our renderer currently uses the standard color/gold frame for colored artifacts, which is acceptable but not pixel-accurate.
 
@@ -109,6 +118,8 @@ fit check the user asked for:
 `m15Frame<PAIR>.png` + `m15PT<PAIR>.png`, 10 pairs, WUBRG order); `colors.frame_key_for_identity` /
 `two_color_key`; `layout.frame_path` / `pt_box_path`; `card_renderer.determine_frame_key` /
 `_load_frame` / `_load_pt_box` / `_load_legendary_crown` (the pre-existing `CROWN_PAIR_MAP` is now
-wired to the committed `crowns/<PAIR>.png`). **Colored artifacts are still out of scope** (this card's
-sibling) — `determine_frame_key` short-circuits artifacts to `A`. The shared masking/blend pipeline
-this doc envisioned can reuse the mono-blend + zone-clip helpers in the generation script.
+wired to the committed `crowns/<PAIR>.png`). **Colored artifacts are handled by the sibling card**
+(Option A blends, shipped — see top of this doc); `determine_frame_key` routes non-land artifacts
+through `artifact_frame_key` and everything else through `frame_key_for_identity`, so the two
+features compose. The two-colour generation script's percentile-stack + mono-blend + zone-clip
+helpers are the upgrade path if the artifact frames later move from Option A to Option D.

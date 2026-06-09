@@ -107,6 +107,44 @@ def two_color_key(colors: list[str]) -> str:
     return "".join(sorted(colors, key=COLOR_ORDER.index))
 
 
+# ---------------------------------------------------------------------------
+# Colored artifact frame keys
+#
+# Modern MTG (Kaladesh onwards) tints the gray artifact frame toward the card's
+# color identity. We encode these as compound keys ``A{COLOR}`` mapping to
+# ``m15Frame{KEY}.png`` (e.g. ``AW`` -> ``m15FrameAW.png``). Mono-colored
+# artifacts get the matching single-color tint; a multi-colored artifact gets
+# the gold-tinted ``AM``. A colorless artifact stays the plain gray ``A``.
+# When a tinted variant PNG is absent, the renderer falls back to ``A``.
+# ---------------------------------------------------------------------------
+ARTIFACT_COLOR_FRAME_KEYS: dict[str, str] = {
+    "W": "AW",
+    "U": "AU",
+    "B": "AB",
+    "R": "AR",
+    "G": "AG",
+}
+ARTIFACT_MULTICOLOR_FRAME_KEY = "AM"
+
+
+def artifact_frame_key(color_identity: list[str]) -> str:
+    """Determine the artifact frame key for a (non-land) artifact card.
+
+    Args:
+        color_identity: List of color codes, e.g. ["W"], ["U", "B"], [].
+
+    Returns:
+        ``"A"`` for a colorless artifact, ``"AW".."AG"`` for a mono-colored
+        artifact, and ``"AM"`` for a multi-colored artifact.
+    """
+    colors = sorted(set(color_identity))
+    if len(colors) == 0:
+        return "A"
+    if len(colors) == 1:
+        return ARTIFACT_COLOR_FRAME_KEYS.get(colors[0], "A")
+    return ARTIFACT_MULTICOLOR_FRAME_KEY
+
+
 def frame_key_for_identity(color_identity: list[str], is_land: bool = False) -> str:
     """Determine the frame key for a card based on its color identity.
 

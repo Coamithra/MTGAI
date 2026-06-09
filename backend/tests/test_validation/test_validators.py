@@ -298,6 +298,18 @@ class TestManaConsistency:
         auto = [e for e in errors if e.severity == ValidationSeverity.AUTO]
         assert any("WUBRG" in e.message for e in auto)
 
+    def test_generic_after_colored_auto(self):
+        """A misplaced generic ({B}{G}{1}) is flagged — generic must precede colored."""
+        card = _make_card(
+            mana_cost="{B}{G}{1}",
+            cmc=3.0,
+            colors=[Color.BLACK, Color.GREEN],
+            color_identity=[Color.BLACK, Color.GREEN],
+        )
+        errors = _errors_by_validator(validate_card(card), "mana")
+        auto = [e for e in errors if e.severity == ValidationSeverity.AUTO]
+        assert any(e.error_code == "mana.wubrg_order" for e in auto)
+
     def test_land_with_mana_cost_manual(self):
         card = _make_card(
             mana_cost="{2}",
@@ -1876,6 +1888,44 @@ class TestAutoFix:
         errors = validate_card(card)
         result = auto_fix_card(card, errors)
         assert result.card.mana_cost == "{W}{R}"
+
+    def test_auto_fix_generic_before_colored(self):
+        """Generic/numeric symbols get reordered before colored: {B}{G}{1} -> {1}{B}{G}."""
+        card = _make_card(
+            mana_cost="{B}{G}{1}",
+            cmc=3.0,
+            colors=[Color.BLACK, Color.GREEN],
+            color_identity=[Color.BLACK, Color.GREEN],
+        )
+        errors = validate_card(card)
+        result = auto_fix_card(card, errors)
+        assert result.card.mana_cost == "{1}{B}{G}"
+
+    def test_auto_fix_canonical_order_x_generic_colorless_colored(self):
+        """Full canonical order: X, then generic, then {C}, then WUBRG colored."""
+        card = _make_card(
+            mana_cost="{W}{C}{1}{X}",
+            cmc=2.0,
+            colors=[Color.WHITE],
+            color_identity=[Color.WHITE],
+        )
+        errors = validate_card(card)
+        result = auto_fix_card(card, errors)
+        assert result.card.mana_cost == "{X}{1}{C}{W}"
+
+    def test_auto_fix_leaves_unparseable_twobrid_untouched(self):
+        """A {2/W} twobrid the symbol pattern can't match must not be dropped by
+        the ordering fixer (it rebuilds from findall) — leave it for invalid_format."""
+        card = _make_card(
+            mana_cost="{R}{2/W}{1}",
+            cmc=3.0,
+            colors=[Color.RED, Color.WHITE],
+            color_identity=[Color.RED, Color.WHITE],
+        )
+        from mtgai.validation.mana import fix_wubrg_order
+
+        fixed = fix_wubrg_order(card, _DUMMY_ERR)
+        assert fixed.mana_cost == "{R}{2/W}{1}"  # unchanged — no symbol dropped
 
     def test_auto_fix_etb(self):
         """'enters the battlefield' gets replaced with 'enters'."""
