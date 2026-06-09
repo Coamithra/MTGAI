@@ -5484,12 +5484,30 @@ async def wizard_card_gen_refresh() -> JSONResponse:
 # ---------------------------------------------------------------------------
 
 
+def _art_prompt_cameo(asset: Path, collector_number: str) -> dict | None:
+    """Read a card's rolled cameo from its art-prompt prompt-log sidecar.
+
+    The cameo decision (``{key, kind, description}`` or ``null``) is persisted by
+    ``generate_prompts_for_set`` to ``<asset>/art_prompts/prompt-logs/<cn>.json``;
+    it isn't stored on the Card, so ``/state`` + ``save-card`` read it from there
+    to surface the per-card cameo badge. Returns ``None`` when absent/malformed.
+    """
+    if not collector_number:
+        return None
+    sidecar = _read_json(asset / "art_prompts" / "prompt-logs" / f"{collector_number}.json", None)
+    if not isinstance(sidecar, dict):
+        return None
+    cameo = sidecar.get("cameo")
+    return cameo if isinstance(cameo, dict) else None
+
+
 def _art_prompt_tiles(asset: Path) -> list[dict]:
     """Read every card in ``<asset>/cards/`` into the Art Prompts tile shape.
 
     Uses the shared :func:`art_prompt_tile_dict` so this endpoint and the per-card
     SSE stream emit byte-identical tiles. Sorted by collector number for a stable
-    grid order.
+    grid order. The per-card cameo badge is read from the prompt-log sidecar (the
+    cameo isn't on the Card) and threaded into the tile.
     """
     cards_dir = asset / "cards"
     if not cards_dir.is_dir():
@@ -5498,7 +5516,8 @@ def _art_prompt_tiles(asset: Path) -> list[dict]:
     for path in sorted(cards_dir.glob("*.json")):
         card = _read_json(path, None)
         if isinstance(card, dict):
-            tiles.append(art_prompt_tile_dict(card))
+            cameo = _art_prompt_cameo(asset, str(card.get("collector_number") or ""))
+            tiles.append(art_prompt_tile_dict(card, cameo=cameo))
     return tiles
 
 
@@ -5671,7 +5690,10 @@ async def wizard_art_prompts_save_card(request: Request) -> JSONResponse:
     card = load_card(path)
     save_card(card.model_copy(update=update), set_dir=asset)
     _heal_failed_stage("art_prompts")
-    return JSONResponse({"tile": art_prompt_tile_dict(load_card(path).model_dump(mode="json"))})
+    cameo = _art_prompt_cameo(asset, cn)
+    return JSONResponse(
+        {"tile": art_prompt_tile_dict(load_card(path).model_dump(mode="json"), cameo=cameo)}
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -7709,16 +7731,26 @@ async def get_stage_logs(stage_id: str):
 
     set_dir = set_artifact_dir()
 
-    # Map stage_id to likely log locations
+    # Map stage_id to its real on-disk log location(s). Each path here is a
+    # directory the stage's runner actually writes its transcripts/reports to
+    # — keep it in sync when a stage's log dir moves.
     log_paths: dict[str, list[Path]] = {
         "mechanics": [set_dir / "mechanics" / "logs"],
         "card_gen": [set_dir / "card_gen" / "logs"],
-        "ai_review": [set_dir / "reviews"],
+        # ai_review writes llmfacade transcripts to ai_review/logs and the
+        # per-card human-readable verdict reports to reviews/<cn>.{json,md}.
+        "ai_review": [set_dir / "ai_review" / "logs", set_dir / "reviews"],
         "conformance": [set_dir / "conformance" / "logs"],
-        "art_prompts": [set_dir / "art-direction" / "prompt-logs"],
-        # art_select folded into the merged art_gen stage; its best-of-N
-        # selection transcripts surface under art_gen now.
-        "art_gen": [set_dir / "art-direction" / "selections"],
+        "art_prompts": [
+            set_dir / "art_prompts" / "logs",
+            set_dir / "art_prompts" / "prompt-logs",
+        ],
+        # art_select folded into the merged art_gen stage; the art-generation
+        # and best-of-N selection transcripts both surface under art_gen now.
+        "art_gen": [
+            set_dir / "art-generation-logs",
+            set_dir / "art-selection-logs",
+        ],
         "finalize": [set_dir / "reports"],
     }
 
