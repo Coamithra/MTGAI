@@ -94,8 +94,8 @@ COLOR_TO_FRAME_KEY: dict[str, str] = {
 ELDRAZI_FRAME = "eldrazi"
 
 # Canonical WUBRG ordering for two-color frame keys. Matches the on-disk asset names
-# (``m15FrameWU``, ``m15PTWU``, ``crowns/WU.png`` …), so a two-color key reads the same
-# everywhere — frame, P/T box, and legendary crown.
+# (``m15FrameWU``, ``crowns/WU.png`` …), so a two-color key reads the same everywhere —
+# frame and legendary crown. (The split P/T box is the shared gold ``m15PTM``.)
 COLOR_ORDER = "WUBRG"
 
 

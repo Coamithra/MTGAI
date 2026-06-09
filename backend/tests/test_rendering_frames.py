@@ -2,13 +2,14 @@
 
 Covers the multicolor (two-color) split frame work: ``colors.frame_key_for_identity`` /
 ``two_color_key``, ``layout.frame_path`` / ``pt_box_path``, ``CardRenderer.determine_frame_key``,
-and that the generated ``m15Frame<PAIR>`` / ``m15PT<PAIR>`` assets exist and load.
+that the generated ``m15Frame<PAIR>`` assets exist, load, and carry the gold ``m15FrameM``
+bars, and that a split key's P/T box resolves to the shared gold ``m15PTM``.
 """
 
 from __future__ import annotations
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageChops
 
 from mtgai.models.card import Card
 from mtgai.rendering.card_renderer import CardRenderer
@@ -130,9 +131,10 @@ def test_two_color_frame_asset_exists(pair):
         assert img.size == (FRAME_W, FRAME_H)
 
 
-@pytest.mark.parametrize("pair", PAIRS)
-def test_two_color_pt_box_resolves(pair):
-    pp = pt_box_path(pair)
+def test_two_color_pt_box_resolves_to_gold():
+    # Every split key resolves to the one shared gold box; check the file once.
+    pp = pt_box_path("WU")
+    assert pp.name == "m15PTM.png"
     assert pp.is_file(), f"missing {pp}"
     with Image.open(pp) as img:
         assert img.size == (377, 206)
@@ -146,15 +148,17 @@ def test_two_color_frame_has_gold_bars(pair):
     title/type masks, so where a mask is fully opaque the split frame's RGB
     must equal the gold frame's exactly (the canonical hybrid-card look).
     """
-    np = pytest.importorskip("numpy")
     frames_dir = frame_path("M").parent
-    gold = np.asarray(Image.open(frames_dir / "m15FrameM.png").convert("RGB"))
-    split = np.asarray(Image.open(frame_path(pair)).convert("RGB"))
+    gold = Image.open(frames_dir / "m15FrameM.png").convert("RGB")
+    split = Image.open(frame_path(pair)).convert("RGB")
+    black = Image.new("RGB", gold.size, (0, 0, 0))
     for mask_name in ("m15MaskTitle", "m15MaskType"):
-        mask = np.asarray(Image.open(frames_dir / f"{mask_name}.png").convert("RGBA"))[:, :, 3]
-        solid = mask == 255
-        assert solid.any(), f"{mask_name} has no fully-opaque pixels"
-        assert np.array_equal(split[solid], gold[solid]), (
+        mask = Image.open(frames_dir / f"{mask_name}.png").convert("RGBA").split()[3]
+        solid = mask.point(lambda a: 255 if a == 255 else 0)
+        assert solid.getbbox() is not None, f"{mask_name} has no fully-opaque pixels"
+        diff = ImageChops.difference(split, gold)
+        masked_diff = Image.composite(diff, black, solid)
+        assert masked_diff.getbbox() is None, (
             f"{pair} {mask_name} zone is not the gold m15FrameM bar"
         )
 

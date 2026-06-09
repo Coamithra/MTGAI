@@ -48,8 +48,7 @@ CACHE_DIR = REPO_ROOT / "output" / ".cache" / "two-color-frames"
 FRAME_W, FRAME_H = 2010, 2814
 PT_BOX = (1522, 2490, 1900, 2696)  # NATIVE_PT_BOX (left, top, right, bottom)
 
-# WUBRG-ordered colour pairs — matches the existing crown/PT filenames.
-COLOR_ORDER = "WUBRG"
+# WUBRG-ordered colour pairs — matches the frame/crown filenames.
 PAIRS = ["WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"]
 
 SCRYFALL_SEARCH = "https://api.scryfall.com/cards/search"

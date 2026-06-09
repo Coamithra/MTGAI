@@ -26,7 +26,7 @@ Card: 6a2881ba — Two-color split frames: gold title/type bars + gold P/T box (
 - [x] Update tests (pt path mapping, gold-bar pixel regression test)
 - [x] Update CLAUDE.md + learnings/colored-artifact-frames.md
 - [x] Re-run generate script for all 10 pairs (19-32 source cards each, all wrote)
-- [ ] Commit regenerated PNGs
+- [x] Commit regenerated PNGs (dafe37a)
 
 ## Phase 5: Verify
 - [x] ruff check + format (clean)
