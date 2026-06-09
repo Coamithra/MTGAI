@@ -231,3 +231,139 @@ def test_revise_requires_instructions(client, isolated_output, tmp_path):
         "/api/wizard/ai_review/revise", json={"collector_number": "W-C-01", "instructions": "  "}
     )
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Decision staleness across a regen (card 6a285a6b)
+# ---------------------------------------------------------------------------
+
+
+def _rewrite_card_body(asset: Path, cn: str, **fields) -> None:
+    """Replace a card's on-disk body (simulating a card_gen regen of the slot)."""
+    path = next((asset / "cards").glob(f"{cn}_*.json"))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data.update(fields)
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_stale_approve_does_not_override_fresh_regen_flag(client, isolated_output, tmp_path):
+    """A user-approved card that's later regenerated+re-flagged stops painting approved.
+
+    The bug: the approve decision (recorded against the OLD body, keyed by collector
+    number) outranked everything and painted "approved" forever even after a later
+    round re-flagged the card for regen. The signature check makes it stale.
+    """
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(asset, collector_number="W-C-02", name="Bear", oracle_text="Draw a card.")
+
+    # User approves v1.
+    assert (
+        client.post(
+            "/api/wizard/ai_review/approve", json={"collector_number": "W-C-02"}
+        ).status_code
+        == 200
+    )
+    by_cn = {
+        t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
+    }
+    assert by_cn["W-C-02"]["effective"]["verdict"] == "approved"
+
+    # A later round regenerates the slot into a new body AND re-flags it for regen.
+    _rewrite_card_body(
+        asset,
+        "W-C-02",
+        oracle_text="Draw three cards.",
+        regen_reason="too strong",
+        flagged_by="conformance",
+    )
+
+    tile = {
+        t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
+    }["W-C-02"]
+    # The stale approval no longer wins; the fresh flagged state surfaces instead.
+    assert tile["effective"]["verdict"] == "rejected"
+    assert tile["effective"]["source"] == "ai"
+    assert "too strong" in tile["effective"]["reason"]
+
+
+def test_reflag_overrides_approval_even_when_body_unchanged(client, isolated_output, tmp_path):
+    """A gate re-flagging an approved card (body unchanged) overrides the approval.
+
+    The flag fields (regen_reason/flagged_by) are excluded from the signature, so a
+    re-flag WITHOUT a body change isn't caught by the signature check. The approve
+    endpoint clears the flag, so a flag co-existing with an approval is always a
+    LATER gate re-flag — the gate's regen decision wins, not the stale green stamp.
+    """
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(asset, collector_number="W-C-02", name="Bear", oracle_text="Draw a card.")
+
+    assert (
+        client.post(
+            "/api/wizard/ai_review/approve", json={"collector_number": "W-C-02"}
+        ).status_code
+        == 200
+    )
+    # Same body, but a later gate re-flags it for regen (no oracle change).
+    _rewrite_card_body(asset, "W-C-02", regen_reason="combo enabler", flagged_by="conformance")
+
+    tile = {
+        t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
+    }["W-C-02"]
+    assert tile["effective"]["verdict"] == "rejected"
+    assert tile["effective"]["source"] == "ai"
+    assert "combo enabler" in tile["effective"]["reason"]
+
+
+def test_stale_reject_does_not_override_fresh_clean_card(client, isolated_output, tmp_path):
+    """A user-rejected card that's regenerated into a fresh OK card stops painting rejected."""
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(asset, collector_number="W-C-02", name="Bear", oracle_text="Bad.", slot_id="W-C-02")
+
+    # User rejects v1 (flags for regen + records a rejected decision).
+    assert (
+        client.post(
+            "/api/wizard/ai_review/regenerate", json={"collector_number": "W-C-02"}
+        ).status_code
+        == 200
+    )
+
+    # card_gen regenerates the slot into a fresh, unflagged body.
+    _rewrite_card_body(asset, "W-C-02", oracle_text="Good.", regen_reason=None, flagged_by=None)
+    _write_review(asset, "W-C-02", "OK")
+
+    tile = {
+        t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
+    }["W-C-02"]
+    # The stale rejection no longer wins; the fresh AI OK verdict surfaces.
+    assert tile["effective"]["verdict"] == "approved"
+    assert tile["effective"]["source"] == "ai"
+
+
+def test_decision_on_unchanged_card_still_applies(client, isolated_output, tmp_path):
+    """A decision whose card body is unchanged keeps its absolute precedence."""
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    # A reviewed-REVISE card the user nonetheless approves; nothing regenerates it.
+    _write_card(asset, collector_number="W-C-02", name="Bear", oracle_text="Draw a card.")
+    _write_review(
+        asset,
+        "W-C-02",
+        "REVISE",
+        issues=[{"severity": "FAIL", "category": "balance", "description": "above rate"}],
+    )
+    assert (
+        client.post(
+            "/api/wizard/ai_review/approve", json={"collector_number": "W-C-02"}
+        ).status_code
+        == 200
+    )
+
+    tile = {
+        t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
+    }["W-C-02"]
+    # Body unchanged -> the user's approval still overrides the AI REVISE.
+    assert tile["effective"]["verdict"] == "approved"
+    assert tile["effective"]["source"] == "user"

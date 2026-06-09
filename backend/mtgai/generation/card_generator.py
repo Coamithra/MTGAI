@@ -1241,8 +1241,20 @@ def generate_set(
     # prompt. The regenerated card is built fresh, so its flag clears naturally.
     flagged_reasons = _collect_flagged_slots(set_dir / "cards")
     if flagged_reasons:
+        from mtgai.review.ai_review import clear_decision
+
         archive_dir = set_dir / "cards" / "_regen_archive"
         for sid in flagged_reasons:
+            # Drop any user review decision recorded against the card we're about to
+            # replace: the regenerated card is a different body, so the old decision
+            # is stale and must not paint over the fresh one (the signature check is
+            # the durable backstop; this proactively prunes the write-only sidecar).
+            card_file = _find_card_file(sid, set_dir / "cards")
+            if card_file is not None:
+                try:
+                    clear_decision(set_dir, load_card(card_file).collector_number)
+                except Exception:
+                    logger.warning("Could not clear stale decision for slot %s", sid)
             archive_card(sid, set_dir / "cards", archive_dir)
             progress.filled_slots.pop(sid, None)
             progress.failed_slots.pop(sid, None)

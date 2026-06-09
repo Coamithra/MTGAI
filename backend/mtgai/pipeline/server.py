@@ -1835,9 +1835,7 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
     apply_settings(new)
     # Return the recomputed conformance context status so a conformance-model
     # change live-updates the picker's "model too small for the set size" notice.
-    return JSONResponse(
-        {"success": True, "conformance_context": new.conformance_context_status()}
-    )
+    return JSONResponse({"success": True, "conformance_context": new.conformance_context_status()})
 
 
 @router.post("/api/wizard/project/preset/apply")
@@ -6154,24 +6152,45 @@ def _ai_review_tiles(
         flagged = bool(card.get("regen_reason"))
         tile["flagged"] = flagged
         tile["effective"] = _effective_decision(
-            tile, decision, flagged, card.get("regen_reason") or ""
+            tile, decision, flagged, card.get("regen_reason") or "", card
         )
         tiles.append(tile)
     return tiles
 
 
 def _effective_decision(
-    tile: dict, decision: dict | None, flagged: bool, regen_reason: str = ""
+    tile: dict,
+    decision: dict | None,
+    flagged: bool,
+    regen_reason: str = "",
+    card: dict | None = None,
 ) -> dict:
     """Resolve a card's effective review state for the stamp.
 
-    Precedence: an explicit user decision wins; else a flagged card (bound for
-    regen) is "rejected"; else a reviewed card maps OK→approved / REVISE→rejected;
-    else "pending" (not yet reviewed). ``reason`` is the rejection blurb shown
-    under the card. For a flagged card it's the card's own ``regen_reason`` (the
-    actual "why" the review/gate recorded), falling back to a generic blurb only
-    when no reason was stamped.
+    Precedence: an explicit, NON-stale user decision wins; else a flagged card
+    (bound for regen) is "rejected"; else a reviewed card maps OK→approved /
+    REVISE→rejected; else "pending" (not yet reviewed). ``reason`` is the rejection
+    blurb shown under the card. For a flagged card it's the card's own
+    ``regen_reason`` (the actual "why" the review/gate recorded), falling back to a
+    generic blurb only when no reason was stamped.
+
+    A decision is **stale** two ways, both ignored so the fresh flagged/AI verdict
+    surfaces instead of the old user call painting forever:
+    (1) its recorded ``card_signature`` no longer matches ``card`` — a regen/edit
+        rewrote the body under the same collector number
+        (see :func:`ai_review.decision_is_stale`);
+    (2) the card is currently ``flagged`` for regen yet the decision is *approved* —
+        the approve/revise endpoints clear the flag, so a flag co-existing with an
+        approval means a *later* gate re-flagged the card after the user approved
+        it; the gate's regen decision is authoritative, so the prior approval must
+        not keep painting green over a card the engine will rebuild.
     """
+    from mtgai.review.ai_review import decision_is_stale
+
+    if decision_is_stale(decision, card):
+        decision = None
+    if flagged and isinstance(decision, dict) and decision.get("verdict") == "approved":
+        decision = None
     if isinstance(decision, dict) and decision.get("verdict") in ("approved", "rejected"):
         return {
             "verdict": decision["verdict"],
@@ -6273,7 +6292,11 @@ def _ai_review_single_tile(asset: Path, collector_number: str) -> dict | None:
     flagged = bool(card.get("regen_reason"))
     tile["flagged"] = flagged
     tile["effective"] = _effective_decision(
-        tile, load_decisions(asset).get(collector_number), flagged, card.get("regen_reason") or ""
+        tile,
+        load_decisions(asset).get(collector_number),
+        flagged,
+        card.get("regen_reason") or "",
+        card,
     )
     return tile
 
@@ -6318,7 +6341,13 @@ async def wizard_ai_review_approve(request: Request) -> JSONResponse:
         return JSONResponse({"error": f"No card found for {cn}"}, status_code=404)
 
     _clear_card_regen_flag(asset, cn)
-    save_decision(asset, cn, {"verdict": "approved", "reason": "", "source": "user"})
+    approved_card = _read_json(_ai_review_card_path(asset, cn), None)
+    save_decision(
+        asset,
+        cn,
+        {"verdict": "approved", "reason": "", "source": "user"},
+        card=approved_card if isinstance(approved_card, dict) else None,
+    )
     # The manual approval rewrote the live pool (cleared the flag) without going
     # through the engine; re-snapshot this stage's tip so a later rerun_instance
     # restores the approved pool, not the stale pre-approval one.
@@ -6404,6 +6433,7 @@ async def wizard_ai_review_revise(request: Request) -> JSONResponse:
             asset,
             cn,
             {"verdict": "approved", "reason": "Revised by reviewer.", "source": "user"},
+            card=updated.model_dump(mode="json"),
         )
 
     # The revision rewrote the live pool without going through the engine;
@@ -6440,7 +6470,13 @@ async def wizard_ai_review_regenerate(request: Request) -> JSONResponse:
     flagged = _flag_cards_for_regen([(cn, reason)], "ai_review")
     if not flagged:
         return JSONResponse({"error": f"Could not flag {cn}"}, status_code=404)
-    save_decision(asset, cn, {"verdict": "rejected", "reason": reason, "source": "user"})
+    flagged_card = _read_json(_ai_review_card_path(asset, cn), None)
+    save_decision(
+        asset,
+        cn,
+        {"verdict": "rejected", "reason": reason, "source": "user"},
+        card=flagged_card if isinstance(flagged_card, dict) else None,
+    )
     # The flag stamped the live pool (regen_reason/DRAFT) without going through the
     # engine; re-snapshot this stage's tip so a later rerun_instance restores the
     # flagged pool, not the stale pre-flag one.
