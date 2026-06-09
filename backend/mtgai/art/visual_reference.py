@@ -37,11 +37,16 @@ def normalize_entity_key(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", s.lower().strip()).strip("_")
 
 
-def _load_visual_refs() -> dict:
-    """Load the visual references JSON for the active project. Returns empty dict on failure."""
+def _visual_refs_path():
+    """Path to the active project's ``art-direction/visual-references.json``."""
     from mtgai.io.asset_paths import set_artifact_dir
 
-    path = set_artifact_dir() / "art-direction" / "visual-references.json"
+    return set_artifact_dir() / "art-direction" / "visual-references.json"
+
+
+def _load_visual_refs() -> dict:
+    """Load the visual references JSON for the active project. Returns empty dict on failure."""
+    path = _visual_refs_path()
     if not path.exists():
         logger.warning("No visual-references.json found at %s", path)
         return {}
@@ -52,19 +57,50 @@ def _load_visual_refs() -> dict:
         return {}
 
 
-# Cache keyed by the active project's set_code so opening a different project
-# doesn't pick up stale references from the previous one.
-_cache: dict[str, dict] = {}
+# Cache keyed by ``(path, (mtime_ns, size))`` — mirrors
+# ``validation.rules_text._active_custom_keywords`` so a Save / Refresh / re-roll
+# on the Visual References tab, a re-run of the visual_refs stage, or a
+# cascade-clear that rewrites/deletes the file is picked up automatically within
+# the same long-lived server process. The old set_code-only cache never
+# invalidated, so every later stage in a session saw the first-loaded contents
+# (including an empty {} cached before the file was ever written). A cache hit
+# still stats the file (cheap) but skips the read + JSON parse. The tuple is
+# immutable and swapped atomically; readers snapshot it into a local first.
+# All derived lookups (_ref_index, _legendary_characters_index, get_artists's
+# sibling cache, etc.) read get_refs() inline per call, so this single
+# invalidation refreshes them too.
+_cache: tuple[str, tuple[int, int], dict] | None = None
 
 
 def get_refs() -> dict:
-    """Get the visual references dict for the active project, with caching."""
-    from mtgai.runtime.active_project import require_active_project
+    """Get the visual references dict for the active project, with mtime-keyed caching."""
+    global _cache
 
-    set_code = require_active_project().set_code
-    if set_code not in _cache:
-        _cache[set_code] = _load_visual_refs()
-    return _cache[set_code]
+    from mtgai.io.asset_paths import NoAssetFolderError
+
+    try:
+        path = _visual_refs_path()
+    except NoAssetFolderError:
+        return {}
+
+    try:
+        st = path.stat()
+    except OSError:
+        # File absent (not yet written, or deleted by a cascade-clear): don't cache
+        # the empty default — re-check every call so the dict appears the moment the
+        # stage writes it. Drop any stale cached contents for a now-deleted file.
+        _cache = None
+        return {}
+
+    key = str(path)
+    stamp = (st.st_mtime_ns, st.st_size)
+    cache = _cache  # snapshot once: atomic read of an immutable tuple
+    if cache is not None and cache[0] == key and cache[1] == stamp:
+        return cache[2]
+
+    refs = _load_visual_refs()
+    _cache = (key, stamp, refs)
+    return refs
 
 
 def detect_named_characters(
@@ -379,6 +415,13 @@ def get_cameo_entities() -> list[dict[str, str]]:
 # ---------------------------------------------------------------------------
 
 
+def _artists_path():
+    """Path to the active project's ``art-direction/artists.json``."""
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    return set_artifact_dir() / "art-direction" / "artists.json"
+
+
 def _load_artists() -> list[dict]:
     """Load ``art-direction/artists.json`` for the active project.
 
@@ -387,9 +430,7 @@ def _load_artists() -> list[dict]:
     generation) degrades to leaving ``card.artist`` at its default and authoring
     a prompt with no artist style block.
     """
-    from mtgai.io.asset_paths import set_artifact_dir
-
-    path = set_artifact_dir() / "art-direction" / "artists.json"
+    path = _artists_path()
     if not path.exists():
         logger.warning("No artists.json found at %s", path)
         return []
@@ -412,16 +453,35 @@ def _load_artists() -> list[dict]:
     return artists
 
 
-# Artist-directory cache keyed by the active project's set_code, mirroring the
-# ``_cache`` used for visual references so a project switch picks up the new file.
-_artist_cache: dict[str, list[dict]] = {}
+# Artist-directory cache keyed by ``(path, (mtime_ns, size))`` — mirrors
+# ``_cache`` above so a re-roll-all on the Visual References tab (or a re-run /
+# cascade-clear) is picked up without a server restart.
+_artist_cache: tuple[str, tuple[int, int], list[dict]] | None = None
 
 
 def get_artists() -> list[dict]:
-    """Get the artist directory for the active project, with caching."""
-    from mtgai.runtime.active_project import require_active_project
+    """Get the artist directory for the active project, with mtime-keyed caching."""
+    global _artist_cache
 
-    set_code = require_active_project().set_code
-    if set_code not in _artist_cache:
-        _artist_cache[set_code] = _load_artists()
-    return _artist_cache[set_code]
+    from mtgai.io.asset_paths import NoAssetFolderError
+
+    try:
+        path = _artists_path()
+    except NoAssetFolderError:
+        return []
+
+    try:
+        st = path.stat()
+    except OSError:
+        _artist_cache = None
+        return []
+
+    key = str(path)
+    stamp = (st.st_mtime_ns, st.st_size)
+    cache = _artist_cache  # snapshot once: atomic read of an immutable tuple
+    if cache is not None and cache[0] == key and cache[1] == stamp:
+        return cache[2]
+
+    artists = _load_artists()
+    _artist_cache = (key, stamp, artists)
+    return artists

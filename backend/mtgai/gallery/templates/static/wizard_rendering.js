@@ -497,11 +497,18 @@
     el.querySelectorAll('[data-field]').forEach(input => {
       input.oninput = () => {
         const field = input.dataset.field;
-        updateCard(cn, { [field]: input.value, _dirty: true });
+        const val = input.value;
+        const patch = { [field]: val, _dirty: true };
         if (field === 'oracle_text') {
+          // The textarea renders from oracle_text_editor (the reminder-free
+          // canonical form); keep it in lockstep so a repaint doesn't revert to the
+          // stale pre-edit value. The save response applies the server-recomputed
+          // pair back (see saveCard's onResult).
+          patch.oracle_text_editor = val;
           const prev = el.querySelector('[data-role="rnd-oracle-preview"]');
-          if (prev) prev.innerHTML = symbolizeHtml(input.value);
+          if (prev) prev.innerHTML = symbolizeHtml(val);
         }
+        updateCard(cn, patch);
         hideTick(el);
       };
     });
@@ -550,7 +557,7 @@
       url: '/api/wizard/rendering/save-card',
       body: () => ({ collector_number: cn, fields: gatherFields(cn) }),
       fallback: 'Re-render failed',
-      onResult: () => {
+      onResult: (data) => {
         const c = local.cards.find(x => x.collector_number === cn);
         if (!c) return;
         // An edit never changes the collector number (only remove does), so the
@@ -558,6 +565,21 @@
         c._dirty = false;
         c.user_edited = true;
         c.has_render = true;
+        // Apply the server-recomputed oracle text back so the local card stays in
+        // sync with disk: finalize_one_card re-injects reminder text + auto-fixes, so
+        // the saved oracle_text differs from what the user typed. Without this, a
+        // later repaint (filter change, bootstrap merge) would render the textarea
+        // from the stale oracle_text_editor and revert the edit.
+        if (data && data.oracle_text != null) c.oracle_text = data.oracle_text;
+        if (data && data.oracle_text_editor != null) c.oracle_text_editor = data.oracle_text_editor;
+        if (el) {
+          const ta = el.querySelector('[data-field="oracle_text"]');
+          if (ta && c.oracle_text_editor != null && ta.value !== c.oracle_text_editor) {
+            ta.value = c.oracle_text_editor;
+          }
+          const prev = el.querySelector('[data-role="rnd-oracle-preview"]');
+          if (prev) prev.innerHTML = symbolizeHtml(c.oracle_text);
+        }
         showTick(el);
         if (el) { el.classList.remove('editing'); el.classList.add('is-user'); }
         const tog = el && el.querySelector('[data-role="rnd-edit-toggle"]');

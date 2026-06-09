@@ -19,8 +19,9 @@ from mtgai.generation.card_generator import (
     _card_one_liner,
     _retry_card,
     group_slots_into_batches,
+    reconcile_cycle_membership,
 )
-from mtgai.generation.prompts import build_user_prompt, format_cycle_siblings
+from mtgai.generation.prompts import _cycle_note, build_user_prompt, format_cycle_siblings
 from mtgai.validation import (
     ValidationError,
     ValidationSeverity,
@@ -129,6 +130,91 @@ def test_none_confirmed_cycles_skips_cycle_batching_for_dry_runs() -> None:
     batches = group_slots_into_batches(slots, confirmed_cycles=None, batch_size=10)
     assert len(batches) == 1
     assert [s["slot_id"] for s in batches[0]] == ["001", "002", "003"]
+
+
+# ---------------------------------------------------------------------------
+# reconcile_cycle_membership — the audit's confirmed membership is the single
+# source of truth for the cycle template / _cycle_note / sibling machinery
+# ---------------------------------------------------------------------------
+
+
+def _stamp_cycle_templates(slots: list[dict], cycle_templates: dict[str, str]) -> None:
+    """Mirror generate_set's post-audit template stamp (off the reconciled
+    cycle_id) so a test can assert end-to-end cycle-prompt behaviour."""
+    for s in slots:
+        cid = s.get("cycle_id")
+        if cid and cycle_templates.get(cid):
+            s["cycle_template"] = cycle_templates[cid]
+        else:
+            s.pop("cycle_template", None)
+
+
+def test_reconcile_drops_pruned_slot_from_cycle_so_it_gets_no_cycle_prompt() -> None:
+    """A slot whose seed cycle_id is "gates" but which the audit DROPPED (not in
+    confirmed_cycles["gates"]) has its cycle_id cleared, so ``_cycle_note`` emits
+    NO CYCLE MEMBER instruction for it. The confirmed member keeps its cycle_id +
+    template. Fails before the fix: the dropped slot kept its seed cycle_id and
+    was generated as a contradictory cycle member."""
+    confirmed_member = _slot("001", cycle_id="gates", cycle_template="A guild gate.")
+    dropped = _slot("002", cycle_id="gates", cycle_template="A guild gate.")  # audit dropped it
+    ordinary = _slot("009")
+    slots = [confirmed_member, dropped, ordinary]
+
+    reconcile_cycle_membership(slots, {"gates": ["001"]})
+    _stamp_cycle_templates(slots, {"gates": "A guild gate."})
+
+    # Confirmed member keeps its family membership + template -> CYCLE MEMBER fires.
+    assert confirmed_member["cycle_id"] == "gates"
+    assert "CYCLE MEMBER" in _cycle_note(confirmed_member)
+    # Dropped slot is cleared -> generated as ordinary, no cycle prompt, no template.
+    assert dropped["cycle_id"] is None
+    assert "cycle_template" not in dropped
+    assert _cycle_note(dropped) == ""
+    # An always-ordinary slot is untouched.
+    assert ordinary["cycle_id"] is None
+    assert _cycle_note(ordinary) == ""
+
+
+def test_reconcile_dropped_slot_never_joins_real_familys_sibling_batch() -> None:
+    """After reconciliation the dropped slot's cycle_id no longer matches the
+    confirmed family, so the per-cycle sibling lookup/append (keyed on cycle_id)
+    can't thread it into — or pollute — the real family's mirroring context. We
+    assert membership keys directly: the dropped slot shares no cycle_id with the
+    family, and only confirmed members carry the family key."""
+    family_a = _slot("001", cycle_id="gates")
+    family_b = _slot("003", cycle_id="gates")
+    dropped = _slot("002", cycle_id="gates")  # audit dropped it
+    slots = [family_a, family_b, dropped]
+
+    reconcile_cycle_membership(slots, {"gates": ["001", "003"]})
+
+    family_keys = {s["cycle_id"] for s in (family_a, family_b)}
+    assert family_keys == {"gates"}
+    # The dropped slot carries NO cycle_id, so it can never be looked up under
+    # "gates" for siblings, nor appended into cycle_siblings_by_id["gates"].
+    assert dropped["cycle_id"] is None
+    assert dropped["cycle_id"] not in {"gates"}
+
+
+def test_reconcile_emergent_family_uses_synthetic_key_and_no_template() -> None:
+    """An emergent / cross-seed family the audit identified gets its synthetic
+    ``cycle_N`` key stamped onto every member; none resolves a seed template, so
+    the family batches+threads together but with no shared-template hint."""
+    a = _slot("005", cycle_id=None)
+    b = _slot("006", cycle_id="some_seed", cycle_template="stale")
+    slots = [a, b]
+
+    reconcile_cycle_membership(slots, {"cycle_0": ["005", "006"]})
+    # The seed-keyed template registry has no "cycle_0" entry, so the stamp step
+    # clears b's stale seed template.
+    _stamp_cycle_templates(slots, {"some_seed": "stale"})
+
+    assert a["cycle_id"] == "cycle_0"
+    assert b["cycle_id"] == "cycle_0"
+    assert "cycle_template" not in b
+    # Both still read as cycle members (parallel structure), just template-less.
+    assert "CYCLE MEMBER" in _cycle_note(a)
+    assert "Cycle template" not in _cycle_note(a)
 
 
 # ---------------------------------------------------------------------------

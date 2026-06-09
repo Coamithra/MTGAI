@@ -6775,6 +6775,7 @@ async def wizard_finalize_save_card(request: Request) -> JSONResponse:
     except Exception as exc:  # Pydantic ValidationError, etc.
         return JSONResponse({"error": f"Invalid card edit: {exc}"}, status_code=400)
 
+    from mtgai.generation.reminder_injector import strip_reminder_text
     from mtgai.models.card import Card
     from mtgai.review.finalize import _load_mechanics
     from mtgai.review.render_review import finalize_one_card
@@ -6791,12 +6792,21 @@ async def wizard_finalize_save_card(request: Request) -> JSONResponse:
     )
     _heal_failed_stage("finalize")
 
+    # Return the server-recomputed oracle text so the tab can apply it back onto its
+    # local card. finalize_one_card re-injects reminder text + auto-fixes, so the
+    # persisted ``oracle_text`` diverges from what the user typed; without this the
+    # textarea's render source (``oracle_text_editor``) goes stale and a repaint
+    # reverts the edit. ``oracle_text`` feeds the preview/diff; ``oracle_text_editor``
+    # (reminder-free) feeds the editable textarea — same split as the state view.
+    final_oracle = final_json.get("oracle_text") or ""
     return JSONResponse(
         {
             "success": True,
             "collector_number": new_cn,
             "fixes_applied": fixes,
             "manual_errors": manual_payload,
+            "oracle_text": final_oracle,
+            "oracle_text_editor": strip_reminder_text(final_oracle),
         }
     )
 
@@ -7208,7 +7218,7 @@ async def wizard_rendering_save_card(request: Request) -> JSONResponse:
         if guard.busy:
             return guard.busy_response
 
-        def _work() -> tuple[str, list[str]]:
+        def _work() -> tuple[str, list[str], str]:
             from mtgai.models.card import Card
             from mtgai.review.finalize import _load_mechanics
             from mtgai.review.render_review import finalize_one_card
@@ -7219,11 +7229,25 @@ async def wizard_rendering_save_card(request: Request) -> JSONResponse:
             _persist_finalize_edit(asset, final_json, paths[cn])
             total_cards = len(_all_card_paths_by_cn(cards_dir))
             _render_one_card(final_json, total_cards)
-            return final_json["collector_number"], fixes
+            return final_json["collector_number"], fixes, (final_json.get("oracle_text") or "")
 
-        new_cn, fixes = await asyncio.to_thread(_work)
+        new_cn, fixes, final_oracle = await asyncio.to_thread(_work)
 
-    return JSONResponse({"success": True, "collector_number": new_cn, "fixes_applied": fixes})
+    # Return the server-recomputed oracle text so the tab can apply it back onto its
+    # local card (see the finalize save-card endpoint for the rationale): finalize
+    # re-injects reminder text + auto-fixes, so the textarea's render source
+    # (``oracle_text_editor``) would otherwise go stale and a repaint reverts the edit.
+    from mtgai.generation.reminder_injector import strip_reminder_text
+
+    return JSONResponse(
+        {
+            "success": True,
+            "collector_number": new_cn,
+            "fixes_applied": fixes,
+            "oracle_text": final_oracle,
+            "oracle_text_editor": strip_reminder_text(final_oracle),
+        }
+    )
 
 
 @router.post("/api/wizard/rendering/remove-card")
@@ -8003,14 +8027,29 @@ async def start_pipeline(request: Request):
         return err
     config = PipelineConfig(**body)
 
-    # Check for existing state — allow resume from previous run
+    # Mirror ``_kickoff_pipeline_engine``'s guard contract (this is the legacy
+    # twin of that helper). ``engine.run`` only skips COMPLETED/SKIPPED stages,
+    # so re-entering it on a PAUSED state would re-run the paused stage's runner
+    # and discard the human review — refuse and tell the caller to use /resume.
+    # A persisted RUNNING with no live engine is an orphan; refuse rather than
+    # spawn a second engine over it. And never overwrite a salvageable existing
+    # state (COMPLETED / CANCELLED / NOT_STARTED) with a fresh create — that
+    # would reset every stage's progress.
     existing = load_state()
-    if existing and existing.overall_status in (
-        PipelineStatus.PAUSED,
-        PipelineStatus.FAILED,
-    ):
+    if existing is not None:
+        if existing.overall_status == PipelineStatus.PAUSED:
+            return JSONResponse(
+                {"error": "Pipeline is paused, use /api/pipeline/resume instead"},
+                status_code=409,
+            )
+        if existing.overall_status == PipelineStatus.RUNNING:
+            return JSONResponse(
+                {"error": "Pipeline state is RUNNING but no engine is attached"},
+                status_code=409,
+            )
+        # FAILED (resume from failure) and any other reusable state are reused,
+        # not clobbered. Refresh the config + review modes off the new request.
         state = existing
-        # Update review modes from new config
         for stage in state.stages:
             if stage.stage_id in config.stage_review_modes:
                 stage.review_mode = config.stage_review_modes[stage.stage_id]
