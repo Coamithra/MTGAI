@@ -73,6 +73,29 @@ def test_get_character_appearance_coerces_non_string(monkeypatch):
     assert vr.get_character_appearance("hero") is None
 
 
+def test_character_accessors_normalize_spaced_dict_keys(monkeypatch):
+    """A space-slugged dict key matches an underscore-slugged entity_key.
+
+    Regression: visual-references.json keys are space-slugged ("storm knight"),
+    but ``art_character_refs`` entity_keys are underscore-slugged
+    ("storm_knight"). The raw ``entity_key in get_refs()[...]`` lookup never
+    matched a multi-word character, silently no-op'ing PuLID face-lock + the
+    name->appearance substitution for every such entity. Both accessors now
+    normalize through the same slug as the appearance-prose path.
+    """
+    monkeypatch.setattr(
+        vr, "get_refs", lambda: {"legendary_characters": {"storm knight": "a tall knight in armor"}}
+    )
+    assert vr.is_character_entity("storm_knight") is True
+    assert vr.get_character_appearance("storm_knight") == "a tall knight in armor"
+    # The reverse surface-form variance resolves too (underscore key, spaced query).
+    monkeypatch.setattr(
+        vr, "get_refs", lambda: {"legendary_characters": {"storm_knight": "a tall knight in armor"}}
+    )
+    assert vr.is_character_entity("storm knight") is True
+    assert vr.get_character_appearance("storm knight") == "a tall knight in armor"
+
+
 # ---------------------------------------------------------------------------
 # Named-entity helpers (name-based art-prompt binding)
 # ---------------------------------------------------------------------------
