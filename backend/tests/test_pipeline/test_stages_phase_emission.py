@@ -204,7 +204,9 @@ def test_run_rendering_emits_done_on_cancel(monkeypatch) -> None:
     """A user Cancel mid-render must also close the strip."""
     monkeypatch.setattr(
         "mtgai.rendering.card_renderer.CardRenderer",
-        _stub_renderer_factory({"rendered": 3, "skipped": 0, "failed": 0, "cancelled": True}),
+        _stub_renderer_factory(
+            {"rendered": 3, "skipped": 0, "failed": 0, "elapsed_seconds": 0.0, "cancelled": True}
+        ),
     )
 
     spy = _SpyEmitter()
