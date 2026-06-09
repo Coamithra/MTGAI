@@ -81,6 +81,29 @@ def _parse_mana_cost(mana_cost: str) -> tuple[float, set[str], int, list[str]]:
     return cmc, colors, x_count, color_sequence
 
 
+def _canonical_symbol_order(symbols: list[str]) -> list[str]:
+    """Reorder mana symbols into canonical MTG order.
+
+    Canonical order is ``{X}`` first, then generic/numeric, then colorless
+    ``{C}``, then the colored symbols in WUBRG order (a hybrid is ranked by its
+    first colored half). The sort is stable, so repeated or same-rank symbols
+    keep their relative order. This is the single source of truth shared by the
+    ordering validator and its fixer, so a fixed cost always passes the check.
+    """
+
+    def _key(sym: str) -> tuple[int, int]:
+        if sym == "X":
+            return (0, 0)
+        if sym.isdigit():
+            return (1, 0)
+        if sym == "C":
+            return (2, 0)
+        first = sym.split("/")[0]
+        return (3, WUBRG_ORDER.get(first, 99))
+
+    return sorted(symbols, key=_key)
+
+
 def derive_mana_fields(mana_cost: str | None, oracle_text: str | None = None) -> dict:
     """Derive ``cmc``, ``colors``, and ``color_identity`` from a card's mana.
 
@@ -141,7 +164,7 @@ def validate_mana_consistency(card: Card) -> list[ValidationError]:
     # ------------------------------------------------------------------
     # 2. Parse symbols and compute CMC / colors
     # ------------------------------------------------------------------
-    computed_cmc, computed_colors, x_count, color_sequence = _parse_mana_cost(card.mana_cost)
+    computed_cmc, computed_colors, x_count, _color_sequence = _parse_mana_cost(card.mana_cost)
 
     # ------------------------------------------------------------------
     # 3. CMC check — AUTO (recomputable)
@@ -189,23 +212,26 @@ def validate_mana_consistency(card: Card) -> list[ValidationError]:
         )
 
     # ------------------------------------------------------------------
-    # 6. WUBRG ordering — AUTO
+    # 6. Canonical symbol ordering — AUTO
+    #    Generic/X must precede colored, and colored must be in WUBRG order.
+    #    The old check only ordered the colored symbols among themselves, so a
+    #    misplaced generic like {B}{G}{1} (canonical {1}{B}{G}) slipped through.
     # ------------------------------------------------------------------
-    seen: set[str] = set()
-    unique_sequence: list[str] = []
-    for c in color_sequence:
-        if c not in seen:
-            seen.add(c)
-            unique_sequence.append(c)
-
-    correct_order = sorted(unique_sequence, key=lambda c: WUBRG_ORDER[c])
-    if unique_sequence != correct_order:
+    # `stripped` non-empty means the cost has unparseable symbols (e.g. a
+    # {2/W} twobrid the pattern can't match). Those are owned by the
+    # invalid_format check above; skip the order check so we never emit a flag
+    # whose fixer would have to rebuild from a lossy `findall`.
+    cost_symbols = MANA_SYMBOL_PATTERN.findall(card.mana_cost)
+    canonical_symbols = _canonical_symbol_order(cost_symbols)
+    if not stripped and cost_symbols != canonical_symbols:
+        got = "".join(f"{{{s}}}" for s in cost_symbols)
+        want = "".join(f"{{{s}}}" for s in canonical_symbols)
         errors.append(
             _auto(
                 "mana_cost",
-                f"Mana symbols are not in WUBRG order: "
-                f"got {unique_sequence}, expected {correct_order}",
-                f"Reorder colored mana to WUBRG: {', '.join(correct_order)}",
+                f"Mana symbols are not in canonical order (generic/X before colored, "
+                f"colored in WUBRG): got {got}, expected {want}",
+                f"Reorder to {want}",
                 error_code="mana.wubrg_order",
             )
         )
@@ -370,27 +396,20 @@ def fix_color_identity_from_cost(card: Card, error: ValidationError) -> Card:
 
 
 def fix_wubrg_order(card: Card, error: ValidationError) -> Card:
-    """Reorder mana_cost symbols into WUBRG order."""
+    """Reorder mana_cost symbols into canonical order (generic/X first, colored WUBRG)."""
     if not card.mana_cost:
         return card
 
+    # A malformed remainder (e.g. an unmatched {2/W} twobrid) would be dropped
+    # by rebuilding from `findall` — bail and let invalid_format handle it.
+    if MANA_SYMBOL_PATTERN.sub("", card.mana_cost):
+        return card
+
     symbols = MANA_SYMBOL_PATTERN.findall(card.mana_cost)
-    non_color = []
-    color_syms = []
-    for sym in symbols:
-        if sym in COLOR_SYMBOLS or "/" in sym:
-            color_syms.append(sym)
-        else:
-            non_color.append(sym)
+    if not symbols:
+        return card
 
-    # Sort color symbols by WUBRG (for hybrids, use first color)
-    def _sort_key(sym: str) -> int:
-        first_color = sym.split("/")[0]
-        return WUBRG_ORDER.get(first_color, 99)
-
-    color_syms.sort(key=_sort_key)
-
-    new_cost = "".join(f"{{{s}}}" for s in non_color + color_syms)
+    new_cost = "".join(f"{{{s}}}" for s in _canonical_symbol_order(symbols))
     update: dict = {"mana_cost": new_cost}
 
     # Also update mana_cost_parsed.raw if present

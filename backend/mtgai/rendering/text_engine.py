@@ -364,6 +364,12 @@ class TextEngine:
     ) -> list[TextSegment]:
         """Parse a single line into text, symbol, and italic segments.
 
+        Reminder text (parenthetical) is tokenized into italic sub-segments
+        interleaved with any inline mana symbols it contains, so a ``{T}``
+        inside reminder text renders as the tap glyph (matching real MTG
+        cards) instead of literal braces. Non-reminder text is tokenized the
+        same way but with the default (plain/bold) text kind.
+
         Args:
             line: A single line of oracle text (no newlines).
             bold_all: If True, non-symbol/non-italic text is BOLD_TEXT.
@@ -371,60 +377,56 @@ class TextEngine:
         Returns:
             List of TextSegment.
         """
+        text_kind = SegmentType.BOLD_TEXT if bold_all else SegmentType.TEXT
         segments: list[TextSegment] = []
 
-        # Build a list of (start, end, type, content) spans
-        spans: list[tuple[int, int, SegmentType, str]] = []
-
-        # Find mana symbols
-        for m in MANA_SYMBOL_RE.finditer(line):
-            spans.append((m.start(), m.end(), SegmentType.SYMBOL, m.group(1)))
-
-        # Find reminder text
-        for m in REMINDER_RE.finditer(line):
-            spans.append(
-                (
-                    m.start(),
-                    m.end(),
-                    SegmentType.ITALIC_TEXT,
-                    m.group(0),
-                )
-            )
-
-        # Sort spans by start position
-        spans.sort(key=lambda s: s[0])
-
-        # Remove overlapping spans (symbols inside reminder text)
-        filtered: list[tuple[int, int, SegmentType, str]] = []
-        last_end = 0
-        for start, end, kind, content in spans:
-            if start < last_end:
-                # This span overlaps with the previous — skip symbols
-                # inside reminder text, but keep the reminder
-                if kind == SegmentType.SYMBOL:
-                    continue
-                # If it's a reminder overlapping a symbol, we still
-                # keep the reminder and the symbol was already added.
-                # Let's rebuild: drop any previously added symbols
-                # that fall within this reminder's range.
-                filtered = [f for f in filtered if not (f[0] >= start and f[1] <= end)]
-            filtered.append((start, end, kind, content))
-            last_end = max(last_end, end)
-
-        # Fill gaps with text segments
-        text_kind = SegmentType.BOLD_TEXT if bold_all else SegmentType.TEXT
         pos = 0
-        for start, end, kind, content in filtered:
-            if start > pos:
-                gap_text = line[pos:start]
-                if gap_text:
-                    segments.append(TextSegment(text_kind, gap_text))
-            segments.append(TextSegment(kind, content))
-            pos = end
+        for m in REMINDER_RE.finditer(line):
+            # Non-reminder region before this reminder
+            if m.start() > pos:
+                segments.extend(self._tokenize_symbols(line[pos : m.start()], text_kind))
+            # Reminder region — italic text with inline symbol glyphs
+            segments.extend(self._tokenize_symbols(m.group(0), SegmentType.ITALIC_TEXT))
+            pos = m.end()
 
-        # Trailing text
+        # Trailing non-reminder region
         if pos < len(line):
-            trailing = line[pos:]
+            segments.extend(self._tokenize_symbols(line[pos:], text_kind))
+
+        return segments
+
+    def _tokenize_symbols(
+        self,
+        text: str,
+        text_kind: SegmentType,
+    ) -> list[TextSegment]:
+        """Split text into mana-symbol and text segments.
+
+        ``{...}`` spans become SYMBOL segments (rendered as glyphs); the
+        runs between them become ``text_kind`` segments. Used for both
+        plain oracle text and reminder text — the only difference is the
+        text kind (TEXT/BOLD_TEXT vs ITALIC_TEXT) passed for the non-symbol
+        runs, so symbols render identically in either context.
+
+        Args:
+            text: A substring of a line (a reminder, or a non-reminder run).
+            text_kind: Segment kind for the non-symbol runs.
+
+        Returns:
+            List of TextSegment.
+        """
+        segments: list[TextSegment] = []
+        pos = 0
+        for m in MANA_SYMBOL_RE.finditer(text):
+            if m.start() > pos:
+                gap = text[pos : m.start()]
+                if gap:
+                    segments.append(TextSegment(text_kind, gap))
+            segments.append(TextSegment(SegmentType.SYMBOL, m.group(1)))
+            pos = m.end()
+
+        if pos < len(text):
+            trailing = text[pos:]
             if trailing:
                 segments.append(TextSegment(text_kind, trailing))
 

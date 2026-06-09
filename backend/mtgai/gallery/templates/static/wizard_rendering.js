@@ -450,7 +450,7 @@
           </div>
           <div class="wiz-rendering-field">
             <label>Oracle text</label>
-            <textarea data-field="oracle_text" rows="4">${escHtml(c.oracle_text || '')}</textarea>
+            <textarea data-field="oracle_text" rows="4">${escHtml(c.oracle_text_editor != null ? c.oracle_text_editor : (c.oracle_text || ''))}</textarea>
             <span class="wiz-rendering-preview-lbl">Preview</span>
             <div class="wiz-rendering-preview" data-role="rnd-oracle-preview">${symbolizeHtml(c.oracle_text)}</div>
           </div>
