@@ -291,6 +291,24 @@ def _pick_to_filename(pick: str, version_files: list[str]) -> str | None:
     return None
 
 
+def log_picked_filename(log_data: dict) -> str | None:
+    """Resolve the chosen art FILENAME from a per-card selection log / decision.
+
+    The judge's ``pick`` ("v2") is **positional** — index 1 into the sorted glob
+    shown to it (see :func:`_pick_to_filename`). With a version gap (e.g. v1's art
+    failed, leaving ``_v2.png``/``_v3.png``) a pick of "v2" means the SECOND shown
+    image, ``_v3.png`` — NOT the file literally named ``_v2.png``, which the judge
+    ranked first and rejected. So readers must NOT match ``pick`` against filenames
+    literally. We persist the already-resolved ``picked_file`` and prefer it here;
+    legacy logs without it fall back to the positional interpretation against their
+    recorded ``version_files``. Returns None for 'none' / an unresolvable pick.
+    """
+    picked = log_data.get("picked_file")
+    if picked:
+        return picked
+    return _pick_to_filename(log_data.get("pick", ""), log_data.get("version_files", []))
+
+
 def _stamp_art_path(card, set_dir, filename: str | None):
     """Persist the picked version's filename onto ``card.art_path``.
 
@@ -406,6 +424,7 @@ def select_art_for_set(
             _stamp_art_path(card, set_dir, version_files[0])
             decisions[cn] = {
                 "pick": pick,
+                "picked_file": version_files[0],
                 "source": "auto_single",
                 "reasoning": "Only one version generated.",
                 "version_files": version_files,
@@ -416,6 +435,7 @@ def select_art_for_set(
                 "name": card.name,
                 "versions_reviewed": 1,
                 "pick": pick,
+                "picked_file": version_files[0],
                 "confidence": "high",
                 "reasoning": "Only one version generated.",
                 "artifacts_found": [],
@@ -438,6 +458,7 @@ def select_art_for_set(
             _stamp_art_path(card, set_dir, version_files[0])
             decisions[cn] = {
                 "pick": "v1",
+                "picked_file": version_files[0],
                 "source": "auto_fallback",
                 "reasoning": judge_skipped_reason,
                 "version_files": version_files,
@@ -448,6 +469,7 @@ def select_art_for_set(
                 "name": card.name,
                 "versions_reviewed": len(versions),
                 "pick": "v1",
+                "picked_file": version_files[0],
                 "confidence": "low",
                 "reasoning": judge_skipped_reason,
                 "artifacts_found": [],
@@ -474,11 +496,20 @@ def select_art_for_set(
             total_input_tokens += selection["input_tokens"]
             total_output_tokens += selection["output_tokens"]
 
+            # Resolve the judge's POSITIONAL pick to its filename ONCE, here, and
+            # persist that filename alongside the raw pick — the judge sees images
+            # labeled v1..vN by enumerate index, so with a version gap "v2" means
+            # the 2nd shown image (e.g. ``_v3.png``), NOT the file named ``_v2.png``.
+            # Readers (renderer fallback, HTML report) must use ``picked_file``, not
+            # match ``pick`` against filenames literally.
+            picked_file = _pick_to_filename(selection["pick"], version_files)
+
             result = {
                 "collector_number": cn,
                 "name": card.name,
                 "versions_reviewed": len(versions),
                 "pick": selection["pick"],
+                "picked_file": picked_file,
                 "confidence": selection["confidence"],
                 "reasoning": selection["reasoning"],
                 "artifacts_found": selection["artifacts_found"],
@@ -489,10 +520,10 @@ def select_art_for_set(
             # Stamp the chosen version onto the card + record the auto-pick. A
             # user override (re-pick in the tab) writes the same decisions store
             # with source="user", which the tab merges over this.
-            picked_file = _pick_to_filename(selection["pick"], version_files)
             _stamp_art_path(card, set_dir, picked_file)
             decisions[cn] = {
                 "pick": selection["pick"],
+                "picked_file": picked_file,
                 "source": "auto",
                 "confidence": selection["confidence"],
                 "reasoning": selection["reasoning"],
@@ -541,6 +572,7 @@ def select_art_for_set(
             _stamp_art_path(card, set_dir, version_files[0])
             decisions[cn] = {
                 "pick": pick,
+                "picked_file": version_files[0],
                 "source": "auto_fallback",
                 "reasoning": reasoning,
                 "error": str(e),
@@ -552,6 +584,7 @@ def select_art_for_set(
                 "name": card.name,
                 "versions_reviewed": len(versions),
                 "pick": pick,
+                "picked_file": version_files[0],
                 "confidence": "low",
                 "reasoning": reasoning,
                 "artifacts_found": [],
@@ -635,12 +668,16 @@ def generate_selection_report() -> Path:
         # Build version divs
         pick = r.get("pick", "none")
         version_files = r.get("version_files", [])
+        # The judge's pick is POSITIONAL, so the winner is identified by the
+        # resolved FILENAME, not by matching the pick's number against each file's
+        # literal ``_vN`` suffix (which mislabels the winner on a version gap).
+        winner_file = log_picked_filename(r)
         versions_html = []
         for vf in version_files:
             # Extract version number from filename like "W-C-01_name_v1.png"
             v_num = vf.rsplit("_v", 1)[-1].replace(".png", "")
             v_label = f"v{v_num}"
-            is_winner = v_label == pick
+            is_winner = vf == winner_file
             cls = "version winner" if is_winner else "version rejected"
             label = f"&#x2714; PICK &mdash; {v_label}" if is_winner else v_label
             versions_html.append(
