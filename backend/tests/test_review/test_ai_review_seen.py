@@ -97,6 +97,53 @@ def test_reviewed_sidecar_round_trip(project: Path):
 
 
 # ----------------------------------------------------------------------
+# User decision staleness (card 6a285a6b)
+# ----------------------------------------------------------------------
+
+
+def test_save_decision_stamps_card_signature(project: Path):
+    card = {"name": "A", "oracle_text": "Draw a card."}
+    ai_review.save_decision(
+        project, "W-C-01", {"verdict": "approved", "reason": "", "source": "user"}, card=card
+    )
+    stored = ai_review.load_decisions(project)["W-C-01"]
+    assert stored["signature"] == ai_review.card_signature(card)
+
+
+def test_save_decision_without_card_records_no_signature(project: Path):
+    ai_review.save_decision(project, "W-C-01", {"verdict": "approved", "source": "user"})
+    assert "signature" not in ai_review.load_decisions(project)["W-C-01"]
+
+
+def test_decision_is_stale_when_card_body_changed():
+    v1 = {"name": "A", "oracle_text": "Draw a card."}
+    decision = {"verdict": "approved", "source": "user", "signature": ai_review.card_signature(v1)}
+    # Same body -> not stale; a regen-changed body -> stale.
+    assert ai_review.decision_is_stale(decision, v1) is False
+    v2 = {"name": "A", "oracle_text": "Draw two cards."}
+    assert ai_review.decision_is_stale(decision, v2) is True
+
+
+def test_decision_is_stale_legacy_unsigned_never_stale():
+    # A pre-staleness decision (no signature) keeps its old absolute precedence.
+    legacy = {"verdict": "approved", "source": "user"}
+    assert ai_review.decision_is_stale(legacy, {"name": "A", "oracle_text": "x"}) is False
+    assert ai_review.decision_is_stale(None, {"name": "A"}) is False
+
+
+def test_clear_decision_removes_entry(project: Path):
+    ai_review.save_decision(project, "W-C-01", {"verdict": "rejected", "source": "user"})
+    ai_review.save_decision(project, "W-C-02", {"verdict": "approved", "source": "user"})
+    ai_review.clear_decision(project, "W-C-01")
+    remaining = ai_review.load_decisions(project)
+    assert "W-C-01" not in remaining
+    assert "W-C-02" in remaining
+    # Clearing an absent entry is a no-op (no crash, sidecar unchanged).
+    ai_review.clear_decision(project, "W-C-99")
+    assert set(ai_review.load_decisions(project)) == {"W-C-02"}
+
+
+# ----------------------------------------------------------------------
 # review_set scoping
 # ----------------------------------------------------------------------
 
