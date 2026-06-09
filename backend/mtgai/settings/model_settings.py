@@ -464,6 +464,50 @@ class ModelSettings(BaseModel):
                 return twin.model_id
         return base_id
 
+    def conformance_context_status(self) -> dict:
+        """Whether the conformance gate's assigned model can hold the interaction
+        scan's largest cumulative batch for this set's ``set_size``.
+
+        The interaction step builds a cumulative-context prompt that grows with set
+        size; on a model whose window is too small,
+        :func:`mtgai.analysis.interactions._bound_existing_context` silently drops
+        existing-context cards (reducing cross-batch coverage) and logs a WARN the
+        wizard user never sees. This surfaces the same fact in the Project Settings
+        model picker, mirroring the ``VISION_REQUIRED_STAGES`` warning.
+
+        The estimate compares the projected largest-batch prompt against the SAME
+        budget ``check_pre_call`` enforces (``int(ctx*(1-SAFETY_MARGIN)) -
+        MAX_TOKENS``), against the conformance stage's **effective** window — the
+        resolved twin or, at/above ``_CONFORMANCE_FULL_CONTEXT_SET_SIZE``, the
+        base's full window (via :meth:`get_llm_model_id`). ``fits`` is ``False``
+        only when context would actually be dropped.
+
+        Returns ``{model_name, context_window, set_size, projected_tokens,
+        budget_tokens, fits}``.
+        """
+        from mtgai.analysis.interactions import MAX_TOKENS, project_largest_batch_tokens
+        from mtgai.generation.token_utils import SAFETY_MARGIN, get_context_window
+
+        set_size = self.set_params.set_size or 0
+        mechanic_count = self.set_params.mechanic_count or 0
+        base_id = self.get_assigned_model_id("conformance")
+        effective_id = self.get_llm_model_id("conformance")
+        registry = get_registry()
+        base = registry.get_llm_by_model_id(base_id)
+        model_name = base.name if base is not None else base_id
+
+        ctx = get_context_window(effective_id)
+        projected = project_largest_batch_tokens(set_size, mechanic_count)
+        budget = int(ctx * (1 - SAFETY_MARGIN)) - MAX_TOKENS
+        return {
+            "model_name": model_name,
+            "context_window": ctx,
+            "set_size": set_size,
+            "projected_tokens": projected,
+            "budget_tokens": max(budget, 0),
+            "fits": projected <= budget,
+        }
+
     def get_image_model_key(self, stage_id: str) -> str:
         """Get the image model key for a stage."""
         return self.image_assignments.get(
