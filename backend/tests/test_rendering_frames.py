@@ -177,4 +177,4 @@ def test_renderer_loads_two_color_frame_and_pt_box():
 def test_renderer_loads_two_color_legendary_crown():
     r = CardRenderer()
     crown = r._load_legendary_crown(_card("Legendary Creature — Bird", ["U", "W"]))
-    assert crown is not None  # crowns/WU.png exists
+    assert crown is not None  # synthesized from W.png + U.png (WU.png is the fallback)

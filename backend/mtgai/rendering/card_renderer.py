@@ -193,6 +193,22 @@ def _frame_fallback(key: str) -> str:
     return "A"
 
 
+def _two_color_frame_mode() -> str:
+    """The active project's two-colour frame treatment (``"split"`` | ``"gold"``).
+
+    ``"split"`` when no project is open (tests, standalone tools) so the
+    renderer keeps the house-style default without requiring a project.
+    """
+    from mtgai.io.asset_paths import NoAssetFolderError
+
+    try:
+        from mtgai.settings.model_settings import get_active_settings
+
+        return get_active_settings().set_params.two_color_frame
+    except NoAssetFolderError:
+        return "split"
+
+
 # ---------------------------------------------------------------------------
 # CardRenderer
 # ---------------------------------------------------------------------------
@@ -231,12 +247,17 @@ class CardRenderer:
     # ------------------------------------------------------------------
     # Frame key
     # ------------------------------------------------------------------
-    def determine_frame_key(self, card: Card) -> str:
+    def determine_frame_key(self, card: Card, two_color_mode: str | None = None) -> str:
         """Map card to frame key based on colors and type_line.
 
         Returns one of: W, U, B, R, G, a two-color split key (WU, WB, …),
         M (3+ colors / gold), A, the colored-artifact variants (AW, AU, AB,
         AR, AG, AM), L, or land variants (lw, lu, lb, lr, lg, lm).
+
+        ``two_color_mode`` pins the two-colour frame treatment for this call;
+        ``None`` reads the active project's setting. ``render_card`` resolves
+        the mode once and passes it here AND to ``_load_legendary_crown`` so a
+        toggle landing mid-render can't split one card across both treatments.
         """
         type_lower = card.type_line.lower()
         is_land = "land" in type_lower
@@ -251,7 +272,18 @@ class CardRenderer:
         if is_artifact and not is_land:
             return artifact_frame_key(identity)
 
-        return frame_key_for_identity(identity, is_land=is_land)
+        key = frame_key_for_identity(identity, is_land=is_land)
+        # Canon-fidelity toggle: in "gold" mode a two-colour card renders on the
+        # flat gold M frame (the real-Magic convention for non-hybrid two-colour
+        # costs) instead of the hybrid-derived split. P/T box + crown follow the
+        # collapsed key / the same mode check in _load_legendary_crown. The only
+        # two-letter uppercase keys frame_key_for_identity returns are the WUBRG
+        # pairs (land variants are lowercase; A? is routed above).
+        if len(key) == 2 and key.isupper():
+            mode = two_color_mode if two_color_mode is not None else _two_color_frame_mode()
+            if mode == "gold":
+                return "M"
+        return key
 
     # ------------------------------------------------------------------
     # Art resolution
@@ -349,6 +381,12 @@ class CardRenderer:
     CROWN_W = 1934
     CROWN_H = 443
 
+    # Two-colour crowns are synthesized from the mono crowns through a soft
+    # centered gradient seam — real two-colour legend crowns (Dominaria's
+    # Adeliz, Raff) blend the colours rather than hard-splitting. Fraction of
+    # the crown width the blend band covers.
+    CROWN_SEAM_FRACTION = 0.18
+
     def _load_title_mask(self) -> Image.Image:
         """Load and cache the title bar mask alpha channel.
 
@@ -400,7 +438,9 @@ class CardRenderer:
         self._crown_underlay = underlay
         return self._crown_underlay
 
-    def _load_legendary_crown(self, card: Card) -> Image.Image | None:
+    def _load_legendary_crown(
+        self, card: Card, two_color_mode: str | None = None
+    ) -> Image.Image | None:
         """Load the legendary crown overlay with title bar punched out.
 
         Uses m15MaskTitle to create a transparent cutout in the crown
@@ -426,8 +466,14 @@ class CardRenderer:
         elif len(identity) == 1:
             crown_name = self.CROWN_KEY_MAP.get(identity[0], "Gold")
         elif len(identity) == 2:
-            # Two-color: matching split crown (WU.png …); 3+ falls through to Gold.
-            crown_name = self.CROWN_PAIR_MAP.get(tuple(identity), "Gold")
+            # Two-color: gradient-blended pair crown in split mode (synthesized
+            # from the mono crowns, committed pair PNG as fallback); the gold
+            # frame mode takes the Gold crown like 3+ colors.
+            mode = two_color_mode if two_color_mode is not None else _two_color_frame_mode()
+            if mode == "gold":
+                crown_name = "Gold"
+            else:
+                crown_name = self.CROWN_PAIR_MAP.get(tuple(identity), "Gold")
         else:
             crown_name = "Gold"  # three+ colors
 
@@ -435,12 +481,15 @@ class CardRenderer:
             return self._crown_cache[crown_name]
 
         crown_dir = self.assets_root / "frames" / "m15" / "crowns"
-        crown_path = crown_dir / f"{crown_name}.png"
-        if not crown_path.is_file():
-            logger.debug("No crown file: %s", crown_path)
-            return None
-
-        crown_img = Image.open(crown_path).convert("RGBA")
+        crown_img: Image.Image | None = None
+        if crown_name in self.CROWN_PAIR_MAP.values():
+            crown_img = self._blend_pair_crown(crown_name, crown_dir)
+        if crown_img is None:
+            crown_path = crown_dir / f"{crown_name}.png"
+            if not crown_path.is_file():
+                logger.debug("No crown file: %s", crown_path)
+                return None
+            crown_img = Image.open(crown_path).convert("RGBA")
 
         # Scale directly to target dimensions
         crown_fitted = crown_img.resize((self.CROWN_W, self.CROWN_H), Image.LANCZOS)
@@ -458,6 +507,44 @@ class CardRenderer:
 
         self._crown_cache[crown_name] = overlay
         return overlay
+
+    def _blend_pair_crown(self, pair: str, crown_dir: Path) -> Image.Image | None:
+        """Synthesize a two-colour crown from the mono crowns.
+
+        Composites ``<pair[0]>.png`` (left) into ``<pair[1]>.png`` (right)
+        through a centered horizontal gradient band (CROWN_SEAM_FRACTION of
+        the width) — the soft seam real two-colour legend crowns use instead
+        of a hard center split. The mono crowns share geometry, so this is a
+        straight masked composite. Returns None when a mono source is missing
+        or mismatched so the caller falls back to the committed pair PNG.
+        """
+        left_path = crown_dir / f"{pair[0]}.png"
+        right_path = crown_dir / f"{pair[1]}.png"
+        if not (left_path.is_file() and right_path.is_file()):
+            return None
+        left = Image.open(left_path).convert("RGBA")
+        right = Image.open(right_path).convert("RGBA")
+        if left.size != right.size:
+            logger.warning(
+                "Mono crowns %s/%s differ in size (%s vs %s) — using committed pair crown",
+                left_path.name,
+                right_path.name,
+                left.size,
+                right.size,
+            )
+            return None
+
+        w, h = left.size
+        band = max(2, int(w * self.CROWN_SEAM_FRACTION))
+        x0 = (w - band) // 2
+        # Mask: 0 (left crown) -> 255 (right crown), linear ramp across the band.
+        mask = Image.new("L", (w, h), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rectangle([(x0 + band, 0), (w - 1, h - 1)], fill=255)
+        ramp = Image.new("L", (band, 1))
+        ramp.putdata([round(255 * (i + 0.5) / band) for i in range(band)])
+        mask.paste(ramp.resize((band, h), Image.NEAREST), (x0, 0))
+        return Image.composite(right, left, mask)
 
     # ------------------------------------------------------------------
     # Frame / PT box loading (cached)
@@ -869,7 +956,10 @@ class CardRenderer:
             )
 
         # 3-4. Frame (alpha composite on top — art shows through)
-        frame_key = self.determine_frame_key(card)
+        # Resolve the two-colour treatment ONCE for this card so a settings
+        # toggle landing mid-render can't give it a gold frame + split crown.
+        two_color_mode = _two_color_frame_mode()
+        frame_key = self.determine_frame_key(card, two_color_mode=two_color_mode)
         frame_img = self._load_frame(frame_key)
         canvas = Image.alpha_composite(canvas, frame_img)
 
@@ -882,7 +972,7 @@ class CardRenderer:
         type_lower = card.type_line.lower()
         is_crowned = "legendary" in type_lower and "planeswalker" not in type_lower
         if is_crowned:
-            crown = self._load_legendary_crown(card)
+            crown = self._load_legendary_crown(card, two_color_mode=two_color_mode)
             if crown is not None:
                 underlay = self._make_crown_underlay()
                 canvas = Image.alpha_composite(canvas, underlay)

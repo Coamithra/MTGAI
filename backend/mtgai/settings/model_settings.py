@@ -20,7 +20,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, get_args
 
 from pydantic import BaseModel, Field
 
@@ -312,6 +312,12 @@ MAX_ART_VERSIONS = 6
 # spawn a runaway pipeline run. Mirrors the Project Settings UI field's max.
 MAX_SET_SIZE = 500
 
+# Two-colour frame treatment: "split" renders every two-colour card on the
+# hybrid-derived left/right split frame (house style); "gold" uses the flat
+# gold M frame — the real-Magic convention for non-hybrid two-colour costs.
+TwoColorFrameMode = Literal["split", "gold"]
+TWO_COLOR_FRAME_MODES: tuple[str, ...] = get_args(TwoColorFrameMode)
+
 
 class SetParams(BaseModel):
     """Numeric / structural parameters for a set.
@@ -331,6 +337,11 @@ class SetParams(BaseModel):
     # 1 disables judging (the single version is auto-picked). Capped low so a
     # set's art run stays tractable on local Flux. Surfaced on Project Settings.
     art_versions_per_card: int = 3
+    # Two-colour frame treatment (see TwoColorFrameMode). "split" is the house
+    # style; "gold" is strict canon fidelity. Read by the renderer at frame-key
+    # time, so it governs cards as they are (re-)rendered — no cascade-clear;
+    # already-rendered cards keep their frame until re-rendered.
+    two_color_frame: TwoColorFrameMode = "split"
 
 
 class ThemeInputSource(BaseModel):

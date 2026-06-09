@@ -1524,6 +1524,7 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
         MAX_ART_VERSIONS,
         MAX_SET_SIZE,
         MIN_ART_VERSIONS,
+        TWO_COLOR_FRAME_MODES,
         SetParams,
         apply_settings,
     )
@@ -1539,6 +1540,7 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
     mech = body.get("mechanic_count", current.mechanic_count)
     size = body.get("set_size", current.set_size)
     art_versions = body.get("art_versions_per_card", current.art_versions_per_card)
+    two_color = body.get("two_color_frame", current.two_color_frame)
 
     if not isinstance(name, str):
         return JSONResponse({"error": "set_name must be a string"}, status_code=400)
@@ -1583,6 +1585,18 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
             },
             status_code=400,
         )
+    # two_color_frame only governs the next render run (the renderer reads it
+    # at frame-key time), so it applies live like art_versions_per_card.
+    if two_color not in TWO_COLOR_FRAME_MODES:
+        return JSONResponse(
+            {
+                "error": (
+                    f"two_color_frame must be one of {list(TWO_COLOR_FRAME_MODES)}; "
+                    f"got {two_color!r}"
+                )
+            },
+            status_code=400,
+        )
 
     try:
         pipeline_started = (set_artifact_dir() / "pipeline-state.json").exists()
@@ -1609,6 +1623,7 @@ async def wizard_project_save_params(request: Request) -> JSONResponse:
                 set_size=size,
                 mechanic_count=mech,
                 art_versions_per_card=art_versions,
+                two_color_frame=two_color,
             )
         }
     )

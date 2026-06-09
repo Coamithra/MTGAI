@@ -703,6 +703,13 @@
             <input type="number" id="wiz-pp-artver" value="${sp.art_versions_per_card}" min="1" max="6"
               title="Candidate art images generated per card (best-of-N). Lower to cut cost/time on an expensive cloud image generator; the biggest lever on art-stage runtime.">
           </label>
+          <label>Two-color frame
+            <select id="wiz-pp-twocolor"
+              title="How two-color cards are framed. Split: hybrid-derived left/right split frame (house style). Gold: flat gold frame — real-Magic convention for non-hybrid two-color costs. Applies when cards are (re-)rendered; already-rendered cards keep their frame until re-rendered.">
+              <option value="split" ${sp.two_color_frame !== 'gold' ? 'selected' : ''}>Split (house style)</option>
+              <option value="gold" ${sp.two_color_frame === 'gold' ? 'selected' : ''}>Gold (canon)</option>
+            </select>
+          </label>
         </div>
       </section>
     `;
@@ -756,6 +763,9 @@
     // art_versions_per_card is not a cascade-clear field (it only governs the
     // next art run), so it always live-applies — like mechanic_count.
     artver.addEventListener('change', () => saveParams(state, { art_versions_per_card: parseInt(artver.value, 10) || 1 }));
+    // two_color_frame only governs the next render run — live-apply too.
+    const twocolor = document.getElementById('wiz-pp-twocolor');
+    twocolor.addEventListener('change', () => saveParams(state, { two_color_frame: twocolor.value }));
   }
 
   async function saveParams(state, patch) {
@@ -794,6 +804,8 @@
     if (size && sp.set_size != null) size.value = sp.set_size;
     if (mech && sp.mechanic_count != null) mech.value = sp.mechanic_count;
     if (artver && sp.art_versions_per_card != null) artver.value = sp.art_versions_per_card;
+    const twocolor = document.getElementById('wiz-pp-twocolor');
+    if (twocolor && sp.two_color_frame != null) twocolor.value = sp.two_color_frame;
   }
 
   // ------------------------------------------------------------------
