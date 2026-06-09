@@ -1,4 +1,4 @@
-"""Generate pixel-accurate two-color M15 split frames by median-stacking real cards.
+"""Generate pixel-accurate two-color M15 split frames by percentile-stacking real cards.
 
 Option D from ``learnings/colored-artifact-frames.md``: the frame pixels are constant
 across all cards of a given frame variant while art/text vary, so a per-pixel stack of
@@ -105,8 +105,10 @@ def _download(pair: str, cards: list[tuple[str, str]], refresh: bool) -> list[Pa
             try:
                 with urllib.request.urlopen(req, timeout=60) as resp:
                     dest.write_bytes(resp.read())
-            except urllib.error.HTTPError as exc:
-                print(f"  ! {sid}: HTTP {exc.code}")
+            except urllib.error.URLError as exc:
+                # URLError is the superclass of HTTPError — covers DNS/timeout/reset
+                # too, so one flaky download skips that card rather than aborting the run.
+                print(f"  ! {sid}: {exc}")
                 continue
             time.sleep(REQUEST_SPACING_S)
         paths.append(dest)

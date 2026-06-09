@@ -318,7 +318,9 @@ class CardRenderer:
 
         Returns a full-canvas-size RGBA image, or None if no crown file found.
         """
-        identity = sorted(c.value if hasattr(c, "value") else str(c) for c in card.color_identity)
+        # Dedup like frame_key_for_identity so a malformed ["W","W"] resolves to a
+        # mono crown, not a two-color lookup miss -> gold crown on a mono frame.
+        identity = sorted({c.value if hasattr(c, "value") else str(c) for c in card.color_identity})
         is_land = "land" in card.type_line.lower()
 
         # Determine crown filename
