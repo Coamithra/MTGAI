@@ -746,6 +746,20 @@ def generate_prompts_for_set(
                 cameos += 1
 
             card_tags = effective_card_tags(tags_data, card.collector_number)
+            if not card_tags:
+                # The unified LLM tagger missed this card entirely. Without a
+                # fallback the prompt would be authored with ZERO entity reference,
+                # so a recurring character the tagger under-tagged renders as a
+                # fresh, inconsistent interpretation — exactly what the style guide
+                # exists to prevent. Recover via the word-boundary substring matcher
+                # (boundary-matched, not the raw-substring get_visual_references); the
+                # recurring-vs-single split below then runs unchanged.
+                card_tags = [
+                    {"entity_key": e["key"], "kind": e["kind"]}
+                    for e in get_named_entities(
+                        card.name, card.type_line, card.oracle_text, card.flavor_text
+                    )
+                ]
             named_entities = [
                 {
                     "key": t["entity_key"],
