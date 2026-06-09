@@ -620,6 +620,7 @@ class PipelineEngine:
             current.stage_id,
             current.status,
             current.progress.model_dump(mode="json"),
+            instance_id=current.instance_id,
         )
         logger.info("Resumed pipeline after review of %s", current.display_name)
 
@@ -659,7 +660,9 @@ class PipelineEngine:
         current.status = StageStatus.SKIPPED
         current.progress.finished_at = datetime.now(UTC)
         save_state(self.state)
-        self.bus.stage_update(current.stage_id, current.status)
+        self.bus.stage_update(
+            current.stage_id, current.status, instance_id=current.instance_id
+        )
         logger.info("Skipped stage: %s", current.display_name)
 
         self.run()

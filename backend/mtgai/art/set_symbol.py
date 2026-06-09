@@ -298,6 +298,20 @@ def _select_version(symbol_dir: Path, version_tag: str) -> bool:
     return True
 
 
+def _any_version_needs_generation(symbol_dir: Path, force: bool) -> bool:
+    """True iff at least one glyph version still needs a Flux generation —
+    mirrors the per-version ``mask_dest.is_file() and not force`` skip in the
+    loop exactly. When False every mask is already present (and not forced), so
+    the whole ComfyUI lifecycle (unload local LLM, VRAM pre-check, boot) is pure
+    waste and can be skipped."""
+    if force:
+        return True
+    for version in range(1, VERSIONS + 1):
+        if not (symbol_dir / f"mask_v{version}.png").is_file():
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Generation
 # ---------------------------------------------------------------------------
@@ -382,7 +396,14 @@ def generate_set_symbol(
     errors: list[dict] = []
     saved_versions: list[int] = []
 
-    comfyui_proc = ensure_comfyui(log_dir=log_dir)
+    # Skip the entire ComfyUI lifecycle (unload local LLM, VRAM pre-check, boot)
+    # when no glyph version needs generating — e.g. a resume where all masks are
+    # already present. Booting just to iterate-and-skip is pure waste, and the
+    # VRAM pre-check in ensure_comfyui RAISES, so a resume with zero remaining GPU
+    # work could spuriously FAIL just because another app holds VRAM. The loop
+    # below still runs so saved_versions is populated for the selection step.
+    needs_gpu_work = _any_version_needs_generation(symbol_dir, force)
+    comfyui_proc = ensure_comfyui(log_dir=log_dir) if needs_gpu_work else None
     try:
         for version in range(1, VERSIONS + 1):
             if should_cancel is not None and should_cancel():
@@ -411,7 +432,11 @@ def generate_set_symbol(
                 failed += 1
                 errors.append({"version": version, "error": str(exc)})
     finally:
-        kill_comfyui(comfyui_proc)
+        # Only tear ComfyUI down if we actually booted it. When we skipped the
+        # boot, kill_comfyui(None) would fall back to killing ANY running ComfyUI
+        # by command-line signature — never do that to a process we didn't start.
+        if needs_gpu_work:
+            kill_comfyui(comfyui_proc)
 
     # Pick the active symbol. A forced re-roll switches to the first fresh AI
     # candidate (the user asked for a new glyph). Otherwise a still-valid prior
