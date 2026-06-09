@@ -170,6 +170,50 @@ def test_run_card_gen_emits_done_on_cancelled(monkeypatch) -> None:
     assert "done" in phase_names, f"missing terminal phase('done'); got {spy.calls}"
 
 
+def _stub_renderer_factory(result: dict):
+    class _FakeRenderer:
+        def render_set(self, **_kwargs):
+            return result
+
+    return lambda *_a, **_k: _FakeRenderer()
+
+
+def test_run_rendering_emits_done_on_success(monkeypatch) -> None:
+    """``run_rendering`` finishes into PAUSED_FOR_REVIEW (the terminal stage), so
+    it never advances into a next stage that would emit its own phase. Without a
+    terminal ``phase('done', ...)`` the global progress strip stays stuck on the
+    last ``phase('running', 'Rendered <card>')`` forever (the reported bug)."""
+    monkeypatch.setattr(
+        "mtgai.rendering.card_renderer.CardRenderer",
+        _stub_renderer_factory(
+            {"rendered": 12, "skipped": 0, "failed": 0, "elapsed_seconds": 29.1}
+        ),
+    )
+
+    spy = _SpyEmitter()
+    result = stages.run_rendering(progress_cb=None, emitter=spy)
+
+    assert result.success is True
+    phase_names = [name for name, _ in spy.calls]
+    assert "done" in phase_names, f"missing terminal phase('done'); got {spy.calls}"
+    done_activity = next(activity for name, activity in spy.calls if name == "done")
+    assert "Rendered 12 cards" in done_activity
+
+
+def test_run_rendering_emits_done_on_cancel(monkeypatch) -> None:
+    """A user Cancel mid-render must also close the strip."""
+    monkeypatch.setattr(
+        "mtgai.rendering.card_renderer.CardRenderer",
+        _stub_renderer_factory({"rendered": 3, "skipped": 0, "failed": 0, "cancelled": True}),
+    )
+
+    spy = _SpyEmitter()
+    result = stages.run_rendering(progress_cb=None, emitter=spy)
+
+    assert result.success is False
+    assert "done" in [name for name, _ in spy.calls]
+
+
 def test_run_ai_review_emits_done(monkeypatch) -> None:
     """``run_ai_review`` makes many small LLM calls with no per-item phase of
     its own; it must still bracket the run with a terminal ``phase('done', ...)``
