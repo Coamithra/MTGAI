@@ -408,11 +408,17 @@ class PipelineEngine:
             # skipping it would orphan the gate's stamped flags entirely.
             with ai_lock.hold(f"Finishing {stage.display_name}") as interstage:
                 if interstage is None:
-                    logger.warning(
-                        "Skipping card-pool snapshot for instance %s — AI lock "
-                        "held by another action (re-run degrades to from-live)",
-                        stage.instance_id,
-                    )
+                    from mtgai.pipeline import history
+
+                    # Only a snapshot-eligible stage actually loses anything
+                    # here — don't log a misleading "skipping snapshot" for a
+                    # stage that never snapshots.
+                    if stage.stage_id in history.SNAPSHOT_STAGES:
+                        logger.warning(
+                            "Skipping card-pool snapshot for instance %s — AI lock "
+                            "held by another action (re-run degrades to from-live)",
+                            stage.instance_id,
+                        )
                 else:
                     # Per-instance card-pool snapshot: capture this instance's
                     # output (live cards/ + progress) into history/<instance_id>/
