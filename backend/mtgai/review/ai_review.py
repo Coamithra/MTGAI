@@ -1941,9 +1941,13 @@ def record_reviewed(set_dir: Path, collector_number: str, signature: str) -> Non
 # ---------------------------------------------------------------------------
 
 # Sidecar holding the user's manual review decisions, keyed by collector_number.
-# Each value is {verdict: "approved"|"rejected", reason: str, source: "user"}.
-# The /state endpoint merges this over the AI verdict so a reload keeps the
-# user's call (the AI verdict alone lives in reviews/<cn>.json).
+# Each value is {verdict: "approved"|"rejected", reason: str, source: "user",
+# signature: str}. ``signature`` is the ``card_signature`` of the card the
+# decision was made AGAINST, so a later regen/edit that changes the card body
+# (same collector number, different content) makes the decision stale: the
+# /state endpoint ignores a decision whose recorded signature no longer matches
+# the live card and falls through to the fresh flagged/AI verdict. The AI verdict
+# alone lives in reviews/<cn>.json.
 DECISIONS_FILENAME = "decisions.json"
 
 
@@ -1965,13 +1969,42 @@ def load_decisions(set_dir: Path) -> dict[str, dict]:
     return data if isinstance(data, dict) else {}
 
 
-def save_decision(set_dir: Path, collector_number: str, decision: dict) -> None:
-    """Record one card's user review decision, merging into the sidecar."""
+def save_decision(
+    set_dir: Path,
+    collector_number: str,
+    decision: dict,
+    *,
+    card: dict | None = None,
+) -> None:
+    """Record one card's user review decision, merging into the sidecar.
+
+    When ``card`` (the card the decision was made against) is given, its
+    :func:`card_signature` is stamped onto the decision so a later regen/edit that
+    rewrites the card body invalidates the decision (see :func:`decision_is_stale`).
+    """
+    if card is not None and "signature" not in decision:
+        decision = {**decision, "signature": card_signature(card)}
     decisions = load_decisions(set_dir)
     decisions[collector_number] = decision
     path = decisions_path(set_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(path, json.dumps(decisions, indent=2, ensure_ascii=False))
+
+
+def decision_is_stale(decision: dict | None, card: dict | None) -> bool:
+    """True when a recorded decision's card signature no longer matches the card.
+
+    A decision carries the ``card_signature`` of the body it was made against; a
+    regen/edit changes the body (same collector number) and so the signature. A
+    decision recorded WITHOUT a signature (legacy, pre-staleness) is never treated
+    as stale — there's nothing to compare, so it keeps its old absolute precedence.
+    """
+    if not isinstance(decision, dict):
+        return False
+    recorded = decision.get("signature")
+    if not recorded or card is None:
+        return False
+    return recorded != card_signature(card)
 
 
 def clear_decision(set_dir: Path, collector_number: str) -> None:

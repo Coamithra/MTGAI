@@ -287,22 +287,20 @@ class CardRenderer:
         log_path = set_dir / "art-selection-logs" / f"{cn}.json"
         if log_path.is_file():
             try:
+                from mtgai.art.art_selector import log_picked_filename
+
                 log_data = json.loads(log_path.read_text(encoding="utf-8"))
-                pick = log_data.get("pick", "")  # e.g. "v2"
-                version_files = log_data.get("version_files", [])
-
-                # Find file matching the pick version
-                for fname in version_files:
-                    if f"_{pick}." in fname:
-                        art_file = set_dir / "art" / fname
-                        if art_file.is_file():
-                            return art_file
-
-                # Fallback: try constructing path directly
-                slug = card_slug(cn, card.name)
-                direct = set_dir / "art" / f"{slug}_{pick}.png"
-                if direct.is_file():
-                    return direct
+                # The judge's ``pick`` ("v2") is POSITIONAL — index into the sorted
+                # glob shown to it, NOT the file literally named ``_v2.png``. With a
+                # version gap (e.g. only ``_v2.png``/``_v3.png`` exist) a literal
+                # ``f"_{pick}." in fname`` match would return the judge-REJECTED file.
+                # ``log_picked_filename`` returns the already-resolved filename
+                # (legacy logs fall back to the positional interpretation).
+                fname = log_picked_filename(log_data)
+                if fname:
+                    art_file = set_dir / "art" / fname
+                    if art_file.is_file():
+                        return art_file
 
             except (json.JSONDecodeError, KeyError) as exc:
                 logger.warning("Bad art selection log for %s: %s", cn, exc)
