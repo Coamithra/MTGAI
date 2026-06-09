@@ -360,8 +360,15 @@ def _retry_single_card(
     effort: str | None = None,
     thinking: str | None = None,
     archetypes: list[dict] | None = None,
+    cycle_siblings: list[dict] | None = None,
 ) -> dict | None:
     """Retry generating a single card that failed to parse.
+
+    ``cycle_siblings`` (optional) is the same prior-cycle-member list the
+    slot's original batch call received; threading it keeps the retry's prompt
+    carrying the explicit "SIBLING CYCLE MEMBERS — mirror their structure" block
+    so a regenerated cycle member doesn't break the family's parallel structure.
+    ``None`` (a non-cycle retry) leaves the prompt unchanged.
 
     Returns the raw LLM result dict, or None if the call fails.
     """
@@ -374,7 +381,14 @@ def _retry_single_card(
     system_prompt = load_system_prompt()
     static_ctx = build_static_set_context(mechanics, theme, archetypes)
     existing_dicts = [c.model_dump() if hasattr(c, "model_dump") else c for c in existing_cards]
-    user_prompt = build_user_prompt([slot], mechanics, existing_dicts, theme, archetypes)
+    user_prompt = build_user_prompt(
+        [slot],
+        mechanics,
+        existing_dicts,
+        theme,
+        archetypes,
+        cycle_siblings=cycle_siblings,
+    )
     user_prompt += (
         f"\n\n---\n\nPREVIOUS ATTEMPT FAILED:\n{error_msg}\n\n"
         "Please generate a valid card that fixes these issues."
@@ -603,6 +617,7 @@ def _process_batch_result(
     thinking: str | None = None,
     set_dir: Path | None = None,
     archetypes: list[dict] | None = None,
+    cycle_siblings: list[dict] | None = None,
     card_saved_callback: Callable[[Card], None] | None = None,
 ) -> list[Card]:
     """Validate, auto-fix, and save each card from a batch result.
@@ -611,6 +626,11 @@ def _process_batch_result(
     the top of ``generate_set`` and threaded through so per-batch
     helpers don't re-query the active project (matches the
     "resolve once at the top of the run" guarantee in CLAUDE.md).
+
+    ``cycle_siblings`` is the batch's prior-cycle-member list (the same one its
+    original ``build_user_prompt`` call received), threaded down to the regen
+    retry so a regenerated cycle member keeps the "SIBLING CYCLE MEMBERS" block.
+    ``None`` for a non-cycle batch.
 
     Returns the list of successfully saved Card objects.
     """
@@ -752,6 +772,7 @@ def _process_batch_result(
                 effort=effort,
                 thinking=thinking,
                 archetypes=archetypes,
+                cycle_siblings=cycle_siblings,
             )
             if clean_card is not None:
                 card = clean_card
@@ -860,6 +881,7 @@ def _retry_card(
     effort: str | None = None,
     thinking: str | None = None,
     archetypes: list[dict] | None = None,
+    cycle_siblings: list[dict] | None = None,
 ) -> tuple[Card | None, Card | None]:
     """Retry a card that hit a regen trigger (schema parse failure or text overflow).
 
@@ -890,6 +912,7 @@ def _retry_card(
             effort=effort,
             thinking=thinking,
             archetypes=archetypes,
+            cycle_siblings=cycle_siblings,
         )
         if result is None:
             continue
@@ -1656,6 +1679,7 @@ def generate_set(
             thinking=active_thinking,
             set_dir=set_dir,
             archetypes=archetypes,
+            cycle_siblings=siblings_for_batch,
             card_saved_callback=card_saved_callback,
         )
         total_saved += len(saved)

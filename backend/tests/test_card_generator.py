@@ -584,6 +584,88 @@ def test_retry_card_returns_clean_card_on_success(tmp_path, monkeypatch) -> None
     assert clean.name == "Optimus Prime"
 
 
+# ---------------------------------------------------------------------------
+# _retry_single_card threads cycle_siblings into the rebuilt retry prompt
+# ---------------------------------------------------------------------------
+
+
+def _capture_retry_prompt(monkeypatch) -> dict:
+    """Stub _retry_single_card's collaborators and capture the rebuilt user
+    prompt. Returns a dict that fills in ``user_prompt`` after the call."""
+    captured: dict = {}
+
+    def fake_generate_with_tool(*a, user_prompt: str = "", **k):
+        captured["user_prompt"] = user_prompt
+        return _fake_result(
+            {
+                "name": "Boros Gate",
+                "mana_cost": "",
+                "type_line": "Land",
+                "oracle_text": "Boros Gate enters the battlefield tapped.\n{T}: Add {R} or {W}.",
+                "rarity": "common",
+            }
+        )
+
+    monkeypatch.setattr(cg, "generate_with_tool", fake_generate_with_tool)
+    monkeypatch.setattr(cg, "load_system_prompt", lambda: "SYS")
+    monkeypatch.setattr(cg, "build_static_set_context", lambda *a, **k: "CTX")
+    monkeypatch.setattr(cg, "_card_gen_log_dir", lambda: None)
+    return captured
+
+
+def test_retry_single_card_threads_cycle_siblings_into_prompt(monkeypatch) -> None:
+    """A cycle member retried via the regen path must rebuild its prompt with
+    the explicit SIBLING CYCLE MEMBERS block — the same context its original
+    batch call had — so the regenerated member keeps the family's parallel
+    structure instead of seeing siblings only as generic existing-cards context.
+
+    Without the ``cycle_siblings=`` thread-through this block is silently dropped
+    on every retry (card 6a285a87)."""
+    captured = _capture_retry_prompt(monkeypatch)
+    slot = _slot("002", cycle_id="gates", tweaked_text="WB gate")
+    siblings = [
+        _sibling_card(
+            "Azorius Gate",
+            "Azorius Gate enters the battlefield tapped.\n{T}: Add {W} or {U}.",
+        )
+    ]
+
+    result = cg._retry_single_card(
+        slot,
+        "overflow",
+        [],
+        [],
+        {"name": "T", "setting": "s"},
+        "m",
+        2,
+        cycle_siblings=siblings,
+    )
+
+    assert result is not None
+    assert "SIBLING CYCLE MEMBERS" in captured["user_prompt"]
+    assert "Azorius Gate enters the battlefield tapped." in captured["user_prompt"]
+
+
+def test_retry_single_card_non_cycle_has_no_sibling_block(monkeypatch) -> None:
+    """A non-cycle retry (no ``cycle_siblings``) leaves the prompt unchanged —
+    the new parameter defaults to None so the common path never grows a block."""
+    captured = _capture_retry_prompt(monkeypatch)
+    slot = _slot("002", tweaked_text="plain creature")
+
+    result = cg._retry_single_card(
+        slot,
+        "overflow",
+        [],
+        [],
+        {"name": "T", "setting": "s"},
+        "m",
+        2,
+    )
+
+    assert result is not None
+    assert "SIBLING CYCLE MEMBERS" not in captured["user_prompt"]
+
+
 def test_regen_feedback_includes_all_regen_triggers_not_just_overflow() -> None:
     """Card-gen's retry feedback must carry EVERY regen-trigger error, not only
     ``text_overflow.*``. A non-overflow trigger (e.g. ``nonland_missing_cost``)
