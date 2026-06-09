@@ -748,6 +748,20 @@
   font-size: 0.85rem;
 }
 
+.wiz-vision-hint {
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  color: #777;
+}
+
+.wiz-vision-warn {
+  margin-top: 0.3rem;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: #e9b949;
+  max-width: 32rem;
+}
+
 .wiz-extraction-strip {
   background: rgba(74, 158, 255, 0.08);
   border: 1px solid rgba(74, 158, 255, 0.25);

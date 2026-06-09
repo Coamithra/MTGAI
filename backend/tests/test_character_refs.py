@@ -37,86 +37,10 @@ def test_asd_portrait_dict_is_gone() -> None:
         assert asd_key not in src.lower(), f"ASD-hardcoded key {asd_key!r} still present"
 
 
-# ---------------------------------------------------------------------------
-# Recurring-entity detection parsing
-# ---------------------------------------------------------------------------
-
-
-def _cards_fixture() -> list[dict]:
-    return [
-        {"collector_number": "001", "name": "Aria's Charge"},
-        {"collector_number": "002", "name": "Aria, Storm Knight"},
-        {"collector_number": "003", "name": "Lone Wolf"},
-    ]
-
-
-def _patch_llm(monkeypatch, entities: list[dict]) -> None:
-    def fake_generate_with_tool(*_args, **_kwargs):
-        return {
-            "result": {"entities": entities},
-            "input_tokens": 10,
-            "output_tokens": 10,
-        }
-
-    monkeypatch.setattr(cp, "generate_with_tool", fake_generate_with_tool)
-    monkeypatch.setattr(cp, "cost_from_result", lambda _r: 0.0)
-
-
-def test_detection_keeps_only_multi_card_entities(monkeypatch) -> None:
-    """A one-card entity (or one whose cards reduce to <2 valid) is dropped."""
-    _patch_llm(
-        monkeypatch,
-        [
-            {"entity_key": "aria", "name": "Aria", "kind": "character", "cards": ["001", "002"]},
-            {"entity_key": "lone_wolf", "name": "Lone Wolf", "kind": "creature", "cards": ["003"]},
-        ],
-    )
-    entities, cost = cp.detect_recurring_entities(_cards_fixture(), {}, model_id="m")
-    keys = {e["entity_key"] for e in entities}
-    assert keys == {"aria"}
-    assert cost == 0.0
-
-
-def test_detection_drops_unknown_collector_numbers(monkeypatch) -> None:
-    """Hallucinated collector numbers are filtered; if <2 remain the entity drops."""
-    _patch_llm(
-        monkeypatch,
-        [
-            # only 001 is real -> reduced to 1 valid card -> dropped
-            {"entity_key": "ghost", "name": "Ghost", "kind": "character", "cards": ["001", "999"]},
-        ],
-    )
-    entities, _ = cp.detect_recurring_entities(_cards_fixture(), {}, model_id="m")
-    assert entities == []
-
-
-def test_detection_dedups_keys_and_cards(monkeypatch) -> None:
-    _patch_llm(
-        monkeypatch,
-        [
-            {
-                "entity_key": "Aria",
-                "name": "Aria",
-                "kind": "character",
-                "cards": ["001", "001", "002"],
-            },
-            {
-                "entity_key": "aria",
-                "name": "Aria dup",
-                "kind": "character",
-                "cards": ["001", "002"],
-            },
-        ],
-    )
-    entities, _ = cp.detect_recurring_entities(_cards_fixture(), {}, model_id="m")
-    assert len(entities) == 1
-    assert entities[0]["entity_key"] == "aria"  # slugified
-    assert entities[0]["cards"] == ["001", "002"]  # deduped, order-preserving
-
-
-def test_detection_empty_cards_is_noop(monkeypatch) -> None:
-    _patch_llm(monkeypatch, [{"entity_key": "x", "name": "X", "kind": "c", "cards": ["a", "b"]}])
-    assert cp.detect_recurring_entities([], {}, model_id="m") == ([], 0.0)
+# NOTE: recurring-entity *detection* parsing moved to ``test_entity_tags.py``
+# when the detection pass was unified into ``mtgai.art.entity_tags`` (card
+# 6a27581d). This file keeps the char_portraits-owned logic: neutral-prompt
+# building, ``art_character_refs`` attachment, and slugify.
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +220,12 @@ def _wire_char_loop(monkeypatch, tmp_path: Path, n_entities: int, versions: int 
 
     monkeypatch.setattr("mtgai.runtime.active_project.require_active_project", lambda: _Proj())
     monkeypatch.setattr("mtgai.io.asset_paths.set_artifact_dir", lambda: set_dir)
-    monkeypatch.setattr(cp, "detect_recurring_entities", lambda *a, **k: (entities, 0.0))
+    # Detection is now the shared entity_tags pass (imported inside the stage).
+    monkeypatch.setattr(
+        "mtgai.art.entity_tags.ensure_entity_tags",
+        lambda *a, **k: ({"cards": {}, "entities_meta": {}}, 0.0),
+    )
+    monkeypatch.setattr("mtgai.art.entity_tags.recurring_from_tags", lambda *a, **k: entities)
     monkeypatch.setattr(cp, "VERSIONS_PER_ENTITY", versions)
     monkeypatch.setattr(cp, "ensure_comfyui", lambda log_dir=None: "proc0")
     monkeypatch.setattr(cp, "kill_comfyui", lambda proc=None: None)

@@ -1243,10 +1243,30 @@
   function renderModelAssignmentsSection(data) {
     const llmRows = (data.llm_stages || []).map(stage => {
       const assigned = data.llm_assignments[stage.id] || '';
-      const opts = data.llm_models.map(m =>
+      const model = data.llm_models.find(m => m.key === assigned);
+      // Vision-required stages (art_select judges generated art) only work with
+      // a vision-capable model — a text-only model silently no-ops best-of-N and
+      // wastes the Flux compute. Filter the dropdown to vision models. If the
+      // current assignment is text-only (a preset / legacy .mtg default), keep
+      // it as a selected-but-disabled option so the bad state is visible and the
+      // user is forced to pick a real judge.
+      const visionOnly = !!stage.requires_vision;
+      const assignedIsBlind = visionOnly && model && !model.supports_vision;
+      // A persisted key that isn't in the registry at all (a .mtg referencing a
+      // removed model) — for a vision stage, surface it rather than letting it
+      // vanish from a filtered dropdown with nothing selected.
+      const assignedUnknown = visionOnly && assigned && !model;
+      const optModels = visionOnly
+        ? data.llm_models.filter(m => m.supports_vision)
+        : data.llm_models;
+      let opts = optModels.map(m =>
         `<option value="${escAttr(m.key)}" ${m.key === assigned ? 'selected' : ''}>${escHtml(m.name)}</option>`
       ).join('');
-      const model = data.llm_models.find(m => m.key === assigned);
+      if (assignedIsBlind) {
+        opts = `<option value="${escAttr(assigned)}" selected disabled>${escHtml(model.name)} (no vision — pick a vision model)</option>` + opts;
+      } else if (assignedUnknown) {
+        opts = `<option value="${escAttr(assigned)}" selected disabled>${escHtml(assigned)} (unknown model — pick a vision model)</option>` + opts;
+      }
       const levels = (model && model.effort_levels) || [];
       const effort = data.effort_overrides[stage.id] || '';
       const effortCell = levels.length ? `
@@ -1265,10 +1285,17 @@
           <option value="disabled" ${thinkingOff ? 'selected' : ''}>Off</option>
         </select>
       ` : '<span class="wiz-effort-na">—</span>';
+      // Surface why this stage's dropdown is restricted, and flag a current
+      // text-only assignment that would make best-of-N silently no-op.
+      const visionNote = (assignedIsBlind || assignedUnknown)
+        ? '<div class="wiz-vision-warn">⚠ This stage judges generated art and needs a vision model. The current model can\'t do it — best-of-N art selection will be skipped (wasting Flux compute) until you pick a vision model.</div>'
+        : (visionOnly
+          ? '<div class="wiz-vision-hint">Judges generated art — vision models only.</div>'
+          : '');
       return `
         <tr>
           <td>${escHtml(stage.label)}</td>
-          <td><select data-llm-stage="${escAttr(stage.id)}">${opts}</select></td>
+          <td><select data-llm-stage="${escAttr(stage.id)}">${opts}</select>${visionNote}</td>
           <td>${effortCell}</td>
           <td>${thinkingCell}</td>
         </tr>

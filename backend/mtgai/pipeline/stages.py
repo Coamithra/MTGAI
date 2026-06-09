@@ -2158,6 +2158,20 @@ def clear_finalize() -> None:
             atomic_write_text(path, json.dumps(card, indent=2, ensure_ascii=False))
 
 
+def clear_art_prompts() -> None:
+    """Clear the art_prompts stage's owned artifact: the unified entity-tags sidecar.
+
+    ``art-direction/entity-tags.json`` is produced at art_prompts time (the single
+    source both the appearance-text and image-ref paths read), so a cascade/edit
+    re-run must drop it to force re-detection. The authored ``card.art_prompt``
+    values themselves live on the card JSON (card_gen-owned) and are not cleared
+    here, mirroring the prior no-op clearer.
+    """
+    from mtgai.art.entity_tags import entity_tags_path
+
+    _remove_path(entity_tags_path(_set_dir()))
+
+
 def clear_char_portraits() -> None:
     """Delete the character reference portraits.
 
@@ -2180,12 +2194,33 @@ def clear_char_portraits() -> None:
 def clear_art_gen() -> None:
     """Wipe the merged art-generation stage's artifacts.
 
-    Owns the generated ``art/`` images and the ``art-direction/selections``
-    transcripts (the best-of-N pick logs folded in from the retired
-    ``art_select`` stage).
+    Owns the generated ``art/`` images plus everything the merged stage writes:
+    ``art-generation-logs`` (image-generation transcripts, ``image_generator``),
+    ``art-selection-logs`` (the per-card best-of-N pick records the renderer
+    reads in ``resolve_art_path``, folded in from the retired ``art_select``
+    stage, ``art_selector``), and the ``art_gen/`` dir holding ``decisions.json``
+    (the pick + manual-override record). The two log dirs match the log-viewer
+    map in ``server.get_stage_logs``. Like the sibling clearers, it also scrubs
+    the field the stage stamps onto cards — ``art_path`` — so a regenerated art
+    pool isn't shadowed by stale picks pointing at now-deleted PNGs.
     """
-    _remove_path(_set_dir() / "art")
-    _remove_path(_set_dir() / "art-direction" / "selections")
+    set_dir = _set_dir()
+    _remove_path(set_dir / "art")
+    _remove_path(set_dir / "art-generation-logs")
+    _remove_path(set_dir / "art-selection-logs")
+    _remove_path(set_dir / "art_gen")
+
+    cards_dir = set_dir / "cards"
+    if cards_dir.exists():
+        for path in cards_dir.glob("*.json"):
+            try:
+                card = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if not isinstance(card, dict) or card.get("art_path") is None:
+                continue
+            card["art_path"] = None
+            atomic_write_text(path, json.dumps(card, indent=2, ensure_ascii=False))
 
 
 def clear_rendering() -> None:
@@ -2203,7 +2238,7 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
     "ai_review": _no_artifacts,
     "finalize": clear_finalize,
     "visual_refs": clear_visual_refs,
-    "art_prompts": _no_artifacts,
+    "art_prompts": clear_art_prompts,
     "char_portraits": clear_char_portraits,
     "art_gen": clear_art_gen,
     "rendering": clear_rendering,

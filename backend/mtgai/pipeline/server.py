@@ -1253,17 +1253,28 @@ def _break_points_payload(settings_obj) -> list[dict[str, Any]]:
     return rows
 
 
-def _model_stage_lists() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """The ordered (id, label) rows the Project Settings model table renders.
+def _model_stage_lists() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The ordered model-table rows the Project Settings picker renders.
 
+    LLM rows are ``{id, label, requires_vision}``; image rows are ``{id, label}``.
     Derived from ``LLM_STAGE_NAMES`` / ``IMAGE_STAGE_NAMES`` so the wizard's
     per-stage model picker can never drift out of sync with the backend stage
     registry (the bug that left ``visual_refs`` / ``char_portraits`` out of the
     picker when they were added). Served verbatim in both project payloads.
     """
-    from mtgai.settings.model_settings import IMAGE_STAGE_NAMES, LLM_STAGE_NAMES
+    from mtgai.settings.model_settings import (
+        IMAGE_STAGE_NAMES,
+        LLM_STAGE_NAMES,
+        VISION_REQUIRED_STAGES,
+    )
 
-    llm = [{"id": sid, "label": name} for sid, name in LLM_STAGE_NAMES.items()]
+    # ``requires_vision`` tells the picker to filter this stage's model dropdown
+    # to vision-capable models only (art_select judges images — a text-only
+    # model silently no-ops best-of-N and wastes the Flux compute).
+    llm = [
+        {"id": sid, "label": name, "requires_vision": sid in VISION_REQUIRED_STAGES}
+        for sid, name in LLM_STAGE_NAMES.items()
+    ]
     image = [{"id": sid, "label": name} for sid, name in IMAGE_STAGE_NAMES.items()]
     return llm, image
 
@@ -1294,6 +1305,11 @@ def _registry_model_lists() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]
             # toggle is offered only for these. Anthropic models / non-reasoning
             # locals have thinking unset and get no toggle.
             "supports_thinking": m.thinking in ("adaptive", "adaptive_summarized"),
+            # Whether the model can judge images. The picker filters the
+            # vision-required stages' (VISION_REQUIRED_STAGES, e.g. art_select)
+            # dropdown to vision-capable models so best-of-N always gets a real
+            # judge. Only the Anthropic models are vision-capable today.
+            "supports_vision": m.supports_vision,
         }
         for m in registry.list_llm()
     ]
@@ -1690,6 +1706,7 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
     from mtgai.settings.model_settings import (
         IMAGE_STAGE_NAMES,
         LLM_STAGE_NAMES,
+        VISION_REQUIRED_STAGES,
     )
 
     # effort/thinking are per-LLM-stage overrides, so they share the LLM stage
@@ -1716,6 +1733,27 @@ async def wizard_project_save_model(request: Request) -> JSONResponse:
             valid_ids = ", ".join(sorted(m.key for m in options))
             return JSONResponse(
                 {"error": (f"Unknown {kind} model id {value!r}. Valid ids: {valid_ids}")},
+                status_code=400,
+            )
+
+        # A vision-required stage (art_select judges images) can't use a
+        # text-only model — the per-card judge call throws and best-of-N
+        # silently falls back to v1, wasting all the Flux v2..vN compute. The
+        # picker already filters these out, but guard the API too so a direct
+        # call / hand-edited .mtg can't persist a no-op judge.
+        if (
+            kind == "llm"
+            and stage_id in VISION_REQUIRED_STAGES
+            and not getattr(known, "supports_vision", False)
+        ):
+            return JSONResponse(
+                {
+                    "error": (
+                        f"The {stage_id} stage judges generated art, so it needs a "
+                        f"vision-capable model. {value!r} is text-only — pick a "
+                        "vision model (e.g. haiku, sonnet, opus)."
+                    )
+                },
                 status_code=400,
             )
 
@@ -5587,6 +5625,8 @@ async def wizard_art_prompts_state() -> JSONResponse:
     asset = set_artifact_dir()
 
     from mtgai.art.artist_assignment import load_art_prompt_knobs
+    from mtgai.art.entity_tags import effective_card_tags, load_entity_tags
+    from mtgai.art.visual_reference import get_entity_catalog
 
     cards = _art_prompt_tiles(asset)
     artists = _read_json(asset / "art-direction" / "artists.json", {})
@@ -5597,6 +5637,14 @@ async def wizard_art_prompts_state() -> JSONResponse:
             for a in artists["artists"]
             if isinstance(a, dict) and a.get("name")
         ]
+
+    # Merge the unified per-card entity tags onto each tile so the grid can show
+    # the single source of truth (what each card features) — the same data the
+    # appearance-text + image-ref paths consume. The SSE stream tiles carry none,
+    # so the JS defaults to [] there and the chips fill in on /state repaint.
+    tags_data = load_entity_tags(asset)
+    for tile in cards:
+        tile["entity_tags"] = effective_card_tags(tags_data, tile.get("collector_number") or "")
 
     knobs = load_art_prompt_knobs(asset)
     prompted = sum(1 for c in cards if c.get("art_prompt"))
@@ -5609,6 +5657,7 @@ async def wizard_art_prompts_state() -> JSONResponse:
             "prompted": prompted,
             "artists": artist_names,
             "cameo_probability": knobs.cameo_probability,
+            "entity_catalog": get_entity_catalog(),
         }
     )
 
@@ -5713,6 +5762,7 @@ async def wizard_art_prompts_save_card(request: Request) -> JSONResponse:
     edited fields onto the card JSON and heals the stage so Save & Continue
     re-appears after a recovery. Returns the updated tile.
     """
+    from mtgai.art.entity_tags import effective_card_tags, load_entity_tags
     from mtgai.io.card_io import load_card, save_card
 
     _require_active_project()
@@ -5741,10 +5791,58 @@ async def wizard_art_prompts_save_card(request: Request) -> JSONResponse:
     card = load_card(path)
     save_card(card.model_copy(update=update), set_dir=asset)
     _heal_failed_stage("art_prompts")
+    # Carry both the cameo badge (master) and entity_tags chips on the returned
+    # tile so a prompt/artist edit doesn't blank either in the grid (the SSE tiles
+    # omit entity_tags; the client merges).
     cameo = _art_prompt_cameo(asset, cn)
-    return JSONResponse(
-        {"tile": art_prompt_tile_dict(load_card(path).model_dump(mode="json"), cameo=cameo)}
+    tile = art_prompt_tile_dict(load_card(path).model_dump(mode="json"), cameo=cameo)
+    tile["entity_tags"] = effective_card_tags(load_entity_tags(asset), cn)
+    return JSONResponse({"tile": tile})
+
+
+@router.post("/api/wizard/art_prompts/tags")
+async def wizard_art_prompts_tags(request: Request) -> JSONResponse:
+    """Persist a manual per-card entity-tag override (no AI).
+
+    Body: ``{collector_number: str, tags: [{entity_key, kind}]}``. Marks the card
+    ``source="manual"`` in the entity-tags sidecar so a later AI re-detection
+    preserves it. The tags are the unified source both the appearance-text and
+    image-ref paths read; this lets the user correct a mis-tag in the UI. Returns
+    the updated tile (with ``entity_tags``).
+    """
+    from mtgai.art.entity_tags import effective_card_tags, set_card_tags
+
+    _require_active_project()
+    # The art_prompts stage rewrites the same sidecar while it holds the AI lock;
+    # reject a manual tag edit mid-run so the two writers can't lose-update.
+    if (resp := _reject_if_busy()) is not None:
+        return resp
+    asset = set_artifact_dir()
+    body, err = await _read_request_json(request)
+    if err is not None:
+        return err
+
+    cn = body.get("collector_number") if isinstance(body, dict) else None
+    if not isinstance(cn, str) or not cn:
+        return JSONResponse({"error": "collector_number (str) required"}, status_code=400)
+    raw_tags = body.get("tags") if isinstance(body, dict) else None
+    if not isinstance(raw_tags, list):
+        return JSONResponse({"error": "tags (list) required"}, status_code=400)
+
+    path = _ai_review_card_path(asset, cn)
+    if path is None:
+        return JSONResponse({"error": f"No card found for {cn}"}, status_code=404)
+
+    tags = [t for t in raw_tags if isinstance(t, dict) and t.get("entity_key")]
+    data = set_card_tags(asset, cn, tags)
+
+    from mtgai.io.card_io import load_card
+
+    tile = art_prompt_tile_dict(
+        load_card(path).model_dump(mode="json"), cameo=_art_prompt_cameo(asset, cn)
     )
+    tile["entity_tags"] = effective_card_tags(data, cn)
+    return JSONResponse({"tile": tile})
 
 
 # ---------------------------------------------------------------------------
