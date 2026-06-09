@@ -286,6 +286,78 @@ event_bus = EventBus()
 _engine: PipelineEngine | None = None
 _engine_task: asyncio.Task | None = None
 
+# Serializes the check-then-spawn window across every engine-spawn path
+# (``_kickoff_pipeline_engine`` / ``_resume_paused_engine`` / ``_spawn_retry_engine``
+# / the legacy ``/start`` endpoint). Those paths run on BOTH the event loop
+# (wizard endpoints) and worker threads (the theme-extraction auto-advance hook),
+# so two concurrent callers could otherwise both pass the
+# ``_engine is not None and _engine.is_running`` guard in the window between
+# ``Thread.start()`` and the spawned engine setting ``_running=True`` — spawning
+# two engines over the same ``pipeline-state.json``. ``_engine_spawning`` closes
+# that window: it's set the instant a caller wins the spawn slot and stays set
+# until the engine is armed (``_arm_engine`` pre-sets ``_running=True`` under the
+# lock, just before the thread/task starts), so ``is_running`` takes over with no
+# gap and a second caller sees "busy" throughout. NEVER hold the lock across a
+# blocking engine run — only around the check + construct + start.
+_engine_spawn_lock = threading.Lock()
+_engine_spawning: bool = False
+
+
+def _engine_busy() -> bool:
+    """Whether an engine is running or mid-spawn. Call under ``_engine_spawn_lock``."""
+    return _engine_spawning or (_engine is not None and _engine.is_running)
+
+
+def _begin_engine_spawn() -> bool:
+    """Atomically claim the spawn slot. Returns False (caller must 409) if busy.
+
+    On True the caller owns the slot and MUST eventually clear it — either by
+    arming the engine via :func:`_arm_engine` then starting the worker, or, on an
+    early validation return / a failed start before the worker runs, by calling
+    :func:`_end_engine_spawn`.
+    """
+    global _engine_spawning
+    with _engine_spawn_lock:
+        if _engine_busy():
+            return False
+        _engine_spawning = True
+        return True
+
+
+def _end_engine_spawn() -> None:
+    """Release the spawn slot for a spawn that never reached a running worker.
+
+    Covers both the early-validation return (no engine built yet) and the rare
+    failed ``Thread.start()`` *after* :func:`_arm_engine` (engine built + armed
+    but its thread never ran): demote the dead engine back to not-running so a
+    leftover ``_running=True`` can't wedge ``_engine_busy`` forever.
+    """
+    global _engine_spawning
+    with _engine_spawn_lock:
+        if _engine is not None:
+            _engine._running = False
+        _engine_spawning = False
+
+
+def _arm_engine(engine: PipelineEngine) -> None:
+    """Mark a freshly-built engine running and release the spawn slot, atomically.
+
+    Called under the slot the caller claimed via :func:`_begin_engine_spawn`,
+    AFTER constructing ``engine`` and assigning it to the module global but
+    BEFORE ``Thread.start()`` / ``asyncio.to_thread``. Pre-setting ``_running``
+    here (the engine's ``run``/``resume``/``retry_current`` set it again as their
+    first act — idempotent) makes ``is_running`` true the moment the global is
+    visible, so there's no ``start()``→``run()`` gap for a second caller to slip
+    through: it hands off from ``_engine_spawning`` to ``is_running`` with both
+    flips under ``_engine_spawn_lock``. If the subsequent thread/task start
+    fails, the caller's ``finally`` calls :func:`_end_engine_spawn`, which undoes
+    this ``_running=True``.
+    """
+    global _engine_spawning
+    with _engine_spawn_lock:
+        engine._running = True
+        _engine_spawning = False
+
 
 def _reset_engine() -> None:
     """Drop the in-memory engine reference so it can't outlive its project.
@@ -304,11 +376,13 @@ def _reset_engine() -> None:
     ``_engine_task`` (a never-awaited fire-and-forget handle) is cancelled
     best-effort before the reference is dropped.
     """
-    global _engine, _engine_task
+    global _engine, _engine_task, _engine_spawning
     if _engine_task is not None and not _engine_task.done():
         _engine_task.cancel()
     _engine = None
     _engine_task = None
+    with _engine_spawn_lock:
+        _engine_spawning = False
 
 
 def _persist_supervised_project(mtg_toml: str) -> None:
@@ -2461,27 +2535,33 @@ def _kickoff_pipeline_engine(set_code: str) -> tuple[PipelineState | None, str |
     """
     global _engine, _engine_task
 
-    if _engine is not None and _engine.is_running:
+    if not _begin_engine_spawn():
         return None, "A pipeline is already running"
+    spawned = False
+    try:
+        existing = load_state()
+        if existing is not None:
+            if existing.overall_status == PipelineStatus.RUNNING:
+                return None, "Pipeline state is RUNNING but no engine is attached"
+            if existing.overall_status == PipelineStatus.PAUSED:
+                return None, "Pipeline is paused, use resume instead"
 
-    existing = load_state()
-    if existing is not None:
-        if existing.overall_status == PipelineStatus.RUNNING:
-            return None, "Pipeline state is RUNNING but no engine is attached"
-        if existing.overall_status == PipelineStatus.PAUSED:
-            return None, "Pipeline is paused, use resume instead"
+        if existing is None:
+            state = create_pipeline_state(_build_pipeline_config_from_settings(set_code))
+        else:
+            state = existing
 
-    if existing is None:
-        state = create_pipeline_state(_build_pipeline_config_from_settings(set_code))
-    else:
-        state = existing
-
-    save_state(state)
-    event_bus.reset_buffer()
-    _engine = PipelineEngine(state, event_bus)
-    threading.Thread(target=_engine.run, name=f"pipeline-{set_code}", daemon=True).start()
-    _engine_task = None
-    return state, None
+        save_state(state)
+        event_bus.reset_buffer()
+        _engine = PipelineEngine(state, event_bus)
+        _engine_task = None
+        _arm_engine(_engine)
+        threading.Thread(target=_engine.run, name=f"pipeline-{set_code}", daemon=True).start()
+        spawned = True
+        return state, None
+    finally:
+        if not spawned:
+            _end_engine_spawn()
 
 
 def _resume_paused_engine() -> str | None:
@@ -2499,30 +2579,36 @@ def _resume_paused_engine() -> str | None:
     """
     global _engine, _engine_task
 
-    existing = load_state()
-    if existing is None or existing.overall_status != PipelineStatus.PAUSED:
-        return "Pipeline is not paused"
-
-    # Same guard the kickoff helper + every other engine-touching endpoint use:
-    # refuse to clobber a live engine reference. Without this a double-click or a
-    # concurrent request would overwrite ``_engine`` mid-run, orphaning the prior
-    # daemon thread.
-    if _engine is not None and _engine.is_running:
+    # Claim the spawn slot up front so the check-then-spawn window is serialized
+    # against every other engine-spawn path (kickoff / retry / legacy start). The
+    # bare ``_engine.is_running`` guard alone races: a concurrent caller could
+    # overwrite ``_engine`` mid-run, orphaning the prior daemon thread.
+    if not _begin_engine_spawn():
         return "A pipeline is already running"
+    spawned = False
+    try:
+        existing = load_state()
+        if existing is None or existing.overall_status != PipelineStatus.PAUSED:
+            return "Pipeline is not paused"
 
-    # Don't claim success when resume() can't actually do anything. resume()
-    # handles two cases: the current stage is PAUSED_FOR_REVIEW (the normal
-    # break-point path), or the tip already completed but a pending successor is
-    # waiting. If neither holds, resume would silently no-op.
-    current = existing.current_stage()
-    tip_paused = current is not None and current.status == StageStatus.PAUSED_FOR_REVIEW
-    has_pending = existing.next_pending_stage() is not None
-    if not tip_paused and not has_pending:
-        return "Pipeline is paused but has no stage to advance to"
+        # Don't claim success when resume() can't actually do anything. resume()
+        # handles two cases: the current stage is PAUSED_FOR_REVIEW (the normal
+        # break-point path), or the tip already completed but a pending successor
+        # is waiting. If neither holds, resume would silently no-op.
+        current = existing.current_stage()
+        tip_paused = current is not None and current.status == StageStatus.PAUSED_FOR_REVIEW
+        has_pending = existing.next_pending_stage() is not None
+        if not tip_paused and not has_pending:
+            return "Pipeline is paused but has no stage to advance to"
 
-    _engine = PipelineEngine(existing, event_bus)
-    _engine_task = asyncio.create_task(asyncio.to_thread(_engine.resume))
-    return None
+        _engine = PipelineEngine(existing, event_bus)
+        _arm_engine(_engine)
+        _engine_task = asyncio.create_task(asyncio.to_thread(_engine.resume))
+        spawned = True
+        return None
+    finally:
+        if not spawned:
+            _end_engine_spawn()
 
 
 def _overall_status_is_failed() -> bool:
@@ -3389,14 +3475,29 @@ def _spawn_retry_engine(state: PipelineState, set_code: str) -> None:
     PENDING reset before the forward walk).
     """
     global _engine, _engine_task
-    event_bus.reset_buffer()
-    _engine = PipelineEngine(state, event_bus)
-    threading.Thread(
-        target=_engine.retry_current,
-        name=f"pipeline-retry-{set_code}",
-        daemon=True,
-    ).start()
-    _engine_task = None
+    # Claim the shared spawn slot so this can't race a concurrent kickoff/resume
+    # into spawning a second engine over the same state. The callers
+    # (/instance/retry, auto_resume) do an early best-effort ``is_running`` 409,
+    # but that check is outside the lock; this is the authoritative gate. If the
+    # slot is already taken, refuse rather than stomp the live engine.
+    if not _begin_engine_spawn():
+        logger.warning("retry-spawn: a pipeline engine is already active; skipping")
+        return
+    spawned = False
+    try:
+        event_bus.reset_buffer()
+        _engine = PipelineEngine(state, event_bus)
+        _engine_task = None
+        _arm_engine(_engine)
+        threading.Thread(
+            target=_engine.retry_current,
+            name=f"pipeline-retry-{set_code}",
+            daemon=True,
+        ).start()
+        spawned = True
+    finally:
+        if not spawned:
+            _end_engine_spawn()
 
 
 # ---------------------------------------------------------------------------
@@ -8055,54 +8156,60 @@ async def start_pipeline(request: Request):
     """Start a new pipeline run with the given configuration."""
     global _engine, _engine_task
 
-    if _engine is not None and _engine.is_running:
+    if not _begin_engine_spawn():
         return JSONResponse({"error": "A pipeline is already running"}, status_code=409)
+    spawned = False
+    try:
+        body, err = await _read_request_json(request)
+        if err is not None:
+            return err
+        config = PipelineConfig(**body)
 
-    body, err = await _read_request_json(request)
-    if err is not None:
-        return err
-    config = PipelineConfig(**body)
+        # Mirror ``_kickoff_pipeline_engine``'s guard contract (this is the legacy
+        # twin of that helper). ``engine.run`` only skips COMPLETED/SKIPPED stages,
+        # so re-entering it on a PAUSED state would re-run the paused stage's runner
+        # and discard the human review — refuse and tell the caller to use /resume.
+        # A persisted RUNNING with no live engine is an orphan; refuse rather than
+        # spawn a second engine over it. And never overwrite a salvageable existing
+        # state (COMPLETED / CANCELLED / NOT_STARTED) with a fresh create — that
+        # would reset every stage's progress.
+        existing = load_state()
+        if existing is not None:
+            if existing.overall_status == PipelineStatus.PAUSED:
+                return JSONResponse(
+                    {"error": "Pipeline is paused, use /api/pipeline/resume instead"},
+                    status_code=409,
+                )
+            if existing.overall_status == PipelineStatus.RUNNING:
+                return JSONResponse(
+                    {"error": "Pipeline state is RUNNING but no engine is attached"},
+                    status_code=409,
+                )
+            # FAILED (resume from failure) and any other reusable state are reused,
+            # not clobbered. Refresh the config + review modes off the new request.
+            state = existing
+            for stage in state.stages:
+                if stage.stage_id in config.stage_review_modes:
+                    stage.review_mode = config.stage_review_modes[stage.stage_id]
+            state.config = config
+        else:
+            state = create_pipeline_state(config)
 
-    # Mirror ``_kickoff_pipeline_engine``'s guard contract (this is the legacy
-    # twin of that helper). ``engine.run`` only skips COMPLETED/SKIPPED stages,
-    # so re-entering it on a PAUSED state would re-run the paused stage's runner
-    # and discard the human review — refuse and tell the caller to use /resume.
-    # A persisted RUNNING with no live engine is an orphan; refuse rather than
-    # spawn a second engine over it. And never overwrite a salvageable existing
-    # state (COMPLETED / CANCELLED / NOT_STARTED) with a fresh create — that
-    # would reset every stage's progress.
-    existing = load_state()
-    if existing is not None:
-        if existing.overall_status == PipelineStatus.PAUSED:
-            return JSONResponse(
-                {"error": "Pipeline is paused, use /api/pipeline/resume instead"},
-                status_code=409,
-            )
-        if existing.overall_status == PipelineStatus.RUNNING:
-            return JSONResponse(
-                {"error": "Pipeline state is RUNNING but no engine is attached"},
-                status_code=409,
-            )
-        # FAILED (resume from failure) and any other reusable state are reused,
-        # not clobbered. Refresh the config + review modes off the new request.
-        state = existing
-        for stage in state.stages:
-            if stage.stage_id in config.stage_review_modes:
-                stage.review_mode = config.stage_review_modes[stage.stage_id]
-        state.config = config
-    else:
-        state = create_pipeline_state(config)
+        save_state(state)
 
-    save_state(state)
+        # Drop the previous run's replay buffer so a fresh subscriber doesn't
+        # get historical events from a different run mixed into its stream.
+        event_bus.reset_buffer()
+        _engine = PipelineEngine(state, event_bus)
+        _arm_engine(_engine)
+        _engine_task = asyncio.create_task(asyncio.to_thread(_engine.run))
+        spawned = True
 
-    # Drop the previous run's replay buffer so a fresh subscriber doesn't
-    # get historical events from a different run mixed into its stream.
-    event_bus.reset_buffer()
-    _engine = PipelineEngine(state, event_bus)
-    _engine_task = asyncio.create_task(asyncio.to_thread(_engine.run))
-
-    logger.info("Pipeline started for set %s (%d cards)", config.set_code, config.set_size)
-    return JSONResponse({"success": True, "run_id": state.run_id})
+        logger.info("Pipeline started for set %s (%d cards)", config.set_code, config.set_size)
+        return JSONResponse({"success": True, "run_id": state.run_id})
+    finally:
+        if not spawned:
+            _end_engine_spawn()
 
 
 @api_router.post("/resume")
