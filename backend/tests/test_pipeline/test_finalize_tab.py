@@ -158,12 +158,17 @@ def test_save_card_rename_on_name_change_no_duplicate(client, project: Path) -> 
 
 
 def test_save_card_runs_validator_suite_on_mtg_invalid_edit(client, project: Path) -> None:
-    """A hand-edited MTG-invalid field is no longer persisted verbatim.
+    """A hand-edited MTG-invalid field is no longer persisted as if it were clean.
 
     Regression for the finalize/save-card-skips-validation bug: the endpoint must
     route through the per-card finalize pass (validator suite + auto-fix) like the
-    sibling Rendering tab, so an invalid mana cost is auto-fixed/flagged rather than
-    written through unchecked. The Card schema alone accepts any str as a mana_cost.
+    sibling Rendering tab, so an invalid mana cost is auto-fixed *or* flagged rather
+    than written through unchecked. The Card schema alone accepts any str as a
+    mana_cost.
+
+    A garbage cost full of unrecognized symbols is NOT silently rewritten (the mana
+    fixer is non-lossy and won't guess) — it surfaces a MANUAL finding so the human
+    reviewer sees it, which is what proves the validator suite actually fired.
     """
     _write_card(project, "001_alpha.json", _card_body("001", "Alpha"))
     _seed_mechanics(project)
@@ -175,21 +180,18 @@ def test_save_card_runs_validator_suite_on_mtg_invalid_edit(client, project: Pat
     )
     assert resp.status_code == 200
     body = resp.json()
-    # The validator suite fired: AUTO fixes were applied (not a verbatim passthrough).
-    assert body["fixes_applied"]
-
-    # The garbage mana cost is gone from disk — auto-fixed to canonical MTG syntax.
-    saved = json.loads((project / "cards" / "001_alpha.json").read_text(encoding="utf-8"))
-    assert saved["mana_cost"] != garbage
+    # The validator suite fired and flagged the unrecognized cost for manual review
+    # (a non-lossy fixer must not silently rewrite a cost it can't parse).
+    assert any(e.get("code") == "mana.unrecognized_symbol" for e in body["manual_errors"])
 
     # The finalize report sidecar now carries this card's result, so /state's
-    # provenance (auto-edit badge + "Manual errors only" filter) reflects the edit.
+    # "Manual errors only" filter reflects the edit.
     report = json.loads((project / "reports" / "finalize-report.json").read_text(encoding="utf-8"))
     entry = next(c for c in report["cards"] if c["collector_number"] == "001")
-    assert entry["fixes_applied"]
+    assert entry["manual_errors"]
     state = client.get("/api/wizard/finalize/state").json()
     card = next(c for c in state["cards"] if c["collector_number"] == "001")
-    assert card["auto_edited"] is True
+    assert card["manual_errors"]
 
 
 def test_save_card_rejects_non_editable_field(client, project: Path) -> None:
