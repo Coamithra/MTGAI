@@ -1,0 +1,152 @@
+"""Frame-key resolution + two-color split frame assets.
+
+Covers the multicolor (two-color) split frame work: ``colors.frame_key_for_identity`` /
+``two_color_key``, ``layout.frame_path`` / ``pt_box_path``, ``CardRenderer.determine_frame_key``,
+and that the generated ``m15Frame<PAIR>`` / ``m15PT<PAIR>`` assets exist and load.
+"""
+
+from __future__ import annotations
+
+import pytest
+from PIL import Image
+
+from mtgai.models.card import Card
+from mtgai.rendering.card_renderer import CardRenderer
+from mtgai.rendering.colors import frame_key_for_identity, two_color_key
+from mtgai.rendering.layout import FRAME_H, FRAME_W, frame_path, pt_box_path
+
+# All ten colour pairs in canonical WUBRG order (matches the asset filenames).
+PAIRS = ["WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"]
+
+
+def _card(type_line: str, identity: list[str]) -> Card:
+    return Card(name="Test Card", type_line=type_line, color_identity=identity)
+
+
+# --------------------------------------------------------------------------- #
+# two_color_key — canonical WUBRG ordering, input order irrelevant
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(
+    ("colors", "expected"),
+    [
+        (["U", "W"], "WU"),
+        (["W", "U"], "WU"),
+        (["G", "W"], "WG"),
+        (["R", "B"], "BR"),
+        (["G", "R"], "RG"),
+        (["B", "U"], "UB"),
+    ],
+)
+def test_two_color_key_canonical_order(colors, expected):
+    assert two_color_key(colors) == expected
+
+
+# --------------------------------------------------------------------------- #
+# frame_key_for_identity
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(
+    ("identity", "expected"),
+    [
+        ([], "A"),
+        (["W"], "W"),
+        (["G"], "G"),
+        (["U", "W"], "WU"),  # two-color split
+        (["R", "G"], "RG"),
+        (["W", "U", "B"], "M"),  # three colors -> gold
+        (["W", "U", "B", "R", "G"], "M"),
+    ],
+)
+def test_frame_key_for_identity_nonland(identity, expected):
+    assert frame_key_for_identity(identity, is_land=False) == expected
+
+
+@pytest.mark.parametrize(
+    ("identity", "expected"),
+    [
+        ([], "L"),
+        (["W"], "lw"),
+        (["U"], "lu"),
+        (["W", "U"], "lm"),  # multicolor land stays gold-land
+        (["W", "U", "B"], "lm"),
+    ],
+)
+def test_frame_key_for_identity_land(identity, expected):
+    assert frame_key_for_identity(identity, is_land=True) == expected
+
+
+# --------------------------------------------------------------------------- #
+# CardRenderer.determine_frame_key
+# --------------------------------------------------------------------------- #
+def test_determine_frame_key_two_color_creature():
+    assert CardRenderer().determine_frame_key(_card("Creature — Bird", ["U", "W"])) == "WU"
+
+
+def test_determine_frame_key_two_color_artifact_is_not_split():
+    # Artifacts route through artifact_frame_key, not the two-color split: a
+    # multicolor artifact gets the gold-tinted "AM", never "WU".
+    card = _card("Artifact — Equipment", ["U", "W"])
+    assert CardRenderer().determine_frame_key(card) == "AM"
+
+
+def test_determine_frame_key_mono_and_colorless_and_tricolor():
+    r = CardRenderer()
+    assert r.determine_frame_key(_card("Creature — Elf", ["G"])) == "G"
+    assert r.determine_frame_key(_card("Artifact", [])) == "A"
+    assert r.determine_frame_key(_card("Creature — Spirit", ["W", "U", "B"])) == "M"
+
+
+def test_determine_frame_key_two_color_land_is_gold_land():
+    assert CardRenderer().determine_frame_key(_card("Land", ["U", "W"])) == "lm"
+
+
+# --------------------------------------------------------------------------- #
+# layout path mapping
+# --------------------------------------------------------------------------- #
+def test_frame_path_keys():
+    assert frame_path("WU").name == "m15FrameWU.png"
+    assert frame_path("W").name == "m15FrameW.png"
+    assert frame_path("M").name == "m15FrameM.png"
+    assert frame_path("lw").name == "lw.png"
+
+
+def test_pt_box_path_keys():
+    assert pt_box_path("WU").name == "m15PTWU.png"
+    assert pt_box_path("W").name == "m15PTW.png"
+    assert pt_box_path("M").name == "m15PTM.png"
+    assert pt_box_path("lw").name == "m15PTW.png"  # land -> first color
+
+
+# --------------------------------------------------------------------------- #
+# Generated assets exist and load at the expected size
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("pair", PAIRS)
+def test_two_color_frame_asset_exists(pair):
+    fp = frame_path(pair)
+    assert fp.is_file(), f"missing {fp}"
+    with Image.open(fp) as img:
+        assert img.size == (FRAME_W, FRAME_H)
+
+
+@pytest.mark.parametrize("pair", PAIRS)
+def test_two_color_pt_box_asset_exists(pair):
+    pp = pt_box_path(pair)
+    assert pp.is_file(), f"missing {pp}"
+    with Image.open(pp) as img:
+        assert img.size == (377, 206)
+
+
+# --------------------------------------------------------------------------- #
+# Renderer loads the split assets without falling back
+# --------------------------------------------------------------------------- #
+def test_renderer_loads_two_color_frame_and_pt_box():
+    r = CardRenderer()
+    frame = r._load_frame("WU")
+    assert frame.size == (FRAME_W, FRAME_H)
+    pt = r._load_pt_box("WU")
+    assert pt.size == (377, 206)
+
+
+def test_renderer_loads_two_color_legendary_crown():
+    r = CardRenderer()
+    crown = r._load_legendary_crown(_card("Legendary Creature — Bird", ["U", "W"]))
+    assert crown is not None  # crowns/WU.png exists
