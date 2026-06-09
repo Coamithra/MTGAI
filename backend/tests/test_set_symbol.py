@@ -114,3 +114,23 @@ def test_get_set_symbol_prefers_project_symbol(tmp_path, monkeypatch):
     # A different rarity recolors the SAME shape differently (cache keyed on rarity).
     common = sr.get_set_symbol("C", 64)
     assert common.getpixel((cx, cy))[:3] != rare.getpixel((cx, cy))[:3]
+
+
+def test_set_symbol_img_url_carries_mtime_cache_buster(tmp_path):
+    """The Set Symbol tab's image URL appends an mtime cache-buster so a Re-roll
+    (which overwrites ``preview_v*.png`` in place) shows the fresh pixels instead
+    of the browser-cached old glyph. The mtime changes exactly when the file does."""
+    import os
+
+    from mtgai.pipeline.server import _set_symbol_img_url
+
+    f = tmp_path / "preview_v1.png"
+    f.write_bytes(b"old")
+    url1 = _set_symbol_img_url(f)
+    assert url1.startswith("/api/wizard/set_symbol/image?file=preview_v1.png&t=")
+    assert url1.rsplit("&t=", 1)[1] == str(int(f.stat().st_mtime))
+
+    # Overwriting (a Re-roll) bumps the mtime → a different cache-buster token.
+    os.utime(f, (f.stat().st_atime, f.stat().st_mtime + 5))
+    url2 = _set_symbol_img_url(f)
+    assert url2 != url1

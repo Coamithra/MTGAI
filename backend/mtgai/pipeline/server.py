@@ -5256,6 +5256,22 @@ def _set_symbol_dir(asset: Path) -> Path:
     return asset.joinpath(*_SET_SYMBOL_SUBDIR)
 
 
+def _set_symbol_img_url(path: Path) -> str:
+    """Image URL with an mtime cache-buster.
+
+    A Re-roll overwrites ``preview_v*.png`` / ``raw_v*.png`` in place (same
+    filenames), so without a per-content query param the browser serves the
+    cached OLD glyph and the user sees no change. The file's mtime changes
+    exactly when the pixels do, so it busts the cache on a re-roll while still
+    caching normally across plain reloads (unlike a wall-clock ``Date.now()``).
+    """
+    try:
+        bust = int(path.stat().st_mtime)
+    except OSError:
+        bust = 0
+    return f"/api/wizard/set_symbol/image?file={quote(path.name)}&t={bust}"
+
+
 def _set_symbol_state_payload(asset: Path) -> dict:
     """Build the Set Symbol tab state from ``concept.json`` + the previews on disk.
 
@@ -5278,9 +5294,9 @@ def _set_symbol_state_payload(asset: Path) -> dict:
                 {
                     "tag": version_tag,
                     "is_upload": is_upload,
-                    "preview_url": f"/api/wizard/set_symbol/image?file={quote(f.name)}",
+                    "preview_url": _set_symbol_img_url(f),
                     "raw_url": (
-                        f"/api/wizard/set_symbol/image?file={quote(raw_name)}"
+                        _set_symbol_img_url(sym_dir / raw_name)
                         if (sym_dir / raw_name).is_file()
                         else ""
                     ),
