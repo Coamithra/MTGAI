@@ -5,10 +5,10 @@
 Colored artifacts now render with a tinted frame instead of flat gray. **Shipped Option A** (alpha-blend `m15FrameA` with each mono color frame), chosen after rendering an A-vs-median comparison: A stays in our native 2010×2814 Card Conjurer geometry so nothing misaligns, while the Scryfall-median path (below) produced more authentic frame *colors* but ghosted the title/type/rules text (at n=35 those zones carry text on most cards, so the per-pixel median can't out-vote it) plus slight text-doubling from the Scryfall→our-geometry mismatch. Pieces:
 - `colors.artifact_frame_key(color_identity)` → `A` (colorless) / `AW`..`AG` (mono) / `AM` (multicolor gold). `card_renderer.determine_frame_key` calls it for non-land artifacts (artifact *lands* stay land frames).
 - `layout.frame_path`/`pt_box_path` resolve 2-letter `A?` keys → `m15Frame{AW..AG,AM}.png` / `m15PT*`; `_load_frame`/`_load_pt_box` fall back to `A` if a variant is missing.
-- Variant PNGs built offline by `backend/scripts/colored_artifact_frames.py build --method blend` (blend α=0.45). The same script's `--method median` (Scryfall stack) + `compare` render the A-vs-D comparison.
+- Variant PNGs built offline by `backend/scripts/colored_artifact_frames.py build --method blend` (blend α=0.45). The same script's `--method median` is the **mature** percentile-stack pipeline (ported from `generate_two_color_frames.py`) + `compare` renders the A-vs-D comparison.
 - Tests: `backend/tests/test_rendering/test_colored_artifact_frames.py`.
 
-**Follow-up (tracked):** the pixel-accurate median path needs (1) Scryfall→our-geometry registration and (2) zone-blanking the title/type/rules text regions to kill ghosting — and is the same compositing machinery the two-color-frames card needs, so the two should land together.
+**Follow-up — RESOLVED (2026-06-09): Option D rejected for artifacts, Option A is final.** The pixel-accurate stack path was finished to maturity (registration + zone-blanking, the same machinery that shipped two-color) and empirically lost to the blend. See "Update (2026-06-09): Option D tried-and-rejected for colored artifacts" at the bottom of this doc.
 
 ## Background
 Modern MTG (Kaladesh onwards) uses a distinct frame for colored artifacts — a blend of the artifact gray texture with the card's color identity. Examples: Esper Sentinel (white artifact), The Blackstaff of Waterdeep (blue artifact). Our renderer currently uses the standard color/gold frame for colored artifacts, which is acceptable but not pixel-accurate.
@@ -153,6 +153,39 @@ wired to the committed `crowns/<PAIR>.png`).
 **two-color splits**, **hybrid pinlines**, and **colored artifacts** — build it once and all three
 fall out. Colored artifacts currently ship via the cheaper **Option A** blends (sibling card, see top
 of this doc); `determine_frame_key` routes non-land artifacts through `artifact_frame_key` and
-everything else through `frame_key_for_identity`, so the two features compose today, and this script's
-percentile-stack + mono-blend + zone-clip helpers are the upgrade path if the artifact frames later
-move from Option A to Option D.
+everything else through `frame_key_for_identity`, so the two features compose today. The artifact
+upgrade path was then *taken* and *rejected* — see the next section.
+
+## Update (2026-06-09): Option D tried-and-rejected for colored artifacts
+The two-color split frames shipped via Option D, so the obvious next step was to move the colored
+artifacts off the Option-A blend onto the same pixel-accurate stack. **It was built to maturity and
+empirically lost to the blend. Option A stays final for artifacts.**
+
+**What was built.** `colored_artifact_frames.py`'s `--method median` was upgraded from the naive
+first-draft median (plain `np.median`, flat resize, no zone-blanking — the genuinely-awful version) to
+the *mature* pipeline ported from `generate_two_color_frames.py`: p80 percentile stack of ~40 real M15
+mono-artifact cards/color (`frame:2015 t:artifact c=<x> -t:land -t:vehicle … unique:art`; vehicles
+excluded — their darker frame muddies the stack; `c=m` for `AM`), art window cut via `m15FrameA`'s
+alpha, the title/type/rules/bottom **text bars rebuilt from the Option-A blend** (text-free,
+artifact-tinted, in our exact geometry), the baked-in P/T box erased + a fresh P/T cropped from the
+stack masked to `m15PTA`. Per-color real-card counts are plentiful (W195/U219/B179/R192/G86, M124), so
+feasibility was never the issue.
+
+**Why it lost (the real finding).** The two fears the card named — Scryfall→our-geometry registration
+and text ghosting — both **dissolved**: zone-clipping to our masks snaps everything into place (no
+doubling, pinlines line up), and the bar-rebuild kills the ghosts. The ~0.3% aspect squash
+(745×1040 → 2010×2814) was a red herring. The actual killer is **signal-to-noise inversion vs.
+two-color**: a hybrid two-color frame carries a *strong, consistent split-colour* signal, but a
+colored artifact is a *subtle colour tint over a busy, highly-variable gray metallic texture*. The p80
+stack can't out-vote the varying filigree/rivets/panel shapes, so the body comes out **blotchy**, and
+the weak tint gets contaminated — green and black especially pick up a dirty blue-gray cast and barely
+read as their colour. The blend, by contrast, is clean, uniform, and correctly tinted; it simply looks
+more like a finished MTG frame. There is **no cheap fix**: median's only upside (authentic metal
+texture) *is* the noise, and more cards / a higher percentile won't repair the green/black miscolour.
+
+**Reproduce.** `python -m scripts.colored_artifact_frames compare` (renders blend vs mature-median into
+`output/colored-artifact-comparison/`; downloads cache under `output/.cache/colored-artifact-frames/`).
+The mature `--method median` implementation + the `compare` harness are kept committed so a future
+revisit (e.g. Option B native-geometry zone masking, which sidesteps both the aspect mismatch and the
+stacking noise) starts from a working baseline rather than the naive median. The committed
+`m15Frame{AW..AG,AM}.png` assets are **unchanged** — still the Option-A blends.
