@@ -14,7 +14,9 @@ import json
 
 from mtgai.pipeline.events import EventBus, StageEmitter
 from mtgai.pipeline.stage_hooks import (
+    art_prompt_tile_dict,
     build_ai_review_hooks,
+    build_art_prompt_hooks,
     build_card_gen_hooks,
     build_char_refs_hooks,
     build_mechanic_hooks,
@@ -263,6 +265,55 @@ def test_card_gen_engine_and_refresh_tiles_are_identical() -> None:
         _only(engine_bus, "card_gen_card")[0]["card"]
         == _only(refresh_bus, "card_gen_card")[0]["card"]
     )
+
+
+# ---------------------------------------------------------------------------
+# Art prompts (cameo badge plumbing)
+# ---------------------------------------------------------------------------
+
+
+def test_art_prompt_tile_carries_normalized_cameo() -> None:
+    card = {
+        "name": "Wanderer",
+        "collector_number": "042",
+        "rarity": "rare",
+        "colors": ["U"],
+        "type_line": "Creature — Human Wizard",
+        "art_prompt": "a lone figure on a cliff",
+    }
+    cameo = {"key": "Aetherius", "kind": "character", "description": "a silver-haired mage"}
+    tile = art_prompt_tile_dict(card, cameo=cameo)
+    assert tile["cameo"] == cameo
+    # Default (no cameo) is an explicit None — the tab keys the badge off it.
+    assert art_prompt_tile_dict(card)["cameo"] is None
+
+
+def test_art_prompt_tile_cameo_normalization_drops_empty_and_extra_keys() -> None:
+    card = {"name": "X", "collector_number": "001", "rarity": "common"}
+    # A non-dict / empty record → None (no badge).
+    assert art_prompt_tile_dict(card, cameo="nope")["cameo"] is None
+    assert art_prompt_tile_dict(card, cameo={"key": "", "description": ""})["cameo"] is None
+    # Extra keys are dropped; missing kind defaults to "".
+    norm = art_prompt_tile_dict(
+        card, cameo={"key": "Vault", "description": "a sunken keep", "x": 1}
+    )
+    assert norm["cameo"] == {"key": "Vault", "kind": "", "description": "a sunken keep"}
+
+
+def test_art_prompt_hook_threads_cameo_into_streamed_tile() -> None:
+    bus = EventBus()
+    hooks = build_art_prompt_hooks(_emitter(bus, "art_prompts"))
+    card = {"name": "Bolt", "collector_number": "007", "rarity": "common", "colors": ["R"]}
+    cameo = {"key": "Pyre", "kind": "location", "description": "a smoldering pit"}
+
+    hooks.on_card_saved(card, cameo)
+    evt = _only(bus, "art_prompt_card")[0]
+    assert evt["card"] == art_prompt_tile_dict(card, cameo=cameo)
+    assert evt["card"]["cameo"] == cameo
+
+    # No cameo → tile carries None, no crash on the missing arg.
+    hooks.on_card_saved(card)
+    assert _only(bus, "art_prompt_card")[1]["card"]["cameo"] is None
 
 
 # ---------------------------------------------------------------------------
