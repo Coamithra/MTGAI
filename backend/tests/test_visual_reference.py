@@ -36,3 +36,38 @@ def test_get_visual_motifs_non_list_value_returns_empty(monkeypatch):
 def test_get_visual_motifs_missing_key_returns_empty(monkeypatch):
     monkeypatch.setattr(vr, "get_refs", lambda: {})
     assert vr.get_visual_motifs() == []
+
+
+# ---------------------------------------------------------------------------
+# Character-entity accessors (feed the local-Flux PuLID face-lock path)
+# ---------------------------------------------------------------------------
+
+
+def test_is_character_entity_reads_legendary_characters(monkeypatch):
+    monkeypatch.setattr(vr, "get_refs", lambda: {"legendary_characters": {"hero": "a tall knight"}})
+    assert vr.is_character_entity("hero") is True
+    # A non-character category key is not a character.
+    assert vr.is_character_entity("citadel") is False
+
+
+def test_is_character_entity_missing_category(monkeypatch):
+    monkeypatch.setattr(vr, "get_refs", lambda: {})
+    assert vr.is_character_entity("hero") is False
+
+
+def test_get_character_appearance_returns_prose(monkeypatch):
+    monkeypatch.setattr(vr, "get_refs", lambda: {"legendary_characters": {"hero": "a tall knight"}})
+    assert vr.get_character_appearance("hero") == "a tall knight"
+
+
+def test_get_character_appearance_none_when_absent(monkeypatch):
+    monkeypatch.setattr(vr, "get_refs", lambda: {"legendary_characters": {}})
+    assert vr.get_character_appearance("hero") is None
+
+
+def test_get_character_appearance_coerces_non_string(monkeypatch):
+    """A malformed (non-string) value won't reach the prompt substitution."""
+    monkeypatch.setattr(
+        vr, "get_refs", lambda: {"legendary_characters": {"hero": {"nested": "obj"}}}
+    )
+    assert vr.get_character_appearance("hero") is None
