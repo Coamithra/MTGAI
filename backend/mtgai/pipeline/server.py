@@ -294,10 +294,11 @@ _engine_task: asyncio.Task | None = None
 # ``_engine is not None and _engine.is_running`` guard in the window between
 # ``Thread.start()`` and the spawned engine setting ``_running=True`` — spawning
 # two engines over the same ``pipeline-state.json``. ``_engine_spawning`` closes
-# that window: it's set the instant a caller wins the spawn slot and cleared the
-# instant the worker thread begins (``_run_engine_target``), so a second caller
-# sees "busy" throughout. NEVER hold the lock across a blocking engine run — only
-# around the check + construct + start.
+# that window: it's set the instant a caller wins the spawn slot and stays set
+# until the engine is armed (``_arm_engine`` pre-sets ``_running=True`` under the
+# lock, just before the thread/task starts), so ``is_running`` takes over with no
+# gap and a second caller sees "busy" throughout. NEVER hold the lock across a
+# blocking engine run — only around the check + construct + start.
 _engine_spawn_lock = threading.Lock()
 _engine_spawning: bool = False
 
@@ -311,8 +312,8 @@ def _begin_engine_spawn() -> bool:
     """Atomically claim the spawn slot. Returns False (caller must 409) if busy.
 
     On True the caller owns the slot and MUST eventually clear it — either by
-    starting the worker via :func:`_run_engine_target` (which clears it as the
-    thread begins) or, on an early validation return before spawning, by calling
+    arming the engine via :func:`_arm_engine` then starting the worker, or, on an
+    early validation return / a failed start before the worker runs, by calling
     :func:`_end_engine_spawn`.
     """
     global _engine_spawning
@@ -324,9 +325,17 @@ def _begin_engine_spawn() -> bool:
 
 
 def _end_engine_spawn() -> None:
-    """Release the spawn slot without having started a worker (early-return path)."""
+    """Release the spawn slot for a spawn that never reached a running worker.
+
+    Covers both the early-validation return (no engine built yet) and the rare
+    failed ``Thread.start()`` *after* :func:`_arm_engine` (engine built + armed
+    but its thread never ran): demote the dead engine back to not-running so a
+    leftover ``_running=True`` can't wedge ``_engine_busy`` forever.
+    """
     global _engine_spawning
     with _engine_spawn_lock:
+        if _engine is not None:
+            _engine._running = False
         _engine_spawning = False
 
 
@@ -340,7 +349,9 @@ def _arm_engine(engine: PipelineEngine) -> None:
     first act — idempotent) makes ``is_running`` true the moment the global is
     visible, so there's no ``start()``→``run()`` gap for a second caller to slip
     through: it hands off from ``_engine_spawning`` to ``is_running`` with both
-    flips under ``_engine_spawn_lock``.
+    flips under ``_engine_spawn_lock``. If the subsequent thread/task start
+    fails, the caller's ``finally`` calls :func:`_end_engine_spawn`, which undoes
+    this ``_running=True``.
     """
     global _engine_spawning
     with _engine_spawn_lock:
@@ -2545,8 +2556,8 @@ def _kickoff_pipeline_engine(set_code: str) -> tuple[PipelineState | None, str |
         _engine = PipelineEngine(state, event_bus)
         _engine_task = None
         _arm_engine(_engine)
-        spawned = True
         threading.Thread(target=_engine.run, name=f"pipeline-{set_code}", daemon=True).start()
+        spawned = True
         return state, None
     finally:
         if not spawned:
@@ -2592,8 +2603,8 @@ def _resume_paused_engine() -> str | None:
 
         _engine = PipelineEngine(existing, event_bus)
         _arm_engine(_engine)
-        spawned = True
         _engine_task = asyncio.create_task(asyncio.to_thread(_engine.resume))
+        spawned = True
         return None
     finally:
         if not spawned:
@@ -3478,12 +3489,12 @@ def _spawn_retry_engine(state: PipelineState, set_code: str) -> None:
         _engine = PipelineEngine(state, event_bus)
         _engine_task = None
         _arm_engine(_engine)
-        spawned = True
         threading.Thread(
             target=_engine.retry_current,
             name=f"pipeline-retry-{set_code}",
             daemon=True,
         ).start()
+        spawned = True
     finally:
         if not spawned:
             _end_engine_spawn()
@@ -8153,8 +8164,8 @@ async def start_pipeline(request: Request):
         event_bus.reset_buffer()
         _engine = PipelineEngine(state, event_bus)
         _arm_engine(_engine)
-        spawned = True
         _engine_task = asyncio.create_task(asyncio.to_thread(_engine.run))
+        spawned = True
 
         logger.info("Pipeline started for set %s (%d cards)", config.set_code, config.set_size)
         return JSONResponse({"success": True, "run_id": state.run_id})

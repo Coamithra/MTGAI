@@ -171,3 +171,33 @@ def test_refused_kickoff_does_not_leave_spawn_slot_stuck(no_thread_start):
     with pipeline_server._engine_spawn_lock:
         assert pipeline_server._engine_spawning is False
     assert len(no_thread_start) == 0
+
+
+def test_failed_thread_start_does_not_wedge_the_spawn_slot(monkeypatch):
+    """A ``Thread.start()`` that raises AFTER the engine is armed must unwind:
+    the dead engine is demoted to not-running and the slot is released, so the
+    next legitimate kickoff isn't permanently blocked by a phantom busy engine."""
+    _make_set("BAD")
+
+    def _boom(*_a, **_kw):
+        class _Exploding:
+            def __init__(self, *_aa, **_kk):
+                pass
+
+            def start(self):
+                raise RuntimeError("can't start a new thread")
+
+            def join(self, *_aa, **_kk):
+                return None
+
+        return _Exploding()
+
+    monkeypatch.setattr(pipeline_server.threading, "Thread", _boom)
+
+    with pytest.raises(RuntimeError):
+        pipeline_server._kickoff_pipeline_engine("BAD")
+
+    # The armed-but-never-run engine must not leave the slot/is_running wedged.
+    with pipeline_server._engine_spawn_lock:
+        assert pipeline_server._engine_spawning is False
+        assert not pipeline_server._engine_busy()
