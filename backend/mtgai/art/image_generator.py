@@ -1302,16 +1302,36 @@ def generate_art_for_set(
                 generated += 1
                 continue
 
-            # Best-of-N: generate ``n_versions`` distinct candidates. ``force``
-            # restarts the version numbering at 1 (overwrite); otherwise append
-            # after any existing versions so a resume tops up the pool.
-            existing = list(art_dir.glob(f"{slug}_v*.png"))
-            base_version = 0 if force else len(existing)
+            # Best-of-N: generate ``n_versions`` candidates numbered v1..vN
+            # (gaps only where a version exhausts its retries). On a non-force
+            # resume the card was never recorded ``completed`` (else it'd have
+            # been skipped above), so any ``*_v*.png`` on disk are crash-orphans
+            # from a run killed mid-card — delete them, plus their per-version
+            # log sidecars, so we regenerate exactly N instead of appending N
+            # fresh after the K orphans. The old ``base_version = len(existing)``
+            # left K+N PNGs, which the disk-globbing art selector then judged as
+            # K+N candidates instead of N. ``force`` overwrites v1..vN in place
+            # (its existing contract) and deliberately does NOT delete higher
+            # versions: a user-uploaded extra (v(N+1), source="user") only
+            # attaches to a *completed* card, which the resume path never
+            # reaches, so leaving force untouched can't orphan that upload's
+            # saved pick.
+            if not force:
+                for stale in (
+                    *art_dir.glob(f"{slug}_v*.png"),
+                    *log_dir.glob(f"{cn}_v*.json"),
+                ):
+                    try:
+                        stale.unlink(missing_ok=True)
+                    except OSError as e:
+                        # A locked orphan (Windows file handle) degrades to the
+                        # old K+N rather than killing the whole run.
+                        logger.warning("Could not delete stale art file %s: %s", stale, e)
 
             saved_versions: list[dict] = []
             version_errors: list[dict] = []
             for i in range(1, n_versions + 1):
-                version = base_version + i
+                version = i
                 dest = art_dir / f"{slug}_v{version}.png"
                 for attempt in range(1, max_attempts_per_version + 1):
                     try:

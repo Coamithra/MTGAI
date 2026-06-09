@@ -958,3 +958,68 @@ def test_art_loop_recycle_disabled_when_zero(monkeypatch, tmp_path):
     ig.generate_art_for_set()
 
     assert recycles == []
+
+
+# ---------------------------------------------------------------------------
+# Resume cleans crash-orphans (no K+N versions)
+# ---------------------------------------------------------------------------
+
+
+def test_art_loop_resume_deletes_crash_orphans(monkeypatch, tmp_path):
+    """A card never recorded ``completed`` (mid-card crash) has its stale
+    ``*_v*.png`` + log sidecars deleted and regenerated as exactly N clean
+    v1..vN versions — not appended after the K orphans (the K+N bug)."""
+    set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=1)
+    monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 3)
+
+    art_dir = set_dir / "art"
+    log_dir = set_dir / "art-generation-logs"
+    art_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    slug = ig.card_slug("001", _StubCard("001").name)
+    # Crash-orphans from a prior, larger run (v1..v4) + their sidecars; NO
+    # progress.json entry for the card. v4 sits above the N=3 we regenerate, so
+    # it proves the delete sweeps both the PNG and the sidecar (a v1..v3-only
+    # regen would otherwise just overwrite v1..v3 and leave v4 behind).
+    for v in (1, 2, 3, 4):
+        (art_dir / f"{slug}_v{v}.png").write_bytes(b"orphan")
+        (log_dir / f"001_v{v}.json").write_text("{}", encoding="utf-8")
+
+    fresh = []
+    monkeypatch.setattr(
+        ig,
+        "generate_image",
+        lambda *a, **k: (fresh.append(1) or b"fresh", {"elapsed_seconds": 1.0}),
+    )
+
+    summary = ig.generate_art_for_set()
+
+    pngs = sorted(p.name for p in art_dir.glob(f"{slug}_v*.png"))
+    assert pngs == [f"{slug}_v1.png", f"{slug}_v2.png", f"{slug}_v3.png"]  # exactly N, v4 swept
+    assert all((art_dir / p).read_bytes() == b"fresh" for p in pngs)  # orphans gone
+    sidecars = sorted(p.name for p in log_dir.glob("001_v*.json"))
+    assert sidecars == ["001_v1.json", "001_v2.json", "001_v3.json"]  # stale v4 sidecar deleted
+    assert len(fresh) == 3  # only N images generated this run
+    assert summary["generated"] == 1
+
+
+def test_art_loop_force_preserves_higher_user_version(monkeypatch, tmp_path):
+    """``force`` overwrites v1..vN in place but does NOT delete a higher-numbered
+    version. The orphan sweep is scoped to the crash-resume path; a user upload
+    (v(N+1), source="user") only attaches to a completed card, which that path
+    never reaches, so force leaving it intact keeps the saved pick valid."""
+    set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=1)
+    monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 2)
+
+    art_dir = set_dir / "art"
+    art_dir.mkdir(parents=True, exist_ok=True)
+    slug = ig.card_slug("001", _StubCard("001").name)
+    for v in (1, 2):
+        (art_dir / f"{slug}_v{v}.png").write_bytes(b"old")
+    (art_dir / f"{slug}_v3.png").write_bytes(b"user-upload")  # the manual override
+
+    ig.generate_art_for_set(force=True)
+
+    assert (art_dir / f"{slug}_v1.png").read_bytes() == b"img"  # regenerated
+    assert (art_dir / f"{slug}_v2.png").read_bytes() == b"img"
+    assert (art_dir / f"{slug}_v3.png").read_bytes() == b"user-upload"  # preserved
