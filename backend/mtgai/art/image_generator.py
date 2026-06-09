@@ -96,6 +96,28 @@ def art_versions_for_card(asset_dir: Path, cn: str, name: str) -> list[dict[str,
     ]
 
 
+_ART_VERSION_RE = re.compile(r"_v(\d+)\.png$")
+
+
+def next_art_version(art_dir: Path, slug: str) -> int:
+    """Next free ``_v<N>`` art version number for ``slug`` in ``art_dir``.
+
+    Returns ``max(existing numeric versions) + 1`` (1 when none exist), NOT
+    ``count + 1``. With a version gap on disk — the acknowledged exhausted-retries
+    state, e.g. only ``_v2.png`` and ``_v3.png`` survive — a count-based ``+1``
+    would compute v3 and silently OVERWRITE the existing ``_v3.png`` (and orphan
+    its decision record). Suffixes that don't parse as a plain integer (e.g. a
+    hypothetical ``_v3a.png``) are skipped rather than crashing the scan.
+    """
+    highest = 0
+    for p in art_dir.glob(f"{slug}_v*.png"):
+        m = _ART_VERSION_RE.search(p.name)
+        if m is None:
+            continue
+        highest = max(highest, int(m.group(1)))
+    return highest + 1
+
+
 def card_names_by_collector_number(asset_dir: Path) -> dict[str, str]:
     """Map each card's collector number -> name from ``<asset>/cards/*.json``.
 
