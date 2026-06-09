@@ -265,6 +265,59 @@ class TestInjectReferences:
 
 
 # ===========================================================================
+# P/T-modifier context — numeral, not spelled-out word
+# ===========================================================================
+
+# Mechanic whose reminder text has the parameter in BOTH an object-count
+# position ("Remove N Energon counters") and a P/T-modifier position
+# ("It gets +N/+0"). The count is spelled out; the P/T modifier uses a numeral.
+PT_MECHANICS = [
+    {
+        "name": "Overdrive",
+        "keyword_type": "keyword_ability",
+        "reminder_text": (
+            "({T}, Remove N Energon counters from among artifacts you control. "
+            "It gets +N/+0 and gains haste until end of turn.)"
+        ),
+    },
+    {
+        "name": "Embolden",
+        "keyword_type": "keyword_ability",
+        "reminder_text": "(That creature gets +N/+N until end of turn.)",
+    },
+]
+
+
+class TestPTModifierContext:
+    def test_pt_modifier_uses_numeral_not_word(self):
+        """'+N/+0' must become '+1/+0', not '+one/+0'."""
+        card = _make_card(oracle_text="Overdrive 1")
+        result = inject_reminder_text(card, PT_MECHANICS)
+        assert "+1/+0" in result.oracle_text
+        assert "+one/+0" not in result.oracle_text
+
+    def test_object_count_still_spelled_out(self):
+        """The non-P/T 'Remove N counters' count stays spelled out + singular."""
+        card = _make_card(oracle_text="Overdrive 1")
+        result = inject_reminder_text(card, PT_MECHANICS)
+        assert "Remove one Energon counter " in result.oracle_text
+        assert "Remove one Energon counters" not in result.oracle_text
+
+    def test_pt_modifier_larger_value(self):
+        card = _make_card(oracle_text="Overdrive 3")
+        result = inject_reminder_text(card, PT_MECHANICS)
+        assert "+3/+0" in result.oracle_text
+        assert "Remove three Energon counters" in result.oracle_text
+
+    def test_both_pt_slots_use_numeral(self):
+        """A '+N/+N' template fills both halves with the numeral."""
+        card = _make_card(oracle_text="Embolden 2")
+        result = inject_reminder_text(card, PT_MECHANICS)
+        assert "+2/+2" in result.oracle_text
+        assert "+two" not in result.oracle_text
+
+
+# ===========================================================================
 # finalize_reminder_text (strip + inject)
 # ===========================================================================
 

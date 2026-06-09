@@ -64,9 +64,17 @@ def _build_reminder(template: str, param: int | None) -> str:
         return template
 
     word = _num_to_word(param)
+    numeral = str(param)
     result = template
 
-    # Replace X or N placeholder with the spelled-out number
+    # P/T-modifier positions take a NUMERAL, not a spelled-out word — MTG writes
+    # "It gets +1/+0", never "+one/+0". A placeholder is in a power/toughness slot
+    # when it sits directly before a "/" (the power half: "+N/+0", "N/N") or
+    # directly after a "/" with an optional sign (the toughness half: "+0/+N").
+    result = re.sub(r"(?<!\w)[NX](?=/)", numeral, result)
+    result = re.sub(r"(?<=/)([+-]?)[NX](?!\w)", rf"\g<1>{numeral}", result)
+
+    # Replace any remaining X or N placeholder (object counts) with the word
     result = re.sub(r"\bX\b", word, result)
     result = re.sub(r"\bN\b", word, result)
 
