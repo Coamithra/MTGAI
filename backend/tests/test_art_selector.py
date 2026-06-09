@@ -405,3 +405,30 @@ def test_judge_is_vision_capable():
     assert _judge_is_vision_capable(haiku.model_id) is True
     assert _judge_is_vision_capable(gemma.model_id) is False
     assert _judge_is_vision_capable("no-such-model-xyz") is False
+
+
+def test_judge_can_run_reads_active_project_art_select(tmp_path):
+    """``judge_can_run`` (the single source of truth the gen-count and the select
+    pre-flight both consult) resolves the active project's ``art_select`` model:
+    False for the local-by-default text-only Gemma, True for a vision judge, and
+    False when no project is open."""
+    from mtgai.art.art_selector import judge_can_run
+    from mtgai.runtime import active_project
+
+    # No project open -> judge disabled (best-of-N off), not an error.
+    active_project.clear_active_project()
+    assert judge_can_run() is False
+
+    # Default art_select = local text-only Gemma -> judge can't run.
+    _active_project(tmp_path)
+    try:
+        assert judge_can_run() is False
+    finally:
+        active_project.clear_active_project()
+
+    # A vision-capable art_select assignment enables the judge.
+    _active_project(tmp_path, art_select="haiku")
+    try:
+        assert judge_can_run() is True
+    finally:
+        active_project.clear_active_project()

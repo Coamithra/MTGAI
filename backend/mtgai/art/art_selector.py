@@ -183,6 +183,27 @@ def _judge_is_vision_capable(model_id: str) -> bool:
         return False
 
 
+def judge_can_run() -> bool:
+    """Whether the best-of-N art judge can run for the active project.
+
+    The single source of truth shared by both sides of the best-of-N feature so
+    they cannot disagree: the SELECT side (:func:`select_art_for_set`) skips the
+    judge when this is False, and the GEN side
+    (:func:`mtgai.art.image_generator.generate_art_for_set`) collapses to one
+    version per card — generating v2..vN would be pure wasted Flux compute since a
+    skipped judge auto-picks v1. Resolves the project's ``art_select`` model
+    assignment and reads its vision capability; returns False (judge disabled)
+    when no project is open or the model can't be resolved.
+    """
+    try:
+        from mtgai.runtime.active_project import require_active_project
+
+        model_id = require_active_project().settings.get_llm_model_id("art_select")
+        return _judge_is_vision_capable(model_id)
+    except Exception:
+        return False
+
+
 def select_best_version(
     card_name: str,
     collector_number: str,
@@ -331,7 +352,7 @@ def select_art_for_set(
     # silently failing) one image request per card. Surfaced loudly via the summary
     # + a single WARN rather than per-card error spam.
     judge_model = project.settings.get_llm_model_id("art_select")
-    judge_capable = _judge_is_vision_capable(judge_model)
+    judge_capable = judge_can_run()
     judge_skipped_reason: str | None = None
     if not judge_capable:
         judge_skipped_reason = (
