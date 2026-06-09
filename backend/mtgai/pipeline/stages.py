@@ -2180,12 +2180,15 @@ def clear_char_portraits() -> None:
 def clear_art_gen() -> None:
     """Wipe the merged art-generation stage's artifacts.
 
-    Owns the generated ``art/`` images and the ``art-direction/selections``
-    transcripts (the best-of-N pick logs folded in from the retired
-    ``art_select`` stage).
+    Owns the generated ``art/`` images plus both transcript dirs the stage
+    writes: ``art-generation-logs`` (image generation, ``image_generator``)
+    and ``art-selection-logs`` (the best-of-N pick logs folded in from the
+    retired ``art_select`` stage, ``art_selector``). These paths match the
+    log-viewer map in ``server.get_stage_logs``.
     """
     _remove_path(_set_dir() / "art")
-    _remove_path(_set_dir() / "art-direction" / "selections")
+    _remove_path(_set_dir() / "art-generation-logs")
+    _remove_path(_set_dir() / "art-selection-logs")
 
 
 def clear_rendering() -> None:
