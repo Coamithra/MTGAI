@@ -771,11 +771,16 @@
     if (!(await window.MTGAIDialog.confirm(`Re-extract ${kind === 'constraints' ? 'constraints' : 'card requests'} from the current setting prose? This replaces AI-generated entries (your edits stay).`))) return;
     refreshState.fullActive = false;
 
-    // Clear AI items immediately so the user sees a blank slate while
-    // the LLM generates the new batch.
-    const listId = kind === 'constraints' ? 'wiz-constraints-list' : 'wiz-card-requests-list';
-    const list = document.getElementById(listId);
-    if (list) list.querySelectorAll('[data-ai-generated="true"]').forEach(el => el.remove());
+    // Replace-on-success, NOT delete-then-refill: keep the existing AI rows
+    // in place until the new batch actually lands. The success path
+    // (section_constraints / section_card_suggestions → handleSectionResult →
+    // replaceListWithAi) clears the old AI rows and adds the fresh ones
+    // atomically, so an upfront optimistic clear would only open a data-loss
+    // window — every failure path here (non-OK response, network catch, and
+    // the streamed section_*_error events, which only toast) leaves the rows
+    // untouched, and collectThemePayload (the Save / edit-Accept payload
+    // source) keeps reading them. The brief delay before the new rows appear
+    // is shown by the global progress strip, not a blanked list.
 
     try {
       const resp = await fetch('/api/pipeline/theme/extract-section', {
@@ -810,27 +815,28 @@
     refreshState.streamSawChunk = false;
     setFormLocked(true);
 
-    // Clear the setting textarea + preview so the user can watch the
-    // new prose stream in. Also clear AI items in the subsections that
-    // were marked for overwrite (their LLM payloads will repopulate).
-    // Snapshot the prior prose first so any failure (a no-source 400, a
-    // 409 busy, a network/server error, or a stream that produces
-    // nothing) can restore it in place — the optimistic clear must never
-    // leave the user staring at a blank Setting box.
+    // Clear the setting textarea + preview so the user can watch the new
+    // prose stream in token-by-token. Snapshot the prior prose first so any
+    // failure (a no-source 400, a 409 busy, a network/server error, or a
+    // stream that produces nothing) can restore it in place — the optimistic
+    // clear must never leave the user staring at a blank Setting box.
+    //
+    // The overwrite subsections (constraints / card-requests) are NOT cleared
+    // here: unlike the prose they don't stream in incrementally, so there's no
+    // preview reason to blank them, and a delete-then-refill opens a data-loss
+    // window (collectThemePayload reads the list rows for Save / edit-Accept).
+    // Replace-on-success instead — the streamed theme_constraints /
+    // theme_card_suggestions success events call replaceListWithAi, which
+    // clears the old AI rows and adds the fresh batch atomically. Every
+    // failure path (theme_error / theme_cancelled, the non-OK / network
+    // branches below) thus leaves the existing AI rows intact, so a failed
+    // refresh can't silently drop the user's constraints / card-requests.
     const ta = document.getElementById('wiz-setting');
     const preview = document.getElementById('wiz-setting-preview');
     const priorSetting = ta ? ta.value : '';
     refreshState.priorSetting = priorSetting;
     if (ta) ta.value = '';
     if (preview) preview.innerHTML = '';
-    if (overwriteConstraints) {
-      const cl = document.getElementById('wiz-constraints-list');
-      if (cl) cl.querySelectorAll('[data-ai-generated="true"]').forEach(el => el.remove());
-    }
-    if (overwriteCards) {
-      const rl = document.getElementById('wiz-card-requests-list');
-      if (rl) rl.querySelectorAll('[data-ai-generated="true"]').forEach(el => el.remove());
-    }
 
     try {
       const resp = await fetch('/api/wizard/project/start', {
