@@ -241,6 +241,48 @@ class GenerationProgress:
 # ---------------------------------------------------------------------------
 
 
+def reconcile_cycle_membership(
+    slots: list[dict],
+    confirmed_cycles: dict[str, list[str]],
+) -> None:
+    """Re-stamp each slot's ``cycle_id`` to its audit-confirmed family membership.
+
+    The skeleton seeds a structural ``cycle_id`` on each cycle member, but the
+    relabel can textually pull a slot out of its family (or read a non-seeded
+    slot as a member). The cycle-sort audit (:mod:`mtgai.generation.slot_grouper`)
+    is the authority on which slots are *really* a cycle: it returns
+    ``confirmed_cycles`` (``{cycle_key -> [slot_id, ...]}``).
+
+    This makes that confirmed membership the single source of truth for every
+    downstream cycle mechanism that keys off ``cycle_id`` — the ``cycle_template``
+    stamp, ``prompts._cycle_note``'s CYCLE MEMBER instruction, and the per-cycle
+    sibling lookup/append in :func:`generate_set`. For each slot it:
+
+    * sets ``cycle_id`` to the confirmed family key it belongs to (which may
+      differ from the seed for an emergent / cross-seed family), or
+    * **clears** ``cycle_id`` when the audit dropped the slot from every family
+      — so it is generated as an ordinary card with no cycle prompt and is never
+      threaded into a real family's sibling context.
+
+    Reconciles only ``cycle_id`` (membership). The caller re-stamps
+    ``cycle_template`` off the reconciled ``cycle_id`` immediately after, so a
+    dropped slot's stale template and an emergent family's mismatched seed
+    template are both cleared there.
+
+    Mutates the slot dicts in place (they are shared with ``skeleton["slots"]``).
+    """
+    confirmed_key_by_slot: dict[str, str] = {}
+    for key, slot_ids in confirmed_cycles.items():
+        for sid in slot_ids:
+            confirmed_key_by_slot[sid] = key
+    for slot in slots:
+        confirmed_key = confirmed_key_by_slot.get(slot.get("slot_id"))
+        if confirmed_key is not None:
+            slot["cycle_id"] = confirmed_key
+        elif slot.get("cycle_id"):
+            slot["cycle_id"] = None
+
+
 def group_slots_into_batches(
     slots: list[dict],
     confirmed_cycles: dict[str, list[str]] | None = None,
@@ -1133,17 +1175,16 @@ def generate_set(
     # file falls back to theme.draft_archetypes (None lets build_user_prompt do that).
     archetypes = load_archetypes(set_dir) or None
 
-    # Stamp each cycle member with its cycle's shared template so the family is
-    # generated with parallel structure (format_slot_specs reads cycle_template).
+    # The cycle's shared template is stamped onto its members *after* the
+    # cycle-sort audit confirms membership (see reconcile_cycle_membership +
+    # the stamp below the cycle-sort call). Stamping it up front off the raw
+    # seed cycle_id — before the audit can drop a slot from its family — gave a
+    # dropped slot a stale template + CYCLE MEMBER prompt.
     cycle_templates = {
         c.get("id"): c.get("template", "")
         for c in (skeleton.get("cycles") or [])
         if isinstance(c, dict) and c.get("id")
     }
-    for s in skeleton["slots"]:
-        cid = s.get("cycle_id")
-        if cid and cycle_templates.get(cid):
-            s["cycle_template"] = cycle_templates[cid]
 
     logger.info(
         "Loaded: skeleton (%d slots), %d mechanics, theme '%s', %d archetypes",
@@ -1333,6 +1374,28 @@ def generate_set(
             len(confirmed_cycles),
             sum(len(v) for v in confirmed_cycles.values()),
         )
+        # The audit's confirmed membership is the single source of truth for the
+        # downstream cycle machinery (template stamp, _cycle_note's CYCLE MEMBER
+        # instruction, sibling lookup/append). Re-stamp each unfilled slot's
+        # cycle_id to its confirmed family key and clear it on slots the audit
+        # dropped, so a dropped slot is generated as ordinary — no stale template,
+        # no CYCLE MEMBER prompt, and never appended into the real family's
+        # sibling list.
+        reconcile_cycle_membership(unfilled, confirmed_cycles)
+
+    # Stamp each *confirmed* cycle member with its shared template so the family
+    # is generated with parallel structure (format_slot_specs reads
+    # cycle_template). Keyed on the reconciled cycle_id: a same-seed family keeps
+    # its seed key so the template resolves, an emergent (cycle_N) family finds
+    # no template (correct — it gets no shared template), and a dropped slot's
+    # cleared cycle_id resolves nothing.
+    for s in unfilled:
+        cid = s.get("cycle_id")
+        if cid and cycle_templates.get(cid):
+            s["cycle_template"] = cycle_templates[cid]
+        else:
+            s.pop("cycle_template", None)
+
     batches = group_slots_into_batches(unfilled, confirmed_cycles=confirmed_cycles)
 
     logger.info("")
