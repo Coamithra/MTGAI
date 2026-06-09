@@ -218,6 +218,130 @@ def test_reconcile_emergent_family_uses_synthetic_key_and_no_template() -> None:
 
 
 # ---------------------------------------------------------------------------
+# End-to-end sibling-threading at BATCH_SIZE=1 (card 6a285a83)
+#
+# The card claimed two gaps in how generate_set's per-cycle sibling
+# lookup/append (keyed on the slot's cycle_id) interacts with the audit's
+# confirmed-family keys:
+#   (1) an emergent (synthetic cycle_N) cycle got NO sibling threading at
+#       BATCH_SIZE=1, because the lookup used the slot's SEED cycle_id (None /
+#       mixed) which never matched the cycle_N key in cycle_siblings_by_id;
+#   (2) two confirmed groups sharing one over-broad seed CROSS-threaded — the
+#       second group's slots still carried the first group's seed key, so the
+#       second family read+extended the FIRST family's sibling list.
+#
+# PR #110's reconcile_cycle_membership re-stamps each slot's cycle_id to its
+# confirmed family key BEFORE batching/threading, which closes both gaps. The
+# helper below mirrors generate_set's exact sibling state machine (init keyed
+# by confirmed_cycles, per-batch lookup on the slot's cycle_id, per-batch
+# append) so these regressions are asserted end-to-end against that flow.
+# ---------------------------------------------------------------------------
+
+
+def _thread_siblings_through_batches(
+    batches: list[list[dict]],
+    confirmed_cycles: dict[str, list[str]],
+) -> list[list[str] | None]:
+    """Replay generate_set's per-cycle sibling lookup+append over batches.
+
+    Mirrors card_generator.generate_set lines ~1453 / ~1502-1507 / ~1668-1673:
+    ``cycle_siblings_by_id`` is initialised from ``confirmed_cycles``; each batch
+    threads the prior members of its shared ``cycle_id`` and then appends its own
+    saved cards under that same id. Returns, per batch, the list of sibling
+    *slot_ids* that were threaded in (or ``None`` when no siblings applied) — the
+    observable the real loop hands to ``build_user_prompt(cycle_siblings=...)``.
+
+    Each slot stands in for the card it generates, identified by its slot_id, so
+    the test can assert which family's members reached which batch.
+    """
+    cycle_siblings_by_id: dict[str, list[str]] = {cid: [] for cid in confirmed_cycles}
+    threaded_per_batch: list[list[str] | None] = []
+    for batch in batches:
+        batch_cycle_ids = {s.get("cycle_id") for s in batch}
+        siblings_for_batch: list[str] | None = None
+        if len(batch_cycle_ids) == 1:
+            cid = next(iter(batch_cycle_ids))
+            if cid and cycle_siblings_by_id.get(cid):
+                siblings_for_batch = list(cycle_siblings_by_id[cid])
+        threaded_per_batch.append(siblings_for_batch)
+
+        # Append this batch's saved cards (stand-in: their slot_ids) under the
+        # batch's shared cycle_id, exactly as the real loop does.
+        if siblings_for_batch is not None or (
+            len(batch_cycle_ids) == 1 and next(iter(batch_cycle_ids)) in cycle_siblings_by_id
+        ):
+            cid = next(iter(batch_cycle_ids))
+            if cid:
+                cycle_siblings_by_id.setdefault(cid, []).extend(s["slot_id"] for s in batch)
+    return threaded_per_batch
+
+
+def test_emergent_cycle_threads_siblings_at_batch_size_one() -> None:
+    """Claim (1): an emergent (synthetic cycle_N) family DOES get sibling
+    threading at BATCH_SIZE=1 after reconciliation.
+
+    The members carry mixed/absent seed cycle_ids; the audit groups them under
+    ``cycle_0``. Reconciliation re-stamps every member to ``cycle_0``, so the
+    BATCH_SIZE=1 sub-batches each share that key — the lookup matches and later
+    members see the earlier ones. Pre-#110 the lookup used the seed id and never
+    matched, so each single-slot batch threaded nothing."""
+    a = _slot("005", cycle_id=None)
+    b = _slot("006", cycle_id="some_seed")
+    c = _slot("007", cycle_id=None)
+    slots = [a, b, c]
+    confirmed = {"cycle_0": ["005", "006", "007"]}
+
+    reconcile_cycle_membership(slots, confirmed)
+    # Every member now keys on the synthetic cycle_0.
+    assert [s["cycle_id"] for s in slots] == ["cycle_0", "cycle_0", "cycle_0"]
+
+    batches = group_slots_into_batches(slots, confirmed_cycles=confirmed, batch_size=1)
+    assert [[s["slot_id"] for s in b] for b in batches] == [["005"], ["006"], ["007"]]
+
+    threaded = _thread_siblings_through_batches(batches, confirmed)
+    # First member: nothing earlier. Second: sees the first. Third: sees both.
+    assert threaded == [None, ["005"], ["005", "006"]]
+
+
+def test_two_groups_sharing_one_seed_do_not_cross_thread() -> None:
+    """Claim (2): two confirmed families that shared one over-broad seed do NOT
+    cross-thread — each reads and extends only its OWN sibling list.
+
+    slot_grouper.find_cycle_families uniquifies the second same-seed family's key
+    to ``<seed>_<n>``; reconciliation stamps that distinct key onto its members.
+    So at BATCH_SIZE=1 the second family's batches look up ``broad_0``, find their
+    own (initially empty) list, and never touch the first family's ``broad`` list.
+    Pre-#110 the second family's slots kept the seed ``broad`` key, so they read +
+    extended the FIRST family's list, merging the two deliberately-separated
+    families."""
+    from mtgai.generation.slot_grouper import _key_by_seed_cycle_id
+
+    # Both groups carry the same over-broad seed "broad"; the audit identified
+    # them as two distinct families.
+    slots = [_slot(sid, cycle_id="broad") for sid in ("001", "002", "003", "004")]
+    slot_by_id = {s["slot_id"]: s for s in slots}
+    confirmed = _key_by_seed_cycle_id(
+        [["001", "002"], ["003", "004"]],
+        slot_by_id,
+    )
+    # First family keeps the seed; the second is uniquified.
+    assert confirmed == {"broad": ["001", "002"], "broad_0": ["003", "004"]}
+
+    reconcile_cycle_membership(slots, confirmed)
+    assert slot_by_id["001"]["cycle_id"] == "broad"
+    assert slot_by_id["002"]["cycle_id"] == "broad"
+    assert slot_by_id["003"]["cycle_id"] == "broad_0"
+    assert slot_by_id["004"]["cycle_id"] == "broad_0"
+
+    batches = group_slots_into_batches(slots, confirmed_cycles=confirmed, batch_size=1)
+    threaded = _thread_siblings_through_batches(batches, confirmed)
+    # Order: family "broad" first (sorted before "broad_0"): 001, 002 then 003, 004.
+    # Family broad: 001 sees nothing, 002 sees 001.
+    # Family broad_0: 003 sees nothing (NOT 001/002), 004 sees only 003.
+    assert threaded == [None, ["001"], None, ["003"]]
+
+
+# ---------------------------------------------------------------------------
 # format_cycle_siblings + build_user_prompt threading
 # ---------------------------------------------------------------------------
 

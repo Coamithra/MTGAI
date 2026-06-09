@@ -6419,6 +6419,45 @@ def _clear_card_regen_flag(asset: Path, collector_number: str) -> None:
     save_card(card.model_copy(update={"regen_reason": None, "flagged_by": None}), set_dir=asset)
 
 
+def _reject_ai_review_mutation() -> JSONResponse | None:
+    """409 if anything could be writing the live pool / snapshotting concurrently.
+
+    The AI Design Review mutating endpoints (approve / regenerate / revise) rewrite
+    card JSON and re-snapshot the ai_review tip (``history/<instance>/``). Per
+    ``history.py``'s contract (an endpoint that snapshots must first refuse while
+    the engine / extraction is running), they must never interleave with
+    ``run_ai_review``'s own writes — last-writer-wins would re-stamp a just-cleared
+    flag and ``_resnapshot_stage_tip`` would capture a half-finished mid-run pool.
+    Refuse while the engine is running, the AI lock is held (a tab-refresh worker /
+    a running stage), or a theme extraction is in flight. Returns the 409 response,
+    or ``None`` when clear to proceed.
+    """
+    if _engine is not None and _engine.is_running:
+        return JSONResponse(
+            {
+                "error": (
+                    "A pipeline stage is currently running. Cancel it from the "
+                    "global progress strip, then retry."
+                )
+            },
+            status_code=409,
+        )
+    if ai_lock.is_running():
+        return _busy_response()
+    er = extraction_run.current()
+    if er is not None and er.status == "running":
+        return JSONResponse(
+            {
+                "error": (
+                    "Theme extraction is currently running. Cancel it from the "
+                    "global progress strip, then retry."
+                )
+            },
+            status_code=409,
+        )
+    return None
+
+
 @router.post("/api/wizard/ai_review/approve")
 async def wizard_ai_review_approve(request: Request) -> JSONResponse:
     """Manually approve a card. Records the user's decision; un-flags any regen.
@@ -6440,6 +6479,8 @@ async def wizard_ai_review_approve(request: Request) -> JSONResponse:
         return JSONResponse({"error": "collector_number (str) required"}, status_code=400)
     if _ai_review_card_path(asset, cn) is None:
         return JSONResponse({"error": f"No card found for {cn}"}, status_code=404)
+    if (resp := _reject_ai_review_mutation()) is not None:
+        return resp
 
     _clear_card_regen_flag(asset, cn)
     approved_card = _read_json(_ai_review_card_path(asset, cn), None)
@@ -6489,6 +6530,8 @@ async def wizard_ai_review_revise(request: Request) -> JSONResponse:
     card_path = _ai_review_card_path(asset, cn)
     if card_path is None:
         return JSONResponse({"error": f"No card found for {cn}"}, status_code=404)
+    if (resp := _reject_ai_review_mutation()) is not None:
+        return resp
 
     mechanics: list[dict] = []
     mech_path = asset / "mechanics" / "approved.json"
@@ -6566,6 +6609,8 @@ async def wizard_ai_review_regenerate(request: Request) -> JSONResponse:
         return JSONResponse({"error": "collector_number (str) required"}, status_code=400)
     if _ai_review_card_path(asset, cn) is None:
         return JSONResponse({"error": f"No card found for {cn}"}, status_code=404)
+    if (resp := _reject_ai_review_mutation()) is not None:
+        return resp
 
     reason = "User requested a from-scratch regeneration in design review."
     flagged = _flag_cards_for_regen([(cn, reason)], "ai_review")
