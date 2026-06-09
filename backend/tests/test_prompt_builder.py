@@ -67,6 +67,7 @@ def _patch_stage_inputs(monkeypatch, set_dir, *, artists=None, cameo_entities=No
     monkeypatch.setattr(pb, "get_visual_motifs", lambda *a, **k: [])
     monkeypatch.setattr(pb, "get_cameo_entities", lambda: cameo_entities or [])
     monkeypatch.setattr(pb, "get_visual_references", lambda *a, **k: "")
+    monkeypatch.setattr(pb, "get_named_entities", lambda *a, **k: [])
     # Unified entity-tagging seams: no LLM in unit tests.
     monkeypatch.setattr(pb, "get_refs", lambda: {})
     monkeypatch.setattr(
@@ -74,6 +75,8 @@ def _patch_stage_inputs(monkeypatch, set_dir, *, artists=None, cameo_entities=No
     )
     monkeypatch.setattr(pb, "effective_card_tags", lambda _data, _cn: [])
     monkeypatch.setattr(pb, "get_visual_references_for_keys", lambda _keys: "")
+    monkeypatch.setattr(pb, "get_entity_catalog", lambda: [])
+    monkeypatch.setattr(pb, "entity_display_name", lambda k: k)
     monkeypatch.setattr(pb, "_sanitize_for_flux", lambda t: t)
     monkeypatch.setattr(
         pb, "load_art_prompt_knobs", lambda _d: ArtPromptKnobs(cameo_probability=0.0)
@@ -303,7 +306,7 @@ def test_user_message_includes_reference_caveats_and_card():
         artist_style="moody chiaroscuro",
         set_art_direction="gothic spires under perpetual dusk",
         setting_prose="## Setting\nA decaying royal court.",
-        visual_refs="",
+        named_entities=None,
         cameo=None,
     )
     assert "moody chiaroscuro" in msg
@@ -320,7 +323,7 @@ def test_user_message_includes_cameo_instruction():
         artist_style="",
         set_art_direction="",
         setting_prose="",
-        visual_refs="",
+        named_entities=None,
         cameo={"key": "the-queen", "kind": "character", "description": "a tall crowned figure"},
     )
     assert "CAMEO REQUEST" in msg
@@ -334,7 +337,7 @@ def test_user_message_omits_empty_sections():
         artist_style="",
         set_art_direction="",
         setting_prose="",
-        visual_refs="",
+        named_entities=None,
         cameo=None,
     )
     assert "ARTIST STYLE" not in msg
@@ -351,7 +354,7 @@ def test_user_message_includes_visual_motifs():
         artist_style="",
         set_art_direction="",
         setting_prose="",
-        visual_refs="",
+        named_entities=None,
         cameo=None,
         visual_motifs=["glossy vs matte metal", "low sodium-lamp lighting"],
     )
@@ -366,11 +369,40 @@ def test_user_message_omits_empty_motifs():
         artist_style="",
         set_art_direction="",
         setting_prose="",
-        visual_refs="",
+        named_entities=None,
         cameo=None,
         visual_motifs=[],
     )
     assert "RECURRING VISUAL MOTIFS" not in msg
+
+
+def test_user_message_includes_named_entity_roster():
+    msg = pb.build_art_prompt_user_message(
+        _make_card(),
+        artist_style="",
+        set_art_direction="",
+        setting_prose="",
+        named_entities=[
+            {"key": "storm_knight", "name": "Storm Knight", "kind": "character"},
+            {"key": "the_spire", "name": "The Spire", "kind": "location"},
+        ],
+        cameo=None,
+    )
+    assert "NAMED ENTITIES" in msg
+    assert "Storm Knight, The Spire" in msg
+    assert "EXACT name" in msg
+
+
+def test_user_message_omits_empty_named_entities():
+    msg = pb.build_art_prompt_user_message(
+        _make_card(),
+        artist_style="",
+        set_art_direction="",
+        setting_prose="",
+        named_entities=None,
+        cameo=None,
+    )
+    assert "NAMED ENTITIES" not in msg
 
 
 # ---------------------------------------------------------------------------
@@ -417,6 +449,7 @@ def test_extract_art_prompt_none_when_no_usable_string():
 def _patch_generate_art_prompt_deps(monkeypatch):
     import mtgai.runtime.active_project as active_project
 
+    monkeypatch.setattr(pb, "get_named_entities", lambda *a, **k: [])
     monkeypatch.setattr(pb, "get_visual_references", lambda *a, **k: "")
     settings = type(
         "S",

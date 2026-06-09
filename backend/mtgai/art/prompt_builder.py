@@ -40,9 +40,12 @@ from mtgai.art.artist_assignment import assign_artists, load_art_prompt_knobs
 from mtgai.art.entity_tags import effective_card_tags, ensure_entity_tags
 from mtgai.art.visual_reference import (
     detect_named_characters,
+    entity_display_name,
     get_artists,
     get_cameo_entities,
+    get_entity_catalog,
     get_flux_replacements,
+    get_named_entities,
     get_refs,
     get_set_art_direction,
     get_visual_motifs,
@@ -186,9 +189,14 @@ FLUX PROMPT RULES:
   descriptive language, not keyword lists.
 - Be concrete: "a gaunt pale humanoid with reflective cat-eyes crouching in a \
   dark corridor", not "a mysterious dungeon creature".
-- DO NOT use character names or made-up race/creature names the model won't know \
-  (moktar, peryton, screechman, etc.) — describe APPEARANCE instead. If a \
-  visual-reference description is given for an entity, render that description.
+- When the card features a NAMED ENTITY listed in the user message, refer to it \
+  by its EXACT given name (e.g. "Storm Knight"). The renderer binds a reference \
+  image to that name, so naming it is what makes the right face/look land — do \
+  NOT invent appearance for a listed entity; name it and describe its action, \
+  pose, and context.
+- For any OTHER subject (one NOT in the NAMED ENTITIES list), describe it by \
+  APPEARANCE, and never use made-up race/creature names the model won't know \
+  (moktar, peryton, screechman, etc.).
 - DO NOT use negative phrasing ("no text", "without borders"). Describe only \
   what IS in the image.
 - DO NOT mention game mechanics, stats, rules, cards, or frames.
@@ -208,7 +216,8 @@ TOOL_SCHEMA = {
                 "type": "string",
                 "description": (
                     "A finished 40-70 word Flux prompt, subject first, natural "
-                    "language, in the chosen artist's style. Appearance not names; "
+                    "language, in the chosen artist's style. Name any listed NAMED "
+                    "ENTITY by its exact name, describe other subjects by appearance; "
                     "no game mechanics or card references."
                 ),
             },
@@ -256,17 +265,25 @@ def build_art_prompt_user_message(
     artist_style: str,
     set_art_direction: str,
     setting_prose: str,
-    visual_refs: str,
+    named_entities: list[dict[str, str]] | None,
     cameo: dict[str, str] | None,
+    visual_refs: str | None = None,
     visual_motifs: list[str] | None = None,
 ) -> str:
     """Assemble the user message for the art-prompt LLM call.
 
     All of ``artist_style`` / ``set_art_direction`` / ``setting_prose`` /
-    ``visual_refs`` / ``visual_motifs`` may be empty (degraded inputs); the
-    corresponding section is simply omitted. ``cameo`` (when present) names a
-    specific style-guide entity to feature. ``visual_motifs`` is the set's
-    recurring colors / materials / lighting, woven in as a secondary style cue.
+    ``named_entities`` / ``visual_refs`` / ``visual_motifs`` may be empty (degraded
+    inputs); the corresponding section is simply omitted. ``named_entities``
+    (``{key, name, kind}`` records) are the set's RECURRING characters/locations the
+    card features — listed by NAME so the model anchors them by name (the renderer
+    then binds a reference image to that name). ``visual_refs`` is appearance prose
+    for the card's NON-recurring tagged entities — they get no reference image, so
+    the model is told to render their appearance (never the name). The two cover
+    disjoint entity sets, so naming and appearance never collide on one entity.
+    ``cameo`` (when present) names a specific style-guide entity to feature.
+    ``visual_motifs`` is the set's recurring colors / materials / lighting, woven
+    in as a secondary style cue.
     """
     card_type_cat = get_card_type_category(card)
     hint = _COMPOSITION_HINTS.get(card_type_cat, "")
@@ -294,9 +311,20 @@ def build_art_prompt_user_message(
     if "Legendary" in (card.type_line or ""):
         sections.append("This is a unique, named character — distinctive features, imposing.")
 
+    names = [e.get("name", "").strip() for e in (named_entities or [])]
+    roster = ", ".join(n for n in names if n)
+    if roster:
+        sections.append(
+            "NAMED ENTITIES (recurring set characters/locations this card features — "
+            "refer to each by its EXACT name below so the renderer binds a reference "
+            "image to it; do not invent their appearance):\n"
+            f"{roster}"
+        )
+
     if visual_refs:
         sections.append(
-            "VISUAL APPEARANCE REFERENCES (render these appearances, never the names):\n"
+            "VISUAL APPEARANCE REFERENCES (one-off entities with NO reference image — "
+            "render these appearances, never the names):\n"
             f"{visual_refs}"
         )
 
@@ -308,8 +336,8 @@ def build_art_prompt_user_message(
 
     sections.append(
         "Author ONE finished Flux prompt (40-70 words). Subject first, then action, then "
-        "style and mood, then setting context. Appearance not names; no mechanics or card "
-        "references."
+        "style and mood, then setting context. Name any listed NAMED ENTITY by its exact "
+        "name, describe other subjects by appearance; no mechanics or card references."
     )
     return "\n\n".join(sections)
 
@@ -364,6 +392,7 @@ def generate_art_prompt(
     set_art_direction: str,
     setting_prose: str,
     cameo: dict[str, str] | None,
+    named_entities: list[dict[str, str]] | None = None,
     visual_refs: str | None = None,
     visual_motifs: list[str] | None = None,
     log_dir: Path | None = None,
@@ -373,16 +402,27 @@ def generate_art_prompt(
     Returns ``(art_prompt, input_tokens, output_tokens)``. The returned prompt is
     NOT yet Flux-sanitized — the caller applies :func:`_sanitize_for_flux`.
 
-    ``visual_refs`` is the appearance-reference block to inject. The caller
-    (:func:`generate_prompts_for_set`) computes it from the unified per-card
-    entity tags; when ``None`` it falls back to the legacy substring matcher
-    (:func:`get_visual_references`) so the old call shape / tests still work.
+    ``named_entities`` (recurring entities the card features, named so the renderer
+    binds a reference image to each) and ``visual_refs`` (appearance prose for the
+    card's non-recurring tagged entities, which get NO reference image) are both
+    computed by the caller (:func:`generate_prompts_for_set`) from the one unified
+    per-card entity-tag source — so the prompt and the attached images describe the
+    SAME entities (card 6a27581d). When either is ``None`` it falls back to the
+    legacy per-card-field helper (``get_named_entities`` / ``get_visual_references``)
+    so the old call shape / tests still work.
 
     The prompt is extracted defensively (:func:`_extract_art_prompt`) so a local
     model's malformed tool-call key (good value, corrupted key) doesn't drop the
     card. A genuinely unusable payload is retried at a bumped temperature (escaping
     a local repetition loop) up to :data:`_MAX_PROMPT_ATTEMPTS` times before raising.
     """
+    if named_entities is None:
+        named_entities = get_named_entities(
+            card.name,
+            card.type_line,
+            card.oracle_text,
+            card.flavor_text,
+        )
     if visual_refs is None:
         visual_refs = get_visual_references(
             card.name,
@@ -396,6 +436,7 @@ def generate_art_prompt(
         artist_style=artist_style,
         set_art_direction=set_art_direction,
         setting_prose=setting_prose,
+        named_entities=named_entities,
         visual_refs=visual_refs,
         cameo=cameo,
         visual_motifs=visual_motifs,
@@ -653,6 +694,16 @@ def generate_prompts_for_set(
         thinking=_tag_settings.get_thinking("art_prompts"),
         force=force,
     )
+    # A card's tagged entities split into two prompt channels (no per-entity
+    # collision): RECURRING (2+ card) entities get a reference image downstream, so
+    # name them (the renderer binds the image by name); SINGLE-card entities get no
+    # ref image, so inject their appearance prose instead. Both come from the one
+    # tag source, so the prompt names/depicts exactly the entities char_portraits
+    # also references.
+    from mtgai.art.entity_tags import recurring_from_tags
+
+    _recurring_keys = {e["entity_key"] for e in recurring_from_tags(tags_data)}
+    _entity_kind_by_key = {e["entity_key"]: e["kind"] for e in get_entity_catalog()}
 
     logger.info(
         "Generating art prompts for %d cards in %s (%d artists, cameo p=%.2f)",
@@ -694,10 +745,20 @@ def generate_prompts_for_set(
             if cameo:
                 cameos += 1
 
-            tag_keys = [
-                t["entity_key"] for t in effective_card_tags(tags_data, card.collector_number)
+            card_tags = effective_card_tags(tags_data, card.collector_number)
+            named_entities = [
+                {
+                    "key": t["entity_key"],
+                    "name": entity_display_name(t["entity_key"]),
+                    "kind": _entity_kind_by_key.get(t["entity_key"], t["kind"]),
+                }
+                for t in card_tags
+                if t["entity_key"] in _recurring_keys
             ]
-            visual_refs_text = get_visual_references_for_keys(tag_keys)
+            appearance_keys = [
+                t["entity_key"] for t in card_tags if t["entity_key"] not in _recurring_keys
+            ]
+            visual_refs_text = get_visual_references_for_keys(appearance_keys)
 
             full_prompt_raw, in_tok, out_tok = generate_art_prompt(
                 card,
@@ -705,6 +766,7 @@ def generate_prompts_for_set(
                 set_art_direction=set_art_direction,
                 setting_prose=setting_prose,
                 cameo=cameo,
+                named_entities=named_entities,
                 visual_refs=visual_refs_text,
                 visual_motifs=visual_motifs,
                 log_dir=log_dir,

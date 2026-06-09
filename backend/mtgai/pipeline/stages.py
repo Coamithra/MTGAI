@@ -1900,11 +1900,13 @@ def run_rendering(progress_cb: ProgressCallback | None, emitter: StageEmitter) -
             error_message="Rendering cancelled by user.",
         )
 
+    detail = f"Rendered {rendered} cards ({result.get('elapsed_seconds', 0):.1f}s)"
+    emitter.phase("done", detail)
     return StageResult(
         total_items=rendered + result.get("skipped", 0),
         completed_items=rendered,
         failed_items=result.get("failed", 0),
-        detail=f"Rendered {rendered} cards ({result.get('elapsed_seconds', 0):.1f}s)",
+        detail=detail,
     )
 
 

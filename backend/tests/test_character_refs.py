@@ -189,3 +189,143 @@ def test_attach_preserves_refs_for_entities_outside_this_run(tmp_path: Path) -> 
 )
 def test_slugify(name: str, expected: str) -> None:
     assert cp._slugify(name) == expected
+
+
+# ---------------------------------------------------------------------------
+# Periodic ComfyUI recycle (VRAM-leak mitigation), mirroring generate_art_for_set
+# ---------------------------------------------------------------------------
+
+
+def _wire_char_loop(monkeypatch, tmp_path: Path, n_entities: int, versions: int = 1) -> None:
+    """Seed a tmp project + mock every external seam of generate_character_refs so
+    the image loop runs without a real ComfyUI / LLM."""
+    set_dir = tmp_path / "set"
+    (set_dir / "cards").mkdir(parents=True)
+
+    class _Settings:
+        def get_llm_model_id(self, _stage: str) -> str:
+            return "stub-model"
+
+        def get_thinking(self, _stage: str) -> str | None:
+            return None
+
+    class _Proj:
+        set_code = "TST"
+        settings = _Settings()
+
+    entities = [
+        {"entity_key": f"e{i}", "name": f"Entity {i}", "kind": "character", "cards": [], "note": ""}
+        for i in range(n_entities)
+    ]
+
+    monkeypatch.setattr("mtgai.runtime.active_project.require_active_project", lambda: _Proj())
+    monkeypatch.setattr("mtgai.io.asset_paths.set_artifact_dir", lambda: set_dir)
+    # Detection is now the shared entity_tags pass (imported inside the stage).
+    monkeypatch.setattr(
+        "mtgai.art.entity_tags.ensure_entity_tags",
+        lambda *a, **k: ({"cards": {}, "entities_meta": {}}, 0.0),
+    )
+    monkeypatch.setattr("mtgai.art.entity_tags.recurring_from_tags", lambda *a, **k: entities)
+    monkeypatch.setattr(cp, "VERSIONS_PER_ENTITY", versions)
+    monkeypatch.setattr(cp, "ensure_comfyui", lambda log_dir=None: "proc0")
+    monkeypatch.setattr(cp, "kill_comfyui", lambda proc=None: None)
+    monkeypatch.setattr(cp, "is_comfyui_running", lambda: True)
+    monkeypatch.setattr(cp, "generate_image_comfyui", lambda *a, **k: (b"img", {}))
+
+
+def test_char_loop_recycles_comfyui_at_threshold(monkeypatch, tmp_path: Path) -> None:
+    """Every COMFYUI_RECYCLE_EVERY images ComfyUI is recycled — but never on the
+    last entity (a restart right before the finally-kill is pointless)."""
+    _wire_char_loop(monkeypatch, tmp_path, n_entities=8, versions=1)
+    recycles: list = []
+    monkeypatch.setattr(
+        cp, "recycle_comfyui", lambda proc, log_dir=None: recycles.append(proc) or "procN"
+    )
+    monkeypatch.setattr(cp, "COMFYUI_RECYCLE_EVERY", 4)
+
+    summary = cp.generate_character_refs()
+
+    assert summary["generated"] == 8
+    # 1 image/entity → recycle fires after entity 4; the would-be fire after
+    # entity 8 is suppressed because it's the last entity.
+    assert len(recycles) == 1
+
+
+def test_char_loop_recycle_disabled_when_zero(monkeypatch, tmp_path: Path) -> None:
+    """COMFYUI_RECYCLE_EVERY == 0 disables the periodic recycle entirely."""
+    _wire_char_loop(monkeypatch, tmp_path, n_entities=8, versions=1)
+    recycles: list = []
+    monkeypatch.setattr(
+        cp, "recycle_comfyui", lambda proc, log_dir=None: recycles.append(proc) or "procN"
+    )
+    monkeypatch.setattr(cp, "COMFYUI_RECYCLE_EVERY", 0)
+
+    cp.generate_character_refs()
+
+    assert recycles == []
+
+
+def test_char_loop_recycles_only_at_entity_boundary(monkeypatch, tmp_path: Path) -> None:
+    """With 3 versions/entity and a threshold of 3, the recycle still fires only
+    at the entity boundary (never mid-entity), so an entity's versions stay on one
+    ComfyUI session."""
+    _wire_char_loop(monkeypatch, tmp_path, n_entities=3, versions=3)
+    recycles: list = []
+    monkeypatch.setattr(
+        cp, "recycle_comfyui", lambda proc, log_dir=None: recycles.append(proc) or "procN"
+    )
+    monkeypatch.setattr(cp, "COMFYUI_RECYCLE_EVERY", 3)
+
+    summary = cp.generate_character_refs()
+
+    assert summary["generated"] == 9
+    # Entity 0 (3 imgs) → recycle; entity 1 (3 imgs) → recycle; entity 2 is last
+    # → suppressed. Two recycles, both at entity boundaries.
+    assert len(recycles) == 2
+
+
+def test_char_loop_no_recycle_when_all_images_skipped(monkeypatch, tmp_path: Path) -> None:
+    """Pre-existing images (force=False) skip the GPU entirely, so they don't
+    count toward the recycle threshold — no recycle fires even past it."""
+    _wire_char_loop(monkeypatch, tmp_path, n_entities=8, versions=1)
+    recycles: list = []
+    monkeypatch.setattr(
+        cp, "recycle_comfyui", lambda proc, log_dir=None: recycles.append(proc) or "procN"
+    )
+    monkeypatch.setattr(cp, "COMFYUI_RECYCLE_EVERY", 2)
+    # generate_image_comfyui must never be reached when every image is skipped.
+    monkeypatch.setattr(
+        cp,
+        "generate_image_comfyui",
+        lambda *a, **k: pytest.fail("should not generate a skipped image"),
+    )
+    # Pre-create every entity's v1 reference so dest.exists() short-circuits.
+    out_dir = tmp_path / "set" / "art-direction" / "character-refs"
+    out_dir.mkdir(parents=True)
+    for i in range(8):
+        (out_dir / f"{cp._slugify(f'Entity {i}')}_v1.png").write_bytes(b"old")
+
+    summary = cp.generate_character_refs()
+
+    assert summary["generated"] == 0
+    assert summary["skipped"] == 8
+    assert recycles == []
+
+
+def test_char_loop_no_recycle_when_no_entities(monkeypatch, tmp_path: Path) -> None:
+    """An empty recurring-entity set returns before the image loop — no recycle,
+    no ComfyUI start."""
+    _wire_char_loop(monkeypatch, tmp_path, n_entities=0)
+    recycles: list = []
+    monkeypatch.setattr(
+        cp, "recycle_comfyui", lambda proc, log_dir=None: recycles.append(proc) or "procN"
+    )
+    monkeypatch.setattr(cp, "COMFYUI_RECYCLE_EVERY", 2)
+    monkeypatch.setattr(
+        cp, "ensure_comfyui", lambda log_dir=None: pytest.fail("should not start ComfyUI")
+    )
+
+    summary = cp.generate_character_refs()
+
+    assert summary["entities"] == 0
+    assert recycles == []
