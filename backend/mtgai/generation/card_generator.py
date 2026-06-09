@@ -656,6 +656,9 @@ def _process_batch_result(
             continue
         slot = slots[i]
         slot_id = slot["slot_id"]
+        # Per-attempt provenance for any retry the regen path makes; stays empty
+        # when the first attempt is accepted as-is.
+        retry_attempts: list[GenerationAttempt] = []
 
         # Log the raw card as received from LLM
         logger.info("  [%s] Raw LLM output: %s", slot_id, _card_one_liner(raw))
@@ -760,7 +763,7 @@ def _process_batch_result(
             # but only trips a *soft* regen trigger (e.g. a guideline overflow):
             # we'd rather ship it flagged than drop the slot entirely.
             first_attempt_card = card
-            clean_card, retry_best = _retry_card(
+            clean_card, retry_best, retry_attempts = _retry_card(
                 slot,
                 feedback,
                 mechanics,
@@ -817,17 +820,23 @@ def _process_batch_result(
             "slot_id": slot_id,
             "status": CardStatus.DRAFT,
             "created_at": datetime.now(UTC),
+            # Attempt 1 is the batch call's own share; ``retry_attempts`` (empty
+            # unless the regen path retried) carries each retry's true
+            # attempt_number / validation errors / tokens / cost, with the
+            # winning attempt last — so a retried card's audit trail is honest
+            # rather than the stale first-attempt errors stamped attempt_number=1.
             "generation_attempts": [
                 GenerationAttempt(
                     attempt_number=1,
                     timestamp=datetime.now(UTC),
                     model_used=display_model,
-                    success=True,
+                    success=not regen_required,
                     validation_errors=[e.message for e in errors],
                     input_tokens=input_tokens // max(len(raw_cards), 1),
                     output_tokens=output_tokens // max(len(raw_cards), 1),
                     cost_usd=cost_per_card,
                 ),
+                *retry_attempts,
             ],
         }
 
@@ -882,14 +891,14 @@ def _retry_card(
     thinking: str | None = None,
     archetypes: list[dict] | None = None,
     cycle_siblings: list[dict] | None = None,
-) -> tuple[Card | None, Card | None]:
+) -> tuple[Card | None, Card | None, list[GenerationAttempt]]:
     """Retry a card that hit a regen trigger (schema parse failure or text overflow).
 
     ``error_msg`` is the LLM-facing feedback for the retry — typically the
     output of :func:`format_validation_feedback` for overflow, or a stringified
     error list for a parse failure (where no parsed card exists yet).
 
-    Returns ``(clean_card, best_effort_card)``:
+    Returns ``(clean_card, best_effort_card, retry_attempts)``:
 
     * ``clean_card`` is a card that fully passed validation (no regen trigger),
       or ``None`` if no attempt produced one.
@@ -898,8 +907,17 @@ def _retry_card(
       attempt failed even to parse. The caller saves this — flagged — rather
       than dropping the slot, so the set is never left a card short over a
       guideline overshoot. When ``clean_card`` is non-None it equals it.
+    * ``retry_attempts`` is the per-attempt :class:`GenerationAttempt`
+      provenance for every retry call this made (attempt_number 2..N, each
+      carrying *that* attempt's own validation errors + tokens + cost), so the
+      caller can record the true attempt history on the saved card rather than
+      attributing the first attempt's errors/tokens to the winning retry.
     """
+    from mtgai.settings.model_registry import get_registry
+
+    display_model = get_registry().public_model_id(model)
     best_effort: Card | None = None
+    retry_attempts: list[GenerationAttempt] = []
     for attempt in range(2, MAX_RETRIES + 1):
         result = _retry_single_card(
             slot,
@@ -957,6 +975,7 @@ def _retry_card(
                     err.message,
                 )
 
+        retry_cost = cost_from_result(result)
         _save_generation_log(
             slot_id=slot["slot_id"],
             card_name=retry_raw.get("name", "UNKNOWN"),
@@ -967,7 +986,24 @@ def _retry_card(
             model=model,
             input_tokens=result["input_tokens"],
             output_tokens=result["output_tokens"],
-            cost_usd=cost_from_result(result),
+            cost_usd=retry_cost,
+        )
+
+        # Provenance for THIS retry attempt — its own attempt_number, its own
+        # validation errors (not the first attempt's), and its own token/cost
+        # share. The caller appends these to the card's generation_attempts so a
+        # retried card's audit trail reflects the true history + winning attempt.
+        retry_attempts.append(
+            GenerationAttempt(
+                attempt_number=attempt,
+                timestamp=datetime.now(UTC),
+                model_used=display_model,
+                success=card is not None and not regen_required,
+                validation_errors=[e.message for e in errors],
+                input_tokens=result["input_tokens"],
+                output_tokens=result["output_tokens"],
+                cost_usd=retry_cost,
+            )
         )
 
         if card is not None and not regen_required:
@@ -976,7 +1012,7 @@ def _retry_card(
                 attempt,
                 card.name,
             )
-            return card, card
+            return card, card, retry_attempts
         # Either schema still failed (card is None) or a regen-trigger validation
         # finding still trips the regen flag; rebuild feedback for the next attempt.
         # Keep the latest *parsable* card as the best-effort fallback so a slot
@@ -1000,7 +1036,7 @@ def _retry_card(
                 slot_type=slot.get("card_type", ""),
             )
 
-    return None, best_effort
+    return None, best_effort, retry_attempts
 
 
 # ---------------------------------------------------------------------------
