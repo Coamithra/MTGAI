@@ -144,6 +144,57 @@ def test_clear_decision_removes_entry(project: Path):
 
 
 # ----------------------------------------------------------------------
+# Revision persistence file lookup (card 6a285a79)
+# ----------------------------------------------------------------------
+
+
+def test_revision_lands_on_right_card_when_cn_is_prefix_of_another(project: Path, monkeypatch):
+    """A council/single revision must be written back to the reviewed card's OWN
+    file, even when its collector number is a string prefix of another card's.
+
+    ``W-C-01`` is a prefix of ``W-C-011``, and ``sorted()`` puts ``W-C-011_*.json``
+    first — so a bare ``stem.startswith(cn)`` lookup would load + overwrite the
+    WRONG file (``W-C-011``), corrupting an unrelated card and leaving the reviewed
+    one unchanged. The fix matches ``stem == cn or stem.startswith(cn + "_")``.
+    """
+    import json
+
+    from mtgai.io.card_io import save_card
+
+    save_card(_make_card("W-C-01", oracle="Original short."), set_dir=project)
+    save_card(_make_card("W-C-011", oracle="Original long."), set_dir=project)
+
+    # Only W-C-01 gets a revision (new oracle text). W-C-011 reviews OK, unchanged.
+    def fake_review_single(card, *_args, **_kwargs):
+        cn = card["collector_number"]
+        changed = cn == "W-C-01"
+        revised = {**card, "oracle_text": "Revised by AI."} if changed else None
+        return ai_review.CardReviewResult(
+            collector_number=cn,
+            card_name=card.get("name", ""),
+            rarity=card.get("rarity", "common"),
+            review_tier="single",
+            original_card=card,
+            final_verdict="REVISE" if changed else "OK",
+            revised_card=revised,
+            card_was_changed=changed,
+        )
+
+    monkeypatch.setattr(ai_review, "_review_single", fake_review_single)
+    monkeypatch.setattr(ai_review, "_review_council", fake_review_single)
+
+    ai_review.review_set()
+
+    parsed = [
+        json.loads(p.read_text(encoding="utf-8")) for p in (project / "cards").glob("*.json")
+    ]
+    on_disk = {c["collector_number"]: c["oracle_text"] for c in parsed}
+    # The revision landed on W-C-01's own file; W-C-011 is untouched.
+    assert on_disk["W-C-01"] == "Revised by AI."
+    assert on_disk["W-C-011"] == "Original long."
+
+
+# ----------------------------------------------------------------------
 # review_set scoping
 # ----------------------------------------------------------------------
 
