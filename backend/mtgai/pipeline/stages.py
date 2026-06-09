@@ -2156,6 +2156,20 @@ def clear_finalize() -> None:
             atomic_write_text(path, json.dumps(card, indent=2, ensure_ascii=False))
 
 
+def clear_art_prompts() -> None:
+    """Clear the art_prompts stage's owned artifact: the unified entity-tags sidecar.
+
+    ``art-direction/entity-tags.json`` is produced at art_prompts time (the single
+    source both the appearance-text and image-ref paths read), so a cascade/edit
+    re-run must drop it to force re-detection. The authored ``card.art_prompt``
+    values themselves live on the card JSON (card_gen-owned) and are not cleared
+    here, mirroring the prior no-op clearer.
+    """
+    from mtgai.art.entity_tags import entity_tags_path
+
+    _remove_path(entity_tags_path(_set_dir()))
+
+
 def clear_char_portraits() -> None:
     """Delete the character reference portraits.
 
@@ -2201,7 +2215,7 @@ STAGE_CLEARERS: dict[str, StageClearer] = {
     "ai_review": _no_artifacts,
     "finalize": clear_finalize,
     "visual_refs": clear_visual_refs,
-    "art_prompts": _no_artifacts,
+    "art_prompts": clear_art_prompts,
     "char_portraits": clear_char_portraits,
     "art_gen": clear_art_gen,
     "rendering": clear_rendering,

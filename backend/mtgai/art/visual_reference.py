@@ -12,8 +12,29 @@ during set design (Phase 1A) or art direction (Phase 2A). The code is set-agnost
 
 import json
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+# Category -> human label, in priority order. Shared by the legacy substring
+# matcher, the tag-driven lookup, and the entity catalog.
+_CATEGORY_LABELS: tuple[tuple[str, str], ...] = (
+    ("legendary_characters", "Character"),
+    ("creature_types", "Creature Type"),
+    ("factions", "Faction"),
+    ("landmarks", "Location"),
+)
+
+
+def normalize_entity_key(s: str) -> str:
+    """Canonical slug for an entity key: lowercase, non-alphanumeric runs → ``_``.
+
+    The single normalization shared by the entity-tagging pass and the dictionary
+    lookup so an ``optimus_prime`` tag matches an ``optimus prime`` dictionary key
+    (and vice-versa) — the surface-form variance that broke the old substring
+    matcher. Mirrors ``character_portraits._slugify``.
+    """
+    return re.sub(r"[^a-z0-9]+", "_", s.lower().strip()).strip("_")
 
 
 def _load_visual_refs() -> dict:
@@ -81,15 +102,7 @@ def get_visual_references(
     results: list[str] = []
     seen: set[str] = set()
 
-    # Check each category in priority order
-    categories = [
-        ("legendary_characters", "Character"),
-        ("creature_types", "Creature Type"),
-        ("factions", "Faction"),
-        ("landmarks", "Location"),
-    ]
-
-    for category_key, label in categories:
+    for category_key, label in _CATEGORY_LABELS:
         category = refs.get(category_key, {})
         for key, desc in category.items():
             if key in search_text and desc not in seen:
@@ -97,6 +110,83 @@ def get_visual_references(
                 seen.add(desc)
 
     return "\n\n".join(results)
+
+
+def _ref_index() -> dict[str, tuple[str, str, str]]:
+    """Normalized lookup over the dictionary's keyed sub-dicts.
+
+    ``{normalize_entity_key(key): (label, original_key, description)}``. Keyed by
+    the canonical slug so a tag and a dictionary key whose surface forms differ
+    (``optimus_prime`` vs ``optimus prime``) still resolve.
+    """
+    refs = get_refs()
+    index: dict[str, tuple[str, str, str]] = {}
+    for category_key, label in _CATEGORY_LABELS:
+        category = refs.get(category_key, {})
+        if not isinstance(category, dict):
+            continue
+        for key, desc in category.items():
+            text = str(desc or "").strip()
+            if not text:
+                continue
+            index.setdefault(normalize_entity_key(str(key)), (label, str(key), text))
+    return index
+
+
+def get_visual_references_for_keys(keys: list[str]) -> str:
+    """Return the appearance-reference block for an explicit list of entity keys.
+
+    The tag-driven replacement for :func:`get_visual_references` (substring): the
+    unified entity-tagging pass decides which entities a card features, and this
+    formats their dictionary appearance prose identically (``[Label: Key] desc``,
+    deduped). Keys with no dictionary entry are skipped.
+    """
+    if not keys:
+        return ""
+    index = _ref_index()
+    results: list[str] = []
+    seen: set[str] = set()
+    for key in keys:
+        hit = index.get(normalize_entity_key(str(key)))
+        if hit is None:
+            continue
+        label, original, desc = hit
+        if desc in seen:
+            continue
+        seen.add(desc)
+        results.append(f"[{label}: {original.title()}] {desc}")
+    return "\n\n".join(results)
+
+
+def get_entity_catalog() -> list[dict[str, str]]:
+    """Flat ``[{entity_key, kind, name}]`` of every dictionary entity.
+
+    Feeds the Art Prompts tab's add-tag picker (manual entity override). ``kind``
+    uses the tag vocabulary (character / creature / faction / location). Returns
+    ``[]`` when no references are available so the picker degrades to empty.
+    """
+    refs = get_refs()
+    kinds = {
+        "legendary_characters": "character",
+        "creature_types": "creature",
+        "factions": "faction",
+        "landmarks": "location",
+    }
+    catalog: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for category_key, _label in _CATEGORY_LABELS:
+        category = refs.get(category_key, {})
+        if not isinstance(category, dict):
+            continue
+        for key in category:
+            slug = normalize_entity_key(str(key))
+            if not slug or slug in seen:
+                continue
+            seen.add(slug)
+            catalog.append(
+                {"entity_key": slug, "kind": kinds[category_key], "name": str(key).title()}
+            )
+    return catalog
 
 
 def get_flux_replacements() -> dict[str, str]:

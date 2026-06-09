@@ -50,16 +50,29 @@ def _patch_stage_inputs(monkeypatch, set_dir, *, artists=None, cameo_entities=No
     import mtgai.io.asset_paths as asset_paths
     import mtgai.runtime.active_project as active_project
 
+    settings = type(
+        "S",
+        (),
+        {"get_llm_model_id": lambda self, _s: "m", "get_thinking": lambda self, _s: "disabled"},
+    )()
+
     monkeypatch.setattr(asset_paths, "set_artifact_dir", lambda: set_dir)
     monkeypatch.setattr(
         active_project,
         "require_active_project",
-        lambda: type("P", (), {"set_code": "TST"})(),
+        lambda: type("P", (), {"set_code": "TST", "settings": settings})(),
     )
     monkeypatch.setattr(pb, "get_artists", lambda: artists or [])
     monkeypatch.setattr(pb, "get_set_art_direction", lambda: "")
     monkeypatch.setattr(pb, "get_cameo_entities", lambda: cameo_entities or [])
     monkeypatch.setattr(pb, "get_visual_references", lambda *a, **k: "")
+    # Unified entity-tagging seams: no LLM in unit tests.
+    monkeypatch.setattr(pb, "get_refs", lambda: {})
+    monkeypatch.setattr(
+        pb, "ensure_entity_tags", lambda *a, **k: ({"cards": {}, "entities_meta": {}}, 0.0)
+    )
+    monkeypatch.setattr(pb, "effective_card_tags", lambda _data, _cn: [])
+    monkeypatch.setattr(pb, "get_visual_references_for_keys", lambda _keys: "")
     monkeypatch.setattr(pb, "_sanitize_for_flux", lambda t: t)
     monkeypatch.setattr(
         pb, "load_art_prompt_knobs", lambda _d: ArtPromptKnobs(cameo_probability=0.0)

@@ -37,6 +37,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from mtgai.art.artist_assignment import assign_artists, load_art_prompt_knobs
+from mtgai.art.entity_tags import effective_card_tags, ensure_entity_tags
 from mtgai.art.visual_reference import (
     detect_named_characters,
     get_artists,
@@ -45,6 +46,7 @@ from mtgai.art.visual_reference import (
     get_refs,
     get_set_art_direction,
     get_visual_references,
+    get_visual_references_for_keys,
 )
 from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import generate_with_tool
@@ -354,6 +356,7 @@ def generate_art_prompt(
     set_art_direction: str,
     setting_prose: str,
     cameo: dict[str, str] | None,
+    visual_refs: str | None = None,
     log_dir: Path | None = None,
 ) -> tuple[str, int, int]:
     """Call the LLM to author the full art prompt for a card.
@@ -361,17 +364,23 @@ def generate_art_prompt(
     Returns ``(art_prompt, input_tokens, output_tokens)``. The returned prompt is
     NOT yet Flux-sanitized — the caller applies :func:`_sanitize_for_flux`.
 
+    ``visual_refs`` is the appearance-reference block to inject. The caller
+    (:func:`generate_prompts_for_set`) computes it from the unified per-card
+    entity tags; when ``None`` it falls back to the legacy substring matcher
+    (:func:`get_visual_references`) so the old call shape / tests still work.
+
     The prompt is extracted defensively (:func:`_extract_art_prompt`) so a local
     model's malformed tool-call key (good value, corrupted key) doesn't drop the
     card. A genuinely unusable payload is retried at a bumped temperature (escaping
     a local repetition loop) up to :data:`_MAX_PROMPT_ATTEMPTS` times before raising.
     """
-    visual_refs = get_visual_references(
-        card.name,
-        card.type_line,
-        card.oracle_text,
-        card.flavor_text,
-    )
+    if visual_refs is None:
+        visual_refs = get_visual_references(
+            card.name,
+            card.type_line,
+            card.oracle_text,
+            card.flavor_text,
+        )
 
     user_message = build_art_prompt_user_message(
         card,
@@ -614,6 +623,24 @@ def generate_prompts_for_set(
     prompt_log_dir = set_dir / "art_prompts" / "prompt-logs"
     prompt_log_dir.mkdir(parents=True, exist_ok=True)
 
+    # Unified entity tagging: one LLM pass (or the cached sidecar) decides which
+    # style-guide entities each card features. Both the appearance-TEXT injection
+    # here and the reference-IMAGE attachment in char_portraits consume it, so the
+    # two no longer disagree (card 6a27581d). ``force`` (the tab's Refresh) re-runs
+    # detection while preserving manual per-card tag overrides.
+    from mtgai.runtime.active_project import require_active_project as _rap
+
+    _tag_settings = _rap().settings
+    tags_data, tags_cost = ensure_entity_tags(
+        set_dir,
+        [c.model_dump(mode="json") for c in all_cards],
+        get_refs(),
+        model_id=_tag_settings.get_llm_model_id("art_prompts"),
+        log_dir=log_dir,
+        thinking=_tag_settings.get_thinking("art_prompts"),
+        force=force,
+    )
+
     logger.info(
         "Generating art prompts for %d cards in %s (%d artists, cameo p=%.2f)",
         len(card_files),
@@ -654,12 +681,18 @@ def generate_prompts_for_set(
             if cameo:
                 cameos += 1
 
+            tag_keys = [
+                t["entity_key"] for t in effective_card_tags(tags_data, card.collector_number)
+            ]
+            visual_refs_text = get_visual_references_for_keys(tag_keys)
+
             full_prompt_raw, in_tok, out_tok = generate_art_prompt(
                 card,
                 artist_style=artist_style,
                 set_art_direction=set_art_direction,
                 setting_prose=setting_prose,
                 cameo=cameo,
+                visual_refs=visual_refs_text,
                 log_dir=log_dir,
             )
             full_prompt = _sanitize_for_flux(full_prompt_raw)
@@ -720,7 +753,11 @@ def generate_prompts_for_set(
             logger.error("ERROR on %s: %s", card.collector_number, e)
             errors.append({"card": card.collector_number, "error": str(e)})
 
-    est_cost = (total_input_tokens * 0.80 / 1_000_000) + (total_output_tokens * 4.0 / 1_000_000)
+    est_cost = (
+        (total_input_tokens * 0.80 / 1_000_000)
+        + (total_output_tokens * 4.0 / 1_000_000)
+        + tags_cost  # the unified entity-detection LLM pass (0.0 when the sidecar was reused)
+    )
 
     summary = {
         "set_code": set_code,
