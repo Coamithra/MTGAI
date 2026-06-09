@@ -209,8 +209,14 @@ def test_missing_tags_recovers_recurring_named_entity(monkeypatch, tmp_path, loa
         lambda *a, **k: (
             {
                 "cards": {
-                    "010": {"tags": [{"entity_key": "storm_knight"}]},
-                    "011": {"tags": [{"entity_key": "storm_knight"}]},
+                    "010": {
+                        "tags": [{"entity_key": "storm_knight", "kind": "character"}],
+                        "source": "ai",
+                    },
+                    "011": {
+                        "tags": [{"entity_key": "storm_knight", "kind": "character"}],
+                        "source": "ai",
+                    },
                 },
                 "entities_meta": {},
             },

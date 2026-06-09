@@ -753,7 +753,10 @@ def generate_prompts_for_set(
                 # fresh, inconsistent interpretation — exactly what the style guide
                 # exists to prevent. Recover via the word-boundary substring matcher
                 # (boundary-matched, not the raw-substring get_visual_references); the
-                # recurring-vs-single split below then runs unchanged.
+                # recurring-vs-single split below then runs unchanged. Recurrence is
+                # still judged from `_recurring_keys` (the tagger's pool) — a recovered
+                # entity that's recurring only via other missed cards routes to the
+                # appearance-prose path, which is the best available without a ref image.
                 card_tags = [
                     {"entity_key": e["key"], "kind": e["kind"]}
                     for e in get_named_entities(
