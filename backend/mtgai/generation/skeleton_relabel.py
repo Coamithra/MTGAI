@@ -397,6 +397,11 @@ def relabel_slots(
     best: dict[str, str] = {}
     responses: list[dict] = []
     last_error: Exception | None = None
+    # True iff the most recently streamed attempt IS the one we're keeping. When
+    # a later attempt parses fewer slots than an earlier one, the UI is left
+    # showing the discarded attempt's stream while `best` holds the earlier
+    # parse — so we re-emit `best` after the loop to converge the tab.
+    last_attempt_is_best = False
 
     for attempt in range(1, RELABEL_MAX_ATTEMPTS + 1):
         # Honor a Cancel between attempts (an in-flight stream can't be cleanly
@@ -461,6 +466,11 @@ def relabel_slots(
         )
         if len(by_id) > len(best):
             best = by_id
+            last_attempt_is_best = True
+        else:
+            # This attempt streamed to the UI but didn't beat the kept parse —
+            # the tab now shows it while `best` holds an earlier attempt.
+            last_attempt_is_best = False
         if len(slots) - len(best) <= tolerable:
             break  # complete enough — stop retrying
 
@@ -473,6 +483,16 @@ def relabel_slots(
             f"Relabel produced no usable output after {RELABEL_MAX_ATTEMPTS} attempts"
             + (f": {last_error}" if last_error is not None else "")
         ) from last_error
+
+    # If the kept attempt is NOT the one most recently streamed, the wizard tab
+    # is showing a discarded attempt's rows (a later, lower-coverage attempt
+    # reset the tab then streamed fewer slots). Re-emit `best` — one reset, then
+    # every kept slot — so the live tab converges to exactly what we persist
+    # below. Skipped in the common case (last attempt won) so there's no flicker.
+    if on_slot is not None and best and not last_attempt_is_best:
+        _fire_reset(on_reset)
+        for sid, desc in best.items():
+            _fire_slot(on_slot, sid, desc, None)
 
     missing = len(slots) - len(best)
     incomplete = missing > tolerable

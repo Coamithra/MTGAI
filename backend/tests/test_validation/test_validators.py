@@ -1030,6 +1030,46 @@ class TestRulesText:
         # Should NOT flag self-reference
         assert not any("card name" in e.message.lower() for e in errors)
 
+    def test_card_name_substring_not_flagged(self):
+        # Card "Frost" in a set with a "Frostbite N" mechanic must NOT trip the
+        # self-reference check on "Frostbite" (unanchored substring would).
+        card = _make_card(
+            name="Frost",
+            oracle_text="Frostbite 2 deals 2 damage to target creature.",
+        )
+        errors = _errors_by_validator(validate_card(card), "rules_text")
+        assert not any("card name" in e.message.lower() for e in errors)
+
+    def test_card_name_substring_not_rewritten(self):
+        # The fixer must leave "Frostbite" intact (no "~bite" corruption).
+        card = _make_card(
+            name="Frost",
+            oracle_text="Frostbite 2 deals 2 damage to target creature.",
+        )
+        fixed = auto_fix_card(card, validate_card(card)).card
+        assert fixed.oracle_text == "Frostbite 2 deals 2 damage to target creature."
+
+    def test_true_self_reference_still_fixed(self):
+        # A genuine whole-word self-reference is still flagged AND auto-fixed.
+        card = _make_card(
+            name="Frost",
+            oracle_text="Frost deals 2 damage to target creature.",
+        )
+        errors = _errors_by_validator(validate_card(card), "rules_text")
+        assert any(e.error_code == "rules_text.card_name_in_oracle" for e in errors)
+        fixed = auto_fix_card(card, validate_card(card)).card
+        assert fixed.oracle_text == "~ deals 2 damage to target creature."
+
+    def test_card_name_in_reminder_text_skipped(self):
+        # A name occurrence inside parenthesized reminder text is ignored,
+        # following the validators-skip-reminder-text contract.
+        card = _make_card(
+            name="Frost",
+            oracle_text="Deals 2 damage. (Frost is a chilling presence.)",
+        )
+        errors = _errors_by_validator(validate_card(card), "rules_text")
+        assert not any("card name" in e.message.lower() for e in errors)
+
     def test_this_creature_is_manual(self):
         card = _make_card(oracle_text="When this creature enters, draw a card.")
         errors = _errors_by_validator(validate_card(card), "rules_text")
