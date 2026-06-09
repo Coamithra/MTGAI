@@ -173,13 +173,20 @@ def select_best_version(
     prompt: str,
     image_paths: list[Path],
     model: str | None = None,
+    log_dir: Path | bool = True,
 ) -> dict:
     """Send images to Claude vision and get the best version pick.
 
     Returns dict with pick, confidence, reasoning, artifacts_found,
     plus token counts.
+
+    ``log_dir`` routes the llmfacade HTML/JSONL transcript: a ``Path`` writes it
+    flat into that dir, ``True`` falls back to llmfacade's session dirs, ``False``
+    disables it. ``select_art_for_set`` passes its ``art-selection-logs`` dir so the
+    judge transcript (named ``art_selection-*`` via :func:`_convo_name`, like the
+    ``generate_with_tool`` callers) sits beside the custom per-card JSON log.
     """
-    from mtgai.generation.llm_client import _get_provider, _make_tool
+    from mtgai.generation.llm_client import _convo_name, _get_provider, _make_tool
     from mtgai.runtime.active_project import require_active_project
 
     if model is None:
@@ -197,10 +204,11 @@ def select_best_version(
     provider = _get_provider("anthropic")
     facade_model = provider.new_model(model)
     convo = facade_model.new_conversation(
+        name=_convo_name(tool_schema),
         system_blocks=[SYSTEM_PROMPT],
         tools=[_make_tool(tool_schema)],
         tool_choice=tool_schema["name"],
-        log_dir=False,
+        log_dir=log_dir,
     )
     convo.add_user_message(
         content=_build_message_content(card_name, collector_number, colors, prompt, image_paths)
@@ -360,6 +368,7 @@ def select_art_for_set(
                 colors=card.colors or [],
                 prompt=card.art_prompt,
                 image_paths=versions,
+                log_dir=log_dir,
             )
 
             total_input_tokens += selection["input_tokens"]

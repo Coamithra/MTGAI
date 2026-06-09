@@ -286,6 +286,39 @@ class TestTransientRetry:
         assert any(i.category == "review_error" for i in result.final_issues)
 
 
+class TestTranscriptLogDir:
+    def test_review_call_forwards_log_dir(self, monkeypatch, tmp_path):
+        """The review/synth seam routes its transcript to the given log_dir.
+
+        Regression guard for the fix that threaded log_dir from review_set down to
+        generate_with_tool, so the heavy ai_review stage writes its llmfacade
+        transcripts into <asset>/ai_review/logs instead of backend/logs/.
+        """
+        seen = {}
+
+        def stub(**kwargs):
+            seen["log_dir"] = kwargs.get("log_dir")
+            return {
+                "result": {"verdict": "OK", "issues": [], "revised_card": None},
+                "input_tokens": 1,
+                "output_tokens": 1,
+                "model": "test-model",
+            }
+
+        monkeypatch.setattr(ai_review, "generate_with_tool", stub)
+        log_dir = tmp_path / "ai_review" / "logs"
+        ai_review._review_call(
+            user_prompt="judge this",
+            tool_schema=ai_review.JUDGE_TOOL_SCHEMA,
+            review_model="test-model",
+            review_effort=None,
+            review_thinking=None,
+            label="Judge 1",
+            log_dir=log_dir,
+        )
+        assert seen["log_dir"] == log_dir
+
+
 # ---------------------------------------------------------------------------
 # Reminder text must not survive a revision
 # ---------------------------------------------------------------------------

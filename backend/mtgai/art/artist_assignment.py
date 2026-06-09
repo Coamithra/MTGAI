@@ -5,12 +5,15 @@ art-prompt stage leans on, kept out of ``prompt_builder`` so they're unit-
 testable without the LLM/IO surface:
 
 * :func:`assign_artists` — distribute a card pool across the project's Artist
-  Directory (``art-direction/artists.json``). Policy: **grouped** — sort the
-  pool into a stable ``(rarity, colour, collector_number)`` order and hand each
-  artist a contiguous, near-equal slice, so an artist "owns" a coherent band of
-  the set (the way real sets cluster a painter on a colour/rarity slice) instead
-  of a random scatter. Deterministic (same pool + same directory → same map) so
-  a re-run / resume doesn't reshuffle credits, and reproducible in tests.
+  Directory (``art-direction/artists.json``). Policy: **round-robin** — sort the
+  pool into a stable ``(rarity, colour, collector_number)`` order then deal it
+  out one card at a time (card *i* → ``artists[i % N]``). Because the sort
+  clusters each rarity (and colour) into a contiguous run, dealing round-robin
+  spreads every rarity — especially the showcase mythics/rares — across all the
+  painters instead of letting the first artist's slice swallow the whole mythic
+  tier (the way a contiguous split did). Per-artist totals stay near-equal
+  (differ by ≤1). Deterministic (same pool + same directory → same map) so a
+  re-run / resume doesn't reshuffle credits, and reproducible in tests.
 
 * :class:`ArtPromptKnobs` + load/save — the tunable per-card **cameo
   probability** persisted to ``art-direction/art-prompt-knobs.json``. The
@@ -27,8 +30,9 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-# Rarity ordering for the grouped sort (mythic first → an artist owns a whole
-# rarity band before the next painter starts). Unknown rarities sort last.
+# Rarity ordering for the stable sort (mythic first). The sort only groups each
+# rarity into a contiguous run; the round-robin deal then fans that run out
+# across all artists. Unknown rarities sort last.
 _RARITY_RANK: dict[str, int] = {
     "mythic": 0,
     "rare": 1,
@@ -39,7 +43,7 @@ _RARITY_RANK: dict[str, int] = {
 }
 
 # Colour ordering inside a rarity band (WUBRG, then multicolour, then
-# colourless) so an artist's slice stays visually coherent.
+# colourless) so the deal walks the pool in a stable, predictable order.
 _COLOR_RANK: dict[str, int] = {"W": 0, "U": 1, "B": 2, "R": 3, "G": 4}
 
 KNOBS_FILENAME = "art-prompt-knobs.json"
@@ -105,16 +109,18 @@ def _sort_key(card: dict) -> tuple[int, int, str]:
 
 
 def assign_artists(cards: list[dict], artists: list[dict]) -> dict[str, str]:
-    """Map each card's collector number → an artist name (grouped policy).
+    """Map each card's collector number → an artist name (round-robin policy).
 
     ``cards`` are the cards to credit (the caller excludes lands/reprints).
     ``artists`` is the loaded directory (``[{name, style_prompt}, ...]``).
 
-    The pool is sorted into ``(rarity, colour, collector_number)`` order then cut
-    into ``len(artists)`` contiguous, near-equal slices — artist *i* owns slice
-    *i*. With the directory sized at ≥~10 cards/artist (the producer's job), each
-    artist gets a coherent rarity/colour band. Deterministic: identical inputs
-    yield an identical map, so a resume / re-run keeps credits stable.
+    The pool is sorted into ``(rarity, colour, collector_number)`` order then
+    dealt out round-robin — card *i* → ``artists[i % len(artists)]``. Since the
+    sort groups each rarity into a contiguous run, the deal fans that run across
+    all painters, so the showcase mythics/rares are split among several artists
+    rather than handed wholesale to the first one. Per-artist totals stay
+    near-equal (differ by ≤1). Deterministic: identical inputs yield an identical
+    map, so a resume / re-run keeps credits stable.
 
     Returns ``{}`` when there are no artists or no cards (the caller leaves
     ``card.artist`` at its default in that case).
@@ -122,22 +128,12 @@ def assign_artists(cards: list[dict], artists: list[dict]) -> dict[str, str]:
     if not artists or not cards:
         return {}
 
-    ordered = sorted(cards, key=_sort_key)
-    n = len(ordered)
+    # Drop cards with no collector number before dealing so a skipped card can't
+    # consume an artist's turn and skew the near-equal split.
+    ordered = sorted((c for c in cards if str(c.get("collector_number") or "")), key=_sort_key)
     a = len(artists)
 
     assignment: dict[str, str] = {}
-    # Contiguous near-equal split: the first ``n % a`` artists get one extra card
-    # so every card is assigned and slice sizes differ by at most one.
-    base, extra = divmod(n, a)
-    idx = 0
-    for ai, artist in enumerate(artists):
-        size = base + (1 if ai < extra else 0)
-        for _ in range(size):
-            if idx >= n:
-                break
-            cn = str(ordered[idx].get("collector_number") or "")
-            if cn:
-                assignment[cn] = artist["name"]
-            idx += 1
+    for i, card in enumerate(ordered):
+        assignment[str(card["collector_number"])] = artists[i % a]["name"]
     return assignment
