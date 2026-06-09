@@ -95,7 +95,13 @@
       const version = data.version;
       if (version == null) return;
       const tag = String(version);
-      const preview = '/api/wizard/set_symbol/image?file=' + encodeURIComponent('preview_v' + tag + '.png');
+      // Cache-buster: a Re-roll overwrites preview_v*.png in place, so without a
+      // fresh query param the browser serves the cached old glyph (matches the
+      // rendering tab's ?t=Date.now()). The /state payload uses the file mtime.
+      const preview =
+        '/api/wizard/set_symbol/image?file=' +
+        encodeURIComponent('preview_v' + tag + '.png') +
+        '&t=' + Date.now();
       const item = { tag, is_upload: false, preview_url: preview, raw_url: '', is_selected: false };
       W.streamUpsert(local.versions, item, (x) => x.tag);
       // The engine selects the first candidate by default; reflect that live.

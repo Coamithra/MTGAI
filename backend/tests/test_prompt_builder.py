@@ -174,6 +174,124 @@ def test_card_saved_callback_streams_each_card(monkeypatch, tmp_path, loaded_car
 
 
 # ---------------------------------------------------------------------------
+# Under-tagged card → substring fallback (card 6a27f2cf)
+# ---------------------------------------------------------------------------
+
+
+def _capture_prompt_kwargs(monkeypatch):
+    """Stub ``generate_art_prompt`` and return the list it records its kwargs into."""
+    calls: list[dict] = []
+
+    def _stub(_card, **kwargs):
+        calls.append(kwargs)
+        return ("P", 1, 1)
+
+    monkeypatch.setattr(pb, "generate_art_prompt", _stub)
+    return calls
+
+
+def test_missing_tags_recovers_recurring_named_entity(monkeypatch, tmp_path, loaded_card):
+    """Tagger missed the card, but a recurring entity appears on it → named (ref image)."""
+    set_dir = tmp_path / "set"
+    (set_dir / "cards").mkdir(parents=True)
+    (set_dir / "cards" / "001_test-bear.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(pb, "load_card", lambda _p: loaded_card)
+    monkeypatch.setattr(pb, "save_card", lambda card, set_dir=None: None)
+    calls = _capture_prompt_kwargs(monkeypatch)
+    _patch_stage_inputs(monkeypatch, set_dir)
+
+    # storm_knight is tagged on two OTHER cards → recurring (recurring_from_tags runs
+    # on this real tags_data), but the tagger left card 001 untagged.
+    monkeypatch.setattr(
+        pb,
+        "ensure_entity_tags",
+        lambda *a, **k: (
+            {
+                "cards": {
+                    "010": {
+                        "tags": [{"entity_key": "storm_knight", "kind": "character"}],
+                        "source": "ai",
+                    },
+                    "011": {
+                        "tags": [{"entity_key": "storm_knight", "kind": "character"}],
+                        "source": "ai",
+                    },
+                },
+                "entities_meta": {},
+            },
+            0.0,
+        ),
+    )
+    monkeypatch.setattr(pb, "effective_card_tags", lambda _data, _cn: [])
+    monkeypatch.setattr(
+        pb,
+        "get_named_entities",
+        lambda *a, **k: [{"key": "storm_knight", "name": "Storm Knight", "kind": "character"}],
+    )
+
+    pb.generate_prompts_for_set()
+
+    assert len(calls) == 1
+    named = calls[0]["named_entities"]
+    assert [e["key"] for e in named] == ["storm_knight"]
+
+
+def test_missing_tags_recovers_appearance_prose(monkeypatch, tmp_path, loaded_card):
+    """Tagger missed the card; recovered single-card entity → appearance prose, not named."""
+    set_dir = tmp_path / "set"
+    (set_dir / "cards").mkdir(parents=True)
+    (set_dir / "cards" / "001_test-bear.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(pb, "load_card", lambda _p: loaded_card)
+    monkeypatch.setattr(pb, "save_card", lambda card, set_dir=None: None)
+    calls = _capture_prompt_kwargs(monkeypatch)
+    _patch_stage_inputs(monkeypatch, set_dir)
+
+    # No recurring entities (tags_data has no cards) → recovered entity is single-card.
+    monkeypatch.setattr(pb, "effective_card_tags", lambda _data, _cn: [])
+    monkeypatch.setattr(
+        pb,
+        "get_named_entities",
+        lambda *a, **k: [{"key": "wild_woods", "name": "Wild Woods", "kind": "location"}],
+    )
+    monkeypatch.setattr(pb, "get_visual_references_for_keys", lambda keys: f"REFS:{','.join(keys)}")
+
+    pb.generate_prompts_for_set()
+
+    assert len(calls) == 1
+    assert calls[0]["named_entities"] == []
+    assert calls[0]["visual_refs"] == "REFS:wild_woods"
+
+
+def test_present_tags_skip_substring_fallback(monkeypatch, tmp_path, loaded_card):
+    """When the tagger DID tag the card, the substring matcher is never consulted."""
+    set_dir = tmp_path / "set"
+    (set_dir / "cards").mkdir(parents=True)
+    (set_dir / "cards" / "001_test-bear.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(pb, "load_card", lambda _p: loaded_card)
+    monkeypatch.setattr(pb, "save_card", lambda card, set_dir=None: None)
+    calls = _capture_prompt_kwargs(monkeypatch)
+    _patch_stage_inputs(monkeypatch, set_dir)
+
+    monkeypatch.setattr(
+        pb, "effective_card_tags", lambda _data, _cn: [{"entity_key": "ember", "kind": "faction"}]
+    )
+
+    def _boom(*a, **k):  # pragma: no cover - asserts non-invocation
+        raise AssertionError("get_named_entities must not run when tags are present")
+
+    monkeypatch.setattr(pb, "get_named_entities", _boom)
+
+    # The key assertion is that _boom never fires (no AssertionError raised).
+    pb.generate_prompts_for_set()
+
+    assert len(calls) == 1
+    assert calls[0]["named_entities"] == []  # ember not recurring here
+
+
+# ---------------------------------------------------------------------------
 # Artist assignment distribution
 # ---------------------------------------------------------------------------
 
