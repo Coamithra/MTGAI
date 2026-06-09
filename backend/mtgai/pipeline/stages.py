@@ -1327,13 +1327,14 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
         # share a name with another card (illegal in MTG — the dup-name scan is
         # the only stage that enforces name uniqueness, catching collisions a
         # regen pass can introduce). Both keep the lowest collector number per
-        # group. Findings are folded into the per-card conformance checklist
-        # below (each starts as an X), rather than shown as a separate section.
-        dup_findings, _dup_analysis = find_duplicates(cards)
-        # Bias the name scan to flag the regenerated card (not its carried-over
-        # twin) so the flag survives the recheck scoping below — otherwise a
-        # regen that took the lower collector number would keep the regen card
-        # and flag-then-drop the carried-over twin, shipping the collision.
+        # group by default. Findings are folded into the per-card conformance
+        # checklist below (each starts as an X), not shown as a separate section.
+        # On a recheck, bias both scans to flag the regenerated card (not its
+        # carried-over twin) so the flag survives the recheck scoping below —
+        # otherwise a regen that took the lower collector number would keep the
+        # regen card and flag-then-drop the carried-over twin, shipping the
+        # collision.
+        dup_findings, _dup_analysis = find_duplicates(cards, regenerating=recheck)
         name_findings, _name_analysis = find_duplicate_names(cards, regenerating=recheck)
         dup_by_slot: dict[str, str] = {}
         for f in [*dup_findings, *name_findings]:
