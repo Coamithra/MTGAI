@@ -232,26 +232,165 @@ def test_apply_character_refs_upload_failure_falls_back(tmp_path, monkeypatch):
     assert workflow["8"]["inputs"]["model"] == ["1", 0]  # unchanged
 
 
-def test_resolve_ref_paths_joins_relative(tmp_path):
-    ref = ArtCharacterRef(entity_key="hero", ref_image_path="art-direction/x.png")
-    card = Card(name="Hero", type_line="Legendary Creature", art_character_refs=[ref])
-    resolved = ig._resolve_ref_paths(card, tmp_path)
-    assert resolved == [str(tmp_path / "art-direction" / "x.png")]
+# ---------------------------------------------------------------------------
+# Labeled reference resolution + hosted interleaving (entity->face binding)
+# ---------------------------------------------------------------------------
 
 
-def test_resolve_ref_paths_keeps_absolute(tmp_path):
+def test_resolve_labeled_refs_derives_name_from_key(tmp_path):
+    card = Card(
+        name="Vorrik at the Spire",
+        type_line="Legendary Creature",
+        art_character_refs=[
+            ArtCharacterRef(entity_key="storm_knight", ref_image_path="art-direction/sk.png"),
+            ArtCharacterRef(entity_key="the_spire", ref_image_path="art-direction/sp.png"),
+        ],
+    )
+    paths, labels = ig._resolve_labeled_refs(card, tmp_path)
+    assert paths == [
+        str(tmp_path / "art-direction" / "sk.png"),
+        str(tmp_path / "art-direction" / "sp.png"),
+    ]
+    # Labels are entity_display_name(key) — the SAME derivation art_prompts uses,
+    # so the prompt's name token and the ref label match.
+    assert labels == ["Storm Knight", "The Spire"]
+
+
+def test_resolve_labeled_refs_keeps_absolute_path(tmp_path):
     abs_path = str(tmp_path / "abs.png")
     card = Card(
         name="Hero",
         type_line="Creature",
         art_character_refs=[ArtCharacterRef(entity_key="hero", ref_image_path=abs_path)],
     )
-    assert ig._resolve_ref_paths(card, tmp_path / "other") == [abs_path]
+    paths, labels = ig._resolve_labeled_refs(card, tmp_path / "other")
+    assert paths == [abs_path]
+    assert labels == ["Hero"]
 
 
-def test_resolve_ref_paths_empty_for_no_refs(tmp_path):
-    card = Card(name="Plain", type_line="Creature")
-    assert ig._resolve_ref_paths(card, tmp_path) == []
+def test_resolve_labeled_refs_empty_for_no_refs(tmp_path):
+    assert ig._resolve_labeled_refs(Card(name="Plain", type_line="Creature"), tmp_path) == ([], [])
+
+
+class _FakeImageResult:
+    def __init__(self):
+        self.images = [type("B", (), {"data": b"img", "media_type": "image/png"})()]
+        self.usage = None
+        self.model = "hosted-model"
+
+
+def _wire_hosted(monkeypatch, tmp_path):
+    """Stub llmfacade's LLM + ImageBlock so generate_image_hosted runs offline.
+
+    Returns ``captured`` (the kwargs the fake generate_image saw) + two real ref
+    files on disk (the path-exists filter is real).
+    """
+    import llmfacade
+    import llmfacade.models as lfm
+
+    p1 = tmp_path / "a.png"
+    p1.write_bytes(b"x")
+    p2 = tmp_path / "b.png"
+    p2.write_bytes(b"y")
+
+    monkeypatch.setattr(lfm.ImageBlock, "from_path", staticmethod(lambda p: f"IMG:{p}"))
+
+    captured: dict = {}
+
+    class _LLM:
+        @classmethod
+        def default(cls):
+            return cls()
+
+        def generate_image(self, prompt, **kw):
+            captured["prompt"] = prompt
+            captured.update(kw)
+            return _FakeImageResult()
+
+    monkeypatch.setattr(llmfacade, "LLM", _LLM)
+    return captured, str(p1), str(p2)
+
+
+def test_generate_image_hosted_unlabeled_keeps_flat_list(monkeypatch, tmp_path):
+    """No labels -> a plain ImageBlock list (back-compat wire shape)."""
+    captured, p1, p2 = _wire_hosted(monkeypatch, tmp_path)
+    _, meta = ig.generate_image_hosted("draw a scene", "gemini", ref_paths=[p1, p2])
+    assert captured["reference_images"] == [f"IMG:{p1}", f"IMG:{p2}"]
+    assert meta["character_refs_applied"] is True
+
+
+def test_generate_image_hosted_builds_labeled_images(monkeypatch, tmp_path):
+    """Labels present -> each ref becomes a LabeledImage carrying the entity name."""
+    llmfacade = pytest.importorskip("llmfacade")
+    if not hasattr(llmfacade, "LabeledImage"):
+        pytest.skip("LLMFacade labeled-reference-images dependency not landed yet")
+    from llmfacade import LabeledImage
+
+    captured, p1, p2 = _wire_hosted(monkeypatch, tmp_path)
+    _, meta = ig.generate_image_hosted(
+        "Storm Knight raises her blade before The Spire",
+        "gemini",
+        ref_paths=[p1, p2],
+        ref_labels=["Storm Knight", "The Spire"],
+    )
+    refs = captured["reference_images"]
+    assert all(isinstance(r, LabeledImage) for r in refs)
+    assert [r.label for r in refs] == ["Storm Knight", "The Spire"]
+    assert [r.image for r in refs] == [f"IMG:{p1}", f"IMG:{p2}"]
+    assert meta["character_refs_applied"] is True
+
+
+def test_generate_image_hosted_missing_ref_dropped(monkeypatch, tmp_path):
+    """A ref whose file doesn't exist is filtered out before labeling."""
+    llmfacade = pytest.importorskip("llmfacade")
+    if not hasattr(llmfacade, "LabeledImage"):
+        pytest.skip("LLMFacade labeled-reference-images dependency not landed yet")
+    from llmfacade import LabeledImage
+
+    captured, p1, _p2 = _wire_hosted(monkeypatch, tmp_path)
+    missing = str(tmp_path / "gone.png")
+    ig.generate_image_hosted(
+        "scene",
+        "gemini",
+        ref_paths=[p1, missing],
+        ref_labels=["Storm Knight", "Ghost"],
+    )
+    refs = captured["reference_images"]
+    assert len(refs) == 1
+    assert isinstance(refs[0], LabeledImage)
+    assert refs[0].label == "Storm Knight"
+
+
+def test_generate_image_hosted_mixed_labeled_and_unlabeled(monkeypatch, tmp_path):
+    """A batch where one ref has a label and another doesn't -> the labeled ref is
+    a LabeledImage, the unlabeled (empty-string label) ref a bare ImageBlock."""
+    llmfacade = pytest.importorskip("llmfacade")
+    if not hasattr(llmfacade, "LabeledImage"):
+        pytest.skip("LLMFacade labeled-reference-images dependency not landed yet")
+    from llmfacade import LabeledImage
+
+    captured, p1, p2 = _wire_hosted(monkeypatch, tmp_path)
+    ig.generate_image_hosted("scene", "gemini", ref_paths=[p1, p2], ref_labels=["Storm Knight", ""])
+    refs = captured["reference_images"]
+    assert isinstance(refs[0], LabeledImage)
+    assert refs[0].label == "Storm Knight"
+    assert refs[1] == f"IMG:{p2}"  # empty label -> bare ImageBlock
+
+
+def test_generate_image_hosted_labels_shorter_than_paths(monkeypatch, tmp_path):
+    """A ref_labels list shorter than ref_paths must not IndexError — the
+    unmatched tail refs degrade to bare ImageBlocks (the i < len guard)."""
+    llmfacade = pytest.importorskip("llmfacade")
+    if not hasattr(llmfacade, "LabeledImage"):
+        pytest.skip("LLMFacade labeled-reference-images dependency not landed yet")
+    from llmfacade import LabeledImage
+
+    captured, p1, p2 = _wire_hosted(monkeypatch, tmp_path)
+    ig.generate_image_hosted("scene", "gemini", ref_paths=[p1, p2], ref_labels=["Storm Knight"])
+    refs = captured["reference_images"]
+    assert isinstance(refs[0], LabeledImage)
+    assert refs[0].label == "Storm Knight"
+    assert refs[1] == f"IMG:{p2}"  # no label at this index -> bare ImageBlock
 
 
 # ---------------------------------------------------------------------------
@@ -318,8 +457,21 @@ def test_substitute_entity_name_swaps_name_for_appearance(monkeypatch):
     assert out == "a towering blue-and-red robot raising a fist"
 
 
+def test_substitute_entity_name_matches_display_name_of_slug(monkeypatch):
+    """The integration case: the prompt carries the DISPLAY name ("Storm Knight")
+    that get_named_entities emits, while the ref's entity_key is the slug
+    ("storm_knight"). The substitution must match the display form (a raw-slug-only
+    match would miss it and leave the unrenderable name in the Flux prompt)."""
+    monkeypatch.setattr(
+        "mtgai.art.visual_reference.get_character_appearance",
+        lambda k: "a knight wreathed in blue lightning",
+    )
+    out = ig._substitute_entity_name("Storm Knight raises her blade", "storm_knight")
+    assert out == "a knight wreathed in blue lightning raises her blade"
+
+
 def test_substitute_entity_name_noop_when_name_absent(monkeypatch):
-    """Today's prompts are already appearance-based (no name present) -> unchanged."""
+    """No form of this entity's name is in the prompt -> unchanged."""
     monkeypatch.setattr(
         "mtgai.art.visual_reference.get_character_appearance", lambda k: "a tall man"
     )
@@ -769,7 +921,7 @@ def _wire_art_loop(monkeypatch, tmp_path, n_cards: int):
     monkeypatch.setattr(ig, "load_card", lambda p: _StubCard(p.stem.split("_")[0]))
     monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 1)
     monkeypatch.setattr(ig, "_resolve_image_model", lambda: None)  # provider == comfyui
-    monkeypatch.setattr(ig, "_resolve_ref_paths", lambda card, set_dir: [])
+    monkeypatch.setattr(ig, "_resolve_labeled_refs", lambda card, set_dir: ([], []))
     monkeypatch.setattr(ig, "ensure_comfyui", lambda log_dir=None: "proc0")
     monkeypatch.setattr(ig, "kill_comfyui", lambda proc=None: None)
     monkeypatch.setattr(ig, "generate_image", lambda *a, **k: (b"img", {"elapsed_seconds": 1.0}))
@@ -806,3 +958,68 @@ def test_art_loop_recycle_disabled_when_zero(monkeypatch, tmp_path):
     ig.generate_art_for_set()
 
     assert recycles == []
+
+
+# ---------------------------------------------------------------------------
+# Resume cleans crash-orphans (no K+N versions)
+# ---------------------------------------------------------------------------
+
+
+def test_art_loop_resume_deletes_crash_orphans(monkeypatch, tmp_path):
+    """A card never recorded ``completed`` (mid-card crash) has its stale
+    ``*_v*.png`` + log sidecars deleted and regenerated as exactly N clean
+    v1..vN versions — not appended after the K orphans (the K+N bug)."""
+    set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=1)
+    monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 3)
+
+    art_dir = set_dir / "art"
+    log_dir = set_dir / "art-generation-logs"
+    art_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    slug = ig.card_slug("001", _StubCard("001").name)
+    # Crash-orphans from a prior, larger run (v1..v4) + their sidecars; NO
+    # progress.json entry for the card. v4 sits above the N=3 we regenerate, so
+    # it proves the delete sweeps both the PNG and the sidecar (a v1..v3-only
+    # regen would otherwise just overwrite v1..v3 and leave v4 behind).
+    for v in (1, 2, 3, 4):
+        (art_dir / f"{slug}_v{v}.png").write_bytes(b"orphan")
+        (log_dir / f"001_v{v}.json").write_text("{}", encoding="utf-8")
+
+    fresh = []
+    monkeypatch.setattr(
+        ig,
+        "generate_image",
+        lambda *a, **k: (fresh.append(1) or b"fresh", {"elapsed_seconds": 1.0}),
+    )
+
+    summary = ig.generate_art_for_set()
+
+    pngs = sorted(p.name for p in art_dir.glob(f"{slug}_v*.png"))
+    assert pngs == [f"{slug}_v1.png", f"{slug}_v2.png", f"{slug}_v3.png"]  # exactly N, v4 swept
+    assert all((art_dir / p).read_bytes() == b"fresh" for p in pngs)  # orphans gone
+    sidecars = sorted(p.name for p in log_dir.glob("001_v*.json"))
+    assert sidecars == ["001_v1.json", "001_v2.json", "001_v3.json"]  # stale v4 sidecar deleted
+    assert len(fresh) == 3  # only N images generated this run
+    assert summary["generated"] == 1
+
+
+def test_art_loop_force_preserves_higher_user_version(monkeypatch, tmp_path):
+    """``force`` overwrites v1..vN in place but does NOT delete a higher-numbered
+    version. The orphan sweep is scoped to the crash-resume path; a user upload
+    (v(N+1), source="user") only attaches to a completed card, which that path
+    never reaches, so force leaving it intact keeps the saved pick valid."""
+    set_dir = _wire_art_loop(monkeypatch, tmp_path, n_cards=1)
+    monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 2)
+
+    art_dir = set_dir / "art"
+    art_dir.mkdir(parents=True, exist_ok=True)
+    slug = ig.card_slug("001", _StubCard("001").name)
+    for v in (1, 2):
+        (art_dir / f"{slug}_v{v}.png").write_bytes(b"old")
+    (art_dir / f"{slug}_v3.png").write_bytes(b"user-upload")  # the manual override
+
+    ig.generate_art_for_set(force=True)
+
+    assert (art_dir / f"{slug}_v1.png").read_bytes() == b"img"  # regenerated
+    assert (art_dir / f"{slug}_v2.png").read_bytes() == b"img"
+    assert (art_dir / f"{slug}_v3.png").read_bytes() == b"user-upload"  # preserved

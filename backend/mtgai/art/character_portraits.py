@@ -1,13 +1,16 @@
 """Character / location reference-image generator (the ``char_portraits`` stage).
 
 Reworked from the old always-on, ASD-hardcoded portrait stage into a *targeted*
-reference-image stage (card 6a20aa84). It runs AFTER ``art_prompts`` (it reads
-each card's ``art_prompt``) and does three things:
+reference-image stage (card 6a20aa84). It runs AFTER ``art_prompts`` (it reuses
+the entity-tags sidecar that stage produced) and does three things:
 
-1. **Detect recurring entities** — an LLM scans the finished card pool (names,
-   type lines, oracle/flavor text, and the art prompts) and returns the named
-   characters / locations / elements that appear on MORE THAN ONE card. A
-   one-card entity gets no reference (nothing to be consistent with).
+1. **Detect recurring entities** — the recurring (2+ card) entities are derived
+   from the unified per-card entity tags (``art-direction/entity-tags.json``,
+   produced by the ``art_prompts`` stage via :mod:`mtgai.art.entity_tags`), so
+   the appearance-TEXT path and this reference-IMAGE path agree on what each card
+   features (card 6a27581d). When the sidecar is absent (a standalone / out-of-
+   order run) the detection pass runs here as a fallback. A one-card entity gets
+   no reference (nothing to be consistent with).
 
 2. **Generate a NEUTRAL reference image per entity** — a plain canonical
    identity/appearance depiction ("what this person / place / thing looks
@@ -41,14 +44,13 @@ from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 
 from mtgai.art.image_generator import (
+    COMFYUI_RECYCLE_EVERY,
     ensure_comfyui,
     generate_image_comfyui,
     is_comfyui_running,
     kill_comfyui,
+    recycle_comfyui,
 )
-from mtgai.generation import temperatures as temps
-from mtgai.generation.llm_client import cost_from_result, generate_with_tool
-from mtgai.generation.token_budgets import STANDARD
 from mtgai.io.atomic import atomic_write_text
 
 logger = logging.getLogger(__name__)
@@ -81,202 +83,6 @@ def _slugify(name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Step 1 — recurring-entity detection (LLM)
-# ---------------------------------------------------------------------------
-
-
-def _card_summary_line(card: dict) -> str:
-    """One compact line per card for the detection prompt: the fields an entity
-    name surfaces in (name / type / oracle / flavor) plus the art prompt."""
-    cn = str(card.get("collector_number") or "?")
-    name = str(card.get("name") or "")
-    type_line = str(card.get("type_line") or "")
-    oracle = str(card.get("oracle_text") or "").replace("\n", " ")
-    flavor = str(card.get("flavor_text") or "").replace("\n", " ")
-    art_prompt = str(card.get("art_prompt") or "").replace("\n", " ")
-    parts = [f"[{cn}] {name} — {type_line}"]
-    if oracle:
-        parts.append(f"text: {oracle}")
-    if flavor:
-        parts.append(f"flavor: {flavor}")
-    if art_prompt:
-        parts.append(f"art: {art_prompt}")
-    return " | ".join(parts)
-
-
-def _build_detection_tool_schema() -> dict:
-    return {
-        "name": "report_recurring_entities",
-        "description": (
-            "Report named characters, locations, and other concrete visual entities "
-            "that appear on MORE THAN ONE card in the set."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "entities": {
-                    "type": "array",
-                    "description": (
-                        "One entry per recurring entity (appears on 2+ cards). Omit "
-                        "entities that appear on only a single card."
-                    ),
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "entity_key": {
-                                "type": "string",
-                                "description": (
-                                    "Lowercase snake_case slug identifying the entity "
-                                    "(e.g. 'storm_knight', 'the_drowned_spire'). Prefer "
-                                    "the slug from the art-direction dictionary when the "
-                                    "entity matches one of its keys."
-                                ),
-                            },
-                            "name": {
-                                "type": "string",
-                                "description": "Human-readable display name.",
-                            },
-                            "kind": {
-                                "type": "string",
-                                "description": (
-                                    "What kind of entity: 'character', 'location', "
-                                    "'faction', 'creature', or 'element'."
-                                ),
-                            },
-                            "cards": {
-                                "type": "array",
-                                "description": (
-                                    "Collector numbers of the cards this entity appears "
-                                    "on (the bracketed [..] ids from the card list)."
-                                ),
-                                "items": {"type": "string"},
-                            },
-                            "note": {
-                                "type": "string",
-                                "description": "Optional one-line note on what it is.",
-                            },
-                        },
-                        "required": ["entity_key", "name", "kind", "cards"],
-                    },
-                }
-            },
-            "required": ["entities"],
-        },
-    }
-
-
-def _build_detection_prompt(cards: list[dict], visual_refs: dict) -> tuple[str, str, str]:
-    """Return (system, context_block, user) for the recurring-entity detection.
-
-    The static persona + output spec ride in system block #1; the art-direction
-    dictionary keys ride in a cached system block #2 (so the model prefers the
-    canonical slugs); the per-run card list is the user turn. Caching no-ops on
-    llamacpp (the blocks flatten to one joined system string).
-    """
-    system = (
-        "You are a Magic: The Gathering set continuity editor. You scan a whole "
-        "card set and identify the named characters, locations, factions, and other "
-        "concrete visual entities that RECUR across the set — i.e. appear on MORE "
-        "THAN ONE card (by name, in the art prompt, or unmistakably referenced).\n\n"
-        "Only report an entity if it appears on 2+ cards: a one-card entity needs no "
-        "shared reference. Report BOTH characters AND locations (and recurring "
-        "creatures / factions / distinctive objects) — not just humanoid characters. "
-        "Use the art-direction dictionary's existing slug as the entity_key whenever "
-        "the entity matches one of its keys, so the reference links back to the "
-        "dictionary's appearance prose. List the collector numbers each entity "
-        "appears on. Return your findings through the report_recurring_entities tool."
-    )
-
-    dict_keys: list[str] = []
-    for category in _REF_CATEGORIES:
-        sub = visual_refs.get(category, {})
-        if isinstance(sub, dict):
-            dict_keys.extend(f"- {key} ({category})" for key in sub)
-    keys_block = "\n".join(dict_keys) if dict_keys else "(the dictionary is empty)"
-    context_block = (
-        "## Art-direction dictionary keys\n"
-        "These are the known entities with appearance prose. Prefer these slugs as "
-        "entity_key when an entity matches one:\n"
-        f"{keys_block}"
-    )
-
-    card_lines = "\n".join(_card_summary_line(c) for c in cards) or "(no cards)"
-    user = (
-        f"# Card pool ({len(cards)} cards)\n"
-        "Each line: [collector_number] name — type | text | flavor | art.\n\n"
-        f"{card_lines}\n\n"
-        "Identify every entity that recurs across 2+ of these cards and report it."
-    )
-    return system, context_block, user
-
-
-def detect_recurring_entities(
-    cards: list[dict],
-    visual_refs: dict,
-    *,
-    model_id: str,
-    log_dir: Path | None = None,
-    thinking: str | None = None,
-) -> tuple[list[dict], float]:
-    """LLM-detect entities that appear on more than one card.
-
-    Returns ``(entities, cost_usd)`` where each entity is
-    ``{entity_key, name, kind, cards: [collector_number], note}`` and only
-    multi-card entities are kept (the model is asked for 2+ but we enforce it
-    here too, so a stray single-card hit can't slip a useless reference through).
-    """
-    if not cards:
-        return [], 0.0
-
-    system, context_block, user = _build_detection_prompt(cards, visual_refs)
-    response = generate_with_tool(
-        system_blocks=[(system, True), (context_block, True)],
-        user_prompt=user,
-        tool_schema=_build_detection_tool_schema(),
-        model=model_id,
-        thinking=thinking,
-        # Floored off the near-greedy base for a local reasoning model so the
-        # whole-pool entity scan terminates instead of looping (see
-        # temperatures.floor_for_local).
-        temperature=temps.floor_for_local(temps.ANALYTICAL, model_id),
-        max_tokens=STANDARD,
-        log_dir=log_dir,
-    )
-    cost = cost_from_result(response)
-    raw = response.get("result", {}).get("entities", []) or []
-
-    valid_cards = {str(c.get("collector_number") or "") for c in cards}
-    entities: list[dict] = []
-    seen_keys: set[str] = set()
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
-        key = _slugify(str(item.get("entity_key") or item.get("name") or ""))
-        if not key or key in seen_keys:
-            continue
-        # Keep only collector numbers that actually exist in the pool, deduped.
-        cns = [
-            cn
-            for cn in dict.fromkeys(str(c) for c in (item.get("cards") or []))
-            if cn in valid_cards
-        ]
-        # Enforce the >1-card rule regardless of what the model returned.
-        if len(cns) < 2:
-            continue
-        seen_keys.add(key)
-        entities.append(
-            {
-                "entity_key": key,
-                "name": str(item.get("name") or key.replace("_", " ").title()),
-                "kind": str(item.get("kind") or "entity"),
-                "cards": cns,
-                "note": str(item.get("note") or ""),
-            }
-        )
-    return entities, cost
-
-
-# ---------------------------------------------------------------------------
 # Step 2 — neutral reference-image prompt
 # ---------------------------------------------------------------------------
 
@@ -284,16 +90,23 @@ def detect_recurring_entities(
 def _appearance_for_entity(entity: dict, visual_refs: dict) -> str:
     """Pull the entity's appearance prose from the art-direction dictionary.
 
-    Looks the ``entity_key`` up across the keyed sub-dicts; falls back to the
-    entity's own note when the dictionary has no entry (a recurring entity the
-    LLM found that isn't yet in the dictionary). No ASD-hardcoded descriptions —
-    the appearance always comes from the per-project dictionary or the note.
+    Looks the ``entity_key`` up across the keyed sub-dicts (matched on the
+    normalized slug, so a ``the_spire`` key resolves a ``the spire`` dictionary
+    entry); falls back to the entity's own note when the dictionary has no entry.
+    No ASD-hardcoded descriptions — the appearance always comes from the
+    per-project dictionary or the note.
     """
-    key = entity.get("entity_key", "")
+    from mtgai.art.visual_reference import normalize_entity_key
+
+    key = normalize_entity_key(str(entity.get("entity_key", "")))
     for category in _REF_CATEGORIES:
         sub = visual_refs.get(category, {})
-        if isinstance(sub, dict) and key in sub:
-            desc = str(sub[key])
+        if not isinstance(sub, dict):
+            continue
+        for dict_key, dict_desc in sub.items():
+            if normalize_entity_key(str(dict_key)) != key:
+                continue
+            desc = str(dict_desc)
             # Strip a leading "Name:" prefix the dictionary prose often carries.
             if ":" in desc:
                 desc = desc.split(":", 1)[1].strip()
@@ -494,14 +307,22 @@ def generate_character_refs(
     model_id = project.settings.get_llm_model_id("char_portraits")
     thinking = project.settings.get_thinking("char_portraits")
 
-    # Step 1 — detect recurring entities. The tok/s poller (if any) wraps ONLY
-    # this LLM call — never the ComfyUI image phase below, where polling would
-    # reload the unloaded LLM and contend with Flux (card 6a25497b).
-    logger.info("Detecting recurring entities across %d cards...", len(cards))
+    # Step 1 — recurring (2+ card) entities, derived from the unified per-card
+    # entity tags (``art-direction/entity-tags.json``) the art_prompts stage
+    # produced — the SAME source the appearance-TEXT path reads, so the two agree.
+    # ``ensure_entity_tags`` reuses that sidecar with no LLM call; only when it's
+    # absent (a standalone / out-of-order run) does detection run here. The tok/s
+    # poller wraps that fallback LLM call only — never the ComfyUI image phase
+    # below, where polling would reload the unloaded LLM and contend with Flux
+    # (card 6a25497b).
+    from mtgai.art.entity_tags import ensure_entity_tags, recurring_from_tags
+
+    logger.info("Resolving recurring entities across %d cards...", len(cards))
     with detect_poller or nullcontext():
-        entities, cost = detect_recurring_entities(
-            cards, visual_refs, model_id=model_id, log_dir=log_dir, thinking=thinking
+        tags_data, cost = ensure_entity_tags(
+            set_dir, cards, visual_refs, model_id=model_id, log_dir=log_dir, thinking=thinking
         )
+    entities = recurring_from_tags(tags_data)
     logger.info("Found %d recurring entities", len(entities))
     for e in entities:
         logger.info("  %s (%s) on %d cards", e["name"], e["kind"], len(e["cards"]))
@@ -541,10 +362,17 @@ def generate_character_refs(
     cancelled = False
     # entity_key -> chosen reference image (the first available, repo-relative).
     ref_paths: dict[str, str] = {}
+    # Flux images generated since the last ComfyUI restart — drives the periodic
+    # recycle that bounds native-CUDA/VRAM accumulation (the per-image
+    # flush_comfyui in generate_image_comfyui keeps models resident and can't
+    # recover it). Same mitigation as generate_art_for_set. See
+    # COMFYUI_RECYCLE_EVERY.
+    images_since_recycle = 0
+    recycle_enabled = COMFYUI_RECYCLE_EVERY > 0
 
     comfyui_proc = ensure_comfyui(log_dir=log_dir)
     try:
-        for entity in entities:
+        for entity_idx, entity in enumerate(entities):
             if should_cancel is not None and should_cancel():
                 cancelled = True
                 break
@@ -574,6 +402,9 @@ def generate_character_refs(
                     comfyui_proc = ensure_comfyui(log_dir=log_dir)
 
                 logger.info("GENERATE %s v%d...", entity["name"], version)
+                # Count every Flux attempt that ran (saved or failed) — each one
+                # loaded the GPU and contributes to the accumulation.
+                images_since_recycle += 1
                 try:
                     image_data, metadata = generate_image_comfyui(
                         prompt=prompt, width=REF_WIDTH, height=REF_HEIGHT
@@ -600,6 +431,20 @@ def generate_character_refs(
                     errors.append({"entity": key, "version": version, "error": str(e)})
             if cancelled:
                 break
+
+            # Bound VRAM accumulation: every COMFYUI_RECYCLE_EVERY GPU generations,
+            # restart ComfyUI so the OS reclaims all GPU memory. Recycle at the
+            # entity boundary (never mid-entity) so an entity's versions stay on one
+            # session, and skip it on the last entity (a restart right before the
+            # finally-kill is pointless).
+            is_last_entity = entity_idx == len(entities) - 1
+            if (
+                recycle_enabled
+                and not is_last_entity
+                and images_since_recycle >= COMFYUI_RECYCLE_EVERY
+            ):
+                comfyui_proc = recycle_comfyui(comfyui_proc, log_dir=log_dir)
+                images_since_recycle = 0
     finally:
         kill_comfyui(comfyui_proc)
 

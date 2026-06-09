@@ -39,8 +39,9 @@
 
   const local = {
     initialized: false,
-    cards: [],        // [{name, collector_number, type_line, rarity, colors, artist, art_prompt, card_faces}]
+    cards: [],        // [{name, collector_number, type_line, rarity, colors, artist, art_prompt, card_faces, cameo, entity_tags}]
     artists: [],      // directory artist names (for the reassign dropdown)
+    entityCatalog: [], // [{entity_key, kind, name}] dictionary entities for the add-tag picker
     cameoProbability: 0.25,
     hasContent: false,
     prompted: 0,
@@ -71,6 +72,12 @@
     art_prompt_card(data, root) {
       const card = data.card;
       if (!card || !card.collector_number) return;
+      // Streamed tiles omit entity_tags; carry over what we already have so the
+      // chips don't blank out for the whole run (they're filled on /state).
+      if (card.entity_tags === undefined) {
+        const prev = local.cards.find((c) => c.collector_number === card.collector_number);
+        if (prev && prev.entity_tags) card.entity_tags = prev.entity_tags;
+      }
       W.streamUpsert(local.cards, card, (c) => c.collector_number);
       local.hasContent = true;
       local.prompted = local.cards.filter((c) => c.art_prompt).length;
@@ -141,6 +148,7 @@
     if (data) {
       local.cards = Array.isArray(data.cards) ? data.cards : [];
       local.artists = Array.isArray(data.artists) ? data.artists : [];
+      local.entityCatalog = Array.isArray(data.entity_catalog) ? data.entity_catalog : [];
       local.cameoProbability =
         typeof data.cameo_probability === 'number' ? data.cameo_probability : local.cameoProbability;
       local.prompted = data.prompted || local.cards.filter((c) => c.art_prompt).length;
@@ -302,6 +310,47 @@
     setLocked(local.locked); // freshly-painted controls inherit the lock state
   }
 
+  // ── Entity tags (the unified source: what each card features) ─────────────
+
+  function entityName(key) {
+    const hit = local.entityCatalog.find((e) => e.entity_key === key);
+    if (hit && hit.name) return hit.name;
+    return String(key || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  function tagChipsHtml(card, isPast) {
+    const tags = Array.isArray(card.entity_tags) ? card.entity_tags : [];
+    const chips = tags
+      .map((t) => {
+        const key = t.entity_key || '';
+        const kind = t.kind || 'entity';
+        const remove = isPast
+          ? ''
+          : `<button type="button" class="wiz-ap-chip-x" data-role="ap-tag-remove" data-key="${escAttr(key)}" title="Remove tag" aria-label="Remove ${escAttr(entityName(key))}">×</button>`;
+        return `<span class="wiz-ap-chip" data-key="${escAttr(key)}">${escHtml(entityName(key))}<span class="wiz-ap-chip-kind">${escHtml(kind)}</span>${remove}</span>`;
+      })
+      .join('');
+
+    // The add-picker offers catalog entities not already tagged on this card.
+    const tagged = new Set(tags.map((t) => t.entity_key));
+    const addOpts = local.entityCatalog
+      .filter((e) => !tagged.has(e.entity_key))
+      .map(
+        (e) =>
+          `<option value="${escAttr(e.entity_key)}">${escHtml(e.name || e.entity_key)} (${escHtml(e.kind)})</option>`
+      )
+      .join('');
+    const adder =
+      isPast || !addOpts
+        ? ''
+        : `<select class="wiz-ap-tag-add" data-role="ap-tag-add" title="Add an entity this card features">
+             <option value="">+ tag…</option>${addOpts}
+           </select>`;
+
+    const empty = tags.length || adder ? '' : '<span class="wiz-ap-chips-empty">no entities tagged</span>';
+    return `<div class="wiz-ap-chips" data-role="ap-chips"><span class="wiz-ap-chips-label">Refs</span>${chips}${empty}${adder}</div>`;
+  }
+
   function artistOptions(selected) {
     const names = local.artists.slice();
     if (selected && !names.includes(selected)) names.unshift(selected);
@@ -324,6 +373,16 @@
             .map((c) => `<span class="wiz-ap-pip wiz-ap-pip-${escAttr(c)}">${escHtml(c)}</span>`)
             .join('')
         : '<span class="wiz-ap-pip wiz-ap-pip-C">C</span>';
+
+    const cameo = card.cameo;
+    const cameoHtml =
+      cameo && (cameo.key || cameo.description)
+        ? `<div class="wiz-ap-cameo" title="${escAttr(cameo.description || '')}">` +
+          `<span class="wiz-ap-cameo-tag">🎭 Cameo</span>` +
+          `<span class="wiz-ap-cameo-name">${escHtml(cameo.key || cameo.kind || 'style-guide entity')}</span>` +
+          (cameo.kind ? `<span class="wiz-ap-cameo-kind">${escHtml(cameo.kind)}</span>` : '') +
+          `</div>`
+        : '';
 
     const artistControl = local.artists.length
       ? `<select class="wiz-ap-artist-select" data-role="ap-artist" ${isPast ? 'disabled' : ''}>
@@ -353,6 +412,8 @@
           ${W.rarityPill ? W.rarityPill(card.rarity) : ''}
           <span class="wiz-ap-type">${escHtml(card.type_line || '')}</span>
         </div>
+        ${cameoHtml}
+        ${tagChipsHtml(card, isPast)}
         <div class="wiz-ap-artist-row">
           <label class="wiz-ap-artist-label">Artist</label>
           ${artistControl}
@@ -374,6 +435,33 @@
   function bindRows(root) {
     root.querySelectorAll('.wiz-ap-card-row[data-cn]').forEach((rowEl) => {
       const cn = rowEl.getAttribute('data-cn');
+
+      // Entity-tag chips: remove (×) + add (picker). Present on the latest tab only.
+      rowEl.querySelectorAll('[data-role="ap-tag-remove"]').forEach((btn) => {
+        btn.onclick = () => {
+          const card = local.cards.find((c) => c.collector_number === cn);
+          if (!card) return;
+          const key = btn.getAttribute('data-key');
+          const next = (card.entity_tags || []).filter((t) => t.entity_key !== key);
+          onTagsChange(cn, next);
+        };
+      });
+      const addSel = rowEl.querySelector('[data-role="ap-tag-add"]');
+      if (addSel) {
+        addSel.onchange = () => {
+          const key = addSel.value;
+          if (!key) return;
+          const card = local.cards.find((c) => c.collector_number === cn);
+          if (!card) return;
+          if ((card.entity_tags || []).some((t) => t.entity_key === key)) return;
+          const cat = local.entityCatalog.find((e) => e.entity_key === key);
+          const next = (card.entity_tags || []).concat([
+            { entity_key: key, kind: cat ? cat.kind : 'entity' },
+          ]);
+          onTagsChange(cn, next);
+        };
+      }
+
       const promptEl = rowEl.querySelector('[data-role="ap-prompt"]');
       const artistEl = rowEl.querySelector('[data-role="ap-artist"]');
       const saveBtn = rowEl.querySelector('[data-role="ap-save"]');
@@ -427,6 +515,34 @@
     }
   }
 
+  // ── Entity-tag override (no AI — persists a manual per-card tag set) ───────
+
+  async function onTagsChange(cn, nextTags) {
+    if (local.locked) return;
+    // Optimistic: reflect immediately, then reconcile from the server tile.
+    const card = local.cards.find((c) => c.collector_number === cn);
+    if (card) card.entity_tags = nextTags;
+    paintList(bodyRoot());
+    try {
+      const resp = await fetch('/api/wizard/art_prompts/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collector_number: cn, tags: nextTags }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        W.reportError(resp, data, 'Could not save entity tags');
+        return;
+      }
+      if (data.tile) {
+        W.streamUpsert(local.cards, data.tile, (c) => c.collector_number);
+        paintList(bodyRoot());
+      }
+    } catch (err) {
+      W.toast('Network error: ' + (err && err.message ? err.message : err), 'error');
+    }
+  }
+
   // ── Cameo knob (no AI — pure config) ──────────────────────────────────────
 
   async function onCameoChange(prob) {
@@ -469,6 +585,7 @@
         if (!data) return;
         local.cards = Array.isArray(data.cards) ? data.cards : [];
         local.artists = Array.isArray(data.artists) ? data.artists : local.artists;
+        if (Array.isArray(data.entity_catalog)) local.entityCatalog = data.entity_catalog;
         local.prompted = data.prompted || local.cards.filter((c) => c.art_prompt).length;
         local.hasContent = !!data.has_content || local.prompted > 0;
         if (typeof data.cameo_probability === 'number') local.cameoProbability = data.cameo_probability;
@@ -549,6 +666,8 @@
         '[data-role="ap-prompt"]',
         '[data-role="ap-artist"]',
         '[data-role="ap-save"]',
+        '[data-role="ap-tag-add"]',
+        '[data-role="ap-tag-remove"]',
       ],
     });
   }
@@ -641,6 +760,49 @@
         font-size: 0.73rem; color: #666; flex: 1 1 auto; text-align: right;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
+
+      .wiz-ap-cameo {
+        display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
+        font-size: 0.72rem; cursor: help;
+      }
+      .wiz-ap-cameo-tag {
+        font-weight: 700; letter-spacing: 0.03em; color: #d9a8ff;
+        background: rgba(170,90,255,0.12); border: 1px solid #4a2d6e;
+        border-radius: 3px; padding: 1px 6px; white-space: nowrap;
+      }
+      .wiz-ap-cameo-name { color: #d6c2ee; font-weight: 600; }
+      .wiz-ap-cameo-kind {
+        color: #8a7aa0; font-size: 0.66rem; text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .wiz-ap-chips {
+        display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+        font-size: 0.72rem;
+      }
+      .wiz-ap-chips-label {
+        font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em;
+        color: #5d6f92; margin-right: 0.15rem;
+      }
+      .wiz-ap-chips-empty { font-size: 0.72rem; color: #555; font-style: italic; }
+      .wiz-ap-chip {
+        display: inline-flex; align-items: center; gap: 0.3rem;
+        padding: 0.1rem 0.45rem; border-radius: 10px;
+        background: #15233f; border: 1px solid #28406a; color: #cdd6e6;
+      }
+      .wiz-ap-chip-kind {
+        font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.04em;
+        color: #6a8bc0;
+      }
+      .wiz-ap-chip-x {
+        border: none; background: none; color: #7a8baa; cursor: pointer;
+        font-size: 0.85rem; line-height: 1; padding: 0; margin-left: 0.05rem;
+      }
+      .wiz-ap-chip-x:hover { color: #e86a6a; }
+      .wiz-ap-tag-add {
+        padding: 0.1rem 0.3rem; background: #1a1a2e; border: 1px solid #333;
+        border-radius: 10px; color: #9fb0d0; font-size: 0.7rem; font-family: inherit;
+      }
+      .wiz-ap-tag-add:focus { outline: none; border-color: #4a9eff; }
 
       .wiz-ap-artist-row { display: flex; align-items: center; gap: 0.45rem; }
       .wiz-ap-artist-label {

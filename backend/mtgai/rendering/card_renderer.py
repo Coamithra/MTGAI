@@ -34,6 +34,7 @@ from mtgai.models.card import Card
 from mtgai.rendering.colors import (
     BLACK,
     WHITE,
+    artifact_frame_key,
     frame_key_for_identity,
 )
 from mtgai.rendering.fonts import (
@@ -112,6 +113,76 @@ def _draw_text_centered(
 
 
 # ---------------------------------------------------------------------------
+# Basic-land text-box watermark
+#
+# Real basic lands show a large mana symbol centered in the text box (and sit
+# behind the flavor text on flavor-bearing printings). The land's produced
+# color drives which symbol: Plains -> {W}, Island -> {U}, etc.
+# ---------------------------------------------------------------------------
+BASIC_LAND_SYMBOL: dict[str, str] = {
+    "Plains": "W",
+    "Island": "U",
+    "Swamp": "B",
+    "Mountain": "R",
+    "Forest": "G",
+    "Wastes": "C",
+}
+
+# Fraction of the text-box height the watermark symbol occupies.
+LAND_WATERMARK_SCALE = 0.55
+# Watermark opacity — visible but faint enough that flavor text reads on top.
+LAND_WATERMARK_OPACITY = 0.5
+
+
+def _basic_land_symbol(card: Card) -> str | None:
+    """Return the mana symbol code for a basic land, or None if not a basic land.
+
+    Keyed on the canonical English basic-land names (Plains … Wastes). A reskinned
+    or renamed basic whose subtype/type-line matches none of them falls through to
+    no watermark (renders blank, as before).
+    """
+    if "Basic" not in card.supertypes or "Land" not in card.card_types:
+        return None
+    for subtype in card.subtypes:
+        if subtype in BASIC_LAND_SYMBOL:
+            return BASIC_LAND_SYMBOL[subtype]
+    # Fall back to scanning the type line (e.g. "Basic Land — Island").
+    for name, symbol in BASIC_LAND_SYMBOL.items():
+        if name in card.type_line:
+            return symbol
+    return None
+
+
+def _with_opacity(img: Image.Image, opacity: float) -> Image.Image:
+    """Return a copy of an RGBA image with its alpha channel scaled by ``opacity``."""
+    out = img.copy()
+    alpha = out.split()[3].point(lambda a: int(a * opacity))
+    out.putalpha(alpha)
+    return out
+
+
+def _render_land_watermark(canvas: Image.Image, card: Card) -> None:
+    """Composite a large produced-color mana symbol centered in the text box.
+
+    Basic lands have empty oracle text, so without this their text box renders
+    blank. Real basic lands show the land's produced-color mana symbol large and
+    centered (behind any flavor text). Called before the text box so flavor text
+    draws on top. No-op for any card that is not a basic land.
+    """
+    symbol = _basic_land_symbol(card)
+    if symbol is None:
+        return
+
+    box = NATIVE_TEXT_BOX
+    size = int(box.height * LAND_WATERMARK_SCALE)
+    sym_img = _with_opacity(get_mana_symbol(symbol, size), LAND_WATERMARK_OPACITY)
+    canvas.alpha_composite(
+        sym_img,
+        (box.center_x - size // 2, box.center_y - size // 2),
+    )
+
+
+# ---------------------------------------------------------------------------
 # CardRenderer
 # ---------------------------------------------------------------------------
 class CardRenderer:
@@ -152,7 +223,8 @@ class CardRenderer:
     def determine_frame_key(self, card: Card) -> str:
         """Map card to frame key based on colors and type_line.
 
-        Returns one of: W, U, B, R, G, M, A, L, or land variants
+        Returns one of: W, U, B, R, G, M, A, L, the colored-artifact
+        variants (AW, AU, AB, AR, AG, AM), or a land variant
         (lw, lu, lb, lr, lg, lm).
         """
         type_lower = card.type_line.lower()
@@ -162,10 +234,11 @@ class CardRenderer:
         # Color identity as list of single-letter strings
         identity = [c.value if hasattr(c, "value") else str(c) for c in card.color_identity]
 
-        # Colored artifacts still get the artifact frame (until colored artifact
-        # frames are implemented — see learnings/colored-artifact-frames.md)
+        # Artifacts get a color-tinted artifact frame (AW..AG / AM) when they
+        # carry a color identity, else the plain gray A. Missing tinted PNGs
+        # fall back to A in _load_frame.
         if is_artifact and not is_land:
-            return "A"
+            return artifact_frame_key(identity)
 
         return frame_key_for_identity(identity, is_land=is_land)
 
@@ -384,8 +457,14 @@ class CardRenderer:
         """Load the P/T box overlay for the given frame key."""
         # For multicolor or land frames, map to a single-letter key
         if len(frame_key) > 1:
-            # Land variants (lw, lu, etc.) -> use first color letter
-            pt_key = frame_key[1].upper() if frame_key.startswith("l") else "M"
+            if frame_key.startswith("l"):
+                # Land variants (lw, lu, etc.) -> use first color letter
+                pt_key = frame_key[1].upper()
+            elif len(frame_key) == 2 and frame_key[0] == "A":
+                # Colored artifact (AW, AU, ...) -> matching tinted P/T box
+                pt_key = frame_key
+            else:
+                pt_key = "M"
         else:
             pt_key = frame_key
 
@@ -778,6 +857,7 @@ class CardRenderer:
         self._render_type_bar(canvas, card)
 
         has_pt = card.power is not None and card.toughness is not None
+        _render_land_watermark(canvas, card)
         self._render_text_box(canvas, card, has_pt)
 
         # 6. P/T box (creatures only)

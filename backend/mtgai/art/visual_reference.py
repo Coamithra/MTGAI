@@ -12,8 +12,29 @@ during set design (Phase 1A) or art direction (Phase 2A). The code is set-agnost
 
 import json
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+# Category -> human label, in priority order. Shared by the legacy substring
+# matcher, the tag-driven lookup, and the entity catalog.
+_CATEGORY_LABELS: tuple[tuple[str, str], ...] = (
+    ("legendary_characters", "Character"),
+    ("creature_types", "Creature Type"),
+    ("factions", "Faction"),
+    ("landmarks", "Location"),
+)
+
+
+def normalize_entity_key(s: str) -> str:
+    """Canonical slug for an entity key: lowercase, non-alphanumeric runs → ``_``.
+
+    The single normalization shared by the entity-tagging pass and the dictionary
+    lookup so an ``optimus_prime`` tag matches an ``optimus prime`` dictionary key
+    (and vice-versa) — the surface-form variance that broke the old substring
+    matcher. Mirrors ``character_portraits._slugify``.
+    """
+    return re.sub(r"[^a-z0-9]+", "_", s.lower().strip()).strip("_")
 
 
 def _load_visual_refs() -> dict:
@@ -87,6 +108,69 @@ def get_character_appearance(entity_key: str) -> str | None:
     return desc if isinstance(desc, str) and desc else None
 
 
+def entity_display_name(entity_key: str) -> str:
+    """Canonical display name for an entity slug, e.g. ``storm_knight`` -> ``Storm Knight``.
+
+    The shared source of the name token used by two stages that never see each
+    other's output: ``art_prompts`` (which names entities in the prompt) runs
+    *before* ``char_portraits`` (which produces the ``art_character_refs`` whose
+    labels feed the hosted interleaving). The only stable shared anchor is the
+    ``entity_key`` slug, so both stages derive the name from it the same way. The
+    agreement is **best-effort**: it holds whenever the char_portraits detector
+    reuses the art-direction dict slug (its instruction), and degrades gracefully
+    when it doesn't (a detector-invented entity is simply never named in the
+    prompt, so its labeled image just doesn't bind — no harm).
+    """
+    return entity_key.replace("_", " ").strip().title()
+
+
+def get_named_entities(
+    card_name: str,
+    type_line: str,
+    oracle_text: str,
+    flavor_text: str | None,
+) -> list[dict[str, str]]:
+    """Return the named style-guide entities that appear on this card.
+
+    Each item is ``{"key", "name", "kind"}`` — ``name`` is :func:`entity_display_name`
+    of the slug (the token the art prompt should use and the hosted renderer binds
+    a reference image to). Matches the entity's **spaced** display form against the
+    card text on **word boundaries**, so a multi-word ``storm_knight`` matches
+    "Storm Knight" in the card text but ``the_order`` does NOT fire on "the ordeal"
+    (the bare ``key in search_text`` substring match used by
+    :func:`get_visual_references` misses the former and over-matches the latter).
+    The two helpers are independent — this may name a different entity set than
+    :func:`get_visual_references` (still used for the cameo/appearance path).
+    Deduped by key, priority order.
+    """
+    refs = get_refs()
+    search_text = " ".join(
+        filter(None, [card_name, type_line, oracle_text, flavor_text or ""])
+    ).lower()
+
+    categories = [
+        ("legendary_characters", "character"),
+        ("creature_types", "creature type"),
+        ("factions", "faction"),
+        ("landmarks", "location"),
+    ]
+    results: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for category_key, kind in categories:
+        category = refs.get(category_key, {})
+        if not isinstance(category, dict):
+            continue
+        for key in category:
+            key = str(key)
+            if key in seen:
+                continue
+            spaced = key.replace("_", " ").strip().lower()
+            if spaced and re.search(rf"\b{re.escape(spaced)}\b", search_text):
+                seen.add(key)
+                results.append({"key": key, "name": entity_display_name(key), "kind": kind})
+    return results
+
+
 def get_visual_references(
     card_name: str,
     type_line: str,
@@ -107,15 +191,7 @@ def get_visual_references(
     results: list[str] = []
     seen: set[str] = set()
 
-    # Check each category in priority order
-    categories = [
-        ("legendary_characters", "Character"),
-        ("creature_types", "Creature Type"),
-        ("factions", "Faction"),
-        ("landmarks", "Location"),
-    ]
-
-    for category_key, label in categories:
+    for category_key, label in _CATEGORY_LABELS:
         category = refs.get(category_key, {})
         for key, desc in category.items():
             if key in search_text and desc not in seen:
@@ -123,6 +199,83 @@ def get_visual_references(
                 seen.add(desc)
 
     return "\n\n".join(results)
+
+
+def _ref_index() -> dict[str, tuple[str, str, str]]:
+    """Normalized lookup over the dictionary's keyed sub-dicts.
+
+    ``{normalize_entity_key(key): (label, original_key, description)}``. Keyed by
+    the canonical slug so a tag and a dictionary key whose surface forms differ
+    (``optimus_prime`` vs ``optimus prime``) still resolve.
+    """
+    refs = get_refs()
+    index: dict[str, tuple[str, str, str]] = {}
+    for category_key, label in _CATEGORY_LABELS:
+        category = refs.get(category_key, {})
+        if not isinstance(category, dict):
+            continue
+        for key, desc in category.items():
+            text = str(desc or "").strip()
+            if not text:
+                continue
+            index.setdefault(normalize_entity_key(str(key)), (label, str(key), text))
+    return index
+
+
+def get_visual_references_for_keys(keys: list[str]) -> str:
+    """Return the appearance-reference block for an explicit list of entity keys.
+
+    The tag-driven replacement for :func:`get_visual_references` (substring): the
+    unified entity-tagging pass decides which entities a card features, and this
+    formats their dictionary appearance prose identically (``[Label: Key] desc``,
+    deduped). Keys with no dictionary entry are skipped.
+    """
+    if not keys:
+        return ""
+    index = _ref_index()
+    results: list[str] = []
+    seen: set[str] = set()
+    for key in keys:
+        hit = index.get(normalize_entity_key(str(key)))
+        if hit is None:
+            continue
+        label, original, desc = hit
+        if desc in seen:
+            continue
+        seen.add(desc)
+        results.append(f"[{label}: {original.title()}] {desc}")
+    return "\n\n".join(results)
+
+
+def get_entity_catalog() -> list[dict[str, str]]:
+    """Flat ``[{entity_key, kind, name}]`` of every dictionary entity.
+
+    Feeds the Art Prompts tab's add-tag picker (manual entity override). ``kind``
+    uses the tag vocabulary (character / creature / faction / location). Returns
+    ``[]`` when no references are available so the picker degrades to empty.
+    """
+    refs = get_refs()
+    kinds = {
+        "legendary_characters": "character",
+        "creature_types": "creature",
+        "factions": "faction",
+        "landmarks": "location",
+    }
+    catalog: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for category_key, _label in _CATEGORY_LABELS:
+        category = refs.get(category_key, {})
+        if not isinstance(category, dict):
+            continue
+        for key in category:
+            slug = normalize_entity_key(str(key))
+            if not slug or slug in seen:
+                continue
+            seen.add(slug)
+            catalog.append(
+                {"entity_key": slug, "kind": kinds[category_key], "name": str(key).title()}
+            )
+    return catalog
 
 
 def get_flux_replacements() -> dict[str, str]:
