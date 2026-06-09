@@ -82,6 +82,27 @@ def detect_named_characters(
     return [key for key in characters if key in search_text]
 
 
+def _legendary_characters_index() -> dict[str, str]:
+    """Normalized lookup over the ``legendary_characters`` sub-dict.
+
+    ``{normalize_entity_key(key): description}``. The dict keys are space-slugged
+    by ``visual_reference_extractor._slugify_key`` ("Storm Knight" -> "storm
+    knight"), but the ``art_character_refs`` / entity-tag ``entity_key`` is
+    underscore-slugged by :func:`normalize_entity_key` ("storm_knight"). A raw
+    ``entity_key in get_refs()[...]`` never matches a multi-word character, so
+    both lookups normalize through this index — mirroring :func:`_ref_index` /
+    :func:`get_visual_references_for_keys` (which the appearance-prose path
+    already uses). The value may be non-string in the JSON; the consumers guard.
+    """
+    characters = get_refs().get("legendary_characters", {})
+    if not isinstance(characters, dict):
+        return {}
+    index: dict[str, str] = {}
+    for key, desc in characters.items():
+        index.setdefault(normalize_entity_key(str(key)), desc)
+    return index
+
+
 def is_character_entity(entity_key: str) -> bool:
     """True when ``entity_key`` is a humanoid named character.
 
@@ -89,9 +110,11 @@ def is_character_entity(entity_key: str) -> bool:
     ``legendary_characters`` entries only (the named, humanoid characters) — not
     creature types / factions / landmarks, which have no single identity. Used by
     the art-generation stage to decide whether a card's attached reference can
-    drive face-lock conditioning.
+    drive face-lock conditioning. Matches by normalized key so an underscore-
+    slugged ``entity_key`` ("storm_knight") resolves a space-slugged dict key
+    ("storm knight").
     """
-    return entity_key in get_refs().get("legendary_characters", {})
+    return normalize_entity_key(str(entity_key)) in _legendary_characters_index()
 
 
 def get_character_appearance(entity_key: str) -> str | None:
@@ -100,9 +123,10 @@ def get_character_appearance(entity_key: str) -> str | None:
     Feeds the late name->appearance substitution on the Flux path: the entity's
     name in an art prompt is swapped for this description (PuLID supplies the
     actual face), so the T5/CLIP text encoder — which can't resolve a name — still
-    paints the right body/clothing/palette.
+    paints the right body/clothing/palette. Matches by normalized key so an
+    underscore-slugged ``entity_key`` resolves a space-slugged dict key.
     """
-    desc = get_refs().get("legendary_characters", {}).get(entity_key)
+    desc = _legendary_characters_index().get(normalize_entity_key(str(entity_key)))
     # The JSON is LLM/user-authored; guard against a non-string value reaching the
     # prompt substitution (which expects str).
     return desc if isinstance(desc, str) and desc else None
