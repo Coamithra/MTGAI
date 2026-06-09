@@ -366,10 +366,13 @@ class CardRenderer:
     def _make_crown_underlay(self) -> Image.Image:
         """Create and cache the black underlay for the legendary crown zone.
 
-        Returns a full-canvas RGBA image that is opaque black everywhere
-        above the art window EXCEPT where the title bar mask is. This
-        blacks out the frame's colored pixels behind the crown while
-        preserving the name bar.
+        Returns a full-canvas RGBA image that is opaque black from the top
+        edge down to the title bar's bottom edge EXCEPT where the title bar
+        mask is. This blacks out the frame's colored pixels behind the crown
+        while preserving the name bar. On real cards the black crown
+        treatment ends at the title bar — the frame's own pinline shows
+        between bar and art — so the underlay must not extend to the art
+        window top.
         """
         if self._crown_underlay is not None:
             return self._crown_underlay
@@ -377,11 +380,14 @@ class CardRenderer:
         title_alpha = self._load_title_mask()
         title_inv = ImageChops.invert(title_alpha)
 
-        # Mask: opaque in rows 0 to art window top, transparent elsewhere
+        bbox = title_alpha.getbbox()
+        underlay_bottom = min(bbox[3], NATIVE_ART_WINDOW.top) if bbox else NATIVE_ART_WINDOW.top
+
+        # Mask: opaque in rows 0 to the title bar bottom, transparent elsewhere
         zone_mask = Image.new("L", (FRAME_W, FRAME_H), 0)
         draw = ImageDraw.Draw(zone_mask)
         draw.rectangle(
-            [(0, 0), (FRAME_W - 1, NATIVE_ART_WINDOW.top - 1)],
+            [(0, 0), (FRAME_W - 1, underlay_bottom - 1)],
             fill=255,
         )
 
@@ -398,10 +404,12 @@ class CardRenderer:
         """Load the legendary crown overlay with title bar punched out.
 
         Uses m15MaskTitle to create a transparent cutout in the crown
-        where the frame's name bar should show through. The crown's
-        decorative filigree renders on top of a black background
-        (provided by _make_crown_underlay), while the title bar
-        area is left transparent so the frame's own name bar is visible.
+        where the frame's name bar should show through. Above the title
+        bar's bottom edge the crown's decorative filigree renders on top
+        of a black background (provided by _make_crown_underlay); below
+        it the crown composites directly over the frame, and the title
+        bar area is left transparent so the frame's own name bar is
+        visible.
 
         Returns a full-canvas-size RGBA image, or None if no crown file found.
         """

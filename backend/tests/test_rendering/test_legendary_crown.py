@@ -82,3 +82,20 @@ def test_load_legendary_crown_routes_artifact_and_land():
     land = Card(name="T", type_line="Legendary Land", color_identity=[])
     assert r._load_legendary_crown(artifact) is not None  # crowns/Artifact.png
     assert r._load_legendary_crown(land) is not None  # crowns/Land.png
+
+
+def test_crown_underlay_ends_at_title_bar_bottom():
+    # The black underlay must stop at the title bar's bottom edge, not run on
+    # to the art window top — real crowns leave the frame pinline visible
+    # between the title bar and the art.
+    r = CardRenderer()
+    underlay = r._make_crown_underlay()
+    alpha = underlay.split()[3]
+    title_bottom = r._load_title_mask().getbbox()[3]
+    assert title_bottom < NATIVE_ART_WINDOW.top, "title bar must end above the art window"
+
+    band_between = alpha.crop((0, title_bottom, underlay.width, NATIVE_ART_WINDOW.top))
+    assert band_between.getbbox() is None, "underlay extends below the title bar"
+
+    band_above = alpha.crop((0, 0, underlay.width, title_bottom))
+    assert band_above.getbbox() is not None, "underlay missing above the title bar"
