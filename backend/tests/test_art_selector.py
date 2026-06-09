@@ -49,6 +49,7 @@ def test_tool_schema_shape_is_stable():
 from mtgai.art.art_selector import (  # noqa: E402
     _pick_to_filename,
     load_art_decisions,
+    log_picked_filename,
     save_art_decisions,
 )
 
@@ -65,6 +66,24 @@ def test_pick_to_filename_none_and_out_of_range():
     assert _pick_to_filename("v9", files) is None
     assert _pick_to_filename("", files) is None
     assert _pick_to_filename("bogus", files) is None
+
+
+def test_log_picked_filename_prefers_resolved_filename():
+    # A version gap: the judge saw _v2/_v3 labeled v1/v2 and picked v2, which
+    # resolved to _v3.png. The persisted picked_file wins over the positional pick.
+    data = {"pick": "v2", "picked_file": "a_v3.png", "version_files": ["a_v2.png", "a_v3.png"]}
+    assert log_picked_filename(data) == "a_v3.png"
+
+
+def test_log_picked_filename_legacy_falls_back_to_positional():
+    # Legacy log (no picked_file): "v2" is positional → 2nd shown image == _v3.png.
+    data = {"pick": "v2", "version_files": ["a_v2.png", "a_v3.png"]}
+    assert log_picked_filename(data) == "a_v3.png"
+
+
+def test_log_picked_filename_none_pick():
+    assert log_picked_filename({"pick": "none", "version_files": ["a_v1.png"]}) is None
+    assert log_picked_filename({}) is None
 
 
 # ---------------------------------------------------------------------------
@@ -337,6 +356,9 @@ def test_judge_success_path_unchanged(tmp_path, monkeypatch):
         decisions = art_selector.load_art_decisions(tmp_path)
         assert decisions["W-C-01"]["source"] == "auto"
         assert decisions["W-C-01"]["pick"] == "v2"
+        # The resolved filename is persisted alongside the positional pick so
+        # readers never re-derive it literally (card 6a285ae8).
+        assert decisions["W-C-01"]["picked_file"].endswith("_v2.png")
         assert summary["judge_failed"] == 0
         assert summary["judge_skipped"] == 0
         assert summary["reviewed"] == 1
