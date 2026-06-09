@@ -868,9 +868,10 @@ class CardRenderer:
         # 4b. Legendary crown (mtgrender approach: black base + crown + title cutout)
         # 1. Black underlay: blacks out the frame behind the crown (except title bar)
         # 2. Crown overlay: has title bar punched out so frame name bar shows through
+        # M15+ crowns every legendary permanent (artifacts, enchantments, lands too)
         type_lower = card.type_line.lower()
-        is_legendary_creature = "legendary" in type_lower and "creature" in type_lower
-        if is_legendary_creature:
+        is_legendary = "legendary" in type_lower
+        if is_legendary:
             crown = self._load_legendary_crown(card)
             if crown is not None:
                 underlay = self._make_crown_underlay()
