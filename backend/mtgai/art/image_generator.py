@@ -1241,20 +1241,31 @@ def generate_art_for_set(
                 generated += 1
                 continue
 
-            # Best-of-N: generate ``n_versions`` distinct candidates, always
-            # numbered v1..vN. Any ``*_v*.png`` already on disk for this card are
-            # stale: either a forced overwrite, or crash-orphans from a run that
-            # was killed mid-card (the card was never recorded ``completed``, so
-            # it reached here instead of being skipped above). Delete them — plus
-            # their per-version log sidecars — before regenerating so the card
-            # ends with exactly N clean, contiguously-numbered versions. The old
-            # ``base_version = len(existing)`` *appended* N fresh after K orphans,
-            # leaving K+N PNGs that the disk-globbing art selector then judged as
-            # K+N candidates instead of N.
-            for stale_png in art_dir.glob(f"{slug}_v*.png"):
-                stale_png.unlink(missing_ok=True)
-            for stale_log in log_dir.glob(f"{cn}_v*.json"):
-                stale_log.unlink(missing_ok=True)
+            # Best-of-N: generate ``n_versions`` candidates numbered v1..vN
+            # (gaps only where a version exhausts its retries). On a non-force
+            # resume the card was never recorded ``completed`` (else it'd have
+            # been skipped above), so any ``*_v*.png`` on disk are crash-orphans
+            # from a run killed mid-card — delete them, plus their per-version
+            # log sidecars, so we regenerate exactly N instead of appending N
+            # fresh after the K orphans. The old ``base_version = len(existing)``
+            # left K+N PNGs, which the disk-globbing art selector then judged as
+            # K+N candidates instead of N. ``force`` overwrites v1..vN in place
+            # (its existing contract) and deliberately does NOT delete higher
+            # versions: a user-uploaded extra (v(N+1), source="user") only
+            # attaches to a *completed* card, which the resume path never
+            # reaches, so leaving force untouched can't orphan that upload's
+            # saved pick.
+            if not force:
+                for stale in (
+                    *art_dir.glob(f"{slug}_v*.png"),
+                    *log_dir.glob(f"{cn}_v*.json"),
+                ):
+                    try:
+                        stale.unlink(missing_ok=True)
+                    except OSError as e:
+                        # A locked orphan (Windows file handle) degrades to the
+                        # old K+N rather than killing the whole run.
+                        logger.warning("Could not delete stale art file %s: %s", stale, e)
 
             saved_versions: list[dict] = []
             version_errors: list[dict] = []
