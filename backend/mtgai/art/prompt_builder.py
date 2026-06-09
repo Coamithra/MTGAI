@@ -45,6 +45,7 @@ from mtgai.art.visual_reference import (
     get_flux_replacements,
     get_refs,
     get_set_art_direction,
+    get_visual_motifs,
     get_visual_references,
     get_visual_references_for_keys,
 )
@@ -106,16 +107,15 @@ COLOR_COMPOSITION: dict[str, str] = {
 
 def _motifs_suffix() -> str:
     """Return a ", motif, motif, motif" suffix from the active project's
-    ``visual_motifs``, or "" if none are available. Capped at 3 motifs."""
+    ``visual_motifs``, or "" if none are available. Capped at 3 via
+    ``get_visual_motifs``'s default limit."""
     try:
-        refs = get_refs()
+        motifs = get_visual_motifs()
     except Exception:
         return ""
-    motifs = refs.get("visual_motifs") or []
-    motifs = [str(m).strip() for m in motifs if str(m).strip()]
     if not motifs:
         return ""
-    return ", " + ", ".join(motifs[:3])
+    return ", " + ", ".join(motifs)
 
 
 def get_style_line(card: Card) -> str:
@@ -258,13 +258,15 @@ def build_art_prompt_user_message(
     setting_prose: str,
     visual_refs: str,
     cameo: dict[str, str] | None,
+    visual_motifs: list[str] | None = None,
 ) -> str:
     """Assemble the user message for the art-prompt LLM call.
 
     All of ``artist_style`` / ``set_art_direction`` / ``setting_prose`` /
-    ``visual_refs`` may be empty (degraded inputs); the corresponding section is
-    simply omitted. ``cameo`` (when present) names a specific style-guide entity
-    to feature.
+    ``visual_refs`` / ``visual_motifs`` may be empty (degraded inputs); the
+    corresponding section is simply omitted. ``cameo`` (when present) names a
+    specific style-guide entity to feature. ``visual_motifs`` is the set's
+    recurring colors / materials / lighting, woven in as a secondary style cue.
     """
     card_type_cat = get_card_type_category(card)
     hint = _COMPOSITION_HINTS.get(card_type_cat, "")
@@ -275,6 +277,12 @@ def build_art_prompt_user_message(
     if set_art_direction:
         sections.append(
             f"SET ART DIRECTION (reference — use only what fits this card):\n{set_art_direction}"
+        )
+    if visual_motifs:
+        motif_lines = "\n".join(f"- {m}" for m in visual_motifs)
+        sections.append(
+            "RECURRING VISUAL MOTIFS (weave in any that genuinely fit this card's "
+            "subject — never force all):\n" + motif_lines
         )
     if setting_prose:
         sections.append("SETTING (reference — use only what fits this card):\n" + setting_prose)
@@ -357,6 +365,7 @@ def generate_art_prompt(
     setting_prose: str,
     cameo: dict[str, str] | None,
     visual_refs: str | None = None,
+    visual_motifs: list[str] | None = None,
     log_dir: Path | None = None,
 ) -> tuple[str, int, int]:
     """Call the LLM to author the full art prompt for a card.
@@ -389,6 +398,7 @@ def generate_art_prompt(
         setting_prose=setting_prose,
         visual_refs=visual_refs,
         cameo=cameo,
+        visual_motifs=visual_motifs,
     )
 
     from mtgai.runtime.active_project import require_active_project
@@ -548,7 +558,7 @@ def generate_prompts_for_set(
     force: bool = False,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
-    card_saved_callback: Callable[[Card], None] | None = None,
+    card_saved_callback: Callable[[Card, dict | None], None] | None = None,
     cameo_probability: float | None = None,
 ) -> dict:
     """Generate artist-driven, LLM-authored art prompts for the active project.
@@ -561,8 +571,10 @@ def generate_prompts_for_set(
         should_cancel: Polled at each card boundary; True stops the loop early
             (prompts written so far stay saved, so a resume skips them). Sets
             ``summary["cancelled"]``.
-        card_saved_callback: Called with each freshly-saved ``Card`` so the
-            wizard tab can stream it in live (mirrors card_gen).
+        card_saved_callback: Called ``(card, cameo)`` with each freshly-saved
+            ``Card`` plus its rolled cameo record (``{key, kind, description}`` or
+            ``None``) so the wizard tab can stream it in live (mirrors card_gen).
+            The cameo isn't stored on the Card, so it's passed alongside.
         cameo_probability: Override the persisted knob (UI / CLI). ``None`` reads
             ``art-prompt-knobs.json``.
 
@@ -586,6 +598,7 @@ def generate_prompts_for_set(
     # Stage inputs (all degrade gracefully to empty).
     artists = get_artists()
     set_art_direction = get_set_art_direction()
+    visual_motifs = get_visual_motifs()
     theme = _load_theme(set_dir)
     from mtgai.generation.prompts import format_setting_prose
 
@@ -693,6 +706,7 @@ def generate_prompts_for_set(
                 setting_prose=setting_prose,
                 cameo=cameo,
                 visual_refs=visual_refs_text,
+                visual_motifs=visual_motifs,
                 log_dir=log_dir,
             )
             full_prompt = _sanitize_for_flux(full_prompt_raw)
@@ -735,7 +749,7 @@ def generate_prompts_for_set(
             )
 
             if card_saved_callback is not None and not dry_run:
-                card_saved_callback(card)
+                card_saved_callback(card, cameo)
 
             if progress_callback is not None:
                 card_cost = (in_tok * 0.80 / 1_000_000) + (out_tok * 4.0 / 1_000_000)

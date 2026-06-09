@@ -82,6 +82,32 @@ def detect_named_characters(
     return [key for key in characters if key in search_text]
 
 
+def is_character_entity(entity_key: str) -> bool:
+    """True when ``entity_key`` is a humanoid named character.
+
+    PuLID-Flux locks a single *face*, so the local-Flux ref path conditions on
+    ``legendary_characters`` entries only (the named, humanoid characters) — not
+    creature types / factions / landmarks, which have no single identity. Used by
+    the art-generation stage to decide whether a card's attached reference can
+    drive face-lock conditioning.
+    """
+    return entity_key in get_refs().get("legendary_characters", {})
+
+
+def get_character_appearance(entity_key: str) -> str | None:
+    """The appearance prose for a ``legendary_characters`` entity, or ``None``.
+
+    Feeds the late name->appearance substitution on the Flux path: the entity's
+    name in an art prompt is swapped for this description (PuLID supplies the
+    actual face), so the T5/CLIP text encoder — which can't resolve a name — still
+    paints the right body/clothing/palette.
+    """
+    desc = get_refs().get("legendary_characters", {}).get(entity_key)
+    # The JSON is LLM/user-authored; guard against a non-string value reaching the
+    # prompt substitution (which expects str).
+    return desc if isinstance(desc, str) and desc else None
+
+
 def get_visual_references(
     card_name: str,
     type_line: str,
@@ -211,6 +237,24 @@ def get_set_art_direction() -> str:
     if isinstance(motifs, list):
         motifs = ", ".join(str(m).strip() for m in motifs if str(m).strip())
     return str(motifs or "").strip()
+
+
+def get_visual_motifs(limit: int = 3) -> list[str]:
+    """Return the set's recurring visual motifs, cleaned and capped at ``limit``.
+
+    The ``visual_motifs`` list in visual-references.json (e.g. "High-contrast
+    metallic surfaces (glossy vs matte)") names recurring colors / materials /
+    lighting the set's art should lean on. Unlike :func:`get_set_art_direction`
+    (a paragraph of prose), these are short repeatable hints woven into every
+    card's art prompt as a secondary style cue. Returns ``[]`` when none are
+    present (or the value is malformed). ``limit=0`` returns the full list.
+    """
+    refs = get_refs()
+    motifs = refs.get("visual_motifs")
+    if not isinstance(motifs, list):
+        return []
+    cleaned = [str(m).strip() for m in motifs if str(m).strip()]
+    return cleaned[:limit] if limit else cleaned
 
 
 def get_cameo_entities() -> list[dict[str, str]]:

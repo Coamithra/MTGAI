@@ -18,6 +18,12 @@
 
   const W = (window.MTGAIWizard = window.MTGAIWizard || {});
   const STAGE_ID = 'char_portraits';
+  // The stage_id is ``char_portraits`` (kept through the art-topology reorg) but
+  // its wizard endpoints live under the ``char_refs`` base, so the generic
+  // ``/api/wizard/<stageId>/state`` URL would 404. Use this base for every HTTP
+  // call (state/refresh/save/image/upload); STAGE_ID stays the renderer/stream/
+  // tab-routing key.
+  const ENDPOINT_BASE = 'char_refs';
   const escHtml = W.escHtml;
   const escAttr = W.escAttr;
 
@@ -170,7 +176,7 @@
 
   async function bootstrap(root, state) {
     local.state = state;
-    const data = await W.fetchStageState(STAGE_ID);
+    const data = await W.fetchStageState(ENDPOINT_BASE);
     if (data) {
       local.entities = Array.isArray(data.entities) ? data.entities : [];
       local.hasContent = !!data.has_content;
