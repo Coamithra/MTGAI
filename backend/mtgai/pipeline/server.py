@@ -5654,6 +5654,7 @@ async def wizard_art_prompts_save_card(request: Request) -> JSONResponse:
     edited fields onto the card JSON and heals the stage so Save & Continue
     re-appears after a recovery. Returns the updated tile.
     """
+    from mtgai.art.entity_tags import effective_card_tags, load_entity_tags
     from mtgai.io.card_io import load_card, save_card
 
     _require_active_project()
@@ -5682,7 +5683,11 @@ async def wizard_art_prompts_save_card(request: Request) -> JSONResponse:
     card = load_card(path)
     save_card(card.model_copy(update=update), set_dir=asset)
     _heal_failed_stage("art_prompts")
-    return JSONResponse({"tile": art_prompt_tile_dict(load_card(path).model_dump(mode="json"))})
+    # Carry entity_tags on the returned tile so a prompt/artist edit doesn't blank
+    # the card's chips in the grid (the SSE tiles omit them; the client merges).
+    tile = art_prompt_tile_dict(load_card(path).model_dump(mode="json"))
+    tile["entity_tags"] = effective_card_tags(load_entity_tags(asset), cn)
+    return JSONResponse({"tile": tile})
 
 
 @router.post("/api/wizard/art_prompts/tags")
@@ -5698,6 +5703,10 @@ async def wizard_art_prompts_tags(request: Request) -> JSONResponse:
     from mtgai.art.entity_tags import effective_card_tags, set_card_tags
 
     _require_active_project()
+    # The art_prompts stage rewrites the same sidecar while it holds the AI lock;
+    # reject a manual tag edit mid-run so the two writers can't lose-update.
+    if (resp := _reject_if_busy()) is not None:
+        return resp
     asset = set_artifact_dir()
     body, err = await _read_request_json(request)
     if err is not None:

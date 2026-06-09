@@ -72,6 +72,12 @@
     art_prompt_card(data, root) {
       const card = data.card;
       if (!card || !card.collector_number) return;
+      // Streamed tiles omit entity_tags; carry over what we already have so the
+      // chips don't blank out for the whole run (they're filled on /state).
+      if (card.entity_tags === undefined) {
+        const prev = local.cards.find((c) => c.collector_number === card.collector_number);
+        if (prev && prev.entity_tags) card.entity_tags = prev.entity_tags;
+      }
       W.streamUpsert(local.cards, card, (c) => c.collector_number);
       local.hasContent = true;
       local.prompted = local.cards.filter((c) => c.art_prompt).length;

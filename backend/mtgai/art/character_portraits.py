@@ -1,8 +1,8 @@
 """Character / location reference-image generator (the ``char_portraits`` stage).
 
 Reworked from the old always-on, ASD-hardcoded portrait stage into a *targeted*
-reference-image stage (card 6a20aa84). It runs AFTER ``art_prompts`` (it reads
-each card's ``art_prompt``) and does three things:
+reference-image stage (card 6a20aa84). It runs AFTER ``art_prompts`` (it reuses
+the entity-tags sidecar that stage produced) and does three things:
 
 1. **Detect recurring entities** — the recurring (2+ card) entities are derived
    from the unified per-card entity tags (``art-direction/entity-tags.json``,

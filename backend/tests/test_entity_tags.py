@@ -221,3 +221,47 @@ def test_set_card_tags_marks_manual_and_dedups(tmp_path: Path) -> None:
     # Persisted + reloadable.
     on_disk = json.loads(et.entity_tags_path(tmp_path).read_text(encoding="utf-8"))
     assert on_disk["cards"]["005"]["source"] == "manual"
+
+
+# ---------------------------------------------------------------------------
+# Sidecar resilience (absent / corrupt / malformed)
+# ---------------------------------------------------------------------------
+
+
+def test_load_returns_skeleton_when_absent(tmp_path: Path) -> None:
+    assert et.load_entity_tags(tmp_path) == {"cards": {}, "entities_meta": {}}
+
+
+def test_load_returns_skeleton_on_corrupt_json(tmp_path: Path) -> None:
+    path = et.entity_tags_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{not valid json", encoding="utf-8")
+    assert et.load_entity_tags(tmp_path) == {"cards": {}, "entities_meta": {}}
+
+
+def test_load_coerces_non_dict_root_and_sections(tmp_path: Path) -> None:
+    path = et.entity_tags_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("[1, 2, 3]", encoding="utf-8")  # list, not dict
+    assert et.load_entity_tags(tmp_path) == {"cards": {}, "entities_meta": {}}
+    # A dict root but with a non-dict "cards" section also degrades cleanly.
+    path.write_text(json.dumps({"cards": ["nope"], "entities_meta": 5}), encoding="utf-8")
+    assert et.load_entity_tags(tmp_path) == {"cards": {}, "entities_meta": {}}
+
+
+def test_effective_card_tags_skips_malformed_entries() -> None:
+    data = {
+        "cards": {
+            "001": {
+                "tags": [
+                    {"entity_key": "good", "kind": "character"},
+                    {"kind": "character"},  # missing entity_key -> skipped
+                    "not-a-dict",  # skipped
+                ],
+                "source": "ai",
+            },
+            "002": {"tags": "not-a-list"},  # skipped -> []
+        }
+    }
+    assert et.effective_card_tags(data, "001") == [{"entity_key": "good", "kind": "character"}]
+    assert et.effective_card_tags(data, "002") == []
