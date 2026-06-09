@@ -617,6 +617,53 @@ def test_downstream_clear_keeps_edited_stage_and_drops_regen_instances():
     assert state.overall_status == PipelineStatus.PAUSED
 
 
+def test_downstream_clear_preserves_pool_across_loop_stage_with_regen_card_gen():
+    """Regression: unlocking a review-gate tab (``conformance``) must NOT wipe
+    the generated card pool when a regen ``card_gen.N`` sits downstream.
+
+    The loop stages (lands / card_gen / conformance / ai_review) all share ONE
+    live ``cards/`` working set keyed by stage_id. After a review->regen bounce
+    the plan contains a downstream ``card_gen.2`` whose stage_id (``card_gen``)
+    differs from the EDITED stage_id (``conformance``); the old
+    ``stage.stage_id != edited_stage_id`` guard therefore ran
+    ``clear_card_gen`` and deleted every non-``L-*`` ``cards/*.json`` — silently
+    losing the whole generated set while the backbone card_gen stayed
+    COMPLETED. The fix skips the artifact-clear for the entire pool-sharing
+    loop-stage set, so the kept pool survives."""
+    set_dir = _make_set("TST")
+    cards = set_dir / "cards"
+    cards.mkdir()
+    # A generated card (owned by the kept backbone card_gen) + a land card.
+    (cards / "001_foo.json").write_text("{}", encoding="utf-8")
+    (cards / "L-01_plains.json").write_text(
+        '{"collector_number": "L-01", "supertypes": ["Basic"], "type_line": "Basic Land"}',
+        encoding="utf-8",
+    )
+
+    state = _loop_state("TST")
+    # Unlock the BACKBONE conformance (index 2): keep lands + card_gen +
+    # conformance, discard ai_review onward — which includes the downstream
+    # regen ``card_gen.2`` (index 4).
+    pipeline_server._apply_downstream_clear(state, 2)
+
+    # The generated pool must survive — the unlock keeps the kept upstream
+    # card_gen output, and the downstream card_gen.2 clear must NOT fire.
+    assert (cards / "001_foo.json").exists()
+    assert (cards / "L-01_plains.json").exists()
+
+    ids = [s.instance_id for s in state.stages]
+    # lands + card_gen + conformance kept; ai_review reset; regen .2 duplicates
+    # dropped.
+    assert ids == ["lands", "card_gen", "conformance", "ai_review"]
+    by_id = {s.instance_id: s for s in state.stages}
+    assert by_id["lands"].status == StageStatus.COMPLETED
+    assert by_id["card_gen"].status == StageStatus.COMPLETED
+    assert by_id["conformance"].status == StageStatus.PAUSED_FOR_REVIEW
+    assert by_id["ai_review"].status == StageStatus.PENDING
+    assert state.current_instance_id == "conformance"
+    assert state.overall_status == PipelineStatus.PAUSED
+
+
 def test_unlock_endpoint_keeps_stage_clears_downstream(client):
     set_dir = _make_set("TST", theme={"code": "TST"})
     (set_dir / "skeleton.json").write_text("{}", encoding="utf-8")
