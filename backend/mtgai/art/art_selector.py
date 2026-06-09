@@ -404,6 +404,10 @@ def select_art_for_set(
             atomic_write_text(log_dir / f"{cn}.json", json.dumps(result, indent=2))
             continue
 
+        if dry_run:
+            results.append({"card": cn, "name": card.name, "versions": len(versions)})
+            continue
+
         # Judge model can't do vision: skip the LLM call, auto-pick v1. Same
         # ``auto_fallback`` decision shape as the exception path so the tab treats
         # it identically; ``judge_skipped`` (vs ``judge_failed``) distinguishes
@@ -435,10 +439,6 @@ def select_art_for_set(
 
         logger.info("REVIEW %s: %s (%d versions)", cn, card.name, len(versions))
 
-        if dry_run:
-            results.append({"card": cn, "name": card.name, "versions": len(versions)})
-            continue
-
         try:
             selection = select_best_version(
                 card_name=card.name,
@@ -446,6 +446,7 @@ def select_art_for_set(
                 colors=card.colors or [],
                 prompt=card.art_prompt,
                 image_paths=versions,
+                model=judge_model,
                 log_dir=log_dir,
             )
 

@@ -1904,7 +1904,11 @@ def run_art_gen(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> 
 
     judge_failed = sel_result.get("judge_failed", 0)
     judge_skipped = sel_result.get("judge_skipped", 0)
-    detail = f"Generated art for {generated} cards, judged {reviewed}"
+    # ``reviewed`` counts every card that ended with a pick — including the
+    # skipped/failed ones that auto-picked v1. Report only the genuinely-judged
+    # cards as "judged" so the headline doesn't contradict the skip/fail clauses.
+    truly_judged = max(reviewed - judge_skipped - judge_failed, 0)
+    detail = f"Generated art for {generated} cards, judged {truly_judged}"
     if judge_skipped:
         # The art_select model is text-only, so best-of-N was skipped entirely
         # (v1 auto-picked). Surface it so the run doesn't look like a clean
