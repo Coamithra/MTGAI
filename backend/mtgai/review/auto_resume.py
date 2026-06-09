@@ -94,11 +94,16 @@ def clear_last_project() -> None:
 
 
 def read_state() -> dict | None:
-    """Read the retry-ceiling counter, or ``None`` if absent/unreadable."""
+    """Read the retry-ceiling counter, or ``None`` if absent/unreadable.
+
+    A counter file that parses to a non-dict (corruption / hand-edit) is treated
+    as absent so :func:`decide` never sees a non-``dict`` ``prev``.
+    """
     try:
-        return json.loads(state_path().read_text(encoding="utf-8"))
+        data = json.loads(state_path().read_text(encoding="utf-8"))
     except Exception:
         return None
+    return data if isinstance(data, dict) else None
 
 
 def write_state(state: dict) -> None:
@@ -170,8 +175,20 @@ def _run_auto_resume() -> None:
     from mtgai.pipeline import server as pipeline_server
     from mtgai.pipeline.engine import cleanup_orphan_running_stages, load_state, save_state
     from mtgai.pipeline.models import StageStatus
-    from mtgai.runtime import active_project
+    from mtgai.runtime import active_project, extraction_run
     from mtgai.settings.model_settings import parse_project_toml
+
+    # Defensive: a fresh boot has no engine/extraction running, but the resume
+    # thread is detached from the lifespan and spawns an engine directly — never
+    # stomp ``_engine``/``_engine_task`` if something already started one (mirrors
+    # the manual /instance/retry endpoint's 409 guards).
+    if pipeline_server._engine is not None and pipeline_server._engine.is_running:
+        logger.warning("auto-resume: a pipeline engine is already running; skipping")
+        return
+    extraction = extraction_run.current()
+    if extraction is not None and extraction.status == "running":
+        logger.warning("auto-resume: a theme extraction is already running; skipping")
+        return
 
     try:
         set_code, settings = parse_project_toml(toml_text)

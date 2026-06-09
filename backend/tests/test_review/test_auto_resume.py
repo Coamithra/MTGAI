@@ -95,10 +95,98 @@ def test_decide_progress_in_the_middle_extends_the_run():
     assert prev["attempts"] == 1
 
 
-# --- the orchestrator gracefully no-ops when there's nothing to resume -------
+def test_decide_regressed_completed_counts_as_no_progress():
+    # A lower completed count than last time (a re-read after a reset, never a
+    # real advance) must NOT be mistaken for progress — it counts as an attempt.
+    prev = {"instance_id": "art_gen", "attempts": 1, "completed": 20}
+    proceed, state = auto_resume.decide(prev, "art_gen", completed=5)
+    assert proceed is True
+    assert state["attempts"] == 2  # not reset to 1
+
+
+# --- the orchestrator -------------------------------------------------------
 
 
 def test_run_auto_resume_no_persisted_project(monkeypatch, tmp_path):
     monkeypatch.setattr(auto_resume.heartbeat, "output_root", lambda: tmp_path)
     # No last-project.mtg on disk → returns quietly, never raises.
     auto_resume.maybe_auto_resume()
+
+
+def test_run_auto_resume_happy_path_fires_retry(monkeypatch, tmp_path):
+    """End-to-end: reopen → find FAILED stage → anchor + spawn the retry engine."""
+    from types import SimpleNamespace
+
+    from mtgai.pipeline.models import StageStatus
+    from mtgai.settings.model_settings import ModelSettings
+
+    monkeypatch.setattr(auto_resume.heartbeat, "output_root", lambda: tmp_path)
+    monkeypatch.setattr(auto_resume, "read_last_project", lambda: 'set_code = "ZZZ"\n')
+
+    stage = SimpleNamespace(
+        instance_id="art_gen",
+        status=StageStatus.FAILED,
+        progress=SimpleNamespace(completed_items=16),
+    )
+    state = SimpleNamespace(
+        stages=[stage],
+        current_instance_id=None,
+        current_stage=lambda: stage,
+    )
+
+    monkeypatch.setattr(
+        "mtgai.settings.model_settings.parse_project_toml",
+        lambda _t: ("ZZZ", ModelSettings()),
+    )
+    monkeypatch.setattr("mtgai.runtime.active_project.write_active_project", lambda _p: None)
+    monkeypatch.setattr("mtgai.pipeline.engine.cleanup_orphan_running_stages", lambda: [])
+    monkeypatch.setattr("mtgai.pipeline.engine.load_state", lambda: state)
+    monkeypatch.setattr("mtgai.pipeline.engine.save_state", lambda _s: None)
+    # No engine/extraction in flight.
+    monkeypatch.setattr("mtgai.pipeline.server._engine", None, raising=False)
+    monkeypatch.setattr("mtgai.runtime.extraction_run.current", lambda: None)
+
+    spawned = []
+    monkeypatch.setattr(
+        "mtgai.pipeline.server._spawn_retry_engine",
+        lambda st, code: spawned.append((st, code)),
+    )
+
+    auto_resume.maybe_auto_resume()
+
+    assert len(spawned) == 1
+    spawned_state, spawned_code = spawned[0]
+    assert spawned_code == "ZZZ"
+    assert spawned_state is state
+    assert state.current_instance_id == "art_gen"  # engine anchored on the failed stage
+    # The retry-ceiling counter was recorded for this stage.
+    assert auto_resume.read_state() == {"instance_id": "art_gen", "attempts": 1, "completed": 16}
+
+
+def test_run_auto_resume_skips_when_engine_running(monkeypatch, tmp_path):
+    """If an engine is somehow already running, auto-resume must not stomp it."""
+    from types import SimpleNamespace
+
+    from mtgai.settings.model_settings import ModelSettings
+
+    monkeypatch.setattr(auto_resume.heartbeat, "output_root", lambda: tmp_path)
+    monkeypatch.setattr(auto_resume, "read_last_project", lambda: 'set_code = "ZZZ"\n')
+    monkeypatch.setattr(
+        "mtgai.settings.model_settings.parse_project_toml",
+        lambda _t: ("ZZZ", ModelSettings()),
+    )
+    monkeypatch.setattr("mtgai.runtime.active_project.write_active_project", lambda _p: None)
+    monkeypatch.setattr("mtgai.pipeline.engine.cleanup_orphan_running_stages", lambda: [])
+
+    busy_engine = SimpleNamespace(is_running=True)
+    monkeypatch.setattr("mtgai.pipeline.server._engine", busy_engine, raising=False)
+
+    spawned = []
+    monkeypatch.setattr(
+        "mtgai.pipeline.server._spawn_retry_engine",
+        lambda st, code: spawned.append((st, code)),
+    )
+
+    auto_resume.maybe_auto_resume()
+
+    assert spawned == []  # bailed before spawning
