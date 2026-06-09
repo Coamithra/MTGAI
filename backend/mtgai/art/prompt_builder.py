@@ -42,9 +42,9 @@ from mtgai.art.visual_reference import (
     get_artists,
     get_cameo_entities,
     get_flux_replacements,
+    get_named_entities,
     get_set_art_direction,
     get_visual_motifs,
-    get_visual_references,
 )
 from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import generate_with_tool
@@ -183,9 +183,14 @@ FLUX PROMPT RULES:
   descriptive language, not keyword lists.
 - Be concrete: "a gaunt pale humanoid with reflective cat-eyes crouching in a \
   dark corridor", not "a mysterious dungeon creature".
-- DO NOT use character names or made-up race/creature names the model won't know \
-  (moktar, peryton, screechman, etc.) — describe APPEARANCE instead. If a \
-  visual-reference description is given for an entity, render that description.
+- When the card features a NAMED ENTITY listed in the user message, refer to it \
+  by its EXACT given name (e.g. "Storm Knight"). The renderer binds a reference \
+  image to that name, so naming it is what makes the right face/look land — do \
+  NOT invent appearance for a listed entity; name it and describe its action, \
+  pose, and context.
+- For any OTHER subject (one NOT in the NAMED ENTITIES list), describe it by \
+  APPEARANCE, and never use made-up race/creature names the model won't know \
+  (moktar, peryton, screechman, etc.).
 - DO NOT use negative phrasing ("no text", "without borders"). Describe only \
   what IS in the image.
 - DO NOT mention game mechanics, stats, rules, cards, or frames.
@@ -205,7 +210,8 @@ TOOL_SCHEMA = {
                 "type": "string",
                 "description": (
                     "A finished 40-70 word Flux prompt, subject first, natural "
-                    "language, in the chosen artist's style. Appearance not names; "
+                    "language, in the chosen artist's style. Name any listed NAMED "
+                    "ENTITY by its exact name, describe other subjects by appearance; "
                     "no game mechanics or card references."
                 ),
             },
@@ -253,17 +259,21 @@ def build_art_prompt_user_message(
     artist_style: str,
     set_art_direction: str,
     setting_prose: str,
-    visual_refs: str,
+    named_entities: list[dict[str, str]] | None,
     cameo: dict[str, str] | None,
     visual_motifs: list[str] | None = None,
 ) -> str:
     """Assemble the user message for the art-prompt LLM call.
 
     All of ``artist_style`` / ``set_art_direction`` / ``setting_prose`` /
-    ``visual_refs`` / ``visual_motifs`` may be empty (degraded inputs); the
-    corresponding section is simply omitted. ``cameo`` (when present) names a
-    specific style-guide entity to feature. ``visual_motifs`` is the set's
-    recurring colors / materials / lighting, woven in as a secondary style cue.
+    ``named_entities`` / ``visual_motifs`` may be empty (degraded inputs); the
+    corresponding section is simply omitted. ``named_entities`` (``{key, name,
+    kind}`` records from :func:`visual_reference.get_named_entities`) are the
+    set's recurring characters/locations the card features — listed by NAME so
+    the model anchors them by name (the renderer then binds a reference image to
+    that name). ``cameo`` (when present) names a specific style-guide entity to
+    feature. ``visual_motifs`` is the set's recurring colors / materials /
+    lighting, woven in as a secondary style cue.
     """
     card_type_cat = get_card_type_category(card)
     hint = _COMPOSITION_HINTS.get(card_type_cat, "")
@@ -291,10 +301,14 @@ def build_art_prompt_user_message(
     if "Legendary" in (card.type_line or ""):
         sections.append("This is a unique, named character — distinctive features, imposing.")
 
-    if visual_refs:
+    names = [e.get("name", "").strip() for e in (named_entities or [])]
+    roster = ", ".join(n for n in names if n)
+    if roster:
         sections.append(
-            "VISUAL APPEARANCE REFERENCES (render these appearances, never the names):\n"
-            f"{visual_refs}"
+            "NAMED ENTITIES (recurring set characters/locations this card features — "
+            "refer to each by its EXACT name below so the renderer binds a reference "
+            "image to it; do not invent their appearance):\n"
+            f"{roster}"
         )
 
     if cameo:
@@ -305,8 +319,8 @@ def build_art_prompt_user_message(
 
     sections.append(
         "Author ONE finished Flux prompt (40-70 words). Subject first, then action, then "
-        "style and mood, then setting context. Appearance not names; no mechanics or card "
-        "references."
+        "style and mood, then setting context. Name any listed NAMED ENTITY by its exact "
+        "name, describe other subjects by appearance; no mechanics or card references."
     )
     return "\n\n".join(sections)
 
@@ -374,7 +388,7 @@ def generate_art_prompt(
     card. A genuinely unusable payload is retried at a bumped temperature (escaping
     a local repetition loop) up to :data:`_MAX_PROMPT_ATTEMPTS` times before raising.
     """
-    visual_refs = get_visual_references(
+    named_entities = get_named_entities(
         card.name,
         card.type_line,
         card.oracle_text,
@@ -386,7 +400,7 @@ def generate_art_prompt(
         artist_style=artist_style,
         set_art_direction=set_art_direction,
         setting_prose=setting_prose,
-        visual_refs=visual_refs,
+        named_entities=named_entities,
         cameo=cameo,
         visual_motifs=visual_motifs,
     )

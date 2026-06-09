@@ -6216,6 +6216,8 @@ def _finalize_card_view(
     ``user_edited`` from the persisted manual-edit marker. ``slot_text`` (the
     relabeled slot brief) is shown read-only for context, same as card_gen.
     """
+    from mtgai.generation.reminder_injector import strip_reminder_text
+
     cn = card.get("collector_number") or ""
     entry = report_by_cn.get(cn, {})
     slot = slots_by_id.get(cn) if slots_by_id else None
@@ -6224,12 +6226,16 @@ def _finalize_card_view(
         from mtgai.skeleton.generator import render_slot_string
 
         slot_text = (slot.get("tweaked_text") or "").strip() or render_slot_string(slot)
+    oracle_text = card.get("oracle_text") or ""
     return {
         "collector_number": cn,
         "name": card.get("name") or "",
         "mana_cost": card.get("mana_cost") or "",
         "type_line": card.get("type_line") or "",
-        "oracle_text": card.get("oracle_text") or "",
+        "oracle_text": oracle_text,
+        # Canonical (reminder-free) form for the editable textarea — see
+        # ``_rendering_card_view``. The preview + before/after diff keep ``oracle_text``.
+        "oracle_text_editor": strip_reminder_text(oracle_text),
         "flavor_text": card.get("flavor_text") or "",
         "power": card.get("power"),
         "toughness": card.get("toughness"),
@@ -6608,6 +6614,8 @@ def _rendering_card_view(card: dict, asset: Path, slots_by_id: dict[str, dict]) 
     renumber (which shifts collector numbers but leaves ``slot_id`` pinned to the
     originating skeleton slot).
     """
+    from mtgai.generation.reminder_injector import strip_reminder_text
+
     cn = card.get("collector_number") or ""
     slot_id = card.get("slot_id") or cn
     slot = slots_by_id.get(slot_id) if slots_by_id else None
@@ -6616,12 +6624,19 @@ def _rendering_card_view(card: dict, asset: Path, slots_by_id: dict[str, dict]) 
         from mtgai.skeleton.generator import render_slot_string
 
         slot_text = (slot.get("tweaked_text") or "").strip() or render_slot_string(slot)
+    oracle_text = card.get("oracle_text") or ""
     return {
         "collector_number": cn,
         "name": card.get("name") or "",
         "mana_cost": card.get("mana_cost") or "",
         "type_line": card.get("type_line") or "",
-        "oracle_text": card.get("oracle_text") or "",
+        "oracle_text": oracle_text,
+        # The editable textarea shows canonical, reminder-free rules text: reminder
+        # text is auto-injected by finalize and never hand-authored, so editing it is
+        # silently discarded on save (finalize re-strips + re-injects). The at-rest
+        # preview + the render read the injected `oracle_text` (the preview then tracks
+        # the textarea once the user edits).
+        "oracle_text_editor": strip_reminder_text(oracle_text),
         "flavor_text": card.get("flavor_text") or "",
         "power": card.get("power"),
         "toughness": card.get("toughness"),
@@ -7769,16 +7784,26 @@ async def get_stage_logs(stage_id: str):
 
     set_dir = set_artifact_dir()
 
-    # Map stage_id to likely log locations
+    # Map stage_id to its real on-disk log location(s). Each path here is a
+    # directory the stage's runner actually writes its transcripts/reports to
+    # — keep it in sync when a stage's log dir moves.
     log_paths: dict[str, list[Path]] = {
         "mechanics": [set_dir / "mechanics" / "logs"],
         "card_gen": [set_dir / "card_gen" / "logs"],
-        "ai_review": [set_dir / "reviews"],
+        # ai_review writes llmfacade transcripts to ai_review/logs and the
+        # per-card human-readable verdict reports to reviews/<cn>.{json,md}.
+        "ai_review": [set_dir / "ai_review" / "logs", set_dir / "reviews"],
         "conformance": [set_dir / "conformance" / "logs"],
-        "art_prompts": [set_dir / "art-direction" / "prompt-logs"],
-        # art_select folded into the merged art_gen stage; its best-of-N
-        # selection transcripts surface under art_gen now.
-        "art_gen": [set_dir / "art-direction" / "selections"],
+        "art_prompts": [
+            set_dir / "art_prompts" / "logs",
+            set_dir / "art_prompts" / "prompt-logs",
+        ],
+        # art_select folded into the merged art_gen stage; the art-generation
+        # and best-of-N selection transcripts both surface under art_gen now.
+        "art_gen": [
+            set_dir / "art-generation-logs",
+            set_dir / "art-selection-logs",
+        ],
         "finalize": [set_dir / "reports"],
     }
 

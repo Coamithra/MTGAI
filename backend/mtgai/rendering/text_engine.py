@@ -185,19 +185,26 @@ class WrappedElement:
         kind: Segment type.
         content: Text string or symbol code.
         width: Measured pixel width of this element.
+        breakable_before: Whether a line break may occur immediately
+            before this element. False means the element is glued to its
+            predecessor (no intervening whitespace) — e.g. a symbol or
+            trailing punctuation — so the two must wrap together.
     """
 
-    __slots__ = ("content", "kind", "width")
+    __slots__ = ("breakable_before", "content", "kind", "width")
 
     def __init__(
         self,
         kind: SegmentType,
         content: str,
         width: float,
+        *,
+        breakable_before: bool = True,
     ) -> None:
         self.kind = kind
         self.content = content
         self.width = width
+        self.breakable_before = breakable_before
 
 
 class WrappedLine:
@@ -364,6 +371,12 @@ class TextEngine:
     ) -> list[TextSegment]:
         """Parse a single line into text, symbol, and italic segments.
 
+        Reminder text (parenthetical) is tokenized into italic sub-segments
+        interleaved with any inline mana symbols it contains, so a ``{T}``
+        inside reminder text renders as the tap glyph (matching real MTG
+        cards) instead of literal braces. Non-reminder text is tokenized the
+        same way but with the default (plain/bold) text kind.
+
         Args:
             line: A single line of oracle text (no newlines).
             bold_all: If True, non-symbol/non-italic text is BOLD_TEXT.
@@ -371,60 +384,56 @@ class TextEngine:
         Returns:
             List of TextSegment.
         """
+        text_kind = SegmentType.BOLD_TEXT if bold_all else SegmentType.TEXT
         segments: list[TextSegment] = []
 
-        # Build a list of (start, end, type, content) spans
-        spans: list[tuple[int, int, SegmentType, str]] = []
-
-        # Find mana symbols
-        for m in MANA_SYMBOL_RE.finditer(line):
-            spans.append((m.start(), m.end(), SegmentType.SYMBOL, m.group(1)))
-
-        # Find reminder text
-        for m in REMINDER_RE.finditer(line):
-            spans.append(
-                (
-                    m.start(),
-                    m.end(),
-                    SegmentType.ITALIC_TEXT,
-                    m.group(0),
-                )
-            )
-
-        # Sort spans by start position
-        spans.sort(key=lambda s: s[0])
-
-        # Remove overlapping spans (symbols inside reminder text)
-        filtered: list[tuple[int, int, SegmentType, str]] = []
-        last_end = 0
-        for start, end, kind, content in spans:
-            if start < last_end:
-                # This span overlaps with the previous — skip symbols
-                # inside reminder text, but keep the reminder
-                if kind == SegmentType.SYMBOL:
-                    continue
-                # If it's a reminder overlapping a symbol, we still
-                # keep the reminder and the symbol was already added.
-                # Let's rebuild: drop any previously added symbols
-                # that fall within this reminder's range.
-                filtered = [f for f in filtered if not (f[0] >= start and f[1] <= end)]
-            filtered.append((start, end, kind, content))
-            last_end = max(last_end, end)
-
-        # Fill gaps with text segments
-        text_kind = SegmentType.BOLD_TEXT if bold_all else SegmentType.TEXT
         pos = 0
-        for start, end, kind, content in filtered:
-            if start > pos:
-                gap_text = line[pos:start]
-                if gap_text:
-                    segments.append(TextSegment(text_kind, gap_text))
-            segments.append(TextSegment(kind, content))
-            pos = end
+        for m in REMINDER_RE.finditer(line):
+            # Non-reminder region before this reminder
+            if m.start() > pos:
+                segments.extend(self._tokenize_symbols(line[pos : m.start()], text_kind))
+            # Reminder region — italic text with inline symbol glyphs
+            segments.extend(self._tokenize_symbols(m.group(0), SegmentType.ITALIC_TEXT))
+            pos = m.end()
 
-        # Trailing text
+        # Trailing non-reminder region
         if pos < len(line):
-            trailing = line[pos:]
+            segments.extend(self._tokenize_symbols(line[pos:], text_kind))
+
+        return segments
+
+    def _tokenize_symbols(
+        self,
+        text: str,
+        text_kind: SegmentType,
+    ) -> list[TextSegment]:
+        """Split text into mana-symbol and text segments.
+
+        ``{...}`` spans become SYMBOL segments (rendered as glyphs); the
+        runs between them become ``text_kind`` segments. Used for both
+        plain oracle text and reminder text — the only difference is the
+        text kind (TEXT/BOLD_TEXT vs ITALIC_TEXT) passed for the non-symbol
+        runs, so symbols render identically in either context.
+
+        Args:
+            text: A substring of a line (a reminder, or a non-reminder run).
+            text_kind: Segment kind for the non-symbol runs.
+
+        Returns:
+            List of TextSegment.
+        """
+        segments: list[TextSegment] = []
+        pos = 0
+        for m in MANA_SYMBOL_RE.finditer(text):
+            if m.start() > pos:
+                gap = text[pos : m.start()]
+                if gap:
+                    segments.append(TextSegment(text_kind, gap))
+            segments.append(TextSegment(SegmentType.SYMBOL, m.group(1)))
+            pos = m.end()
+
+        if pos < len(text):
+            trailing = text[pos:]
             if trailing:
                 segments.append(TextSegment(text_kind, trailing))
 
@@ -501,37 +510,51 @@ class TextEngine:
         if not word_elements:
             return []
 
-        # Greedy line-filling algorithm
+        # Group elements into unbreakable runs. A new group starts at the
+        # first element and at every element flagged ``breakable_before``;
+        # the glued tail (symbols, trailing punctuation — no leading space)
+        # rides with its head. Wrapping then only ever happens at group
+        # boundaries, so a lone "." after a symbol can never be orphaned.
+        groups: list[list[WrappedElement]] = []
+        for elem in word_elements:
+            if not groups or elem.breakable_before:
+                groups.append([elem])
+            else:
+                groups[-1].append(elem)
+
+        # Greedy line-filling over groups
         lines: list[WrappedLine] = []
         current_elems: list[WrappedElement] = []
         current_width = 0.0
 
-        for elem in word_elements:
-            elem_width = elem.width
-            needed = elem_width
-            if current_elems and elem.kind != SegmentType.SYMBOL:
-                # Add space before non-symbol text if not at line start
-                # But only if the previous element was also non-symbol
-                # or this is a new word
-                pass  # space is already included in content
+        for group in groups:
+            group_width = sum(e.width for e in group)
 
-            # Check if element fits on current line
-            if current_elems and current_width + needed > max_width:
-                # Emit current line and start new one
+            # Break before this group if it overflows the current line
+            if current_elems and current_width + group_width > max_width:
                 lines.append(WrappedLine(current_elems, line_h))
                 current_elems = []
                 current_width = 0.0
 
-                # Strip leading space from text elements at line start
-                if elem.kind != SegmentType.SYMBOL and elem.content.startswith(" "):
-                    content = elem.content.lstrip(" ")
-                    font = self._font_for_element(elem, font_size)
-                    w = font.getlength(content) if content else 0.0
-                    elem = WrappedElement(elem.kind, content, w)
-                    needed = w
+            # At line start, strip the leading space from the group's head
+            if not current_elems:
+                head = group[0]
+                if head.kind != SegmentType.SYMBOL and head.content.startswith(" "):
+                    content = head.content.lstrip(" ")
+                    if content:
+                        font = self._font_for_element(head, font_size)
+                        w = font.getlength(content)
+                        group = [
+                            WrappedElement(head.kind, content, w, breakable_before=True),
+                            *group[1:],
+                        ]
+                    else:
+                        # Pure-whitespace head at line start — drop it.
+                        group = group[1:]
+                    group_width = sum(e.width for e in group)
 
-            current_elems.append(elem)
-            current_width += needed
+            current_elems.extend(group)
+            current_width += group_width
 
         if current_elems:
             lines.append(WrappedLine(current_elems, line_h))
@@ -555,7 +578,12 @@ class TextEngine:
         for seg in paragraph.segments:
             if seg.kind == SegmentType.SYMBOL:
                 w = float(sym_size + SYMBOL_GAP)
-                elements.append(WrappedElement(SegmentType.SYMBOL, seg.content, w))
+                # A symbol has no leading space, so it glues to whatever
+                # precedes it; a break can only land on the space element
+                # that sits before the symbol run.
+                elements.append(
+                    WrappedElement(SegmentType.SYMBOL, seg.content, w, breakable_before=False)
+                )
                 continue
 
             font = self._font_for_segment(seg, font_size)
@@ -591,12 +619,20 @@ class TextEngine:
                     content = " " + word
 
                 w = font.getlength(content)
-                elements.append(WrappedElement(seg.kind, content, w))
+                # A break may land before a word only if it carries a
+                # leading space; the segment's first word (no leading
+                # space) is glued to the preceding element (e.g. a symbol),
+                # so punctuation like a trailing "." rides with it.
+                elements.append(
+                    WrappedElement(seg.kind, content, w, breakable_before=content.startswith(" "))
+                )
 
-            # Preserve trailing space (e.g., "Add " before a symbol)
+            # Preserve trailing space (e.g., "Add " before a symbol). A break
+            # may land before this space — the following symbol then glues to
+            # it and travels with it onto the next line.
             if text.endswith(" "):
                 space_w = font.getlength(" ")
-                elements.append(WrappedElement(seg.kind, " ", space_w))
+                elements.append(WrappedElement(seg.kind, " ", space_w, breakable_before=True))
 
         return elements
 
