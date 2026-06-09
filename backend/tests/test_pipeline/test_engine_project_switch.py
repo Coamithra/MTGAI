@@ -120,8 +120,6 @@ def test_heal_does_not_write_old_project_state_into_new(client):
     persisted = load_state()
     assert persisted is not None
     assert persisted.config.set_code == "BBB"
-    on_disk = load_state()
-    assert on_disk.config.set_code == "BBB"
 
 
 def test_new_clears_stale_engine(client):
