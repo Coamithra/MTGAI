@@ -562,7 +562,7 @@ def generate_prompts_for_set(
     force: bool = False,
     progress_callback: Callable[[str, int, int, str, float], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
-    card_saved_callback: Callable[[Card], None] | None = None,
+    card_saved_callback: Callable[[Card, dict | None], None] | None = None,
     cameo_probability: float | None = None,
 ) -> dict:
     """Generate artist-driven, LLM-authored art prompts for the active project.
@@ -575,8 +575,10 @@ def generate_prompts_for_set(
         should_cancel: Polled at each card boundary; True stops the loop early
             (prompts written so far stay saved, so a resume skips them). Sets
             ``summary["cancelled"]``.
-        card_saved_callback: Called with each freshly-saved ``Card`` so the
-            wizard tab can stream it in live (mirrors card_gen).
+        card_saved_callback: Called ``(card, cameo)`` with each freshly-saved
+            ``Card`` plus its rolled cameo record (``{key, kind, description}`` or
+            ``None``) so the wizard tab can stream it in live (mirrors card_gen).
+            The cameo isn't stored on the Card, so it's passed alongside.
         cameo_probability: Override the persisted knob (UI / CLI). ``None`` reads
             ``art-prompt-knobs.json``.
 
@@ -727,7 +729,7 @@ def generate_prompts_for_set(
             )
 
             if card_saved_callback is not None and not dry_run:
-                card_saved_callback(card)
+                card_saved_callback(card, cameo)
 
             if progress_callback is not None:
                 card_cost = (in_tok * 0.80 / 1_000_000) + (out_tok * 4.0 / 1_000_000)

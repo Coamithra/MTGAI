@@ -22,9 +22,11 @@ import json
 import logging
 import os
 import random
+import re
 import subprocess
 import time
 import urllib.request
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 
@@ -56,6 +58,17 @@ GENERATION_TIMEOUT = 600  # 10 minutes max per image (cold start model loading c
 # reclaims everything, so a 60-card / 180-image run survives one server lifetime.
 # Default 16 sits below the observed ~18-20 death threshold; 0 disables.
 COMFYUI_RECYCLE_EVERY = int(os.environ.get("MTGAI_COMFYUI_RECYCLE_EVERY", "16"))
+
+# PuLID-Flux character face-lock (the ComfyUI-PuLID-Flux custom-node pack).
+# The .safetensors filename lives in ComfyUI's ``models/pulid`` dir, listed by
+# ``PulidFluxModelLoader``; override per-machine with MTGAI_PULID_MODEL.
+PULID_FLUX_MODEL = os.environ.get("MTGAI_PULID_MODEL", "pulid_flux_v0.9.1.safetensors")
+# InsightFace execution provider for the face-analysis loader (CUDA on the GPU
+# Flux box; CPU/ROCM available via the node). Override with MTGAI_PULID_PROVIDER.
+PULID_INSIGHTFACE_PROVIDER = os.environ.get("MTGAI_PULID_PROVIDER", "CUDA")
+# Identity-lock strength fed to ApplyPulidFlux (node range -1.0..5.0; 1.0 is the
+# node default — a faithful lock that still lets the prompt pose/style the scene).
+PULID_WEIGHT = float(os.environ.get("MTGAI_PULID_WEIGHT", "1.0"))
 
 
 def art_image_url(filename: str) -> str:
@@ -639,23 +652,63 @@ def flush_comfyui() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _upload_image_to_comfyui(path: str) -> str:
+    """Upload a local image to ComfyUI's input dir; return the name a ``LoadImage``
+    node references.
+
+    ComfyUI's core ``LoadImage`` only reads from its own ``input`` directory (it
+    can't load an arbitrary absolute path), so a character-reference PNG sitting
+    under the project asset folder has to be POSTed to ``/upload/image`` first.
+    ``overwrite=true`` keeps the input dir from accumulating ``ref (1).png`` dupes
+    across re-runs. Returns the ``subfolder/name`` (or bare ``name``) string.
+    """
+    p = Path(path)
+    boundary = f"----mtgai{uuid.uuid4().hex}"
+    parts: list[bytes] = []
+    parts.append(f"--{boundary}\r\n".encode())
+    parts.append(f'Content-Disposition: form-data; name="image"; filename="{p.name}"\r\n'.encode())
+    parts.append(b"Content-Type: application/octet-stream\r\n\r\n")
+    parts.append(p.read_bytes())
+    parts.append(f"\r\n--{boundary}\r\n".encode())
+    parts.append(b'Content-Disposition: form-data; name="overwrite"\r\n\r\n')
+    parts.append(b"true")
+    parts.append(f"\r\n--{boundary}--\r\n".encode())
+    body = b"".join(parts)
+
+    req = urllib.request.Request(
+        f"{COMFYUI_URL}/upload/image",
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read())
+    name = result["name"]
+    subfolder = result.get("subfolder", "")
+    return f"{subfolder}/{name}" if subfolder else name
+
+
 def _apply_character_refs(workflow: dict, ref_paths: list[str]) -> bool:
-    """Inject character reference-image conditioning into the Flux workflow.
+    """Inject PuLID-Flux character face-lock conditioning into the Flux workflow.
 
     Reads the resolved reference-image paths a card carries via
     ``Card.art_character_refs`` (produced by the ``char_portraits`` stage) and
-    wires them into the ComfyUI graph as PuLID-Flux / IP-Adapter conditioning so
-    a card featuring a recurring entity is generated *with that entity's
-    appearance* rather than a fresh interpretation.
+    wires the bundled ``flux_dev_gguf.json`` graph so a card featuring a recurring
+    *character* is generated with that character's face locked, not a fresh
+    interpretation. The caller (``generate_art_for_set``) has already narrowed
+    ``ref_paths`` to a single humanoid-character ref (PuLID locks one identity;
+    multi-face masking is out of scope), so this wires the first existing path.
 
-    STUB (intentional, tracked): the bundled ``flux_dev_gguf.json`` workflow has
-    no PuLID/IP-Adapter nodes, and those require ComfyUI custom-node packs that
-    aren't guaranteed present. Wiring the actual graph is a manual-testing follow
-    -up against a live ComfyUI with the PuLID-Flux nodes installed. Until then
-    this logs the intent and returns False so the caller falls back to plain
-    text-to-image. The *decision* (which cards get ref-conditioning, with which
-    images) is fully implemented here and unit-tested — only the node injection
-    is deferred. Returns True when conditioning was actually applied.
+    Graph (ComfyUI-PuLID-Flux custom nodes): PulidFluxModelLoader +
+    PulidFluxEvaClipLoader + PulidFluxInsightFaceLoader feed ``ApplyPulidFlux``,
+    which patches the UnetLoaderGGUF model (node ``"1"``); the KSampler (node
+    ``"8"``) model input is rewired to the patched model. The ref PNG is uploaded
+    to ComfyUI's input dir and loaded via ``LoadImage``.
+
+    Returns True when the graph was wired (so metadata reports refs applied),
+    False when there's nothing to apply or the upload failed — the caller then
+    falls back to plain text-to-image. Note: a wired graph whose ref image has no
+    detectable face has PuLID gracefully no-op at run time (it returns the
+    unpatched model), so "wired" is not a guarantee a face was found.
     """
     if not ref_paths:
         return False
@@ -666,17 +719,47 @@ def _apply_character_refs(workflow: dict, ref_paths: list[str]) -> bool:
             ", ".join(ref_paths),
         )
         return False
-    # TODO(art-gen): inject PuLID-Flux / IP-Adapter nodes into ``workflow`` here,
-    # loading each path in ``existing`` as an identity/style reference and routing
-    # its conditioning into KSampler node "8". Requires the PuLID-Flux ComfyUI
-    # custom nodes; verify against a live ComfyUI. Until then we no-op so the run
-    # still produces art (without identity locking).
-    logger.info(
-        "  %d character ref(s) available for conditioning (PuLID wiring pending): %s",
-        len(existing),
-        ", ".join(Path(p).name for p in existing),
-    )
-    return False
+
+    ref_path = existing[0]
+    try:
+        uploaded = _upload_image_to_comfyui(ref_path)
+    except Exception as e:
+        logger.warning(
+            "  Character ref upload to ComfyUI failed (%s) — generating without face-lock: %s",
+            Path(ref_path).name,
+            e,
+        )
+        return False
+
+    # Namespaced node ids so the injected nodes never collide with the base
+    # workflow's "1".."10".
+    workflow["pulid_model"] = {
+        "class_type": "PulidFluxModelLoader",
+        "inputs": {"pulid_file": PULID_FLUX_MODEL},
+    }
+    workflow["pulid_eva"] = {"class_type": "PulidFluxEvaClipLoader", "inputs": {}}
+    workflow["pulid_face"] = {
+        "class_type": "PulidFluxInsightFaceLoader",
+        "inputs": {"provider": PULID_INSIGHTFACE_PROVIDER},
+    }
+    workflow["pulid_image"] = {"class_type": "LoadImage", "inputs": {"image": uploaded}}
+    workflow["pulid_apply"] = {
+        "class_type": "ApplyPulidFlux",
+        "inputs": {
+            "model": ["1", 0],
+            "pulid_flux": ["pulid_model", 0],
+            "eva_clip": ["pulid_eva", 0],
+            "face_analysis": ["pulid_face", 0],
+            "image": ["pulid_image", 0],
+            "weight": PULID_WEIGHT,
+            "start_at": 0.0,
+            "end_at": 1.0,
+        },
+    }
+    # Route the KSampler through the PuLID-patched model.
+    workflow["8"]["inputs"]["model"] = ["pulid_apply", 0]
+    logger.info("  PuLID-Flux face-lock wired from ref: %s", Path(ref_path).name)
+    return True
 
 
 def generate_image_comfyui(
@@ -943,6 +1026,66 @@ def _resolve_labeled_refs(card, set_dir: Path) -> tuple[list[str], list[str]]:
     return paths, labels
 
 
+def _resolve_flux_character_ref(card, set_dir: Path) -> tuple[str, str] | None:
+    """The single ``(entity_key, abs_path)`` humanoid-character ref to face-lock, or None.
+
+    The local-Flux/PuLID path conditions on *one humanoid character's face* (scope
+    decision: characters only — not locations/factions; max one per card, since
+    PuLID locks a single identity). Walks the card's ``art_character_refs`` in
+    order and returns the first whose entity is a ``legendary_characters`` entry
+    *and* whose image exists on disk. Returns None when the card has no character
+    ref (the run then falls back to plain text-to-image).
+    """
+    from mtgai.art import visual_reference
+
+    for ref in getattr(card, "art_character_refs", None) or []:
+        entity_key = getattr(ref, "entity_key", None)
+        raw = getattr(ref, "ref_image_path", None)
+        if not entity_key or not raw:
+            continue
+        try:
+            if not visual_reference.is_character_entity(entity_key):
+                continue
+        except Exception:
+            continue
+        p = Path(raw)
+        if not p.is_absolute():
+            p = set_dir / raw
+        if p.exists():
+            return entity_key, str(p)
+    return None
+
+
+def _substitute_entity_name(prompt: str, entity_key: str) -> str:
+    """Swap a face-locked character's *name* in the prompt for its appearance prose.
+
+    Flux's T5/CLIP text encoder can't resolve a name ("Optimus Prime" means
+    nothing to it) and PuLID injects the face embedding separately from the text,
+    so a name-based art prompt is replaced — at send time, on the Flux path only —
+    with the entity's appearance description from the visual-reference dict:
+    "Optimus Prime raising a fist" -> "a towering blue-and-red robot ... raising a
+    fist", while PuLID supplies the actual face. A no-op when the name isn't in the
+    prompt (today's prompts are already appearance-based) or the entity has no
+    description — so it's harmless ahead of the name-based-prompt sibling work and
+    activates automatically once prompts go name-based. Only the *face-locked*
+    entity is substituted; other named entities are the appearance-text path's job.
+    """
+    from mtgai.art import visual_reference
+
+    try:
+        appearance = visual_reference.get_character_appearance(entity_key)
+    except Exception:
+        appearance = None
+    if not appearance:
+        return prompt
+    pattern = re.compile(re.escape(entity_key), re.IGNORECASE)
+    if not pattern.search(prompt):
+        return prompt
+    # Function replacement so backslashes/group-refs in the LLM-authored appearance
+    # prose are taken verbatim (a plain string replacement would interpret \1, \g).
+    return pattern.sub(lambda _m: appearance, prompt)
+
+
 # ---------------------------------------------------------------------------
 # Batch generation pipeline
 # ---------------------------------------------------------------------------
@@ -1109,7 +1252,25 @@ def generate_art_for_set(
                 continue
 
             slug = card_slug(cn, card.name)
-            ref_paths, ref_labels = _resolve_labeled_refs(card, set_dir)
+
+            # Reference conditioning diverges by provider. Local Flux/PuLID locks a
+            # single humanoid character's face, so it takes at most one character
+            # ref and substitutes that character's name in the prompt for its
+            # appearance (PuLID supplies the face); no labels (ComfyUI conditions
+            # on the image alone). Hosted providers forward every ref as a LABELED
+            # image (name->face binding) and keep the name-based prompt verbatim.
+            effective_prompt = card.art_prompt
+            ref_labels: list[str] = []
+            if provider == "comfyui":
+                char_ref = _resolve_flux_character_ref(card, set_dir)
+                if char_ref is not None:
+                    entity_key, ref_path = char_ref
+                    ref_paths = [ref_path]
+                    effective_prompt = _substitute_entity_name(card.art_prompt, entity_key)
+                else:
+                    ref_paths = []
+            else:
+                ref_paths, ref_labels = _resolve_labeled_refs(card, set_dir)
 
             logger.info(
                 "GENERATE %s: %s (%d version%s, provider=%s%s)%s",
@@ -1121,7 +1282,7 @@ def generate_art_for_set(
                 f", {len(ref_paths)} ref(s)" if ref_paths else "",
                 " [DRY RUN]" if dry_run else "",
             )
-            logger.info("  Prompt: %s", card.art_prompt[:100] + "...")
+            logger.info("  Prompt: %s", effective_prompt[:100] + "...")
 
             if dry_run:
                 generated += 1
@@ -1141,7 +1302,7 @@ def generate_art_for_set(
                 for attempt in range(1, max_attempts_per_version + 1):
                     try:
                         image_data, metadata = generate_image(
-                            card.art_prompt,
+                            effective_prompt,
                             provider=provider,
                             model_id=model_id,
                             ref_paths=ref_paths,
@@ -1160,7 +1321,7 @@ def generate_art_for_set(
                             "name": card.name,
                             "version": version,
                             "attempt": attempt,
-                            "prompt": card.art_prompt,
+                            "prompt": effective_prompt,
                             "output_path": str(dest),
                             "file_size_bytes": len(image_data),
                             # The *requested* refs/labels (the hosted path filters
@@ -1168,6 +1329,11 @@ def generate_art_for_set(
                             # is the accurate "were any actually sent" signal.
                             "character_refs": ref_paths,
                             "character_ref_labels": ref_labels,
+                            **(
+                                {"original_prompt": card.art_prompt}
+                                if effective_prompt != card.art_prompt
+                                else {}
+                            ),
                             **metadata,
                         }
                         atomic_write_text(
