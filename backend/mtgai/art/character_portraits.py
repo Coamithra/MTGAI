@@ -244,6 +244,29 @@ def _rel_ref_path(dest: Path, set_dir: Path) -> str:
         return dest.as_posix()
 
 
+def _entity_ref_dest(entity: dict, out_dir: Path, version: int) -> Path:
+    """Destination PNG for one entity version — the single source of truth for
+    where a reference image lands, shared by the generation loop and the
+    needs-work pre-check so they can't disagree."""
+    slug = _slugify(entity["name"]) or entity["entity_key"]
+    return out_dir / f"{slug}_v{version}.png"
+
+
+def _any_entity_needs_generation(entities: list[dict], out_dir: Path, force: bool) -> bool:
+    """True iff at least one entity version still needs a Flux generation —
+    mirrors the per-version ``dest.exists() and not force`` skip in the loop
+    exactly. When this is False every reference is already on disk (and not
+    forced), so the whole ComfyUI lifecycle (unload local LLM, VRAM pre-check,
+    boot) is pure waste and can be skipped."""
+    if force:
+        return bool(entities)
+    for entity in entities:
+        for version in range(1, VERSIONS_PER_ENTITY + 1):
+            if not _entity_ref_dest(entity, out_dir, version).exists():
+                return True
+    return False
+
+
 def generate_character_refs(
     dry_run: bool = False,
     force: bool = False,
@@ -370,7 +393,15 @@ def generate_character_refs(
     images_since_recycle = 0
     recycle_enabled = COMFYUI_RECYCLE_EVERY > 0
 
-    comfyui_proc = ensure_comfyui(log_dir=log_dir)
+    # Skip the entire ComfyUI lifecycle (unload local LLM, VRAM pre-check, boot)
+    # when no entity version needs generating — e.g. a resume/retry where every
+    # reference PNG already exists. Booting ComfyUI just to iterate-and-skip is
+    # pure waste, and worse, the VRAM pre-check in ensure_comfyui RAISES, so a
+    # retry of a stage with zero remaining GPU work could spuriously FAIL just
+    # because another app holds VRAM. We still populate ref_paths from the
+    # existing files (and count them skipped) below so attach_refs_to_cards runs.
+    needs_gpu_work = _any_entity_needs_generation(entities, out_dir, force)
+    comfyui_proc = ensure_comfyui(log_dir=log_dir) if needs_gpu_work else None
     try:
         for entity_idx, entity in enumerate(entities):
             if should_cancel is not None and should_cancel():
@@ -386,7 +417,7 @@ def generate_character_refs(
                 if should_cancel is not None and should_cancel():
                     cancelled = True
                     break
-                dest = out_dir / f"{slug}_v{version}.png"
+                dest = _entity_ref_dest(entity, out_dir, version)
                 rel = _rel_ref_path(dest, set_dir)
                 if dest.exists() and not force:
                     skipped += 1
@@ -446,7 +477,12 @@ def generate_character_refs(
                 comfyui_proc = recycle_comfyui(comfyui_proc, log_dir=log_dir)
                 images_since_recycle = 0
     finally:
-        kill_comfyui(comfyui_proc)
+        # Only tear ComfyUI down if we actually booted it. When we skipped the
+        # boot (nothing needed generating), kill_comfyui(None) would fall back to
+        # killing ANY running ComfyUI by command-line signature — never do that
+        # to a process this run didn't start.
+        if needs_gpu_work:
+            kill_comfyui(comfyui_proc)
 
     # Step 3 — attach the chosen references to the cards.
     cards_modified = attach_refs_to_cards(entities, ref_paths, cards_dir)

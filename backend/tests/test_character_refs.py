@@ -329,3 +329,75 @@ def test_char_loop_no_recycle_when_no_entities(monkeypatch, tmp_path: Path) -> N
 
     assert summary["entities"] == 0
     assert recycles == []
+
+
+# ---------------------------------------------------------------------------
+# Skip the ComfyUI boot when every reference already exists (card 6a285af6)
+# ---------------------------------------------------------------------------
+
+
+def test_char_loop_skips_comfyui_boot_when_all_present(monkeypatch, tmp_path: Path) -> None:
+    """A fully-resumed run (every entity reference already on disk, force=False)
+    must NOT boot ComfyUI — booting just to iterate-and-skip is pure waste and the
+    VRAM pre-check inside ensure_comfyui can spuriously FAIL the stage. Regression
+    for card 6a285af6. Fails without the needs-work gate (ensure_comfyui ran
+    unconditionally once entities existed)."""
+    _wire_char_loop(monkeypatch, tmp_path, n_entities=4, versions=2)
+    monkeypatch.setattr(
+        cp, "ensure_comfyui", lambda log_dir=None: pytest.fail("must not boot ComfyUI")
+    )
+    killed: list = []
+    monkeypatch.setattr(cp, "kill_comfyui", lambda proc=None: killed.append(proc))
+    # Pre-create every entity's v1 + v2 reference so nothing needs generating.
+    out_dir = tmp_path / "set" / "art-direction" / "character-refs"
+    out_dir.mkdir(parents=True)
+    for i in range(4):
+        for v in (1, 2):
+            (out_dir / f"{cp._slugify(f'Entity {i}')}_v{v}.png").write_bytes(b"old")
+
+    summary = cp.generate_character_refs()
+
+    assert summary["generated"] == 0
+    assert summary["skipped"] == 8
+    # We never booted, so we must never kill (kill_comfyui(None) would otherwise
+    # tear down an externally-running ComfyUI by command-line signature).
+    assert killed == []
+
+
+def test_char_loop_boots_comfyui_when_one_ref_missing(monkeypatch, tmp_path: Path) -> None:
+    """The mirror case: when even one entity version is missing, ComfyUI IS booted."""
+    _wire_char_loop(monkeypatch, tmp_path, n_entities=4, versions=2)
+    booted: list = []
+    monkeypatch.setattr(cp, "ensure_comfyui", lambda log_dir=None: booted.append(1) or "proc0")
+    monkeypatch.setattr(cp, "kill_comfyui", lambda proc=None: None)
+    # Pre-create all but one version; the last entity's v2 is missing → work remains.
+    out_dir = tmp_path / "set" / "art-direction" / "character-refs"
+    out_dir.mkdir(parents=True)
+    for i in range(4):
+        for v in (1, 2):
+            if i == 3 and v == 2:
+                continue
+            (out_dir / f"{cp._slugify(f'Entity {i}')}_v{v}.png").write_bytes(b"old")
+
+    summary = cp.generate_character_refs()
+
+    assert booted == [1]
+    assert summary["generated"] == 1  # only the one missing version
+
+
+def test_char_loop_boots_comfyui_when_forced_all_present(monkeypatch, tmp_path: Path) -> None:
+    """force=True always regenerates, so ComfyUI boots even when every reference
+    is already present (the needs-work gate returns True under force)."""
+    _wire_char_loop(monkeypatch, tmp_path, n_entities=2, versions=1)
+    booted: list = []
+    monkeypatch.setattr(cp, "ensure_comfyui", lambda log_dir=None: booted.append(1) or "proc0")
+    monkeypatch.setattr(cp, "kill_comfyui", lambda proc=None: None)
+    out_dir = tmp_path / "set" / "art-direction" / "character-refs"
+    out_dir.mkdir(parents=True)
+    for i in range(2):
+        (out_dir / f"{cp._slugify(f'Entity {i}')}_v1.png").write_bytes(b"old")
+
+    summary = cp.generate_character_refs(force=True)
+
+    assert booted == [1]
+    assert summary["generated"] == 2
