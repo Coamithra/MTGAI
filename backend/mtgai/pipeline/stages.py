@@ -2180,15 +2180,33 @@ def clear_char_portraits() -> None:
 def clear_art_gen() -> None:
     """Wipe the merged art-generation stage's artifacts.
 
-    Owns the generated ``art/`` images plus both transcript dirs the stage
-    writes: ``art-generation-logs`` (image generation, ``image_generator``)
-    and ``art-selection-logs`` (the best-of-N pick logs folded in from the
-    retired ``art_select`` stage, ``art_selector``). These paths match the
-    log-viewer map in ``server.get_stage_logs``.
+    Owns the generated ``art/`` images plus everything the merged stage writes:
+    ``art-generation-logs`` (image-generation transcripts, ``image_generator``),
+    ``art-selection-logs`` (the per-card best-of-N pick records the renderer
+    reads in ``resolve_art_path``, folded in from the retired ``art_select``
+    stage, ``art_selector``), and the ``art_gen/`` dir holding ``decisions.json``
+    (the pick + manual-override record). The two log dirs match the log-viewer
+    map in ``server.get_stage_logs``. Like the sibling clearers, it also scrubs
+    the field the stage stamps onto cards — ``art_path`` — so a regenerated art
+    pool isn't shadowed by stale picks pointing at now-deleted PNGs.
     """
-    _remove_path(_set_dir() / "art")
-    _remove_path(_set_dir() / "art-generation-logs")
-    _remove_path(_set_dir() / "art-selection-logs")
+    set_dir = _set_dir()
+    _remove_path(set_dir / "art")
+    _remove_path(set_dir / "art-generation-logs")
+    _remove_path(set_dir / "art-selection-logs")
+    _remove_path(set_dir / "art_gen")
+
+    cards_dir = set_dir / "cards"
+    if cards_dir.exists():
+        for path in cards_dir.glob("*.json"):
+            try:
+                card = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if not isinstance(card, dict) or card.get("art_path") is None:
+                continue
+            card["art_path"] = None
+            atomic_write_text(path, json.dumps(card, indent=2, ensure_ascii=False))
 
 
 def clear_rendering() -> None:
