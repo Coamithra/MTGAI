@@ -539,12 +539,16 @@ class TextEngine:
                 head = group[0]
                 if head.kind != SegmentType.SYMBOL and head.content.startswith(" "):
                     content = head.content.lstrip(" ")
-                    font = self._font_for_element(head, font_size)
-                    w = font.getlength(content) if content else 0.0
-                    group = [
-                        WrappedElement(head.kind, content, w, breakable_before=True),
-                        *group[1:],
-                    ]
+                    if content:
+                        font = self._font_for_element(head, font_size)
+                        w = font.getlength(content)
+                        group = [
+                            WrappedElement(head.kind, content, w, breakable_before=True),
+                            *group[1:],
+                        ]
+                    else:
+                        # Pure-whitespace head at line start — drop it.
+                        group = group[1:]
                     group_width = sum(e.width for e in group)
 
             current_elems.extend(group)
@@ -621,10 +625,12 @@ class TextEngine:
                     WrappedElement(seg.kind, content, w, breakable_before=content.startswith(" "))
                 )
 
-            # Preserve trailing space (e.g., "Add " before a symbol)
+            # Preserve trailing space (e.g., "Add " before a symbol). A break
+            # may land before this space — the following symbol then glues to
+            # it and travels with it onto the next line.
             if text.endswith(" "):
                 space_w = font.getlength(" ")
-                elements.append(WrappedElement(seg.kind, " ", space_w))
+                elements.append(WrappedElement(seg.kind, " ", space_w, breakable_before=True))
 
         return elements
 

@@ -72,23 +72,43 @@ def test_trailing_period_glued_to_its_symbol(engine: TextEngine) -> None:
 
 
 def test_consecutive_symbols_stay_together(engine: TextEngine) -> None:
-    """Adjacent symbols with no space between them never split across lines."""
+    """A run of adjacent symbols (no spaces) never splits across lines."""
+    # Five glued symbols plus the trailing '.' form one unbreakable group, so
+    # they must always land wholly on a single line, period included.
     para = engine.parse_oracle("Add {W}{U}{B}{R}{G}.", card_name="X")[0]
 
     for max_width in range(80, 900, 11):
         lines = engine.wrap_paragraph(para, font_size=60, max_width=max_width)
-        # Every symbol run must be wholly on one line: find the line(s) that
-        # carry symbols and confirm the period rides with the last symbol.
-        assert not _orphaned_punctuation(lines)
+        symbol_lines = [
+            ln for ln in lines if any(e.kind == SegmentType.SYMBOL for e in ln.elements)
+        ]
+        # Exactly one line carries symbols, and it carries all five.
+        assert len(symbol_lines) == 1, (
+            f"symbol run split across lines at max_width={max_width}: "
+            f"{[[e.content for e in ln.elements] for ln in lines]}"
+        )
+        elems = symbol_lines[0].elements
+        assert sum(1 for e in elems if e.kind == SegmentType.SYMBOL) == 5
+        # The '.' rides on that same line, right after the last symbol.
+        assert elems[-1].content.strip() == "." and elems[-2].kind == SegmentType.SYMBOL
 
 
 def test_comma_after_symbol_not_orphaned(engine: TextEngine) -> None:
-    """A comma directly after a symbol ('{U},') stays glued like the period."""
+    """A comma directly after a symbol ('{T},') stays glued to the symbol."""
     para = engine.parse_oracle("{T}, {W}: Do a thing.", card_name="X")[0]
 
     for max_width in range(80, 800, 9):
         lines = engine.wrap_paragraph(para, font_size=60, max_width=max_width)
         assert not _orphaned_punctuation(lines)
+        # Wherever the comma lands, its predecessor on that line is a symbol.
+        for line in lines:
+            elems = line.elements
+            for idx, elem in enumerate(elems):
+                if elem.kind != SegmentType.SYMBOL and elem.content.strip() == ",":
+                    assert idx > 0 and elems[idx - 1].kind == SegmentType.SYMBOL, (
+                        f"comma not glued to symbol at max_width={max_width}: "
+                        f"{[e.content for e in elems]}"
+                    )
 
 
 def test_normal_text_still_wraps(engine: TextEngine) -> None:
