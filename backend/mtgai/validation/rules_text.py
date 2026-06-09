@@ -213,6 +213,20 @@ def _strip_reminder(text: str) -> str:
     return _PAREN_SPAN_RE.sub("", text)
 
 
+def _card_name_pattern(name: str) -> re.Pattern[str] | None:
+    """Compile a word-boundary-anchored pattern that matches ``name`` whole.
+
+    Uses ``(?<!\\w)``/``(?!\\w)`` lookarounds rather than ``\\b`` so a name
+    ending (or starting) in a non-word character — e.g. ``"Boom!"`` — still
+    anchors correctly (``\\b`` after a non-word char never matches). This keeps a
+    name that is a *substring* of another word from matching: a card "Frost"
+    won't touch "Frostbite". Returns ``None`` for an empty name.
+    """
+    if not name:
+        return None
+    return re.compile(rf"(?<!\w){re.escape(name)}(?!\w)")
+
+
 def _sub_outside_parens(pattern: re.Pattern[str], repl: str, text: str) -> str:
     """Apply ``pattern.sub(repl, ...)`` only to the spans *outside* parentheses.
 
@@ -403,8 +417,12 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
 
     # ------------------------------------------------------------------
     # 1. Self-reference: card name in oracle text — AUTO
+    #    Word-boundary anchored (so a name that is a substring of another
+    #    word — "Frost" inside "Frostbite" — is not flagged) and skips
+    #    parenthesized reminder text (validators-skip-reminder-text contract).
     # ------------------------------------------------------------------
-    if card.name and card.name in oracle:
+    name_pattern = _card_name_pattern(card.name)
+    if name_pattern and name_pattern.search(_strip_reminder(oracle)):
         errors.append(
             _auto(
                 "oracle_text",
@@ -688,10 +706,18 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
 
 
 def fix_card_name_in_oracle(card: Card, error: ValidationError) -> Card:
-    """Replace card name with ~ in oracle text."""
+    """Replace whole-word occurrences of the card name with ~ in oracle text.
+
+    Word-boundary anchored (so "Frost" inside "Frostbite" is left alone) and
+    only outside parenthesized reminder text (validators-skip-reminder-text
+    contract), mirroring the validator that flags it.
+    """
     if not card.name or not card.oracle_text:
         return card
-    new_oracle = card.oracle_text.replace(card.name, "~")
+    name_pattern = _card_name_pattern(card.name)
+    if name_pattern is None:
+        return card
+    new_oracle = _sub_outside_parens(name_pattern, "~", card.oracle_text)
     return card.model_copy(update={"oracle_text": new_oracle})
 
 
