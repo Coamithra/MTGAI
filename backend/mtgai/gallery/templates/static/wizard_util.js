@@ -549,6 +549,15 @@
   //   navigate              — true (default): on success, navigate to the next
   //                           tab. false (card_gen): leave the button disabled
   //                           and let SSE drive the status forward — no nav.
+  //
+  // navigate:false + setLocked: a non-navigating advance leaves the page mounted,
+  // so the up-front setLocked(true) must be released on success too (char_refs /
+  // set_symbol). Without this the form-lock latches true forever: aiBusy() stays
+  // true, the grid keeps its locked class, and every action handler (guarded by
+  // `if local.locked return`) goes permanently inert. SSE re-locks on its own when
+  // the resumed stage starts running (its status drives aiBusy independently), so
+  // unlocking here is safe — if the stage is genuinely busy the tab re-locks via
+  // status; if it's paused/completed the controls become usable again.
   W.advanceStage = async function (opts) {
     if (opts.isLocked && opts.isLocked()) return;
     const navigate = opts.navigate !== false;
@@ -568,8 +577,14 @@
         const next = W.nextStageEntryAfter(opts.stageId);
         const nextHref = next ? `/pipeline/${next.id}` : '/pipeline';
         window.location.assign(data.navigate_to || nextHref);
+      } else if (opts.setLocked) {
+        // Page stays mounted: release the up-front lock + re-enable the button so
+        // the tab's controls don't latch dead. SSE re-locks if the stage is busy.
+        if (btn) { btn.disabled = false; btn.textContent = original; }
+        opts.setLocked(false);
       }
-      // navigate:false → button stays disabled; SSE moves the stage forward.
+      // navigate:false without setLocked → button stays disabled; SSE moves the
+      // stage forward (card_gen / ai_review / art_gen).
     } catch (err) {
       W.toast('Network error: ' + (err && err.message ? err.message : err), 'error');
       restore();
