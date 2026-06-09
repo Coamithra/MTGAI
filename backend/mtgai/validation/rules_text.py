@@ -305,12 +305,14 @@ def _is_keyword_only_line(line: str) -> bool:
 _PARAM_TOKEN_RE = re.compile(r"\{[^}]+\}|\d+")
 
 
-def _consume_keyword_param(text: str, start: int) -> int:
-    """Return the index just past an optional keyword parameter at ``start``.
+def _consume_keyword_param(text: str, start: int, keyword: str) -> int:
+    """Return the index just past ``keyword``'s optional parameter at ``start``.
 
-    Handles "from <word>" (protection), a "{cost}" / bare-number suffix (ward,
-    equip, salvage), or nothing. Leaves the index unchanged when no parameter
-    follows the keyword.
+    Handles "protection from <word>", and a "{cost}" / bare-number suffix
+    (ward, equip, salvage, and other parameterized keywords). Leaves the index
+    unchanged when no parameter follows the keyword. "from <word>" is consumed
+    only for ``protection`` (the one keyword that takes it) so an unrelated
+    word is never swallowed.
     """
     n = len(text)
     j = start
@@ -321,7 +323,7 @@ def _consume_keyword_param(text: str, start: int) -> int:
 
     rest_lower = text[j:].lower()
     # "protection from red", "protection from artifacts" — consume "from <word>".
-    if rest_lower.startswith("from "):
+    if keyword == "protection" and rest_lower.startswith("from "):
         k = j + len("from ")
         while k < n and not text[k].isspace():
             k += 1
@@ -375,7 +377,7 @@ def _split_keyword_run(line: str) -> list[str] | None:
         if matched_kw is None:
             return None  # a non-keyword token — not a pure keyword run
 
-        seg_end = _consume_keyword_param(stripped, pos + len(matched_kw))
+        seg_end = _consume_keyword_param(stripped, pos + len(matched_kw), matched_kw)
         segments.append(stripped[pos:seg_end].strip())
         pos = seg_end
 
