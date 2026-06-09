@@ -1601,6 +1601,11 @@
         btn.textContent = original;
         return;
       }
+      // markClean() (inside writeMtgFile) ran refreshFooterLabel(), which
+      // re-ENABLES + relabels this live button — re-opening the double-submit
+      // window. Re-assert disabled before the start POST so the button stays
+      // locked with the Starting… label through the whole flow.
+      btn.disabled = true;
       btn.textContent = 'Starting…';
     }
 

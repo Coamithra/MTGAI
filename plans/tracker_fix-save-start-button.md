@@ -30,8 +30,9 @@ Card 6a285b4f — Save & Start: writeMtgFile re-renders footer mid-flow, detachi
 - [x] file wired in wizard.html (page-serve unchanged; node --check covers JS)
 
 ## Phase 6: Ship
-- [ ] Commit + push
-- [ ] /review
+- [x] Commit + push
+- [x] /review (self cold-review: found markClean->refreshFooterLabel re-enables
+      the live btn even with rerender:false; added btn.disabled=true re-assert)
 - [ ] pull master into branch
 - [ ] PR + self-merge
 - [ ] delete tracker before final push
