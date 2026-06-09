@@ -2721,7 +2721,7 @@ def _persisted_revise_unfixable(set_dir: Path, reviewed_this_run: set[str]) -> l
             continue
         live_sig = None
         if cards_dir.exists():
-            for cp in cards_dir.glob(f"{cn}_*.json"):
+            for cp in sorted(cards_dir.glob(f"{cn}_*.json")):
                 try:
                     live_sig = card_signature(json.loads(cp.read_text(encoding="utf-8")))
                 except (OSError, json.JSONDecodeError):
