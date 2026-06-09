@@ -378,6 +378,91 @@ def test_relabel_streams_slots_and_fires_reset(monkeypatch) -> None:
     assert resp["incomplete"] is False
 
 
+def test_relabel_reemits_best_when_last_attempt_loses(monkeypatch) -> None:
+    """When the kept (best) parse is an EARLIER attempt than the last streamed
+    one, the loop re-emits `best` after it finishes — one reset, then every kept
+    slot — so the live tab converges to exactly what gets persisted as tweaked.
+
+    Without the re-emit the tab is left showing the discarded last attempt's
+    rows (it reset then streamed fewer slots), diverging from the on-disk
+    descriptors. Here attempt 1 covers all 20 slots but stays just under the
+    straggler tolerance so a retry fires; attempt 2 (and 3) cover only a few, so
+    attempt 1 stays `best`."""
+    # 20 slots → tolerance is max(3, ceil(20*0.1)=2) = 3. Cover 16 on attempt 1
+    # (4 missing > 3, so it retries), then only 2 on every later attempt.
+    base = _seed_slots()[0]
+    seed = [dict(base, slot_id=f"X-{i:02d}") for i in range(20)]
+    full = _blocks([(f"X-{i:02d}", f"themed {i}") for i in range(16)])
+    sparse = _blocks([(f"X-{i:02d}", f"sparse {i}") for i in range(2)])
+
+    calls = {"n": 0}
+
+    def stub(*_a, **_k):
+        calls["n"] += 1
+        text = full if calls["n"] == 1 else sparse
+
+        def _gen():
+            if text:
+                yield {"type": "text_delta", "text": text}
+            yield _complete(text, input_tokens=1, output_tokens=1)
+
+        return _gen()
+
+    monkeypatch.setattr(sr, "stream_text", stub)
+
+    # A single ordered event log: ("reset",) and ("slot", sid, desc) interleaved.
+    events: list[tuple] = []
+    tweaked, resp = sr.relabel_slots(
+        slots=seed,
+        theme=_theme(),
+        approved=_approved(),
+        archetypes=[],
+        set_name="T",
+        set_size=20,
+        model="m",
+        on_slot=lambda sid, desc, reserved=None: events.append(("slot", sid, desc)),
+        on_reset=lambda: events.append(("reset",)),
+    )
+    # The best (attempt 1) parse is what we persist.
+    assert resp["relabeled_count"] == 16
+    assert tweaked["X-00"] == "themed 0"
+    assert tweaked["X-15"] == "themed 15"
+
+    # The UI log must END with a fresh reset followed by EXACTLY the best
+    # attempt's 16 slots — not attempt 2's 2 sparse rows.
+    last_reset = max(i for i, e in enumerate(events) if e[0] == "reset")
+    tail = events[last_reset:]
+    assert tail[0] == ("reset",)
+    tail_slots = [(sid, desc) for kind, sid, desc in tail[1:]]
+    assert tail_slots == [(f"X-{i:02d}", f"themed {i}") for i in range(16)]
+    # No sparse (attempt 2) row survives as the tab's final state.
+    assert not any(desc.startswith("sparse") for _sid, desc in tail_slots)
+
+
+def test_relabel_no_reemit_when_last_attempt_wins(monkeypatch) -> None:
+    """The common case: the last streamed attempt IS the best, so no extra reset
+    fires (no flicker). One attempt that covers everything ends the loop, and the
+    event log holds exactly one reset."""
+    seed = _seed_slots()
+    text = _blocks([(s["slot_id"], f"themed {s['slot_id']}") for s in seed])
+
+    monkeypatch.setattr(sr, "stream_text", _stream_stub(text))
+    events: list[tuple] = []
+    sr.relabel_slots(
+        slots=seed,
+        theme=_theme(),
+        approved=_approved(),
+        archetypes=[],
+        set_name="T",
+        set_size=4,
+        model="m",
+        on_slot=lambda sid, desc, reserved=None: events.append(("slot", sid, desc)),
+        on_reset=lambda: events.append(("reset",)),
+    )
+    # Exactly one reset (the single attempt's) — no post-loop re-emit reset.
+    assert sum(1 for e in events if e[0] == "reset") == 1
+
+
 def test_parse_relabel_text_blocks_and_fallback() -> None:
     """The parser reads --CARD <id>-- blocks (int-normalized ids) and falls back
     to bare `<id>: descriptor` lines when no markers are present."""
