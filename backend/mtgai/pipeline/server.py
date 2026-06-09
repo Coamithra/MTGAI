@@ -7709,13 +7709,15 @@ async def get_stage_logs(stage_id: str):
 
     set_dir = set_artifact_dir()
 
-    # Map stage_id to its real on-disk log location(s). Each path here is the
-    # directory the stage's runner actually writes its transcripts to — keep it
-    # in sync when a stage's log dir moves.
+    # Map stage_id to its real on-disk log location(s). Each path here is a
+    # directory the stage's runner actually writes its transcripts/reports to
+    # — keep it in sync when a stage's log dir moves.
     log_paths: dict[str, list[Path]] = {
         "mechanics": [set_dir / "mechanics" / "logs"],
         "card_gen": [set_dir / "card_gen" / "logs"],
-        "ai_review": [set_dir / "ai_review" / "logs"],
+        # ai_review writes llmfacade transcripts to ai_review/logs and the
+        # per-card human-readable verdict reports to reviews/<cn>.{json,md}.
+        "ai_review": [set_dir / "ai_review" / "logs", set_dir / "reviews"],
         "conformance": [set_dir / "conformance" / "logs"],
         "art_prompts": [
             set_dir / "art_prompts" / "logs",
