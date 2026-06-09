@@ -588,12 +588,14 @@
       });
     }
     sel.innerHTML = options;
-    // Restore filter selection if still valid, else reset.
+    // Restore filter selection if still valid, else reset — each filter
+    // independently. The active filter's value may have vanished from the
+    // rebuilt list (a reset wiped the pool, or a regenerated pool streamed in
+    // without that rarity/color yet); resetting it to 'all' keeps the visible
+    // select value and the applied filter in agreement.
     const vals = Array.from(sel.options).map(o => o.value);
-    if (!vals.includes(local.filterRarity) && !vals.includes(local.filterColor)) {
-      local.filterRarity = 'all';
-      local.filterColor = 'all';
-    }
+    if (!vals.includes(local.filterRarity)) local.filterRarity = 'all';
+    if (!vals.includes(local.filterColor)) local.filterColor = 'all';
     sel.value = groupBy === 'rarity' ? local.filterRarity : local.filterColor;
   }
 
