@@ -34,6 +34,7 @@ from mtgai.models.card import Card
 from mtgai.rendering.colors import (
     BLACK,
     WHITE,
+    artifact_frame_key,
     frame_key_for_identity,
 )
 from mtgai.rendering.fonts import (
@@ -152,7 +153,8 @@ class CardRenderer:
     def determine_frame_key(self, card: Card) -> str:
         """Map card to frame key based on colors and type_line.
 
-        Returns one of: W, U, B, R, G, M, A, L, or land variants
+        Returns one of: W, U, B, R, G, M, A, L, the colored-artifact
+        variants (AW, AU, AB, AR, AG, AM), or a land variant
         (lw, lu, lb, lr, lg, lm).
         """
         type_lower = card.type_line.lower()
@@ -162,10 +164,11 @@ class CardRenderer:
         # Color identity as list of single-letter strings
         identity = [c.value if hasattr(c, "value") else str(c) for c in card.color_identity]
 
-        # Colored artifacts still get the artifact frame (until colored artifact
-        # frames are implemented — see learnings/colored-artifact-frames.md)
+        # Artifacts get a color-tinted artifact frame (AW..AG / AM) when they
+        # carry a color identity, else the plain gray A. Missing tinted PNGs
+        # fall back to A in _load_frame.
         if is_artifact and not is_land:
-            return "A"
+            return artifact_frame_key(identity)
 
         return frame_key_for_identity(identity, is_land=is_land)
 
@@ -384,8 +387,14 @@ class CardRenderer:
         """Load the P/T box overlay for the given frame key."""
         # For multicolor or land frames, map to a single-letter key
         if len(frame_key) > 1:
-            # Land variants (lw, lu, etc.) -> use first color letter
-            pt_key = frame_key[1].upper() if frame_key.startswith("l") else "M"
+            if frame_key.startswith("l"):
+                # Land variants (lw, lu, etc.) -> use first color letter
+                pt_key = frame_key[1].upper()
+            elif frame_key[0] == "A":
+                # Colored artifact (AW, AU, ...) -> matching tinted P/T box
+                pt_key = frame_key.upper()
+            else:
+                pt_key = "M"
         else:
             pt_key = frame_key
 

@@ -209,6 +209,9 @@ def frame_path(color_key: str) -> Path:
     key_upper = color_key.upper()
     if len(key_upper) == 1:
         return FRAMES_DIR / f"m15Frame{key_upper}.png"
+    # Colored artifact frames: AW, AU, AB, AR, AG, AM -> m15FrameAW.png
+    if len(key_upper) == 2 and key_upper[0] == "A":
+        return FRAMES_DIR / f"m15Frame{key_upper}.png"
     # Land frames use lowercase: lw, lu, lb, lr, lg, lm
     return FRAMES_DIR / f"{color_key.lower()}.png"
 
@@ -217,5 +220,8 @@ def pt_box_path(color_key: str) -> Path:
     """Return the path to the M15 P/T box overlay for the given color key."""
     key_upper = color_key.upper()
     if len(key_upper) == 1:
+        return FRAMES_DIR / f"m15PT{key_upper}.png"
+    # Colored artifact P/T boxes: AW, AU, ... -> m15PTAW.png
+    if len(key_upper) == 2 and key_upper[0] == "A":
         return FRAMES_DIR / f"m15PT{key_upper}.png"
     return FRAMES_DIR / f"m15PT{color_key[0].upper()}.png"
