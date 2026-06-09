@@ -39,7 +39,7 @@
 
   const local = {
     initialized: false,
-    cards: [],        // [{name, collector_number, type_line, rarity, colors, artist, art_prompt, card_faces}]
+    cards: [],        // [{name, collector_number, type_line, rarity, colors, artist, art_prompt, card_faces, cameo}]
     artists: [],      // directory artist names (for the reassign dropdown)
     cameoProbability: 0.25,
     hasContent: false,
@@ -325,6 +325,16 @@
             .join('')
         : '<span class="wiz-ap-pip wiz-ap-pip-C">C</span>';
 
+    const cameo = card.cameo;
+    const cameoHtml =
+      cameo && (cameo.key || cameo.description)
+        ? `<div class="wiz-ap-cameo" title="${escAttr(cameo.description || '')}">` +
+          `<span class="wiz-ap-cameo-tag">🎭 Cameo</span>` +
+          `<span class="wiz-ap-cameo-name">${escHtml(cameo.key || cameo.kind || 'style-guide entity')}</span>` +
+          (cameo.kind ? `<span class="wiz-ap-cameo-kind">${escHtml(cameo.kind)}</span>` : '') +
+          `</div>`
+        : '';
+
     const artistControl = local.artists.length
       ? `<select class="wiz-ap-artist-select" data-role="ap-artist" ${isPast ? 'disabled' : ''}>
            ${artistOptions(card.artist)}
@@ -353,6 +363,7 @@
           ${W.rarityPill ? W.rarityPill(card.rarity) : ''}
           <span class="wiz-ap-type">${escHtml(card.type_line || '')}</span>
         </div>
+        ${cameoHtml}
         <div class="wiz-ap-artist-row">
           <label class="wiz-ap-artist-label">Artist</label>
           ${artistControl}
@@ -640,6 +651,21 @@
       .wiz-ap-type {
         font-size: 0.73rem; color: #666; flex: 1 1 auto; text-align: right;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+
+      .wiz-ap-cameo {
+        display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
+        font-size: 0.72rem; cursor: help;
+      }
+      .wiz-ap-cameo-tag {
+        font-weight: 700; letter-spacing: 0.03em; color: #d9a8ff;
+        background: rgba(170,90,255,0.12); border: 1px solid #4a2d6e;
+        border-radius: 3px; padding: 1px 6px; white-space: nowrap;
+      }
+      .wiz-ap-cameo-name { color: #d6c2ee; font-weight: 600; }
+      .wiz-ap-cameo-kind {
+        color: #8a7aa0; font-size: 0.66rem; text-transform: uppercase;
+        letter-spacing: 0.05em;
       }
 
       .wiz-ap-artist-row { display: flex; align-items: center; gap: 0.45rem; }
