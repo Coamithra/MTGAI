@@ -83,6 +83,24 @@ IMAGE_STAGE_NAMES: dict[str, str] = {
     "art_gen": "Art Generation & Review",
 }
 
+# LLM stages whose work is a *vision* task — they judge generated images, so a
+# text-only model can't do the job (the call throws per-card and best-of-N
+# silently falls back to v1, wasting all the expensive Flux v2..vN compute).
+# The Project Settings picker filters these stages' model dropdown to
+# vision-capable models, and the save-model endpoint rejects a non-vision
+# assignment for them. ``art_select`` (the best-of-N art judge folded into
+# art_gen) is the only one today; image-generation stages aren't here because
+# they use the image registry, which has no text-only entries.
+#
+# NOTE: the filter admits any ``supports_vision`` model, but the art_selector
+# runtime hard-pins the Anthropic provider — so today this works only because
+# the sole vision-capable registry entries ARE the Anthropic models. The day a
+# *local* vision model lands (``supports_vision=true`` + ``provider=llamacpp``)
+# the picker would offer it and the art_selector would then throw against the
+# Anthropic provider, re-introducing the silent v1 fallback this guards. At that
+# point tighten the filter to "vision AND Anthropic-capable".
+VISION_REQUIRED_STAGES: frozenset[str] = frozenset({"art_select"})
+
 # ---------------------------------------------------------------------------
 # Default assignments (matching current hardcoded behaviour)
 # ---------------------------------------------------------------------------

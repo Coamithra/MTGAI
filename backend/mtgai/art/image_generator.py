@@ -869,6 +869,7 @@ def generate_image_hosted(
     width: int = DEFAULT_WIDTH,
     height: int = DEFAULT_HEIGHT,
     ref_paths: list[str] | None = None,
+    ref_labels: list[str] | None = None,
 ) -> tuple[bytes, dict]:
     """Generate an image via a hosted provider (OpenAI / Gemini) through llmfacade.
 
@@ -878,8 +879,13 @@ def generate_image_hosted(
     back to the provider's default. Sizing is provider-specific: OpenAI takes a
     constrained ``size``, Gemini an ``aspect_ratio``, so we map our pixel art
     window accordingly. ``ref_paths`` that exist on disk become
-    ``reference_images`` (provider reference-conditioning: OpenAI's edit
-    endpoint, Gemini inline parts). Returns ``(image_bytes, metadata)``.
+    ``reference_images``; ``ref_labels`` (parallel to ``ref_paths`` by index) are
+    the entity names — when present they make each reference a ``LabeledImage`` so
+    the provider binds name->face (Gemini interleaves "``<name>``" text before each
+    image then the prompt; OpenAI synthesizes a "Reference image N is ``<name>``"
+    preamble). The card's art prompt references those same names (the binding
+    relies on the prompt + label sharing the identity token). Returns
+    ``(image_bytes, metadata)``.
     """
     from llmfacade import LLM
     from llmfacade.models import ImageBlock
@@ -888,12 +894,33 @@ def generate_image_hosted(
         model_id = _HOSTED_DEFAULT_MODEL.get(provider)
 
     # Reference conditioning: only forward refs that actually exist on disk
-    # (char_portraits may not have produced them yet).
-    reference_images: list[ImageBlock] | None = None
+    # (char_portraits may not have produced them yet). When any ref carries a
+    # label, build LabeledImages so the provider can bind name->face; otherwise
+    # keep the flat ImageBlock list (back-compat / no labels available).
+    reference_images: list | None = None
     if ref_paths:
-        existing = [p for p in ref_paths if Path(p).exists()]
+        existing = [
+            (p, (ref_labels[i] if ref_labels and i < len(ref_labels) else None))
+            for i, p in enumerate(ref_paths)
+            if Path(p).exists()
+        ]
         if existing:
-            reference_images = [ImageBlock.from_path(p) for p in existing]
+            if any(label for _, label in existing):
+                # Imported here (not at module top) so an unlabeled call never
+                # needs the symbol — the back-compat flat-list path runs on any
+                # llmfacade. When labels ARE present, a missing LabeledImage is a
+                # hard error by design: labeled binding is the whole point of the
+                # hosted path, so failing loudly beats silently dropping labels.
+                from llmfacade import LabeledImage
+
+                reference_images = [
+                    LabeledImage(label=label, image=ImageBlock.from_path(p))
+                    if label
+                    else ImageBlock.from_path(p)
+                    for p, label in existing
+                ]
+            else:
+                reference_images = [ImageBlock.from_path(p) for p, _ in existing]
 
     call_kwargs: dict = {
         "provider": "google" if provider in ("gemini", "google") else provider,
@@ -937,6 +964,7 @@ def generate_image(
     model_id: str | None = None,
     seed: int | None = None,
     ref_paths: list[str] | None = None,
+    ref_labels: list[str] | None = None,
     width: int = DEFAULT_WIDTH,
     height: int = DEFAULT_HEIGHT,
 ) -> tuple[bytes, dict]:
@@ -947,9 +975,12 @@ def generate_image(
       ``generate_image``. ``model_id`` is the provider image model (from the
       registry); ``None`` falls back to the provider default.
 
-    Other providers raise ``ValueError``. The Art Generation stage calls this
-    per candidate version; it resolves the provider + model id from the active
-    project's ``art_gen`` image assignment.
+    ``ref_labels`` (parallel to ``ref_paths``) are entity names used by the hosted
+    path to label/interleave each reference image for name->face binding; the
+    ComfyUI path ignores them (it conditions on the images alone). Other providers
+    raise ``ValueError``. The Art Generation stage calls this per candidate
+    version; it resolves the provider + model id from the active project's
+    ``art_gen`` image assignment.
     """
     if provider == "comfyui":
         return generate_image_comfyui(
@@ -957,19 +988,32 @@ def generate_image(
         )
     if provider in _HOSTED_PROVIDERS:
         return generate_image_hosted(
-            prompt, provider, model_id=model_id, ref_paths=ref_paths, width=width, height=height
+            prompt,
+            provider,
+            model_id=model_id,
+            ref_paths=ref_paths,
+            ref_labels=ref_labels,
+            width=width,
+            height=height,
         )
     raise ValueError(f"Unknown image provider: {provider!r}")
 
 
-def _resolve_ref_paths(card, set_dir: Path) -> list[str]:
-    """Resolve a card's ``art_character_refs`` to absolute, on-disk paths.
+def _resolve_labeled_refs(card, set_dir: Path) -> tuple[list[str], list[str]]:
+    """Resolve a card's ``art_character_refs`` to parallel ``(paths, labels)`` lists.
 
     ``ref_image_path`` is repo-relative under the asset folder; we join it to
     ``set_dir`` (absolute paths are kept as-is). Built to the field contract —
     works whether or not ``char_portraits`` has actually produced the images.
+    ``labels[i]`` is the entity's display name (``entity_display_name`` of the
+    ``entity_key``) — the SAME derivation ``art_prompts`` uses to name the entity
+    in the prompt, so the prompt's name token and the reference label match (the
+    requirement for the hosted provider to bind name->face).
     """
-    resolved: list[str] = []
+    from mtgai.art.visual_reference import entity_display_name
+
+    paths: list[str] = []
+    labels: list[str] = []
     for ref in getattr(card, "art_character_refs", None) or []:
         raw = getattr(ref, "ref_image_path", None)
         if not raw:
@@ -977,8 +1021,9 @@ def _resolve_ref_paths(card, set_dir: Path) -> list[str]:
         p = Path(raw)
         if not p.is_absolute():
             p = set_dir / raw
-        resolved.append(str(p))
-    return resolved
+        paths.append(str(p))
+        labels.append(entity_display_name(getattr(ref, "entity_key", "") or ""))
+    return paths, labels
 
 
 def _resolve_flux_character_ref(card, set_dir: Path) -> tuple[str, str] | None:
@@ -1019,11 +1064,12 @@ def _substitute_entity_name(prompt: str, entity_key: str) -> str:
     so a name-based art prompt is replaced — at send time, on the Flux path only —
     with the entity's appearance description from the visual-reference dict:
     "Optimus Prime raising a fist" -> "a towering blue-and-red robot ... raising a
-    fist", while PuLID supplies the actual face. A no-op when the name isn't in the
-    prompt (today's prompts are already appearance-based) or the entity has no
-    description — so it's harmless ahead of the name-based-prompt sibling work and
-    activates automatically once prompts go name-based. Only the *face-locked*
-    entity is substituted; other named entities are the appearance-text path's job.
+    fist", while PuLID supplies the actual face. Matches the entity by the SAME
+    name token the art prompt uses — ``entity_display_name(entity_key)`` (e.g.
+    "Storm Knight"), the token ``get_named_entities`` puts in the prompt — and also
+    its raw slug, so it fires whichever form appears. A no-op when neither form is
+    in the prompt or the entity has no description. Only the *face-locked* entity is
+    substituted; other named entities are left as names (text-only).
     """
     from mtgai.art import visual_reference
 
@@ -1033,7 +1079,20 @@ def _substitute_entity_name(prompt: str, entity_key: str) -> str:
         appearance = None
     if not appearance:
         return prompt
-    pattern = re.compile(re.escape(entity_key), re.IGNORECASE)
+    # Match the display name the prompt actually carries ("Storm Knight") and the
+    # raw slug, longest-first so the alternation prefers the full name.
+    forms = sorted(
+        {
+            visual_reference.entity_display_name(entity_key),
+            entity_key.replace("_", " "),
+            entity_key,
+        },
+        key=len,
+        reverse=True,
+    )
+    pattern = re.compile(
+        r"\b(?:" + "|".join(re.escape(f) for f in forms if f) + r")\b", re.IGNORECASE
+    )
     if not pattern.search(prompt):
         return prompt
     # Function replacement so backslashes/group-refs in the LLM-authored appearance
@@ -1211,9 +1270,11 @@ def generate_art_for_set(
             # Reference conditioning diverges by provider. Local Flux/PuLID locks a
             # single humanoid character's face, so it takes at most one character
             # ref and substitutes that character's name in the prompt for its
-            # appearance (PuLID supplies the face). Hosted providers forward every
-            # ref as generic image-conditioning and keep the prompt verbatim.
+            # appearance (PuLID supplies the face); no labels (ComfyUI conditions
+            # on the image alone). Hosted providers forward every ref as a LABELED
+            # image (name->face binding) and keep the name-based prompt verbatim.
             effective_prompt = card.art_prompt
+            ref_labels: list[str] = []
             if provider == "comfyui":
                 char_ref = _resolve_flux_character_ref(card, set_dir)
                 if char_ref is not None:
@@ -1223,7 +1284,7 @@ def generate_art_for_set(
                 else:
                     ref_paths = []
             else:
-                ref_paths = _resolve_ref_paths(card, set_dir)
+                ref_paths, ref_labels = _resolve_labeled_refs(card, set_dir)
 
             logger.info(
                 "GENERATE %s: %s (%d version%s, provider=%s%s)%s",
@@ -1279,6 +1340,7 @@ def generate_art_for_set(
                             provider=provider,
                             model_id=model_id,
                             ref_paths=ref_paths,
+                            ref_labels=ref_labels,
                         )
                         dest.parent.mkdir(parents=True, exist_ok=True)
                         dest.write_bytes(image_data)
@@ -1296,7 +1358,11 @@ def generate_art_for_set(
                             "prompt": effective_prompt,
                             "output_path": str(dest),
                             "file_size_bytes": len(image_data),
+                            # The *requested* refs/labels (the hosted path filters
+                            # to files on disk); metadata["character_refs_applied"]
+                            # is the accurate "were any actually sent" signal.
                             "character_refs": ref_paths,
+                            "character_ref_labels": ref_labels,
                             **(
                                 {"original_prompt": card.art_prompt}
                                 if effective_prompt != card.art_prompt

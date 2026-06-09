@@ -477,7 +477,7 @@
           </div>
           <div class="wiz-finalize-field full">
             <label>Oracle text</label>
-            <textarea data-field="oracle_text" rows="4">${escHtml(c.oracle_text || '')}</textarea>
+            <textarea data-field="oracle_text" rows="4">${escHtml(c.oracle_text_editor != null ? c.oracle_text_editor : (c.oracle_text || ''))}</textarea>
             <span class="wiz-finalize-preview-lbl">Preview</span>
             <div class="wiz-finalize-preview" data-role="fin-oracle-preview">${symbolizeHtml(c.oracle_text)}</div>
           </div>
