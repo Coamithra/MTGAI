@@ -219,7 +219,12 @@ def pt_box_path(color_key: str) -> Path:
 
     Accepts single keys (W, M, A), two-color split keys (WU, WB, …),
     colored-artifact variants (AW, …), and land variants (lw → first color's box).
+    A two-color split key maps to the gold M box — real hybrid/gold cards keep a
+    gold P/T box over the split body (there are no per-pair P/T assets).
     """
     if color_key.startswith("l") and len(color_key) == 2:
         return FRAMES_DIR / f"m15PT{color_key[1].upper()}.png"
-    return FRAMES_DIR / f"m15PT{color_key.upper()}.png"
+    key = color_key.upper()
+    if len(key) == 2 and all(c in "WUBRG" for c in key):
+        return FRAMES_DIR / "m15PTM.png"
+    return FRAMES_DIR / f"m15PT{key}.png"

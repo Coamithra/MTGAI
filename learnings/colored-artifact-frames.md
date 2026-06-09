@@ -144,7 +144,9 @@ phase-correlation auto-align); a >50%-shared-glyph pixel can smudge (fix: more c
 mode); there's no "empty art box" ground truth, but we don't need one since the art window is cut.
 
 **Implementation:** `backend/scripts/generate_two_color_frames.py` (offline, committed PNGs:
-`m15Frame<PAIR>.png` + `m15PT<PAIR>.png`, 10 pairs, WUBRG order); `colors.frame_key_for_identity` /
+`m15Frame<PAIR>.png`, 10 pairs, WUBRG order; bars come from the gold `m15FrameM`, and the P/T box
+is the gold `m15PTM` via a `pt_box_path` remap — the real hybrid-card convention, no per-pair P/T
+assets); `colors.frame_key_for_identity` /
 `two_color_key`; `layout.frame_path` / `pt_box_path`; `card_renderer.determine_frame_key` /
 `_load_frame` / `_load_pt_box` / `_load_legendary_crown` (the pre-existing `CROWN_PAIR_MAP` is now
 wired to the committed `crowns/<PAIR>.png`).

@@ -110,9 +110,12 @@ def test_frame_path_keys():
 
 
 def test_pt_box_path_keys():
-    assert pt_box_path("WU").name == "m15PTWU.png"
+    # Two-color split keys map to the gold M box (real hybrid/gold convention);
+    # there are no per-pair P/T assets.
+    assert pt_box_path("WU").name == "m15PTM.png"
     assert pt_box_path("W").name == "m15PTW.png"
     assert pt_box_path("M").name == "m15PTM.png"
+    assert pt_box_path("AW").name == "m15PTAW.png"  # colored artifact keeps its tint
     assert pt_box_path("lw").name == "m15PTW.png"  # land -> first color
 
 
@@ -128,11 +131,32 @@ def test_two_color_frame_asset_exists(pair):
 
 
 @pytest.mark.parametrize("pair", PAIRS)
-def test_two_color_pt_box_asset_exists(pair):
+def test_two_color_pt_box_resolves(pair):
     pp = pt_box_path(pair)
     assert pp.is_file(), f"missing {pp}"
     with Image.open(pp) as img:
         assert img.size == (377, 206)
+
+
+@pytest.mark.parametrize("pair", PAIRS)
+def test_two_color_frame_has_gold_bars(pair):
+    """The split frames carry m15FrameM's gold title/type bars verbatim.
+
+    generate_two_color_frames._clean_bars pastes the gold frame through the
+    title/type masks, so where a mask is fully opaque the split frame's RGB
+    must equal the gold frame's exactly (the canonical hybrid-card look).
+    """
+    np = pytest.importorskip("numpy")
+    frames_dir = frame_path("M").parent
+    gold = np.asarray(Image.open(frames_dir / "m15FrameM.png").convert("RGB"))
+    split = np.asarray(Image.open(frame_path(pair)).convert("RGB"))
+    for mask_name in ("m15MaskTitle", "m15MaskType"):
+        mask = np.asarray(Image.open(frames_dir / f"{mask_name}.png").convert("RGBA"))[:, :, 3]
+        solid = mask == 255
+        assert solid.any(), f"{mask_name} has no fully-opaque pixels"
+        assert np.array_equal(split[solid], gold[solid]), (
+            f"{pair} {mask_name} zone is not the gold m15FrameM bar"
+        )
 
 
 # --------------------------------------------------------------------------- #

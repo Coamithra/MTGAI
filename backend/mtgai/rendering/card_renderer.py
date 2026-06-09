@@ -478,9 +478,10 @@ class CardRenderer:
     def _load_pt_box(self, frame_key: str) -> Image.Image:
         """Load the P/T box overlay for the given frame key.
 
-        Two-color split frames (WU, WB, …) use their matching split P/T box;
-        colored artifacts (AW, …) use their tinted box; land variants map to the
-        first colour's box; 3+ colours use gold (M).
+        Two-color split frames (WU, WB, …) use the gold (M) box via pt_box_path —
+        the real-card convention for hybrid/gold cards; colored artifacts (AW, …)
+        use their tinted box; land variants map to the first colour's box; 3+
+        colours use gold (M).
         """
         if frame_key.startswith("l") and len(frame_key) == 2:
             pt_key = frame_key[1].upper()  # land variant -> first color letter
