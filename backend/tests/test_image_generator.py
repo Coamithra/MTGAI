@@ -178,36 +178,374 @@ def test_apply_character_refs_missing_files_falls_back(tmp_path):
     assert ig._apply_character_refs({}, [missing]) is False
 
 
-def test_apply_character_refs_present_returns_false_until_wired(tmp_path):
-    """When refs exist on disk the decision is to condition — but the PuLID node
-    injection is a tracked stub, so it returns False (plain gen) for now. This
-    pins the contract: the *decision* path is exercised even though the wiring is
-    deferred."""
+def test_apply_character_refs_injects_pulid_graph(tmp_path, monkeypatch):
+    """An existing ref wires the PuLID-Flux graph: the loaders + ApplyPulidFlux
+    node are added and the KSampler's model input is rerouted through the patched
+    model. The ComfyUI upload is mocked (no live server)."""
     ref = tmp_path / "hero.png"
     ref.write_bytes(b"fakepng")
-    assert ig._apply_character_refs({}, [str(ref)]) is False
+    monkeypatch.setattr(ig, "_upload_image_to_comfyui", lambda p: "hero.png")
+
+    # Minimal base workflow: UnetLoaderGGUF "1" + KSampler "8" reading from it.
+    workflow = {
+        "1": {"class_type": "UnetLoaderGGUF", "inputs": {}},
+        "8": {"class_type": "KSampler", "inputs": {"model": ["1", 0]}},
+    }
+    assert ig._apply_character_refs(workflow, [str(ref)]) is True
+
+    assert workflow["pulid_apply"]["class_type"] == "ApplyPulidFlux"
+    assert workflow["pulid_apply"]["inputs"]["model"] == ["1", 0]
+    assert workflow["pulid_apply"]["inputs"]["image"] == ["pulid_image", 0]
+    assert workflow["pulid_image"]["inputs"]["image"] == "hero.png"
+    assert workflow["pulid_model"]["inputs"]["pulid_file"] == ig.PULID_FLUX_MODEL
+    # KSampler now reads the PuLID-patched model, not the raw unet.
+    assert workflow["8"]["inputs"]["model"] == ["pulid_apply", 0]
 
 
-def test_resolve_ref_paths_joins_relative(tmp_path):
-    ref = ArtCharacterRef(entity_key="hero", ref_image_path="art-direction/x.png")
-    card = Card(name="Hero", type_line="Legendary Creature", art_character_refs=[ref])
-    resolved = ig._resolve_ref_paths(card, tmp_path)
-    assert resolved == [str(tmp_path / "art-direction" / "x.png")]
+def test_apply_character_refs_takes_only_first_ref(tmp_path, monkeypatch):
+    """Multiple refs (defensive — the caller already caps to one): PuLID locks a
+    single identity, so only the first existing ref is uploaded/wired."""
+    a = tmp_path / "a.png"
+    a.write_bytes(b"x")
+    b = tmp_path / "b.png"
+    b.write_bytes(b"y")
+    uploaded = []
+    monkeypatch.setattr(ig, "_upload_image_to_comfyui", lambda p: uploaded.append(p) or "up.png")
+    workflow = {"1": {"inputs": {}}, "8": {"inputs": {"model": ["1", 0]}}}
+    assert ig._apply_character_refs(workflow, [str(a), str(b)]) is True
+    assert uploaded == [str(a)]  # only the first
 
 
-def test_resolve_ref_paths_keeps_absolute(tmp_path):
+def test_apply_character_refs_upload_failure_falls_back(tmp_path, monkeypatch):
+    """If the ComfyUI upload fails the graph is left untouched and we fall back to
+    plain text-to-image (return False)."""
+    ref = tmp_path / "hero.png"
+    ref.write_bytes(b"fakepng")
+
+    def _boom(_p):
+        raise RuntimeError("comfyui down")
+
+    monkeypatch.setattr(ig, "_upload_image_to_comfyui", _boom)
+    workflow = {"1": {"inputs": {}}, "8": {"inputs": {"model": ["1", 0]}}}
+    assert ig._apply_character_refs(workflow, [str(ref)]) is False
+    assert "pulid_apply" not in workflow
+    assert workflow["8"]["inputs"]["model"] == ["1", 0]  # unchanged
+
+
+# ---------------------------------------------------------------------------
+# Labeled reference resolution + hosted interleaving (entity->face binding)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_labeled_refs_derives_name_from_key(tmp_path):
+    card = Card(
+        name="Vorrik at the Spire",
+        type_line="Legendary Creature",
+        art_character_refs=[
+            ArtCharacterRef(entity_key="storm_knight", ref_image_path="art-direction/sk.png"),
+            ArtCharacterRef(entity_key="the_spire", ref_image_path="art-direction/sp.png"),
+        ],
+    )
+    paths, labels = ig._resolve_labeled_refs(card, tmp_path)
+    assert paths == [
+        str(tmp_path / "art-direction" / "sk.png"),
+        str(tmp_path / "art-direction" / "sp.png"),
+    ]
+    # Labels are entity_display_name(key) — the SAME derivation art_prompts uses,
+    # so the prompt's name token and the ref label match.
+    assert labels == ["Storm Knight", "The Spire"]
+
+
+def test_resolve_labeled_refs_keeps_absolute_path(tmp_path):
     abs_path = str(tmp_path / "abs.png")
     card = Card(
         name="Hero",
         type_line="Creature",
         art_character_refs=[ArtCharacterRef(entity_key="hero", ref_image_path=abs_path)],
     )
-    assert ig._resolve_ref_paths(card, tmp_path / "other") == [abs_path]
+    paths, labels = ig._resolve_labeled_refs(card, tmp_path / "other")
+    assert paths == [abs_path]
+    assert labels == ["Hero"]
 
 
-def test_resolve_ref_paths_empty_for_no_refs(tmp_path):
-    card = Card(name="Plain", type_line="Creature")
-    assert ig._resolve_ref_paths(card, tmp_path) == []
+def test_resolve_labeled_refs_empty_for_no_refs(tmp_path):
+    assert ig._resolve_labeled_refs(Card(name="Plain", type_line="Creature"), tmp_path) == ([], [])
+
+
+class _FakeImageResult:
+    def __init__(self):
+        self.images = [type("B", (), {"data": b"img", "media_type": "image/png"})()]
+        self.usage = None
+        self.model = "hosted-model"
+
+
+def _wire_hosted(monkeypatch, tmp_path):
+    """Stub llmfacade's LLM + ImageBlock so generate_image_hosted runs offline.
+
+    Returns ``captured`` (the kwargs the fake generate_image saw) + two real ref
+    files on disk (the path-exists filter is real).
+    """
+    import llmfacade
+    import llmfacade.models as lfm
+
+    p1 = tmp_path / "a.png"
+    p1.write_bytes(b"x")
+    p2 = tmp_path / "b.png"
+    p2.write_bytes(b"y")
+
+    monkeypatch.setattr(lfm.ImageBlock, "from_path", staticmethod(lambda p: f"IMG:{p}"))
+
+    captured: dict = {}
+
+    class _LLM:
+        @classmethod
+        def default(cls):
+            return cls()
+
+        def generate_image(self, prompt, **kw):
+            captured["prompt"] = prompt
+            captured.update(kw)
+            return _FakeImageResult()
+
+    monkeypatch.setattr(llmfacade, "LLM", _LLM)
+    return captured, str(p1), str(p2)
+
+
+def test_generate_image_hosted_unlabeled_keeps_flat_list(monkeypatch, tmp_path):
+    """No labels -> a plain ImageBlock list (back-compat wire shape)."""
+    captured, p1, p2 = _wire_hosted(monkeypatch, tmp_path)
+    _, meta = ig.generate_image_hosted("draw a scene", "gemini", ref_paths=[p1, p2])
+    assert captured["reference_images"] == [f"IMG:{p1}", f"IMG:{p2}"]
+    assert meta["character_refs_applied"] is True
+
+
+def test_generate_image_hosted_builds_labeled_images(monkeypatch, tmp_path):
+    """Labels present -> each ref becomes a LabeledImage carrying the entity name."""
+    llmfacade = pytest.importorskip("llmfacade")
+    if not hasattr(llmfacade, "LabeledImage"):
+        pytest.skip("LLMFacade labeled-reference-images dependency not landed yet")
+    from llmfacade import LabeledImage
+
+    captured, p1, p2 = _wire_hosted(monkeypatch, tmp_path)
+    _, meta = ig.generate_image_hosted(
+        "Storm Knight raises her blade before The Spire",
+        "gemini",
+        ref_paths=[p1, p2],
+        ref_labels=["Storm Knight", "The Spire"],
+    )
+    refs = captured["reference_images"]
+    assert all(isinstance(r, LabeledImage) for r in refs)
+    assert [r.label for r in refs] == ["Storm Knight", "The Spire"]
+    assert [r.image for r in refs] == [f"IMG:{p1}", f"IMG:{p2}"]
+    assert meta["character_refs_applied"] is True
+
+
+def test_generate_image_hosted_missing_ref_dropped(monkeypatch, tmp_path):
+    """A ref whose file doesn't exist is filtered out before labeling."""
+    llmfacade = pytest.importorskip("llmfacade")
+    if not hasattr(llmfacade, "LabeledImage"):
+        pytest.skip("LLMFacade labeled-reference-images dependency not landed yet")
+    from llmfacade import LabeledImage
+
+    captured, p1, _p2 = _wire_hosted(monkeypatch, tmp_path)
+    missing = str(tmp_path / "gone.png")
+    ig.generate_image_hosted(
+        "scene",
+        "gemini",
+        ref_paths=[p1, missing],
+        ref_labels=["Storm Knight", "Ghost"],
+    )
+    refs = captured["reference_images"]
+    assert len(refs) == 1
+    assert isinstance(refs[0], LabeledImage)
+    assert refs[0].label == "Storm Knight"
+
+
+def test_generate_image_hosted_mixed_labeled_and_unlabeled(monkeypatch, tmp_path):
+    """A batch where one ref has a label and another doesn't -> the labeled ref is
+    a LabeledImage, the unlabeled (empty-string label) ref a bare ImageBlock."""
+    llmfacade = pytest.importorskip("llmfacade")
+    if not hasattr(llmfacade, "LabeledImage"):
+        pytest.skip("LLMFacade labeled-reference-images dependency not landed yet")
+    from llmfacade import LabeledImage
+
+    captured, p1, p2 = _wire_hosted(monkeypatch, tmp_path)
+    ig.generate_image_hosted("scene", "gemini", ref_paths=[p1, p2], ref_labels=["Storm Knight", ""])
+    refs = captured["reference_images"]
+    assert isinstance(refs[0], LabeledImage)
+    assert refs[0].label == "Storm Knight"
+    assert refs[1] == f"IMG:{p2}"  # empty label -> bare ImageBlock
+
+
+def test_generate_image_hosted_labels_shorter_than_paths(monkeypatch, tmp_path):
+    """A ref_labels list shorter than ref_paths must not IndexError — the
+    unmatched tail refs degrade to bare ImageBlocks (the i < len guard)."""
+    llmfacade = pytest.importorskip("llmfacade")
+    if not hasattr(llmfacade, "LabeledImage"):
+        pytest.skip("LLMFacade labeled-reference-images dependency not landed yet")
+    from llmfacade import LabeledImage
+
+    captured, p1, p2 = _wire_hosted(monkeypatch, tmp_path)
+    ig.generate_image_hosted("scene", "gemini", ref_paths=[p1, p2], ref_labels=["Storm Knight"])
+    refs = captured["reference_images"]
+    assert isinstance(refs[0], LabeledImage)
+    assert refs[0].label == "Storm Knight"
+    assert refs[1] == f"IMG:{p2}"  # no label at this index -> bare ImageBlock
+
+
+# ---------------------------------------------------------------------------
+# Flux character-ref selection (humanoid characters only, max one)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_flux_character_ref_picks_first_existing_character(tmp_path, monkeypatch):
+    """Returns the first ref whose entity is a humanoid character AND whose image
+    exists; non-characters (locations/factions) are skipped."""
+    loc = tmp_path / "loc.png"
+    loc.write_bytes(b"x")
+    hero = tmp_path / "hero.png"
+    hero.write_bytes(b"y")
+    card = Card(
+        name="Hero at the Citadel",
+        type_line="Legendary Creature",
+        art_character_refs=[
+            ArtCharacterRef(entity_key="citadel", ref_image_path=str(loc)),  # a location
+            ArtCharacterRef(entity_key="hero", ref_image_path=str(hero)),  # a character
+        ],
+    )
+    monkeypatch.setattr("mtgai.art.visual_reference.is_character_entity", lambda k: k == "hero")
+    assert ig._resolve_flux_character_ref(card, tmp_path) == ("hero", str(hero))
+
+
+def test_resolve_flux_character_ref_skips_missing_image(tmp_path, monkeypatch):
+    """A character whose ref image doesn't exist on disk is skipped."""
+    card = Card(
+        name="Hero",
+        type_line="Legendary Creature",
+        art_character_refs=[
+            ArtCharacterRef(entity_key="hero", ref_image_path=str(tmp_path / "gone.png"))
+        ],
+    )
+    monkeypatch.setattr("mtgai.art.visual_reference.is_character_entity", lambda k: True)
+    assert ig._resolve_flux_character_ref(card, tmp_path) is None
+
+
+def test_resolve_flux_character_ref_none_without_character(tmp_path, monkeypatch):
+    """No humanoid-character ref -> None (run falls back to plain text-to-image)."""
+    loc = tmp_path / "loc.png"
+    loc.write_bytes(b"x")
+    card = Card(
+        name="The Citadel",
+        type_line="Land",
+        art_character_refs=[ArtCharacterRef(entity_key="citadel", ref_image_path=str(loc))],
+    )
+    monkeypatch.setattr("mtgai.art.visual_reference.is_character_entity", lambda k: False)
+    assert ig._resolve_flux_character_ref(card, tmp_path) is None
+
+
+# ---------------------------------------------------------------------------
+# Late name -> appearance substitution (Flux path)
+# ---------------------------------------------------------------------------
+
+
+def test_substitute_entity_name_swaps_name_for_appearance(monkeypatch):
+    monkeypatch.setattr(
+        "mtgai.art.visual_reference.get_character_appearance",
+        lambda k: "a towering blue-and-red robot",
+    )
+    out = ig._substitute_entity_name("Optimus Prime raising a fist", "optimus prime")
+    assert out == "a towering blue-and-red robot raising a fist"
+
+
+def test_substitute_entity_name_matches_display_name_of_slug(monkeypatch):
+    """The integration case: the prompt carries the DISPLAY name ("Storm Knight")
+    that get_named_entities emits, while the ref's entity_key is the slug
+    ("storm_knight"). The substitution must match the display form (a raw-slug-only
+    match would miss it and leave the unrenderable name in the Flux prompt)."""
+    monkeypatch.setattr(
+        "mtgai.art.visual_reference.get_character_appearance",
+        lambda k: "a knight wreathed in blue lightning",
+    )
+    out = ig._substitute_entity_name("Storm Knight raises her blade", "storm_knight")
+    assert out == "a knight wreathed in blue lightning raises her blade"
+
+
+def test_substitute_entity_name_noop_when_name_absent(monkeypatch):
+    """No form of this entity's name is in the prompt -> unchanged."""
+    monkeypatch.setattr(
+        "mtgai.art.visual_reference.get_character_appearance", lambda k: "a tall man"
+    )
+    prompt = "a heroic figure in golden armor charging forward"
+    assert ig._substitute_entity_name(prompt, "bert") == prompt
+
+
+def test_substitute_entity_name_noop_without_appearance(monkeypatch):
+    monkeypatch.setattr("mtgai.art.visual_reference.get_character_appearance", lambda k: None)
+    prompt = "Bert eating an apple"
+    assert ig._substitute_entity_name(prompt, "bert") == prompt
+
+
+# ---------------------------------------------------------------------------
+# ComfyUI image upload (multipart)
+# ---------------------------------------------------------------------------
+
+
+def test_upload_image_to_comfyui_posts_multipart(tmp_path, monkeypatch):
+    """The ref bytes are POSTed as multipart/form-data to /upload/image and the
+    returned name (subfolder-joined) is what a LoadImage node references."""
+    ref = tmp_path / "hero.png"
+    ref.write_bytes(b"PNGDATA")
+    captured = {}
+
+    class _Resp:
+        def read(self):
+            return json.dumps({"name": "hero.png", "subfolder": "", "type": "input"}).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+    def _fake_urlopen(req, timeout=0):
+        captured["url"] = req.full_url
+        captured["ctype"] = req.headers.get("Content-type")
+        captured["body"] = req.data
+        return _Resp()
+
+    monkeypatch.setattr(ig.urllib.request, "urlopen", _fake_urlopen)
+    name = ig._upload_image_to_comfyui(str(ref))
+
+    assert name == "hero.png"
+    assert captured["url"].endswith("/upload/image")
+    assert captured["ctype"].startswith("multipart/form-data; boundary=")
+    assert b"PNGDATA" in captured["body"]
+    assert b'name="overwrite"' in captured["body"]
+    # The body must be well-formed multipart: the header boundary delimits the
+    # parts and the body is closed with the terminating --boundary-- marker.
+    boundary = captured["ctype"].split("boundary=", 1)[1]
+    body = captured["body"]
+    assert body.startswith(f"--{boundary}\r\n".encode())
+    assert body.rstrip().endswith(f"--{boundary}--".encode())
+    assert body.count(f"--{boundary}".encode()) == 3  # image part, overwrite part, closer
+
+
+def test_upload_image_to_comfyui_joins_subfolder(tmp_path, monkeypatch):
+    ref = tmp_path / "hero.png"
+    ref.write_bytes(b"x")
+
+    class _Resp:
+        def read(self):
+            return json.dumps({"name": "hero.png", "subfolder": "refs"}).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+    monkeypatch.setattr(ig.urllib.request, "urlopen", lambda req, timeout=0: _Resp())
+    assert ig._upload_image_to_comfyui(str(ref)) == "refs/hero.png"
 
 
 # ---------------------------------------------------------------------------
@@ -583,7 +921,7 @@ def _wire_art_loop(monkeypatch, tmp_path, n_cards: int):
     monkeypatch.setattr(ig, "load_card", lambda p: _StubCard(p.stem.split("_")[0]))
     monkeypatch.setattr(ig, "_resolve_versions_per_card", lambda: 1)
     monkeypatch.setattr(ig, "_resolve_image_model", lambda: None)  # provider == comfyui
-    monkeypatch.setattr(ig, "_resolve_ref_paths", lambda card, set_dir: [])
+    monkeypatch.setattr(ig, "_resolve_labeled_refs", lambda card, set_dir: ([], []))
     monkeypatch.setattr(ig, "ensure_comfyui", lambda log_dir=None: "proc0")
     monkeypatch.setattr(ig, "kill_comfyui", lambda proc=None: None)
     monkeypatch.setattr(ig, "generate_image", lambda *a, **k: (b"img", {"elapsed_seconds": 1.0}))

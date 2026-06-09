@@ -4,7 +4,7 @@ Covers:
 * Card immutability — ``generate_prompts_for_set`` persists a *copy* with
   ``art_prompt`` (and the credited artist) set, never mutating the loaded Card.
 * Dry-run never saves.
-* Artist-assignment distribution (grouped, contiguous, near-equal).
+* Artist-assignment distribution (round-robin over a stable sort, near-equal).
 * Cameo-probability gating (0 → never, 1 → always, deterministic per card).
 * User-message assembly (reference-caveat material + cameo instruction).
 """
@@ -60,7 +60,7 @@ def _patch_stage_inputs(monkeypatch, set_dir, *, artists=None, cameo_entities=No
     monkeypatch.setattr(pb, "get_set_art_direction", lambda: "")
     monkeypatch.setattr(pb, "get_visual_motifs", lambda *a, **k: [])
     monkeypatch.setattr(pb, "get_cameo_entities", lambda: cameo_entities or [])
-    monkeypatch.setattr(pb, "get_visual_references", lambda *a, **k: "")
+    monkeypatch.setattr(pb, "get_named_entities", lambda *a, **k: [])
     monkeypatch.setattr(pb, "_sanitize_for_flux", lambda t: t)
     monkeypatch.setattr(
         pb, "load_art_prompt_knobs", lambda _d: ArtPromptKnobs(cameo_probability=0.0)
@@ -145,10 +145,16 @@ def test_card_saved_callback_streams_each_card(monkeypatch, tmp_path, loaded_car
     monkeypatch.setattr(pb, "generate_art_prompt", lambda _c, **k: ("P", 1, 1))
     _patch_stage_inputs(monkeypatch, set_dir)
 
-    streamed: list[Card] = []
-    pb.generate_prompts_for_set(card_saved_callback=streamed.append)
+    # The callback receives (card, cameo) — the rolled cameo is passed alongside
+    # the Card (it isn't stored on the model). No style-guide refs here, so cameo
+    # is None.
+    streamed: list[tuple[Card, dict | None]] = []
+    pb.generate_prompts_for_set(
+        card_saved_callback=lambda card, cameo: streamed.append((card, cameo))
+    )
     assert len(streamed) == 1
-    assert streamed[0].art_prompt == "P"
+    assert streamed[0][0].art_prompt == "P"
+    assert streamed[0][1] is None
 
 
 # ---------------------------------------------------------------------------
@@ -176,8 +182,8 @@ def test_assign_artists_every_card_assigned():
     assert all(cn in out for cn in (c["collector_number"] for c in cards))
 
 
-def test_assign_artists_slices_near_equal_and_contiguous():
-    # 25 cards / 2 artists → sizes 13 + 12, contiguous in sorted order.
+def test_assign_artists_counts_near_equal():
+    # 25 cards / 2 artists → round-robin gives 13 + 12 (differ by ≤1).
     cards = _pool(25)
     artists = [{"name": "A"}, {"name": "B"}]
     out = assign_artists(cards, artists)
@@ -185,24 +191,41 @@ def test_assign_artists_slices_near_equal_and_contiguous():
     for name in out.values():
         counts[name] += 1
     assert sorted(counts.values()) == [12, 13]
-    # Contiguity: with a uniform pool the sort is by collector number, so the
-    # first 13 go to A, the rest to B.
+
+
+def test_assign_artists_round_robin_in_sorted_order():
+    # Round-robin deals card i → artists[i % N] over the sorted pool, so with a
+    # uniform pool sorted by collector number the painters alternate A, B, A, B…
+    cards = _pool(6)
+    artists = [{"name": "A"}, {"name": "B"}]
+    out = assign_artists(cards, artists)
     ordered_cns = [c["collector_number"] for c in cards]
-    a_cns = [cn for cn in ordered_cns if out[cn] == "A"]
-    assert a_cns == ordered_cns[:13]
+    assert [out[cn] for cn in ordered_cns] == ["A", "B", "A", "B", "A", "B"]
 
 
-def test_assign_artists_groups_by_rarity_then_color():
-    # A mythic and a common; with 2 artists each rarity band lands on its own
-    # painter (the grouped policy's whole point).
-    cards = [
-        {"collector_number": "010", "rarity": "common", "colors": ["G"]},
-        {"collector_number": "001", "rarity": "mythic", "colors": ["R"]},
+def test_assign_artists_spreads_rarity_tier_across_painters():
+    # The card's whole point: a tier of showcase cards must NOT all land on one
+    # painter. The mythics carry HIGH collector numbers and are interleaved among
+    # the commons in input order, so only a correct rarity-first sort pulls them
+    # to indices 0-3 and deals each a distinct painter — a no-sort impl fails.
+    mythics = [
+        {"collector_number": f"2{i:02d}", "rarity": "mythic", "colors": ["W"]} for i in range(1, 5)
     ]
-    out = assign_artists(cards, [{"name": "A"}, {"name": "B"}])
-    # mythic sorts first → artist A; common → artist B.
-    assert out["001"] == "A"
-    assert out["010"] == "B"
+    commons = _pool(8)  # low collector numbers, but commons sort AFTER mythics
+    interleaved = [
+        commons[0],
+        mythics[0],
+        commons[1],
+        mythics[1],
+        commons[2],
+        mythics[2],
+        *commons[3:],
+        mythics[3],
+    ]
+    artists = [{"name": "A"}, {"name": "B"}, {"name": "C"}, {"name": "D"}]
+    out = assign_artists(interleaved, artists)
+    mythic_painters = {out[m["collector_number"]] for m in mythics}
+    assert mythic_painters == {"A", "B", "C", "D"}
 
 
 def test_assign_artists_deterministic():
@@ -267,7 +290,7 @@ def test_user_message_includes_reference_caveats_and_card():
         artist_style="moody chiaroscuro",
         set_art_direction="gothic spires under perpetual dusk",
         setting_prose="## Setting\nA decaying royal court.",
-        visual_refs="",
+        named_entities=None,
         cameo=None,
     )
     assert "moody chiaroscuro" in msg
@@ -284,7 +307,7 @@ def test_user_message_includes_cameo_instruction():
         artist_style="",
         set_art_direction="",
         setting_prose="",
-        visual_refs="",
+        named_entities=None,
         cameo={"key": "the-queen", "kind": "character", "description": "a tall crowned figure"},
     )
     assert "CAMEO REQUEST" in msg
@@ -298,7 +321,7 @@ def test_user_message_omits_empty_sections():
         artist_style="",
         set_art_direction="",
         setting_prose="",
-        visual_refs="",
+        named_entities=None,
         cameo=None,
     )
     assert "ARTIST STYLE" not in msg
@@ -315,7 +338,7 @@ def test_user_message_includes_visual_motifs():
         artist_style="",
         set_art_direction="",
         setting_prose="",
-        visual_refs="",
+        named_entities=None,
         cameo=None,
         visual_motifs=["glossy vs matte metal", "low sodium-lamp lighting"],
     )
@@ -330,11 +353,40 @@ def test_user_message_omits_empty_motifs():
         artist_style="",
         set_art_direction="",
         setting_prose="",
-        visual_refs="",
+        named_entities=None,
         cameo=None,
         visual_motifs=[],
     )
     assert "RECURRING VISUAL MOTIFS" not in msg
+
+
+def test_user_message_includes_named_entity_roster():
+    msg = pb.build_art_prompt_user_message(
+        _make_card(),
+        artist_style="",
+        set_art_direction="",
+        setting_prose="",
+        named_entities=[
+            {"key": "storm_knight", "name": "Storm Knight", "kind": "character"},
+            {"key": "the_spire", "name": "The Spire", "kind": "location"},
+        ],
+        cameo=None,
+    )
+    assert "NAMED ENTITIES" in msg
+    assert "Storm Knight, The Spire" in msg
+    assert "EXACT name" in msg
+
+
+def test_user_message_omits_empty_named_entities():
+    msg = pb.build_art_prompt_user_message(
+        _make_card(),
+        artist_style="",
+        set_art_direction="",
+        setting_prose="",
+        named_entities=None,
+        cameo=None,
+    )
+    assert "NAMED ENTITIES" not in msg
 
 
 # ---------------------------------------------------------------------------
@@ -381,7 +433,7 @@ def test_extract_art_prompt_none_when_no_usable_string():
 def _patch_generate_art_prompt_deps(monkeypatch):
     import mtgai.runtime.active_project as active_project
 
-    monkeypatch.setattr(pb, "get_visual_references", lambda *a, **k: "")
+    monkeypatch.setattr(pb, "get_named_entities", lambda *a, **k: [])
     settings = type(
         "S",
         (),

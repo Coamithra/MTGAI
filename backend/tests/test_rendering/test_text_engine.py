@@ -1,0 +1,135 @@
+"""Tests for the card text parsing in mtgai.rendering.text_engine.
+
+Focus: oracle/reminder text is tokenized into TEXT / SYMBOL / ITALIC_TEXT
+segments. The regression of interest is mana symbols *inside* reminder
+text — they must become SYMBOL segments (rendered as glyphs), not be
+swallowed into one opaque ITALIC_TEXT blob with literal ``{T}`` braces.
+"""
+
+import pytest
+
+# The rendering engine imports Pillow, which is an undeclared (system-installed)
+# dependency absent from the managed venv — skip the whole module when it's not
+# importable so the canonical `uv run pytest` stays green.
+pytest.importorskip("PIL")
+
+from mtgai.rendering.text_engine import SegmentType, TextEngine, TextSegment
+
+
+@pytest.fixture
+def engine() -> TextEngine:
+    return TextEngine()
+
+
+def _kinds(segs: list[TextSegment]) -> list[SegmentType]:
+    return [s.kind for s in segs]
+
+
+def test_plain_oracle_symbol_is_glyph(engine: TextEngine) -> None:
+    segs = engine._parse_line_segments("Add {G} to your mana pool.")
+    assert _kinds(segs) == [
+        SegmentType.TEXT,
+        SegmentType.SYMBOL,
+        SegmentType.TEXT,
+    ]
+    assert segs[0].content == "Add "
+    assert segs[1].content == "G"
+    assert segs[2].content == " to your mana pool."
+
+
+def test_symbol_inside_reminder_is_glyph(engine: TextEngine) -> None:
+    """The core bug: {T} inside a reminder must be a SYMBOL, not literal."""
+    line = "Overdrive ({T}, Remove one Energon counter from this artifact: Draw a card.)"
+    segs = engine._parse_line_segments(line)
+
+    # The keyword + space stays plain TEXT; the reminder splits into italic
+    # text on BOTH sides of the {T} glyph (the styling must not drop to plain
+    # TEXT around the symbol).
+    assert _kinds(segs) == [
+        SegmentType.TEXT,  # "Overdrive "
+        SegmentType.ITALIC_TEXT,  # "("
+        SegmentType.SYMBOL,  # "T"
+        SegmentType.ITALIC_TEXT,  # ", Remove ... card.)"
+    ]
+    assert segs[0].content == "Overdrive "
+    assert segs[1].content == "("
+    assert segs[2].content == "T"
+    assert segs[3].content.startswith(", Remove") and segs[3].content.endswith(")")
+
+    # No segment should contain a literal "{T}" — the braces must be gone.
+    assert all("{T}" not in s.content for s in segs)
+
+
+def test_multiple_symbols_inside_reminder(engine: TextEngine) -> None:
+    line = "Convoke (You may tap {W} and {G} creatures to help cast this spell.)"
+    segs = engine._parse_line_segments(line)
+    sym_segs = [s.content for s in segs if s.kind == SegmentType.SYMBOL]
+    assert sym_segs == ["W", "G"]
+    assert all("{" not in s.content for s in segs)
+
+
+def test_symbols_before_and_after_a_reminder(engine: TextEngine) -> None:
+    """The interleaving control flow: a leading non-reminder run, the
+    reminder, and a trailing non-reminder run must each be tokenized for
+    symbols (not just the reminder)."""
+    line = "Pay {X} (you may tap any number of {T} sources for this) then add {G}."
+    segs = engine._parse_line_segments(line)
+
+    # Symbols appear in all three regions, in document order.
+    assert [s.content for s in segs if s.kind == SegmentType.SYMBOL] == ["X", "T", "G"]
+
+    # {X} and {G} sit in plain (non-reminder) TEXT; {T} sits between italic runs.
+    x_idx = next(i for i, s in enumerate(segs) if s.content == "X")
+    t_idx = next(i for i, s in enumerate(segs) if s.content == "T")
+    g_idx = next(i for i, s in enumerate(segs) if s.content == "G")
+    assert segs[x_idx - 1].kind == SegmentType.TEXT
+    assert segs[t_idx - 1].kind == SegmentType.ITALIC_TEXT
+    assert segs[t_idx + 1].kind == SegmentType.ITALIC_TEXT
+    assert segs[g_idx - 1].kind == SegmentType.TEXT
+
+    assert all("{" not in s.content for s in segs)
+
+
+def test_multiple_reminders_on_one_line(engine: TextEngine) -> None:
+    line = (
+        "Flying (this creature can only be blocked by fliers, no exceptions) "
+        "deathtouch (any amount of damage it deals to a creature is lethal)"
+    )
+    segs = engine._parse_line_segments(line)
+    italic = [s for s in segs if s.kind == SegmentType.ITALIC_TEXT]
+    # Two distinct reminders → two ITALIC_TEXT segments, each fully parenthesized.
+    assert len(italic) == 2
+    assert all(s.content.startswith("(") and s.content.endswith(")") for s in italic)
+    # The bare keyword between them stays plain TEXT.
+    assert any(s.kind == SegmentType.TEXT and "deathtouch" in s.content for s in segs)
+
+
+def test_reminder_without_symbols_stays_italic(engine: TextEngine) -> None:
+    line = "Flying (This creature can't be blocked except by creatures with flying.)"
+    segs = engine._parse_line_segments(line)
+    assert SegmentType.SYMBOL not in _kinds(segs)
+    italic = [s for s in segs if s.kind == SegmentType.ITALIC_TEXT]
+    assert len(italic) == 1
+    assert italic[0].content.startswith("(") and italic[0].content.endswith(")")
+
+
+def test_short_parenthetical_not_treated_as_reminder(engine: TextEngine) -> None:
+    """A short parenthetical (<20 chars inside) is not a reminder, but a
+    symbol in it should still render as a glyph via the plain-text path."""
+    line = "Sacrifice this ({T})."
+    segs = engine._parse_line_segments(line)
+    sym_segs = [s.content for s in segs if s.kind == SegmentType.SYMBOL]
+    assert sym_segs == ["T"]
+    # Not promoted to italic reminder text.
+    assert SegmentType.ITALIC_TEXT not in _kinds(segs)
+
+
+def test_bold_all_applies_to_nonsymbol_text(engine: TextEngine) -> None:
+    segs = engine._parse_line_segments("Add {G}.", bold_all=True)
+    assert _kinds(segs) == [SegmentType.BOLD_TEXT, SegmentType.SYMBOL, SegmentType.BOLD_TEXT]
+
+
+def test_text_with_no_symbols_or_reminders(engine: TextEngine) -> None:
+    segs = engine._parse_line_segments("Draw a card.")
+    assert _kinds(segs) == [SegmentType.TEXT]
+    assert segs[0].content == "Draw a card."
