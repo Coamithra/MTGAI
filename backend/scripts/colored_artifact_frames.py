@@ -17,10 +17,12 @@ Two methods (full writeup in ``learnings/colored-artifact-frames.md``):
   ``m15FrameA``. The P/T overlay is cropped from the stack (authentic tint),
   masked to ``m15PTA``. Net: authentic stacked body/pinline/colour + clean bars.
 
-  Caveat the comparison exists to judge: Scryfall PNGs are 745x1040 (aspect
-  0.7163) vs our 2010x2814 (0.7143) — a ~0.3% squash — and the stacked body's
-  pinlines rely on that resize lining up with our masks (no phase-correlation
-  registration). If the body misregisters, ``compare`` will show it.
+  Verdict (2026-06-09, see learnings/colored-artifact-frames.md "tried-and-
+  rejected"): the median path LOSES to the blend for artifacts. The registration
+  worry (Scryfall 745x1040 aspect 0.7163 vs our 2010x2814 0.7143, a ~0.3% squash)
+  turned out moot — the masks register it cleanly. The real killer is that a
+  colored artifact is a subtle tint over a busy/variable gray metal texture, so
+  the stack comes out blotchy + miscoloured. Kept here as a reproducible baseline.
 
 Both methods write ``m15Frame{AW,AU,AB,AR,AG,AM}.png`` plus matching
 ``m15PT*`` boxes. Mono colors + ``AM`` (multicolor artifact, ``c=m``) use the
@@ -144,7 +146,7 @@ def fetch_artifact_pngs(scry_color: str, n: int, refresh: bool = False) -> list[
         "-is:promo -is:funny -border:borderless -is:showcase -is:extended "
         "-is:textless -is:digital game:paper"
     )
-    cards = _scryfall_search(query, unique="art")
+    cards = _scryfall_search(query)
     cache_dir = CACHE_DIR / scry_color
     cache_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
@@ -339,16 +341,17 @@ def compare(n: int, alpha: float, refresh: bool) -> None:
     out_root = OUTPUT_ROOT / "colored-artifact-comparison"
     out_root.mkdir(parents=True, exist_ok=True)
 
-    # Empty active project so resolve_art_path returns None -> placeholder art.
-    tmp_asset = Path(tempfile.mkdtemp(prefix="cmp-asset-"))
-    write_active_project(
-        ProjectState(set_code="ART", settings=ModelSettings(asset_folder=str(tmp_asset)))
-    )
-
-    cards = _example_cards()
+    tmp_asset: Path | None = None
     orig_frames_dir = layout_mod.FRAMES_DIR
 
     try:
+        # Empty active project so resolve_art_path returns None -> placeholder art.
+        tmp_asset = Path(tempfile.mkdtemp(prefix="cmp-asset-"))
+        write_active_project(
+            ProjectState(set_code="ART", settings=ModelSettings(asset_folder=str(tmp_asset)))
+        )
+        cards = _example_cards()
+
         for method in ("blend", "median"):
             print(f"\n=== {method} ===")
             staging = Path(tempfile.mkdtemp(prefix=f"frames-{method}-"))
@@ -371,7 +374,8 @@ def compare(n: int, alpha: float, refresh: bool) -> None:
                 layout_mod.FRAMES_DIR = orig_frames_dir
                 shutil.rmtree(staging, ignore_errors=True)
     finally:
-        shutil.rmtree(tmp_asset, ignore_errors=True)
+        if tmp_asset is not None:
+            shutil.rmtree(tmp_asset, ignore_errors=True)
 
     print(f"\nComparison renders in: {out_root}")
     print("  blend/   — Option A (geometry-safe alpha blend)")
