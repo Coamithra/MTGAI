@@ -294,7 +294,16 @@ def _make_basic_card(
 def _make_nonbasic_card(data: dict, set_code: str) -> Card:
     """Build the bonus dual land from the investigation's design. A from-scratch
     RARE (``is_reprint=False``); ``color_identity`` is inferred from the mana
-    symbols in its oracle text."""
+    symbols in its oracle text.
+
+    Every nested field is read with ``.get()`` defaults: on the llamacpp path the
+    tool args frequently arrive via the text-extraction fallback (no schema
+    enforcement), so a partial ``dual_land`` (missing ``oracle_text`` /
+    ``flavor_text`` / etc.) must not subscript-``KeyError`` out of the stage. The
+    acceptance gate in ``generate_lands`` already requires the load-bearing fields
+    (``name`` + ``type_line`` + ``oracle_text``); these defaults are the in-builder
+    backstop so a cosmetic gap (``flavor_text``) still materializes."""
+    oracle_text = str(data.get("oracle_text") or "")
     ci: list[Color] = []
     color_map = {
         "{W}": Color.WHITE,
@@ -304,21 +313,21 @@ def _make_nonbasic_card(data: dict, set_code: str) -> Card:
         "{G}": Color.GREEN,
     }
     for symbol, color in color_map.items():
-        if symbol in data["oracle_text"]:
+        if symbol in oracle_text:
             ci.append(color)
 
     return Card(
-        name=data["name"],
+        name=str(data.get("name") or ""),
         mana_cost=None,
         cmc=0.0,
         colors=[],
         color_identity=ci,
-        type_line=data["type_line"],
+        type_line=str(data.get("type_line") or ""),
         supertypes=[],
         card_types=["Land"],
         subtypes=[],
-        oracle_text=data["oracle_text"],
-        flavor_text=data["flavor_text"],
+        oracle_text=oracle_text,
+        flavor_text=data.get("flavor_text"),
         collector_number="L-06",
         rarity=Rarity.RARE,
         set_code=set_code,
@@ -494,17 +503,37 @@ def generate_lands(
 
     dual = inv_result.get("dual_land")
     reasoning = str(inv_result.get("reasoning") or "").strip()
-    if inv_result.get("needs_dual_land") and isinstance(dual, dict) and dual.get("name"):
-        card = _make_nonbasic_card(dual, set_code)
-        filename = f"L-06_{_slugify(dual['name'])}.json"
-        atomic_write_text(
-            cards_dir / filename,
-            json.dumps(card.model_dump(mode="json"), indent=2, ensure_ascii=False),
-        )
-        cards_saved += 1
-        if on_card_saved is not None:
-            on_card_saved(card)
-        logger.info("  Added bonus dual land: %s — %s", dual["name"], reasoning)
+    if inv_result.get("needs_dual_land") and isinstance(dual, dict):
+        # The bonus dual is OPTIONAL (the stage's contract). A from-scratch dual
+        # is only worth materializing when it carries the fields it NEEDS: a name,
+        # a type_line, and an oracle_text (its fixing — a fixing land with no
+        # oracle text is pointless). On the llamacpp path tool args often arrive
+        # via the text-extraction fallback with no schema enforcement, so a local
+        # model can emit a partial dual_land ({name, type_line} only); skip + WARN
+        # rather than crash the whole stage (the basics are already saved). A
+        # missing flavor_text is cosmetic — _make_nonbasic_card defaults it empty.
+        name = str(dual.get("name") or "").strip()
+        type_line = str(dual.get("type_line") or "").strip()
+        oracle_text = str(dual.get("oracle_text") or "").strip()
+        if name and type_line and oracle_text:
+            card = _make_nonbasic_card(dual, set_code)
+            filename = f"L-06_{_slugify(name)}.json"
+            atomic_write_text(
+                cards_dir / filename,
+                json.dumps(card.model_dump(mode="json"), indent=2, ensure_ascii=False),
+            )
+            cards_saved += 1
+            if on_card_saved is not None:
+                on_card_saved(card)
+            logger.info("  Added bonus dual land: %s — %s", name, reasoning)
+        else:
+            logger.warning(
+                "Investigation wanted a bonus dual but the design is missing required "
+                "fields (name=%r, type_line=%r, oracle_text present=%s); skipping the dual",
+                name,
+                type_line,
+                bool(oracle_text),
+            )
     else:
         logger.info("Investigation declined a bonus dual land: %s", reasoning or "(no reason)")
 

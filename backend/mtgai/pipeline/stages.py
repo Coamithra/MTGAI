@@ -1461,34 +1461,41 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
             }
             emitter.event("conformance_step", step=inter_step)
 
-    # Merge by slot_id (a card flagged by multiple steps keeps every reason) and
-    # flag once. conf_pairs already folds in the duplicate findings (seeded as
-    # failed conformance rows), so the duplicates regen alongside the rest.
-    merged: dict[str, list[str]] = {}
-    for sid, reason in [*conf_pairs, *inter_pairs]:
-        merged.setdefault(sid, []).append(reason)
-    flagged = _flag_cards_for_regen(
-        [(sid, " | ".join(reasons)) for sid, reasons in merged.items()], "conformance"
-    )
+        # Merge by slot_id (a card flagged by multiple steps keeps every reason)
+        # and flag once. conf_pairs already folds in the duplicate findings
+        # (seeded as failed conformance rows), so the duplicates regen alongside
+        # the rest. This runs INSIDE the AI-lock hold (not after it): the flag
+        # stamp rewrites cards/*.json + demotes to DRAFT, so if it ran lock-free
+        # a guarded_ai endpoint (e.g. card_gen/refresh -> clear_card_gen_cards)
+        # could acquire the lock and mutate the pool mid-stamp. Keeping the hold
+        # through flagging is what makes the engine's inter-stage window (the
+        # snapshot + span insertion that immediately follow) start from a pool
+        # no other AI action could have touched.
+        merged: dict[str, list[str]] = {}
+        for sid, reason in [*conf_pairs, *inter_pairs]:
+            merged.setdefault(sid, []).append(reason)
+        flagged = _flag_cards_for_regen(
+            [(sid, " | ".join(reasons)) for sid, reasons in merged.items()], "conformance"
+        )
 
-    n_dups = len(dup_by_slot)
-    steps = [conf_step, inter_step]
-    emitter.phase("done", f"Conformance & Interactions: {len(flagged)} card(s) flagged")
-    detail = (
-        f"Conformance & Interactions: {len(flagged)} card(s) flagged for regeneration "
-        f"(conformance {len(conf_pairs)} incl. {n_dups} duplicate(s), "
-        f"interactions {len(inter_pairs)})"
-        if flagged
-        else "Conformance & Interactions: all cards conform and the pool is clean"
-    )
-    return StageResult(
-        total_items=len(cards),
-        completed_items=len(cards),
-        cost_usd=conf_cost + inter_cost,
-        detail=detail,
-        rerun_from="card_gen" if flagged else None,
-        artifacts={"steps": steps, "flagged": flagged, "passed": not flagged},
-    )
+        n_dups = len(dup_by_slot)
+        steps = [conf_step, inter_step]
+        emitter.phase("done", f"Conformance & Interactions: {len(flagged)} card(s) flagged")
+        detail = (
+            f"Conformance & Interactions: {len(flagged)} card(s) flagged for regeneration "
+            f"(conformance {len(conf_pairs)} incl. {n_dups} duplicate(s), "
+            f"interactions {len(inter_pairs)})"
+            if flagged
+            else "Conformance & Interactions: all cards conform and the pool is clean"
+        )
+        return StageResult(
+            total_items=len(cards),
+            completed_items=len(cards),
+            cost_usd=conf_cost + inter_cost,
+            detail=detail,
+            rerun_from="card_gen" if flagged else None,
+            artifacts={"steps": steps, "flagged": flagged, "passed": not flagged},
+        )
 
 
 def run_ai_review(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:
@@ -1526,37 +1533,45 @@ def run_ai_review(progress_cb: ProgressCallback | None, emitter: StageEmitter) -
                 hooks=hooks,
             )
 
-    reviewed = result.get("reviewed", 0)
-    revised = result.get("revised", 0)
-    unfixable = result.get("unfixable", []) or []
+        reviewed = result.get("reviewed", 0)
+        revised = result.get("revised", 0)
+        unfixable = result.get("unfixable", []) or []
 
-    # A user Cancel halts the loop mid-set, so the unfixable list is partial —
-    # don't flag from it. Fail the stage so the engine stops (matches
-    # run_card_gen / run_conformance); the per-card reviews completed so far stay
-    # saved, so a Retry resumes. Best in-place revisions already applied persist.
-    if result.get("cancelled"):
-        emitter.phase("done", "AI review cancelled")
+        # A user Cancel halts the loop mid-set, so the unfixable list is partial
+        # — don't flag from it. Fail the stage so the engine stops (matches
+        # run_card_gen / run_conformance); the per-card reviews completed so far
+        # stay saved, so a Retry resumes. Best in-place revisions applied persist.
+        if result.get("cancelled"):
+            emitter.phase("done", "AI review cancelled")
+            return StageResult(
+                success=False,
+                total_items=reviewed,
+                completed_items=reviewed,
+                cost_usd=result.get("cost_usd", 0.0),
+                error_message="AI review cancelled by user.",
+            )
+
+        # Flag the unfixable cards INSIDE the hold (not after it): the stamp
+        # rewrites cards/*.json + demotes to DRAFT, and a lock-free window here
+        # would let a guarded_ai endpoint (e.g. card_gen/refresh) acquire and
+        # mutate the pool mid-stamp. Holding through flagging hands the engine's
+        # inter-stage snapshot + span-insertion window a pool no other AI action
+        # could have touched. See run_conformance for the same rationale.
+        flagged = _flag_cards_for_regen(
+            [(u["slot_id"], u["reason"]) for u in unfixable], "ai_review"
+        )
+        detail = f"AI review complete — {reviewed} reviewed, {revised} revised"
+        if flagged:
+            detail += f", {len(flagged)} flagged for regeneration"
+        emitter.phase("done", detail)
         return StageResult(
-            success=False,
             total_items=reviewed,
             completed_items=reviewed,
             cost_usd=result.get("cost_usd", 0.0),
-            error_message="AI review cancelled by user.",
+            detail=detail,
+            rerun_from="card_gen" if flagged else None,
+            artifacts={"flagged": flagged},
         )
-
-    flagged = _flag_cards_for_regen([(u["slot_id"], u["reason"]) for u in unfixable], "ai_review")
-    detail = f"AI review complete — {reviewed} reviewed, {revised} revised"
-    if flagged:
-        detail += f", {len(flagged)} flagged for regeneration"
-    emitter.phase("done", detail)
-    return StageResult(
-        total_items=reviewed,
-        completed_items=reviewed,
-        cost_usd=result.get("cost_usd", 0.0),
-        detail=detail,
-        rerun_from="card_gen" if flagged else None,
-        artifacts={"flagged": flagged},
-    )
 
 
 def run_finalize(progress_cb: ProgressCallback | None, emitter: StageEmitter) -> StageResult:

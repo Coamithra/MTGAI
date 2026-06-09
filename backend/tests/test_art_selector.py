@@ -429,6 +429,78 @@ def test_judge_is_vision_capable():
     assert _judge_is_vision_capable("no-such-model-xyz") is False
 
 
+def _write_single_version_card(tmp_path, cn: str, name: str):
+    """Write a minimal card JSON + exactly ONE art version PNG.
+
+    Exercises the single-version auto-pick branch (the one that used to mutate
+    state even on a dry run). Returns the single version filename.
+    """
+    from mtgai.io.card_io import save_card
+    from mtgai.io.paths import card_slug
+    from mtgai.models.card import Card
+
+    card = Card(name=name, type_line="Creature", art_prompt="a knight")
+    card = card.model_copy(update={"collector_number": cn})
+    save_card(card, set_dir=tmp_path)
+
+    art_dir = tmp_path / "art"
+    art_dir.mkdir(parents=True, exist_ok=True)
+    slug = card_slug(cn, name)
+    f = art_dir / f"{slug}_v1.png"
+    f.write_bytes(b"x")
+    return f.name
+
+
+def test_dry_run_does_not_mutate_single_version_card(tmp_path):
+    """A dry run over a single-version card is OBSERVATIONAL: it must NOT stamp
+    art_path, write decisions.json, or drop a per-card selection log.
+
+    Regression for the bug where the single-version auto-pick branch ran before
+    the ``if dry_run:`` check, so a dry run rewrote every single-version card
+    (the whole set, after the judge-disabled single-version collapse). The
+    non-dry run below still stamps + writes, proving the path isn't simply dead.
+    """
+    from mtgai.art import art_selector
+    from mtgai.io.card_io import load_card
+    from mtgai.runtime import active_project
+
+    _active_project(tmp_path)
+    card_file = tmp_path / "cards" / "W-C-01_test_card.json"
+    try:
+        _write_single_version_card(tmp_path, "W-C-01", "Test Card")
+
+        before = card_file.read_text(encoding="utf-8")
+
+        summary = art_selector.select_art_for_set(dry_run=True)
+
+        # Card JSON untouched on disk; in particular art_path not stamped.
+        assert card_file.read_text(encoding="utf-8") == before
+        assert load_card(card_file).art_path is None
+
+        # No decisions.json, no per-card selection log written.
+        assert not (tmp_path / "art_gen" / "decisions.json").exists()
+        assert not (tmp_path / "art-selection-logs" / "W-C-01.json").exists()
+        assert art_selector.load_art_decisions(tmp_path) == {}
+
+        # The informational result the CLI prints is still produced.
+        assert summary["dry_run"] is True
+        result = next(r for r in summary["results"] if r.get("card") == "W-C-01")
+        assert result["versions"] == 1
+        # A dry-run informational entry has no "pick" -> not counted as reviewed.
+        assert "pick" not in result
+        assert summary["reviewed"] == 0
+
+        # A NON-dry run over the SAME card DOES stamp + write (path not dead).
+        summary2 = art_selector.select_art_for_set(dry_run=False)
+        assert load_card(card_file).art_path == "art/W-C-01_test_card_v1.png"
+        assert (tmp_path / "art_gen" / "decisions.json").exists()
+        assert (tmp_path / "art-selection-logs" / "W-C-01.json").exists()
+        assert art_selector.load_art_decisions(tmp_path)["W-C-01"]["source"] == "auto_single"
+        assert summary2["reviewed"] == 1
+    finally:
+        active_project.clear_active_project()
+
+
 def test_judge_can_run_reads_active_project_art_select(tmp_path):
     """``judge_can_run`` (the single source of truth the gen-count and the select
     pre-flight both consult) resolves the active project's ``art_select`` model:

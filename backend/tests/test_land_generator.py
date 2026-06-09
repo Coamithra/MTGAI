@@ -160,6 +160,24 @@ class TestGenerateLands:
         summary = generate_lands()
         assert summary["total_cards"] == 15
 
+    def test_needs_dual_partial_design_skips_without_crash(self, project_dir: Path, monkeypatch):
+        # A local model can emit a partial dual_land ({name, type_line} only) via the
+        # llamacpp text-extraction fallback (no schema enforcement). Before the fix,
+        # the bare data["oracle_text"] subscript in _make_nonbasic_card raised
+        # KeyError out of generate_lands AFTER the basics were already written. The
+        # stage must complete cleanly: basics saved, the under-specified dual skipped.
+        _fixed_alternates(monkeypatch, 3)
+        partial_dual = {"name": "Sunset Delta", "type_line": "Land"}  # no oracle_text/flavor
+        monkeypatch.setattr(
+            land_gen, "generate_with_tool", _llm_stub(needs_dual=True, dual=partial_dual)
+        )
+        monkeypatch.setattr(land_gen, "cost_from_result", lambda _r: 0.0)
+        summary = generate_lands()  # must NOT raise
+        cards_dir = project_dir / "cards"
+        assert summary["total_cards"] == 15  # 5 types x 3 basics, dual skipped
+        assert not list(cards_dir.glob("L-06_*.json"))  # under-specified dual not materialized
+        assert len(list(cards_dir.glob("L-01*_plains.json"))) == 3  # basics survived
+
     def test_alternates_count_in_range(self, project_dir: Path, monkeypatch):
         # No count pin: every basic type must land in [2, 4] printings.
         monkeypatch.setattr(land_gen, "generate_with_tool", _llm_stub(needs_dual=False))
