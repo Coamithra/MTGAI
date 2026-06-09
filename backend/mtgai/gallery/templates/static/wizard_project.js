@@ -1252,6 +1252,10 @@
       // user is forced to pick a real judge.
       const visionOnly = !!stage.requires_vision;
       const assignedIsBlind = visionOnly && model && !model.supports_vision;
+      // A persisted key that isn't in the registry at all (a .mtg referencing a
+      // removed model) — for a vision stage, surface it rather than letting it
+      // vanish from a filtered dropdown with nothing selected.
+      const assignedUnknown = visionOnly && assigned && !model;
       const optModels = visionOnly
         ? data.llm_models.filter(m => m.supports_vision)
         : data.llm_models;
@@ -1260,6 +1264,8 @@
       ).join('');
       if (assignedIsBlind) {
         opts = `<option value="${escAttr(assigned)}" selected disabled>${escHtml(model.name)} (no vision — pick a vision model)</option>` + opts;
+      } else if (assignedUnknown) {
+        opts = `<option value="${escAttr(assigned)}" selected disabled>${escHtml(assigned)} (unknown model — pick a vision model)</option>` + opts;
       }
       const levels = (model && model.effort_levels) || [];
       const effort = data.effort_overrides[stage.id] || '';
@@ -1281,8 +1287,8 @@
       ` : '<span class="wiz-effort-na">—</span>';
       // Surface why this stage's dropdown is restricted, and flag a current
       // text-only assignment that would make best-of-N silently no-op.
-      const visionNote = assignedIsBlind
-        ? '<div class="wiz-vision-warn">⚠ This stage judges generated art and needs a vision model. The current model is text-only — best-of-N art selection will be skipped (wasting Flux compute) until you pick a vision model.</div>'
+      const visionNote = (assignedIsBlind || assignedUnknown)
+        ? '<div class="wiz-vision-warn">⚠ This stage judges generated art and needs a vision model. The current model can\'t do it — best-of-N art selection will be skipped (wasting Flux compute) until you pick a vision model.</div>'
         : (visionOnly
           ? '<div class="wiz-vision-hint">Judges generated art — vision models only.</div>'
           : '');

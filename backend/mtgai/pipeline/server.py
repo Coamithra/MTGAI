@@ -1220,8 +1220,9 @@ def _break_points_payload(settings_obj) -> list[dict[str, Any]]:
 
 
 def _model_stage_lists() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """The ordered (id, label) rows the Project Settings model table renders.
+    """The ordered model-table rows the Project Settings picker renders.
 
+    LLM rows are ``{id, label, requires_vision}``; image rows are ``{id, label}``.
     Derived from ``LLM_STAGE_NAMES`` / ``IMAGE_STAGE_NAMES`` so the wizard's
     per-stage model picker can never drift out of sync with the backend stage
     registry (the bug that left ``visual_refs`` / ``char_portraits`` out of the
