@@ -151,6 +151,74 @@ def test_judge_model_resolves_from_art_select_assignment(monkeypatch, tmp_path):
     assert result["pick"] == "v1"
 
 
+def test_judge_routes_transcript_to_given_log_dir(monkeypatch, tmp_path):
+    """select_best_version forwards its ``log_dir`` to the llmfacade conversation.
+
+    Regression guard for the fix that routed the best-of-N judge transcript to the
+    set folder instead of pinning ``log_dir=False`` (which produced no HTML log).
+    """
+    from mtgai.art import art_selector
+
+    seen = {}
+
+    class _Settings:
+        def get_llm_model_id(self, stage_id):
+            return "claude-haiku-judge"
+
+    class _Proj:
+        settings = _Settings()
+
+    monkeypatch.setattr("mtgai.runtime.active_project.require_active_project", lambda: _Proj())
+
+    from types import SimpleNamespace
+
+    _tc_input = {"pick": "v1", "confidence": "high", "reasoning": "ok", "artifacts_found": []}
+    resp = SimpleNamespace(
+        tool_calls=[SimpleNamespace(input=_tc_input)],
+        usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1),
+    )
+
+    class _Convo:
+        def add_user_message(self, content):
+            pass
+
+        def send(self, **kw):
+            return resp
+
+    class _FacadeModel:
+        def new_conversation(self, **kw):
+            seen["log_dir"] = kw.get("log_dir")
+            seen["name"] = kw.get("name")
+            return _Convo()
+
+    class _Provider:
+        def new_model(self, model):
+            return _FacadeModel()
+
+    monkeypatch.setattr("mtgai.generation.llm_client._get_provider", lambda p: _Provider())
+    monkeypatch.setattr("mtgai.generation.llm_client._make_tool", lambda s: s)
+    _ib = type("IB", (), {"from_path": staticmethod(lambda p: p)})
+    monkeypatch.setattr("mtgai.art.art_selector.ImageBlock", _ib)
+
+    v1 = tmp_path / "a_v1.png"
+    v2 = tmp_path / "a_v2.png"
+    v1.write_bytes(b"x")
+    v2.write_bytes(b"x")
+
+    log_dir = tmp_path / "art-selection-logs"
+    art_selector.select_best_version(
+        card_name="X",
+        collector_number="W-C-01",
+        colors=["W"],
+        prompt="p",
+        image_paths=[v1, v2],
+        log_dir=log_dir,
+    )
+    assert seen["log_dir"] == log_dir
+    # Named after the tool so the transcript is identifiable (not the opaque fallback).
+    assert seen["name"].startswith("art_selection-")
+
+
 # ---------------------------------------------------------------------------
 # Judge-unavailable fallback (no Anthropic credits / keyless / local env)
 # ---------------------------------------------------------------------------
