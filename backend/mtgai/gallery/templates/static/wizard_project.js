@@ -462,7 +462,14 @@
     return dict;
   }
 
-  async function writeMtgFile(tomlText) {
+  // `rerender` defaults true (the plain-Save contract: repaint the footer so
+  // the dirty markers + Save & Start -> Start label refresh). The Save & Start
+  // flow passes `rerender: false` because rerenderProjectTab replaces the
+  // footer innerHTML mid-flow, detaching the Start button it captured — leaving
+  // the live button enabled with its normal label (a double-submit window with
+  // no Saving/Starting feedback). That flow navigates away on success and
+  // re-enables its own captured node on failure, so it never needs the repaint.
+  async function writeMtgFile(tomlText, { rerender = true } = {}) {
     // Debug-mode bypass: a self-driving QA bot can't touch the native OS save
     // picker, so route Save through the server-side debug endpoint instead.
     // The active project's settings already live in server memory, so the body
@@ -474,7 +481,7 @@
         if (!resp.ok) throw new Error(data.error || 'save failed');
         W.toast(`Saved (debug) ${data.path}`, 'success');
         markClean();
-        rerenderProjectTab(W.getState ? W.getState() : MTGAIWizard.getState());
+        if (rerender) rerenderProjectTab(W.getState ? W.getState() : MTGAIWizard.getState());
         return;
       } catch (e) {
         W.toast(`Debug save failed: ${e.message}`, 'error');
@@ -512,7 +519,7 @@
       W.toast(`Downloaded ${local.fileName}`, 'success');
     }
     markClean();
-    rerenderProjectTab(W.getState ? W.getState() : MTGAIWizard.getState());
+    if (rerender) rerenderProjectTab(W.getState ? W.getState() : MTGAIWizard.getState());
   }
 
   function suggestedFilename() {
@@ -1581,8 +1588,11 @@
           btn.textContent = original;
           return;
         }
-        await writeMtgFile(tomlText);
-        markClean();
+        // rerender: false keeps the footer intact so `btn` (captured above)
+        // stays the live node — otherwise the repaint detaches it and every
+        // subsequent disable/relabel hits a dead node (a double-submit window
+        // with no Starting feedback). writeMtgFile already markClean()s.
+        await writeMtgFile(tomlText, { rerender: false });
       } catch (err) {
         if (!err || err.name !== 'AbortError') {
           W.toast('Save failed: ' + err.message, 'error');
@@ -1599,16 +1609,17 @@
       const data = await resp.json();
       if (!resp.ok) {
         W.toast(data.error || 'Start failed', 'error');
-        btn.disabled = false;
-        btn.textContent = footerButtonLabel(local.data);
+        // Terminal failure: a full repaint restores a fresh, enabled, correctly
+        // labelled Start button + the rest of the now-saved (clean) form. Safe
+        // to detach `btn` here since we're done mutating it.
+        rerenderProjectTab(state);
         return;
       }
       const target = data.navigate_to || '/pipeline/theme';
       window.location.assign(target);
     } catch (err) {
       W.toast('Network error: ' + err.message, 'error');
-      btn.disabled = false;
-      btn.textContent = footerButtonLabel(local.data);
+      rerenderProjectTab(state);
     }
   }
 
