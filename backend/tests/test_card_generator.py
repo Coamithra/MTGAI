@@ -245,12 +245,14 @@ def _thread_siblings_through_batches(
 ) -> list[list[str] | None]:
     """Replay generate_set's per-cycle sibling lookup+append over batches.
 
-    Mirrors card_generator.generate_set lines ~1453 / ~1502-1507 / ~1668-1673:
-    ``cycle_siblings_by_id`` is initialised from ``confirmed_cycles``; each batch
-    threads the prior members of its shared ``cycle_id`` and then appends its own
-    saved cards under that same id. Returns, per batch, the list of sibling
-    *slot_ids* that were threaded in (or ``None`` when no siblings applied) — the
-    observable the real loop hands to ``build_user_prompt(cycle_siblings=...)``.
+    Mirrors the real loop's state machine: ``cycle_siblings_by_id`` is keyed by
+    ``confirmed_cycles`` (the real loop initialises it via
+    ``seed_cycle_siblings`` — empty per family on a first run, which is the
+    case this helper replays); each batch threads the prior members of its
+    shared ``cycle_id`` and then appends its own saved cards under that same
+    id. Returns, per batch, the list of sibling *slot_ids* that were threaded
+    in (or ``None`` when no siblings applied) — the observable the real loop
+    hands to ``build_user_prompt(cycle_siblings=...)``.
 
     Each slot stands in for the card it generates, identified by its slot_id, so
     the test can assert which family's members reached which batch.
