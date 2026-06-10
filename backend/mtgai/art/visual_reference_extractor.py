@@ -8,18 +8,20 @@ flat-entity -> nested-category assembly, and the on-disk loaders.
 
 This stage is a **transform**, not a re-extraction. The theme extractor already
 paints art-grade visual detail for the four entity classes (creature types,
-factions, landmarks, notable characters) inside ``theme.json`` — both as the
-``setting`` markdown document (``# Creature Types`` / ``# Factions`` / ``#
-Landmarks`` / ``# Notable Characters`` / ``# Races`` sections) and, when present,
-as structured ``legendary_characters`` / ``notable_cards`` / ``creature_types``
-fields. The job here is to normalize that into the slug-keyed, machine-readable
-art-direction dictionary the art consumers need, *enriching* each entry into a
-consistent, full visual brief (age, build, height, face, hair, skin, clothing,
-equipment, palette, demeanor, distinguishing features) and filling gaps where
-the theme is thin — so the same character always paints the same way. The
-genuinely non-redundant pieces with no theme equivalent are produced fresh:
-``flux_term_replacements`` (invented-word -> renderable phrase) and
-``visual_motifs`` (set-wide art-direction notes).
+factions, landmarks, notable characters) inside ``theme.json``'s ``setting``
+markdown document — its ``# Creature Types`` / ``# Factions`` / ``# Landmarks`` /
+``# Notable Characters`` / ``# Races`` sections are the single source of world
+entities (the older structured ``legendary_characters`` / ``notable_cards``
+anchor fields are gone — nothing populated them). The job here is to normalize
+that prose into the slug-keyed, machine-readable art-direction dictionary the
+art consumers need, *enriching* each entry into a consistent, full visual brief
+(age, build, height, face, hair, skin, clothing, equipment, palette, demeanor,
+distinguishing features) and filling gaps where the theme is thin — so the same
+character always paints the same way. A **completeness check** verifies every
+entity named in those prose sections made it into the produced dictionary,
+WARNing on (and flagging) any the model dropped. The genuinely non-redundant
+pieces with no theme equivalent are produced fresh: ``flux_term_replacements``
+(invented-word -> renderable phrase) and ``visual_motifs`` (set-wide notes).
 
 Three artifacts come out of the stage:
 
@@ -46,6 +48,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from mtgai.art.visual_reference import normalize_entity_key
 from mtgai.generation import temperatures as temps
 from mtgai.generation.llm_client import generate_with_tool
 from mtgai.generation.token_budgets import STANDARD
@@ -251,55 +254,6 @@ def _format_setting_block(theme: dict) -> str:
     return "\n\n".join(parts) if parts else "(no setting provided)"
 
 
-def _format_characters_block(theme: dict) -> str:
-    """Render the structured legendary-character anchors for the prompt.
-
-    Surfaces each legendary's name, colors, role, and type so the transform
-    knows which individuals need a full portrait-grade brief — and threads in
-    the theme's own painted ``role`` text as the starting point to enrich.
-    """
-    legends = theme.get("legendary_characters") or []
-    lines: list[str] = []
-    for entry in legends:
-        if isinstance(entry, dict):
-            name = entry.get("name")
-            if not name:
-                continue
-            role = entry.get("role") or entry.get("description") or ""
-            type_line = entry.get("type") or entry.get("type_line") or ""
-            header = f"- {name}"
-            extras = [str(x).strip() for x in (type_line, role) if x]
-            if extras:
-                header += " — " + "; ".join(extras)
-            lines.append(header)
-        elif isinstance(entry, str) and entry.strip():
-            lines.append(f"- {entry.strip()}")
-    if not lines:
-        return "(no structured named characters — read the setting prose)"
-    return "\n".join(lines)
-
-
-def _format_notable_cards_block(theme: dict) -> str:
-    """Render structured notable_cards (artifacts/vehicles/places) as anchors."""
-    notable = theme.get("notable_cards") or []
-    lines: list[str] = []
-    for entry in notable:
-        if isinstance(entry, dict):
-            name = entry.get("name")
-            if not name:
-                continue
-            type_line = entry.get("type") or entry.get("type_line") or ""
-            notes = entry.get("notes") or entry.get("description") or ""
-            header = f"- {name}"
-            extras = [str(x).strip() for x in (type_line, notes) if x]
-            if extras:
-                header += " — " + "; ".join(extras)
-            lines.append(header)
-        elif isinstance(entry, str) and entry.strip():
-            lines.append(f"- {entry.strip()}")
-    return "\n".join(lines) if lines else "(none called out)"
-
-
 def _format_creature_types_block(creature_types: Any) -> str:
     """Render setting-specific creature types, tolerating list or dict shape.
 
@@ -331,8 +285,6 @@ def build_visual_reference_prompts(theme: dict, set_name: str) -> tuple[str, str
     system_prompt = sys_template.format(
         set_name=set_name or "(unnamed set)",
         setting_block=_format_setting_block(theme),
-        characters_block=_format_characters_block(theme),
-        notable_cards_block=_format_notable_cards_block(theme),
         creature_types_block=_format_creature_types_block(theme.get("creature_types")),
     )
     return system_prompt, user_template
@@ -462,6 +414,148 @@ def assemble_artists(artists: Any) -> list[dict[str, str]]:
 
 
 # ---------------------------------------------------------------------------
+# Prose-section parsing + completeness check
+# ---------------------------------------------------------------------------
+
+# The setting-prose sections whose named entities the dictionary must cover.
+# theme.json's ``setting`` markdown stores one entity per line/paragraph as
+# ``Name: description`` (the name before the first colon; a bare line with no
+# colon is itself the name). These are the world entities the art consumers key
+# on — every one must appear in the produced dictionary or it can't be painted
+# consistently / tagged onto a card.
+_ENTITY_PROSE_SECTIONS: tuple[str, ...] = (
+    "Notable Characters",
+    "Landmarks",
+    "Factions",
+)
+
+# Lines/paragraphs that are placeholders, not entities (the extractor emits
+# these when a section has no content). Matched case-insensitively as a prefix
+# of the candidate name so "No information found in this portion." is skipped.
+_PLACEHOLDER_PREFIXES: tuple[str, ...] = (
+    "no information",
+    "none ",
+    "none.",
+    "n/a",
+    "(none",
+)
+
+
+def _section_body(setting: str, header: str) -> str | None:
+    """Return the body of a ``# <header>`` markdown section, or ``None``.
+
+    Captures everything from the header line to the next ``#``-level header (or
+    end of document). Tolerant of any heading depth (``#``..``######``).
+    """
+    pattern = rf"^#+[ \t]+{re.escape(header)}[ \t]*$(.*?)(?=^#+[ \t]+|\Z)"
+    match = re.search(pattern, setting, re.MULTILINE | re.DOTALL)
+    return match.group(1) if match else None
+
+
+def _entity_name_from_line(line: str) -> str | None:
+    """Extract an entity name from one prose line, or ``None`` if it isn't one.
+
+    The name is the text before the first colon (``Name: description``); a line
+    with no colon is itself the name (e.g. a bare ``Shockwave``). A trailing
+    parenthetical alias (``Rodimus Prime (formerly Hot Rod)``) is dropped so the
+    name normalizes to the canonical key the dictionary uses. Drops bullet
+    markers, placeholder lines, and anything that slugs to empty.
+    """
+    stripped = line.strip().lstrip("-*•").strip()
+    if not stripped:
+        return None
+    name = stripped.split(":", 1)[0].strip() if ":" in stripped else stripped
+    name = re.sub(r"\s*\([^)]*\)\s*$", "", name).strip()
+    if not name:
+        return None
+    lowered = name.lower()
+    if any(lowered.startswith(p) for p in _PLACEHOLDER_PREFIXES):
+        return None
+    return name
+
+
+def parse_prose_entities(setting: str) -> dict[str, list[str]]:
+    """Parse named entities out of the setting prose's entity sections.
+
+    Returns ``{section_header: [entity_name, ...]}`` for each of
+    :data:`_ENTITY_PROSE_SECTIONS` present in the prose, preserving order and
+    deduping (case-insensitively) within a section. A missing or empty section
+    yields no entry. This is the authority on which world entities the
+    ``visual_refs`` dictionary is expected to cover.
+    """
+    result: dict[str, list[str]] = {}
+    if not isinstance(setting, str) or not setting.strip():
+        return result
+    for header in _ENTITY_PROSE_SECTIONS:
+        body = _section_body(setting, header)
+        if body is None:
+            continue
+        names: list[str] = []
+        seen: set[str] = set()
+        for line in body.splitlines():
+            name = _entity_name_from_line(line)
+            if name is None:
+                continue
+            norm = normalize_entity_key(name)
+            if not norm or norm in seen:
+                continue
+            seen.add(norm)
+            names.append(name)
+        if names:
+            result[header] = names
+    return result
+
+
+def _name_is_covered(prose_norm: str, produced: set[str]) -> bool:
+    """True when a normalized prose name is covered by a produced dict key.
+
+    The dictionary keys are short common names ("feretha") while a prose name
+    often carries a title ("Feretha, the Hollow Founder" -> ``feretha_the_
+    hollow_founder``), so an exact-equality check over-flags. A name counts as
+    covered when it equals a key, OR one is a leading-token prefix of the other
+    (``feretha_the_hollow_founder`` is covered by ``feretha``; a longer dict key
+    likewise covers a shorter prose name). The ``_``-boundary guard keeps
+    "feretha" from spuriously covering an unrelated "ferethan".
+    """
+    if not prose_norm:
+        return False
+    for key in produced:
+        if prose_norm == key:
+            return True
+        if prose_norm.startswith(key + "_") or key.startswith(prose_norm + "_"):
+            return True
+    return False
+
+
+def find_dropped_entities(setting: str, references: dict) -> list[dict[str, str]]:
+    """Names in the prose entity sections that the dictionary failed to cover.
+
+    Normalizes every produced dictionary key (across all four category dicts)
+    through :func:`normalize_entity_key` — the same normalization the art
+    consumers use to resolve a tag onto a key — then checks each prose entity
+    name against that set via :func:`_name_is_covered` (exact or leading-token
+    prefix, so a titled prose name still matches its short dict key). Anything
+    missing is reported as ``{"name": str, "section": str}`` (order = prose
+    order). An empty list means the dictionary covered every named entity.
+    """
+    produced: set[str] = set()
+    if isinstance(references, dict):
+        for category in _OUTPUT_CATEGORY_ORDER:
+            entries = references.get(category)
+            if isinstance(entries, dict):
+                for key in entries:
+                    norm = normalize_entity_key(str(key))
+                    if norm:
+                        produced.add(norm)
+    dropped: list[dict[str, str]] = []
+    for section, names in parse_prose_entities(setting).items():
+        for name in names:
+            if not _name_is_covered(normalize_entity_key(name), produced):
+                dropped.append({"name": name, "section": section})
+    return dropped
+
+
+# ---------------------------------------------------------------------------
 # On-disk loaders (for downstream consumers)
 # ---------------------------------------------------------------------------
 
@@ -522,15 +616,23 @@ def generate_visual_references(*, theme: dict | None = None) -> dict:
     """Transform ``theme.json`` into the keyed art-direction dictionary.
 
     Reads ``theme.json`` from the active project (unless passed in), assembles
-    the transform prompt (structured anchors + the full painted setting prose),
-    and calls ``generate_with_tool``. Returns::
+    the transform prompt from the full painted setting prose, and calls
+    ``generate_with_tool``. Returns::
 
         {
             "references": dict,   # nested category-dict schema (no set_art_direction)
+            "dropped_entities": list[dict],  # {name, section} prose entities not covered
             "input_tokens": int,
             "output_tokens": int,
             "model_id": str,
         }
+
+    The return also carries ``dropped_entities`` — names from the setting
+    prose's ``# Notable Characters`` / ``# Landmarks`` / ``# Factions`` sections
+    that the model FAILED to put in the dictionary (each ``{name, section}``).
+    The prose sections are the single source of world entities, so a dropped
+    name means that entity can't be painted consistently or tagged onto a card;
+    the runner surfaces the list and a loud WARN is logged.
 
     Raises ``RuntimeError`` if the model returns no usable entities (the runner
     translates this to a stage failure). The set-wide ``set_art_direction`` is a
@@ -577,8 +679,20 @@ def generate_visual_references(*, theme: dict | None = None) -> dict:
             "Visual-reference generation produced no usable entities "
             "(every entry was malformed or empty)"
         )
+
+    dropped_entities = find_dropped_entities(theme.get("setting") or "", references)
+    if dropped_entities:
+        logger.warning(
+            "Visual-reference dictionary DROPPED %d setting-prose entit%s — they "
+            "have no canonical appearance brief and can't be tagged onto cards: %s",
+            len(dropped_entities),
+            "y" if len(dropped_entities) == 1 else "ies",
+            ", ".join(f"{d['name']} ({d['section']})" for d in dropped_entities),
+        )
+
     return {
         "references": references,
+        "dropped_entities": dropped_entities,
         "input_tokens": response.get("input_tokens", 0),
         "output_tokens": response.get("output_tokens", 0),
         # Provenance shows the base the user assigned, not the internal ctx twin.

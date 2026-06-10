@@ -9,13 +9,11 @@ The downstream art pipeline injects your descriptions into image-generation (Flu
 **Setting (the source material — already painted in detail; read it for factions, landmarks, creature types, and characters):**
 {setting_block}
 
-## Named characters (structured anchors — enrich each into a full brief)
-
-{characters_block}
-
-## Notable cards / artifacts / places (structured anchors)
-
-{notable_cards_block}
+The setting prose above is the single source of world entities. Read its
+`# Notable Characters`, `# Landmarks`, `# Factions`, `# Creature Types`, and
+`# Races` sections and cover EVERY named entity in them — do not drop any. A
+named character, landmark, faction, or creature type that appears in the prose
+but is missing from your output is a bug.
 
 ## Setting-specific creature types / races (structured anchors)
 

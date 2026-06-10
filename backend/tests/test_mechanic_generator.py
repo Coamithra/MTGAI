@@ -33,11 +33,6 @@ def _theme_fixture() -> dict:
             {"text": "At least 6 artifact creatures."},
             {"text": "No graveyard recursion."},
         ],
-        "legendary_characters": [
-            {"name": "Yenna of Ten Spires"},
-            {"name": "Maglith the Boilermaker"},
-        ],
-        "notable_cards": [{"name": "Yenna's Boilerplate"}],
     }
 
 

@@ -522,6 +522,7 @@ def run_visual_refs(
             ):
                 ref_response = generate_visual_references()
                 references = ref_response["references"]
+                dropped_entities = ref_response.get("dropped_entities") or []
                 if ai_lock.is_cancelled():
                     return StageResult(success=False, error_message="Cancelled.")
                 set_response = generate_set_art_direction()
@@ -577,27 +578,35 @@ def run_visual_refs(
         + set_response.get("output_tokens", 0)
         + artist_response.get("output_tokens", 0)
     )
-    emitter.update(
-        "overview",
-        status="done",
-        content={
-            "Entities": str(total_entities),
-            "Flux term replacements": str(len(replacements)),
-            "Visual motifs": str(len(motifs)),
-            "Artists": str(len(artists)),
-            "Set art direction": "set" if references.get("set_art_direction") else "(none)",
-            "Model": ref_response.get("model_id", "?"),
-            "Tokens": f"{total_in} in / {total_out} out",
-        },
-    )
+    overview = {
+        "Entities": str(total_entities),
+        "Flux term replacements": str(len(replacements)),
+        "Visual motifs": str(len(motifs)),
+        "Artists": str(len(artists)),
+        "Set art direction": "set" if references.get("set_art_direction") else "(none)",
+        "Model": ref_response.get("model_id", "?"),
+        "Tokens": f"{total_in} in / {total_out} out",
+    }
+    if dropped_entities:
+        overview["Dropped entities"] = ", ".join(
+            f"{d['name']} ({d['section']})" for d in dropped_entities
+        )
+    emitter.update("overview", status="done", content=overview)
     emitter.phase(
         "done", f"Generated {total_entities} art-direction entities + {len(artists)} artists"
     )
 
+    detail = f"Generated {total_entities} art-direction entities + {len(artists)} artists"
+    if dropped_entities:
+        detail += f" ({len(dropped_entities)} setting-prose entit"
+        detail += "y" if len(dropped_entities) == 1 else "ies"
+        detail += " dropped — see Visual References tab)"
+
     return StageResult(
         total_items=total_entities,
         completed_items=total_entities,
-        detail=f"Generated {total_entities} art-direction entities + {len(artists)} artists",
+        detail=detail,
+        artifacts={"dropped_entities": dropped_entities},
     )
 
 

@@ -4994,7 +4994,12 @@ async def wizard_visual_refs_refresh() -> JSONResponse:
             references["set_art_direction"] = set_response["set_art_direction"]
         _write_json(asset / "art-direction" / "visual-references.json", references)
 
-    return JSONResponse(_visual_refs_state_payload(project.settings))
+    payload = _visual_refs_state_payload(project.settings)
+    # Surface any setting-prose entities the model failed to put in the
+    # dictionary (the completeness check) so the tab can flag them; the WARN is
+    # already logged server-side by generate_visual_references.
+    payload["dropped_entities"] = ref_response.get("dropped_entities") or []
+    return JSONResponse(payload)
 
 
 @router.post("/api/wizard/visual_refs/refresh-artists")
