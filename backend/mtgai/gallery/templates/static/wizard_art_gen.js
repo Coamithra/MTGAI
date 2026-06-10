@@ -77,10 +77,13 @@
         padding: 0; border-radius: 4px; border: 1px solid #2a3550; background: #0b1120cc;
         color: #cdd; font-size: 0.72rem; line-height: 1; cursor: zoom-in;
         display: flex; align-items: center; justify-content: center;
-        opacity: 0; transition: opacity 0.12s;
+        opacity: 0.45; transition: opacity 0.12s;
       }
-      .wiz-ag-version:hover .wiz-ag-zoom, .wiz-ag-zoom:focus { opacity: 1; }
+      .wiz-ag-version:hover .wiz-ag-zoom, .wiz-ag-zoom:hover, .wiz-ag-zoom:focus { opacity: 1; }
       .wiz-ag-zoom:hover { background: #16213e; border-color: #4a9eff; color: #fff; }
+      /* Sole-version tiles: the natural gesture (clicking the image) zooms, since
+         picking a lone candidate is a no-op. cursor: zoom-in advertises it. */
+      .wiz-ag-version.is-sole { cursor: zoom-in; }
 
       .wiz-ag-reason {
         font-size: 0.72rem; color: #9aa; line-height: 1.35; margin: 0;
@@ -189,28 +192,39 @@
     }
     const versions = Array.isArray(card.versions) ? card.versions : [];
     versionsEl.innerHTML = versions.length
-      ? versions.map((v, i) => versionHtml(card, v, i + 1)).join('')
+      ? versions.map((v, i) => versionHtml(card, v, i + 1, versions.length)).join('')
       : '<div class="wiz-ag-empty-thumb">(no art)</div>';
     versionsEl.querySelectorAll('.wiz-ag-version').forEach((vEl) => bindVersionTile(vEl, cn));
   }
 
-  // Bind a version tile: click = pick it (the tab's interaction model), the
-  // hover ⤢ button = open the full-scale lightbox (stopPropagation so it never
-  // also picks). The full-size URL is read off the tile's own <img> so it tracks
-  // a reroll/upload that swapped the src.
+  // Open the full-scale lightbox for a tile. The full-size URL is read off the
+  // tile's own <img> so it tracks a reroll/upload that swapped the src.
+  function openTileLightbox(vEl, cn, pick) {
+    const img = vEl.querySelector('.wiz-ag-thumb');
+    const url = img && img.getAttribute('src');
+    if (!url || !window.MTGAILightbox) return;
+    const card = local.byCn[cn];
+    const nm = (card && card.name) || cn;
+    window.MTGAILightbox.open(url, { alt: `${nm} ${pick}`, caption: `${nm} · ${pick}` });
+  }
+
+  // Bind a version tile's interactions. Re-run on every paint, so the
+  // single-vs-multi branch tracks the live version count as cards gain versions
+  // on re-roll. With ONE version, picking is a no-op (the lone candidate is
+  // already the pick), so the natural gesture — clicking the image — zooms,
+  // matching the Rendering tab. With multiple versions, the image click picks
+  // and the always-visible corner ⤢ button (stopPropagation so it never also
+  // picks) zooms. The ⤢ button is wired in both cases as the explicit,
+  // keyboard-reachable affordance.
   function bindVersionTile(vEl, cn) {
     const pick = vEl.getAttribute('data-pick');
-    vEl.onclick = () => onRepick(cn, pick);
+    const isSole = vEl.classList.contains('is-sole');
+    vEl.onclick = isSole ? () => openTileLightbox(vEl, cn, pick) : () => onRepick(cn, pick);
     const zoomBtn = vEl.querySelector('[data-act="zoom"]');
     if (zoomBtn) {
       zoomBtn.onclick = (e) => {
         e.stopPropagation();
-        const img = vEl.querySelector('.wiz-ag-thumb');
-        const url = img && img.getAttribute('src');
-        if (!url || !window.MTGAILightbox) return;
-        const card = local.byCn[cn];
-        const nm = (card && card.name) || cn;
-        window.MTGAILightbox.open(url, { alt: `${nm} ${pick}`, caption: `${nm} · ${pick}` });
+        openTileLightbox(vEl, cn, pick);
       };
     }
   }
@@ -337,7 +351,7 @@
   function cardHtml(card) {
     const versions = Array.isArray(card.versions) ? card.versions : [];
     const versionsHtml = versions.length
-      ? versions.map((v, i) => versionHtml(card, v, i + 1)).join('')
+      ? versions.map((v, i) => versionHtml(card, v, i + 1, versions.length)).join('')
       : '<div class="wiz-ag-empty-thumb">(no art)</div>';
 
     const src = card.pick_source === 'user' ? 'You picked' : card.pick_source ? 'AI picked' : '';
@@ -361,12 +375,17 @@
       </div>`;
   }
 
-  function versionHtml(card, v, num) {
+  function versionHtml(card, v, num, total) {
     const label = 'v' + num;
     const isPicked = card.pick === label;
+    // A lone version makes picking meaningless, so the whole tile becomes a
+    // click-to-zoom surface (mirrors the Rendering tab's thumbnail); the corner
+    // ⤢ button stays as the explicit, keyboard-reachable affordance.
+    const isSole = total === 1;
+    const tileTitle = isSole ? 'Click to view full size' : `Click to pick ${label}`;
     return `
-      <div class="wiz-ag-version ${isPicked ? 'picked' : ''}" data-pick="${escAttr(label)}"
-           title="Click to pick ${label}">
+      <div class="wiz-ag-version ${isPicked ? 'picked' : ''} ${isSole ? 'is-sole' : ''}"
+           data-pick="${escAttr(label)}" title="${tileTitle}">
         ${isPicked ? '<span class="wiz-ag-pickbadge">PICK</span>' : ''}
         <button type="button" class="wiz-ag-zoom" data-act="zoom"
                 title="View full size" aria-label="View ${escAttr(label)} full size">⤢</button>
