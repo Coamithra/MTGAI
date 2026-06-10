@@ -147,19 +147,24 @@ def test_run_conformance_merges_both_steps(project, monkeypatch):
     assert result.cost_usd == pytest.approx(0.03)
 
     # Each step streamed to the tab the moment it returned: a reset, then one
-    # conformance_step per step (conformance, then interactions). The algorithmic
-    # duplicate check has no section of its own — its hits fold into conformance.
+    # conformance_step per step. The algorithmic economy analysis streams first
+    # (right after the no-LLM duplicate scan, before the LLM steps), then
+    # conformance, then interactions. The duplicate check has no section of its
+    # own — its hits fold into conformance.
     assert [t for t, _ in emitter.events] == [
         "conformance_reset",
         "conformance_step",
         "conformance_step",
+        "conformance_step",
     ]
     streamed = [d["step"]["id"] for t, d in emitter.events if t == "conformance_step"]
-    assert streamed == ["conformance", "interactions"]
+    assert streamed == ["economy", "conformance", "interactions"]
 
     steps = result.artifacts["steps"]
-    assert [s["id"] for s in steps] == ["conformance", "interactions"]
-    conf, inter = steps
+    assert [s["id"] for s in steps] == ["conformance", "interactions", "economy"]
+    conf, inter, economy = steps
+    assert economy["id"] == "economy"
+    assert "resources" in economy["report"]
     assert conf["flagged"][0]["slot_id"] == "W-C-01"
     assert conf["flagged"][0]["card_name"] == "Card W-C-01"
     assert conf["passed"] is False
@@ -541,9 +546,10 @@ def test_run_conformance_folds_duplicates_into_conformance(project, monkeypatch)
 
     result = stages_mod.run_conformance(None, _Emitter())
 
-    # Only two sections; the duplicate folds into conformance, no separate step.
+    # The duplicate folds into conformance (no separate step); the economy
+    # analysis is the always-present third algorithmic step.
     steps = result.artifacts["steps"]
-    assert [s["id"] for s in steps] == ["conformance", "interactions"]
+    assert [s["id"] for s in steps] == ["conformance", "interactions", "economy"]
     # The duplicate W-C-02 is flagged through the conformance step.
     conf = steps[0]
     assert {f["slot_id"] for f in conf["flagged"]} == {"W-C-02"}
