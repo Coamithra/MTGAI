@@ -3,8 +3,12 @@
 Two methods (full writeup in ``learnings/colored-artifact-frames.md``):
 
 * ``blend``  (Option A) — alpha-blend the gray ``m15FrameA`` with each mono
-  color frame at a fixed opacity. Stays 100% in our native 2010x2814 Card
-  Conjurer geometry, so nothing can misalign. Ships fast, not pixel-real.
+  color frame. Stays 100% in our native 2010x2814 Card Conjurer geometry, so
+  nothing can misalign. Ships fast, not pixel-real. The blend weight is
+  **per-color** (``PER_COLOR_BLEND_ALPHA``, falling back to
+  ``DEFAULT_BLEND_ALPHA``) since the colors carry very different chroma — white
+  needs a bigger share of the gray base so it reads as metal, not flat cream.
+  ``--alpha`` overrides every color at once.
 * ``median`` (Option D) — the **mature empirical-stack** pipeline ported from
   ``generate_two_color_frames.py`` (which shipped the two-color split frames):
   per-pixel **p80 percentile** stack of real Scryfall artifact cards per color
@@ -63,7 +67,38 @@ ARTIFACT_KEYS = {"W": "AW", "U": "AU", "B": "AB", "R": "AR", "G": "AG"}
 MULTICOLOR_KEY = "AM"
 
 # Mono color frame the blend tints toward; AM tints toward gold (M).
+#
+# ``alpha`` is the share of the *color* frame in the blend (``1 - alpha`` is the
+# gray ``m15FrameA`` artifact base): a higher alpha = more colour / less metal.
 DEFAULT_BLEND_ALPHA = 0.45
+
+# Per-color blend weights, keyed by the *tint letter* (the mono color the blend
+# tints toward; ``M`` is the gold multicolor frame). A color absent here falls
+# back to ``DEFAULT_BLEND_ALPHA``. The point of the override is that the colors
+# carry very different amounts of chroma, so one global ratio doesn't read the
+# same metallic-yet-tinted across all five:
+#   * ``W`` (white) has the *least* chroma of any frame, so an even 0.45 blend
+#     mostly just lightens the gray into a flat cream that reads as a plain
+#     white frame (witness: MLP 036 Canterlot Glimmer Automaton). Giving white a
+#     bigger share of the gray base (0.30) keeps visible metal texture so it
+#     reads as white-cast *metal*, not a mono-white card, while the warm cast on
+#     the title/type bars + parchment still signals white identity.
+# The other four (U/R/G praised, B inverse-risk-but-fine, M gold acceptable) all
+# read correctly at the default, so they stay there (audited via the ``compare``
+# / scratch renders — see learnings/colored-artifact-frames.md).
+PER_COLOR_BLEND_ALPHA = {"W": 0.30}
+
+
+def blend_alpha_for(tint: str, override: float | None = None) -> float:
+    """Resolve the blend alpha for a tint letter.
+
+    An explicit ``override`` (the CLI ``--alpha`` when passed) wins for every
+    color; otherwise the per-color map applies, falling back to the default.
+    """
+    if override is not None:
+        return override
+    return PER_COLOR_BLEND_ALPHA.get(tint, DEFAULT_BLEND_ALPHA)
+
 
 # Native frame geometry (kept in sync with rendering/layout.py).
 FRAME_W, FRAME_H = 2010, 2814
@@ -202,7 +237,7 @@ def _erase_pt_box(frame_rgb: Image.Image) -> Image.Image:
     return out
 
 
-def _blend_bars(frame_rgb: Image.Image, tint: str) -> Image.Image:
+def _blend_bars(frame_rgb: Image.Image, tint: str, alpha: float) -> Image.Image:
     """Replace title/type/rules/bottom text zones with the clean Option-A blend.
 
     The real-card stack leaves shared ghost text in the flat text bars (card
@@ -211,9 +246,10 @@ def _blend_bars(frame_rgb: Image.Image, tint: str) -> Image.Image:
     text-free, artifact-tinted, and already in our exact 2010x2814 geometry, so
     compositing it into those mask zones erases the ghosts while keeping the
     stacked body/pinline/border/colour. ``tint`` is the mono letter (W/U/B/R/G)
-    or ``M`` for the gold multicolor blend.
+    or ``M`` for the gold multicolor blend; ``alpha`` is its resolved blend
+    weight so the rebuilt bars match the shipped Option-A frame.
     """
-    blend = build_blend_frame(tint).convert("RGB")
+    blend = build_blend_frame(tint, alpha).convert("RGB")
     out = frame_rgb.copy()
     for mask_name in ("m15MaskTitle", "m15MaskType", "m15MaskRules"):
         out.paste(blend, (0, 0), _mask_alpha(mask_name))
@@ -244,19 +280,20 @@ def _build_pt_box(frame_rgb: Image.Image) -> Image.Image:
 
 
 def build_stack_frame(
-    tint: str, scry_color: str, n: int, refresh: bool
+    tint: str, scry_color: str, n: int, refresh: bool, alpha: float = DEFAULT_BLEND_ALPHA
 ) -> tuple[Image.Image, Image.Image, int] | None:
     """Stack real artifacts for one color → (frame RGBA, P/T RGBA, n_used).
 
     Returns ``None`` when too few real cards exist to out-vote text (caller
-    falls back to the blend for that key).
+    falls back to the blend for that key). ``alpha`` is the per-color blend
+    weight used for the rebuilt text bars.
     """
     paths = fetch_artifact_pngs(scry_color, n, refresh)
     if len(paths) < MIN_STACK:
         return None
     stacked = _stack_percentile(paths)
     pt_box = _build_pt_box(stacked)
-    body = _blend_bars(_erase_pt_box(stacked), tint)
+    body = _blend_bars(_erase_pt_box(stacked), tint, alpha)
     frame = _apply_silhouette(body)
     return frame, pt_box, len(paths)
 
@@ -264,22 +301,30 @@ def build_stack_frame(
 # ---------------------------------------------------------------------------
 # Writers
 # ---------------------------------------------------------------------------
-def write_variants(out_dir: Path, method: str, *, n: int, alpha: float, refresh: bool) -> None:
-    """Build all colored-artifact frame + P/T assets into ``out_dir``."""
+def write_variants(
+    out_dir: Path, method: str, *, n: int, alpha: float | None, refresh: bool
+) -> None:
+    """Build all colored-artifact frame + P/T assets into ``out_dir``.
+
+    ``alpha`` is an optional global override; when ``None`` (the default), each
+    color's blend weight comes from ``PER_COLOR_BLEND_ALPHA`` (falling back to
+    ``DEFAULT_BLEND_ALPHA``).
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     # tint letter -> Scryfall color token; AM is multicolor (c=m).
     targets = [(ARTIFACT_KEYS[c], c, c.lower()) for c in MONO_COLORS]
     targets.append((MULTICOLOR_KEY, "M", "m"))
     for key, tint, scry in targets:
+        a = blend_alpha_for(tint, alpha)
         if method == "blend":
-            build_blend_frame(tint, alpha).save(out_dir / f"m15Frame{key}.png")
-            build_blend_pt(tint, alpha).save(out_dir / f"m15PT{key}.png")
-            print(f"  {key}: m15Frame{key}.png (blend a={alpha}) + m15PT{key}.png")
+            build_blend_frame(tint, a).save(out_dir / f"m15Frame{key}.png")
+            build_blend_pt(tint, a).save(out_dir / f"m15PT{key}.png")
+            print(f"  {key}: m15Frame{key}.png (blend a={a}) + m15PT{key}.png")
             continue
-        result = build_stack_frame(tint, scry, n, refresh)
+        result = build_stack_frame(tint, scry, n, refresh, a)
         if result is None:
-            build_blend_frame(tint, alpha).save(out_dir / f"m15Frame{key}.png")
-            build_blend_pt(tint, alpha).save(out_dir / f"m15PT{key}.png")
+            build_blend_frame(tint, a).save(out_dir / f"m15Frame{key}.png")
+            build_blend_pt(tint, a).save(out_dir / f"m15PT{key}.png")
             print(f"  {key}: m15Frame{key}.png (blend fallback — too few cards) + m15PT{key}.png")
             continue
         frame, pt_box, used = result
@@ -330,7 +375,7 @@ def _example_cards():
     return cards
 
 
-def compare(n: int, alpha: float, refresh: bool) -> None:
+def compare(n: int, alpha: float | None, refresh: bool) -> None:
     import tempfile
 
     import mtgai.rendering.layout as layout_mod
@@ -393,12 +438,22 @@ def main() -> None:
     b.add_argument("--method", choices=["blend", "median"], required=True)
     b.add_argument("--out", default=str(FRAMES_DIR), help="Output frames dir (default: assets)")
     b.add_argument("--n", type=int, default=40, help="Cards per color to stack")
-    b.add_argument("--alpha", type=float, default=DEFAULT_BLEND_ALPHA)
+    b.add_argument(
+        "--alpha",
+        type=float,
+        default=None,
+        help="Global blend-weight override for ALL colors (default: per-color map)",
+    )
     b.add_argument("--refresh", action="store_true", help="Re-download, ignore cache")
 
     c = sub.add_parser("compare", help="Render example cards with both methods")
     c.add_argument("--n", type=int, default=40)
-    c.add_argument("--alpha", type=float, default=DEFAULT_BLEND_ALPHA)
+    c.add_argument(
+        "--alpha",
+        type=float,
+        default=None,
+        help="Global blend-weight override for ALL colors (default: per-color map)",
+    )
     c.add_argument("--refresh", action="store_true", help="Re-download, ignore cache")
 
     args = parser.parse_args()
