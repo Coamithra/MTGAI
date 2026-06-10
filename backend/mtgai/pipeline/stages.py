@@ -1274,6 +1274,7 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
     from mtgai.analysis.conformance import check_conformance
     from mtgai.analysis.duplicates import find_duplicate_names, find_duplicates
     from mtgai.analysis.interactions import analyze_interactions
+    from mtgai.analysis.resource_economy import analyze_resource_economy
     from mtgai.runtime import ai_lock
 
     set_dir = _set_dir()
@@ -1356,6 +1357,22 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
             # Scope the duplicate hits to the regenerated cards too — an
             # already-vetted carried-over card must not be re-flagged here.
             dup_by_slot = {sid: r for sid, r in dup_by_slot.items() if sid in recheck}
+
+        # Resource-economy / enablement-coverage analysis — the third algorithmic
+        # (no-LLM) surface beside the duplicate scan. For each consumable resource
+        # (Food, Treasure, custom mechanic tokens) it counts makers vs consumers
+        # and warns on critical coverage gaps. ALWAYS over the FULL pool (a
+        # set-level report, scope-independent — a recheck instance shows the same
+        # economy as the backbone). V1 is advisory: no regen flags, no bounce.
+        economy_report, economy_warnings = analyze_resource_economy(cards, mechanics)
+        economy_step = {
+            "id": "economy",
+            "label": "Resource Economy",
+            "report": economy_report,
+            "warnings": economy_warnings,
+            "passed": not economy_warnings,
+        }
+        emitter.event("conformance_step", step=economy_step)
 
         # Conformance scans the pool in streamed batches (one call per ~40 cards)
         # and fills a live checklist: the full card list up front
@@ -1488,7 +1505,7 @@ def run_conformance(progress_cb: ProgressCallback | None, emitter: StageEmitter)
         )
 
         n_dups = len(dup_by_slot)
-        steps = [conf_step, inter_step]
+        steps = [conf_step, inter_step, economy_step]
         emitter.phase("done", f"Conformance & Interactions: {len(flagged)} card(s) flagged")
         detail = (
             f"Conformance & Interactions: {len(flagged)} card(s) flagged for regeneration "

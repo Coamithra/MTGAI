@@ -22,6 +22,12 @@
  * runs first and seeds its hits into ``conformance_cards`` with conforms=false,
  * so a duplicate shows ✗ in the Conformance column from the first paint.
  *
+ * A third algorithmic (no-LLM) surface — the **Resource Economy** panel — renders
+ * below the card checklist: a per-resource makers-vs-consumers table (Food,
+ * Treasure, custom mechanic tokens) with coverage warnings. It streams as a
+ * ``conformance_step`` (``step.id === 'economy'``) and rebuilds from
+ * ``result.steps`` on reload. Advisory only — no card is flagged from it.
+ *
  * Per-pass states: ✓ ok · ✗ flagged · ⚠ unknown (batch truncated) · spinner
  * pending (seeded, awaiting verdict) · empty not-started · muted · not-applicable.
  * A card is flagged for regeneration if EITHER column is ✗.
@@ -71,6 +77,22 @@
       .wiz-gate2-reason { grid-column: 3; margin-top: 0.1rem; color: #ccc; font-size: 0.85rem; }
       .wiz-gate2-reason b { color: #8b949e; font-weight: 600; }
       .wiz-gate-waiting { font-size: 1.05rem; color: #6e7681; }
+      /* Resource-economy panel (third algorithmic step) */
+      .wiz-econ { margin-top: 1.6rem; border-top: 1px solid #ffffff14; padding-top: 1.2rem; }
+      .wiz-econ-warns { list-style: none; padding: 0; margin: 0 0 0.9rem; display: flex; flex-direction: column; gap: 0.4rem; }
+      .wiz-econ-warn { background: #ffa50212; border-left: 3px solid #ffa502; color: #f0d9b5; padding: 0.45rem 0.6rem; border-radius: 4px; font-size: 0.85rem; }
+      .wiz-econ-ok { color: #00d4aa; font-weight: 600; margin-bottom: 0.8rem; }
+      .wiz-econ-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+      .wiz-econ-table th { text-align: left; color: #8b949e; font-weight: 600; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.3rem 0.5rem; border-bottom: 1px solid #ffffff14; }
+      .wiz-econ-table th.wiz-econ-num, .wiz-econ-table td.wiz-econ-num { text-align: center; width: 4.5rem; }
+      .wiz-econ-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #ffffff0a; color: #ddd; vertical-align: top; }
+      .wiz-econ-res { font-weight: 600; color: #eee; }
+      .wiz-econ-make { color: #00d4aa; font-weight: 700; }
+      .wiz-econ-use { color: #58a6ff; font-weight: 700; }
+      .wiz-econ-low { color: #ffa502; }
+      .wiz-econ-sub { color: #8b949e; font-size: 0.78rem; }
+      .wiz-econ-mech { color: #b392f0; font-size: 0.78rem; }
+      .wiz-econ-empty { color: #6e7681; font-size: 0.9rem; }
       @keyframes wiz-gate-spin { to { transform: rotate(360deg); } }
     `;
     document.head.appendChild(style);
@@ -89,7 +111,7 @@
   function stateFor(instanceId) {
     let s = instances.get(instanceId);
     if (!s) {
-      s = { rows: new Map(), order: [], confSeeded: new Set(), streaming: false, stage: null };
+      s = { rows: new Map(), order: [], confSeeded: new Set(), streaming: false, stage: null, economy: null };
       instances.set(instanceId, s);
     }
     return s;
@@ -109,6 +131,12 @@
       local.rows = new Map();
       local.order = [];
       local.confSeeded = new Set();
+      local.economy = null;
+    } else if (name === 'conformance_step') {
+      // The economy step streams as a conformance_step the instant the (no-LLM)
+      // analysis returns; the per-card conformance/interaction steps are rebuilt
+      // from their streamed cards, so we only capture the economy one here.
+      if (data.step && data.step.id === 'economy') local.economy = data.step;
     } else if (name === 'conformance_cards') {
       (data.cards || []).forEach(c => {
         const row = ensureRow(local, c.slot_id, c.card_name);
@@ -186,6 +214,8 @@
     const status = stage ? stage.status : 'pending';
     const result = (stage && stage.result) || {};
 
+    const economyHtml = economyPanelHtml(resolveEconomy(local, result));
+
     const rows = resolveRows(local, result);
     const hasAny = rows.length > 0;
     if (status === 'pending' && !hasAny && !(local && local.streaming)) {
@@ -195,14 +225,22 @@
       const checking = status === 'running' || (local && local.streaming);
       return '<div class="wiz-gate-step"><div class="wiz-gate-step-label">Conformance &amp; Interactions</div>'
         + (checking ? '<div class="wiz-gate-progress">Checking…</div>' : '<div class="wiz-gate-waiting">Waiting…</div>')
-        + '</div>';
+        + '</div>' + economyHtml;
     }
 
     // A flagging gate bounces straight to card_gen (no round cap), so it never
     // pauses here with cards still flagged — the only pause left is a clean-pass
     // break-point, which has nothing flagged to note.
     const checking = status === 'running' || (local && local.streaming);
-    return cardsHtml(rows, checking);
+    return cardsHtml(rows, checking) + economyHtml;
+  }
+
+  // Live stream state wins; otherwise pull the economy step from the
+  // authoritative result.steps (reload after the buffer cleared).
+  function resolveEconomy(local, result) {
+    if (local && local.economy) return local.economy;
+    const steps = Array.isArray(result.steps) ? result.steps : [];
+    return steps.find(s => s && s.id === 'economy') || null;
   }
 
   // ---- source resolution (live stream overrides stale authoritative mid-run) --
@@ -314,6 +352,66 @@
       + reasonHtml('Conformance', r.conf)
       + reasonHtml('Interaction', r.inter)
       + '</li>';
+  }
+
+  // ---- resource-economy panel ------------------------------------------------
+
+  function colorBreakdown(byColor) {
+    const entries = Object.entries(byColor || {}).filter(([, n]) => n);
+    if (!entries.length) return '';
+    entries.sort((a, b) => b[1] - a[1]);
+    return entries.map(([c, n]) => c + ':' + n).join(' ');
+  }
+
+  function mechHtml(mechanics) {
+    if (!Array.isArray(mechanics) || !mechanics.length) return '';
+    const parts = mechanics.map(m =>
+      escHtml(m.name) + ' (' + escHtml(m.role || '') + ', ' + (m.carriers || 0) + ' card' + ((m.carriers || 0) === 1 ? '' : 's') + ')'
+    );
+    return '<div class="wiz-econ-mech">via ' + parts.join(', ') + '</div>';
+  }
+
+  function economyPanelHtml(step) {
+    if (!step) return '';
+    const report = step.report || {};
+    const resources = Array.isArray(report.resources) ? report.resources : [];
+    const warnings = Array.isArray(step.warnings) ? step.warnings : (report.warnings || []);
+
+    let warnHtml;
+    if (warnings.length) {
+      warnHtml = '<ul class="wiz-econ-warns">'
+        + warnings.map(w => '<li class="wiz-econ-warn">⚠ ' + escHtml(w) + '</li>').join('')
+        + '</ul>';
+    } else if (resources.length) {
+      warnHtml = '<div class="wiz-econ-ok">✓ Every consumed resource has adequate makers.</div>';
+    } else {
+      warnHtml = '';
+    }
+
+    let table;
+    if (!resources.length) {
+      table = '<div class="wiz-econ-empty">No consumable token resources (Food, Treasure, '
+        + 'custom mechanic tokens) are in play in this set.</div>';
+    } else {
+      const rows = resources.map(r => {
+        const low = (r.consumers > 0 && r.makers <= 1) ? ' wiz-econ-low' : '';
+        const makeSub = colorBreakdown(r.makers_by_color);
+        const useSub = colorBreakdown(r.consumers_by_color);
+        return '<tr>'
+          + '<td class="wiz-econ-res">' + escHtml(r.name) + mechHtml(r.mechanics) + '</td>'
+          + '<td class="wiz-econ-num"><span class="wiz-econ-make' + low + '">' + (r.makers || 0) + '</span>'
+          + (makeSub ? '<div class="wiz-econ-sub">' + escHtml(makeSub) + '</div>' : '') + '</td>'
+          + '<td class="wiz-econ-num"><span class="wiz-econ-use">' + (r.consumers || 0) + '</span>'
+          + (useSub ? '<div class="wiz-econ-sub">' + escHtml(useSub) + '</div>' : '') + '</td>'
+          + '</tr>';
+      }).join('');
+      table = '<table class="wiz-econ-table"><thead><tr>'
+        + '<th>Resource</th><th class="wiz-econ-num">Makers</th><th class="wiz-econ-num">Consumers</th>'
+        + '</tr></thead><tbody>' + rows + '</tbody></table>';
+    }
+
+    return '<div class="wiz-econ"><div class="wiz-gate-step-label">Resource Economy</div>'
+      + warnHtml + table + '</div>';
   }
 
   function paintFooter(footer, state, stage) {
