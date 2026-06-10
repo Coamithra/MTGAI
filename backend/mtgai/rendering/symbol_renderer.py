@@ -489,6 +489,39 @@ def get_mana_symbol(symbol: str, size: int) -> Image.Image:
     return result
 
 
+_glyph_silhouette_cache: dict[tuple[str, int], Image.Image] = {}
+
+
+def get_mana_glyph_silhouette(symbol: str, size: int) -> Image.Image | None:
+    """Return the BARE glyph of a mana symbol as a flat-black RGBA silhouette.
+
+    Unlike :func:`get_mana_symbol` (a colored disc with a glyph painted on top),
+    this returns only the icon itself — the skull/sun/tree/droplet/flame shape,
+    no circular disc background. Real basic-land watermarks show this bare glyph,
+    not the full mana symbol.
+
+    The bare glyph comes from the IcoMoon SVG (``assets/symbols/mana/<x>.svg``),
+    which is a single dark path with no disc — so its alpha channel IS the glyph
+    silhouette, no luminance thresholding of a composited raster needed. The RGB
+    is flat black; recolor/tint via the alpha at the call site. Returns ``None``
+    when the glyph SVG can't be rasterized (no Cairo backend / missing asset), so
+    the caller can fall back to the full symbol.
+    """
+    cache_key = (symbol.upper(), size)
+    if cache_key in _glyph_silhouette_cache:
+        return _glyph_silhouette_cache[cache_key]
+
+    svg_path = MANA_SVG_DIR / f"{_svg_filename(symbol)}.svg"
+    glyph_img = _rasterize_svg(svg_path, size, size)
+    if glyph_img is None:
+        return None
+
+    silhouette = Image.new("RGBA", (size, size), (0, 0, 0, 255))
+    silhouette.putalpha(glyph_img.split()[3])
+    _glyph_silhouette_cache[cache_key] = silhouette
+    return silhouette
+
+
 # ---------------------------------------------------------------------------
 # Set symbol rendering — placeholder "Descending Vortex" via pycairo (the
 # default symbol every set renders with until per-project symbols exist)
