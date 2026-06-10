@@ -218,25 +218,26 @@ def test_save_params_live_applies_art_versions(client):
     assert resp.status_code == 400
 
 
-def test_save_params_live_applies_two_color_frame(client):
-    """two_color_frame applies live (render-time knob, no cascade) and is validated."""
+def test_save_params_ignores_legacy_two_color_frame(client):
+    """The retired ``two_color_frame`` knob is no longer a field.
+
+    The two-colour split-vs-gold frame is now derived from the card's mana cost
+    (see ``rendering/colors.cost_is_all_hybrid_pair``), so the toggle was removed.
+    A stale client/.mtg still sending it must be ignored — the endpoint succeeds
+    and the (still-valid) params save, without echoing the dead field.
+    """
     _open_project("TST")
     resp = client.post(
         "/api/wizard/project/params",
-        json={"set_code": "TST", "two_color_frame": "gold"},
+        json={"set_code": "TST", "set_name": "Zed", "two_color_frame": "gold"},
     )
     assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert "two_color_frame" not in data["set_params"]
     settings = active_project.require_active_project().settings
-    assert settings.set_params.two_color_frame == "gold"
-
-    # Unknown mode -> 400, prior value kept.
-    resp = client.post(
-        "/api/wizard/project/params",
-        json={"set_code": "TST", "two_color_frame": "diagonal"},
-    )
-    assert resp.status_code == 400
-    settings = active_project.require_active_project().settings
-    assert settings.set_params.two_color_frame == "gold"
+    assert settings.set_params.set_name == "Zed"
+    assert not hasattr(settings.set_params, "two_color_frame")
 
 
 def test_save_params_rejects_mechanic_count_above_max(client):

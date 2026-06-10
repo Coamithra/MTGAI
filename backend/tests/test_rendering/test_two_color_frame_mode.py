@@ -1,112 +1,127 @@
-"""Two-colour frame treatment: gradient pair crowns + the split|gold render toggle.
+"""Two-colour frame treatment: cost-derived split|gold + gradient pair crowns.
 
-Step 3 (card 6a2881ee): two-colour legendary crowns are synthesized at load time
-by blending the mono crowns through a soft centered gradient seam instead of the
-hard-split committed pair PNGs (kept as fallback when a mono source is missing).
+Card 6a28a052 replaced the old ``SetParams.two_color_frame`` project toggle with
+the real-Magic canon rule: a two-colour card's frame is a pure function of its
+**mana cost**. An all-hybrid-of-the-pair cost ({G/U}{G/U}, {1}{R/W}) wears the
+two-tone split frame (what the committed split assets were stacked from); a plain
+gold cost ({G}{U}, {1}{W}{B}), any mix of plain + hybrid pips, or no cost at all
+collapses to the flat gold M frame. The legendary crown follows the same choice
+(gradient-blended pair crown for split, Gold crown for M).
 
-Step 4 (card 6a2881fa): ``SetParams.two_color_frame`` — ``"split"`` (default,
-house style) keeps the hybrid-derived split frame; ``"gold"`` collapses a
-two-colour identity to the flat gold M frame (real-Magic canon for non-hybrid
-two-colour costs), with the P/T box and crown following.
+Earlier (card 6a2881ee) the two-colour legendary crowns gained their gradient
+seam, synthesized at load time by blending the mono crowns instead of the
+hard-split committed pair PNGs (kept as fallback when a mono source is missing) —
+those synthesis tests are retained below.
 """
 
 from __future__ import annotations
 
-import pytest
 from PIL import Image
 
 from mtgai.models.card import Card
 from mtgai.rendering.card_renderer import CardRenderer
-from mtgai.runtime import active_project
-from mtgai.settings.model_settings import ModelSettings, SetParams
 
 
-def _open_project(tmp_path, two_color_frame: str) -> None:
-    settings = ModelSettings(
-        asset_folder=str(tmp_path),
-        set_params=SetParams(two_color_frame=two_color_frame),
-    )
-    active_project.write_active_project(
-        active_project.ProjectState(set_code="TST", settings=settings)
+def _card(type_line: str, identity: list[str], mana_cost: str = "") -> Card:
+    return Card(
+        name="Test Card",
+        type_line=type_line,
+        color_identity=identity,
+        mana_cost=mana_cost,
     )
 
 
-@pytest.fixture
-def gold_mode(tmp_path):
-    _open_project(tmp_path, "gold")
-    yield
-    active_project.clear_active_project()
-
-
-@pytest.fixture
-def split_mode(tmp_path):
-    _open_project(tmp_path, "split")
-    yield
-    active_project.clear_active_project()
-
-
-def _card(type_line: str, identity: list[str]) -> Card:
-    return Card(name="Test Card", type_line=type_line, color_identity=identity)
-
-
 # ---------------------------------------------------------------------------
-# Frame key routing (step 4)
+# Cost-derived frame-key routing
 # ---------------------------------------------------------------------------
 
 
-def test_two_color_split_is_the_default_without_a_project():
-    # No active project (standalone tools, tests) -> house-style split key.
-    # Clear explicitly: the pointer is a module global that outlives tests in
-    # other modules, so don't rely on their teardown.
-    active_project.clear_active_project()
+def test_all_hybrid_pair_cost_gets_split_key():
     r = CardRenderer()
-    assert r.determine_frame_key(_card("Creature — Wizard", ["U", "W"])) == "WU"
+    # Every colored pip is a hybrid spanning the card's two colours -> split.
+    assert r.determine_frame_key(_card("Creature — Wizard", ["U", "W"], "{W/U}{W/U}")) == "WU"
+    # A single hybrid pip + generic is still all-hybrid-of-the-pair -> split.
+    assert r.determine_frame_key(_card("Creature — Wizard", ["R", "W"], "{1}{R/W}")) == "WR"
 
 
-def test_two_color_split_mode_keeps_pair_key(split_mode):
+def test_plain_gold_pair_cost_collapses_to_m():
     r = CardRenderer()
-    assert r.determine_frame_key(_card("Creature — Wizard", ["U", "W"])) == "WU"
+    # Plain colored pips -> the flat gold M frame (canon for gold costs).
+    assert r.determine_frame_key(_card("Creature — Wizard", ["U", "W"], "{W}{U}")) == "M"
+    assert r.determine_frame_key(_card("Creature — Wizard", ["W", "B"], "{1}{W}{B}")) == "M"
 
 
-def test_two_color_gold_mode_collapses_to_m(gold_mode):
+def test_mixed_hybrid_and_plain_cost_collapses_to_m():
     r = CardRenderer()
-    assert r.determine_frame_key(_card("Creature — Wizard", ["U", "W"])) == "M"
-    # Mono / 3+ colours are untouched by the toggle.
-    assert r.determine_frame_key(_card("Creature — Elf", ["G"])) == "G"
-    assert r.determine_frame_key(_card("Creature — Dragon", ["U", "B", "R"])) == "M"
+    # A plain colored pip alongside a hybrid -> gold M (the real-card pattern is
+    # ALL-hybrid; any plain colored pip breaks the split).
+    assert r.determine_frame_key(_card("Creature — Wizard", ["U", "W"], "{W/U}{W}")) == "M"
+    assert r.determine_frame_key(_card("Creature — Wizard", ["G", "U"], "{G/U}{U}")) == "M"
 
 
-def test_gold_mode_leaves_artifacts_and_lands_alone(gold_mode):
+def test_two_color_card_with_no_cost_is_gold():
     r = CardRenderer()
-    # Two-colour artifacts keep the gold-tinted AM frame; two-colour lands stay lm.
-    assert r.determine_frame_key(_card("Artifact — Equipment", ["W", "U"])) == "AM"
-    assert r.determine_frame_key(_card("Land", ["W", "U"])) == "lm"
+    # No cost (back faces, etc.) -> no hybrid signal -> gold M.
+    assert r.determine_frame_key(_card("Creature — Wizard", ["U", "W"], "")) == "M"
+
+
+def test_phyrexian_pip_counts_as_plain_color_not_hybrid_pair():
+    r = CardRenderer()
+    # {W/P} is a single-colour (W) pip — P is not a colour — so {W/P}{U} is a
+    # plain W pip + plain U pip = gold M, NOT a WU split.
+    assert r.determine_frame_key(_card("Creature — Wizard", ["U", "W"], "{W/P}{U}")) == "M"
+
+
+def test_mono_color_twobrid_keeps_mono_frame():
+    r = CardRenderer()
+    # A lone twobrid {2/W} is a mono-colour card -> the mono W frame, untouched
+    # (the split-vs-gold collapse only applies to a 2-colour identity).
+    assert r.determine_frame_key(_card("Creature — Wizard", ["W"], "{2/W}")) == "W"
+
+
+def test_mono_and_multicolor_are_untouched():
+    r = CardRenderer()
+    assert r.determine_frame_key(_card("Creature — Elf", ["G"], "{G}")) == "G"
+    assert r.determine_frame_key(_card("Creature — Dragon", ["U", "B", "R"], "{U}{B}{R}")) == "M"
+
+
+def test_cost_derived_routing_leaves_artifacts_and_lands_alone():
+    r = CardRenderer()
+    # Two-colour artifacts keep the gold-tinted AM frame regardless of cost;
+    # two-colour lands stay lm (lands have no cost anyway).
+    assert r.determine_frame_key(_card("Artifact — Equipment", ["W", "U"], "{2}")) == "AM"
+    assert r.determine_frame_key(_card("Land", ["W", "U"], "")) == "lm"
 
 
 # ---------------------------------------------------------------------------
-# Crown routing (steps 3 + 4)
+# Crown routing follows the frame key
 # ---------------------------------------------------------------------------
 
 
-def test_gold_mode_two_color_crown_is_gold(gold_mode):
+def test_plain_gold_pair_crown_is_gold():
     r = CardRenderer()
-    two = r._load_legendary_crown(_card("Legendary Creature — Wizard", ["W", "U"]))
-    three = r._load_legendary_crown(_card("Legendary Creature — Dragon", ["U", "B", "R"]))
+    two = r._load_legendary_crown(_card("Legendary Creature — Wizard", ["W", "U"], "{W}{U}"))
+    three = r._load_legendary_crown(
+        _card("Legendary Creature — Dragon", ["U", "B", "R"], "{U}{B}{R}")
+    )
     assert two is not None and three is not None
-    # Both resolve to the cached Gold crown overlay.
+    # A plain gold two-colour cost takes the cached Gold crown like 3+ colours.
     assert two is three
 
 
-def test_split_mode_two_color_crown_differs_from_gold(split_mode):
+def test_hybrid_pair_crown_differs_from_gold():
     r = CardRenderer()
-    two = r._load_legendary_crown(_card("Legendary Creature — Wizard", ["W", "U"]))
-    gold = r._load_legendary_crown(_card("Legendary Creature — Dragon", ["U", "B", "R"]))
+    two = r._load_legendary_crown(_card("Legendary Creature — Wizard", ["W", "U"], "{W/U}{W/U}"))
+    gold = r._load_legendary_crown(
+        _card("Legendary Creature — Dragon", ["U", "B", "R"], "{U}{B}{R}")
+    )
     assert two is not None and gold is not None
+    # The hybrid pair gets the synthesized split crown, not the Gold one.
     assert two is not gold
 
 
 # ---------------------------------------------------------------------------
-# Gradient pair crown synthesis (step 3)
+# Gradient pair crown synthesis (card 6a2881ee — retained)
 # ---------------------------------------------------------------------------
 
 
@@ -156,7 +171,9 @@ def test_split_crown_is_synthesized_not_the_committed_png(monkeypatch):
         return real_blend(self, pair, crown_dir)
 
     monkeypatch.setattr(CardRenderer, "_blend_pair_crown", spy)
-    overlay = r._load_legendary_crown(_card("Legendary Creature — Wizard", ["W", "U"]))
+    overlay = r._load_legendary_crown(
+        _card("Legendary Creature — Wizard", ["W", "U"], "{W/U}{W/U}")
+    )
     assert overlay is not None
     assert calls == ["WU"]
 
@@ -174,7 +191,11 @@ def test_split_crown_falls_back_to_committed_png_when_blend_unavailable(monkeypa
     # falls back to the committed crowns/WU.png and still produces a crown.
     r = CardRenderer()
     monkeypatch.setattr(CardRenderer, "_blend_pair_crown", lambda self, pair, crown_dir: None)
-    overlay = r._load_legendary_crown(_card("Legendary Creature — Wizard", ["W", "U"]))
+    overlay = r._load_legendary_crown(
+        _card("Legendary Creature — Wizard", ["W", "U"], "{W/U}{W/U}")
+    )
     assert overlay is not None
-    gold = r._load_legendary_crown(_card("Legendary Creature — Dragon", ["U", "B", "R"]))
+    gold = r._load_legendary_crown(
+        _card("Legendary Creature — Dragon", ["U", "B", "R"], "{U}{B}{R}")
+    )
     assert overlay is not gold
