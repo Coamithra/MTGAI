@@ -165,9 +165,19 @@ def strip_paren_outer(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+# The verb→resource gap is bounded to a single clause: it may not cross a
+# sentence end (``.``), a clause separator (``;`` / ``,`` / ``:``), or a newline.
+# This keeps "create a Treasure token, then sacrifice a Food" from mis-attributing
+# Food as a maker (the "create" verb belongs to the *Treasure* clause) — the verb
+# and its resource live in the same clause on real cards.
+_CLAUSE_GAP = r"[^.;:,\n]*?"
+
+
 def _maker_re(resource: str) -> re.Pattern[str]:
     """``create [count] [adjectives] <Resource> token(s)`` for one resource."""
-    return re.compile(rf"\bcreate\b[^.;\n]*?\b{re.escape(resource)}\s+tokens?\b", re.IGNORECASE)
+    return re.compile(
+        rf"\bcreate\b{_CLAUSE_GAP}\b{re.escape(resource)}\s+tokens?\b", re.IGNORECASE
+    )
 
 
 def _consumer_re(resource: str) -> re.Pattern[str]:
@@ -175,9 +185,9 @@ def _consumer_re(resource: str) -> re.Pattern[str]:
 
     Catches both the explicit "Sacrifice a Food token" and the bare "Sacrifice a
     Food" some cards use. Conservative: keyed on an explicit *sacrifice* of the
-    named resource, not every mention.
+    named resource in the same clause, not every mention.
     """
-    return re.compile(rf"\bsacrifices?\b[^.;\n]*?\b{re.escape(resource)}\b", re.IGNORECASE)
+    return re.compile(rf"\bsacrifices?\b{_CLAUSE_GAP}\b{re.escape(resource)}\b", re.IGNORECASE)
 
 
 def card_colors(card: Card) -> list[str]:
@@ -249,14 +259,13 @@ MAX_MAKERS_FOR_GAP = 1
 MIN_CONSUMERS_FOR_COLOR_WARN = 2
 
 
-def _dominant_colors(color_counts: dict[str, int]) -> set[str]:
-    """The set of colours (excluding ``C``) that carry the most weight.
+def _colored_set(color_counts: dict[str, int]) -> set[str]:
+    """The set of (non-colourless) colours that appear with a non-zero count.
 
     Used for the maker/consumer colour-overlap test. Colourless ("C") is dropped:
     a colourless maker fixes any colour's gap, so it never causes a mismatch.
     """
-    colored = {c: n for c, n in color_counts.items() if c != COLORLESS and n}
-    return set(colored)
+    return {c for c, n in color_counts.items() if c != COLORLESS and n}
 
 
 def analyze_resource_economy(
@@ -394,8 +403,8 @@ def _build_warnings(
         # Colour-mismatch: consumers concentrated in colours no maker covers (and
         # no colourless / mechanic maker fills the gap).
         if n_use >= MIN_CONSUMERS_FOR_COLOR_WARN and n_make >= 1 and not mech_maker:
-            consume_cols = _dominant_colors(consumers_by_color[res])
-            make_cols = _dominant_colors(makers_by_color[res])
+            consume_cols = _colored_set(consumers_by_color[res])
+            make_cols = _colored_set(makers_by_color[res])
             colorless_maker = makers_by_color[res].get(COLORLESS, 0) > 0
             disjoint = not (consume_cols & make_cols)
             if consume_cols and make_cols and not colorless_maker and disjoint:

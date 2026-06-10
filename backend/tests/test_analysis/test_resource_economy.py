@@ -134,6 +134,14 @@ class TestScanCard:
         assert makes == set()
         assert uses == set()
 
+    def test_create_does_not_cross_clause_to_other_resource(self):
+        # "create a Treasure token, then sacrifice a Food" must NOT count Food as a
+        # maker — the create verb belongs to the Treasure clause.
+        card = _make_card(oracle_text="Create a Treasure token, then sacrifice a Food.")
+        makes, uses = scan_card(card, ["Food", "Treasure"])
+        assert makes == {"Treasure"}
+        assert uses == {"Food"}
+
 
 # ---------------------------------------------------------------------------
 # Whole-set analysis + warnings
