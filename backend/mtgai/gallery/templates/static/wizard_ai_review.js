@@ -446,9 +446,14 @@
       { id: 'rejected', label: 'Rejected' },
       { id: 'pending', label: 'To review' },
     ];
-    // Only offer the upstream-flag filter when there are such cards to show.
+    // Only offer the upstream-flag filter when there are such cards to show. If
+    // the user had it active and the last such card just cleared (a refresh /
+    // re-review), fall back to 'all' so they aren't stranded on a now-missing
+    // filter with no chip to click back from.
     if (local.cards.some((t) => effective(t).verdict === 'flagged_upstream')) {
       filters.push({ id: 'flagged_upstream', label: 'Flagged upstream' });
+    } else if (local.filter === 'flagged_upstream') {
+      local.filter = 'all';
     }
     slot.innerHTML = filters
       .map((f) => `<button type="button" class="wiz-ar-filter-btn${local.filter === f.id ? ' active' : ''}" data-filter="${escAttr(f.id)}">${escHtml(f.label)}</button>`)
