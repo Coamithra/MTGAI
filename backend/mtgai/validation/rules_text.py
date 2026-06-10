@@ -198,6 +198,11 @@ _PAREN_SPAN_RE = re.compile(r"\([^)]*\)")
 _ENTERS_TAPPED_RE = re.compile(r"enters (the battlefield )?tapped", re.IGNORECASE)
 _HASTE_RE = re.compile(r"\bhaste\b", re.IGNORECASE)
 
+# A stray period directly after a modal/choice em-dash header ("Choose one —.").
+# The em-dash may be followed by optional whitespace then the period; we strip
+# only the period (and any space wedged between "—" and ".").
+_MODAL_EMDASH_PERIOD_RE = re.compile(r"—[ \t]*\.")
+
 
 # ---------------------------------------------------------------------------
 # Private helpers
@@ -599,6 +604,10 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
             continue
         if re.match(r"^[A-Z]\w+(\s\w+)?\s*[—\-]", stripped):
             continue
+        if stripped.endswith("—"):
+            # A modal/choice header ("Choose one —") ends in an em-dash; the
+            # bullet lines that follow carry the periods. Never append one here.
+            continue
         if not stripped.endswith((".", '"', ")")):
             errors.append(
                 _auto(
@@ -608,6 +617,22 @@ def validate_rules_text(card: Card) -> list[ValidationError]:
                     error_code="rules_text.line_period",
                 )
             )
+
+    # ------------------------------------------------------------------
+    # 11. Stray period right after a modal em-dash — AUTO
+    #     "Choose one —." should be "Choose one —" (the bullets that follow
+    #     carry the periods). Catches a model that wrote it, and is a backstop
+    #     against any caller that cemented one. Skips reminder text.
+    # ------------------------------------------------------------------
+    if _MODAL_EMDASH_PERIOD_RE.search(_strip_reminder(oracle)):
+        errors.append(
+            _auto(
+                "oracle_text",
+                'Stray period after a modal em-dash ("Choose one —.")',
+                'Remove the period after "—" (the bullet lines carry periods).',
+                error_code="rules_text.modal_emdash_period",
+            )
+        )
 
     # ------------------------------------------------------------------
     # 13. Haste + enters-tapped nonbo — MANUAL
@@ -792,12 +817,32 @@ def fix_line_periods(card: Card, error: ValidationError) -> Card:
         if re.match(r"^[A-Z]\w+(\s\w+)?\s*[—\-]", stripped):
             new_lines.append(line)
             continue
+        if stripped.endswith("—"):
+            # Modal/choice header ("Choose one —") — the bullet lines carry the
+            # periods. Appending one here is the root cause of "Choose one —.".
+            new_lines.append(line)
+            continue
         if not stripped.endswith((".", '"', ")")):
             new_lines.append(line + ".")
         else:
             new_lines.append(line)
 
     new_oracle = "\n".join(new_lines)
+    return card.model_copy(update={"oracle_text": new_oracle})
+
+
+def fix_modal_emdash_period(card: Card, error: ValidationError) -> Card:
+    """Strip a stray period right after a modal em-dash ("Choose one —." -> "—").
+
+    Removes the period (and any space wedged between "—" and ".") outside
+    parenthesized reminder text. Idempotent — a clean "Choose one —" has no
+    match.
+    """
+    if not card.oracle_text:
+        return card
+    new_oracle = _sub_outside_parens(_MODAL_EMDASH_PERIOD_RE, "—", card.oracle_text)
+    if new_oracle == card.oracle_text:
+        return card
     return card.model_copy(update={"oracle_text": new_oracle})
 
 

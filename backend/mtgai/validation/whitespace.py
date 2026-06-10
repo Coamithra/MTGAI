@@ -93,15 +93,28 @@ def fix_escaped_whitespace(card: Card, error: ValidationError) -> Card:
 
 
 def prenormalize_card_whitespace(card: Card) -> tuple[Card, list[str]]:
-    """Apply the whitespace AUTO fix ahead of the main validation pass.
+    """Apply the whitespace AUTO fixes ahead of the main validation pass.
+
+    Two normalizations, in order:
+
+    1. literal ``\\n`` / ``\\t`` / ``\\r`` escapes -> real whitespace
+       (:func:`fix_escaped_whitespace`), and
+    2. blank-line collapse (:func:`blank_lines.fix_blank_lines`), run AFTER (1)
+       so a literal ``\\n\\n`` that decoded to a real blank line in step 1 is
+       also collapsed.
 
     Returns the (possibly unchanged) card plus applied-fix descriptions in
     ``auto_fix_card``'s ``[code] message`` format, so callers can merge them
     into their ``applied_fixes`` report. See the module docstring for why this
     must run before the line-based validators compute their findings.
     """
+    from mtgai.validation.blank_lines import fix_blank_lines, validate_blank_lines
+
     fixes: list[str] = []
     for error in validate_escaped_whitespace(card):
         card = fix_escaped_whitespace(card, error)
+        fixes.append(f"[{error.error_code}] {error.message}")
+    for error in validate_blank_lines(card):
+        card = fix_blank_lines(card, error)
         fixes.append(f"[{error.error_code}] {error.message}")
     return card, fixes
