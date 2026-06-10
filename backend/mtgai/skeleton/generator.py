@@ -539,6 +539,46 @@ def _distribute_colors(
     return _build_color_slots(rarity, mono_total, multi, colorless)
 
 
+class RarityBudget(BaseModel):
+    """The derived slot budget for one rarity at a given set size + knobs.
+
+    ``count`` is the rarity's total non-land slot count; ``mono`` / ``multicolor`` /
+    ``colorless`` are how it splits across colors (per :func:`_color_targets`, so
+    ``multicolor`` is the signpost target at uncommon and a balance fraction
+    elsewhere). It is the single source of "how many slots of this rarity/color
+    exist" shared by the cycle-feasibility check, the signpost-shortfall warning,
+    and the budget-aware tuner prompt — none of them re-derive the math.
+    """
+
+    count: int
+    mono: int
+    multicolor: int
+    colorless: int
+
+
+def derive_rarity_budgets(
+    set_size: int, knobs: SkeletonKnobs | None = None
+) -> dict[str, RarityBudget]:
+    """Derive the per-rarity slot budget (count + mono/multi/colorless split).
+
+    Reuses :func:`_scale_rarity` + :func:`_color_targets` so the cycle-feasibility
+    check, the signpost-shortfall warning, and the tuner prompt all read the SAME
+    numbers the generator builds the matrix from — the budget math lives in one
+    place. A cycle spanning a rarity's multicolor slots (``pairs10`` needs 10) is
+    bounded by ``multicolor``; a signpost cycle/per-pair count is bounded by the
+    uncommon ``multicolor``.
+    """
+    knobs = knobs or default_knobs()
+    counts = _scale_rarity(set_size, knobs)
+    budgets: dict[str, RarityBudget] = {}
+    for rarity, count in counts.items():
+        mono, multi, colorless = _color_targets(rarity, count, set_size, knobs)
+        budgets[rarity] = RarityBudget(
+            count=count, mono=mono, multicolor=multi, colorless=colorless
+        )
+    return budgets
+
+
 # ---------------------------------------------------------------------------
 # Card type assignment
 # ---------------------------------------------------------------------------
@@ -1398,6 +1438,35 @@ def _mark_signpost_slots(slots: list[SkeletonSlot], signposts_per_pair: int = 1)
     return marked
 
 
+def _signpost_shortfall_warning(slots: list[SkeletonSlot], signposts_per_pair: int) -> str | None:
+    """Warn when the requested signposts can't all be hosted by multicolor-uncommon
+    slots, so the shortfall isn't silent (companion to the cycle-drop warning).
+
+    ``signposts_per_pair`` requests ``N x 10`` signposts (one per pair, N deep), but
+    :func:`_mark_signpost_slots` is naturally capped at the multicolor-uncommon
+    slots that exist. On a small set those are too few, so some pairs (taken in
+    WUBRG order) get no signpost at all. Returns a knob_warning naming requested
+    per pair, delivered total, and pairs covered / uncovered; ``None`` when every
+    pair got its full request (or signposts are disabled).
+    """
+    if signposts_per_pair <= 0:
+        return None
+    marked = [s for s in slots if s.signpost_for]
+    covered = {s.signpost_for for s in marked}
+    uncovered = [p for p in COLOR_PAIRS if p not in covered]
+    requested = 10 * signposts_per_pair
+    # Full request honoured: every pair has its N signposts and none is missing.
+    if not uncovered and len(marked) >= requested:
+        return None
+    cov_str = ", ".join(p for p in COLOR_PAIRS if p in covered) or "none"
+    unc_str = ", ".join(uncovered) or "none"
+    return (
+        f"Signpost shortfall — requested {signposts_per_pair} per pair "
+        f"({requested} total), delivered {len(marked)} covering {len(covered)} of "
+        f"{len(COLOR_PAIRS)} pairs (covered: {cov_str}; uncovered: {unc_str})."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Cycles — structural reservations carved before the scalar distribution
 # ---------------------------------------------------------------------------
@@ -1457,9 +1526,43 @@ def _expand_cycle(cycle: Cycle) -> list[dict]:
     return members
 
 
+def _cycle_drop_reason(
+    cycle: Cycle,
+    members: list[dict],
+    budget: int,
+    cap: int,
+    multicolor_capacity: int,
+) -> str:
+    """Name the *actual* constraint a dropped cycle hit (for the knob_warning).
+
+    A multicolor-spanning cycle (pairs10 / allied5 / enemy5 / shards5 / wedges5)
+    is bounded by its rarity's MULTICOLOR-slot capacity, not the whole-rarity
+    budget — a pairs10 cycle needs 10 multicolor slots, and a small set's uncommon
+    multicolor budget (the signpost capacity) is only a handful, so "doesn't fit
+    the 18 budget" misstates the limit. Pick the constraint that genuinely fails so
+    the message is actionable. ``multicolor_capacity`` is the rarity's static
+    multicolor budget; the message is advisory, so it doesn't net out multicolor
+    slots a prior kept cycle already took (the half-budget cap is the real gate).
+    """
+    n = len(members)
+    multi_members = sum(1 for m in members if m["color"] == "multicolor")
+    if multi_members and multi_members > multicolor_capacity:
+        return (
+            f"{n} members need {multi_members} multicolor slots but {cycle.rarity} "
+            f"has only ~{multicolor_capacity} multicolor-slot capacity"
+        )
+    if budget == 0:
+        return f"the {cycle.rarity} budget is empty"
+    return (
+        f"{n} members exceed the per-cycle cap of {cap} "
+        f"(half the {cycle.rarity} budget of {budget})"
+    )
+
+
 def _reserve_cycles(
     cycles: list[Cycle],
     rarity_counts: dict[str, int],
+    multicolor_capacity: dict[str, int] | None = None,
 ) -> tuple[dict[str, list[dict]], list[Cycle], list[str]]:
     """Carve cycle members out of the rarity budget, dropping ones that don't fit.
 
@@ -1468,8 +1571,14 @@ def _reserve_cycles(
     feasibility reconciliation that keeps the scalar half of the distribution
     (and the creature/balance invariants it carries) viable. Even spans are
     balance-preserving, so a kept cycle never disturbs color balance.
+
+    ``multicolor_capacity`` (per rarity, from :func:`derive_rarity_budgets`) lets
+    the drop warning name the *real* limiting constraint — a multicolor-spanning
+    cycle is bounded by its rarity's multicolor-slot capacity, not the whole-rarity
+    budget. Falls back to the rarity total when not supplied.
     """
     members_by_rarity: dict[str, list[dict]] = {r: [] for r in rarity_counts}
+    multicolor_capacity = multicolor_capacity or {}
     kept: list[Cycle] = []
     warnings: list[str] = []
     for cycle in cycles:
@@ -1479,10 +1588,10 @@ def _reserve_cycles(
         used = len(members_by_rarity.get(rarity, []))
         cap = budget // 2  # leave at least half the rarity for the scalar layer
         if budget == 0 or not members or used + len(members) > cap:
-            warnings.append(
-                f"Cycle '{cycle.name}' ({cycle.span}, {rarity}) dropped — "
-                f"{len(members)} members don't fit the {rarity} budget ({budget})."
+            reason = _cycle_drop_reason(
+                cycle, members, budget, cap, multicolor_capacity.get(rarity, budget)
             )
+            warnings.append(f"Cycle '{cycle.name}' ({cycle.span}, {rarity}) dropped — {reason}.")
             continue
         members_by_rarity[rarity].extend(members)
         kept.append(cycle)
@@ -1682,7 +1791,11 @@ def generate_skeleton(
     """
     knobs = knobs or default_knobs()
     rarity_counts = _scale_rarity(config.set_size, knobs)
-    cycle_members, kept_cycles, knob_warnings = _reserve_cycles(knobs.cycles, rarity_counts)
+    budgets = derive_rarity_budgets(config.set_size, knobs)
+    multicolor_capacity = {r: b.multicolor for r, b in budgets.items()}
+    cycle_members, kept_cycles, knob_warnings = _reserve_cycles(
+        knobs.cycles, rarity_counts, multicolor_capacity
+    )
     for w in knob_warnings:
         logger.info("Skeleton knobs: %s", w)
 
@@ -1821,6 +1934,11 @@ def generate_skeleton(
 
     n_signposts = _mark_signpost_slots(all_slots, knobs.signposts_per_pair)
     logger.info("Skeleton: flagged %d signpost uncommon slot(s)", n_signposts)
+
+    shortfall = _signpost_shortfall_warning(all_slots, knobs.signposts_per_pair)
+    if shortfall:
+        knob_warnings.append(shortfall)
+        logger.info("Skeleton knobs: %s", shortfall)
 
     # Cross-rarity creature top-up: rescue the set-wide 50% density floor when a
     # tiny rarity block collapsed to all-colorless (so it contributed no creatures

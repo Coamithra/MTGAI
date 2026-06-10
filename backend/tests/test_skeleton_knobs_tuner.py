@@ -250,3 +250,65 @@ class TestPromptCaching:
         captured = self._capture(monkeypatch)
         context_text = captured["system_blocks"][1][0]
         assert "none" in context_text.lower()
+
+
+# ---------------------------------------------------------------------------
+# Budget-aware prompt (card 6a2984d4): the derived per-rarity slot + multicolor
+# budgets ride in the context so the AI proposes cycles/signposts that fit.
+# ---------------------------------------------------------------------------
+
+
+class TestBudgetAwarePrompt:
+    def _context_for(self, monkeypatch, set_size: int) -> str:
+        captured: dict = {}
+
+        def stub(**kwargs):
+            captured.update(kwargs)
+            return {"result": {"multicolor_rare": 0.3}, "input_tokens": 1, "output_tokens": 1}
+
+        monkeypatch.setattr(tuner, "generate_with_tool", stub)
+        monkeypatch.setattr(tuner, "cost_from_result", lambda _r: 0.0)
+        tuner.tune_knobs(
+            theme={"setting": "City."},
+            approved=[],
+            archetypes=[],
+            set_name="R",
+            set_size=set_size,
+            model="stub",
+        )
+        return captured["system_blocks"][1][0]
+
+    def test_budget_listing_reuses_generator_math(self):
+        # The listing must echo the generator's derived budgets verbatim, not a
+        # re-derivation — every rarity row's figures come from derive_rarity_budgets.
+        from mtgai.skeleton.generator import derive_rarity_budgets
+
+        listing = tuner._budget_listing(50)
+        budgets = derive_rarity_budgets(50)
+        for rarity in ("common", "uncommon", "rare", "mythic"):
+            b = budgets[rarity]
+            assert f"~{b.count} slots total" in listing
+            assert f"~{b.multicolor} multicolor" in listing
+
+    def test_budget_figures_appear_in_context(self, monkeypatch):
+        from mtgai.skeleton.generator import derive_rarity_budgets
+
+        context = self._context_for(monkeypatch, 50)
+        assert "Derived slot budgets" in context
+        unc = derive_rarity_budgets(50)["uncommon"]
+        # The small-set uncommon multicolor budget (the signpost ceiling) is shown.
+        assert f"~{unc.multicolor} multicolor" in context
+
+    def test_budget_scales_with_set_size(self, monkeypatch):
+        small = self._context_for(monkeypatch, 50)
+        large = self._context_for(monkeypatch, 277)
+        assert small != large
+        # The 277-set uncommon multicolor budget (10) is bigger than the 50-set's.
+        assert "~10 multicolor" in large
+
+    def test_context_tells_ai_to_fit_budgets(self, monkeypatch):
+        context = self._context_for(monkeypatch, 277)
+        low = context.lower()
+        assert "pairs10" in low
+        assert "fit these budgets" in low
+        assert "signposts_per_pair" in low
