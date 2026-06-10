@@ -579,3 +579,13 @@ def test_build_user_prompt_excludes_static_sections() -> None:
     assert "Preventive Design Checklist" not in prompt
     # Dynamic content present.
     assert "Generate exactly 1 card(s)" in prompt
+
+
+def test_system_prompt_mentions_hybrid_mana() -> None:
+    # Hybrid mana is evergreen but the local model's prior is too weak to use it
+    # unprompted, so the card-gen system prompt must name it as an available tool
+    # (card 6a29d4be). The fenced-block loader is the live system prompt.
+    system = prompts.load_system_prompt()
+    lowered = system.lower()
+    assert "hybrid" in lowered
+    assert "{g/u}" in lowered

@@ -2316,10 +2316,12 @@ class TestAutoFix:
         result = auto_fix_card(card, errors)
         assert result.card.mana_cost == "{X}{1}{C}{W}"
 
-    def test_ordering_skips_compound_symbols(self):
-        """A cost containing a compound symbol (hybrid/phyrexian/twobrid) is left
-        UNTOUCHED — reordering a hybrid pip risks changing its perceived
-        semantics, so the check never flags it and the fixer is a no-op."""
+    def test_ordering_preserves_pip_positions_in_compound_cost(self):
+        """A compound-bearing cost keeps its pip POSITIONS (the cross-pip reorder
+        stays the conservative skip), so an already-canonical pip + a misordered
+        generic-vs-colored layout is left verbatim and unflagged. Here {R}{2/W}{1}
+        would canonicalize to {1}{R}{2/W} if cross-pip reorder applied, but it
+        must NOT — the {2/W} pip's mere presence pins every pip's position."""
         from mtgai.validation.mana import fix_wubrg_order
 
         card = _make_card(
@@ -2328,11 +2330,122 @@ class TestAutoFix:
             colors=[Color.RED, Color.WHITE],
             color_identity=[Color.RED, Color.WHITE],
         )
-        # The fixer leaves a compound cost verbatim.
+        # The fixer leaves a compound cost's pip positions verbatim (the {2/W} is
+        # already within-pip canonical, so nothing changes at all here).
         assert fix_wubrg_order(card, _DUMMY_ERR).mana_cost == "{R}{2/W}{1}"
-        # And the check never raises a wubrg_order flag on it.
+        # And the check raises no wubrg_order flag (no within-pip violation).
         errors = _errors_by_validator(validate_card(card), "mana")
         assert not any(e.error_code == "mana.wubrg_order" for e in errors)
+
+    def test_within_pip_backwards_hybrid_pairs(self):
+        """A backwards hybrid pip is normalized to canonical pair order in place:
+        {U/G}->{G/U} (Simic), {W/G}->{G/W} (Selesnya), {W/R}->{R/W} (Boros) — the
+        three wheel-wrap pairs, the same ones the cost-level wheel rule corrects.
+        Semantics-safe ({U/G} == {G/U}: pay either)."""
+        from mtgai.validation.mana import fix_wubrg_order
+
+        for before, after, cols in (
+            ("{U/G}", "{G/U}", [Color.GREEN, Color.BLUE]),
+            ("{W/G}", "{G/W}", [Color.GREEN, Color.WHITE]),
+            ("{W/R}", "{R/W}", [Color.RED, Color.WHITE]),
+        ):
+            card = _make_card(mana_cost=before, cmc=1.0, colors=cols, color_identity=cols)
+            # Check flags it as a wubrg_order violation...
+            errors = _errors_by_validator(validate_card(card), "mana")
+            assert any(e.error_code == "mana.wubrg_order" for e in errors), before
+            # ...and the fixer rewrites the pip in place.
+            assert fix_wubrg_order(card, _DUMMY_ERR).mana_cost == after, before
+
+    def test_within_pip_already_canonical_is_noop(self):
+        """An already-canonical compound pip is not flagged and the fixer is a
+        no-op: {G/U}, {2/W} (numeral-first), {W/P} (P-last)."""
+        from mtgai.validation.mana import fix_wubrg_order
+
+        for cost, cols in (
+            ("{G/U}", [Color.GREEN, Color.BLUE]),  # hybrid, canonical
+            ("{2/W}", [Color.WHITE]),  # twobrid, numeral-first
+            ("{W/P}", [Color.WHITE]),  # phyrexian, P-last
+        ):
+            card = _make_card(mana_cost=cost, colors=cols, color_identity=cols)
+            errors = _errors_by_validator(validate_card(card), "mana")
+            assert not any(e.error_code == "mana.wubrg_order" for e in errors), cost
+            assert fix_wubrg_order(card, _DUMMY_ERR).mana_cost == cost, cost
+
+    def test_within_pip_twobrid_and_phyrexian_normalization(self):
+        """The within-pip normalizer (canonical_compound_symbol) orders a twobrid
+        numeral-first and a phyrexian P-last, even from a backwards half-order the
+        cost-string grammar wouldn't admit (helper-level, semantics-safe)."""
+        from mtgai.validation.mana import canonical_compound_symbol
+
+        assert canonical_compound_symbol("W/2") == "2/W"  # twobrid: numeral first
+        assert canonical_compound_symbol("2/W") == "2/W"  # already canonical
+        assert canonical_compound_symbol("P/W") == "W/P"  # phyrexian: P last
+        assert canonical_compound_symbol("W/P") == "W/P"  # already canonical
+        assert canonical_compound_symbol("U/G") == "G/U"  # hybrid: wheel order
+        # A 3-part hybrid-phyrexian the grammar doesn't admit is left untouched.
+        assert canonical_compound_symbol("G/U/P") == "G/U/P"
+
+    def test_within_pip_fix_is_idempotent(self):
+        """Re-running the fixer on a within-pip-corrected cost is a no-op."""
+        from mtgai.validation.mana import fix_wubrg_order
+
+        for cost, cols in (
+            ("{U/G}", [Color.GREEN, Color.BLUE]),
+            ("{W/R}{W/R}", [Color.RED, Color.WHITE]),
+            ("{1}{U/G}", [Color.GREEN, Color.BLUE]),
+        ):
+            card = _make_card(mana_cost=cost, colors=cols, color_identity=cols)
+            once = fix_wubrg_order(card, _DUMMY_ERR)
+            twice = fix_wubrg_order(once, _DUMMY_ERR)
+            assert once.mana_cost == twice.mana_cost, cost
+
+    def test_within_pip_preserves_cross_pip_positions(self):
+        """A mixed compound cost: the within-pip half-order is corrected but pip
+        POSITIONS never move. {U/G}{1}{W/R} -> {G/U}{1}{R/W} — the bare {1} stays
+        sandwiched where it was (NOT pulled in front), proving cross-pip reorder
+        stays skipped for a compound-bearing cost."""
+        from mtgai.validation.mana import fix_wubrg_order
+
+        card = _make_card(
+            mana_cost="{U/G}{1}{W/R}",
+            cmc=3.0,  # 1 (U/G) + 1 (generic) + 1 (W/R) = 3
+            colors=[Color.WHITE, Color.BLUE, Color.RED, Color.GREEN],
+            color_identity=[Color.WHITE, Color.BLUE, Color.RED, Color.GREEN],
+        )
+        fixed = fix_wubrg_order(card, _DUMMY_ERR)
+        assert fixed.mana_cost == "{G/U}{1}{R/W}"
+
+    def test_within_pip_color_list_fields_untouched(self):
+        """The colors / color_identity LIST fields keep Scryfall's flat WUBRG sort
+        regardless of pip half-order — the within-pip fix only rewrites the
+        mana_cost string. {U/G}{U/G} keeps colors == [G, U] (wheel-pair order is a
+        cost concern, the lists stay flat WUBRG)."""
+        from mtgai.validation.mana import fix_wubrg_order
+
+        card = _make_card(
+            mana_cost="{U/G}{U/G}",
+            cmc=2.0,
+            colors=[Color.GREEN, Color.BLUE],
+            color_identity=[Color.GREEN, Color.BLUE],
+        )
+        fixed = fix_wubrg_order(card, _DUMMY_ERR)
+        assert fixed.mana_cost == "{G/U}{G/U}"
+        # The list fields are NOT touched by the cost-string fixer.
+        assert [c.value for c in fixed.colors] == ["G", "U"]
+        assert [c.value for c in fixed.color_identity] == ["G", "U"]
+
+    def test_within_pip_end_to_end_auto_fix(self):
+        """End-to-end through auto_fix_card: a backwards hybrid pip flags and is
+        auto-corrected, leaving no residual wubrg_order finding."""
+        card = _make_card(
+            mana_cost="{U/G}{U/G}",
+            cmc=2.0,
+            colors=[Color.GREEN, Color.BLUE],
+            color_identity=[Color.GREEN, Color.BLUE],
+        )
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.mana_cost == "{G/U}{G/U}"
+        assert not any(e.error_code == "mana.wubrg_order" for e in result.remaining_errors)
 
     def test_twobrid_is_valid_no_format_flag(self):
         """A {2/W} twobrid is a legal symbol — it must NOT trip invalid_format,
