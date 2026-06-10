@@ -51,6 +51,15 @@ from mtgai.generation.prompts import (
     build_user_prompt,
     load_system_prompt,
 )
+from mtgai.generation.spec_check import (
+    SpecCheckCounters,
+    SpecMiss,
+    SpecTargets,
+    check_card_against_spec,
+    detect_infeasible,
+    format_spec_feedback,
+    parse_spec_targets,
+)
 from mtgai.generation.token_budgets import BATCH, STANDARD
 from mtgai.io.atomic import atomic_write_text
 from mtgai.io.card_io import load_card, save_card
@@ -82,6 +91,14 @@ TEMPERATURE = temps.CREATIVE  # creative card design (see temperatures.py)
 # and the output holds together at larger batches.
 BATCH_SIZE = 1
 MAX_RETRIES = 3  # Only for schema parse failures
+
+# In-batch spec self-check: a generated card whose actual CMC / colors / type
+# misses a *parseable* hard target from its slot descriptor is retried in place
+# (the delta named in the prompt) before being saved, so the bulk of exact-spec
+# misses are caught here instead of a full conformance regen round later. Pure
+# parsing/arithmetic gates the check, so a conforming card costs zero extra LLM
+# calls. Capped low — the conformance gate is the downstream backstop.
+MAX_SPEC_RETRIES = 2
 
 # TEMPORARY (testing): cap how many cards a single run will generate so the
 # stage can be exercised end-to-end without producing a full ~277-card set.
@@ -401,6 +418,7 @@ def _retry_single_card(
     thinking: str | None = None,
     archetypes: list[dict] | None = None,
     cycle_siblings: list[dict] | None = None,
+    temperature: float = TEMPERATURE,
 ) -> dict | None:
     """Retry generating a single card that failed to parse.
 
@@ -409,6 +427,10 @@ def _retry_single_card(
     carrying the explicit "SIBLING CYCLE MEMBERS — mirror their structure" block
     so a regenerated cycle member doesn't break the family's parallel structure.
     ``None`` (a non-cycle retry) leaves the prompt unchanged.
+
+    ``temperature`` overrides the base creative temperature — the spec-check
+    retry path bumps it per attempt (the RETRY_TEMP_STEP local-loop escape);
+    the validation-regen path keeps the default.
 
     Returns the raw LLM result dict, or None if the call fails.
     """
@@ -450,7 +472,7 @@ def _retry_single_card(
             user_prompt=user_prompt,
             tool_schema=CARD_TOOL_SCHEMA,
             model=model,
-            temperature=TEMPERATURE,
+            temperature=temperature,
             max_tokens=STANDARD,
             effort=effort,
             thinking=thinking,
@@ -659,6 +681,7 @@ def _process_batch_result(
     archetypes: list[dict] | None = None,
     cycle_siblings: list[dict] | None = None,
     card_saved_callback: Callable[[Card], None] | None = None,
+    spec_counters: SpecCheckCounters | None = None,
 ) -> list[Card]:
     """Validate, auto-fix, and save each card from a batch result.
 
@@ -852,6 +875,58 @@ def _process_batch_result(
                 )
                 card = best.model_copy(update={"regen_reason": reason, "flagged_by": "card_gen"})
                 progress.failed_slots.pop(slot_id, None)
+
+        # In-batch spec self-check — deterministic, zero extra LLM calls for a
+        # conforming card. Parse the slot's *unambiguous* hard targets (exact CMC
+        # / color identity / card type) and, on a mismatch, retry THIS card in
+        # place with the delta named in the prompt before it's saved — catching
+        # the bulk of exact-spec misses here instead of a full conformance regen
+        # round later. An arithmetically-infeasible spec (e.g. two colors at
+        # CMC1, satisfiable only with hybrid mana) gets a hybrid suggestion; if
+        # retries still fail, the slot + spec + last miss is recorded in the
+        # ``spec_conflicts`` summary and the best attempt accepted (the
+        # conformance gate remains the backstop) rather than looping forever.
+        # Skipped when the card already trips a regen trigger (it's flagged
+        # best-effort above — the conformance gate will revisit it).
+        if card is not None and not regen_required:
+            targets = parse_spec_targets(slot)
+            if not targets.is_empty():
+                if spec_counters is not None:
+                    spec_counters.specs_checked += 1
+                misses = check_card_against_spec(card, targets)
+                if misses:
+                    repaired_card, remaining, spec_retry_attempts = _retry_card_for_spec(
+                        slot,
+                        card,
+                        targets,
+                        mechanics,
+                        existing_cards,
+                        theme,
+                        model,
+                        progress,
+                        set_code=set_code,
+                        effort=effort,
+                        thinking=thinking,
+                        archetypes=archetypes,
+                        cycle_siblings=cycle_siblings,
+                    )
+                    retry_attempts.extend(spec_retry_attempts)
+                    card = repaired_card
+                    if spec_counters is not None:
+                        if spec_retry_attempts:
+                            spec_counters.spec_retries += 1
+                        if not remaining:
+                            spec_counters.spec_repaired += 1
+                        else:
+                            spec_counters.spec_conflicts.append(
+                                {
+                                    "slot_id": slot_id,
+                                    "card_name": card.name,
+                                    "descriptor": (slot.get("tweaked_text") or "").strip(),
+                                    "misses": [m.describe() for m in remaining],
+                                    "infeasible": detect_infeasible(targets) is not None,
+                                }
+                            )
 
         # Card parsed — set pipeline fields
         update_fields: dict = {
@@ -1077,6 +1152,151 @@ def _retry_card(
             )
 
     return None, best_effort, retry_attempts
+
+
+def _retry_card_for_spec(
+    slot: dict,
+    card: Card,
+    targets: SpecTargets,
+    mechanics: list[dict],
+    existing_cards: list,
+    theme: dict | None,
+    model: str,
+    progress: GenerationProgress,
+    *,
+    set_code: str,
+    effort: str | None = None,
+    thinking: str | None = None,
+    archetypes: list[dict] | None = None,
+    cycle_siblings: list[dict] | None = None,
+) -> tuple[Card, list[SpecMiss], list[GenerationAttempt]]:
+    """Retry a card that misses a parseable hard spec, naming the delta.
+
+    ``card`` is the already-validated first attempt; ``targets`` its parsed
+    :class:`spec_check.SpecTargets`. Reuses the same single-card retry transport
+    as the validation-regen path (``_retry_single_card`` → validate), so this is
+    not a parallel loop — only the *acceptance criterion* differs (spec match,
+    not a regen trigger). Each round names the remaining mismatch(es) in the
+    prompt and, for an arithmetically-infeasible spec, explicitly suggests hybrid
+    mana. The per-attempt temperature bump (the ``RETRY_TEMP_STEP`` local-loop
+    escape convention) is computed here and passed to ``_retry_single_card``.
+
+    Returns ``(best_card, final_misses, retry_attempts)``:
+
+    * ``best_card`` is the first retry that fully matched the spec, else the
+      original ``card`` (best-effort — never drop the slot over a spec miss).
+    * ``final_misses`` is the remaining mismatch list on ``best_card`` (empty
+      when repaired).
+    * ``retry_attempts`` is the per-attempt provenance for every retry call made.
+    """
+    from mtgai.settings.model_registry import get_registry
+
+    display_model = get_registry().public_model_id(model)
+    best_card = card
+    best_misses = check_card_against_spec(card, targets)
+    infeasible_hint = detect_infeasible(targets)
+    retry_attempts: list[GenerationAttempt] = []
+
+    for attempt in range(2, MAX_SPEC_RETRIES + 2):
+        feedback = format_spec_feedback(best_card.name, best_misses, infeasible_hint)
+        # Bump the temperature per spec retry (local repetition-loop escape, the
+        # RETRY_TEMP_STEP convention), capped at CREATIVE.
+        retry_temp = min(temps.CREATIVE, TEMPERATURE + temps.RETRY_TEMP_STEP * (attempt - 1))
+        result = _retry_single_card(
+            slot,
+            feedback,
+            mechanics,
+            existing_cards,
+            theme,
+            model,
+            attempt,
+            effort=effort,
+            thinking=thinking,
+            archetypes=archetypes,
+            cycle_siblings=cycle_siblings,
+            temperature=retry_temp,
+        )
+        if result is None:
+            continue
+
+        progress.record_call(
+            model,
+            result["input_tokens"],
+            result["output_tokens"],
+            result.get("cache_creation_input_tokens", 0),
+            result.get("cache_read_input_tokens", 0),
+        )
+
+        retry_raw = result["result"]
+        retry_raw.setdefault("set_code", set_code)
+        retry_raw.setdefault("collector_number", slot["slot_id"])
+        retry_raw.update(
+            derive_mana_fields(retry_raw.get("mana_cost"), retry_raw.get("oracle_text"))
+        )
+
+        new_card, errors, applied_fixes, regen_required = validate_card_from_raw(
+            retry_raw,
+            existing_cards=existing_cards,
+            auto_fix=True,
+        )
+
+        retry_cost = cost_from_result(result)
+        _save_generation_log(
+            slot_id=slot["slot_id"],
+            card_name=retry_raw.get("name", "UNKNOWN"),
+            attempt=attempt,
+            raw_card=retry_raw,
+            errors=errors,
+            applied_fixes=applied_fixes,
+            model=model,
+            input_tokens=result["input_tokens"],
+            output_tokens=result["output_tokens"],
+            cost_usd=retry_cost,
+        )
+        retry_attempts.append(
+            GenerationAttempt(
+                attempt_number=attempt,
+                timestamp=datetime.now(UTC),
+                model_used=display_model,
+                success=new_card is not None and not regen_required,
+                validation_errors=[e.message for e in errors],
+                input_tokens=result["input_tokens"],
+                output_tokens=result["output_tokens"],
+                cost_usd=retry_cost,
+            )
+        )
+
+        # A retry that fails validation (regen trigger / unparsable) is not a
+        # usable replacement — keep the prior best card and re-prompt against it.
+        if new_card is None or regen_required:
+            logger.warning(
+                "    Spec retry %d for slot %s produced an invalid card — keeping prior",
+                attempt,
+                slot["slot_id"],
+            )
+            continue
+
+        new_misses = check_card_against_spec(new_card, targets)
+        if not new_misses:
+            logger.info(
+                "    Spec retry %d REPAIRED slot %s: %s",
+                attempt,
+                slot["slot_id"],
+                new_card.name,
+            )
+            return new_card, [], retry_attempts
+        # Still mismatched: keep the attempt with the fewest remaining misses as
+        # the running best, and re-prompt against it.
+        if len(new_misses) < len(best_misses):
+            best_card, best_misses = new_card, new_misses
+        logger.warning(
+            "    Spec retry %d for slot %s still misses: %s",
+            attempt,
+            slot["slot_id"],
+            "; ".join(m.describe() for m in new_misses),
+        )
+
+    return best_card, best_misses, retry_attempts
 
 
 # ---------------------------------------------------------------------------
@@ -1556,6 +1776,9 @@ def generate_set(
     total_saved = 0
     cancelled = False
     start_time = time.time()
+    # Aggregate in-batch spec self-check outcomes across the whole run so the
+    # effect is measurable in the stage summary next run.
+    spec_counters = SpecCheckCounters()
 
     # Per-cycle siblings. When an oversized cycle is split into ordered
     # sub-batches, each later sub-batch's prompt gets the prior members so the
@@ -1776,6 +1999,7 @@ def generate_set(
             archetypes=archetypes,
             cycle_siblings=siblings_for_batch,
             card_saved_callback=card_saved_callback,
+            spec_counters=spec_counters,
         )
         total_saved += len(saved)
         progress.save()
@@ -1840,6 +2064,20 @@ def generate_set(
         for sid, reason in progress.failed_slots.items():
             logger.info("  %s: %s", sid, reason)
     logger.info("")
+    logger.info(
+        "Spec self-check: %d checked, %d retried, %d repaired, %d unresolved conflict(s)",
+        spec_counters.specs_checked,
+        spec_counters.spec_retries,
+        spec_counters.spec_repaired,
+        len(spec_counters.spec_conflicts),
+    )
+    for conflict in spec_counters.spec_conflicts:
+        logger.warning(
+            "  SPEC CONFLICT %s (%s): %s",
+            conflict["slot_id"],
+            conflict["card_name"],
+            "; ".join(conflict["misses"]),
+        )
     logger.info("Progress saved: %s", progress_path)
     logger.info("Logs saved:     %s", log_dir)
     logger.info("Cards saved:    %s", cards_dir)
@@ -1861,6 +2099,7 @@ def generate_set(
         "cost_usd": progress.total_cost_usd,
         "summary": summary,
         "cancelled": cancelled,
+        **spec_counters.as_summary(),
     }
 
 

@@ -910,3 +910,257 @@ def test_retried_card_records_winning_attempt_provenance(tmp_path, monkeypatch) 
     assert winner.validation_errors == []
     assert winner.input_tokens == 10  # the retry call's own tokens, not the batch's
     assert winner.output_tokens == 20
+
+
+# ---------------------------------------------------------------------------
+# In-batch spec self-check — deterministic CMC/color/type retry
+# (mtgai.generation.spec_check + card_generator wiring)
+# ---------------------------------------------------------------------------
+
+
+def _conforming_creature(name: str, *, mana_cost: str, type_line: str) -> dict:
+    return {
+        "name": name,
+        "mana_cost": mana_cost,
+        "type_line": type_line,
+        "oracle_text": "Vigilance",
+        "power": "2",
+        "toughness": "2",
+        "rarity": "common",
+    }
+
+
+def test_spec_retry_repairs_cmc_miss_with_delta_in_prompt(tmp_path, monkeypatch) -> None:
+    """A card that misses the slot's exact CMC is retried with the delta NAMED in
+    the prompt; a conforming retry repairs it and ships."""
+    captured: list[str] = []
+
+    def fake_retry_single(slot, error_msg, *a, **k):
+        captured.append(error_msg)
+        return _fake_result(
+            _conforming_creature("Big Beast", mana_cost="{2}{1}{W}", type_line="Creature - Beast")
+        )
+
+    monkeypatch.setattr(cg, "_retry_single_card", fake_retry_single)
+    monkeypatch.setattr(cg, "_save_generation_log", lambda *a, **k: None)
+    progress = GenerationProgress(path=tmp_path / "progress.json")
+    counters = cg.SpecCheckCounters()
+
+    slot = {
+        "slot_id": "015",
+        "color": "W",
+        "rarity": "common",
+        "card_type": "creature",
+        "tweaked_text": "White · common · creature · CMC4 · vanilla",
+    }
+    raw = _conforming_creature("Small Beast", mana_cost="{2}{W}", type_line="Creature - Beast")
+
+    saved = cg._process_batch_result(
+        [raw],
+        [slot],
+        existing_cards=[],
+        mechanics=[],
+        theme=None,
+        model="claude-haiku-3-5",
+        input_tokens=10,
+        output_tokens=20,
+        progress=progress,
+        set_code="TST",
+        set_dir=tmp_path,
+        spec_counters=counters,
+    )
+
+    assert len(saved) == 1
+    assert saved[0].name == "Big Beast"
+    assert round(saved[0].cmc) == 4
+    assert captured, "a retry should have fired"
+    assert "cmc" in captured[0].lower()
+    assert "4" in captured[0] and "CMC3" in captured[0]  # delta named both ways
+    assert counters.specs_checked == 1
+    assert counters.spec_retries == 1
+    assert counters.spec_repaired == 1
+    assert counters.spec_conflicts == []
+
+
+def test_spec_retry_infeasible_suggests_hybrid_in_prompt(tmp_path, monkeypatch) -> None:
+    """A two-color CMC1 spec is satisfiable only with hybrid mana; the retry
+    prompt explicitly suggests it, and an unrepaired conflict is recorded."""
+    captured: list[str] = []
+
+    def fake_retry_single(slot, error_msg, *a, **k):
+        captured.append(error_msg)
+        return _fake_result(
+            _conforming_creature("Mono Card", mana_cost="{1}{U}", type_line="Creature - Fish")
+        )
+
+    monkeypatch.setattr(cg, "_retry_single_card", fake_retry_single)
+    monkeypatch.setattr(cg, "_save_generation_log", lambda *a, **k: None)
+    progress = GenerationProgress(path=tmp_path / "progress.json")
+    counters = cg.SpecCheckCounters()
+
+    slot = {
+        "slot_id": "004",
+        "color": "U",
+        "rarity": "mythic",
+        "card_type": "creature",
+        "tweaked_text": "Blue/Green · mythic · creature · CMC1 · complex",
+    }
+    raw = _conforming_creature("Mono Card", mana_cost="{U}", type_line="Creature - Fish")
+
+    saved = cg._process_batch_result(
+        [raw],
+        [slot],
+        existing_cards=[],
+        mechanics=[],
+        theme=None,
+        model="claude-haiku-3-5",
+        input_tokens=10,
+        output_tokens=20,
+        progress=progress,
+        set_code="TST",
+        set_dir=tmp_path,
+        spec_counters=counters,
+    )
+
+    assert len(saved) == 1
+    assert captured
+    assert "hybrid" in captured[0].lower()
+    assert "{G/U}" in captured[0]
+    assert counters.spec_repaired == 0
+    assert len(counters.spec_conflicts) == 1
+    conflict = counters.spec_conflicts[0]
+    assert conflict["slot_id"] == "004"
+    assert conflict["infeasible"] is True
+
+
+def test_spec_retry_exhausted_records_conflict_and_accepts_best_effort(
+    tmp_path, monkeypatch
+) -> None:
+    """When retries can't satisfy the spec, the slot is recorded in
+    spec_conflicts and the best attempt accepted - never an endless loop."""
+    calls = {"n": 0}
+
+    def fake_retry_single(slot, error_msg, *a, **k):
+        calls["n"] += 1
+        return _fake_result(
+            _conforming_creature("Still Wrong", mana_cost="{1}{W}", type_line="Creature - Beast")
+        )
+
+    monkeypatch.setattr(cg, "_retry_single_card", fake_retry_single)
+    monkeypatch.setattr(cg, "_save_generation_log", lambda *a, **k: None)
+    progress = GenerationProgress(path=tmp_path / "progress.json")
+    counters = cg.SpecCheckCounters()
+
+    slot = {
+        "slot_id": "023",
+        "color": "W",
+        "rarity": "rare",
+        "card_type": "creature",
+        "tweaked_text": "White · rare · creature · CMC7 · complex",
+    }
+    raw = _conforming_creature("Lowballed", mana_cost="{1}{W}", type_line="Creature - Beast")
+
+    saved = cg._process_batch_result(
+        [raw],
+        [slot],
+        existing_cards=[],
+        mechanics=[],
+        theme=None,
+        model="claude-haiku-3-5",
+        input_tokens=10,
+        output_tokens=20,
+        progress=progress,
+        set_code="TST",
+        set_dir=tmp_path,
+        spec_counters=counters,
+    )
+
+    assert len(saved) == 1
+    assert calls["n"] == cg.MAX_SPEC_RETRIES
+    assert counters.spec_retries == 1
+    assert counters.spec_repaired == 0
+    assert len(counters.spec_conflicts) == 1
+    assert "cmc" in " ".join(counters.spec_conflicts[0]["misses"]).lower()
+
+
+def test_no_spec_target_means_no_retry(tmp_path, monkeypatch) -> None:
+    """A fuzzy descriptor pins no hard target - no retry LLM call fires."""
+
+    def fail_retry_single(*a, **k):
+        raise AssertionError("no retry should fire when there is no spec target")
+
+    monkeypatch.setattr(cg, "_retry_single_card", fail_retry_single)
+    monkeypatch.setattr(cg, "_save_generation_log", lambda *a, **k: None)
+    progress = GenerationProgress(path=tmp_path / "progress.json")
+    counters = cg.SpecCheckCounters()
+
+    slot = {
+        "slot_id": "099",
+        "color": "W",
+        "rarity": "common",
+        "card_type": "creature",
+        "tweaked_text": "a flavorful card about a hero that fights at dawn",
+    }
+    raw = _conforming_creature("Dawn Hero", mana_cost="{1}{W}", type_line="Creature - Soldier")
+
+    saved = cg._process_batch_result(
+        [raw],
+        [slot],
+        existing_cards=[],
+        mechanics=[],
+        theme=None,
+        model="claude-haiku-3-5",
+        input_tokens=10,
+        output_tokens=20,
+        progress=progress,
+        set_code="TST",
+        set_dir=tmp_path,
+        spec_counters=counters,
+    )
+
+    assert len(saved) == 1
+    assert counters.specs_checked == 0
+    assert counters.spec_retries == 0
+
+
+def test_conforming_card_with_spec_target_does_not_retry(tmp_path, monkeypatch) -> None:
+    """A card that already matches its parsed targets is counted checked but
+    incurs ZERO retry LLM calls (the cost-critical guarantee)."""
+
+    def fail_retry_single(*a, **k):
+        raise AssertionError("a conforming card must not trigger a retry")
+
+    monkeypatch.setattr(cg, "_retry_single_card", fail_retry_single)
+    monkeypatch.setattr(cg, "_save_generation_log", lambda *a, **k: None)
+    progress = GenerationProgress(path=tmp_path / "progress.json")
+    counters = cg.SpecCheckCounters()
+
+    slot = {
+        "slot_id": "001",
+        "color": "W",
+        "rarity": "common",
+        "card_type": "creature",
+        "tweaked_text": "White · common · creature · CMC2 · vanilla",
+    }
+    raw = _conforming_creature("Exact Match", mana_cost="{1}{W}", type_line="Creature - Soldier")
+
+    saved = cg._process_batch_result(
+        [raw],
+        [slot],
+        existing_cards=[],
+        mechanics=[],
+        theme=None,
+        model="claude-haiku-3-5",
+        input_tokens=10,
+        output_tokens=20,
+        progress=progress,
+        set_code="TST",
+        set_dir=tmp_path,
+        spec_counters=counters,
+    )
+
+    assert len(saved) == 1
+    assert counters.specs_checked == 1
+    assert counters.spec_retries == 0
+    assert counters.spec_repaired == 0
+    assert counters.spec_conflicts == []
