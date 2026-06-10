@@ -1538,9 +1538,11 @@ def _cycle_drop_reason(
     A multicolor-spanning cycle (pairs10 / allied5 / enemy5 / shards5 / wedges5)
     is bounded by its rarity's MULTICOLOR-slot capacity, not the whole-rarity
     budget — a pairs10 cycle needs 10 multicolor slots, and a small set's uncommon
-    multicolor budget (the signpost capacity) is ~6, so "doesn't fit the 18 budget"
-    misstates the limit. Pick the constraint that genuinely fails so the message is
-    actionable.
+    multicolor budget (the signpost capacity) is only a handful, so "doesn't fit
+    the 18 budget" misstates the limit. Pick the constraint that genuinely fails so
+    the message is actionable. ``multicolor_capacity`` is the rarity's static
+    multicolor budget; the message is advisory, so it doesn't net out multicolor
+    slots a prior kept cycle already took (the half-budget cap is the real gate).
     """
     n = len(members)
     multi_members = sum(1 for m in members if m["color"] == "multicolor")
