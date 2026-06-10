@@ -53,6 +53,8 @@ from mtgai.generation.prompts import (
 )
 from mtgai.generation.spec_check import (
     SpecCheckCounters,
+    SpecMiss,
+    SpecTargets,
     check_card_against_spec,
     detect_infeasible,
     format_spec_feedback,
@@ -1155,7 +1157,7 @@ def _retry_card(
 def _retry_card_for_spec(
     slot: dict,
     card: Card,
-    targets,
+    targets: SpecTargets,
     mechanics: list[dict],
     existing_cards: list,
     theme: dict | None,
@@ -1167,7 +1169,7 @@ def _retry_card_for_spec(
     thinking: str | None = None,
     archetypes: list[dict] | None = None,
     cycle_siblings: list[dict] | None = None,
-) -> tuple[Card, list, list[GenerationAttempt]]:
+) -> tuple[Card, list[SpecMiss], list[GenerationAttempt]]:
     """Retry a card that misses a parseable hard spec, naming the delta.
 
     ``card`` is the already-validated first attempt; ``targets`` its parsed
@@ -1176,9 +1178,8 @@ def _retry_card_for_spec(
     not a parallel loop — only the *acceptance criterion* differs (spec match,
     not a regen trigger). Each round names the remaining mismatch(es) in the
     prompt and, for an arithmetically-infeasible spec, explicitly suggests hybrid
-    mana. The temperature bump per attempt is the local-loop escape convention
-    (handled inside ``_retry_single_card`` via the shared ``TEMPERATURE`` base —
-    we bump it here per attempt).
+    mana. The per-attempt temperature bump (the ``RETRY_TEMP_STEP`` local-loop
+    escape convention) is computed here and passed to ``_retry_single_card``.
 
     Returns ``(best_card, final_misses, retry_attempts)``:
 

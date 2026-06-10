@@ -97,6 +97,16 @@ def test_parse_colors_bare_trailing_tag_does_not_override() -> None:
     assert t.colors == frozenset({"U"})
 
 
+def test_parse_colors_prose_pair_in_note_does_not_override_mono_field() -> None:
+    # A joined color phrasing in the free-text NOTE ("a red-green themed beast")
+    # must NOT override the structured mono color field — that prose false
+    # positive would poison retries (the slot is mono Red, not Red/Green).
+    t = parse_spec_targets(
+        _slot("Red · common · creature · CMC2 · vanilla (a red-green themed beast in flavor)")
+    )
+    assert t.colors == frozenset({"R"})
+
+
 def test_parse_colors_multicolor_word_is_ambiguous() -> None:
     assert parse_spec_targets(_slot("Multicolor · uncommon · creature · CMC3")).colors is None
 

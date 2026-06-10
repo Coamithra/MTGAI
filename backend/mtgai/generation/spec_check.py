@@ -169,8 +169,12 @@ def _parse_colors(descriptor: str) -> frozenset[str] | None:
 
     Recognizes, in order of confidence:
 
-    * An explicit joined phrasing — ``Blue/Green``, ``White-Blue`` — anywhere in
-      the text. The strongest signal a multicolor identity was pinned.
+    * An explicit joined phrasing — ``Blue/Green``, ``White-Blue`` — in the
+      STRUCTURED head of the descriptor (before any free-text ``(note)``). The
+      strongest signal a multicolor identity was pinned. Scoped to the head so a
+      passing prose mention ("a red-green themed beast") in the note can't
+      override the structured mono color field — a false positive that would
+      poison retries.
     * A ``signpost:XY`` / ``cycle:... (XYZ)`` letter tag → its WUBRG letters.
     * The structured color FIELD (the first ``·``-delimited field) when it is a
       single, unambiguous color word.
@@ -180,14 +184,21 @@ def _parse_colors(descriptor: str) -> frozenset[str] | None:
     A mono color word in the structured field IS a constraint (the card must be
     exactly that one color), since the relabel pins color explicitly.
     """
+    # The structured head is everything up to the first free-text note; color
+    # signals are read only from here so the note's prose can't false-positive.
+    head = descriptor.split("(", 1)[0]
+
     # 1. Explicit joined color phrasing (Blue/Green, White-Blue).
-    m = _COLOR_PAIR_RE.search(descriptor)
+    m = _COLOR_PAIR_RE.search(head)
     if m:
         letters = _letters_from_words(m.group(0))
         if letters and len(letters) >= 2:
             return letters
 
-    # 2. signpost:/cycle: letter tag — explicit two/three-color identity.
+    # 2. signpost:/cycle: letter tag — explicit two/three-color identity. The
+    # ``cycle:`` tag opens its own "(colors)" paren, so scan the full descriptor
+    # (the regex itself requires the signpost:/cycle: prefix, so the note's prose
+    # can't match).
     tag = _LETTER_TAG_RE.search(descriptor)
     if tag:
         letters = frozenset(tag.group(1).upper())
@@ -416,10 +427,10 @@ class SpecCheckCounters:
     conformance gate).
     """
 
-    specs_checked: int = 0
-    spec_retries: int = 0
-    spec_repaired: int = 0
-    spec_conflicts: list[dict] = field(default_factory=list)
+    specs_checked: int = 0  # cards that pinned at least one hard target
+    spec_retries: int = 0  # cards that missed and triggered a retry (per-card, not call count)
+    spec_repaired: int = 0  # cards a retry brought into spec
+    spec_conflicts: list[dict] = field(default_factory=list)  # unresolved misses, accepted as-is
 
     def as_summary(self) -> dict:
         return {

@@ -951,7 +951,7 @@ def test_spec_retry_repairs_cmc_miss_with_delta_in_prompt(tmp_path, monkeypatch)
         "color": "W",
         "rarity": "common",
         "card_type": "creature",
-        "tweaked_text": "White - common - creature - CMC4 - vanilla".replace(" - ", " · "),
+        "tweaked_text": "White · common · creature · CMC4 · vanilla",
     }
     raw = _conforming_creature("Small Beast", mana_cost="{2}{W}", type_line="Creature - Beast")
 
@@ -1003,7 +1003,7 @@ def test_spec_retry_infeasible_suggests_hybrid_in_prompt(tmp_path, monkeypatch) 
         "color": "U",
         "rarity": "mythic",
         "card_type": "creature",
-        "tweaked_text": "Blue/Green - mythic - creature - CMC1 - complex".replace(" - ", " · "),
+        "tweaked_text": "Blue/Green · mythic · creature · CMC1 · complex",
     }
     raw = _conforming_creature("Mono Card", mana_cost="{U}", type_line="Creature - Fish")
 
@@ -1056,7 +1056,7 @@ def test_spec_retry_exhausted_records_conflict_and_accepts_best_effort(
         "color": "W",
         "rarity": "rare",
         "card_type": "creature",
-        "tweaked_text": "White - rare - creature - CMC7 - complex".replace(" - ", " · "),
+        "tweaked_text": "White · rare · creature · CMC7 · complex",
     }
     raw = _conforming_creature("Lowballed", mana_cost="{1}{W}", type_line="Creature - Beast")
 
@@ -1140,7 +1140,7 @@ def test_conforming_card_with_spec_target_does_not_retry(tmp_path, monkeypatch) 
         "color": "W",
         "rarity": "common",
         "card_type": "creature",
-        "tweaked_text": "White - common - creature - CMC2 - vanilla".replace(" - ", " · "),
+        "tweaked_text": "White · common · creature · CMC2 · vanilla",
     }
     raw = _conforming_creature("Exact Match", mana_cost="{1}{W}", type_line="Creature - Soldier")
 
