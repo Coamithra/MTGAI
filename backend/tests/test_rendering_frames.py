@@ -79,7 +79,17 @@ def test_frame_key_for_identity_land(identity, expected):
 # CardRenderer.determine_frame_key
 # --------------------------------------------------------------------------- #
 def test_determine_frame_key_two_color_creature():
-    assert CardRenderer().determine_frame_key(_card("Creature — Bird", ["U", "W"])) == "WU"
+    # The two-colour frame is derived from the mana cost (real-Magic canon): an
+    # all-hybrid-of-the-pair cost wears the split key; a plain gold cost (or no
+    # cost) collapses to the gold M frame. See test_two_color_frame_mode.py for
+    # the full matrix.
+    r = CardRenderer()
+    hybrid = _card("Creature — Bird", ["U", "W"])
+    hybrid.mana_cost = "{W/U}{W/U}"
+    assert r.determine_frame_key(hybrid) == "WU"
+    plain = _card("Creature — Bird", ["U", "W"])
+    plain.mana_cost = "{W}{U}"
+    assert r.determine_frame_key(plain) == "M"
 
 
 def test_determine_frame_key_two_color_artifact_is_not_split():

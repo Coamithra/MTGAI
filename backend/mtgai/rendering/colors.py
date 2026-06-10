@@ -6,6 +6,8 @@ from card color identity to frame image filenames.
 
 from __future__ import annotations
 
+import re
+
 # ---------------------------------------------------------------------------
 # Mana symbol colors — circle backgrounds for mana cost rendering
 # ---------------------------------------------------------------------------
@@ -172,6 +174,55 @@ def frame_key_for_identity(color_identity: list[str], is_land: bool = False) -> 
     if len(colors) == 2:
         return two_color_key(colors)  # two-color split frame (m15FrameWU, …)
     return "M"  # three+ colors (gold)
+
+
+# ---------------------------------------------------------------------------
+# Two-colour frame: split (hybrid) vs gold (plain), derived from the MANA COST
+#
+# Real Magic frames a two-colour card by its cost, not a project toggle:
+#   * A cost whose colored pips are ALL hybrid spanning the card's two colours
+#     ({G/U}{G/U}, {1}{R/W}) wears the two-tone SPLIT frame — that's exactly
+#     what the committed m15Frame<PAIR> assets were stacked from (real hybrid
+#     scans).
+#   * A plain gold cost ({G}{U}, {1}{W}{B}), or any mix of plain + hybrid pips,
+#     wears the flat gold M frame — the canon convention for gold costs.
+# A phyrexian pip ({W/P}) counts as its single colour (P is not a colour), so it
+# is a PLAIN pip for this purpose: {W/P}{U} = plain W + plain U -> gold M. A
+# mono-colour cost (incl. a lone twobrid {2/W}) never reaches here — the caller
+# only consults this for a genuinely 2-colour identity.
+# ---------------------------------------------------------------------------
+_MANA_PIP_RE = re.compile(r"\{([^}]+)\}")
+_WUBRG_SET = frozenset("WUBRG")
+
+
+def cost_is_all_hybrid_pair(mana_cost: str | None, color_identity: list[str]) -> bool:
+    """Whether a 2-colour card's cost reads as the canonical hybrid SPLIT frame.
+
+    Returns ``True`` only when the card has a two-colour identity AND every
+    colored pip in ``mana_cost`` is a hybrid spanning two distinct WUBRG colours
+    (``{G/U}``), with those hybrids together covering exactly the card's two
+    colours. Any plain colored pip (``{G}``), a phyrexian pip (``{W/P}`` — a
+    single-colour pip), a twobrid (``{2/W}`` — a single-colour pip), a mixed
+    hybrid+plain cost, or a missing cost all yield ``False`` → the flat gold M
+    frame (real-Magic canon for gold costs).
+    """
+    identity = sorted({c.value if hasattr(c, "value") else str(c) for c in color_identity})
+    if len(identity) != 2 or not mana_cost:
+        return False
+
+    pip_colors_union: set[str] = set()
+    saw_colored_pip = False
+    for inner in _MANA_PIP_RE.findall(mana_cost):
+        pip_colors = {ch for ch in inner.split("/") if ch in _WUBRG_SET}
+        if not pip_colors:
+            continue  # generic / X / colorless — frame-neutral
+        saw_colored_pip = True
+        # A split frame needs EVERY colored pip to be a two-colour hybrid.
+        if len(pip_colors) != 2:
+            return False
+        pip_colors_union |= pip_colors
+
+    return saw_colored_pip and pip_colors_union == set(identity)
 
 
 # ---------------------------------------------------------------------------

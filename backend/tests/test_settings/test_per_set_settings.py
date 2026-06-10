@@ -182,6 +182,34 @@ def test_settings_round_trips_set_params_break_points(tmp_path):
     assert loaded.break_points == {"card_gen": "review", "conformance": "review"}
 
 
+def test_legacy_two_color_frame_field_loads_gracefully(tmp_path):
+    """A .mtg / settings TOML carrying the retired ``two_color_frame`` knob loads.
+
+    The toggle was removed in favour of the cost-derived frame rule (card
+    6a28a052). Pydantic ignores the unknown field (no ``extra="forbid"``), so a
+    stale project file still opens — the field is simply dropped.
+    """
+    path = tmp_path / "legacy.toml"
+    path.write_text(
+        "\n".join(
+            [
+                "[set_params]",
+                'set_name = "Legacy Set"',
+                "set_size = 60",
+                "mechanic_count = 2",
+                "art_versions_per_card = 3",
+                'two_color_frame = "gold"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = ms.ModelSettings.load_from_file(path)
+    assert loaded.set_params.set_name == "Legacy Set"
+    assert loaded.set_params.set_size == 60
+    assert not hasattr(loaded.set_params, "two_color_frame")
+
+
 def test_settings_round_trips_theme_input(tmp_path):
     s = ms.ModelSettings(
         theme_input=ms.ThemeInputSource(
@@ -222,7 +250,6 @@ def test_to_ui_dict_includes_new_blocks():
         "set_size": 50,
         "mechanic_count": 3,
         "art_versions_per_card": 3,
-        "two_color_frame": "split",
     }
     assert ui["break_points"] == {"card_gen": "review"}
     assert ui["theme_input"]["kind"] == "none"
