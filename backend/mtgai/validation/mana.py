@@ -173,12 +173,76 @@ def canonical_color_sequence(colors: set[str]) -> list[str]:
 def cost_has_compound_symbol(symbols: list[str]) -> bool:
     """True if any parsed symbol is a hybrid/phyrexian/twobrid (contains ``/``).
 
-    The canonical reorder is restricted to *simple* costs (generic/X/C + plain
-    WUBRG pips). A cost carrying a compound symbol like ``{G/U}`` / ``{G/P}`` /
-    ``{2/W}`` is left untouched — reordering a hybrid pip risks changing the
-    perceived semantics, and our generator effectively never emits them.
+    The canonical *cross-pip* reorder is restricted to *simple* costs (generic/X/C
+    + plain WUBRG pips). A cost carrying a compound symbol like ``{G/U}`` /
+    ``{G/P}`` / ``{2/W}`` keeps its **pip positions** untouched — reordering a
+    hybrid pip across the cost risks changing the perceived semantics. The order
+    of the two halves *inside* each ``{…}`` is still normalized (see
+    :func:`canonical_compound_symbol`); that's character-level and semantics-safe.
     """
     return any("/" in s for s in symbols)
+
+
+def canonical_compound_symbol(sym: str) -> str:
+    """Return a compound mana symbol with its two halves in canonical print order.
+
+    Operates on the *inner* text of a single ``{…}`` symbol (no braces), e.g.
+    ``"U/G"`` -> ``"G/U"``. Real cards print the two halves in a fixed order, and
+    PR #161's compositor draws the first-written half upper-left, so a backwards
+    half-order renders visibly wrong. Within-pip reordering is semantics-safe —
+    ``{U/G}`` and ``{G/U}`` are identical (pay either).
+
+    Canonicalization, by symbol shape (a ``/``-bearing two-part symbol only):
+
+    * **Hybrid** ``{A/B}`` (two colors) — the two colored halves are ordered by
+      :func:`canonical_color_sequence` (the same colour-wheel rule the cost uses),
+      so ``{U/G}`` -> ``{G/U}`` (Simic), ``{W/G}`` -> ``{G/W}`` (Selesnya),
+      ``{W/R}`` -> ``{R/W}`` (Boros).
+    * **Twobrid** ``{2/W}`` — the numeral leads (``{W/2}`` -> ``{2/W}``).
+    * **Phyrexian** ``{W/P}`` — the ``P`` is last (``{P/W}`` -> ``{W/P}``).
+
+    Anything the two-part grammar doesn't admit (a 3-part hybrid-phyrexian like
+    ``{G/U/P}``, or any unrecognized shape) is returned **unchanged** — see
+    :data:`MANA_SYMBOL_PATTERN`, which only parses two-part compounds, so a
+    longer symbol never reaches the check/fixer's parsed path anyway.
+    """
+    parts = sym.split("/")
+    if len(parts) != 2:
+        return sym
+
+    # Phyrexian: the lone P half always reads last, the other half first.
+    if "P" in parts:
+        other = next((p for p in parts if p != "P"), None)
+        if other is None:  # nonsensical {P/P} — leave it
+            return sym
+        return f"{other}/P"
+
+    # Twobrid: the generic-numeral half always reads first.
+    if any(p.isdigit() for p in parts):
+        numeral = next(p for p in parts if p.isdigit())
+        colored = next((p for p in parts if not p.isdigit()), None)
+        if colored is None:  # nonsensical {2/3} — leave it
+            return sym
+        return f"{numeral}/{colored}"
+
+    # Hybrid (two colors): order by the canonical colour-wheel sequence.
+    if all(p in COLOR_SYMBOLS for p in parts):
+        ordered = canonical_color_sequence(set(parts))
+        if len(ordered) == 2:
+            return f"{ordered[0]}/{ordered[1]}"
+
+    return sym
+
+
+def _normalize_within_pips(symbols: list[str]) -> list[str]:
+    """Rewrite each compound symbol's halves into canonical order, in place.
+
+    Pip *positions* are preserved (1:1, same length, same order); only the
+    characters inside a ``/``-bearing symbol change. This is the within-pip half
+    of the ordering fix and is the only rewrite applied to a compound-bearing
+    cost (the cross-pip reorder stays skipped — see :func:`cost_has_compound_symbol`).
+    """
+    return [canonical_compound_symbol(s) if "/" in s else s for s in symbols]
 
 
 def _canonical_symbol_order(symbols: list[str]) -> list[str]:
@@ -192,12 +256,13 @@ def _canonical_symbol_order(symbols: list[str]) -> list[str]:
     order. This is the single source of truth shared by the ordering validator
     and its fixer, so a fixed cost always passes the check.
 
-    A cost containing a compound symbol (hybrid/phyrexian/twobrid) is returned
-    **unchanged** (conservative skip — see :func:`cost_has_compound_symbol`); the
-    check and fixer also bail on such costs so a hybrid pip is never reordered.
+    A cost containing a compound symbol (hybrid/phyrexian/twobrid) keeps its pip
+    **positions** unchanged (the cross-pip reorder is the conservative skip — see
+    :func:`cost_has_compound_symbol`), but each compound symbol's two halves are
+    still normalized *within* the pip ({U/G} -> {G/U}), which is semantics-safe.
     """
     if cost_has_compound_symbol(symbols):
-        return list(symbols)
+        return _normalize_within_pips(symbols)
 
     colored = {s for s in symbols if s in COLOR_SYMBOLS}
     color_rank = {c: i for i, c in enumerate(canonical_color_sequence(colored))}
@@ -345,13 +410,15 @@ def validate_mana_consistency(card: Card) -> list[ValidationError]:
     #    misplaced generic like {B}{G}{1} (canonical {1}{B}{G}) slipped through.
     # ------------------------------------------------------------------
     # `stripped` non-empty means the cost has unparseable symbols (e.g. a
-    # {2/W} twobrid the pattern can't match). Those are owned by the
-    # invalid_format check above; skip the order check so we never emit a flag
-    # whose fixer would have to rebuild from a lossy `findall`. A compound
-    # (hybrid/phyrexian/twobrid) symbol is left untouched too (conservative —
-    # reordering a hybrid pip risks changing perceived semantics).
+    # {S} snow symbol or a backwards {W/2} twobrid the pattern can't match).
+    # Those are owned by the invalid_format check above; skip the order check so
+    # we never emit a flag whose fixer would have to rebuild from a lossy
+    # `findall`. A compound-bearing cost keeps its pip *positions* (the cross-pip
+    # reorder stays skipped), but `_canonical_symbol_order` still normalizes each
+    # pip's two halves in place ({U/G} -> {G/U}), so a within-pip violation is
+    # flagged here.
     cost_symbols = MANA_SYMBOL_PATTERN.findall(card.mana_cost)
-    skip_order = stripped or cost_has_compound_symbol(cost_symbols)
+    skip_order = bool(stripped)
     canonical_symbols = _canonical_symbol_order(cost_symbols)
     if not skip_order and cost_symbols != canonical_symbols:
         got = "".join(f"{{{s}}}" for s in cost_symbols)
@@ -590,9 +657,10 @@ def fix_wubrg_order(card: Card, error: ValidationError) -> Card:
 
     Generic/X/C first, then the colored pips in the canonical colour-wheel
     sequence for the cost's color combination (the shortest-cyclic-arc rule, e.g.
-    ``{G}{W}`` not ``{W}{G}`` — see :func:`canonical_color_sequence`). A cost with
-    a compound (hybrid/phyrexian/twobrid) symbol is left untouched (conservative
-    skip; the check never flags it either).
+    ``{G}{W}`` not ``{W}{G}`` — see :func:`canonical_color_sequence`). A cost
+    with a compound (hybrid/phyrexian/twobrid) symbol keeps its pip *positions*
+    (the cross-pip reorder is skipped), but each compound symbol's two halves are
+    normalized in place ({U/G} -> {G/U}; see :func:`canonical_compound_symbol`).
     """
     if not card.mana_cost:
         return card
@@ -603,7 +671,7 @@ def fix_wubrg_order(card: Card, error: ValidationError) -> Card:
         return card
 
     symbols = MANA_SYMBOL_PATTERN.findall(card.mana_cost)
-    if not symbols or cost_has_compound_symbol(symbols):
+    if not symbols:
         return card
 
     new_cost = "".join(f"{{{s}}}" for s in _canonical_symbol_order(symbols))
