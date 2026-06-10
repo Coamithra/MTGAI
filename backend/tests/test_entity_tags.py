@@ -31,6 +31,24 @@ def _patch_llm(monkeypatch, entities: list[dict]) -> None:
     monkeypatch.setattr(et, "cost_from_result", lambda _r: 0.0)
 
 
+def _patch_llm_sequence(monkeypatch, responses: list[list[dict]]) -> dict:
+    """Patch the LLM to return a different ``entities`` list per successive call.
+
+    The last entry is repeated if the code calls more times than provided. Returns
+    a ``calls`` dict whose ``["n"]`` tracks how many times the tool was invoked.
+    """
+    calls = {"n": 0}
+
+    def fake_generate_with_tool(*_args, **_kwargs):
+        idx = min(calls["n"], len(responses) - 1)
+        calls["n"] += 1
+        return {"result": {"entities": responses[idx]}, "input_tokens": 10, "output_tokens": 10}
+
+    monkeypatch.setattr(et, "generate_with_tool", fake_generate_with_tool)
+    monkeypatch.setattr(et, "cost_from_result", lambda _r: 0.0)
+    return calls
+
+
 # ---------------------------------------------------------------------------
 # detect_entity_tags
 # ---------------------------------------------------------------------------
@@ -265,3 +283,148 @@ def test_effective_card_tags_skips_malformed_entries() -> None:
     }
     assert et.effective_card_tags(data, "001") == [{"entity_key": "good", "kind": "character"}]
     assert et.effective_card_tags(data, "002") == []
+
+
+# ---------------------------------------------------------------------------
+# Layer 1: validate-and-retry on malformed (numeric) card refs (card 6a29a6eb)
+# ---------------------------------------------------------------------------
+
+
+def test_detect_retries_on_majority_ref_loss(monkeypatch) -> None:
+    """The live bug: the model names entities but emits numeric card refs (0.0) for
+    ALL of them, so every entity drops. Detection retries once with feedback and
+    keeps the good second attempt."""
+    bad = [
+        {"entity_key": "applejack", "name": "Applejack", "kind": "character", "cards": [0.0]},
+        {"entity_key": "celestia", "name": "Celestia", "kind": "character", "cards": [0.0]},
+    ]
+    good = [
+        {"entity_key": "applejack", "name": "Applejack", "kind": "character", "cards": ["001"]},
+        {"entity_key": "celestia", "name": "Celestia", "kind": "character", "cards": ["002"]},
+    ]
+    calls = _patch_llm_sequence(monkeypatch, [bad, good])
+    diag: dict = {}
+    entities, _ = et.detect_entity_tags(_cards_fixture(), {}, model_id="m", diagnostics=diag)
+    assert calls["n"] == 2  # retried exactly once
+    assert {e["entity_key"] for e in entities} == {"applejack", "celestia"}
+    assert diag["attempts"] == 2
+    assert diag["detection_failed"] is False
+
+
+def test_detect_no_retry_when_refs_valid(monkeypatch) -> None:
+    """A clean first attempt does not retry."""
+    calls = _patch_llm_sequence(
+        monkeypatch,
+        [[{"entity_key": "aria", "name": "Aria", "kind": "character", "cards": ["001"]}]],
+    )
+    diag: dict = {}
+    et.detect_entity_tags(_cards_fixture(), {}, model_id="m", diagnostics=diag)
+    assert calls["n"] == 1
+    assert diag["attempts"] == 1
+
+
+def test_detect_no_retry_below_threshold(monkeypatch) -> None:
+    """Only a MAJORITY (>50%) ref loss triggers the retry; a single drop does not."""
+    one_bad = [
+        {"entity_key": "aria", "name": "Aria", "kind": "character", "cards": ["001"]},
+        {"entity_key": "lost", "name": "Lost", "kind": "character", "cards": [0.0]},
+    ]
+    calls = _patch_llm_sequence(monkeypatch, [one_bad])
+    et.detect_entity_tags(_cards_fixture(), {}, model_id="m")
+    assert calls["n"] == 1  # 1/2 dropped is not > 50%
+
+
+# ---------------------------------------------------------------------------
+# Layer 2: total ref loss -> diagnosable sidecar + WARN (card 6a29a6eb)
+# ---------------------------------------------------------------------------
+
+
+def test_total_ref_loss_marks_sidecar_detection_failed(monkeypatch, tmp_path, caplog) -> None:
+    """When detection names entities but ALL drop (even after retry), the sidecar is
+    stamped detection_failed instead of writing an innocent-looking empty result."""
+    bad = [{"entity_key": "applejack", "name": "Applejack", "kind": "character", "cards": [0.0]}]
+    # Both attempts return the same malformed shape -> total loss persists.
+    _patch_llm_sequence(monkeypatch, [bad, bad])
+    with caplog.at_level("WARNING"):
+        data, _ = et.ensure_entity_tags(tmp_path, _cards_fixture(), {}, model_id="m")
+    assert data["detection_failed"] is True
+    assert any("detection failed" in r.message.lower() for r in caplog.records)
+    # Persisted flag survives a reload.
+    on_disk = json.loads(et.entity_tags_path(tmp_path).read_text(encoding="utf-8"))
+    assert on_disk["detection_failed"] is True
+    assert et.load_entity_tags(tmp_path).get("detection_failed") is True
+
+
+def test_successful_detection_has_no_failed_flag(monkeypatch, tmp_path) -> None:
+    _patch_llm(
+        monkeypatch,
+        [{"entity_key": "aria", "name": "Aria", "kind": "character", "cards": ["001"]}],
+    )
+    data, _ = et.ensure_entity_tags(tmp_path, _cards_fixture(), {}, model_id="m")
+    assert "detection_failed" not in data
+
+
+# ---------------------------------------------------------------------------
+# Layer 3: distrust a vacuous sidecar -> re-detect (card 6a29a6eb)
+# ---------------------------------------------------------------------------
+
+
+def test_sidecar_is_vacuous_predicate() -> None:
+    assert et._sidecar_is_vacuous({"detection_failed": True, "cards": {}, "entities_meta": {}})
+    # All-empty tags + empty meta = vacuous (the bug's shape).
+    assert et._sidecar_is_vacuous(
+        {
+            "cards": {"001": {"tags": [], "source": "ai"}, "002": {"tags": [], "source": "ai"}},
+            "entities_meta": {},
+        }
+    )
+    # A real result is NOT vacuous.
+    assert not et._sidecar_is_vacuous(_sidecar())
+    # Empty tags but populated meta is a real (if sparse) result.
+    assert not et._sidecar_is_vacuous(
+        {"cards": {"001": {"tags": [], "source": "ai"}}, "entities_meta": {"x": {"name": "X"}}}
+    )
+
+
+def test_ensure_redetects_all_empty_sidecar(monkeypatch, tmp_path) -> None:
+    """An existing-but-all-empty sidecar (the bug's output) is re-detected, not
+    trusted — the fix that revives char_portraits' recurring entities."""
+    vacuous = {
+        "cards": {cn: {"tags": [], "source": "ai"} for cn in ("001", "002", "003")},
+        "entities_meta": {},
+    }
+    et.save_entity_tags(tmp_path, vacuous)
+    _patch_llm(
+        monkeypatch,
+        [{"entity_key": "aria", "name": "Aria", "kind": "character", "cards": ["001", "002"]}],
+    )
+    data, _ = et.ensure_entity_tags(tmp_path, _cards_fixture(), {}, model_id="m")
+    assert data["cards"]["001"]["tags"] == [{"entity_key": "aria", "kind": "character"}]
+    # recurring_from_tags now sees the entity again.
+    assert {e["entity_key"] for e in et.recurring_from_tags(data)} == {"aria"}
+
+
+def test_ensure_redetect_preserves_manual_on_vacuous(monkeypatch, tmp_path) -> None:
+    """Re-detecting a vacuous sidecar still preserves source=manual records."""
+    vacuous = {
+        "cards": {
+            "001": {"tags": [{"entity_key": "hand_pick", "kind": "faction"}], "source": "manual"},
+            "002": {"tags": [], "source": "ai"},
+            "003": {"tags": [], "source": "ai"},
+        },
+        # Manual tag means there IS a non-empty tag list, so seed detection_failed to
+        # force the vacuous path regardless.
+        "entities_meta": {},
+        "detection_failed": True,
+    }
+    et.save_entity_tags(tmp_path, vacuous)
+    _patch_llm(
+        monkeypatch,
+        [{"entity_key": "aria", "name": "Aria", "kind": "character", "cards": ["002"]}],
+    )
+    data, _ = et.ensure_entity_tags(tmp_path, _cards_fixture(), {}, model_id="m")
+    assert data["cards"]["001"]["source"] == "manual"
+    assert data["cards"]["001"]["tags"] == [{"entity_key": "hand_pick", "kind": "faction"}]
+    assert data["cards"]["002"]["tags"] == [{"entity_key": "aria", "kind": "character"}]
+    # The fresh successful run clears the stale failed flag.
+    assert "detection_failed" not in data
