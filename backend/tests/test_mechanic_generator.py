@@ -1506,3 +1506,36 @@ def test_persist_mechanic_selection_writes_all_files(tmp_path) -> None:
     assert "picked_at" in rationale
     on_disk_approved = json.loads((mech_dir / "approved.json").read_text(encoding="utf-8"))
     assert [a["name"] for a in on_disk_approved] == ["Mechanic0", "Mechanic2"]
+
+
+def test_persist_mechanic_selection_normalizes_example_card_escapes(tmp_path) -> None:
+    """A double-escaped LLM newline (literal backslash-n) in an example card is
+    healed to a real newline in both candidates.json and approved.json; clean
+    sibling cards are untouched."""
+    import json
+
+    candidates = [_valid_mech(i) for i in range(3)]
+    candidates[0]["example_cards"] = [
+        {
+            "name": "Stormbringer Pegasus",
+            "oracle_text": "Flying\\nSquall 3",  # literal backslash + n
+            "flavor_text": "Storm\\tchaser.",  # literal backslash + t
+        },
+        {"name": "Clean Sibling", "oracle_text": "Flying\nSquall 3"},
+    ]
+
+    mech_dir = tmp_path / "mechanics"
+    approved = mg.persist_mechanic_selection(mech_dir, candidates, [0])
+
+    on_disk = json.loads((mech_dir / "candidates.json").read_text(encoding="utf-8"))
+    fixed = on_disk[0]["example_cards"][0]
+    assert fixed["oracle_text"] == "Flying\nSquall 3"
+    assert fixed["flavor_text"] == "Storm chaser."
+    assert on_disk[0]["example_cards"][1]["oracle_text"] == "Flying\nSquall 3"
+
+    on_disk_approved = json.loads((mech_dir / "approved.json").read_text(encoding="utf-8"))
+    assert on_disk_approved[0]["example_cards"][0]["oracle_text"] == "Flying\nSquall 3"
+    assert approved[0]["example_cards"][0]["oracle_text"] == "Flying\nSquall 3"
+
+    # The caller's input list was not mutated.
+    assert candidates[0]["example_cards"][0]["oracle_text"] == "Flying\\nSquall 3"

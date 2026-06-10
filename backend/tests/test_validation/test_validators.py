@@ -1010,6 +1010,145 @@ class TestNonlandMissingCost:
 
 
 # ===========================================================================
+# Escaped-whitespace normalization (whitespace)
+# ===========================================================================
+
+
+class TestEscapedWhitespace:
+    r"""Literal ``\n`` / ``\t`` escapes from double-escaped LLM JSON output."""
+
+    def test_literal_newline_in_oracle_flagged_auto(self):
+        card = _make_card(oracle_text="Flying\\nWhenever ~ attacks, you gain 1 life.")
+        errors = _errors_by_validator(validate_card(card), "whitespace")
+        assert len(errors) == 1
+        assert errors[0].severity == ValidationSeverity.AUTO
+        assert errors[0].field == "oracle_text"
+        assert errors[0].error_code == "whitespace.literal_escape"
+
+    def test_whitespace_error_is_first_in_sequence(self):
+        # The fix must apply before line-based fixers (auto_fix_card applies
+        # fixes in finding order), so the finding must come first.
+        card = _make_card(oracle_text="Flying\\nWhenever ~ attacks, you gain 1 life")
+        errors = validate_card(card)
+        assert errors and errors[0].validator == "whitespace"
+
+    def test_auto_fix_normalizes_oracle_newline(self):
+        card = _make_card(oracle_text="Flying\\nWhenever ~ attacks, you gain 1 life.")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "Flying\nWhenever ~ attacks, you gain 1 life."
+
+    def test_auto_fix_normalizes_flavor_text(self):
+        card = _make_card(flavor_text="First line.\\nSecond line.")
+        errors = _errors_by_validator(validate_card(card), "whitespace")
+        assert len(errors) == 1
+        assert errors[0].field == "flavor_text"
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.flavor_text == "First line.\nSecond line."
+
+    def test_literal_tab_becomes_space(self):
+        card = _make_card(oracle_text="Flying\\tWhenever ~ attacks, you gain 1 life.")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "Flying Whenever ~ attacks, you gain 1 life."
+
+    def test_clean_text_not_flagged(self):
+        card = _make_card(
+            oracle_text="Flying\nWhenever ~ attacks, you gain 1 life.",
+            flavor_text="Real newline.\nNo escapes.",
+        )
+        assert _errors_by_validator(validate_card(card), "whitespace") == []
+
+    def test_normalize_is_idempotent(self):
+        from mtgai.validation.whitespace import normalize_escaped_whitespace
+
+        dirty = "Flying\\nSquall 3\\tend"
+        once = normalize_escaped_whitespace(dirty)
+        assert normalize_escaped_whitespace(once) == once
+        clean = "Flying\nSquall 3"
+        assert normalize_escaped_whitespace(clean) == clean
+
+    def test_literal_carriage_return_normalized(self):
+        from mtgai.validation.whitespace import normalize_escaped_whitespace
+
+        # A literal \r\n pair collapses to ONE newline, not a blank line.
+        assert normalize_escaped_whitespace("First.\\r\\nSecond.") == "First.\nSecond."
+        assert normalize_escaped_whitespace("First.\\rSecond.") == "First.\nSecond."
+        card = _make_card(oracle_text="First strike.\\rSecond wind.")
+        assert len(_errors_by_validator(validate_card(card), "whitespace")) == 1
+
+    def test_both_fields_dirty_yields_one_finding_per_field(self):
+        card = _make_card(
+            oracle_text="Flying\\nWhenever ~ attacks, you gain 1 life.",
+            flavor_text="First.\\nSecond.",
+        )
+        errors = _errors_by_validator(validate_card(card), "whitespace")
+        assert sorted(e.field for e in errors) == ["flavor_text", "oracle_text"]
+
+    def test_fixer_ignores_unknown_field_and_empty_value(self):
+        from mtgai.validation.whitespace import fix_escaped_whitespace
+
+        card = _make_card(flavor_text=None)
+        bogus = ValidationError(
+            validator="whitespace",
+            severity=ValidationSeverity.AUTO,
+            field="name",
+            message="x",
+            error_code="whitespace.literal_escape",
+        )
+        assert fix_escaped_whitespace(card, bogus) is card
+        empty = bogus.model_copy(update={"field": "flavor_text"})
+        assert fix_escaped_whitespace(card, empty) is card
+
+    def test_validate_card_from_raw_round_trip(self, custom_keywords_salvage):
+        # The live bug shape: 'Flying\nSalvage 3' with a LITERAL backslash-n.
+        raw = {
+            "name": "Stormbringer Pegasus",
+            "mana_cost": "{1}{W}",
+            "cmc": 2.0,
+            "type_line": "Creature — Pegasus",
+            "oracle_text": "Flying\\nSalvage 3",
+            "power": "2",
+            "toughness": "1",
+            "rarity": "common",
+            "colors": ["W"],
+            "color_identity": ["W"],
+            "collector_number": "002",
+            "set_code": "TST",
+            "card_types": ["Creature"],
+            "subtypes": ["Pegasus"],
+        }
+        card, _errors, fixes, regen = validate_card_from_raw(raw)
+        assert regen is False
+        assert card.oracle_text == "Flying\nSalvage 3"
+        assert any("whitespace.literal_escape" in f for f in fixes)
+
+    def test_defect_masked_by_literal_newline_is_caught_same_pass(self):
+        # Pre-fix, the card is ONE long literal-\n line, so keyword_ordering
+        # would see nothing to flag. The pre-normalize pass in
+        # validate_card_from_raw heals the escape BEFORE findings are computed,
+        # so the misplaced keyword is detected and hoisted in the same pass.
+        raw = {
+            "name": "Masked Defect",
+            "mana_cost": "{1}{W}",
+            "cmc": 2.0,
+            "type_line": "Creature — Bird",
+            "oracle_text": "Whenever ~ attacks, you gain 1 life.\\nFlying",
+            "power": "1",
+            "toughness": "1",
+            "rarity": "common",
+            "colors": ["W"],
+            "color_identity": ["W"],
+            "collector_number": "003",
+            "set_code": "TST",
+            "card_types": ["Creature"],
+            "subtypes": ["Bird"],
+        }
+        card, _errors, fixes, _regen = validate_card_from_raw(raw)
+        assert any("whitespace.literal_escape" in f for f in fixes)
+        assert any("keyword_ordering.misplaced" in f for f in fixes)
+        assert card.oracle_text.split("\n")[0] == "Flying"
+
+
+# ===========================================================================
 # Rules text grammar
 # ===========================================================================
 

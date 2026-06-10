@@ -103,6 +103,16 @@ class TestFinalizeCard:
         # Only one reminder text
         assert finalized.oracle_text.count("(Look at the top") == 1
 
+    def test_literal_escaped_newline_healed_before_line_checks(self):
+        """A literal backslash-n is normalized FIRST, so the line-based
+        validators see real lines in the same pass (here: the misplaced
+        keyword hidden inside the un-normalized one-long-line is hoisted)."""
+        card = _make_card(oracle_text="Whenever ~ attacks, you gain 1 life.\\nFlying")
+        finalized, fixes, _manual = finalize_card(card, MECHANICS)
+        assert "\\n" not in finalized.oracle_text
+        assert finalized.oracle_text.split("\n")[0] == "Flying"
+        assert any("whitespace.literal_escape" in f for f in fixes)
+
     def test_chained_auto_fixes_with_injection(self):
         """Multiple auto-fixable issues + reminder injection all apply."""
         card = _make_card(

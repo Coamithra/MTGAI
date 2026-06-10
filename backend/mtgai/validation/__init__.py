@@ -15,12 +15,15 @@ remaining text-overflow findings are returned to the caller as a single
 
 Validators owned by this module:
     1. schema         — Pydantic parse, required fields, correct types
-    2. mana           — CMC / color / color_identity consistency (AUTO-fixable)
-    3. type_check     — Creature P/T, planeswalker loyalty, aura/equipment
-    4. rules_text     — Self-reference, keyword caps, mana symbols (AUTO-fixable)
-    5. keyword_ordering — Keyword abilities above complex abilities (AUTO-fixable)
-    6. text_overflow  — Character count limits (REGEN trigger)
-    7. uniqueness     — Collector-number collision (AUTO-fixable)
+    2. whitespace     — Literal backslash-n/-t escapes from double-escaped LLM
+                        JSON (AUTO-fixable; runs first so line-based checks see
+                        real line structure)
+    3. mana           — CMC / color / color_identity consistency (AUTO-fixable)
+    4. type_check     — Creature P/T, planeswalker loyalty, aura/equipment
+    5. rules_text     — Self-reference, keyword caps, mana symbols (AUTO-fixable)
+    6. keyword_ordering — Keyword abilities above complex abilities (AUTO-fixable)
+    7. text_overflow  — Character count limits (REGEN trigger)
+    8. uniqueness     — Collector-number collision (AUTO-fixable)
 
 Design-judgment validators (consumed by analysis.heuristic_checks):
     - power_level
@@ -95,9 +98,18 @@ def validate_card(
     from mtgai.validation.text_overflow import validate_text_overflow
     from mtgai.validation.type_check import validate_type_consistency
     from mtgai.validation.uniqueness import validate_collector_number
+    from mtgai.validation.whitespace import validate_escaped_whitespace
 
     errors: list = []
 
+    # Whitespace check runs FIRST so its fix applies before the line-based
+    # fixers re-derive line structure. The primary heal is the pre-pass
+    # (whitespace.prenormalize_card_whitespace, run by validate_card_from_raw /
+    # finalize_card BEFORE this sequence so the line-based validators compute
+    # their findings on real lines); this in-sequence check is the diagnostic
+    # surface for auto_fix=False callers and the backstop for direct
+    # validate_card + auto_fix_card callers without the pre-pass.
+    errors += validate_escaped_whitespace(card)
     errors += validate_mana_consistency(card)
     errors += validate_type_consistency(card)
     errors += validate_rules_text(card)
@@ -130,17 +142,27 @@ def validate_card_from_raw(
       loop uses this single boolean as its regen signal.
     """
     from mtgai.validation.schema import validate_schema
+    from mtgai.validation.whitespace import prenormalize_card_whitespace
 
     card, schema_errors = validate_schema(raw)
     if card is None:
         return None, schema_errors, [], True
+
+    # Heal literal \n / \t escapes BEFORE the main validation pass: findings
+    # are computed once, so the line-based validators (keyword_ordering,
+    # rules_text line checks, text_overflow) must see real line structure —
+    # a defect hidden inside the un-normalized "one long line" would
+    # otherwise produce no finding and its fixer would never run.
+    pre_fixes: list[str] = []
+    if auto_fix:
+        card, pre_fixes = prenormalize_card_whitespace(card)
 
     all_errors = schema_errors + validate_card(card, existing_cards)
 
     if auto_fix:
         result = auto_fix_card(card, all_errors)
         regen = any(_is_regen_trigger(e) for e in result.remaining_errors)
-        return result.card, result.remaining_errors, result.applied_fixes, regen
+        return result.card, result.remaining_errors, pre_fixes + result.applied_fixes, regen
 
     regen = any(_is_regen_trigger(e) for e in all_errors)
     return card, all_errors, [], regen
@@ -226,9 +248,11 @@ def _register_auto_fixers() -> None:
         fix_type_line_order,
     )
     from mtgai.validation.uniqueness import fix_collector_number
+    from mtgai.validation.whitespace import fix_escaped_whitespace
 
     _AUTO_FIX_REGISTRY.update(
         {
+            "whitespace.literal_escape": fix_escaped_whitespace,
             "mana.invalid_format": fix_invalid_format,
             "mana.cmc_mismatch": fix_cmc,
             "mana.colors_mismatch": fix_colors,
