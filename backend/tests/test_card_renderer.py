@@ -13,8 +13,15 @@ from PIL import Image
 
 from mtgai.models.card import Card
 from mtgai.rendering import card_renderer
-from mtgai.rendering.card_renderer import _basic_land_symbol, _render_land_watermark
+from mtgai.rendering.card_renderer import (
+    LAND_WATERMARK_OPACITY,
+    LAND_WATERMARK_TINT,
+    _basic_land_symbol,
+    _land_watermark_image,
+    _render_land_watermark,
+)
 from mtgai.rendering.layout import NATIVE_TEXT_BOX
+from mtgai.rendering.symbol_renderer import get_mana_glyph_silhouette
 
 
 def _basic_land(subtype: str, color: str) -> Card:
@@ -91,11 +98,69 @@ def test_watermark_noop_for_nonland() -> None:
     assert canvas.getpixel((cx, cy))[3] == 0
 
 
-def test_watermark_opacity_is_reduced() -> None:
-    """Watermark alpha is scaled down so flavor text reads on top."""
+def test_with_opacity_scales_alpha() -> None:
+    """`_with_opacity` scales the alpha channel by the given factor."""
     full = card_renderer.get_mana_symbol("U", 400)
     faint = card_renderer._with_opacity(full, 0.5)
     # A fully-opaque source pixel is halved (int truncation: 255 -> 127).
     full_max = max(full.split()[3].getdata())
     faint_max = max(faint.split()[3].getdata())
     assert faint_max == int(full_max * 0.5)
+
+
+def test_watermark_opacity_is_faint() -> None:
+    """The watermark opacity is low so flavor text reads even over dark glyphs."""
+    assert 0.10 <= LAND_WATERMARK_OPACITY <= 0.20
+
+
+def test_glyph_silhouette_is_bare_flat_tint() -> None:
+    """The bare-glyph silhouette has flat-black RGB and a non-empty alpha shape.
+
+    No circular disc: a disc-bearing full mana symbol would paint opaque pixels
+    in the corners, but the bare glyph leaves them transparent.
+    """
+    sil = get_mana_glyph_silhouette("B", 400)
+    if sil is None:  # no SVG backend available in this environment
+        pytest.skip("no SVG backend for glyph rasterization")
+    # RGB is uniformly black (tinted at the call site via alpha only).
+    rgb = sil.convert("RGB")
+    assert rgb.getextrema() == ((0, 0), (0, 0), (0, 0))
+    # The glyph itself is present (some opaque alpha).
+    alpha = sil.split()[3]
+    assert max(alpha.getdata()) > 0
+    # Corners are transparent — there is no disc behind the glyph.
+    assert alpha.getpixel((4, 4)) == 0
+    assert alpha.getpixel((395, 395)) == 0
+
+
+def test_land_watermark_is_bare_glyph_tinted() -> None:
+    """The composited land watermark is the bare glyph in the flat tint, faded.
+
+    For Swamp ({B}) the OLD full-symbol path painted a near-black disc; the new
+    path must instead carry the flat brown tint at the faint opacity wherever the
+    glyph is drawn — never the symbol's own colors and never a disc. Requires an
+    SVG backend (the bare glyph comes from the IcoMoon SVG); skipped otherwise,
+    where `_land_watermark_image` degrades to the faded full symbol.
+    """
+    if get_mana_glyph_silhouette("B", 400) is None:
+        pytest.skip("no SVG backend for glyph rasterization")
+    wm = _land_watermark_image("B", 400)
+    rgba = wm.load()
+    # Find the most-opaque pixel (somewhere on the glyph shape).
+    alpha = wm.split()[3]
+    peak = max(alpha.getdata())
+    assert peak > 0
+    # Peak alpha never exceeds the faint-opacity ceiling (255 * opacity).
+    assert peak <= int(255 * LAND_WATERMARK_OPACITY) + 1
+    # The opaque glyph pixels carry the flat tint, not the symbol's near-black.
+    w, h = wm.size
+    found_tint = False
+    for y in range(0, h, 7):
+        for x in range(0, w, 7):
+            r, g, b, a = rgba[x, y]
+            if a > 0:
+                assert (r, g, b) == LAND_WATERMARK_TINT
+                found_tint = True
+    assert found_tint
+    # No disc: the corners stay transparent.
+    assert alpha.getpixel((2, 2)) == 0

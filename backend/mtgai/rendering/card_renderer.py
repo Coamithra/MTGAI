@@ -59,6 +59,7 @@ from mtgai.rendering.layout import (
     pt_box_path,
 )
 from mtgai.rendering.symbol_renderer import (
+    get_mana_glyph_silhouette,
     get_mana_symbol,
     get_set_symbol,
     parse_mana_cost,
@@ -130,8 +131,14 @@ BASIC_LAND_SYMBOL: dict[str, str] = {
 
 # Fraction of the text-box height the watermark symbol occupies.
 LAND_WATERMARK_SCALE = 0.55
-# Watermark opacity — visible but faint enough that flavor text reads on top.
-LAND_WATERMARK_OPACITY = 0.5
+# Watermark opacity — faint and tone-on-tone like a real basic-land watermark,
+# so flavor text reads cleanly even over the glyph's darkest regions. Real
+# watermarks sit at ~10-15% effective; 0.15 over a flat tint matches them.
+LAND_WATERMARK_OPACITY = 0.15
+# Flat tint for the bare-glyph watermark: a desaturated dark brown that reads as
+# a subtle shadow on the M15 parchment text box (NOT the symbol's full color, so
+# a near-black {B} no longer renders as a dark blob fighting the flavor text).
+LAND_WATERMARK_TINT = (74, 62, 46)
 
 
 def _basic_land_symbol(card: Card) -> str | None:
@@ -161,13 +168,43 @@ def _with_opacity(img: Image.Image, opacity: float) -> Image.Image:
     return out
 
 
+def _tint_silhouette(
+    silhouette: Image.Image, tint: tuple[int, int, int], opacity: float
+) -> Image.Image:
+    """Recolor an RGBA glyph silhouette to a flat ``tint`` and scale its alpha.
+
+    The silhouette's RGB is replaced by ``tint`` wholesale; only its alpha (the
+    glyph shape) is kept, then faded by ``opacity``. This yields a flat
+    tone-on-tone watermark rather than the full-color mana symbol.
+    """
+    flat = Image.new("RGBA", silhouette.size, (*tint, 0))
+    alpha = silhouette.split()[3].point(lambda a: int(a * opacity))
+    flat.putalpha(alpha)
+    return flat
+
+
+def _land_watermark_image(symbol: str, size: int) -> Image.Image:
+    """Build the faded bare-glyph watermark for a basic land's produced color.
+
+    Prefers the BARE glyph silhouette (no circular disc) tinted to a flat
+    tone-on-tone shadow at low opacity — matching real basic-land watermarks.
+    Falls back to the faded full mana symbol only when the glyph silhouette is
+    unavailable (no SVG backend / missing asset).
+    """
+    silhouette = get_mana_glyph_silhouette(symbol, size)
+    if silhouette is not None:
+        return _tint_silhouette(silhouette, LAND_WATERMARK_TINT, LAND_WATERMARK_OPACITY)
+    return _with_opacity(get_mana_symbol(symbol, size), LAND_WATERMARK_OPACITY)
+
+
 def _render_land_watermark(canvas: Image.Image, card: Card) -> None:
-    """Composite a large produced-color mana symbol centered in the text box.
+    """Composite a faint produced-color watermark centered in the text box.
 
     Basic lands have empty oracle text, so without this their text box renders
-    blank. Real basic lands show the land's produced-color mana symbol large and
-    centered (behind any flavor text). Called before the text box so flavor text
-    draws on top. No-op for any card that is not a basic land.
+    blank. Real basic lands show the land's produced-color symbol as a faint,
+    tone-on-tone BARE glyph (the skull/sun/tree/droplet/flame icon alone, no
+    circular disc) behind any flavor text. Called before the text box so flavor
+    text draws cleanly on top. No-op for any card that is not a basic land.
     """
     symbol = _basic_land_symbol(card)
     if symbol is None:
@@ -175,7 +212,7 @@ def _render_land_watermark(canvas: Image.Image, card: Card) -> None:
 
     box = NATIVE_TEXT_BOX
     size = int(box.height * LAND_WATERMARK_SCALE)
-    sym_img = _with_opacity(get_mana_symbol(symbol, size), LAND_WATERMARK_OPACITY)
+    sym_img = _land_watermark_image(symbol, size)
     canvas.alpha_composite(
         sym_img,
         (box.center_x - size // 2, box.center_y - size // 2),
