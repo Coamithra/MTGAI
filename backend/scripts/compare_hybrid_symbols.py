@@ -11,6 +11,11 @@ This harness writes:
   - ``compare_strip_<size>.png`` — a row of (mono G, {G/U}, {G/W}, {2/W}, {W/P})
     at title-bar (~96px) and oracle-inline (~44px) sizes, so you can eyeball the
     split direction + glyph placement at both scales.
+  - ``compare_within_pip_<size>.png`` — the within-pip normalizer (card 6a29d52b)
+    in action: each row is (backwards pip as the model might emit it -> the
+    ``canonical_compound_symbol`` correction) for the three wheel-wrap hybrid
+    pairs, so you can eyeball that the corrected orientation paints the first
+    canonical half upper-left (matching how real cards print {G/U}/{G/W}/{R/W}).
   - ``card_hybrid.png`` — a full synthetic card whose mana cost is ``{G/U}{G/U}``
     (title-bar path) and whose oracle text carries an activated cost ``{2/W}``
     (inline path), proving both call sites composite.
@@ -31,9 +36,13 @@ sys.path.insert(0, str(_REPO / "backend"))
 from mtgai.models.card import Card  # noqa: E402
 from mtgai.rendering import card_renderer  # noqa: E402
 from mtgai.rendering.symbol_renderer import get_mana_symbol  # noqa: E402
+from mtgai.validation.mana import canonical_compound_symbol  # noqa: E402
 
 STRIP_SYMBOLS = ["G", "G/U", "G/W", "2/W", "W/P"]
 STRIP_SIZES = [96, 44]  # title-bar-ish and oracle-inline-ish
+
+# Backwards pips a model might emit (left) -> the canonical correction (right).
+WITHIN_PIP_BACKWARDS = ["U/G", "W/G", "W/R"]
 
 
 def _strip(size: int) -> Image.Image:
@@ -43,6 +52,20 @@ def _strip(size: int) -> Image.Image:
     for i, sym in enumerate(STRIP_SYMBOLS):
         img = get_mana_symbol(sym, size)
         strip.alpha_composite(img, (pad + i * cell, pad // 2))
+    return strip
+
+
+def _within_pip_strip(size: int) -> Image.Image:
+    """One row per backwards pip: the as-emitted symbol then its correction."""
+    pad = max(4, size // 8)
+    cell = size + pad
+    rows = len(WITHIN_PIP_BACKWARDS)
+    strip = Image.new("RGBA", (cell * 2 + pad, cell * rows), (40, 40, 40, 255))
+    for r, backwards in enumerate(WITHIN_PIP_BACKWARDS):
+        corrected = canonical_compound_symbol(backwards)
+        for c, sym in enumerate((backwards, corrected)):
+            img = get_mana_symbol(sym, size)
+            strip.alpha_composite(img, (pad + c * cell, pad // 2 + r * cell))
     return strip
 
 
@@ -73,6 +96,12 @@ def main() -> None:
         path = out_dir / f"compare_strip_{size}.png"
         strip.convert("RGB").save(path)
         print(f"wrote {path}  ({'  '.join(STRIP_SYMBOLS)} @ {size}px)")
+
+        wp = _within_pip_strip(size)
+        wp_path = out_dir / f"compare_within_pip_{size}.png"
+        wp.convert("RGB").save(wp_path)
+        pairs = "  ".join(f"{b}->{canonical_compound_symbol(b)}" for b in WITHIN_PIP_BACKWARDS)
+        print(f"wrote {wp_path}  ({pairs} @ {size}px)")
 
     renderer = card_renderer.CardRenderer(output_root=out_dir)
     renderer.resolve_art_path = lambda card: None  # type: ignore[method-assign]
